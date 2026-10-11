@@ -68,7 +68,7 @@ function QuestionCard({ item, nameOf, canAct, busy, outcome, onAnswer, onDismiss
             {busy ? <Loader size={11} className="spin" /> : t('orgBubble.answer')}
           </button>
           {item.blocking && (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-chat-dismiss" disabled={!canAct || busy}
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-chat-dismiss" disabled={busy}
               title={t('orgBubble.dismissHint')} onClick={() => onDismiss(item.ref)}>
               {t('orgBubble.dismiss')}
             </button>
