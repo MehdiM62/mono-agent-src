@@ -435,10 +435,11 @@ jobs:
         run: bash scripts/check-release-tags.sh --min 11 artifacts/
       # The enforcement date and the production-key proof are the owner's (plan B5a Tasks 1-2): a date in
       # the source ships only with the repository variable ACCOUNT_ENFORCEMENT_RELEASE=true, and then
-      # only when it is 21+ days ahead and the production-token fixture exists.
+      # only when it is ACCOUNT_ENFORCEMENT_MIN_DAYS (default 21) days ahead and the production-token fixture exists.
       - name: The rollout state matches the owner's release decision
         env:
           ACCOUNT_ENFORCEMENT_RELEASE: ${{ vars.ACCOUNT_ENFORCEMENT_RELEASE }}
+          ACCOUNT_ENFORCEMENT_MIN_DAYS: ${{ vars.ACCOUNT_ENFORCEMENT_MIN_DAYS }}
         run: bash scripts/check-rollout-ready.sh
 
   # ─── 2h. Unsigned update manifest ──────────────────────────────────────────

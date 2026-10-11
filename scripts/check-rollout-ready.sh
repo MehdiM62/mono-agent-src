@@ -21,7 +21,9 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 rollout="$root/internal/account/rollout.go"
 fixture="$root/internal/account/testdata/production-key-token.jwt"
 now="$(date -u +%s)"
-min_days=21
+# The notice the date must give (spec D9: three weeks). The owner may waive it for a release with
+# ACCOUNT_ENFORCEMENT_MIN_DAYS=0, which also accepts a date that has already passed.
+min_days="${ACCOUNT_ENFORCEMENT_MIN_DAYS:-21}"; [ -n "$min_days" ] || min_days=21
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --rollout) rollout="${2:?--rollout needs a file}"; shift 2 ;;
@@ -66,7 +68,7 @@ if at="$(date -u -d "$ymd 00:00:00" +%s 2>/dev/null)"; then :
 elif at="$(date -u -j -f '%Y-%m-%d %H:%M:%S' "$ymd 00:00:00" +%s 2>/dev/null)"; then :
 else echo "::error::cannot parse the enforcement date $ymd" >&2; exit 1; fi
 
-if [ "$at" -lt "$((now + min_days * 86400))" ]; then
+if [ "$min_days" -gt 0 ] && [ "$at" -lt "$((now + min_days * 86400))" ]; then
   echo "::error::the enforcement date $ymd is less than $min_days days after this release (spec D9 promises users at least three weeks)" >&2
   exit 1
 fi

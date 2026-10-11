@@ -35,6 +35,13 @@ expect_fail "a date without the fixture" "fixture" "true" "$work/absent.jwt"
 rollout_with "$(dated "$(ahead 10)")"
 expect_fail "a date under 21 days ahead" "less than 21 days" "true"
 
+# The owner may waive the notice (no users to warn): a date that has already passed is then accepted.
+rollout_with "$(dated "$(ahead -5)")"
+expect_fail "a past date with the default notice" "less than 21 days" "true"
+ACCOUNT_ENFORCEMENT_MIN_DAYS=0 expect_ok "a past date with the notice waived" "true"
+ACCOUNT_ENFORCEMENT_MIN_DAYS=0 expect_fail "a past date, waived, without the fixture" "fixture" "true" "$work/absent.jwt"
+ACCOUNT_ENFORCEMENT_MIN_DAYS=0 expect_fail "a waived notice does not bring back an unflagged date" "only the owner's release R" ""
+
 rollout_with 'time.Date(2030, time.Smarch, 1, 0, 0, 0, 0, time.UTC)'
 expect_fail "a month that does not exist" "unknown month" "true"
 rollout_with 'time.Date(2030, time.March, 1, 12, 0, 0, 0, time.UTC)'
