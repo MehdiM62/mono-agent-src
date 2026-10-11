@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 	"sync"
@@ -33,7 +34,8 @@ func loadSandboxFallback(db *sql.DB) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("reading %s: %w", sandboxFallbackConfigName, err)
 	}
-	return strings.TrimSpace(raw), nil
+	// `config set sandbox.fallback '"fail"'` stores the quotes too.
+	return strings.Trim(strings.TrimSpace(raw), `"'`), nil
 }
 
 func saveSandboxFallback(db *sql.DB, v string) error {
@@ -62,27 +64,32 @@ func installSandboxFallbackProvider(cfg *globalConfig) {
 		if !at.IsZero() && time.Since(at) < sandboxFallbackTTL {
 			return cached
 		}
-		cached, at = readSandboxFallbackFile(expandPath(cfg.DBPath)), time.Now()
+		// An unreadable or locked database keeps the last value read: a
+		// user on "fail" must not drop to "run" for a second.
+		if v, err := readSandboxFallbackFile(expandPath(cfg.DBPath)); err == nil {
+			cached = v
+		}
+		at = time.Now()
 		return cached
 	}
 }
 
 // readSandboxFallbackFile reads the saved value straight from the database
-// file, without migrations; "" when it can't.
-func readSandboxFallbackFile(path string) string {
+// file, without migrations. A missing file is no setting ("", nil); a file
+// that can't be read is an error.
+func readSandboxFallbackFile(path string) (string, error) {
 	if _, err := os.Stat(path); err != nil {
-		return ""
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
 	}
 	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(1000)")
 	if err != nil {
-		return ""
+		return "", err
 	}
 	defer db.Close()
-	v, err := loadSandboxFallback(db)
-	if err != nil {
-		return ""
-	}
-	return v
+	return loadSandboxFallback(db)
 }
 
 // sandboxFallbackReport is `sandbox fallback --json`. Capable is whether

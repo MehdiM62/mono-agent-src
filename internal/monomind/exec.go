@@ -366,6 +366,9 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 			modes = SandboxModesFor(ctx, opts.Runtime)
 		}
 		sandboxArgs, sandboxEffective, fallbackActive, sandboxNote = SandboxFallbackPlan(caps, modes, opts.Runtime, opts.Sandbox, SandboxFallbackSetting())
+		if sandboxNote == SandboxFallbackRefusedNote {
+			return nil, fmt.Errorf("the %s runtime has no %s sandbox and the sandbox fallback setting is 'fail' (change it in Settings to run without one)", opts.Runtime, opts.Sandbox)
+		}
 		if opts.RequireSandbox && sandboxEffective != SandboxStatusSandboxed {
 			return nil, fmt.Errorf("%w: %s sandbox for %s is %s", ErrSandboxRequired, opts.Sandbox, opts.Runtime, sandboxEffective)
 		}

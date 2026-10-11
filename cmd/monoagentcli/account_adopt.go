@@ -80,7 +80,7 @@ func adoptFirstRun(cmd *cobra.Command, cfg *globalConfig) {
 // that the real tree's flags are parsed only once, by its own run. A help request is an open
 // invocation and is skipped.
 func adoptBeforeGate(ctx context.Context, args []string) {
-	probe := newRootCmd()
+	probe := newProbeRootCmd()
 	applyClassification(probe)
 	probe.SetOut(io.Discard)
 	probe.SetErr(io.Discard)

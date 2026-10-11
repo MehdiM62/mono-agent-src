@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -93,6 +95,17 @@ func TestSandboxFallbackProviderSeesChanges(t *testing.T) {
 	time.Sleep(sandboxFallbackTTL + 100*time.Millisecond)
 	if got := monomind.SandboxFallbackSetting(); got != "strictest" {
 		t.Fatalf("after set = %q, want strictest", got)
+	}
+	// A database that cannot be read keeps the last value read: a user on
+	// "fail" must not drop to "run" because of a locked or damaged file.
+	damaged := filepath.Join(t.TempDir(), "damaged.db")
+	if err := os.WriteFile(damaged, []byte("not a database"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg.DBPath = damaged
+	time.Sleep(sandboxFallbackTTL + 100*time.Millisecond)
+	if got := monomind.SandboxFallbackSetting(); got != "strictest" {
+		t.Fatalf("damaged database = %q, want the last value (strictest)", got)
 	}
 	cfg.DBPath = dbPath + ".missing"
 	time.Sleep(sandboxFallbackTTL + 100*time.Millisecond)

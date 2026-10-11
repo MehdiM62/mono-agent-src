@@ -57,6 +57,10 @@ func SandboxFallbackSetting() string {
 // or fail but monomind can't honour it.
 const SandboxFallbackIgnoredNote = "the sandbox-fallback setting was ignored: this monomind lacks " + CapAgentExecSandboxFallback + "; ran as with 'run'"
 
+// SandboxFallbackRefusedNote marks a turn the 'fail' setting refuses on its
+// own, because this monomind cannot refuse it (no CapAgentExecSandboxFallback).
+const SandboxFallbackRefusedNote = "the sandbox-fallback setting is 'fail' and this runtime has no sandbox for the turn"
+
 // SandboxFallbackPlan is SandboxArgs plus the user's fallback setting. With
 // fallback "run", a runtime that has the mode, claude, or an empty mode it
 // returns SandboxArgs' answer unchanged. Otherwise (strictest or fail,
@@ -75,6 +79,9 @@ func SandboxFallbackPlan(caps *CapabilitySet, modes []string, runtime, mode, fal
 		return args, effective, false, ""
 	}
 	if !caps.Has(CapAgentExecSandboxFallback) {
+		if fallback == SandboxFallbackFail {
+			return args, SandboxStatusUnsupported, false, SandboxFallbackRefusedNote
+		}
 		return args, effective, false, SandboxFallbackIgnoredNote
 	}
 	args = []string{SandboxFlag, mode, SandboxFallbackFlag, fallback}

@@ -112,7 +112,7 @@ func TestSandboxFallbackPlan(t *testing.T) {
 		{"claude unchanged", has, restricted, "claude", "strictest", nil, SandboxStatusScoped, false, false},
 		{"scan failed: no flag ever", has, nil, "antigravity", "strictest", nil, SandboxStatusUnsupported, false, false},
 		{"capability missing: ignored, and says so", noFlag, restricted, "antigravity", "strictest", nil, SandboxStatusUnsupported, false, true},
-		{"capability missing, fail: ignored too", noFlag, restricted, "antigravity", "fail", nil, SandboxStatusUnsupported, false, true},
+		{"capability missing, fail: refused client-side", noFlag, restricted, "antigravity", "fail", nil, SandboxStatusUnsupported, false, true},
 	}
 	for _, tc := range cases {
 		args, eff, active, note := SandboxFallbackPlan(tc.caps, tc.modes, tc.runtime, SandboxWorkspaceWrite, tc.fallback)
@@ -234,6 +234,23 @@ func TestExecSandboxFallbackNeverSatisfiesRequireSandbox(t *testing.T) {
 
 // Without the capability the setting is ignored (the turn behaves as run)
 // and the start event says so.
+// `fail` must not fail open: a monomind that cannot refuse the turn itself
+// is refused by mono-agent before anything is spawned.
+func TestExecSandboxFallbackFailWithoutCapabilityRefuses(t *testing.T) {
+	stubSandboxScan(t, map[string][]string{"antigravity": {"restricted", SandboxFull}})
+	if _, _, note := func() (a []string, e string, n string) {
+		a, e, _, n = SandboxFallbackPlan(NewCapabilitySet("2.24.5", CapAgentExecSandbox), []string{"restricted", SandboxFull}, "antigravity", SandboxWorkspaceWrite, SandboxFallbackFail)
+		return
+	}(); note != SandboxFallbackRefusedNote {
+		t.Fatalf("plan note = %q", note)
+	}
+	bin, _ := writeFallbackFake(t, []string{"agent-exec", "agent-scan", "org-json-v1", CapAgentExecSandbox}, "", false)
+	_, err, _ := execWithFallback(t, "fail", bin, false)
+	if err == nil || !strings.Contains(err.Error(), "'fail'") {
+		t.Fatalf("err = %v, want a refusal naming the 'fail' setting", err)
+	}
+}
+
 func TestExecSandboxFallbackWithoutCapability(t *testing.T) {
 	stubSandboxScan(t, map[string][]string{"antigravity": {"restricted", SandboxFull}})
 	bin, record := writeFallbackFake(t, []string{"agent-exec", "agent-scan", "org-json-v1", CapAgentExecSandbox}, "", false)

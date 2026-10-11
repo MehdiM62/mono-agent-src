@@ -23,7 +23,8 @@ export function SandboxBadge({ status, detail }) {
   if (!key) return null
   const safe = status === 'sandboxed' || status === 'scoped' || status === 'restricted'
   const Icon = safe ? ShieldCheck : ShieldOff
-  const color = safe ? '#22c55e' : 'var(--text-muted)'
+  // restricted is a stricter mode but not the file-system boundary asked for.
+  const color = status === 'restricted' ? '#f59e0b' : safe ? '#22c55e' : 'var(--text-muted)'
   const title = status === 'restricted' && detail
     ? t('agentSandbox.restrictedTitle', { applied: detail })
     : status === 'restricted' ? t('agentSandbox.restricted') : [t(`agentSandbox.${key}Title`), detail].filter(Boolean).join(' ')

@@ -45,7 +45,7 @@ func asksForHelp(args []string) bool {
 	if !mayAskForHelp(args) {
 		return false
 	}
-	probe := newRootCmd()
+	probe := newProbeRootCmd()
 	probe.SetOut(io.Discard)
 	probe.SetErr(io.Discard)
 	cmd, flags, err := probe.Find(args)
