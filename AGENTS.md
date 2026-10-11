@@ -18,11 +18,14 @@ desktop GUI (`wails-app/`).
   exception: `monoagentcli init` also copies skill files into
   `~/.claude/skills/` when `~/.claude` exists (a local file copy; no
   network).
-- No analytics or usage counters. The account gate is dormant (see below). What
-  can leave the machine (see [SECURITY.md](SECURITY.md) for the full
-  statement): the API calls your workflows make, commands you explicitly
-  invoke that talk to an external service (e.g. `login`, `update`,
-  `library`), and
+- A monoes.me account will be required from the enforcement date (see
+  [monoes.me account](#monoesme-account); the gate is dormant until a date is
+  set). Your data stays on your machine, and there are no analytics or usage
+  counters. What can leave the machine (see [SECURITY.md](SECURITY.md) for the
+  full statement): the monoes.me sign-in and its refresh (the account, the time
+  and the IP address; with `--email`, the address you type), update checks, the
+  API calls your workflows make, commands you explicitly invoke that talk to an
+  external service (e.g. `login`, `library`), and
   opt-in crash reporting. Crash reports are written to local files under
   `~/.monoagent/crashes/` by default and are only filed to GitHub when
   `MONOAGENT_CRASH_REPORT=1` is set **and** the `monomind` CLI is on PATH.
@@ -61,10 +64,9 @@ monoagentcli --help         # command list; the root help includes an agents not
 | `ref templates` | The bundled ready-to-run workflow templates |
 | `ref connections` | Profiles, OAuth, credential resolution — **read before touching `--profile` or credentials** |
 | `ref crawling` | Automating sites with no built-in node type |
-| `ref account` | Machine sign-in, dormant/future gate behavior, headless and Docker |
+| `ref account` | The monoes.me account — commands, states and reasons, what stays open, headless and Docker |
 | `ref api` | HTTP API surface (`monoagentcli httpapi`) — endpoints, auth, redaction, status-code mapping, and the OpenAI-compatible `/v1` API |
 | `ref tasks` | The profile's task board — columns, who may do what, the agent loop, JSON documents and error codes |
-| `ref account` | The monoes.me account — optional today, how to sign in, headless and Docker |
 
 Prefer `ref` over guessing from `--help` alone.
 
@@ -84,15 +86,20 @@ matches the bridge. The fix restarts that service and verifies the new
 bridge version; if the service still uses an older binary, update that
 binary too. Daemon-owned bridges retain `browser.bridge.restart`.
 
-Groups: `core` (data folder, database, profile, vault, PATH, disk), `monomind`
+Groups: `core` (data folder, database, profile, vault, PATH, disk, the monoes.me
+sign-in as `core.monoes_account` — ok; warn in the grace window or before the
+enforcement date; fail when locked; it never warns or fails while the gate is
+dormant; fix `account login`, or `update` for `key_unknown`), `monomind`
 (Node.js, monomind install/version/features, profile `monomind init`) and
 `runtimes` (one row per AI agent runtime), `browser` (browser, extension,
 bridge, pairing), `automations` (installed packages that are unavailable,
 and broken or decaying selectors — each with its `automation rerecord` fix;
 read-only, never installs packages; with none installed it points at
-`library install`), `services` (daemon, start at login) and `integrations`
+`library install`), `services` (daemon, start at login; the daemon row warns when
+the running daemon's version differs from the binary's, manual fix
+`services.daemon.restart`: `daemon restart`) and `integrations`
 (Claude Code skills, MCP registration, TypeSafe Jev key; `jev.api` runs
-on demand with `--deep`), `accounts` (platform login expiry;
+on demand with `--deep`), `accounts` (third-party platform login expiry, not the monoes.me sign-in;
 with `--deep` also live tests of saved connections — a failing OAuth
 connection with a refresh token gets a silent refresh fix when the service refused its credentials (401/403) or the token
 has expired, and a refresh that asks first for other failures). With a monomind that has `doctor-json`, the `monomind` group also lists
@@ -132,7 +139,9 @@ own PATH stays in `$MONOAGENT_USER_PATH` (`nodemgr.UserEnv`/`LookPathUser`).
 Older top-level commands include `message`, `comment`, `search`, `list`,
 `template`, `crawl`, `people`, `login`, `logout`, `connect`, `config`,
 `export`, `status`, `init`, `run`, `action`, and `schedule`. They are
-oriented toward the social platforms and the CRM features. The
+oriented toward the social platforms and the CRM features. `login` and `logout`
+there capture social-platform sessions; they have nothing to do with the monoes.me
+account (`account login`). The
 social-oriented ones (`message`, `comment`, `search`, `list`, `template`)
 appear in `--help` in the default build; a `-tags nosocial` build hides them
 (they still work when invoked directly).
@@ -199,6 +208,19 @@ the full run list, use `monoagentcli --json workflow executions --all --limit N`
 ### Updating
 
 - `monoagentcli update` replaces this binary with the latest release.
+- After a successful `update` or `update --app`, a daemon registered for auto-start
+  that runs a different version is restarted through the service manager, in the
+  update's own process (the new binary's gated `daemon restart` could refuse); an
+  update that finds the binary already current does the same. Nothing is restarted
+  while a workflow execution is in flight: an update never interrupts a run.
+  `update --app --json` carries an optional `daemon` object (`action`: `restarted`,
+  `busy`, `settings`, `unknown`, `not_registered`, `not_managed` or `failed`;
+  `running_version`, `in_flight`, `via`, `message`), and the message is also one
+  progress line. When it does not restart, it says why and leaves that to
+  `daemon restart`, and the `services.daemon` row of `doctor` warns about the
+  version mismatch until then. The first update to a release that restarts daemons
+  is made by the previous binary, which cannot restart anything: the same row flags
+  the old daemon until the next `update`, a restart or a reboot.
 - `update --check [--current <v>]` only reports whether a newer release exists.
 - `update --app <exe> [--current <v>]` updates the desktop app at that path. On Linux it also updates the `monoagentcli` bundled next to the app.
 - Every download must match the release's signed `manifest.json` (Ed25519 signature by a key pinned in `internal/release/keys.go`, then the asset's size and SHA-256), or nothing is installed. While no key is pinned and `release.AllowLegacyGitHubUpdates` is true, the GitHub release's `SHA256SUMS.txt` is used instead; a manifest that fails a check never falls back. Older releases are refused unless `update --force`. Maintainers: `release keygen` stores the private key in the OS keychain and prints the line to pin; `release verify <manifest> <sig> [--pubkey]` checks a signature.
@@ -241,7 +263,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `chat --conversation <conv> --turn <id> [--instance <app-id>] [--tools monoagent[,runs]] -- <message>` runs one turn and journals it itself. It takes the runtime, model and session from the conversation. Stdout is an admission line, then each committed event as NDJSON. A repeated turn id never runs twice. `--prompt-stdin` (instead of `-- <message>`) reads the prompt from stdin. `--tools monoagent:read` is a mode of its own, never combined with `runs`, `--canvas` or other members: only `list_workflows`, `get_workflow`, `list_node_types`, no Bash, and the turn counts as carrying untrusted web-page text. It is the only mode the browser extension's side-panel chat (`chat.send`, `chat.stop`, `chat.events` over the extension bridge) starts, with the message on stdin; see SECURITY.md, "The extension's side-panel chat".
   - `chat history delete` refuses a conversation with an active turn (exit 3). `chat history finish <conv> <turn> --status S` records the end of a turn whose process was killed; it does nothing if the turn already finished. `chat history reconcile --except-owner <app-id>` marks turns left active as interrupted, at app startup.
   - `chat history transcript <history-id>` reads the legacy transcript that plain `chat --history-id` still writes.
-- **monoes.me library:** `library status [--offline]|login|logout|list|show|install|publish|update|installed` (see [monoes.me library](#monoesme-library)). All reads need a login: without one they exit 4 with `"login_required": true`. `library login` streams `{"kind":"url","url"}` on stderr with `--json` and waits for the browser; the app kills it to cancel.
+- **monoes.me library:** `library status [--offline]|login|logout|list|show|install|publish|update|installed` (see [monoes.me library](#monoesme-library)). All reads need the monoes.me sign-in: without one they exit 4 with `"login_required": true`. `library login|logout|status` are aliases of `account login|logout|status`. `library login` streams `{"kind":"url","url"}` on stderr with `--json` and waits for the browser; the app kills it to cancel.
 - **Updates:** `update --check [--current <version>]` reports a newer release without downloading; `update --app <exe>` updates the desktop app, verified against SHA256SUMS.
 - **Editor and orgs:** `node palette` gives the editor's node catalog. `org reconcile-doc <name>` returns the reconciled org document from stdin without saving it.
 - **Org bubbles (chat with a running org's boss):**
@@ -280,63 +302,119 @@ history starts with feature installation, with no automatic historical fetch.
 
 ## monoes.me account
 
-One monoes.me sign-in per machine, shared by every profile. `account` and the
-`library login|logout|status` aliases manage it:
+A monoes.me account will be required: from the enforcement date, the CLI, the
+daemon, the desktop app, the HTTP and `/v1` APIs, the MCP server and the extension
+bridge refuse to work without a signed-in account. The date is `enforce_from` in
+`account status`. `monoagentcli ref account` is this section, offline and always
+current.
 
 ```bash
-monoagentcli account login                   # browser sign-in (OAuth 2.1 + PKCE, loopback redirect on 127.0.0.1)
-monoagentcli account login --email you@x.com # headless: emails a code, then asks for it (--send / --code split the steps; --no-browser prints the URL; --timeout)
-monoagentcli account status [--offline] [--json]
-monoagentcli account logout                  # revoke and forget this machine's session
+monoagentcli account login                       # browser sign-in (OAuth 2.1 + PKCE, loopback redirect on 127.0.0.1)
+monoagentcli account login --email you@x.com     # headless: emails a code, then asks for it (--send / --code-stdin / --code split the steps; --no-browser prints the URL; --timeout)
+monoagentcli account status [--offline] [--json] # refreshes first if due, unless --offline; exit 0 for ok and grace, 4 for locked
+monoagentcli account logout                      # revokes the refresh token (best effort), deletes the local sign-in
 ```
 
-- **States.** `account status` reports `ok`, `grace` (monoes.me could not be
-  reached or answered with trouble, so the last signed token is still good,
-  at most 24 hours after it was issued) or `locked`, with a `reason`
-  (`not_logged_in`, `expired`, `refused`, `clock_rollback`, `clock_skew`,
-  `key_unknown`, `invalid`, and in grace `unreachable`, `server_error`,
-  `keyring_unavailable`, `unconfirmed`). Exit 0 for `ok` and `grace`, 4 for
-  `locked`. `--json` adds `enforce_from` and `enforced`.
-- **Dormant today.** The enforcement date is unset, so `enforced` is always
-  `false`: nothing is locked, no command warns, and nothing contacts
-  monoes.me implicitly (only an explicit `account` or `library` command
-  does). The gate code (session verification, the clock guard, the engine,
-  runner and door checks) exists and is exercised by tests, but is switched
-  off. Do not document or rely on a date until one is set in
-  `internal/account/rollout.go`.
-- **Future enabled gate.** Before its enforcement date gated commands warn;
-  from that date a locked command exits 4 with `login_required`. A signed token
-  permits at most 24 hours offline from its issue time. Open commands are
-  `version`, `help`, `completion` (including `__complete` and `__completeNoDesc`),
-  `ref`, `update`, `doctor` (including `doctor fix`), `setup`, all `account`
-  commands and `library login|logout|status`. Serving commands (`daemon`,
-  `httpapi`, `mcp` including `--grant`, `extension serve` / `bridge serve`)
-  start even while locked and refuse work; `daemon install|restart|uninstall`
-  and `org serve` remain gated. Branch on exit 4 and `login_required`, and ask
-  the user to run `account login`; never look for or paste tokens. See
-  `ref account` for states, reasons and door responses. Production signing
-  keys are not pinned yet; production machine-session verification awaits
-  the server/key rollout.
-- **Headless and Docker.** Run `account login --email` as the daemon's OS user.
-  Containers need `MONOAGENT_ALLOW_FILE_KEYRING=1` and a private passphrase file
-  named by `MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE` (or
-  `~/.monoagent/keyring-passphrase`) before sign-in. The daemon has no terminal;
-  without that source an enabled gate shows `grace` / `keyring_unavailable`
-  then locks at token expiry. `secret keyring set-passphrase` is itself gated.
-  README's Docker section has the commands. Keep the sign-in in the volume,
-  never an image, never copied or restored from an old backup: a stale refresh
-  token can revoke the original sign-in and its copies. Sign in separately
-  per machine. Docker's `version` health check only tests liveness.
-- **Storage.** `~/.monoagent/account/` holds `session.json` (the signed access
-  token and display data), `refresh.enc` (the refresh token, sealed under the
-  OS key store; see `MONOAGENT_ALLOW_FILE_KEYRING` for machines without one)
-  and `session.lock`. It is per OS user, not per profile, and nothing is
-  written to it until a sign-in. A session is tied to the machine: do not copy
-  `~/.monoagent/account` to another machine.
-- **Host.** Always `https://monoes.me` in a default build, which honors
-  `MONOES_BASE_URL` nowhere for the sign-in (`library login` against another
-  host refuses). A local monoes.me dev server needs a binary built with
-  `-tags devaccount` (see CONTRIBUTING.md); never ship one.
+`library login|logout|status` are aliases. One session per OS user, shared by every
+profile, in `~/.monoagent/account/`. No credential comes from an environment variable
+and there are no unattended machine tokens. An agent that gets exit 4 with
+`login_required` asks the user to run `monoagentcli account login`; it never looks
+for, pastes or sets a token. `account status --json` prints
+`{"v":1,"state","reason","user","plan","issued_at","valid_until","grace_until","enforce_from","enforced"}`;
+`valid_until` is the access token's expiry (about an hour), `grace_until` its issue
+time plus 24 hours.
+
+**Sign in once per machine; never copy or restore `~/.monoagent/account/` between
+machines or from an old backup, and never bake a sign-in into a Docker image.**
+monoes.me rotates the refresh token at every refresh and treats one that was already
+used as stolen: it ends that sign-in. A copy shares the sign-in of the machine it came
+from, so a stale copy, once presented, signs out the original and every copy, and each
+of them then has to sign in again; machines that signed in on their own keep working.
+Signing out of the monoes.me website does not sign out an install.
+
+| `state` | Meaning | `reason` |
+|---|---|---|
+| `ok` | verified and not expired | empty |
+| `grace` | verified and expired, within 24 hours of its issue time: work continues | why it was not refreshed: `unreachable`, `server_error`, `keyring_unavailable`, `unconfirmed` (a refresh whose answer never arrived: this machine stopped using its saved sign-in) |
+| `locked` | work is refused | `not_logged_in`, `expired` (24 hours without a refresh), `refused` (monoes.me answered `invalid_grant`: the account is blocked, the sign-in was revoked, or an already-used refresh token was presented, as from a copied session; work in flight is cancelled), `clock_rollback`, `clock_skew`, `key_unknown` (run `update`), `unconfirmed` (the grace of an unconfirmed machine is over: sign in again on it), `invalid` |
+
+Only an `invalid_grant` answer to a refresh is a refusal; every other failure counts
+as unreachable, so the 24-hour grace applies. A refresh whose outcome is unknown (the
+request went out and the answer never came, was cut short or was a server error, as when
+the process is killed mid-refresh) is retried at once for 240 seconds; after that this
+machine deletes its refresh token instead of presenting it again, and says `unconfirmed`.
+The account and the other machines are not affected, and one `account login` on this
+machine ends it. A blocked account is locked at the next refresh, within about an hour.
+
+**Three phases.** A build before the release that sets the date is **dormant**: nothing
+locks, warns or calls monoes.me by itself, `enforced` is always `false`, and `enforce_from`
+is empty. Do not document or rely on a date until one is set in
+`internal/account/rollout.go`; no date is set today, and production signing keys are not
+pinned yet, so a production machine session cannot be verified until the server and key
+rollout. Once a release sets the date, gated commands run before it and print
+`A monoes.me login will be required from <date>: monoagentcli account login` on stderr;
+from the date they refuse (`enforced` says which).
+
+**What is open** (never needs a sign-in): `version`, `help`, `completion` (including
+`__complete` and `__completeNoDesc`), `ref`, `update`, `doctor` (with `doctor fix`),
+`setup`, `release` (the maintainers' `keygen` and `verify`), the `account` commands, and
+`library login`, `library logout` and `library status`. Every other command is gated,
+local-only ones (`people`, `secret`, `image`, `profile`, `config`) included.
+
+**Serving commands** start even when locked and, from the enforcement date, refuse
+their work instead, so a service manager or a container never respawns them in a
+loop: `daemon`, `httpapi`, `mcp` (including `--grant`) and `extension serve` (also `bridge serve`).
+`daemon install`, `daemon restart`, `daemon uninstall` and `org serve` are gated.
+
+**A refusal** does nothing else (no first-run writes, no database open) and exits 4.
+The first line on stderr is `Log in to monoes.me first: monoagentcli account login`;
+with `--json` anywhere in the arguments stdout also gets
+`{"error":"…","code":"auth_or_connection","login_required":true,"account":{"state","reason"}}`.
+In grace the command runs and prints one stderr line, `monoes.me is unreachable; this
+login works offline until <time>`. Branch on exit 4 and `login_required`, not on the
+text. A running process checks again, and a serving command started while locked
+answers the same way: the HTTP API and `/v1` answer 401 `login_required` (`GET
+/health` stays open and reports the account state), the webhook server 503, the
+extension bridge `account_locked`, MCP a tool error. A refused workflow run is
+recorded FAILED with an error starting `login_required:`; paused and queued runs
+wait. A locked daemon stays up, logs the command to run, starts nothing new, stops
+its org services and resumes by itself when a sign-in appears.
+
+### Headless and Docker
+
+Sign in once with `account login --email`; the sign-in lives in
+`~/.monoagent/account/` of the OS user that runs the daemon (another user's daemon
+does not see it; in Docker the image's `HOME=/data` puts it on the volume). The
+refresh token is sealed under the vault's key store: the OS keychain or, where
+there is none (a container, a server), the file keyring, enabled with
+`MONOAGENT_ALLOW_FILE_KEYRING=1`. Its passphrase comes from
+`MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE`, `~/.monoagent/keyring-passphrase`, stdin or
+the terminal, in that order (see [Secrets](#secrets)). A daemon has no terminal, so it
+needs the passphrase in a file; without one it cannot read the refresh token back,
+`account status` shows `grace` with the reason `keyring_unavailable`, and the daemon
+stops doing work 24 hours after its last refresh. Make the file **before** the first
+sign-in, because `secret keyring set-passphrase` is a gated command:
+
+```bash
+# Docker: docker-compose.yml sets both variables; the passphrase file is /data/.monoagent/keyring-passphrase
+docker compose up -d --build
+docker compose exec -T monoagent sh -c 'umask 077; mkdir -p /data/.monoagent; cat > /data/.monoagent/keyring-passphrase' < /path/to/private-passphrase-file
+docker compose exec monoagent monoagentcli account login --email you@example.com
+docker compose exec monoagent monoagentcli account status --offline --json
+# A server: make the passphrase file as in SECURITY.md ("File-based keyring fallback"), then
+MONOAGENT_ALLOW_FILE_KEYRING=1 MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE=~/.config/monoagent-keyring-pass monoagentcli account login --email you@example.com
+```
+
+The daemon is a serving command: started with no sign-in it stays up, logs the command
+to run and, from the enforcement date, refuses work, so `docker compose up` before
+signing in is safe; sign in afterwards and it resumes within seconds. A healthy
+container is not a signed-in one (the image's health check runs `version`, which is
+always open): `docker exec monoagent monoagentcli account status --offline`; `doctor`
+has a row for it (`core.monoes_account`, fix `account login`).
+
+Keep the sign-in in the volume only: never bake one into an image or restore a copy of
+another machine's (the warning above). In a file keyring, `secret keyring status` lists
+the account's key as `monoes..account` once an explicit `account login` has created it.
 
 ## monoes.me library
 
@@ -363,7 +441,7 @@ monoagentcli library logout
 ```
 
 - Login required: `list`, `show`, `install`, `update` and `publish`
-  without a login exit 4 with `Log in to monoes.me first: monoagentcli
+  without a sign-in exit 4 with `Log in to monoes.me first: monoagentcli
   library login` before any network call (`--json`: `{"error", "code":
   "auth_or_connection", "login_required": true}`). A 401 on a call
   refreshes the token once and retries; a 401 after that gives the same
@@ -2408,7 +2486,7 @@ profiles or credentials.
 | 1 | general error — also the exit for a run that ends `CANCELLED` |
 | 2 | not found (workflow, node type, HIL item, secret name, …). Includes `hil approve`/`hil reject`, `secret rm`/`secret update`, and `workflow delete` on unknown ids |
 | 3 | invalid input / validation failure |
-| 4 | auth or connection failure |
+| 4 | auth or connection failure — including `login_required`: no valid monoes.me sign-in (see [monoes.me account](#monoesme-account)) |
 
 Branch on these instead of parsing stderr.
 
@@ -2437,6 +2515,17 @@ The desktop GUI (`wails-app/`) is optional and needs the Wails toolchain;
 the CLI is fully usable without it. State always lives in `~/.monoagent/`
 regardless of where the binary runs from.
 
+A build you make runs the real gate. For development and CI, build the real
+binary with `-tags devaccount` (`go build -tags devaccount -o /tmp/monoagentcli
+./cmd/monoagentcli`): it also trusts a development signing key, lets the gate
+honor `MONOES_BASE_URL`, so a fake monoes.me can sign you in, and reads
+`MONOAGENT_DEV_ENFORCE_FROM` (an RFC 3339 time), so that a test can force the warn
+period (`2999-01-01T00:00:00Z`: nothing locks) or enforcement (a past date); it
+never relaxes anything, and a default build does not read it. Releases never carry
+the tag, and the release workflow fails if a shipped binary lists it. Unit tests
+need no tag: `accounttest.Install` and `account.SetTrustedKeysForTest` swap the
+keys and the clock, and panic outside a test binary.
+
 ### Runtime environment variables
 
 | Variable | Effect |
@@ -2453,13 +2542,14 @@ regardless of where the binary runs from.
 | `MONOAGENT_API_TOOL_RUNTIMES` | Runtimes that serve tool calling on the OpenAI-compatible API (`tools` on `POST /v1/chat/completions`), comma-separated runtime ids (`agy` means `antigravity`; case and spaces do not matter). A model of a listed runtime that is not chat-only is served only where monomind can run it read-only (`agent-exec-access-read`, and `read` among the runtime's access modes). A request for tools on any other model is 400 `unsupported_parameter`. `none` switches tool calling off: no model gets the `tools` capability and every request that declares tools says it is switched off. A bad value stops `httpapi` and `daemon` at start. Default: unset — `claude,codex`. |
 | `MONOAGENT_API_MAX_CONCURRENT` | How many OpenAI-compatible API turns may run at once, from 1 to 64; more get 429 (`--max-concurrent` wins). Default: unset — 4. |
 | `MONOAGENT_API_TURN_TIMEOUT` | Wall-clock cap of one OpenAI-compatible API turn: a duration of at least `10s`, such as `15m`. Default: unset — 10 minutes. |
-| `MONOAGENT_ALLOW_FILE_KEYRING` | Set to `1` to allow the file-based keyring fallback when no OS keyring exists (see [Secrets](#secrets)). Default: unset — `secret add` fails closed on machines without a keyring. |
+| `MONOAGENT_ALLOW_FILE_KEYRING` | Set to `1` to allow the file-based keyring fallback when no OS keyring exists (see [Secrets](#secrets)). Default: unset — `secret add` and `account login` fail closed on machines without a keyring. |
 | `MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE` | Path to a chmod-600 file whose first line is the file-keyring passphrase — the non-interactive source for the desktop app and services (a path, never the passphrase itself). Default: unset — use `~/.monoagent/keyring-passphrase` when `secret keyring set-passphrase` wrote one, else prompt on stdin, or on `/dev/tty` when stdin carries the command's input. |
 | `MONOAGENT_ALLOW_ENV_TEMPLATES` | Set to `1` to let `{{ $env.* }}` template expressions read OS environment variables (see `ref expressions`). Default: unset — `$env` references resolve to empty. |
 | `MONOAGENT_CRASH_REPORT` | Set to `1` to allow crash reports to be filed to GitHub (also requires the `monomind` CLI on `PATH`). Default: unset — crash reports stay in local files under `~/.monoagent/crashes/`. |
 | `MONOAGENT_EXTENSION_PORT` | Bind-port override for the browser-extension bridge server; the extension probes this port and falls back to 9323. Default: unset — 9323 only. |
 | `MONOAGENT_SUMMARY_RUNTIME` | Agent runtime the extension bridge uses to write `summary.md` for captures saved with "Save page summary" / "Save video summary" (`extension serve --summary-runtime` wins over it). This is the default: a capture can name its own installed runtime and model (the side panel's "AI for summaries" picker, or `capture page --summary-runtime/--summary-model`), and `summary.json` records the pair used. `off` disables summaries; each capture that asked then records why in `summary.json`. Default: unset — `claude`. |
 | `MONOES_BASE_URL` | monoes.me host for the `library` commands. Default: unset — `https://monoes.me`. Plain `http` is accepted only for a loopback host (a local dev server). A default build refuses to sign in to any other host; that needs `-tags devaccount`. |
+| `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (none while the gate is dormant). |
 | `MONOMIND_BIN` | Path to the `monomind` binary; checked before `PATH` and the other install locations (see [How AI works in mono-agent](#how-ai-works-in-mono-agent)). Default: unset — discovered. |
 | `MONOAGENT_AI_RUNTIME` | Agent runtime `ai.extract_page` uses to generate selectors. Default: unset — the first installed runtime, `claude` first. |
 | `MONOAGENT_PROFILE` | Profile name the built-in MCP server operates against. Default: unset — the MCP server's default profile. |

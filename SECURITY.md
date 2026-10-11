@@ -27,8 +27,8 @@ privacy violations.
 
 ## Scope
 
-Mono Agent is a desktop/CLI automation platform that runs entirely on your
-machine. In scope:
+Mono Agent is a desktop/CLI automation platform that runs on your machine
+and signs in to monoes.me. In scope:
 
 - The `monoagentcli` binary and the Go packages under `internal/`
 - The workflow engine, node implementations, and CLI surface
@@ -37,6 +37,8 @@ machine. In scope:
 - The assistant chat tool surface (`monoagentcli chat --tools` — see
   [Assistant tools](#assistant-tools-chat---tools) below)
 - The browser-extension bridge and bundled deployment scripts
+- The monoes.me session (`internal/account`: token verification, the sign-in on
+  disk, the gate) and what it sends ([Network use](#network-use-telemetry-and-crash-reporting))
 
 Out of scope:
 
@@ -44,6 +46,8 @@ Out of scope:
   (report those to the service operator)
 - Issues in user-authored workflows or user-installed action templates
 - Credential leaks caused by how a user configured their own environment
+- Removing the sign-in requirement from a binary you built or patched yourself
+  ([a product check](#the-sign-in-requirement-is-a-product-check))
 
 ## Secrets Vault
 
@@ -243,11 +247,60 @@ conversation database like any chat.
 
 ## Network use, telemetry and crash reporting
 
-**No analytics or usage counters.** The account gate is dormant: it makes no
-implicit adoption, refresh or background account requests. Explicit account and
-library commands still contact monoes.me, and workflows contact their configured
-services. This does not promise that a future enforced build works offline
-without a limit.
+**No analytics, no usage counters, no device identifier.** Mono Agent does not
+report what you run, which workflows you have or how often you use it. A
+monoes.me account will be required from the enforcement date (`enforce_from` in
+`account status`), so it does contact monoes.me, and it checks for updates. This
+build is **dormant**: no enforcement date is set, so it makes no implicit
+adoption, refresh or background account requests, and only an explicit `account`
+or `library` command contacts monoes.me about the sign-in. This is the complete
+list of the situations in which Mono Agent makes network requests:
+
+1. **monoes.me, to sign in and stay signed in.** `account login` (and `library
+   login`, the same sign-in) runs the OAuth 2.1 authorization-code exchange with
+   PKCE: the client id `monoagent`, the requested scopes, the resource
+   `https://monoes.me/api/monoagent`, a loopback redirect address, and the code
+   with its verifier; with `--email` instead, the email address you type (with the
+   client id and scope), and then the address again with the code mailed to it.
+   `account logout` revokes the refresh token (it sends the token and the client
+   id). Once a release enables the gate, a refresh follows while a `monoagentcli`
+   process runs: a long-running one (the daemon, a server, the desktop app) at
+   about half the token's lifetime, a short command only when the token has under
+   five minutes left. It sends the refresh token, the client id and the
+   resource. On the first gated command after the gate is enabled, a monoes.me
+   library login left by an older release is exchanged once for this sign-in (its
+   refresh token, the client id and the resource); if monoes.me does not allow
+   that, nothing changes and you sign in once more. monoes.me learns which
+   account, when, and the IP address the request comes from. Nothing else is
+   sent: no device identifier, no usage data, no workflow content, no file path.
+2. **monoes.me, for the library** (`library list`, `show`, `install`, `publish`,
+   `update`), only when you run those commands, with your signed-in token; the
+   host is `MONOES_BASE_URL` or https://monoes.me, and the token is sent only to
+   the host that issued it. A library upload sends the artifact you choose to
+   publish.
+3. **Updates:** `update`, `update --app`, `doctor --deep` and the desktop app (at
+   start and every 24 hours) fetch the signed release manifest from monoes.me or
+   the releases repository, and fall back to GitHub's release metadata where the
+   build still allows it. The server sees the IP address and Go's default
+   `User-Agent`; no account or device identifier is sent. Downloads are verified
+   by SHA256, and by Ed25519 signature once a signing key is pinned; without a
+   pinned signing key a manifest cannot be trusted and the GitHub fallback is
+   used.
+4. API calls made by workflows you run, against services you configured (HTTP
+   nodes, service nodes, browser nodes, etc.), and commands you explicitly invoke
+   that talk to an external service, for example `login` (OAuth flows for
+   third-party platforms).
+5. Opt-in crash reporting, below.
+
+**Without a connection**, once the gate is enabled, Mono Agent keeps working for
+24 hours after the last successful contact with monoes.me (counted from the
+signed issue time of the newest token). Then every gated command refuses with
+exit code 4 (`login_required`) until it can reach monoes.me again; `version`,
+`help`, `ref`, `update`, `doctor`, `setup` and the `account` commands always work,
+and a daemon or server (`daemon`, `httpapi`, `mcp`, `extension serve`) stays up
+and refuses its work. A blocked or revoked account is locked at the next refresh,
+within about an hour. This does not describe a dormant build, which does not
+lock.
 
 **Crash reporting is local by default.** If the CLI crashes, it writes a
 crash report to a file under `~/.monoagent/crashes/` on your machine —
@@ -260,71 +313,82 @@ nothing is transmitted. Filing a crash report to GitHub happens only when
 Without either condition, crash data stays in the local file. There is no
 automatic network fallback for crash reporting.
 
-**Complete list of exceptions** — the only situations in which Mono Agent
-makes network requests:
-
-1. API calls made by workflows you run, against services you configured
-   (HTTP nodes, service nodes, browser nodes, etc.)
-2. Commands you explicitly invoke that talk to an external service — for
-   example `login` (OAuth flows), `update` (release check/download),
-   `account` (the monoes.me sign-in: the browser or emailed-code login,
-   `status` renewing the session, and `logout` revoking it; the host is
-   always https://monoes.me in a default build) or `library` (the monoes.me
-   library: browsing, downloads you ask for, and uploads you publish; the
-   host is `MONOES_BASE_URL` or https://monoes.me)
-3. Opt-in crash reporting as described above
-4. If a future release enables the account gate: renewing the machine session
-   as work runs (long-running processes refresh at half the token lifetime), and
-   a one-time exchange of an older library login when eligible. These implicit
-   account requests are disabled in this build.
-
-Sign-in sends OAuth client id `monoagent`, the requested scopes and resource
-`https://monoes.me/api/monoagent`, the authorization-code/PKCE or emailed-code
-proof, and, on renewal, the refresh token. With `--email`, the address you type
-is sent too. Revocation sends the token and client id. monoes.me sees the account,
-request time and source IP address. Account requests send no device identifier,
-workflow contents or usage counters. Update requests fetch the signed release manifest
-and download the assets it lists (verified by SHA256, and by Ed25519 signature once a signing key is pinned);
-without a pinned signing key they refuse to install, or fall back to GitHub's
-release metadata only where the build still allows it. A library upload sends the artifact you choose to publish.
-
 Everything else — workflow definitions, execution history, the secrets
 vault, CRM data, and crash reports — stays on your machine.
 
 ### The monoes.me sign-in on disk
 
-`monoagentcli account login` keeps the machine's monoes.me session under
-`~/.monoagent/account/` (directory mode 0700; files 0600): `session.json`
-holds the signed access token and display data, and `refresh.enc` holds the
-refresh token sealed under the OS key store (the file-keyring fallback applies
-as for the vault). One session serves the whole OS user, whatever the profile
-or `--db-path`. Sign in once on each machine and never copy or restore this
-folder between machines, from an old backup, or into a Docker image: monoes.me
-rotates the refresh token at every refresh and treats one that was already used
-as stolen, which ends that sign-in for the original and every copy (machines
-that signed in on their own keep working). Nothing is written there until you
-sign in.
+One sign-in per OS user, shared by every profile, in `~/.monoagent/account/`
+(directory mode 0700, whatever `--db-path` says). Nothing is written there until
+you sign in: `session.json` (0600) holds the signed access token, valid for about
+an hour, and display data, readable without the keychain so that a check never
+triggers a keychain prompt; `refresh.enc` (0600) holds the refresh token sealed
+with AES-256-GCM under a key from the OS key store or, where there is none and
+`MONOAGENT_ALLOW_FILE_KEYRING=1` is set, the file keyring (see
+[File-based keyring fallback](#file-based-keyring-fallback-weaker-posture)), read only by a refresh; and `session.lock` (0600) keeps two
+processes from refreshing at once. `account logout` deletes the token and the
+refresh token and keeps a `session.json` that holds no token, only the highest
+time this machine has seen, which is what stops setting the clock back from
+switching the requirement off. The access token is verified on this machine
+against signing keys built into the binary: there is no network call per command.
+The production key set is currently empty; a production machine session cannot be
+verified until those keys are pinned.
 
-The access token is verified on this machine against signing keys built into
-the binary, without a network call. The production key set is currently empty;
-a production machine session cannot be verified until those keys are pinned.
-The account gate that uses it is currently dormant: no enforcement date is set, so nothing is locked or warned about, and
-no command contacts monoes.me implicitly. A binary built with `-tags
-devaccount` trusts a development signing key that anyone can sign with; it is
-for testing only, and CI's release guard (`scripts/check-release-tags.sh`) fails
-a release whose binaries carry that tag.
+The key that seals the refresh token is an item of its own in that key store (in
+the OS keychain, under the vault's service name `monoagent-vault`). In a file
+keyring it is listed by `secret keyring status` as the id `monoes..account`. It
+exists only after an explicit `account login` creates it.
 
-### If the gate is enabled in a future release
+The account gate that uses this session is currently **dormant**: no enforcement
+date is set, so nothing is locked or warned about, and no command contacts
+monoes.me implicitly. A binary built with `-tags devaccount` trusts a development
+signing key that anyone can sign with; it is for testing only, and CI's release
+guard (`scripts/check-release-tags.sh`) fails a release whose binaries carry that
+tag.
 
-Before the enforcement date, gated commands warn; from that date, locked commands
-exit 4 with `login_required`. A token supports at most 24 hours offline from its
-signed issue time. Only `invalid_grant` in answer to a refresh means refusal;
-other errors preserve grace while the token remains valid. An unknown refresh
-outcome is retried for 240 seconds; then this machine drops its refresh token
-and reports `unconfirmed`, preserving its other independent installs. Clock
-rollback can lock work; a fresh verified sign-in resets the clock guard.
-The product check is not a boundary against the OS user, who can rebuild code.
-The current MIT license remains unchanged.
+### One sign-in per machine, never copied
+
+Sign in once on each machine. Never copy or restore `~/.monoagent/account/`
+between machines or from an old backup or disk image, and never bake a sign-in
+into a Docker image or a container snapshot: keep it in the container's volume.
+monoes.me rotates the refresh token at every refresh and treats one that was
+already used as stolen: it ends that sign-in. A copy shares the sign-in of the
+machine it came from, so a stale copy, once presented, signs out the original and
+every copy, and each of them then has to sign in again. Machines that signed in
+on their own keep working.
+
+### When a sign-in is locked
+
+When the gate is enabled, the reason `refused` means that monoes.me answered
+`invalid_grant` to a refresh: the account was blocked, the sign-in was revoked,
+or a refresh token that was already used was presented (a copied sign-in, above).
+The machine locks at its next refresh (within about an hour of a block), work in
+flight is cancelled, and `account login` is the way back in; a blocked account
+stays refused until monoes.me unblocks it. Every other failure, such as no
+network, a server error or any other OAuth error, is not a refusal: the machine
+keeps working until it has gone 24 hours without reaching monoes.me (`expired`).
+An unknown refresh outcome is retried for 240 seconds; then this machine drops its
+refresh token and reports `unconfirmed`, and its other independent installs are
+untouched. A clock set back can lock work (`clock_rollback`); a freshly verified
+sign-in resets the clock guard.
+
+Signing out of the monoes.me website does not sign out an install. An install keeps
+its own sign-in until you run `account logout` on it, monoes.me blocks the account
+or revokes the sign-in, or it goes 24 hours without reaching monoes.me.
+
+### The sign-in requirement is a product check
+
+Mono Agent checks for a valid sign-in before it runs a command, and again while a
+daemon, an API, an MCP server or the extension bridge runs, once a release enables
+the gate. This is a check in the official builds, not a security boundary: a
+binary you build or patch yourself can remove it, a copy of the session files
+works on another machine for a while (it counts accounts, not devices) until one
+of the two copies presents a refresh token the other has already used, which ends
+that sign-in on both machines (see above), and releases before the enforcement
+release do not have it. A bypass of an official build (a token that verifies when
+it should not, a gated door that stays open) is a vulnerability: report it as
+described above. Removing the check from a build of your own is not. The current
+MIT license is unchanged.
 
 ## Release governance
 
