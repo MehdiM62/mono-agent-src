@@ -38,6 +38,7 @@ func writeSandboxMonomind(t *testing.T, version string, advertise bool, transcri
 		`{"id":"grok","installed":true,"sandbox_modes":["read-only","workspace-write","full"]},` +
 		`{"id":"claude","installed":true,"sandbox_modes":["full"]},` +
 		`{"id":"copilot","installed":true,"sandbox_modes":["full"]},` +
+		`{"id":"antigravity","installed":true,"sandbox_modes":["restricted","full"]},` +
 		`{"id":"qwen","installed":true,"sandbox_modes":["full"]}]}'; exit 0; fi` + "\n" +
 		`if [ "$1" = "agent" ] && [ "$2" = "exec" ]; then` + "\n" +
 		`  echo "$*" >> '` + argsLog + "'\n" + transcript + "\n  exit 0\nfi\n" +
@@ -241,5 +242,69 @@ func TestAgentTestIsSandboxed(t *testing.T) {
 	want := "--cwd " + filepath.Join(os.Getenv("HOME"), ".monoagent", "workspaces", monomind.WorkspaceAgentTest)
 	if !strings.Contains(line, "--env MONOMIND_GIT_LEVEL=read") || !strings.Contains(line, want) {
 		t.Errorf("agent test argv: %s", line)
+	}
+}
+
+// The sandbox-fallback setting reaches a chat turn: strictest runs the
+// closest sandbox the runtime has and the journal says which, and a monomind
+// without the capability ignores the setting and says so.
+func TestChatTurnSandboxFallbackSetting(t *testing.T) {
+	cases := []struct {
+		name, setting, startExtra string
+		caps                      []string
+		wantArgs, neverArgs       []string
+		wantStatus, wantDetail    string
+	}{
+		{name: "run is today's behaviour", setting: "run", neverArgs: []string{"--sandbox", "--sandbox-fallback"},
+			caps: []string{monomind.CapAgentExecSandboxFallback}, wantStatus: monomind.SandboxStatusUnsupported},
+		{name: "strictest", setting: "strictest", startExtra: `,"sandbox_applied":"restricted"`,
+			caps:     []string{monomind.CapAgentExecSandboxFallback},
+			wantArgs: []string{"--sandbox workspace-write --sandbox-fallback strictest"}, wantStatus: monomind.SandboxStatusRestricted, wantDetail: "restricted"},
+		{name: "no capability", setting: "strictest", neverArgs: []string{"--sandbox", "--sandbox-fallback"},
+			wantStatus: monomind.SandboxStatusUnsupported, wantDetail: monomind.SandboxFallbackIgnoredNote},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dbPath := newChatCLITestDB(t)
+			t.Setenv(monomind.SandboxFallbackEnv, tc.setting)
+			conv, err := openTestChatStore(t, dbPath).CreateConversation("default", "agent", "general", "antigravity", "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			bin, argsLog := writeSandboxMonomind(t, "2.24.5", true, sandboxTranscript(tc.startExtra), tc.caps...)
+			out, err := runChatCmd(t, dbPath, bin, "--conversation", conv.ID, "--turn", "turn-1", "--", "hi")
+			if err != nil {
+				t.Fatalf("turn: %v\n%s", err, out)
+			}
+			line := lastExecLine(t, argsLog)
+			for _, want := range tc.wantArgs {
+				if !strings.Contains(line, want) {
+					t.Errorf("exec argv lacks %q: %s", want, line)
+				}
+			}
+			for _, never := range tc.neverArgs {
+				if strings.Contains(line, never) {
+					t.Errorf("exec argv has %q: %s", never, line)
+				}
+			}
+			j := parseJournaledTurn(t, out)
+			if got := sandboxNotices(j); len(got) != 1 || got[0] != tc.wantStatus {
+				t.Errorf("sandbox notices = %v, want [%s]", got, tc.wantStatus)
+			}
+			var details []string
+			for _, n := range j.byType(chatevents.EventNotice) {
+				var p chatevents.NoticePayload
+				json.Unmarshal(n.Payload, &p)
+				if p.Code == noticeAgentSandboxDetail {
+					details = append(details, p.Message)
+				}
+			}
+			if (tc.wantDetail == "") != (len(details) == 0) || (len(details) > 0 && details[0] != tc.wantDetail) {
+				t.Errorf("detail notices = %v, want %q", details, tc.wantDetail)
+			}
+			if p := j.finished(t); p.Sandbox != tc.wantStatus {
+				t.Errorf("turn.finished sandbox = %q, want %q", p.Sandbox, tc.wantStatus)
+			}
+		})
 	}
 }

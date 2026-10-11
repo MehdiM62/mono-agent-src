@@ -35,6 +35,7 @@ type globalConfig struct {
 
 func newRootCmd() *cobra.Command {
 	cfg := &globalConfig{}
+	installSandboxFallbackProvider(cfg)
 
 	cmd := &cobra.Command{
 		Use:           "monoagentcli",
@@ -101,6 +102,7 @@ func newRootCmd() *cobra.Command {
 		newAgentCmd(cfg),
 		newChatCmd(cfg),
 		newCoderCmd(cfg),
+		newSandboxCmd(cfg),
 		newOrgCmd(cfg),
 		newMCPCmd(cfg),
 		newHTTPAPICmd(cfg),
