@@ -539,6 +539,10 @@ export function RunWorkflow(arg1:string):Promise<void>;
 
 export function RunWorkflowWithInput(arg1:string,arg2:string):Promise<void>;
 
+export function SandboxFallbackGet():Promise<string>;
+
+export function SandboxFallbackSet(arg1:string):Promise<string>;
+
 export function SaveConnectionDirect(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function SaveDraft(arg1:string,arg2:string):Promise<string>;

@@ -11,6 +11,7 @@ import JevSection from '../components/settings/JevSection.jsx'
 import ApiSection from '../components/settings/ApiSection.jsx'
 import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
+import SandboxFallbackSection from '../components/settings/SandboxFallbackSection.jsx'
 
 // ── VersionRow ──────────────────────────────────────────────────────────────
 
@@ -406,6 +407,16 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
         </div>
 
         <CoderModeSection />
+
+        {/* Agent sandbox fallback */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 2 }}>
+            {t('settings.sandboxFallback.sectionTitle')}
+          </span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        </div>
+
+        <SandboxFallbackSection />
 
         <div ref={sectionRefs.jev} data-section="jev">
           <JevSection collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />

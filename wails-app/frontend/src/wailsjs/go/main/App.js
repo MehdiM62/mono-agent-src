@@ -1070,6 +1070,14 @@ export function RunWorkflowWithInput(arg1, arg2) {
   return window['go']['main']['App']['RunWorkflowWithInput'](arg1, arg2);
 }
 
+export function SandboxFallbackGet() {
+  return window['go']['main']['App']['SandboxFallbackGet']();
+}
+
+export function SandboxFallbackSet(arg1) {
+  return window['go']['main']['App']['SandboxFallbackSet'](arg1);
+}
+
 export function SaveConnectionDirect(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveConnectionDirect'](arg1, arg2, arg3);
 }

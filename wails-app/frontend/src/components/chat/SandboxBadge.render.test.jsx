@@ -37,6 +37,27 @@ describe('SandboxBadge', () => {
     expect(badge.getAttribute('title')).toBeTruthy()
   })
 
+  it('names the stricter sandbox a restricted turn ran in', () => {
+    render(<SandboxBadge status="restricted" detail="restricted" />)
+    const badge = screen.getByTestId('sandbox-badge')
+    expect(badge).toHaveTextContent('stricter sandbox')
+    expect(badge).toHaveAttribute('title', "This turn ran in monomind's closest stricter sandbox: restricted.")
+  })
+
+  it('adds the ignored-setting note to an unsupported turn', () => {
+    render(<SandboxBadge status="unsupported" detail="the sandbox-fallback setting was ignored" />)
+    expect(screen.getByTestId('sandbox-badge').getAttribute('title')).toContain('the sandbox-fallback setting was ignored')
+  })
+
+  it('keeps the detail notice next to the badge, not as a banner', () => {
+    const state = reduce([
+      ev('notice', { code: 'agent.sandbox', message: 'restricted', severity: 'info' }),
+      ev('notice', { code: 'agent.sandbox.detail', message: 'read-only', severity: 'info' }),
+    ])
+    expect(state.notices).toEqual([])
+    expect(state.sandboxDetail).toBe('read-only')
+  })
+
   it('renders Spanish strings', async () => {
     await i18n.changeLanguage('es')
     render(<SandboxBadge status="awaiting-monomind" />)

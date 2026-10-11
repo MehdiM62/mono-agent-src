@@ -257,6 +257,17 @@
     "connectionsDesc": "Gestiona cuentas, OAuth, claves de API",
     "aiAgentsDesc": "Instala y usa Claude Code, Codex y otros runtimes de agentes",
     "aiAgentsTitle": "Agentes IA",
+    "sandboxFallback": {
+      "sectionTitle": "Sandbox del agente",
+      "label": "Cuando un entorno de agente no tiene sandbox",
+      "hint": "Los turnos del agente piden un sandbox que solo pueda escribir en su carpeta de trabajo. Algunos entornos no tienen ninguno; esto decide qué ocurre entonces. Un turno que exige sandbox se rechaza siempre si no lo tiene.",
+      "run": "Ejecutar sin sandbox (predeterminado)",
+      "strictest": "Usar el sandbox más estricto que tenga el entorno",
+      "fail": "Rechazar el turno",
+      "unavailable": "El monomind instalado todavía no puede aplicar este ajuste, así que los turnos se ejecutan sin sandbox. Actualiza monomind para usarlo.",
+      "envOverride": "La variable de entorno {{env}} está definida y anula esta opción.",
+      "saveError": "No se pudo guardar: {{message}}"
+    },
     "language": {
       "sectionTitle": "Idioma",
       "label": "Idioma de la interfaz",
@@ -960,6 +971,8 @@
     "unsupported": "sin sandbox (el entorno no lo admite)",
     "needsMonomind": "sin sandbox (actualiza monomind)",
     "off": "sin sandbox",
+    "restricted": "sandbox más estricto",
+    "restrictedTitle": "Este turno se ejecutó en el sandbox más estricto y cercano de monomind: {{applied}}.",
     "sandboxedTitle": "Este turno se ejecutó en el sandbox del entorno del agente: solo podía escribir en su carpeta de trabajo.",
     "unsupportedTitle": "Este entorno de agente no tiene modo sandbox, así que el turno se ejecutó sin él.",
     "needsMonomindTitle": "El monomind instalado todavía no puede aislar los turnos del agente, así que el turno se ejecutó sin sandbox. Actualiza monomind para activarlo.",

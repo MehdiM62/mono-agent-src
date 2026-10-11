@@ -178,6 +178,8 @@ function eventPatch(state, ev) {
     case 'notice': {
       // The CLI's verdict on the turn's sandbox: a badge, not a banner.
       if (payload.code === 'agent.sandbox') return { sandbox: payload.message || null }
+      // Its words: the mode a restricted turn ran in, or why the fallback setting was ignored.
+      if (payload.code === 'agent.sandbox.detail') return { sandboxDetail: payload.message || null }
       const notice = { code: payload.code, message: payload.message, severity: payload.severity }
       // A coder turn's leftover background processes: keep the pids and the
       // turn they belong to, which "Stop all" needs.
