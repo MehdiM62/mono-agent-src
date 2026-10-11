@@ -23,6 +23,10 @@ The desktop GUI (`wails-app/`) is optional and needs the Wails toolchain.
 - Default builds include the social platform nodes (Instagram, LinkedIn, X,
   TikTok, Hacker News, Product Hunt); `-tags nosocial` leaves them out.
 - CLI state lives in `~/.monoagent/` (global, not per-repo).
+- Gated commands will need a monoes.me sign-in once an enforcement date is set. For
+  development build the real binary with `-tags devaccount` and run it with
+  `MONOAGENT_DEV_ENFORCE_FROM=2999-01-01T00:00:00Z` so that nothing locks (see
+  CONTRIBUTING.md); never ship that binary.
 - Commit messages: conventional style (`type(scope): description`).
 - Never commit secrets or `.env` files.
 # monomind:start instructions:claude

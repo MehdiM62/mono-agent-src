@@ -69,7 +69,8 @@ services:
     #   # For explicit sign-in: prepare the passphrase file first (README Docker),
     #   # then docker compose exec monoagent monoagentcli account login --email you@example.com
     #   # Never copy /data/.monoagent/account/ or bake it into an image.
-    #   # HEALTHCHECK version is liveness only, not account readiness.
+    #   # HEALTHCHECK version is liveness only, not account readiness:
+    #   docker exec monoagent monoagentcli account status --offline
     #   # import a workflow from the repo checkout:
     #   docker exec monoagent monoagentcli workflow import --file /dev/stdin \
     #     < examples/http-to-slack.json
