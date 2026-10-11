@@ -84,7 +84,7 @@ func TestAgentsDocCoversTheAccount(t *testing.T) {
 		"account logout", "MONOAGENT_ALLOW_FILE_KEYRING", "MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE", "-tags devaccount", "core.monoes_account",
 		"`ref account`", "No credential comes from an environment variable", "daemon restart", graceText(),
 		"never copy or restore", "signs out the original and every copy", "services.daemon.restart", "MONOAGENT_DEV_ENFORCE_FROM", "monoes..account",
-		"dormant")...)
+		"The gate is live")...)
 	if strings.Contains(flat(docText(t, "AGENTS.md")), "stored per profile in the encrypted vault") {
 		t.Error("AGENTS.md still says the library login is stored per profile in the vault: it uses the machine session")
 	}

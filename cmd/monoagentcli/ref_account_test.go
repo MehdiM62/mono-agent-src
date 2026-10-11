@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestRefAccountDocumentsDormantBuild(t *testing.T) {
+func TestRefAccountDocumentsTheLiveBuild(t *testing.T) {
 	cmd := refAccountCmd()
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -14,12 +14,12 @@ func TestRefAccountDocumentsDormantBuild(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"dormant", "Production signing keys are not pinned", "24 hours", "login_required", "keyring_unavailable", "unconfirmed", "MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE", "Never copy or restore", "current MIT license"} {
+	for _, want := range []string{"The account gate is live", "2026-10-11", "production signing key is pinned", "24 hours", "login_required", "keyring_unavailable", "unconfirmed", "MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE", "Never copy or restore", "current MIT license"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("ref account omits %q", want)
 		}
 	}
-	assertNoEnforcementClaims(t, "ref account", out.String())
+	assertNoDormantClaims(t, "ref account", out.String())
 }
 
 // The examples must remain usable if command flags or aliases change.
@@ -55,13 +55,13 @@ func TestRefAccountFlagsExistOnCommands(t *testing.T) {
 }
 
 // The page `ref account` and the `ref commands` entries say what the gate does,
-// in release R's terms, without claiming that enforcement is live.
+// in release R's terms: the gate is live.
 func TestRefAccountDocumentsTheGate(t *testing.T) {
 	out := captureStdout(t, func() { c := refAccountCmd(); c.Run(c, nil) })
 	for _, w := range append(spelled(""), refusalLine(), "login_required", "exit 4", graceText(), "account login --email", "--send", "--code",
 		"MONOAGENT_ALLOW_FILE_KEYRING", "MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE", "-tags devaccount", "No credential comes from an environment variable",
 		"Never copy or restore", "signs out the original and every copy", "MONOAGENT_DEV_ENFORCE_FROM", "monoes..account", "core.monoes_account",
-		"enforce_from", "dormant") {
+		"enforce_from", "2026-10-11", "Exit 4") {
 		if !strings.Contains(flat(out), flat(w)) {
 			t.Errorf("`ref account` does not say %q", w)
 		}

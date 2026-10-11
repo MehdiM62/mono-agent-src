@@ -11,9 +11,9 @@ engagement, or outreach service for accounts you don't own.
 It's a workflow engine that runs on your machine: you build automations
 against services and accounts that are yours, at a pace you control.
 
-The online library requires a monoes.me sign-in; the account gate for local work
-is currently dormant. A future enabled gate will limit offline operation to at
-most 24 hours from a signed token's issue time. See [SECURITY.md](../SECURITY.md).
+A monoes.me sign-in has been required since 2026-10-11 (UTC), including for local
+work. Offline operation is limited to at most 24 hours from a signed token's
+issue time. See [SECURITY.md](../SECURITY.md).
 
 You control when those workflows run and which services they contact.
 

@@ -249,11 +249,11 @@ conversation database like any chat.
 
 **No analytics, no usage counters, no device identifier.** Mono Agent does not
 report what you run, which workflows you have or how often you use it. A
-monoes.me account will be required from the enforcement date (`enforce_from` in
-`account status`), so it does contact monoes.me, and it checks for updates. This
-build is **dormant**: no enforcement date is set, so it makes no implicit
-adoption, refresh or background account requests, and only an explicit `account`
-or `library` command contacts monoes.me about the sign-in. This is the complete
+monoes.me sign-in has been required since 2026-10-11 (UTC) (`enforce_from` in
+`account status`), so it does contact monoes.me, and it checks for updates. The
+sign-in requests below happen on their own, without a command you typed: the
+refresh while a process runs and the one-time exchange of an older library
+login. This is the complete
 list of the situations in which Mono Agent makes network requests:
 
 1. **monoes.me, to sign in and stay signed in.** `account login` (and `library
@@ -263,11 +263,11 @@ list of the situations in which Mono Agent makes network requests:
    with its verifier; with `--email` instead, the email address you type (with the
    client id and scope), and then the address again with the code mailed to it.
    `account logout` revokes the refresh token (it sends the token and the client
-   id). Once a release enables the gate, a refresh follows while a `monoagentcli`
+   id). A refresh follows while a `monoagentcli`
    process runs: a long-running one (the daemon, a server, the desktop app) at
    about half the token's lifetime, a short command only when the token has under
    five minutes left. It sends the refresh token, the client id and the
-   resource. On the first gated command after the gate is enabled, a monoes.me
+   resource. On the first gated command, a monoes.me
    library login left by an older release is exchanged once for this sign-in (its
    refresh token, the client id and the resource); if monoes.me does not allow
    that, nothing changes and you sign in once more. monoes.me learns which
@@ -292,15 +292,14 @@ list of the situations in which Mono Agent makes network requests:
    third-party platforms).
 5. Opt-in crash reporting, below.
 
-**Without a connection**, once the gate is enabled, Mono Agent keeps working for
+**Without a connection**, Mono Agent keeps working for
 24 hours after the last successful contact with monoes.me (counted from the
 signed issue time of the newest token). Then every gated command refuses with
 exit code 4 (`login_required`) until it can reach monoes.me again; `version`,
 `help`, `ref`, `update`, `doctor`, `setup` and the `account` commands always work,
 and a daemon or server (`daemon`, `httpapi`, `mcp`, `extension serve`) stays up
 and refuses its work. A blocked or revoked account is locked at the next refresh,
-within about an hour. This does not describe a dormant build, which does not
-lock.
+within about an hour.
 
 **Crash reporting is local by default.** If the CLI crashes, it writes a
 crash report to a file under `~/.monoagent/crashes/` on your machine —
@@ -331,17 +330,17 @@ refresh token and keeps a `session.json` that holds no token, only the highest
 time this machine has seen, which is what stops setting the clock back from
 switching the requirement off. The access token is verified on this machine
 against signing keys built into the binary: there is no network call per command.
-The production key set is currently empty; a production machine session cannot be
-verified until those keys are pinned.
+The production signing key is pinned (a fixture token signed by the production
+key is verified in the tests), so a production machine session is verified on this
+machine.
 
 The key that seals the refresh token is an item of its own in that key store (in
 the OS keychain, under the vault's service name `monoagent-vault`). In a file
 keyring it is listed by `secret keyring status` as the id `monoes..account`. It
 exists only after an explicit `account login` creates it.
 
-The account gate that uses this session is currently **dormant**: no enforcement
-date is set, so nothing is locked or warned about, and no command contacts
-monoes.me implicitly. A binary built with `-tags devaccount` trusts a development
+The account gate that uses this session is **live** since 2026-10-11 (UTC): a
+gated command without a valid sign-in exits 4 with `login_required`. A binary built with `-tags devaccount` trusts a development
 signing key that anyone can sign with; it is for testing only, and CI's release
 guard (`scripts/check-release-tags.sh`) fails a release whose binaries carry that
 tag.
@@ -379,8 +378,7 @@ or revokes the sign-in, or it goes 24 hours without reaching monoes.me.
 ### The sign-in requirement is a product check
 
 Mono Agent checks for a valid sign-in before it runs a command, and again while a
-daemon, an API, an MCP server or the extension bridge runs, once a release enables
-the gate. This is a check in the official builds, not a security boundary: a
+daemon, an API, an MCP server or the extension bridge runs. This is a check in the official builds, not a security boundary: a
 binary you build or patch yourself can remove it, a copy of the session files
 works on another machine for a while (it counts accounts, not devices) until one
 of the two copies presents a refresh token the other has already used, which ends

@@ -12,7 +12,7 @@ func init() {
 	cliDocs = append(cliDocs,
 		cmdDoc{
 			Name:  "account login",
-			Short: "Sign in to monoes.me (browser with PKCE, or a code by email); will be required from the enforcement date",
+			Short: "Sign in to monoes.me (browser with PKCE, or a code by email); required since 2026-10-11 (UTC)",
 			Usage: "monoagentcli account login [--no-browser] [--timeout 5m] | --email <addr> [--send | --code-stdin | --code <code>]",
 			Flags: `  --no-browser        Print the sign-in URL instead of opening the browser
   --timeout duration  How long to wait for the browser (default 5m)
@@ -45,16 +45,15 @@ func init() {
 const refAccountText = `monoagentcli — monoes.me account
 
 CURRENT BUILD
-  The account gate is dormant: no enforcement date is set, nothing locks or
-  warns, and no implicit adoption, refresh or background refresher runs. Local
-  work needs no account. The online library still requires a sign-in for reads.
-  Releases are published on monoes.me. No command contacts monoes.me unless
-  you run account or library yourself.
-  Production signing keys are not pinned yet; a production machine session
-  cannot be verified until the server/key rollout. No enforcement date is
-  announced here. The behavior below applies if a future release enables it.
+  The account gate is live. A monoes.me sign-in has been required since
+  2026-10-11 (UTC); account status shows the date as enforce_from. A gated
+  command without a valid sign-in exits 4 with login_required and does nothing
+  else. The online library requires a sign-in too. Releases are published on
+  monoes.me.
+  The production signing key is pinned: a production machine session is
+  verified on this machine, with no network call per command.
 
-COMMANDS (explicit account requests may contact monoes.me)
+COMMANDS
   monoagentcli account login
   monoagentcli account login --no-browser --timeout 2m
   monoagentcli account login --email you@example.com
@@ -64,12 +63,11 @@ COMMANDS (explicit account requests may contact monoes.me)
   monoagentcli account logout
   library login, library logout and library status manage the same machine
   session. status --offline reads locally without refreshing. An explicit
-  status can return locked / not_logged_in and exit 4 even while the gate is
-  dormant (exit 0 while the session is good, including offline grace); that
-  does not prevent local work. status --json prints {"v":1,"state","reason",
+  status exits 4 when the sign-in is locked (for example not_logged_in) and 0
+  while the session is good, including offline grace. status --json prints {"v":1,"state","reason",
   "user","plan","issued_at","valid_until","grace_until","enforce_from","enforced"}:
   valid_until is the access token's expiry (about an hour), grace_until its issue
-  time plus 24 hours, and enforce_from is empty while no date is set. Never paste
+  time plus 24 hours, and enforce_from is the enforcement date, 2026-10-11 UTC. Never paste
   a token into a command, workflow or chat; ask the user to run account login.
   No credential comes from an environment variable, and there are no unattended
   machine tokens.
@@ -93,9 +91,8 @@ STORAGE AND NETWORK
   request time and source IP address. No device identifier or usage counters
   are sent by the account gate. SECURITY.md lists the network requests.
 
-WHEN ENABLED IN A FUTURE RELEASE
-  warn: before enforce_from (account status --json), commands run and warn.
-  enforced: from that date, locked gated commands refuse before doing work.
+STATES
+  enforced: since enforce_from, locked gated commands refuse before doing work.
   ok: the signed token is valid. grace: renewal failed but the token is still
   valid, at most 24 hours from its signed issue time. locked: work is refused.
   Reasons include not_logged_in, expired, refused, clock_rollback, clock_skew,
@@ -106,19 +103,18 @@ WHEN ENABLED IN A FUTURE RELEASE
   refresh token and becomes unconfirmed. Sign in again on this machine.
   Clock rollback can lock work; a freshly verified token resets the clock guard.
 
-WHAT STAYS OPEN WHEN ENABLED
+WHAT STAYS OPEN
   Open: version, help, completion (including __complete and __completeNoDesc),
   ref, update, doctor (including doctor fix), setup, release (maintainer tools),
   account (all subcommands), library login, library logout, library status.
-  doctor has a core.monoes_account row (fix: account login); it never warns or
-  fails while the gate is dormant.
+  doctor has a core.monoes_account row (fix: account login).
   Serving: daemon, httpapi, mcp (including --grant), extension serve (also the
   bridge serve alias). They start while locked and refuse work; they stay up
   so service managers do not repeatedly respawn them.
   Every other command is gated, including local-only commands, daemon install,
   daemon restart, daemon uninstall and org serve.
 
-REFUSAL WHEN ENABLED
+REFUSAL
   Exit 4; first line: Log in to monoes.me first: monoagentcli account login
   With --json, login_required is true and code is auth_or_connection.
   Branch on exit 4 and login_required, not on message wording.
@@ -137,7 +133,7 @@ HEADLESS AND DOCKER
   MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE to it (or use
   ~/.monoagent/keyring-passphrase). README's Docker section has the commands.
   A daemon has no terminal. Without a passphrase source it cannot unseal its
-  refresh token: an enabled gate reports grace / keyring_unavailable, then
+  refresh token: the gate reports grace / keyring_unavailable, then
   locks at token expiry (at most 24 hours). secret keyring set-passphrase is
   itself gated. No account credential comes from an environment variable;
   there are no unattended machine tokens.
@@ -145,14 +141,14 @@ HEADLESS AND DOCKER
 DEVELOPERS
   -tags devaccount trusts a development signing key and permits a development
   host via MONOES_BASE_URL. MONOAGENT_DEV_ENFORCE_FROM is read only by that
-  build to exercise warning/enforcement. Releases never carry devaccount.
+  build to move the enforcement date in a test. Releases never carry devaccount.
   The current MIT license is unchanged; the account gate is a product check,
   not a security boundary against the OS user who can rebuild the source.
 `
 
 func refAccountCmd() *cobra.Command {
 	return &cobra.Command{
-		Use: "account", Short: "Machine sign-in, the dormant account gate, and headless setup",
+		Use: "account", Short: "Machine sign-in, the account gate, and headless setup",
 		Args: cobra.NoArgs,
 		Run:  func(cmd *cobra.Command, args []string) { fmt.Fprint(cmd.OutOrStdout(), refAccountText) },
 	}

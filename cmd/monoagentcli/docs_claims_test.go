@@ -90,17 +90,16 @@ func TestStaleClaimsLeaveTheOfflineManualAndFlagsAlone(t *testing.T) {
 	}
 }
 
-// The front-door documents say what is true of release R without claiming that
-// enforcement is live: the account "will be required" from the enforcement date
-// (account status shows it as enforce_from), and TestAccountDocsMatchDormantRollout
-// keeps the "dormant" statements until a date is set.
+// The front-door documents say what is true of release R: a sign-in is required
+// from the enforcement date (account status shows it as enforce_from), and
+// TestAccountDocsMatchLiveRollout keeps them from calling the gate dormant.
 func TestFrontDoorDocsStateTheAccount(t *testing.T) {
 	assertNoStaleClaims(t, "README.md")
 	assertNoStaleClaims(t, "SUPPORT.md")
-	assertSays(t, "README.md", "A monoes.me account will be required", "monoagentcli account login", "account login --email", "account logout",
+	assertSays(t, "README.md", "A monoes.me sign-in is required", "monoagentcli account login", "account login --email", "account logout",
 		"login_required", graceText(), "SECURITY.md#network-use-telemetry-and-crash-reporting", "AGENTS.md#headless-and-docker",
 		"MONOAGENT_ALLOW_FILE_KEYRING", "MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE", "SECURITY.md#one-sign-in-per-machine-never-copied",
-		"enforce_from", "dormant")
+		"enforce_from", "--code-stdin")
 	assertSays(t, "SUPPORT.md", "account status --json", "doctor --check core.monoes_account")
 	assertSays(t, "install.sh", "account login")
 }
