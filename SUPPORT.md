@@ -43,6 +43,16 @@ concrete, harder to go the other way.
 See [SECURITY.md](SECURITY.md) for private reporting instructions
 (GitHub private vulnerability reporting, preferred, or email).
 
+## Signing in to monoes.me
+
+When signing in, or staying signed in, fails, run `monoagentcli account status --json`
+and `monoagentcli doctor --check core.monoes_account`, and put the `state` and the
+`reason` they print (never a token) in your Discussion or issue: the reason says whether
+monoes.me refused the sign-in, could not be reached, or the machine's clock or key store
+is the problem. `monoagentcli account login` signs in again. A sign-in is required only
+from the enforcement date (`enforce_from` in `account status`); until a date is set the
+gate is dormant.
+
 ## The `monoes_apis` backend
 
 Out of scope for this repo's support channels. Mono Agent's core (the

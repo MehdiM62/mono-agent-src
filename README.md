@@ -26,8 +26,8 @@
 - 🖥️ **Three ways to drive it** — a visual canvas editor (Wails desktop GUI), a 180+-command CLI with JSON output everywhere, and a built-in MCP server so AI agents can operate it safely
 - 🤝 **Human-in-the-loop as a platform primitive** — pause any workflow for review, edit the payload, then approve or reject; the queue is durable and survives restarts
 - 🌐 **Browser automation where no practical API exists** — drive *your own logged-in Chrome* via the bundled extension bridge, publishing to and reading your own accounts (same model as consumer RPA tools)
-- 📣 **Social platform nodes** (Instagram, LinkedIn, X, TikTok, Hacker News, Product Hunt) for managing your own accounts: their web automations are official packages on [monoes.me](https://monoes.me), added with `monoagentcli library login` and `monoagentcli library install automation <id>` (a `-tags nosocial` build leaves the nodes out) — see [Usage Policy](docs/USAGE_POLICY.md)
-- 📚 **monoes.me library** — log in with `monoagentcli library login` (browsing needs a login, official items included), then browse, install and publish workflows, orgs and web automations (`library list | install | publish | update`); the desktop app has the same in its Templates, Browser Automations and Orgs pages
+- 📣 **Social platform nodes** (Instagram, LinkedIn, X, TikTok, Hacker News, Product Hunt) for managing your own accounts: their web automations are official packages on [monoes.me](https://monoes.me), added with `monoagentcli account login` (`library login` is the same sign-in) and `monoagentcli library install automation <id>` (a `-tags nosocial` build leaves the nodes out) — see [Usage Policy](docs/USAGE_POLICY.md)
+- 📚 **monoes.me library** — browsing needs your monoes.me sign-in (`monoagentcli account login`; `library login` is the same sign-in), official items included; then browse, install and publish workflows, orgs and web automations (`library list | install | publish | update`); the desktop app has the same in its Templates, Browser Automations and Orgs pages
 
 Think of it as an honest, self-hosted n8n you can carry in a single file — with human approval gates and first-class agent access built in.
 
@@ -44,23 +44,11 @@ Think of it as an honest, self-hosted n8n you can carry in a single file — wit
 
 ---
 
-### monoes.me sign-in and the dormant account gate
-
-The account gate is **dormant**: no enforcement date is set, no command warns or
-requires an account for local work, and no account refresh or adoption happens
-implicitly. The monoes.me library already needs a sign-in for its online reads.
-`monoagentcli account login` (browser) or `account login --email you@example.com`
-manages the same machine session as `library login`; `account status --offline
---json` inspects it locally. Default builds have no production signing keys yet,
-so a working production machine sign-in requires the future server/key rollout.
-
-If a future release enables the gate, it will warn before its enforcement date
-(`enforce_from` in `account status`) and require a valid sign-in from that date.
-A signed token supports at most 24 hours offline from its issue time; locked work
-exits 4 with `login_required`. The offline `ref` manual, recovery commands and
-sign-in commands remain open. Serving commands stay up and refuse work while
-locked. See `monoagentcli ref account` and [SECURITY.md](SECURITY.md) for details.
-No enforcement date is announced by this build.
+> ### A monoes.me account will be required
+>
+> Sign in with `monoagentcli account login` (it opens your browser; on a machine without one, `account login --email you@example.com` mails you a code). The requirement starts on an enforcement date that `monoagentcli account status` shows as `enforce_from`. **No date is set yet, so the gate is dormant**: nothing locks, nothing warns, and nothing contacts monoes.me unless you run an `account` or `library` command. From release R on, a build that is not signed in prints a warning before the date; from the date it refuses gated commands (exit code 4, `login_required`). `version`, `help`, `ref`, `update`, `doctor`, `setup` and the `account` commands always work. A daemon or server (`daemon`, `httpapi`, `mcp`) started without a sign-in stays up and refuses its work until you sign in.
+>
+> Your workflows, run history, people, credentials and files stay on your machine. The app contacts monoes.me to sign you in and keep the sign-in fresh (about every half hour while a long-running process such as the daemon runs) and to check for updates; [SECURITY.md](SECURITY.md#network-use-telemetry-and-crash-reporting) lists exactly what is sent. Once the requirement applies, a sign-in keeps working for 24 hours after it last reached monoes.me, and not longer. Production signing keys are not pinned in this build yet, so a production sign-in cannot be verified until the server and key rollout; `ref account` has the current state.
 
 ## Quick Start
 
@@ -72,6 +60,7 @@ go build -o monoagentcli ./cmd/monoagentcli
 
 # Orientation
 ./monoagentcli version
+./monoagentcli account login             # sign in to monoes.me (will be required, see above)
 ./monoagentcli ref                       # built-in offline docs: commands, nodes, expressions
 ./monoagentcli node list                 # all 167 node types
 
@@ -646,9 +635,18 @@ Profile folders (per-profile vault and data) and the assistant-tools toggle are 
 ### Docker
 
 The image runs as user `monoagent` with `HOME=/data`; the volume preserves
-`/data/.monoagent/`, including any machine sign-in. Local daemon work currently
-needs no account because the gate is dormant. For explicit sign-in, or before a
-future enforced release, prepare a file keyring before logging in:
+`/data/.monoagent/`, including a machine sign-in. Once the requirement applies, a
+container needs a monoes.me sign-in kept in its volume, never baked into the image
+(a copied sign-in signs out the original and every copy, see
+[SECURITY.md](SECURITY.md#one-sign-in-per-machine-never-copied)). The daemon starts
+without one and stays up, logging the command to run; from the enforcement date it
+refuses work until you sign in. While the gate is dormant, local daemon work needs
+no account. A container has no OS keyring, so the sign-in's refresh token is sealed
+under the file keyring, whose passphrase the daemon must be able to read without a
+terminal. The compose file sets `MONOAGENT_ALLOW_FILE_KEYRING=1` and
+`MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE=/data/.monoagent/keyring-passphrase`. Create
+the passphrase file before you sign in (`secret keyring set-passphrase` is itself a
+gated command):
 
 ```bash
 docker compose up -d --build
@@ -657,16 +655,13 @@ docker compose exec monoagent monoagentcli account login --email you@example.com
 docker compose exec monoagent monoagentcli account status --offline --json
 ```
 
-The passphrase source is a private file you create on the host; do not put a
-passphrase or token into Compose, an environment variable, or an image. Compose
-enables `MONOAGENT_ALLOW_FILE_KEYRING=1` and names the passphrase file. Without
-that file a daemon cannot unseal the refresh token, and an enabled gate will show
-`grace` / `keyring_unavailable` before locking at token expiry. Create it before
-sign-in: `secret keyring set-passphrase` is itself gated in an enforced build.
-Never copy or restore `~/.monoagent/account/` or bake it into an image. Sign in
-separately on each machine. The Docker health check only runs `version`; it tests
-binary liveness, not whether the account permits work.
-
+Do not put the passphrase or a token into Compose, an environment variable or an
+image. Without the passphrase file the daemon cannot read the sign-in back:
+`account status` then says `grace` with the reason `keyring_unavailable`, and the
+daemon stops doing work 24 hours after its last refresh. The Docker health check
+only runs `version`; it tests liveness, not whether the account permits work, so
+check `account status --offline` yourself. See
+[AGENTS.md](AGENTS.md#headless-and-docker).
 
 ```bash
 docker compose up -d --build   # daemon + persistent /data volume
@@ -680,17 +675,9 @@ To install a prebuilt CLI inside your own image instead of building from source:
 
 Browser-based webhook callers additionally need `MONOAGENT_WEBHOOK_ALLOWED_ORIGINS` (a comma-separated CORS allowlist; unset by default — no CORS headers are sent). See [docker-compose.yml](docker-compose.yml) and the env-var table in [AGENTS.md](AGENTS.md).
 
-A headless container has no browser, so sign in to monoes.me with the emailed-code flow once it is running (see [monoes.me account](#monoesme-account)); the session is written to the `/data` volume:
-
-```bash
-docker compose exec monoagent monoagentcli account login --email you@example.com
-```
-
-Where the image has no OS key store, set `MONOAGENT_ALLOW_FILE_KEYRING=1` so the sign-in can be sealed. Don't copy `~/.monoagent/account` between machines or into an image.
-
 ### monoes.me account
 
-A monoes.me account is **optional today**; it will be required from a date announced at [monoes.me/mono-agent](https://monoes.me/mono-agent). Until then nothing is locked and no command warns. Releases are published on monoes.me. You sign in once per machine, shared by every profile:
+A monoes.me account is **optional today** (the gate is dormant); it will be required from the enforcement date, which `account status` shows as `enforce_from` once one is set. Until then nothing is locked, and releases are published on monoes.me. You sign in once per machine, shared by every profile:
 
 ```bash
 monoagentcli account login                     # opens the browser
@@ -699,32 +686,34 @@ monoagentcli account status [--offline]        # who is logged in, and until whe
 monoagentcli account logout                    # revoke and forget the session
 ```
 
+From the date, a gated command without a valid sign-in exits 4 with `login_required` and does nothing else; `version`, `help`, `ref`, `update`, `doctor`, `setup` and the `account` commands keep working. If something is wrong, `monoagentcli doctor --check core.monoes_account` says what.
+
 `monoagentcli ref account` has the same text offline.
 
 ### Uninstall & data
 
 All state lives under `~/.monoagent/` (workflows, the SQLite DB, per-profile
-credential vaults, browser sessions, and crash reports) and, on macOS/Linux,
+credential vaults, browser sessions, crash reports, and the monoes.me sign-in in `account/`) and, on macOS/Linux,
 in your OS keychain (Keychain Access / Secret Service) for any secrets stored
 there instead of the vault. To remove Mono Agent completely:
 
 ```bash
 monoagentcli account logout          # revoke a machine sign-in, if present
 rm /usr/local/bin/monoagentcli        # or wherever you installed it
-rm -rf ~/.monoagent                   # workflows, vault, sessions, crash reports
+rm -rf ~/.monoagent                   # workflows, vault, sessions, crash reports, the sign-in
 ```
 
 Then remove the Chrome extension from `chrome://extensions`, and delete the
 `monoagent-vault` entries from Keychain Access / Secret Service / Windows
 Credential Manager manually — that's where the vault's OS-keychain-backed
-encryption key lives, and the CLI never deletes it on uninstall since there's
-no install hook to run it from.
+encryption key lives, and the key that seals your monoes.me sign-in. The CLI
+never deletes them on uninstall since there's no install hook to run it from.
 
 **Personal data:** everything Mono Agent stores (contacts, message history,
 exported followers, connection credentials) stays in `~/.monoagent/` on your
 machine. There are no analytics or usage counters to opt out of. Explicit
 monoes.me sign-in/library commands and update checks contact external services;
-[SECURITY.md](SECURITY.md) describes what is sent and the dormant account gate.
+[SECURITY.md](SECURITY.md#network-use-telemetry-and-crash-reporting) describes what is sent and the dormant account gate.
 If you use the `people` / social nodes to import or export data about other
 people, you're the one responsible for having a lawful basis to hold it
 (GDPR, CCPA, or your local equivalent) — deleting the profile above purges
@@ -790,7 +779,7 @@ mono-agent/
 | [docs/planning/FEATURE_n8n.md](docs/planning/FEATURE_n8n.md) | detailed n8n feature map used as our porting reference |
 | [examples/](examples/) | Ready-to-run workflow JSONs with webhook trigger examples |
 | [install.sh](install.sh) | One-line installer (macOS / Linux) |
-| [SECURITY.md](SECURITY.md) | Reporting, supported versions, network use & crash reporting |
+| [SECURITY.md](SECURITY.md) | Reporting, supported versions, what the app contacts (monoes.me sign-in, updates), telemetry & crash reporting |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Build/test commands (incl. `-tags nosocial`), PR guidelines |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [docs/screenshots/](docs/screenshots/) | GUI screenshots, including a [walkthrough of the Org page](docs/screenshots/org-walkthrough/README.md) |
