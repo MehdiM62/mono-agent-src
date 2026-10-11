@@ -42,17 +42,23 @@ are made. `monoagentcli ref account` explains current and future behavior. A
 `-tags devaccount` build trusts a development signing key and honors
 `MONOAGENT_DEV_ENFORCE_FROM` (an RFC 3339 time) to move the enforcement date,
 so the gate can be exercised against the fake monoes.me in
-`internal/library/libraryfake`:
+`internal/library/libraryfake`. Unit tests need no tag: `accounttest.Install` and
+`account.SetTrustedKeysForTest` swap the keys and the clock, and panic outside a
+test binary. To run the real binary, build it with the tag:
 
 ```bash
+go build -tags devaccount -o /tmp/monoagentcli ./cmd/monoagentcli
 go test -race -tags devaccount ./internal/account/...
 go test -tags devaccount ./internal/accountsmoke/ -count=1 -timeout 25m   # real-binary smoke
 ```
 
 Never build a release with that tag: CI's `release-guard` job
 (`scripts/check-release-tags.sh`) fails the release if any shipped Go binary
-lists it. Set `MONOAGENT_DEV_ENFORCE_FROM` for the process under test only; a
-default build ignores it.
+lists it. Set `MONOAGENT_DEV_ENFORCE_FROM` for the process under test only: a
+future date such as `2999-01-01T00:00:00Z` forces the warn period (nothing locks),
+a past date forces enforcement, and it never relaxes anything. A default build
+ignores it. Scripts and CI jobs that run a gated command without testing the gate
+should build with the tag and set a date that never comes.
 
 ## Code Style
 

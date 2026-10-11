@@ -6,6 +6,42 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// The `account` entries of `ref commands` (kept apart from ref.go, which is
+// long enough).
+func init() {
+	cliDocs = append(cliDocs,
+		cmdDoc{
+			Name:  "account login",
+			Short: "Sign in to monoes.me (browser with PKCE, or a code by email); will be required from the enforcement date",
+			Usage: "monoagentcli account login [--no-browser] [--timeout 5m] | --email <addr> [--send | --code-stdin | --code <code>]",
+			Flags: `  --no-browser        Print the sign-in URL instead of opening the browser
+  --timeout duration  How long to wait for the browser (default 5m)
+  --email string      Sign in with a code sent to this address (a machine with no browser)
+  --send              With --email: only send the code
+  --code-stdin        With --email: read the code from stdin, so it never shows in the process list
+  --code string       With --email: the code from the email (visible in the process list)`,
+			Examples: []string{
+				"monoagentcli account login",
+				"monoagentcli account login --email you@example.com --send",
+				"echo 123456 | monoagentcli account login --email you@example.com --code-stdin",
+			},
+		},
+		cmdDoc{
+			Name:     "account status",
+			Short:    "Show the monoes.me sign-in: state, reason, who, and when it stops working (exit 0 for ok and grace, 4 for locked)",
+			Usage:    "monoagentcli account status [--offline] [--json]",
+			Flags:    `  --offline           Do not refresh first; report what is stored`,
+			Examples: []string{"monoagentcli account status", "monoagentcli account status --offline --json"},
+		},
+		cmdDoc{
+			Name:     "account logout",
+			Short:    "Revoke the refresh token at monoes.me (best effort) and delete the local sign-in",
+			Usage:    "monoagentcli account logout",
+			Examples: []string{"monoagentcli account logout"},
+		},
+	)
+}
+
 const refAccountText = `monoagentcli — monoes.me account
 
 CURRENT BUILD
@@ -29,17 +65,26 @@ COMMANDS (explicit account requests may contact monoes.me)
   library login, library logout and library status manage the same machine
   session. status --offline reads locally without refreshing. An explicit
   status can return locked / not_logged_in and exit 4 even while the gate is
-  dormant (exit 0 while the session is good, including offline grace; add
-  --json for machine-readable output); that does not prevent local work. Never paste a token into a command,
-  workflow or chat; ask the user to run account login.
+  dormant (exit 0 while the session is good, including offline grace); that
+  does not prevent local work. status --json prints {"v":1,"state","reason",
+  "user","plan","issued_at","valid_until","grace_until","enforce_from","enforced"}:
+  valid_until is the access token's expiry (about an hour), grace_until its issue
+  time plus 24 hours, and enforce_from is empty while no date is set. Never paste
+  a token into a command, workflow or chat; ask the user to run account login.
+  No credential comes from an environment variable, and there are no unattended
+  machine tokens.
 
 STORAGE AND NETWORK
   ~/.monoagent/account/ (0700): session.json, refresh.enc, session.lock (0600).
   One session per OS user, shared by profiles regardless of --db-path.
   refresh.enc is sealed under the OS key store (or the file keyring fallback).
   Sign in separately on every machine. Never copy or restore this folder, even
-  from an old backup, or bake it into an image: reused refresh tokens can revoke
-  a sign-in on the original and its copies. Independent sign-ins are separate.
+  from an old backup, or bake it into an image: monoes.me treats a refresh token
+  that was already used as stolen and ends that sign-in, so a stale copy, once
+  presented, signs out the original and every copy. Machines that signed in on
+  their own keep working. Signing out of the monoes.me website does not sign out
+  an install. In a file keyring, secret keyring status lists the sign-in's key
+  as monoes..account once an explicit account login has created it.
   Default account commands use https://monoes.me; another sign-in host requires
   -tags devaccount. The library still honors MONOES_BASE_URL for its requests,
   but sends a machine session only to its issuing host.
@@ -63,8 +108,10 @@ WHEN ENABLED IN A FUTURE RELEASE
 
 WHAT STAYS OPEN WHEN ENABLED
   Open: version, help, completion (including __complete and __completeNoDesc),
-  ref, update, doctor (including doctor fix), setup, account (all subcommands),
-  library login, library logout, library status.
+  ref, update, doctor (including doctor fix), setup, release (maintainer tools),
+  account (all subcommands), library login, library logout, library status.
+  doctor has a core.monoes_account row (fix: account login); it never warns or
+  fails while the gate is dormant.
   Serving: daemon, httpapi, mcp (including --grant), extension serve (also the
   bridge serve alias). They start while locked and refuse work; they stay up
   so service managers do not repeatedly respawn them.

@@ -433,6 +433,13 @@ jobs:
           path: artifacts/
       - name: No shipped Go binary carries the devaccount tag
         run: bash scripts/check-release-tags.sh --min 11 artifacts/
+      # The enforcement date and the production-key proof are the owner's (plan B5a Tasks 1-2): a date in
+      # the source ships only with the repository variable ACCOUNT_ENFORCEMENT_RELEASE=true, and then
+      # only when it is 21+ days ahead and the production-token fixture exists.
+      - name: The rollout state matches the owner's release decision
+        env:
+          ACCOUNT_ENFORCEMENT_RELEASE: ${{ vars.ACCOUNT_ENFORCEMENT_RELEASE }}
+        run: bash scripts/check-rollout-ready.sh
 
   # ─── 2h. Unsigned update manifest ──────────────────────────────────────────
   # Writes SHA256SUMS and manifest.json (cmd/release-manifest, a maintainer tool that is not in

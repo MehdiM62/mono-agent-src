@@ -46,9 +46,11 @@ WORKDIR /app
 # Liveness = the CLI answers `version` (exit 0). The daemon is the
 # entrypoint, so any successful subcommand invocation proves the process
 # tree is alive and the binary still executes. This does not test account
-# readiness: a locked daemon in a future enforced build stays up. Sign in
-# separately per machine, keep /data/.monoagent/account/ in the volume only,
-# and never bake or restore a machine sign-in into an image.
+# readiness: a locked daemon in a future enforced build stays up. Make the
+# monoes.me sign-in after `up` (README.md "Docker" and docker-compose.yml say how)
+# and keep it in /data/.monoagent/account/ only, signing in separately per machine
+# and never baking or restoring a machine sign-in into an image. Check it with
+# `docker exec <container> monoagentcli account status --offline`.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD monoagentcli version
 
