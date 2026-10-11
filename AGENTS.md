@@ -18,9 +18,8 @@ desktop GUI (`wails-app/`).
   exception: `monoagentcli init` also copies skill files into
   `~/.claude/skills/` when `~/.claude` exists (a local file copy; no
   network).
-- A monoes.me account will be required from the enforcement date (see
-  [monoes.me account](#monoesme-account); the gate is dormant until a date is
-  set). Your data stays on your machine, and there are no analytics or usage
+- A monoes.me sign-in is required since 2026-10-11 UTC (see
+  [monoes.me account](#monoesme-account)). Your data stays on your machine, and there are no analytics or usage
   counters. What can leave the machine (see [SECURITY.md](SECURITY.md) for the
   full statement): the monoes.me sign-in and its refresh (the account, the time
   and the IP address; with `--email`, the address you type), update checks, the
@@ -87,9 +86,7 @@ bridge version; if the service still uses an older binary, update that
 binary too. Daemon-owned bridges retain `browser.bridge.restart`.
 
 Groups: `core` (data folder, database, profile, vault, PATH, disk, the monoes.me
-sign-in as `core.monoes_account` — ok; warn in the grace window or before the
-enforcement date; fail when locked; it never warns or fails while the gate is
-dormant; fix `account login`, or `update` for `key_unknown`), `monomind`
+sign-in as `core.monoes_account` — ok; warn in the grace window; fail when locked; fix `account login`, or `update` for `key_unknown`), `monomind`
 (Node.js, monomind install/version/features, profile `monomind init`) and
 `runtimes` (one row per AI agent runtime), `browser` (browser, extension,
 bridge, pairing), `automations` (installed packages that are unavailable,
@@ -302,7 +299,7 @@ history starts with feature installation, with no automatic historical fetch.
 
 ## monoes.me account
 
-A monoes.me account will be required: from the enforcement date, the CLI, the
+A monoes.me sign-in is required since 2026-10-11 (UTC): the CLI, the
 daemon, the desktop app, the HTTP and `/v1` APIs, the MCP server and the extension
 bridge refuse to work without a signed-in account. The date is `enforce_from` in
 `account status`. `monoagentcli ref account` is this section, offline and always
@@ -346,14 +343,10 @@ machine deletes its refresh token instead of presenting it again, and says `unco
 The account and the other machines are not affected, and one `account login` on this
 machine ends it. A blocked account is locked at the next refresh, within about an hour.
 
-**Three phases.** A build before the release that sets the date is **dormant**: nothing
-locks, warns or calls monoes.me by itself, `enforced` is always `false`, and `enforce_from`
-is empty. Do not document or rely on a date until one is set in
-`internal/account/rollout.go`; no date is set today, and production signing keys are not
-pinned yet, so a production machine session cannot be verified until the server and key
-rollout. Once a release sets the date, gated commands run before it and print
-`A monoes.me login will be required from <date>: monoagentcli account login` on stderr;
-from the date they refuse (`enforced` says which).
+**Enforcement.** The gate is live: `enforce_from` is `2026-10-11T00:00:00Z` and
+`enforced` is `true` from then on, in every release build. The production signing key
+is pinned in the binary, so a production machine session is verified locally. A gated
+command without a valid sign-in is refused (exit 4, `login_required`).
 
 **What is open** (never needs a sign-in): `version`, `help`, `completion` (including
 `__complete` and `__completeNoDesc`), `ref`, `update`, `doctor` (with `doctor fix`),
@@ -361,8 +354,7 @@ from the date they refuse (`enforced` says which).
 `library login`, `library logout` and `library status`. Every other command is gated,
 local-only ones (`people`, `secret`, `image`, `profile`, `config`) included.
 
-**Serving commands** start even when locked and, from the enforcement date, refuse
-their work instead, so a service manager or a container never respawns them in a
+**Serving commands** start even when locked and refuse their work instead, so a service manager or a container never respawns them in a
 loop: `daemon`, `httpapi`, `mcp` (including `--grant`) and `extension serve` (also `bridge serve`).
 `daemon install`, `daemon restart`, `daemon uninstall` and `org serve` are gated.
 
@@ -406,7 +398,7 @@ MONOAGENT_ALLOW_FILE_KEYRING=1 MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE=~/.config/
 ```
 
 The daemon is a serving command: started with no sign-in it stays up, logs the command
-to run and, from the enforcement date, refuses work, so `docker compose up` before
+to run and refuses work, so `docker compose up` before
 signing in is safe; sign in afterwards and it resumes within seconds. A healthy
 container is not a signed-in one (the image's health check runs `version`, which is
 always open): `docker exec monoagent monoagentcli account status --offline`; `doctor`
@@ -2549,7 +2541,7 @@ keys and the clock, and panic outside a test binary.
 | `MONOAGENT_EXTENSION_PORT` | Bind-port override for the browser-extension bridge server; the extension probes this port and falls back to 9323. Default: unset — 9323 only. |
 | `MONOAGENT_SUMMARY_RUNTIME` | Agent runtime the extension bridge uses to write `summary.md` for captures saved with "Save page summary" / "Save video summary" (`extension serve --summary-runtime` wins over it). This is the default: a capture can name its own installed runtime and model (the side panel's "AI for summaries" picker, or `capture page --summary-runtime/--summary-model`), and `summary.json` records the pair used. `off` disables summaries; each capture that asked then records why in `summary.json`. Default: unset — `claude`. |
 | `MONOES_BASE_URL` | monoes.me host for the `library` commands. Default: unset — `https://monoes.me`. Plain `http` is accepted only for a loopback host (a local dev server). A default build refuses to sign in to any other host; that needs `-tags devaccount`. |
-| `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (none while the gate is dormant). |
+| `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (2026-10-11 UTC). |
 | `MONOMIND_BIN` | Path to the `monomind` binary; checked before `PATH` and the other install locations (see [How AI works in mono-agent](#how-ai-works-in-mono-agent)). Default: unset — discovered. |
 | `MONOAGENT_AI_RUNTIME` | Agent runtime `ai.extract_page` uses to generate selectors. Default: unset — the first installed runtime, `claude` first. |
 | `MONOAGENT_PROFILE` | Profile name the built-in MCP server operates against. Default: unset — the MCP server's default profile. |

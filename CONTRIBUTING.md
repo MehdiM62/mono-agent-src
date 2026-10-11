@@ -36,9 +36,9 @@ default (social included) and `-tags nosocial` modes.
 
 ### The monoes.me account gate
 
-The account gate (`internal/account`) is currently dormant: the enforcement date
-is unset and production signing keys are not pinned. No implicit account calls
-are made. `monoagentcli ref account` explains current and future behavior. A
+The account gate (`internal/account`) is live: a monoes.me sign-in has been
+required since 2026-10-11 (UTC) and the production signing key is pinned.
+`monoagentcli ref account` explains the behavior. A
 `-tags devaccount` build trusts a development signing key and honors
 `MONOAGENT_DEV_ENFORCE_FROM` (an RFC 3339 time) to move the enforcement date,
 so the gate can be exercised against the fake monoes.me in

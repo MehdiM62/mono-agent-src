@@ -10,7 +10,7 @@ import (
 // this value and the initializer in rollout.go (`var enforceFrom = time.Date(Y, time.M, D, 0, 0, 0, 0,
 // time.UTC)`). The release guard (scripts/check-rollout-ready.sh) then requires the repository variable
 // ACCOUNT_ENFORCEMENT_RELEASE=true, a date at least 21 days ahead and the production-token fixture.
-var wantEnforceFrom = time.Time{}
+var wantEnforceFrom = time.Date(2026, time.October, 11, 0, 0, 0, 0, time.UTC)
 
 func TestEnforceDateIsTheOwnersDate(t *testing.T) {
 	if got := EnforceDate(); !got.Equal(wantEnforceFrom) {

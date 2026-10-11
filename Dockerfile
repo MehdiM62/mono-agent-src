@@ -2,7 +2,7 @@
 #
 # This builds the DEFAULT binary, including social platform nodes.
 # Build with -tags nosocial to leave those nodes out; never use devaccount
-# in a production image. The account gate is currently dormant.
+# in a production image. A monoes.me sign-in is required since 2026-10-11 (UTC); sign in inside the container.
 #
 # Stage 1: build (static, CGO-free → runs on any base image, incl. scratch)
 FROM golang:1.26-alpine AS build

@@ -310,4 +310,4 @@ $SUDO mv "$SRC" "${INSTALL_DIR}/${BIN}" || err "cannot install into ${INSTALL_DI
 echo "Installed: ${INSTALL_DIR}/${BIN} (${TAG:-unknown version}, ${os}/${arch})"
 echo "Verify with:  ${INSTALL_DIR}/${BIN} version"
 echo "Account and offline behavior:  ${INSTALL_DIR}/${BIN} ref account"
-echo "Sign in to monoes.me (will be required):  ${INSTALL_DIR}/${BIN} account login"
+echo "Sign in to monoes.me (required):  ${INSTALL_DIR}/${BIN} account login"

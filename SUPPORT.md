@@ -49,17 +49,15 @@ When signing in, or staying signed in, fails, run `monoagentcli account status -
 and `monoagentcli doctor --check core.monoes_account`, and put the `state` and the
 `reason` they print (never a token) in your Discussion or issue: the reason says whether
 monoes.me refused the sign-in, could not be reached, or the machine's clock or key store
-is the problem. `monoagentcli account login` signs in again. A sign-in is required only
-from the enforcement date (`enforce_from` in `account status`); until a date is set the
-gate is dormant.
+is the problem. `monoagentcli account login` signs in again. A sign-in has been required
+since 2026-10-11 (UTC) (`enforce_from` in `account status`).
 
 ## The `monoes_apis` backend
 
 Out of scope for this repo's support channels. Mono Agent's core (the
 `monoagentcli` binary, the workflow engine, the CLI/MCP surface, the Wails
-GUI, the Chrome extension bridge) runs on your machine. The account gate is
-currently dormant, so local work does not need a monoes.me account. The online
-library requires a sign-in. A future enabled gate will require a machine sign-in
-and permit at most 24 hours offline from the signed token's issue time; no date
-is announced here. See SECURITY.md's "Network use, telemetry and crash reporting"
+GUI, the Chrome extension bridge) runs on your machine. A monoes.me sign-in has been required since
+2026-10-11 (UTC): gated commands exit 4 with `login_required` without one, and a
+sign-in works offline for at most 24 hours from the signed token's issue time. The
+online library also requires a sign-in. See SECURITY.md's "Network use, telemetry and crash reporting"
 section for network requests and the data they send.

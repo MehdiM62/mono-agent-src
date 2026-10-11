@@ -7,9 +7,8 @@ import (
 	"github.com/monoes/mono-agent/internal/account"
 )
 
-// ownerDatePlaceholder stands in the CHANGELOG for the enforcement date until the
-// owner sets it (internal/account/rollout.go). It must be replaced, at cut time, by
-// the date itself.
+// ownerDatePlaceholder stood in the CHANGELOG for the enforcement date until the
+// owner set it (internal/account/rollout.go). It must never come back.
 const ownerDatePlaceholder = "<ENFORCEMENT DATE: owner to set>"
 
 // release.yml takes a release's notes from its own `## [x.y.z]` section, so the
@@ -18,30 +17,27 @@ const ownerDatePlaceholder = "<ENFORCEMENT DATE: owner to set>"
 // was newest before R ([0.100.1]), so later releases add sections above it without
 // breaking the test.
 //
-// While account.EnforceDate() is the zero time the notes must carry the owner
-// placeholder, and no date; once a date is set they must name it (UTC, YYYY-MM-DD)
-// and no placeholder may remain.
+// The enforcement date must be set (account.EnforceDate()); the notes name it
+// (UTC, YYYY-MM-DD) and carry no placeholder.
 func TestChangelogNamesTheEnforcementDate(t *testing.T) {
 	text := docText(t, "CHANGELOG.md")
 	if i := strings.Index(text, "\n## [0.100.1]"); i >= 0 {
 		text = text[:i]
 	}
 	notes := flat(text)
-	if date := account.EnforceDate(); date.IsZero() {
-		if !strings.Contains(text, ownerDatePlaceholder) {
-			t.Errorf("account.EnforceDate() is the zero time: the account notes must carry the placeholder %q until the owner sets the date", ownerDatePlaceholder)
-		}
-	} else {
-		if iso := date.UTC().Format("2006-01-02"); !strings.Contains(notes, iso) {
-			t.Errorf("no release section above [0.100.1] names the enforcement date %s", iso)
-		}
-		if strings.Contains(text, ownerDatePlaceholder) {
-			t.Errorf("the enforcement date is set: replace %q in CHANGELOG.md", ownerDatePlaceholder)
-		}
+	date := account.EnforceDate()
+	if date.IsZero() {
+		t.Fatal("account.EnforceDate() is the zero time: the account notes were written for a live gate")
+	}
+	if iso := date.UTC().Format("2006-01-02"); !strings.Contains(notes, iso) {
+		t.Errorf("no release section above [0.100.1] names the enforcement date %s", iso)
+	}
+	if strings.Contains(text, ownerDatePlaceholder) {
+		t.Errorf("the enforcement date is set: remove %q from CHANGELOG.md", ownerDatePlaceholder)
 	}
 	for _, section := range strings.Split("\n"+text, "\n## [")[1:] {
 		section = "## [" + section
-		wants := []string{"a monoes.me account will be required", "account login", "login_required", graceText(), "daemon restart", "-tags devaccount", "SECURITY.md"}
+		wants := []string{"a monoes.me sign-in is required", "account login", "login_required", graceText(), "daemon restart", "-tags devaccount", "SECURITY.md"}
 		var missing []string
 		for _, w := range wants {
 			if !strings.Contains(flat(section), flat(w)) {
