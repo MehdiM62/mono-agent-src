@@ -162,7 +162,7 @@ func ApplyEventToResult(res *TurnResult, ev Event) {
 		}
 	case EventStart:
 		res.incremental = ev.StreamsIncrementally
-		if ev.Sandbox != "" || ev.SandboxUnsupported || ev.SandboxStatus != "" {
+		if ev.Sandbox != "" || ev.SandboxUnsupported || ev.SandboxStatus != "" || ev.SandboxNote != "" {
 			res.Sandbox = ev.SandboxFields
 		}
 		if ev.SandboxStatus != "" {
@@ -358,14 +358,14 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 	}
 	cwd := opts.Cwd
 	var sandboxArgs []string
-	sandboxEffective := ""
+	sandboxEffective, sandboxNote, fallbackActive := "", "", false
 	if opts.Sandbox != "" {
 		caps, _ := capabilitiesFor(ctx, bin) // a failed handshake: no sandbox, as before
 		var modes []string
 		if caps.Has(CapAgentExecSandbox) {
 			modes = SandboxModesFor(ctx, opts.Runtime)
 		}
-		sandboxArgs, sandboxEffective = SandboxArgs(caps, modes, opts.Runtime, opts.Sandbox)
+		sandboxArgs, sandboxEffective, fallbackActive, sandboxNote = SandboxFallbackPlan(caps, modes, opts.Runtime, opts.Sandbox, SandboxFallbackSetting())
 		if opts.RequireSandbox && sandboxEffective != SandboxStatusSandboxed {
 			return nil, fmt.Errorf("%w: %s sandbox for %s is %s", ErrSandboxRequired, opts.Sandbox, opts.Runtime, sandboxEffective)
 		}
@@ -560,6 +560,10 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 		for ev := range events {
 			if ev.Type == EventStart && sandboxEffective != "" {
 				ev.SandboxStatus = sandboxStatus(sandboxEffective, ev.SandboxFields)
+				if fallbackActive && ev.SandboxApplied != "" {
+					ev.SandboxStatus = AppliedSandboxStatus(opts.Sandbox, ev.SandboxApplied)
+				}
+				ev.SandboxNote = sandboxNote
 			}
 			if onEvent != nil {
 				onEvent(ev)
@@ -664,6 +668,9 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 		if res.ExitCode == 0 && res.Err == nil && err != nil {
 			res.Err = &ProtocolError{Code: ErrRunnerError, Message: fmt.Sprintf("monomind exited: %v", err), ExitCode: 1}
 			res.ExitCode = 1
+		}
+		if fallbackActive && sandboxEffective == SandboxStatusUnsupported && res.Err != nil && res.Err.Code == ErrUnsupported {
+			res.Err.Message = fmt.Sprintf("the %s runtime has no %s sandbox and the sandbox fallback setting is 'fail' (change it in Settings to run without one): %s", opts.Runtime, opts.Sandbox, res.Err.Message)
 		}
 		return res, nil
 	}
