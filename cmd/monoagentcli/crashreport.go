@@ -47,7 +47,7 @@ func reportCrash(panicValue interface{}, stack []byte) {
 // monomind on PATH predates the `report-crash` command) so the caller can
 // fall back rather than silently swallowing the crash report.
 func reportViaMonomind(monomindPath, title, body string) bool {
-	cmd := monomind.Command(monomindPath, "report-crash", "--repo", "monoes/mono-agent", "--title", title, "--body", body)
+	cmd := monomind.Command(monomindPath, "report-crash", "--repo", releasesRepo, "--title", title, "--body", body)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	return runWithTimeout(cmd, 15*time.Second) == nil

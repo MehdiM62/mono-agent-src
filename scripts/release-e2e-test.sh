@@ -99,7 +99,7 @@ want = sorted(["monoagentcli-linux-amd64","monoagentcli-linux-arm64","monoagentc
   "monoagentcli-windows-amd64-bundled.exe","MonoAgent-linux-amd64.tar.gz"])
 assert names == want, names
 assert "expires_at" not in m
-assert all(a["url"].startswith("https://github.com/monoes/mono-agent-releases/releases/download/v9.9.9/") for a in m["assets"])
+assert all(a["url"].startswith("https://github.com/monoes/mono-agent/releases/download/v9.9.9/") for a in m["assets"])
 EOF
 check "manifest lists the CLI+app assets, omits the extension zip, no expires_at by default" $?
 grep -q "monoagent-chrome-extension.zip" "$work/art-v9.9.9/SHA256SUMS"; check "SHA256SUMS covers the extension zip" $?
@@ -153,7 +153,7 @@ echo "$srv_pid" > "$work/srv.pid"
 base="http://127.0.0.1:$port"
 for _ in $(seq 1 50); do curl -fs -o /dev/null "$base/" && break; sleep 0.1; done
 
-dl="monoes/mono-agent-releases/releases/download"
+dl="monoes/mono-agent/releases/download"
 publish_assets() { # <version>: assets where the manifest URLs point
   mkdir -p "$srv/$dl/$1"; cp "$work/art-$1/"* "$srv/$dl/$1/"
 }

@@ -7,6 +7,15 @@ on:
 permissions:
   contents: write
 
+env:
+  # The public, releases-only repository every release, asset, manifest and
+  # install.sh is published to. After the owner-run repository split (see
+  # docs/release-repo-split-runbook.md) the code builds in the private
+  # monoes/mono-agent-src and this is the only repository users ever see.
+  # Before the rename both names are the same repository.
+  RELEASES_REPO: monoes/mono-agent
+  RELEASES_BRANCH: main
+
 # Serialize releases: two pushes computing "next version" off the same last
 # tag would race to create the same tag, and the loser's whole run would die
 # before any build/release job started. Queue instead of running concurrently.
@@ -454,7 +463,6 @@ jobs:
       contents: read
     env:
       TAG: ${{ needs.version.outputs.tag }}
-      RELEASES_REPO: ${{ secrets.RELEASES_REPO }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -470,7 +478,7 @@ jobs:
           bash scripts/release-flatten.sh artifacts bundle
           # NOTICE ships with every release as a loose file; the manifest checksums it but does not classify it.
           cp NOTICE bundle/NOTICE
-          go run ./cmd/release-manifest manifest -dir bundle -version "${TAG}" -repo "${RELEASES_REPO:-monoes/mono-agent-releases}"
+          go run ./cmd/release-manifest manifest -dir bundle -version "${TAG}" -repo "${RELEASES_REPO}"
           cp bundle/manifest.json bundle/SHA256SUMS out/
           {
             echo "### Unsigned update manifest for ${TAG}"
@@ -501,15 +509,13 @@ jobs:
     # effect and publication proceeds as before — see SECURITY.md for the
     # exact repo settings to enable this.
     environment: release
-    # id-token: write lets actions/attest-build-provenance mint a Sigstore
-    # signature over an OIDC token scoped to this repo/commit/workflow run;
-    # attestations: write publishes the resulting attestation to the repo
-    # (MA-13) so `gh attestation verify` can tie a downloaded artifact back
-    # to exactly this build, without needing a maintainer-held signing key.
+    # No build provenance attestation: GitHub offers them for private
+    # repositories only on Enterprise Cloud. Users verify downloads against
+    # SHA256SUMS.txt and the signed manifest.json. contents: write is for
+    # the github.token fallback used while the release repository is this
+    # repository; once it is another one, RELEASES_REPO_TOKEN does the writing.
     permissions:
       contents: write
-      id-token: write
-      attestations: write
     env:
       TAG:  ${{ needs.version.outputs.tag }}
       PREV: ${{ needs.version.outputs.prev }}
@@ -536,14 +542,16 @@ jobs:
           echo "--- Release files ---"
           ls -lh
 
-      # SLSA provenance attestation (MA-13): cryptographically ties every
-      # release-files/ hash — including SHA256SUMS.txt itself — to this
-      # exact repo, commit, and workflow run. Verify a downloaded artifact
-      # with: gh attestation verify <file> -R monoes/mono-agent
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: "release-files/*"
+      # Publishing to another repository needs RELEASES_REPO_TOKEN; only when
+      # the release repository is this very repository may github.token do it.
+      - name: Check the release repository can be written
+        env:
+          RELEASES_REPO_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+        run: |
+          if [ -z "${RELEASES_REPO_TOKEN}" ] && [ "${RELEASES_REPO}" != "${{ github.repository }}" ]; then
+            echo "::error::Releases are published to ${RELEASES_REPO}, not to ${{ github.repository }}, and the secret RELEASES_REPO_TOKEN is not set (fine-grained token, Contents: read and write on ${RELEASES_REPO} only)."
+            exit 1
+          fi
 
       - name: Generate release notes
         id: notes
@@ -604,21 +612,21 @@ jobs:
             echo ""
             echo "| Platform | Download |"
             echo "|----------|----------|"
-            echo "| macOS (Apple Silicon) | [MonoAgent-darwin-arm64.zip](https://github.com/monoes/mono-agent/releases/download/${TAG}/MonoAgent-darwin-arm64.zip) |"
-            echo "| Windows | [MonoAgent-windows-amd64.exe](https://github.com/monoes/mono-agent/releases/download/${TAG}/MonoAgent-windows-amd64.exe) + [monoagentcli-windows-amd64-bundled.exe](https://github.com/monoes/mono-agent/releases/download/${TAG}/monoagentcli-windows-amd64-bundled.exe) (save both in the same folder) |"
-            echo "| Linux | [MonoAgent-linux-amd64.tar.gz](https://github.com/monoes/mono-agent/releases/download/${TAG}/MonoAgent-linux-amd64.tar.gz) |"
+            echo "| macOS (Apple Silicon) | [MonoAgent-darwin-arm64.zip](https://github.com/${RELEASES_REPO}/releases/download/${TAG}/MonoAgent-darwin-arm64.zip) |"
+            echo "| Windows | [MonoAgent-windows-amd64.exe](https://github.com/${RELEASES_REPO}/releases/download/${TAG}/MonoAgent-windows-amd64.exe) + [monoagentcli-windows-amd64-bundled.exe](https://github.com/${RELEASES_REPO}/releases/download/${TAG}/monoagentcli-windows-amd64-bundled.exe) (save both in the same folder) |"
+            echo "| Linux | [MonoAgent-linux-amd64.tar.gz](https://github.com/${RELEASES_REPO}/releases/download/${TAG}/MonoAgent-linux-amd64.tar.gz) |"
             echo ""
             echo "## CLI Downloads"
             echo ""
             echo '```bash'
             echo "# macOS (Apple Silicon)"
-            echo "curl -fsSL https://github.com/monoes/mono-agent/releases/download/${TAG}/monoagentcli-darwin-arm64 -o monoagentcli && chmod +x monoagentcli && sudo mv monoagentcli /usr/local/bin/"
+            echo "curl -fsSL https://github.com/${RELEASES_REPO}/releases/download/${TAG}/monoagentcli-darwin-arm64 -o monoagentcli && chmod +x monoagentcli && sudo mv monoagentcli /usr/local/bin/"
             echo ""
             echo "# Linux (x86_64)"
-            echo "curl -fsSL https://github.com/monoes/mono-agent/releases/download/${TAG}/monoagentcli-linux-amd64 -o monoagentcli && chmod +x monoagentcli && sudo mv monoagentcli /usr/local/bin/"
+            echo "curl -fsSL https://github.com/${RELEASES_REPO}/releases/download/${TAG}/monoagentcli-linux-amd64 -o monoagentcli && chmod +x monoagentcli && sudo mv monoagentcli /usr/local/bin/"
             echo ""
             echo "# Linux (arm64)"
-            echo "curl -fsSL https://github.com/monoes/mono-agent/releases/download/${TAG}/monoagentcli-linux-arm64 -o monoagentcli && chmod +x monoagentcli && sudo mv monoagentcli /usr/local/bin/"
+            echo "curl -fsSL https://github.com/${RELEASES_REPO}/releases/download/${TAG}/monoagentcli-linux-arm64 -o monoagentcli && chmod +x monoagentcli && sudo mv monoagentcli /usr/local/bin/"
             echo ""
             echo "# Self-update (once installed)"
             echo "monoagentcli update"
@@ -628,18 +636,37 @@ jobs:
             echo ""
             echo "Bridges monoagentcli to your real, already-logged-in Chrome browser. Not on the Web Store — download, unzip, and load unpacked:"
             echo ""
-            echo "1. Download [monoagent-chrome-extension.zip](https://github.com/monoes/mono-agent/releases/download/${TAG}/monoagent-chrome-extension.zip) and unzip it"
+            echo "1. Download [monoagent-chrome-extension.zip](https://github.com/${RELEASES_REPO}/releases/download/${TAG}/monoagent-chrome-extension.zip) and unzip it"
             echo "2. Open \`chrome://extensions\`, enable **Developer mode**"
             echo "3. Click **Load unpacked** and select the unzipped \`chrome-extension\` folder"
             echo 'RELEASE_EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub Release
+      - name: Create the release in the releases repository
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
+          repository: ${{ env.RELEASES_REPO }}
+          token: ${{ secrets.RELEASES_REPO_TOKEN || github.token }}
+          # Only used when the tag does not exist there yet (the split case);
+          # the tag itself is pushed to the source repository by `version`.
+          target_commitish: ${{ env.RELEASES_BRANCH }}
           tag_name: ${{ env.TAG }}
           body: ${{ steps.notes.outputs.NOTES }}
           files: release-files/*
+
+      # The README one-liner serves install.sh from the releases repository.
+      # While the release repository is this repository, install.sh is already
+      # there (and its default branch is not necessarily ${RELEASES_BRANCH}).
+      - name: Publish install.sh to the releases repository
+        if: github.repository != env.RELEASES_REPO
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="$(gh api "repos/${RELEASES_REPO}/contents/install.sh?ref=${RELEASES_BRANCH}" --jq .sha 2>/dev/null || true)"
+          args=(-f message="install.sh from ${TAG}" -f branch="${RELEASES_BRANCH}" -f content="$(base64 < install.sh | tr -d '\n')")
+          if [ -n "${sha}" ]; then args+=(-f sha="${sha}"); fi
+          gh api -X PUT "repos/${RELEASES_REPO}/contents/install.sh" "${args[@]}" > /dev/null
 
   # ─── 4. Sign the manifest ──────────────────────────────────────────────────
   # The release signing key lives ONLY as the `release` environment secret RELEASE_SIGNING_KEY.
@@ -661,14 +688,14 @@ jobs:
       contents: read
     env:
       TAG: ${{ needs.version.outputs.tag }}
-      RELEASES_REPO: ${{ secrets.RELEASES_REPO }}
+      TOKEN_SET: ${{ secrets.RELEASES_REPO_TOKEN != '' }}
     steps:
-      - name: Is a releases repo configured
+      - name: Is the releases repository configured
         id: gate
         run: |
           set +x
-          if [ -z "${RELEASES_REPO}" ]; then
-            echo "::notice::RELEASES_REPO is not set: no signed manifest is produced."
+          if [ "${TOKEN_SET}" != "true" ]; then
+            echo "::notice::RELEASES_REPO_TOKEN is not set: no signed manifest is produced."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -780,7 +807,8 @@ jobs:
 
   # ─── 5. Optional: mirror assets + signed manifest to the releases-only repo ──
   # Runs only after the `release` environment approval and a successful sign-manifest, and does
-  # nothing unless the secrets RELEASES_REPO and RELEASES_REPO_TOKEN both exist. Assets,
+  # nothing unless the secret RELEASES_REPO_TOKEN exists. It writes to RELEASES_REPO
+  # with RELEASES_REPO_TOKEN. Assets,
   # manifest.json and manifest.json.sig go up together, so the unsigned manifest never sits
   # alone in the public release.
   publish-releases-repo:
@@ -791,14 +819,14 @@ jobs:
       contents: read
     env:
       TAG: ${{ needs.version.outputs.tag }}
-      RELEASES_REPO: ${{ secrets.RELEASES_REPO }}
+      TOKEN_SET: ${{ secrets.RELEASES_REPO_TOKEN != '' }}
     steps:
-      - name: Is a releases repo configured
+      - name: Is the releases repository configured
         id: gate
         run: |
           set +x
-          if [ -z "${RELEASES_REPO}" ]; then
-            echo "::notice::RELEASES_REPO is not set: nothing to publish."
+          if [ "${TOKEN_SET}" != "true" ]; then
+            echo "::notice::RELEASES_REPO_TOKEN is not set: no signed manifest to publish."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -877,10 +905,6 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
         run: |
           set +x
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "RELEASES_REPO_TOKEN not set: skipping the releases-repo publish."
-            exit 0
-          fi
           if gh release view "${TAG}" --repo "${RELEASES_REPO}" >/dev/null 2>&1; then
             # A different version always makes a new release, so an existing one is a re-run.
             # Never replace a manifest that is already signed.

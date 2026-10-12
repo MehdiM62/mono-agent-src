@@ -2,7 +2,9 @@
 
 Every push to master still publishes a GitHub release (see `.github/workflows/release.yml`
 and SECURITY.md, "Release governance"). Alongside it, CI builds, checks and signs what the
-updater verifies from the public releases-only repo (default `monoes/mono-agent-releases`).
+updater verifies from the public releases-only repo (`monoes/mono-agent`, the workflow-level
+`RELEASES_REPO`; the code builds in the private `monoes/mono-agent-src` once the owner has
+run `docs/release-repo-split-runbook.md`).
 Releases are hands-free apart from the `release` environment approval.
 
 ## What is published
@@ -30,7 +32,7 @@ GitHub environment. It exists nowhere else in CI.
    Steps run in this order, and only the last signing one has the key:
    - it reads the latest release in the **releases repo** (`gh release list --repo
      "$RELEASES_REPO"`, the current tag excluded). The release job has already published the
-     tag in this repo, so only the releases repo gives a real version floor. An API failure
+     tag in the releases repo, so the earlier releases there give the version floor. An API failure
      fails the job; an empty list is accepted only for the very first release;
    - it compiles `cmd/release-manifest` into `$RUNNER_TEMP` and flattens the artifacts (a
      duplicate file name fails the job instead of one file silently replacing the other);
@@ -56,9 +58,9 @@ GitHub environment. It exists nowhere else in CI.
    against the signed `manifest.json` (`release-manifest check -strict`); and it uploads only
    the files the manifest lists, plus the manifest, the signature and a `SHA256SUMS`
    regenerated from those verified files (the unsigned `SHA256SUMS` is never uploaded). Any
-   mismatch aborts. It runs only when the secrets `RELEASES_REPO` (`owner/name`) and
-   `RELEASES_REPO_TOKEN` exist, and fails rather than upload without the signature.
-   `sign-manifest` is a no-op when `RELEASES_REPO` is unset.
+   mismatch aborts. It writes to `RELEASES_REPO` with the secret `RELEASES_REPO_TOKEN` and fails
+   rather than upload without the signature. Both this job and `sign-manifest` are no-ops when
+   the secret `RELEASES_REPO_TOKEN` does not exist.
 
 What these checks do and do not prove: the pre-sign check proves the manifest **matches the
 build artifacts** that the workflow produced. It does not prove the build itself was not
@@ -101,7 +103,7 @@ GitHub API path (while `AllowLegacyGitHubUpdates` is true).
    reviewer and limit deployments to master:
 
    ```bash
-   OWNER=your-github-login; REPO=monoes/mono-agent
+   OWNER=your-github-login; REPO=monoes/mono-agent-src   # the repository the workflow RUNS in (before the rename of the split: monoes/mono-agent)
    ID=$(gh api users/$OWNER --jq .id)
    # required reviewer = the owner (self review stays allowed: you are the only maintainer)
    gh api -X PUT repos/$REPO/environments/release --input - <<JSON
@@ -225,9 +227,9 @@ The local path still works and is the fallback if CI signing is unavailable or u
 # once: create a key in the OS keyring (pin the printed public key)
 monoagentcli release keygen
 
-gh release download vX.Y.Z --repo monoes/mono-agent-releases --pattern manifest.json
+gh release download vX.Y.Z --repo monoes/mono-agent --pattern manifest.json
 go run ./cmd/release-manifest sign -manifest manifest.json -keyring     # or -key-file path/to/key
-gh release upload vX.Y.Z manifest.json.sig --repo monoes/mono-agent-releases
+gh release upload vX.Y.Z manifest.json.sig --repo monoes/mono-agent
 monoagentcli release verify manifest.json manifest.json.sig   # add --pubkey "<id> <b64>" to try another key
 ```
 

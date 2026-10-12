@@ -68,7 +68,7 @@ func TestManifestGeneration(t *testing.T) {
 	}
 	a := got["monoagentcli-linux-amd64"]
 	if a.Size != int64(len("bytes of monoagentcli-linux-amd64")) || len(a.SHA256) != 64 ||
-		a.URL != "https://github.com/monoes/mono-agent-releases/releases/download/v1.2.3/monoagentcli-linux-amd64" {
+		a.URL != "https://github.com/monoes/mono-agent/releases/download/v1.2.3/monoagentcli-linux-amd64" {
 		t.Errorf("bad asset: %+v", a)
 	}
 	sums, _ := os.ReadFile(filepath.Join(dir, "SHA256SUMS"))
