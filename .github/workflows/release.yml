@@ -647,9 +647,12 @@ jobs:
         with:
           repository: ${{ env.RELEASES_REPO }}
           token: ${{ secrets.RELEASES_REPO_TOKEN || github.token }}
-          # Only used when the tag does not exist there yet (the split case);
-          # the tag itself is pushed to the source repository by `version`.
-          target_commitish: ${{ env.RELEASES_BRANCH }}
+          # Before the split the releases repository is this repository, whose
+          # default branch is not RELEASES_BRANCH: target the commit built. After
+          # it, the releases repository holds no copy of this commit, so target
+          # its own branch (GitHub rejects a target_commitish that does not exist
+          # there, which failed the v0.133.3 release).
+          target_commitish: ${{ github.repository == env.RELEASES_REPO && github.sha || env.RELEASES_BRANCH }}
           tag_name: ${{ env.TAG }}
           body: ${{ steps.notes.outputs.NOTES }}
           files: release-files/*
