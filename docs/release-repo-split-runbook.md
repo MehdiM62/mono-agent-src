@@ -1,5 +1,12 @@
 # Release repository split: owner runbook
 
+**Status: executed on 2026-10-12.** `monoes/mono-agent-src` (source, private) and `monoes/mono-agent`
+(public releases) are live; v0.134.1 was the first release built in the renamed source and published
+to the public repository with `RELEASES_REPO_TOKEN`, its signed manifest verified. Still open: replace
+the broad `RELEASES_REPO_TOKEN` (today the owner's classic token) with a fine-grained token limited to
+`monoes/mono-agent` (Contents: read and write). File source issues and PRs in `monoes/mono-agent-src`,
+never in `monoes/mono-agent`.
+
 Decision (owner, 2026-10-12), "option B, swap the names":
 
 | Name | Value | Meaning |
