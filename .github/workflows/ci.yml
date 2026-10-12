@@ -1,4 +1,8 @@
 name: CI
+# Where the Linux jobs run. Unset: GitHub's ubuntu-latest. The repository variable CI_RUNNER is a
+# JSON runs-on value, e.g. ["self-hosted","linux","x64","monoes-vps"] for the project's own VPS
+# (private repositories get no free hosted minutes to speak of, and 2-core hosted runners are
+# about twice as slow as the 4-core ones public repositories get). macOS and Windows jobs stay hosted.
 
 # push is limited to master: a branch with a PR already runs this workflow via
 # pull_request, and running both on every commit doubled the queue (each commit
@@ -27,7 +31,7 @@ jobs:
   # publish executes locally the next time this repo's MCP server starts.
   mcp-pin-guard:
     name: Guard .mcp.json version pin
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Reject floating Monomind version
@@ -48,7 +52,7 @@ jobs:
   # error for users. See docs/plans/local-agent-monomind-delegation.md §11.
   monomind-smoke:
     name: Monomind integration smoke test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -92,7 +96,7 @@ jobs:
   # breaks what the GUI's System health section parses fails CI.
   doctor-smoke:
     name: Doctor smoke test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -111,7 +115,7 @@ jobs:
   # and not for signed-in users. It must pass before release R.
   account-smoke:
     name: Account gate smoke (devaccount)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,7 +134,7 @@ jobs:
   # that the guard passes and fails as it should (spec D11, D24).
   release-guard-test:
     name: Release guard test
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -152,7 +156,7 @@ jobs:
   # above for why this repo never runs an unpinned npm package in CI.
   openapi-lint:
     name: Validate HTTP API OpenAPI spec
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -166,7 +170,7 @@ jobs:
   # dependencies and no install step.
   extension-test:
     name: Chrome extension
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -195,7 +199,7 @@ jobs:
   # Scheduled + on-push dependency vulnerability scanning (MA-06/MA-11).
   vuln-scan:
     name: Vulnerability scan
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -228,7 +232,7 @@ jobs:
   # hand-written and are not touched by this check.
   schemagen-check:
     name: Generated node schemas up to date
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -244,7 +248,7 @@ jobs:
   # CGO_ENABLED=1 works for modernc.org/sqlite and everything else we use.
   test:
     name: Build & test (default)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -272,7 +276,7 @@ jobs:
           fi
 
       - name: Test
-        run: go test -timeout 35m ./... -race
+        run: go test -timeout 80m ./... -race
 
   # INFORMATIONAL (continue-on-error): runs internal/account's tests on Windows
   # and macOS, where no other job here does. The package has Windows-only code
@@ -306,7 +310,7 @@ jobs:
   # (-tags nosocial) build compiling and passing.
   test-nosocial:
     name: Build & test (nosocial)
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -321,7 +325,7 @@ jobs:
         run: go vet -tags nosocial ./...
 
       - name: Test
-        run: go test -timeout 35m -tags nosocial ./... -race
+        run: go test -timeout 80m -tags nosocial ./... -race
 
   # Mirror of the release.yml test gate's Wails steps (minus release/tagging):
   # system deps for GTK/WebKit headers, frontend build (main.go //go:embeds
@@ -330,7 +334,7 @@ jobs:
   # (24.04) has no webkit2gtk-4.0 dev package.
   wails:
     name: Wails GUI module
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '"ubuntu-latest"') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -339,6 +343,8 @@ jobs:
           go-version-file: wails-app/go.mod
 
       - name: Install Linux system dependencies
+        # The self-hosted runner has these installed and its user has no sudo.
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
