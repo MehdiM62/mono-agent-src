@@ -58,6 +58,9 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          # The self-hosted runner keeps these caches on its own disk; two runners restoring one
+          # shared cache at once collided and hung both jobs.
+          cache: ${{ runner.environment == 'github-hosted' }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
@@ -103,6 +106,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Build monoagentcli
         run: go build -o "$RUNNER_TEMP/monoagentcli" ./cmd/monoagentcli
       - name: Run doctor smoke test
@@ -122,6 +126,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Vet with the dev tag
         run: go vet -tags devaccount ./internal/account/... ./internal/accountsmoke/... ./cmd/monoagentcli/
       - name: Account tests with the dev tag
@@ -140,6 +145,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: Test the release guard
         run: bash scripts/check-release-tags-test.sh
       - name: Test the rollout guard
@@ -205,12 +211,13 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
           cache-dependency-path: wails-app/frontend/package-lock.json
       - name: npm audit (frontend, production deps)
         # --omit=dev: the frontend's only current high-severity finding is an
@@ -239,6 +246,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Check generated schemas match committed files
         run: go run ./cmd/schemagen -check
@@ -255,6 +263,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Build
         run: go build ./...
@@ -302,6 +311,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Test
         run: go test ./internal/account/... -count=1 -timeout 20m
@@ -317,6 +327,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Build
         run: go build -tags nosocial ./...
@@ -341,6 +352,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: wails-app/go.mod
+          cache: ${{ runner.environment == 'github-hosted' }}
 
       - name: Install Linux system dependencies
         # The self-hosted runner has these installed and its user has no sudo.
@@ -353,7 +365,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: 'npm'
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
           cache-dependency-path: wails-app/frontend/package-lock.json
 
       - name: Build frontend
