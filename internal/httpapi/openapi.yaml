@@ -27,7 +27,7 @@ info:
     `GET /health` stays open and reports the account state.
   version: "1.0.0"
   license:
-    name: MIT
+    name: Monoes Proprietary Software License
     url: https://github.com/monoes/mono-agent/blob/master/LICENSE
 servers:
   - url: http://127.0.0.1:9322

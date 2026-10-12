@@ -185,7 +185,7 @@ That build simply doesn't contain those node types.
 
 ## No affiliation
 
-Mono Agent is an independent, unofficial, MIT-licensed open-source project.
+Mono Agent is an independent, unofficial, proprietary project.
 It is not affiliated with, authorized by, maintained by, sponsored by, or
 endorsed by Meta (Instagram, Facebook), LinkedIn, X (Twitter), TikTok,
 Google, or any other platform or company whose services it can automate.

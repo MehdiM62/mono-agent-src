@@ -14,7 +14,7 @@ func TestRefAccountDocumentsTheLiveBuild(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"The account gate is live", "2026-10-11", "production signing key is pinned", "24 hours", "login_required", "keyring_unavailable", "unconfirmed", "MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE", "Never copy or restore", "current MIT license"} {
+	for _, want := range []string{"The account gate is live", "2026-10-11", "production signing key is pinned", "24 hours", "login_required", "keyring_unavailable", "unconfirmed", "MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE", "Never copy or restore", "license (LICENSE, section 4) forbids bypassing the check"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("ref account omits %q", want)
 		}

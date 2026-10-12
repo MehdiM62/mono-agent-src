@@ -385,8 +385,8 @@ of the two copies presents a refresh token the other has already used, which end
 that sign-in on both machines (see above), and releases before the enforcement
 release do not have it. A bypass of an official build (a token that verifies when
 it should not, a gated door that stays open) is a vulnerability: report it as
-described above. Removing the check from a build of your own is not. The current
-MIT license is unchanged.
+described above. Removing the check from a build of your own is not. The license
+forbids it (section 4 of `LICENSE`).
 
 ## Release governance
 
