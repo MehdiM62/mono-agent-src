@@ -10,6 +10,9 @@
 
 services:
   monoagent:
+    # Builds from a checkout of the source tree, which only maintainers have
+    # (the public repository holds releases only). Without it, install the
+    # prebuilt CLI into your own image (README, "Docker").
     build: .
     image: monoagent:latest
     container_name: monoagent
