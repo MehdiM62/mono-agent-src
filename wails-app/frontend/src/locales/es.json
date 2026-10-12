@@ -1306,6 +1306,11 @@
       "text": "Desde el {{date}} hará falta una sesión de monoes.me.",
       "signIn": "Iniciar sesión"
     },
+    "menu": {
+      "label": "Cuenta",
+      "notSignedIn": "Sin sesión iniciada",
+      "plan": "Tu plan: {{plan}}"
+    },
     "banner": {
       "dismiss": "Descartar",
       "close": "Cerrar"

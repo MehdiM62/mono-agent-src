@@ -1348,6 +1348,11 @@
       "text": "A monoes.me sign-in will be required from {{date}}.",
       "signIn": "Sign in"
     },
+    "menu": {
+      "label": "Account",
+      "notSignedIn": "Not signed in",
+      "plan": "Your plan: {{plan}}"
+    },
     "banner": {
       "dismiss": "Dismiss",
       "close": "Close"

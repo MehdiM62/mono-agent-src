@@ -10,6 +10,7 @@ import { GetVersion } from '../wailsjs/go/main/App'
 import * as WailsApp from '../wailsjs/go/main/App'
 import { notify } from '../services/api.js'
 import { confirm } from './ConfirmDialog.jsx'
+import AccountMenu from './account/AccountMenu.jsx'
 import NewProfileModal from './NewProfileModal.jsx'
 import { iconUrl } from './orgdesigner/roleIcons.js'
 import { tasksApi, onTasksChanged } from '../services/tasks.js'
@@ -363,6 +364,7 @@ export default function Sidebar({ activePage, onNavigate, stats, dbConnected }) 
       </nav>
 
       <div className="sidebar-footer">
+        <AccountMenu />
         <div className="db-status">
           <span className={`status-dot ${dbConnected ? 'connected pulse' : 'disconnected'}`} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
