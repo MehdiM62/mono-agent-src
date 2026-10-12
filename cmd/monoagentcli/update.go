@@ -279,9 +279,15 @@ type latestRelease struct {
 }
 
 // fetchLatestRelease asks GitHub for mono-agent's latest release.
+// releasesRepo is the public repository the release assets are published to
+// (owner/name); every release URL of the CLI is built from it. It is not the
+// repository the code is built in (which may be private), and it must equal
+// internal/release.ReleasesRepo.
+const releasesRepo = "monoes/mono-agent"
+
 // latestReleaseURL is GitHub's latest-release endpoint (a variable so tests
 // can point it at a fake server).
-var latestReleaseURL = "https://api.github.com/repos/monoes/mono-agent/releases/latest"
+var latestReleaseURL = "https://api.github.com/repos/" + releasesRepo + "/releases/latest"
 
 func fetchLatestRelease(ctx context.Context) (*latestRelease, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", latestReleaseURL, nil)

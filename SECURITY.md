@@ -446,22 +446,23 @@ may have leaked, rotate it and ship a release that unpins the old key
 
 ## Verifying a release
 
-Every release publishes `SHA256SUMS.txt` alongside the binaries, and the
-release workflow attaches a [SLSA build provenance
-attestation](https://github.com/actions/attest-build-provenance) to every
-file it produces (including the checksum file itself), signed via GitHub's
-OIDC-backed Sigstore integration — no maintainer-held key involved. Verify a
-downloaded artifact was actually built by this repo's release workflow from
-the commit it claims:
+Releases are published at https://github.com/monoes/mono-agent/releases.
+Every release carries `SHA256SUMS.txt` next to the binaries, and a
+`manifest.json` with its signature `manifest.json.sig`. `update`,
+`update --app` and `install.sh` verify the manifest signature against the
+public key pinned in the binary, then every download against the checksums in
+the manifest, and install nothing on a mismatch. To check a file by hand:
 
 ```bash
-gh attestation verify monoagentcli-darwin-arm64 -R monoes/mono-agent
+shasum -a 256 --check --ignore-missing SHA256SUMS.txt   # macOS; sha256sum on Linux
+monoagentcli release verify manifest.json manifest.json.sig
 ```
 
-This proves the artifact's hash matches what GitHub Actions produced for a
-specific commit in this repository — it does **not** yet carry a personal
-code-signing identity (see below), so on macOS/Windows you will still see an
-unidentified-developer warning until that lands.
+There is no build provenance attestation to check: releases are built in a private repository, and GitHub provides
+attestations for private repositories only on GitHub Enterprise Cloud. The
+binaries do not yet carry a personal code-signing identity (see below), so on
+macOS/Windows you will still see an unidentified-developer warning until that
+lands.
 
 ### Code signing (in progress)
 

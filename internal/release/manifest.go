@@ -19,8 +19,9 @@ import (
 	"time"
 )
 
-// ReleasesRepo is the public releases-only GitHub repository.
-const ReleasesRepo = "monoes/mono-agent-releases"
+// ReleasesRepo is the public releases-only GitHub repository (the source
+// repository is private and never named in a URL a client uses).
+const ReleasesRepo = "monoes/mono-agent"
 
 // ManifestURL is where monoes.me serves the latest signed manifest.
 const ManifestURL = "https://monoes.me/mono-agent/releases/latest/manifest.json"

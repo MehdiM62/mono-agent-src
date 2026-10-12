@@ -49,7 +49,7 @@ import (
 const (
 	keyringService = "monoagent-release-signing"
 	keyringAccount = "ed25519-v1"
-	defaultRepo    = "monoes/mono-agent-releases"
+	defaultRepo    = "monoes/mono-agent"
 )
 
 type Asset struct {

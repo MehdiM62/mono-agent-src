@@ -7,7 +7,6 @@
 <div align="center">
 
 [![License: Monoes Proprietary Software License](https://img.shields.io/badge/License-Proprietary-purple?style=for-the-badge)](LICENSE)
-[![CI](https://github.com/monoes/mono-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/monoes/mono-agent/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://golang.org)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-333?style=for-the-badge)](#getting-started)
 
@@ -53,29 +52,27 @@ Think of it as an honest, self-hosted n8n you can carry in a single file — wit
 ## Quick Start
 
 ```bash
-# Build the CLI (Go 1.26+, no CGO)
-git clone https://github.com/monoes/mono-agent.git
-cd mono-agent
-go build -o monoagentcli ./cmd/monoagentcli
+# Install the CLI (macOS, Linux; Windows: download the .exe from the releases page)
+curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/HEAD/install.sh | bash
 
 # Orientation
-./monoagentcli version
-./monoagentcli account login             # sign in to monoes.me (required, see above)
-./monoagentcli ref                       # built-in offline docs: commands, nodes, expressions
-./monoagentcli node list                 # all 167 node types
+monoagentcli version
+monoagentcli account login             # sign in to monoes.me (required, see above)
+monoagentcli ref                       # built-in offline docs: commands, nodes, expressions
+monoagentcli node list                 # all 167 node types
 
 # Try the flagship example workflow (prints the new workflow id)
-./monoagentcli workflow templates list
-./monoagentcli workflow import --file examples/morning-briefing.json
-./monoagentcli workflow activate <id>              # enable its triggers
-./monoagentcli workflow run <id>                   # run it now
+monoagentcli workflow templates list
+monoagentcli workflow import --file examples/morning-briefing.json   # ships in the source tree; `workflow templates list` shows the bundled ones
+monoagentcli workflow activate <id>              # enable its triggers
+monoagentcli workflow run <id>                   # run it now
 # Note: the summarize step runs on a local AI agent — it needs monomind and an installed runtime (see "How AI works in Mono Agent").
 
 # Run the scheduler daemon (keeps cron/webhook triggers alive)
-./monoagentcli daemon
+monoagentcli daemon
 ```
 
-Prefer a prebuilt binary? `curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/master/install.sh | bash` installs the latest release from its release manifest (macOS arm64/amd64, Linux amd64/arm64; SHA256-verified, and signature-verified once a release signing key is published), or grab a CLI / desktop build from [releases](https://github.com/monoes/mono-agent/releases/latest). There's also [Docker](Dockerfile).
+`install.sh` installs the latest release from its release manifest (macOS arm64/amd64, Linux amd64/arm64; SHA256-verified, and signature-verified once a release signing key is published). You can also grab a CLI / desktop build from [releases](https://github.com/monoes/mono-agent/releases/latest). There's also [Docker](Dockerfile). This repository publishes releases only; the source is not public, so there is nothing to clone.
 
 ### Flagship example — "Morning Briefing"
 
@@ -604,22 +601,22 @@ No configuration needed. Run any browser node and look for `Chrome extension con
 
 ### Prerequisites
 
-- Go 1.26+ (`brew install go`) — only when building from source; release binaries need nothing
+- Go 1.26+ (`brew install go`) — only for maintainers building from the private source tree; release binaries need nothing
 - Chrome/Chromium (for browser nodes — optional for everything else)
 - That's it — SQLite is embedded, no external database
 
 ### Install
 
 ```bash
-git clone https://github.com/monoes/mono-agent.git
-cd mono-agent
-go build -o monoagentcli ./cmd/monoagentcli
+# Prebuilt (macOS, Linux)
+curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/HEAD/install.sh | bash
 
-# Or without the social platform nodes:
-go build -tags nosocial -o monoagentcli ./cmd/monoagentcli
+# Maintainers, from a checkout of the private source tree:
+go build -o monoagentcli ./cmd/monoagentcli
+go build -tags nosocial -o monoagentcli ./cmd/monoagentcli   # without the social platform nodes
 ```
 
-Prebuilt: [install.sh](install.sh) (macOS arm64/amd64, Linux amd64/arm64; reads the release manifest, verifies its SHA256, and verifies the manifest signature when a signing key is configured; `MONOAGENT_MANIFEST_URL` points it at a mirror, `scripts/install-test.sh` tests it), or download from [releases](https://github.com/monoes/mono-agent/releases/latest) — CLI binaries for macOS, Linux (amd64/arm64), and Windows, plus desktop-app builds for macOS (arm64), Linux (amd64), and Windows.
+About the prebuilt install: [install.sh](install.sh) (macOS arm64/amd64, Linux amd64/arm64; reads the release manifest, verifies its SHA256, and verifies the manifest signature when a signing key is configured; `MONOAGENT_MANIFEST_URL` points it at a mirror, `scripts/install-test.sh` tests it), or download from [releases](https://github.com/monoes/mono-agent/releases/latest) — CLI binaries for macOS, Linux (amd64/arm64), and Windows, plus desktop-app builds for macOS (arm64), Linux (amd64), and Windows.
 
 ### Desktop GUI
 
@@ -647,6 +644,8 @@ terminal. The compose file sets `MONOAGENT_ALLOW_FILE_KEYRING=1` and
 the passphrase file before you sign in (`secret keyring set-passphrase` is itself a
 gated command):
 
+`docker compose up --build` builds the image from a checkout of the source tree (`build: .`), which only maintainers have; no image is published yet. Everyone else installs the prebuilt CLI into their own image (last line of this section).
+
 ```bash
 docker compose up -d --build
 docker compose exec -T monoagent sh -c 'umask 077; mkdir -p /data/.monoagent; cat > /data/.monoagent/keyring-passphrase' < /path/to/private-passphrase-file
@@ -670,7 +669,7 @@ docker compose up -d --build   # daemon + persistent /data volume
 MONOAGENT_WEBHOOK_ADDR=0.0.0.0:9321 docker compose up -d --build
 ```
 
-To install a prebuilt CLI inside your own image instead of building from source: `curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/master/install.sh | INSTALL_DIR=/usr/local/bin bash`.
+To install a prebuilt CLI inside your own image instead of building from source: `curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/HEAD/install.sh | INSTALL_DIR=/usr/local/bin bash`.
 
 Browser-based webhook callers additionally need `MONOAGENT_WEBHOOK_ALLOWED_ORIGINS` (a comma-separated CORS allowlist; unset by default — no CORS headers are sent). See [docker-compose.yml](docker-compose.yml) and the env-var table in [AGENTS.md](AGENTS.md).
 
@@ -831,7 +830,7 @@ Questions, ideas, and "is this the right tool for X" go to [GitHub Discussions](
 
 ## Contributing
 
-Pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). By participating, you agree to keep Mono Agent a fair-use tool.
+This repository publishes releases only and does not accept source contributions. Bug reports, suggestions and feedback are welcome in [Issues](https://github.com/monoes/mono-agent/issues) and [Discussions](https://github.com/monoes/mono-agent/discussions); see [CONTRIBUTING.md](CONTRIBUTING.md) for how the maintainers build and test.
 
 ```bash
 go test ./...                  # unit tests (no Chrome needed)

@@ -18,7 +18,7 @@ func newKeyEnv(t *testing.T, raw []byte) {
 	t.Setenv("TEST_RELEASE_KEY", base64.StdEncoding.EncodeToString(raw))
 }
 
-const testRepo = "monoes/mono-agent-releases"
+const testRepo = "monoes/mono-agent"
 
 func prefixFor(version string) string {
 	return "https://github.com/" + testRepo + "/releases/download/" + version + "/"

@@ -2,6 +2,11 @@
 
 Thanks for your interest in improving Mono Agent.
 
+The source is private and this project does not accept source contributions;
+the public repository publishes releases only. Bug reports and suggestions are
+welcome in its Issues and Discussions. The rest of this file is the maintainers'
+build and test guide.
+
 ## Prerequisites
 
 - **Go 1.26** or newer (the version pinned in [`go.mod`](go.mod))
