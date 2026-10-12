@@ -31,7 +31,10 @@ PHRASES = [
     ("BSD-2-Clause", "redistribution and use in source and binary forms"), ("Public-Domain", "dedicated to the public domain"),
 ]
 # Third-party code that lives in this repository's own files.
-VENDORED = [("internal/jevpick/snapshot.js", "browser-use/jev-ultrafast, jev_ultrafast/snapshot.js", "Copyright (c) 2026 Browser Use")]
+VENDORED = [
+    ("internal/jevpick/snapshot.js", "browser-use/jev-ultrafast, jev_ultrafast/snapshot.js", "Copyright (c) 2026 Browser Use"),
+    ("internal/nodes/browserjev/node.go, policy.go", "browser-use/jev-ultrafast, jev_ultrafast/questions.py", "Copyright (c) 2026 Browser Use"),
+]
 MIT_TEXT = """Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
 in the Software without restriction, including without limitation the rights
