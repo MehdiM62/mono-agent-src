@@ -13,7 +13,7 @@ actually drive, and human approval built into the engine.**
 
 | | **Mono Agent** | **n8n** | **Activepieces** | **Windmill** | **Node-RED** |
 |---|---|---|---|---|---|
-| **License** | MIT | Sustainable Use ("fair-code", not OSI) + Enterprise | MIT core + commercial EE | AGPL-3.0 / Apache-2.0 (source builds; binary "Community Edition" contains proprietary code) | Apache-2.0 (OpenJS Foundation) |
+| **License** | Proprietary (free to use for now) | Sustainable Use ("fair-code", not OSI) + Enterprise | MIT core + commercial EE | AGPL-3.0 / Apache-2.0 (source builds; binary "Community Edition" contains proprietary code) | Apache-2.0 (OpenJS Foundation) |
 | **Runtime** | Single static Go binary. No Node, no Docker, no DB server — SQLite is built in. (AI/agent features delegate to the separate monomind engine, which runs on Node.js; `monoagentcli nodejs install` can fetch a private copy) | Node.js app + database, typically Docker | Node.js/Bun + Postgres + Redis, Docker | Rust backend + **required Postgres**, language runtimes, Docker/K8s | Node.js process (`npm i -g node-red`) |
 | **Data and offline operation** | SQLite + files under `~/.monoagent/`; a monoes.me sign-in has been required since 2026-10-11 (UTC) and needs a connection to monoes.me at least once every 24 hours; no analytics or usage counters (what it contacts is listed in [SECURITY.md](../SECURITY.md#network-use-telemetry-and-crash-reporting)) | Self-hosted or cloud; data stays on your host when self-hosted | Self-hosted or cloud | Self-hosted (needs Postgres) or cloud | Runs local, flows stored as JSON files |
 | **GUI** | Desktop app (Wails) + web canvas | Web canvas | Web builder | Web IDE + app builder | Web editor |

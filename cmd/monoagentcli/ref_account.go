@@ -142,7 +142,7 @@ DEVELOPERS
   -tags devaccount trusts a development signing key and permits a development
   host via MONOES_BASE_URL. MONOAGENT_DEV_ENFORCE_FROM is read only by that
   build to move the enforcement date in a test. Releases never carry devaccount.
-  The current MIT license is unchanged; the account gate is a product check,
+  The license (LICENSE, section 4) forbids bypassing the check; the account gate is a product check,
   not a security boundary against the OS user who can rebuild the source.
 `
 

@@ -6,7 +6,7 @@
 
 <div align="center">
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)](LICENSE)
+[![License: Monoes Proprietary Software License](https://img.shields.io/badge/License-Proprietary-purple?style=for-the-badge)](LICENSE)
 [![CI](https://github.com/monoes/mono-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/monoes/mono-agent/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://golang.org)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-333?style=for-the-badge)](#getting-started)
@@ -40,7 +40,7 @@ Think of it as an honest, self-hosted n8n you can carry in a single file — wit
 > - **Platform terms apply** — automating your own account may still be subject to the platform's Terms of Service; that's between you and the platform
 > - **Read the full policy** — [docs/USAGE_POLICY.md](docs/USAGE_POLICY.md)
 >
-> Mono Agent is an independent, unofficial, MIT-licensed project. It is not affiliated with, endorsed by, or connected to any of the platforms it can talk to.
+> Mono Agent is an independent, unofficial project, licensed under the Monoes Proprietary Software License. It is not affiliated with, endorsed by, or connected to any of the platforms it can talk to.
 
 ---
 
@@ -843,19 +843,20 @@ go vet ./...                   # lint
 
 ## License
 
-Mono Agent is released under the [MIT License](LICENSE). In plain English:
+Mono Agent is proprietary software, licensed under the [Monoes Proprietary Software License](LICENSE) by Nokhodian UG (haftungsbeschränkt), Berlin. In plain English:
 
-- ✅ You may **use** it, commercially or personally
-- ✅ You may **modify** it and build your own tools on it
-- ✅ You may **distribute** copies and modified versions
-- ❌ It comes with **no warranty** — the authors are not liable for anything it does or fails to do
-- 📋 Keep the license and copyright notice with any copy you distribute
+- ✅ You may **use** it, free of charge for now, with a monoes.me account (it may be charged for in future versions, announced beforehand)
+- ✅ You may **benchmark** it, compare it with other products and **publish the results**; say which version you tested and keep it accurate
+- ❌ You may not **copy, modify, redistribute, resell or host** it, reverse engineer it, or bypass its sign-in check
+- ❌ It does not accept source code contributions; bug reports and suggestions are welcome
+- 📋 Versions up to and including v0.133.0 were released under the MIT License, and that grant stays valid for the copies published under it
+- ⚠️ Provided without warranty while it is free, within the limits German law sets (see the license)
 
 ---
 
 <div align="center">
 
-**Mono Agent is in no way affiliated with Instagram, LinkedIn, X, TikTok, or any platform.<br/>Independent, unofficial, MIT-licensed. Use at your own risk and in accordance with each platform's terms.**
+**Mono Agent is in no way affiliated with Instagram, LinkedIn, X, TikTok, or any platform.<br/>Independent, unofficial, proprietary software. Use at your own risk and in accordance with each platform's terms.**
 
 Made with ☕ by [nokhodian](https://github.com/nokhodian)
 

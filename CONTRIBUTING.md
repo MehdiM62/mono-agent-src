@@ -78,6 +78,13 @@ should build with the tag and set a date that never comes.
 - Verify before opening: `gofmt` clean, `go build ./...`,
   `go test ./...`, and the same with `-tags nosocial`.
 
+## Contribution terms
+
+Mono Agent is proprietary software (see `LICENSE`) and does not accept source
+code contributions. Bug reports, suggestions and other feedback are welcome;
+by sending them you let Nokhodian UG (haftungsbeschränkt) use them without
+restriction and without payment (section 6 of `LICENSE`).
+
 ## Security
 
 Found a security issue? Please do not open a public issue — see
