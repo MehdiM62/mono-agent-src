@@ -28,7 +28,7 @@ info:
   version: "1.0.0"
   license:
     name: Monoes Proprietary Software License
-    url: https://github.com/monoes/mono-agent/blob/master/LICENSE
+    url: https://github.com/monoes/mono-agent/blob/main/LICENSE
 servers:
   - url: http://127.0.0.1:9322
     description: Default loopback bind. Override with --addr or MONOAGENT_HTTPAPI_ADDR.
