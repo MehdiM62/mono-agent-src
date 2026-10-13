@@ -1,4 +1,4 @@
-package main
+package autoinstall
 
 import (
 	"errors"
@@ -9,21 +9,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// exportDomainFlags are --domains / --use-suggested-domains, shared by
+// DomainFlags are --domains / --use-suggested-domains, shared by
 // `automation export` and `action export`: the site.domains written into
 // the exported copy only (ExportOptions.Domains).
-type exportDomainFlags struct {
+type DomainFlags struct {
 	domains      string
 	useSuggested bool
 }
 
-func (f *exportDomainFlags) register(cmd *cobra.Command) {
+// Register adds the flags to cmd.
+func (f *DomainFlags) Register(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.domains, "domains", "", "Set site.domains in the exported copy (comma-separated), e.g. for a legacy package that lists none")
 	cmd.Flags().BoolVar(&f.useSuggested, "use-suggested-domains", false, "For a legacy package: use the domains suggested from its actions")
 }
 
-// resolve returns the domains to export with (nil = the package's own).
-func (f *exportDomainFlags) resolve(reg *automation.Registry, id string) ([]string, error) {
+// Resolve returns the domains to export with (nil = the package's own).
+func (f *DomainFlags) Resolve(reg *automation.Registry, id string) ([]string, error) {
 	list := splitCSV(f.domains)
 	if !f.useSuggested {
 		return list, nil
