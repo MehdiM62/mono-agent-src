@@ -1,0 +1,1149 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "wekan",
+  "title": "Wekan",
+  "description": "Boards, lists, cards, comments and checklists on a Wekan server",
+  "category": "app",
+  "docs_url": "https://wekan.github.io/api/",
+  "n8n_types": [
+    "n8n-nodes-base.wekan"
+  ],
+  "base_url": "{{ cred.url | re:'^(.*?)/?$' }}/api",
+  "credentials": [
+    {
+      "platform": "wekan",
+      "name": "Wekan",
+      "n8n_credential": "wekanApi",
+      "n8n_field_map": {
+        "url": "url",
+        "username": "username",
+        "password": "password"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Server URL",
+          "required": true,
+          "help": "e.g. https://wekan.example.com"
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ pre.token | prefix:'Bearer ' }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "card",
+      "label": "Card"
+    },
+    {
+      "value": "board",
+      "label": "Board"
+    },
+    {
+      "value": "cardComment",
+      "label": "Card comment"
+    },
+    {
+      "value": "checklist",
+      "label": "Checklist"
+    },
+    {
+      "value": "checklistItem",
+      "label": "Checklist item"
+    },
+    {
+      "value": "list",
+      "label": "List"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "card",
+      "operation": "create",
+      "title": "Create a card",
+      "method": "POST",
+      "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}/cards",
+      "body": {
+        "title": "{{ p.title }}",
+        "swimlaneId": "{{ p.swimlaneId }}",
+        "authorId": "{{ p.authorId }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "swimlaneId",
+          "label": "Swimlane ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "authorId",
+          "label": "Author user ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignees",
+            "description",
+            "members"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "card",
+      "operation": "delete",
+      "title": "Delete a card",
+      "method": "DELETE",
+      "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}/cards/{{ p.cardId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "card",
+      "operation": "get",
+      "title": "Get a card",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}/cards/{{ p.cardId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "card",
+      "operation": "getAll",
+      "title": "Get many cards",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}/{{ p.fromObject | eq:'swimlane' | then:'swimlanes' | default:'lists' }}/{{ p.fromObject | eq:'swimlane' | then:p.swimlaneId | default:p.listId }}/cards",
+      "output": {
+        "limit": true
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fromObject",
+          "label": "Get cards from",
+          "type": "select",
+          "required": true,
+          "default": "list",
+          "options": [
+            "list",
+            "swimlane"
+          ]
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "help": "When getting cards from a list"
+        },
+        {
+          "key": "swimlaneId",
+          "label": "Swimlane ID",
+          "type": "text",
+          "help": "When getting cards from a swimlane"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "card",
+      "operation": "update",
+      "title": "Update a card",
+      "method": "PUT",
+      "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}/cards/{{ p.cardId }}",
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authorId",
+            "assignees",
+            "color",
+            "description",
+            "dueAt",
+            "endAt",
+            "labelIds",
+            "listId",
+            "members",
+            "isOverTime",
+            "parentId",
+            "receivedAt",
+            "sort",
+            "spentTime",
+            "startAt",
+            "swimlaneId",
+            "title"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "board",
+      "operation": "create",
+      "title": "Create a board",
+      "method": "POST",
+      "path": "/boards",
+      "body": {
+        "title": "{{ p.title }}",
+        "owner": "{{ p.owner }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "owner",
+          "label": "Owner user ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "isActive",
+            "isAdmin",
+            "color",
+            "isCommentOnly",
+            "isNoComments",
+            "permission",
+            "isWorker"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "board",
+      "operation": "delete",
+      "title": "Delete a board",
+      "method": "DELETE",
+      "path": "/boards/{{ p.boardId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "board",
+      "operation": "get",
+      "title": "Get a board",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "board",
+      "operation": "getAll",
+      "title": "Get many boards of a user",
+      "method": "GET",
+      "path": "/users/{{ p.IdUser }}/boards",
+      "output": {
+        "limit": true
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "IdUser",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "cardComment",
+      "operation": "create",
+      "title": "Add a comment to a card",
+      "method": "POST",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/comments",
+      "body": {
+        "authorId": "{{ p.authorId }}",
+        "comment": "{{ p.comment }}"
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "authorId",
+          "label": "Author user ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "comment",
+          "label": "Comment",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "cardComment",
+      "operation": "delete",
+      "title": "Delete a comment",
+      "method": "DELETE",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/comments/{{ p.commentId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "cardComment",
+      "operation": "get",
+      "title": "Get a comment",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/comments/{{ p.commentId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "cardComment",
+      "operation": "getAll",
+      "title": "Get many comments of a card",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/comments",
+      "output": {
+        "limit": true
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "getAll",
+      "title": "Get many checklists of a card",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists",
+      "output": {
+        "limit": true
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "create",
+      "title": "Create a checklist",
+      "method": "POST",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists",
+      "body": {
+        "title": "{{ p.title }}",
+        "items": "{{ p.items }}"
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "items",
+          "label": "Items",
+          "type": "array",
+          "default": [],
+          "help": "Checklist item titles",
+          "item_type": "text"
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "delete",
+      "title": "Delete a checklist",
+      "method": "DELETE",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists/{{ p.checklistId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistId",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklist",
+      "operation": "get",
+      "title": "Get a checklist",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists/{{ p.checklistId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistId",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklistItem",
+      "operation": "get",
+      "title": "Get a checklist item",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists/{{ p.checklistId }}/items/{{ p.checklistItemId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistId",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistItemId",
+          "label": "Checklist item ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklistItem",
+      "operation": "delete",
+      "title": "Delete a checklist item",
+      "method": "DELETE",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists/{{ p.checklistId }}/items/{{ p.checklistItemId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistId",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistItemId",
+          "label": "Checklist item ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "checklistItem",
+      "operation": "update",
+      "title": "Update a checklist item",
+      "method": "PUT",
+      "path": "/boards/{{ p.boardId }}/cards/{{ p.cardId }}/checklists/{{ p.checklistId }}/items/{{ p.checklistItemId }}",
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistId",
+          "label": "Checklist ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "checklistItemId",
+          "label": "Checklist item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "title",
+            "isFinished"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "create",
+      "title": "Create a list",
+      "method": "POST",
+      "path": "/boards/{{ p.boardId }}/lists",
+      "body": {
+        "title": "{{ p.title }}"
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "delete",
+      "title": "Delete a list",
+      "method": "DELETE",
+      "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "get",
+      "title": "Get a list",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}/lists/{{ p.listId }}",
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "getAll",
+      "title": "Get many lists of a board",
+      "method": "GET",
+      "path": "/boards/{{ p.boardId }}/lists",
+      "output": {
+        "limit": true
+      },
+      "before": {
+        "base_url": "{{ cred.url | re:'^(.*?)/?$' }}",
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ]
+    }
+  ]
+}
