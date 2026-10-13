@@ -10,6 +10,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // Save targets.
@@ -224,10 +225,7 @@ func WriteDraft(dir string, out *Output, env *Env, m *automation.Manifest, d *Dr
 }
 
 func writeFile(path string, b []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, b, 0o644)
+	return statedir.WriteFile(path, b)
 }
 
 // ReadDraft reads <dir>/draft.json.
