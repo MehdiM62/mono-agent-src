@@ -4,6 +4,7 @@ import { Check, X, HelpCircle, ShieldQuestion, Flag, Loader, Send, Pencil, FileT
 import { ChatMarkdown } from '../chat/ChatMarkdown.jsx'
 import { formatBytes, safeImageSrc, safeUrl } from '../../lib/askModel.js'
 import * as hil from '../../services/hilApi.js'
+import { askHilRef } from '../../lib/commsStatus.js'
 import './asks.css'
 
 const mono = 'var(--font-mono)'
@@ -109,7 +110,7 @@ function DecisionBody({ ask, nameOf, canAct, busy, outcome, onDecide }) {
 
 // HilBody is a workflow's Human-in-Loop item: what the workflow shows
 // read-only, its editable fields, Approve with the edits, or Reject.
-function HilBody({ ask, canAct, busy, outcome, onDecide }) {
+function HilBody({ ask, canAct, busy, outcome, onDecide, onNavigate }) {
   const { t } = useTranslation()
   const [values, setValues] = useState(() => ({ ...ask.editable }))
   const pending = ask.pending && !outcome?.state
@@ -118,6 +119,13 @@ function HilBody({ ask, canAct, busy, outcome, onDecide }) {
   const edited = fields.some(k => values[k] !== ask.editable[k])
   return (
     <Frame ask={ask} pending={pending} icon={Workflow} title={t('ask.hilTitle', { workflow: ask.workflowName, node: ask.nodeName })}>
+      {onNavigate && (ask.hilRef || ask.personId) && (
+        <Muted style={{ marginBottom: 4 }}>
+          {ask.personId && <button type="button" className="ask-link" data-testid="ask-recipient-link" onClick={() => onNavigate('people', { person: ask.personId })}>{t('comms.recipient')}</button>}
+          {ask.personId && ask.hilRef && ' · '}
+          {ask.hilRef && <button type="button" className="ask-link" data-testid="ask-see-comms" onClick={() => onNavigate('communications', { hil_ref: ask.hilRef })}>{t('comms.seeInComms')}</button>}
+        </Muted>
+      )}
       {readonly.length > 0 && (
         <dl className="ask-facts" data-testid="ask-hil-readonly">
           {readonly.map(([k, v]) => (
@@ -266,6 +274,9 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
             {rcpt.personId && onNavigate && (
               <> · <button type="button" className="ask-link" onClick={() => onNavigate('people', { person: rcpt.personId })}>{t('ask.person')}</button></>
             )}
+            {onNavigate && askHilRef(ask) && (
+              <> · <button type="button" className="ask-link" data-testid="ask-see-comms" onClick={() => onNavigate('communications', { hil_ref: askHilRef(ask) })}>{t('comms.seeInComms')}</button></>
+            )}
           </dd>
         </div>
         {acct && <div><dt>{t('ask.from')}</dt><dd data-testid="ask-account">{acct}</dd></div>}
@@ -314,7 +325,7 @@ export function AskCard({ ask, nameOf = id => id, canAct = true, busy = false, o
     case 'question': return <QuestionBody {...shared} onAnswer={onAnswer} onDismiss={onDismiss} />
     case 'approval':
     case 'gate': return <DecisionBody {...shared} onDecide={onDecide} />
-    case 'hil': return <HilBody {...shared} onDecide={onDecide} />
+    case 'hil': return <HilBody {...shared} onDecide={onDecide} onNavigate={onNavigate} />
     case 'send': return <SendBody {...shared} onDecide={onDecide} onNavigate={onNavigate} />
     default: return null
   }
