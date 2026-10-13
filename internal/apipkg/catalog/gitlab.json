@@ -1,0 +1,907 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "gitlab",
+  "node_type": "app.gitlab",
+  "title": "GitLab",
+  "description": "Issues, releases, repositories, files and users on GitLab.com or a self-managed GitLab",
+  "category": "app",
+  "docs_url": "https://docs.gitlab.com/ee/api/rest/",
+  "n8n_types": [
+    "n8n-nodes-base.gitlab"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.gitlabTrigger"
+  ],
+  "base_url": "{{ cred.server | default:'https://gitlab.com' | re:'^(.*?)/*$' }}/api/v4",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "gitlab",
+      "name": "GitLab",
+      "n8n_credential": "gitlabApi",
+      "n8n_credential_alt": [
+        "gitlabOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "server": "server",
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "server",
+          "label": "GitLab server",
+          "help": "Default https://gitlab.com"
+        },
+        {
+          "key": "access_token",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true,
+          "help": "Scope: api"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://gitlab.com/oauth/authorize",
+        "token_url": "https://gitlab.com/oauth/token",
+        "scopes": [
+          "api"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "issue",
+      "label": "Issue"
+    },
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "release",
+      "label": "Release"
+    },
+    {
+      "value": "repository",
+      "label": "Repository"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "issue",
+      "operation": "create",
+      "title": "Create an issue",
+      "method": "POST",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "body",
+          "label": "Description",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "due_date",
+          "label": "Due date",
+          "type": "datetime",
+          "default": ""
+        },
+        {
+          "key": "labels",
+          "label": "Labels",
+          "type": "json",
+          "default": [],
+          "help": "[{\"label\": \"bug\"}]"
+        },
+        {
+          "key": "assignee_ids",
+          "label": "Assignees",
+          "type": "json",
+          "default": [],
+          "help": "[{\"assignee\": 12}]"
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "description": "{{ p.body }}",
+        "due_date": "{{ p.due_date }}",
+        "labels": "{{ p.labels | pluck:'label' | csv }}",
+        "assignee_ids": "{{ p.assignee_ids | pluck:'assignee' }}"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "createComment",
+      "title": "Comment on an issue",
+      "method": "POST",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues/{{ p.issueNumber }}/notes",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "issueNumber",
+          "label": "Issue number (IID)",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "body",
+          "label": "Comment",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "body": "{{ p.body }}"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "edit",
+      "title": "Edit an issue",
+      "method": "PUT",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues/{{ p.issueNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "issueNumber",
+          "label": "Issue number (IID)",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "editFields",
+          "label": "Edit fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "title",
+            "description",
+            "state",
+            "labels",
+            "assignee_ids",
+            "due_date"
+          ],
+          "help": "state: open or closed (sent as state_event close/reopen); labels: [{\"label\"}]; assignee_ids: [{\"assignee\"}]"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.editFields | omit:'labels,assignee_ids,state' }}",
+        "state_event": "{{ p.editFields.state | replace:'closed','close' | replace:'open','reopen' }}",
+        "labels": "{{ p.editFields.labels | pluck:'label' | csv }}",
+        "assignee_ids": "{{ p.editFields.assignee_ids | pluck:'assignee' }}"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "get",
+      "title": "Get an issue",
+      "method": "GET",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues/{{ p.issueNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "issueNumber",
+          "label": "Issue number (IID)",
+          "type": "number",
+          "required": true,
+          "default": 0
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "lock",
+      "title": "Lock an issue discussion",
+      "method": "PUT",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues/{{ p.issueNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "issueNumber",
+          "label": "Issue number (IID)",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "lockReason",
+          "label": "Reason",
+          "type": "select",
+          "default": "resolved",
+          "options": [
+            "off-topic",
+            "too heated",
+            "resolved",
+            "spam"
+          ],
+          "help": "Kept for n8n imports; GitLab does not store a reason"
+        }
+      ],
+      "body": {
+        "discussion_locked": true
+      }
+    },
+    {
+      "resource": "repository",
+      "operation": "getIssues",
+      "title": "Get issues of a project",
+      "method": "GET",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/issues",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        },
+        {
+          "key": "getRepositoryIssuesFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee_username",
+            "author_username",
+            "search",
+            "labels",
+            "updated_after",
+            "state",
+            "order_by",
+            "sort"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.getRepositoryIssuesFilters }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "repository",
+      "operation": "get",
+      "title": "Get a project",
+      "method": "GET",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getRepositories",
+      "title": "Get a user's projects",
+      "method": "GET",
+      "path": "/users/{{ p.owner }}/projects",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Username",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "create",
+      "title": "Create a release",
+      "method": "POST",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/releases",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "releaseTag",
+          "label": "Tag name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "description",
+            "ref"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields }}",
+        "tag_name": "{{ p.releaseTag }}"
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "delete",
+      "title": "Delete a release",
+      "method": "DELETE",
+      "path": "/projects/{{ p.projectId }}/releases/{{ p.tag_name }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tag_name",
+          "label": "Tag name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "release",
+      "operation": "get",
+      "title": "Get a release",
+      "method": "GET",
+      "path": "/projects/{{ p.projectId }}/releases/{{ p.tag_name }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tag_name",
+          "label": "Tag name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "release",
+      "operation": "getAll",
+      "title": "Get many releases",
+      "method": "GET",
+      "path": "/projects/{{ p.projectId }}/releases",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "order_by",
+            "sort"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "update",
+      "title": "Update a release",
+      "method": "PUT",
+      "path": "/projects/{{ p.projectId }}/releases/{{ p.tag_name }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tag_name",
+          "label": "Tag name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "description",
+            "milestones",
+            "released_at"
+          ],
+          "help": "milestones: comma-separated titles"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'milestones' }}",
+        "milestones": "{{ p.additionalFields.milestones | split }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "create",
+      "title": "Create a file",
+      "method": "POST",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/repository/files/{{ p.filePath }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryData",
+          "label": "Send binary file",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "fileContent",
+          "label": "File content",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "commitMessage",
+          "label": "Commit message",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "branch",
+          "label": "Branch",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalParameters",
+          "label": "Additional parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "branchStart",
+            "author",
+            "encoding"
+          ],
+          "help": "branchStart: {\"branchStart\": \"main\"}; author: {\"name\", \"email\"}; encoding: {\"encoding\": \"base64\"}"
+        }
+      ],
+      "body": {
+        "author_name": "{{ p.additionalParameters.author.name }}",
+        "author_email": "{{ p.additionalParameters.author.email }}",
+        "branch": "{{ p.branch }}",
+        "commit_message": "{{ p.commitMessage }}",
+        "start_branch": "{{ p.additionalParameters.branchStart.branchStart }}",
+        "content": "{{ p.additionalParameters.encoding.encoding | eq:'base64' | then:(p.fileContent | base64) | default:p.fileContent }}",
+        "encoding": "{{ p.additionalParameters.encoding.encoding | eq:'base64' | then:'base64' }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file",
+      "method": "DELETE",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/repository/files/{{ p.filePath }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commitMessage",
+          "label": "Commit message",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "branch",
+          "label": "Branch",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalParameters",
+          "label": "Additional parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "branchStart",
+            "author",
+            "encoding"
+          ],
+          "help": "branchStart: {\"branchStart\": \"main\"}; author: {\"name\", \"email\"}; encoding: {\"encoding\": \"base64\"}"
+        }
+      ],
+      "body": {
+        "author_name": "{{ p.additionalParameters.author.name }}",
+        "author_email": "{{ p.additionalParameters.author.email }}",
+        "branch": "{{ p.branch }}",
+        "commit_message": "{{ p.commitMessage }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "edit",
+      "title": "Edit a file",
+      "method": "PUT",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/repository/files/{{ p.filePath }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryData",
+          "label": "Send binary file",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "fileContent",
+          "label": "File content",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "commitMessage",
+          "label": "Commit message",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "branch",
+          "label": "Branch",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalParameters",
+          "label": "Additional parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "branchStart",
+            "author",
+            "encoding"
+          ],
+          "help": "branchStart: {\"branchStart\": \"main\"}; author: {\"name\", \"email\"}; encoding: {\"encoding\": \"base64\"}"
+        }
+      ],
+      "body": {
+        "author_name": "{{ p.additionalParameters.author.name }}",
+        "author_email": "{{ p.additionalParameters.author.email }}",
+        "branch": "{{ p.branch }}",
+        "commit_message": "{{ p.commitMessage }}",
+        "start_branch": "{{ p.additionalParameters.branchStart.branchStart }}",
+        "content": "{{ p.additionalParameters.encoding.encoding | eq:'base64' | then:(p.fileContent | base64) | default:p.fileContent }}",
+        "encoding": "{{ p.additionalParameters.encoding.encoding | eq:'base64' | then:'base64' }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "get",
+      "title": "Get a file",
+      "method": "GET",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/repository/files/{{ p.filePath }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "asBinaryProperty",
+          "label": "As binary property",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Output binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "additionalParameters",
+          "label": "Additional parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "reference"
+          ]
+        }
+      ],
+      "query": {
+        "ref": "{{ p.additionalParameters.reference | default:'master' }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "list",
+      "title": "List files",
+      "method": "GET",
+      "path": "/projects/{{ p.owner }}%2F{{ p.repository }}/repository/tree",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Project owner (user or group path)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "repository",
+          "label": "Project name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "Folder path",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "number",
+          "default": 1,
+          "min": 1
+        },
+        {
+          "key": "additionalParameters",
+          "label": "Additional parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ref",
+            "recursive"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.additionalParameters }}",
+        "path": "{{ p.filePath }}",
+        "page": "{{ p.returnAll | ne:'true' | then:p.page }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    }
+  ]
+}

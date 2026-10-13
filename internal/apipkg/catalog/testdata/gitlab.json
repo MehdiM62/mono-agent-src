@@ -1,0 +1,434 @@
+{
+  "issue.create": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "title": "T",
+      "body": "B",
+      "labels": [
+        {
+          "label": "bug"
+        },
+        {
+          "label": "ui"
+        }
+      ],
+      "assignee_ids": [
+        {
+          "assignee": 3
+        }
+      ]
+    },
+    "response": {
+      "iid": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/issues",
+      "body": {
+        "title": "T",
+        "description": "B",
+        "labels": "bug,ui",
+        "assignee_ids": [
+          3
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "issue.createComment": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "issueNumber": 4,
+      "body": "hi"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/issues/4/notes",
+      "body": {
+        "body": "hi"
+      }
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "issue.edit": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "issueNumber": 4,
+      "editFields": {
+        "title": "N",
+        "state": "closed",
+        "labels": [
+          {
+            "label": "x"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/issues/4",
+      "body": {
+        "title": "N",
+        "state_event": "close",
+        "labels": "x"
+      }
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "issue.get": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "issueNumber": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/issues/4"
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "issue.lock": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "issueNumber": 4
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/issues/4",
+      "body": {
+        "discussion_locked": true
+      }
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "repository.getIssues": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "limit": 5,
+      "getRepositoryIssuesFilters": {
+        "state": "opened",
+        "labels": "bug"
+      }
+    },
+    "response": [
+      {
+        "iid": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/issues",
+      "query": {
+        "state": "opened",
+        "labels": "bug",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "repository.get": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp",
+      "items": 1
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "user.getRepositories": {
+    "params": {
+      "owner": "ada"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/users/ada/projects",
+      "query": {
+        "per_page": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "release.create": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "releaseTag": "v1",
+      "additionalFields": {
+        "name": "One",
+        "ref": "main"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/releases",
+      "body": {
+        "tag_name": "v1",
+        "name": "One",
+        "ref": "main"
+      }
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "release.delete": {
+    "params": {
+      "projectId": "12",
+      "tag_name": "v1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v4/projects/12/releases/v1"
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "release.get": {
+    "params": {
+      "projectId": "12",
+      "tag_name": "v1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/projects/12/releases/v1"
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "release.getAll": {
+    "params": {
+      "projectId": "12",
+      "returnAll": true,
+      "additionalFields": {
+        "sort": "asc"
+      }
+    },
+    "response": [
+      {
+        "tag_name": "v1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/projects/12/releases",
+      "query": {
+        "sort": "asc",
+        "per_page": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "release.update": {
+    "params": {
+      "projectId": "12",
+      "tag_name": "v1",
+      "additionalFields": {
+        "milestones": "m1, m2"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v4/projects/12/releases/v1",
+      "body": {
+        "milestones": [
+          "m1",
+          "m2"
+        ]
+      }
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "file.create": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "filePath": "docs/a.md",
+      "fileContent": "hi",
+      "commitMessage": "c",
+      "branch": "main",
+      "additionalParameters": {
+        "encoding": {
+          "encoding": "base64"
+        },
+        "author": {
+          "name": "Ada"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/repository/files/docs%2Fa.md",
+      "body": {
+        "branch": "main",
+        "commit_message": "c",
+        "content": "aGk=",
+        "encoding": "base64",
+        "author_name": "Ada"
+      }
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "file.delete": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "filePath": "a.md",
+      "commitMessage": "c",
+      "branch": "main"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/repository/files/a.md",
+      "body": {
+        "branch": "main",
+        "commit_message": "c"
+      }
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "file.edit": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "filePath": "a.md",
+      "fileContent": "x",
+      "commitMessage": "c",
+      "branch": "dev",
+      "additionalParameters": {
+        "branchStart": {
+          "branchStart": "main"
+        }
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/repository/files/a.md",
+      "body": {
+        "branch": "dev",
+        "commit_message": "c",
+        "content": "x",
+        "start_branch": "main"
+      }
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "file.get": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "filePath": "a.md",
+      "asBinaryProperty": false
+    },
+    "response": {
+      "content": "aGk="
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/repository/files/a.md",
+      "query": {
+        "ref": "master"
+      },
+      "items": 1
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  },
+  "file.list": {
+    "params": {
+      "owner": "grp/sub",
+      "repository": "app",
+      "filePath": "src",
+      "limit": 10,
+      "page": 2,
+      "additionalParameters": {
+        "recursive": true
+      }
+    },
+    "response": [
+      {
+        "path": "src/a"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/projects/grp%2Fsub%2Fapp/repository/tree",
+      "query": {
+        "path": "src",
+        "page": "2",
+        "recursive": "true",
+        "per_page": "10"
+      },
+      "items": 1
+    },
+    "credential": {
+      "server": "https://gitlab.test/",
+      "access_token": "t"
+    }
+  }
+}
