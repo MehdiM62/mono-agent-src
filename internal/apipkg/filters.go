@@ -876,3 +876,16 @@ func epochTime(n int64) time.Time {
 	}
 	return time.Unix(n, 0)
 }
+
+// truthy is how *_when, until and $when conditions read a rendered value:
+// empty, false, 0 and "false"/"0"/"no"/"off" are false; any other
+// non-empty value (an id, a mode name) is true.
+func truthy(v any) bool {
+	if isEmpty(v) {
+		return false
+	}
+	if b, err := toBool(v); err == nil && b != nil {
+		return b == true
+	}
+	return true
+}
