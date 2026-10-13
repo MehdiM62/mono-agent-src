@@ -4,6 +4,7 @@ import {
   isCaseListSettled, remapSourceEdges, NODE_CONFIG_FIELDS,
   arrayFieldItems, arrayTagLabel, normalizeConfigForSave, portRenames,
   canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath, loopEdgeBottom,
+  loopEdgeTop, chooseLoopEdgeY, edgePoints,
   makeIdGen,
 } from './nodeConfigFields.js'
 
@@ -262,5 +263,51 @@ describe('makeIdGen', () => {
     expect(ids.next(new Set(['nr7', 'nr8']))).toBe('nr9')
     ids.advancePast(['nr3'])          // never moves backwards
     expect(ids.next()).toBe('nr10')
+  })
+})
+
+describe('chooseLoopEdgeY', () => {
+  // r3 auto-layout: Trigger → Split → Set → Wait in one row, Split's done
+  // branch Remove Duplicates under Set, also feeding Wait; Set loops back.
+  const boxes = [
+    { id: 't', x: 60, y: 60, w: 220, h: 86 },
+    { id: 'L', x: 320, y: 60, w: 220, h: 114 },
+    { id: 'set', x: 580, y: 60, w: 220, h: 86 },
+    { id: 'rd', x: 580, y: 200, w: 220, h: 86 },
+    { id: 'wait', x: 840, y: 60, w: 220, h: 86 },
+  ]
+  const loopIds = new Set(['L', 'set'])
+  const back = { sx: 800, sy: 126, tx: 320, ty: 126 }
+  const curves = [
+    [280, 126, 320, 126], // trigger → split
+    [540, 126, 580, 126], // split loop → set
+    [540, 154, 580, 266], // split done → remove duplicates
+    [800, 126, 840, 126], // set → wait
+    [800, 266, 840, 126], // remove duplicates → wait
+  ]
+  const obstacles = [
+    ...curves.flatMap(([a, b, c, d]) => edgePoints(a, b, c, d)),
+    [280, 126], [800, 266], // output ports of trigger and remove duplicates
+  ]
+
+  it('goes above the row when the route below would hug the done branch', () => {
+    expect(loopEdgeBottom(boxes, loopIds, 812, 308)).toBe(314)
+    expect(loopEdgeTop(boxes, loopIds, 812, 308)).toBe(32)
+    expect(chooseLoopEdgeY({ ...back, boxes, loopIds, obstacles })).toBe(32)
+  })
+
+  it('stays below on a tie', () => {
+    expect(chooseLoopEdgeY({ ...back, boxes, loopIds, obstacles: [] })).toBe(314)
+  })
+
+  it('clears a node sitting above the row', () => {
+    const top = [...boxes, { id: 'note', x: 400, y: -60, w: 220, h: 86 }]
+    expect(loopEdgeTop(top, loopIds, 812, 308)).toBe(-60 - 28)
+  })
+
+  it('draws the route above as a rise, run and drop', () => {
+    const d = loopEdgePath(800, 126, 320, 126, 32)
+    expect(d).toContain('Q812,126 812,118 V40 Q812,32 804,32')
+    expect(d).toContain('H316 Q308,32 308,40 V118 Q308,126 316,126 H320')
   })
 })

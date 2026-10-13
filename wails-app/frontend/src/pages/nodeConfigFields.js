@@ -786,27 +786,77 @@ export const LOOP_EDGE_OFF = 12
 // loop's own nodes, then pushed further down past any node box ({id, x, y,
 // w, h}) the run between x1 and x2 would otherwise cross.
 export function loopEdgeBottom(boxes, loopIds, x1, x2, margin = 28) {
+  return loopEdgeRun(boxes, loopIds, x1, x2, margin, 1)
+}
+
+// loopEdgeTop is loopEdgeBottom's mirror: a run above the loop's nodes.
+export function loopEdgeTop(boxes, loopIds, x1, x2, margin = 28) {
+  return loopEdgeRun(boxes, loopIds, x1, x2, margin, -1)
+}
+
+function loopEdgeRun(boxes, loopIds, x1, x2, margin, side) {
   const lo = Math.min(x1, x2), hi = Math.max(x1, x2)
   const own = boxes.filter(b => loopIds.has(b.id))
-  let y = (own.length ? Math.max(...own.map(b => b.y + b.h)) : 0) + margin
+  let y = side > 0
+    ? (own.length ? Math.max(...own.map(b => b.y + b.h)) : 0) + margin
+    : (own.length ? Math.min(...own.map(b => b.y)) : 0) - margin
   const crossed = boxes.filter(b => b.x < hi && b.x + b.w > lo)
   for (let moved = true; moved;) {
     moved = false
     for (const b of crossed) {
-      if (y > b.y - margin && y < b.y + b.h + margin) { y = b.y + b.h + margin; moved = true }
+      if (y > b.y - margin && y < b.y + b.h + margin) { y = side > 0 ? b.y + b.h + margin : b.y - margin; moved = true }
     }
   }
   return y
 }
 
+// edgePath is an ordinary edge: a horizontal-tangent cubic bezier.
+export function edgePath(sx, sy, tx, ty) {
+  const dx = Math.max(60, Math.abs(tx - sx) * 0.5)
+  return `M${sx},${sy} C${sx+dx},${sy} ${tx-dx},${ty} ${tx},${ty}`
+}
+
+// edgePoints samples n+1 points along edgePath's curve.
+export function edgePoints(sx, sy, tx, ty, n = 24) {
+  const dx = Math.max(60, Math.abs(tx - sx) * 0.5)
+  const p = [[sx, sy], [sx + dx, sy], [tx - dx, ty], [tx, ty]]
+  const out = []
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t
+    const w = [u * u * u, 3 * u * u * t, 3 * u * t * t, t * t * t]
+    out.push([w.reduce((a, k, j) => a + k * p[j][0], 0), w.reduce((a, k, j) => a + k * p[j][1], 0)])
+  }
+  return out
+}
+
+// chooseLoopEdgeY picks where a loop back-edge from (sx,sy) to (tx,ty) runs:
+// below its loop or above it, whichever route has fewer obstacle points
+// ([x, y]: other edges' sampled curves, ports of nodes outside the loop)
+// within clearance of its segments. A tie keeps the route below.
+export function chooseLoopEdgeY({ sx, sy, tx, ty, boxes, loopIds, obstacles = [], off = LOOP_EDGE_OFF, clearance = 16 }) {
+  const a = sx + off, b = tx - off
+  const near = (y) => {
+    const segs = [[a, sy, a, y], [Math.min(a, b), y, Math.max(a, b), y], [b, y, b, ty]]
+    return obstacles.filter(([px, py]) => segs.some(([x1, y1, x2, y2]) => {
+      const cx = Math.max(Math.min(x1, x2), Math.min(px, Math.max(x1, x2)))
+      const cy = Math.max(Math.min(y1, y2), Math.min(py, Math.max(y1, y2)))
+      return Math.hypot(px - cx, py - cy) < clearance
+    })).length
+  }
+  const below = loopEdgeBottom(boxes, loopIds, a, b)
+  const above = loopEdgeTop(boxes, loopIds, a, b)
+  return near(above) < near(below) ? above : below
+}
+
 // loopEdgePath routes a loop back-edge around its loop instead of across it:
-// out of the source port, down to bottomY (below the loop's nodes), back
-// along the bottom, and up into the target port, with rounded corners.
-export function loopEdgePath(sx, sy, tx, ty, bottomY, off = LOOP_EDGE_OFF, r = 8) {
+// out of the source port, down (or up) to runY clear of the loop's nodes,
+// back along it, and into the target port, with rounded corners.
+export function loopEdgePath(sx, sy, tx, ty, runY, off = LOOP_EDGE_OFF, r = 8) {
   const a = sx + off, b = tx - off
   const dir = b < a ? -1 : 1
-  return `M${sx},${sy} H${a - r} Q${a},${sy} ${a},${sy + r} V${bottomY - r} Q${a},${bottomY} ${a + dir * r},${bottomY}` +
-    ` H${b - dir * r} Q${b},${bottomY} ${b},${bottomY - r} V${ty + r} Q${b},${ty} ${b + r},${ty} H${tx}`
+  const down = runY < sy ? -1 : 1, up = ty < runY ? -1 : 1
+  return `M${sx},${sy} H${a - r} Q${a},${sy} ${a},${sy + down * r} V${runY - down * r} Q${a},${runY} ${a + dir * r},${runY}` +
+    ` H${b - dir * r} Q${b},${runY} ${b},${runY + up * r} V${ty - up * r} Q${b},${ty} ${b + r},${ty} H${tx}`
 }
 
 // hasForbiddenCycle reports whether the graph has a cycle other than a loop

@@ -15,7 +15,7 @@ import {
   NODE_CONFIG_FIELDS, BROWSER_NODE_GENERIC,
   deriveInputs, deriveOutputs, portsDependOnConfig, isCaseListSettled, remapSourceEdges,
   arrayFieldItems, arrayTagLabel, normalizeConfigForSave,
-  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath, loopEdgeBottom, LOOP_EDGE_OFF,
+  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath, chooseLoopEdgeY, edgePath, edgePoints,
   makeIdGen,
 } from './nodeConfigFields.js'
 import { SaveModal, WorkflowsModal, TriggerInputModal } from './NodeRunnerModals.jsx'
@@ -80,10 +80,6 @@ function inPortPos(n, i) {
 }
 function outPortPos(n, i) {
   return { x: n.x + NODE_W, y: n.y + HEAD_H + PORT_PAD + i * PORT_H + PORT_H / 2 }
-}
-function edgePath(sx, sy, tx, ty) {
-  const dx = Math.max(60, Math.abs(tx - sx) * 0.5)
-  return `M${sx},${sy} C${sx+dx},${sy} ${tx-dx},${ty} ${tx},${ty}`
 }
 
 // Canvas ids. Loading a workflow advances the counter past its nr<N> ids;
@@ -1835,7 +1831,8 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   }, [nodes, edges])
 
   // ── Edge paths ────────────────────────────────────────────────────────────
-  // Loop back-edges run below their loop's nodes, dashed in LOOP_EDGE_COLOR.
+  // Loop back-edges run below (or above) their loop's nodes, dashed in
+  // LOOP_EDGE_COLOR.
   const backEdges = loopBackEdges(nodes, edges)
   const edgePaths = edges.map(edge => {
     const sNode = nodes.find(n => n.id === edge.source)
@@ -1846,8 +1843,19 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     const loopIds = backEdges.get(edge)
     if (loopIds) {
       const boxes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y, w: NODE_W, h: nodeH(n) }))
-      const bottom = loopEdgeBottom(boxes, loopIds, sp.x + LOOP_EDGE_OFF, tp.x - LOOP_EDGE_OFF)
-      return { ...edge, path: loopEdgePath(sp.x, sp.y, tp.x, tp.y, bottom), color: LOOP_EDGE_COLOR, loop: true }
+      // Other edges' curves and the output ports of nodes outside the loop:
+      // the route (below or above the loop) keeps clear of them.
+      const obstacles = []
+      for (const o of edges) {
+        if (o === edge) continue
+        const os = nodes.find(n => n.id === o.source), ot = nodes.find(n => n.id === o.target)
+        if (!os || !ot) continue
+        const a = outPortPos(os, o.sourcePortIdx), b = inPortPos(ot, o.targetPortIdx)
+        obstacles.push(...edgePoints(a.x, a.y, b.x, b.y))
+      }
+      for (const n of nodes) if (!loopIds.has(n.id)) n.outputs.forEach((_, i) => { const p = outPortPos(n, i); obstacles.push([p.x, p.y]) })
+      const runY = chooseLoopEdgeY({ sx: sp.x, sy: sp.y, tx: tp.x, ty: tp.y, boxes, loopIds, obstacles })
+      return { ...edge, path: loopEdgePath(sp.x, sp.y, tp.x, tp.y, runY), color: LOOP_EDGE_COLOR, loop: true }
     }
     return { ...edge, path: edgePath(sp.x, sp.y, tp.x, tp.y), color: sNode.color || catColor(sNode.category) }
   }).filter(Boolean)
