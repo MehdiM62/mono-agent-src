@@ -47,10 +47,23 @@ type FieldDependency struct {
 	Values []string `json:"values"`
 }
 
+// NodeSchemaOutput is one top-level key of the items a node emits on its
+// main output. Keys follow two conventions: "*" means the input item's
+// fields are passed through, and "<name>" is a key named at run time —
+// by the node's config field <name> when it has one, else by the data
+// (an open key set).
+type NodeSchemaOutput struct {
+	Key         string `json:"key"`
+	Type        string `json:"type,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 // NodeSchema is the schema embedded in each workflow node.
 type NodeSchema struct {
 	CredentialPlatform *string           `json:"credential_platform"`
 	Fields             []NodeSchemaField `json:"fields"`
+	// Outputs, when declared, lists the keys of the node's output items.
+	Outputs []NodeSchemaOutput `json:"outputs,omitempty"`
 }
 
 // legacyFormPlatforms are the platforms whose nodes without a schema file

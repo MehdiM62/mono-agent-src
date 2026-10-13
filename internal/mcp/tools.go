@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -386,17 +387,14 @@ func toolWorkflowValidate(ctx context.Context, s *Server, args json.RawMessage) 
 		return nil, fmt.Errorf("provide one of: id, file, or workflow")
 	}
 
-	errs := []string{}
-	// ValidateForSave covers structure + unique IDs + connection refs + the
-	// DAG cycle check; ValidateForActivation adds trigger requirements.
-	if err := workflow.ValidateForSave(&wf); err != nil {
-		errs = append(errs, err.Error())
-	} else if err := workflow.ValidateForActivation(&wf); err != nil {
-		errs = append(errs, err.Error())
-	}
+	// ValidateWorkflow runs ValidateForActivation (structure, DAG,
+	// triggers) plus the schema-aware checks, as `workflow validate` does.
+	rep := workflow.ValidateWorkflow(&wf, workflow.ValidateOptions{KnownNodeType: noderegistry.Build(nil).Has})
 	return map[string]interface{}{
-		"valid":  len(errs) == 0,
-		"errors": errs,
+		"valid":    rep.Valid,
+		"errors":   rep.Errors,
+		"warnings": rep.Warnings,
+		"issues":   rep.Issues,
 	}, nil
 }
 
