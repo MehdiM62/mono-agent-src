@@ -1,0 +1,530 @@
+{
+  "user.create": {
+    "params": {
+      "firstname": "Ada",
+      "lastname": "L",
+      "additionalFields": {
+        "email": "a@x.io",
+        "vip": true,
+        "addressUi": {
+          "addressDetails": {
+            "city": "Oslo"
+          }
+        },
+        "customFieldsUi": {
+          "customFieldPairs": [
+            {
+              "name": "shoe",
+              "value": "42"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/users",
+      "body": {
+        "firstname": "Ada",
+        "lastname": "L",
+        "email": "a@x.io",
+        "vip": true,
+        "city": "Oslo",
+        "shoe": "42"
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "user.delete": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/users/1",
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "user.get": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/users/1",
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "sortUi": {
+          "sortDetails": {
+            "sort_by": "login",
+            "order_by": "desc"
+          }
+        }
+      }
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "response": [
+      {
+        "id": 1,
+        "_preferences": {}
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/users/search",
+      "query": {
+        "query": "",
+        "sort_by": "login",
+        "order_by": "desc",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "user.getSelf": {
+    "params": {},
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/users/me",
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "user.update": {
+    "params": {
+      "id": "1",
+      "updateFields": {
+        "note": "n"
+      }
+    },
+    "credential": {
+      "base_url": "https://desk.test",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/users/1",
+      "body": {
+        "note": "n"
+      },
+      "headers": {}
+    }
+  },
+  "group.create": {
+    "params": {
+      "name": "Sales",
+      "additionalFields": {
+        "active": false
+      }
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/groups",
+      "body": {
+        "name": "Sales",
+        "active": false
+      },
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "group.delete": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/groups/1",
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "group.get": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/groups/1",
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "group.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/groups",
+      "query": {
+        "page": "1",
+        "per_page": "100"
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "group.update": {
+    "params": {
+      "id": "1",
+      "updateFields": {
+        "name": "S2"
+      }
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/groups/1",
+      "body": {
+        "name": "S2"
+      },
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "organization.create": {
+    "params": {
+      "name": "Acme",
+      "additionalFields": {
+        "domain": "acme.io",
+        "domain_assignment": true
+      }
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/organizations",
+      "body": {
+        "name": "Acme",
+        "domain": "acme.io",
+        "domain_assignment": true
+      },
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "organization.delete": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/organizations/1",
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "organization.get": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/organizations/1",
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "organization.getAll": {
+    "params": {},
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/organizations",
+      "query": {
+        "page": "1",
+        "per_page": "50"
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "organization.update": {
+    "params": {
+      "id": "1",
+      "updateFields": {
+        "vip": true
+      }
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/organizations/1",
+      "body": {
+        "vip": true
+      },
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "ticket.create": {
+    "params": {
+      "title": "Help",
+      "group": "Users",
+      "customer": "a@x.io",
+      "article": {
+        "articleDetails": {
+          "subject": "S",
+          "body": "B",
+          "visibility": "external",
+          "type": "note"
+        }
+      }
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "responses": [
+      {
+        "id": 5
+      },
+      [
+        {
+          "id": 9
+        }
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/v1/tickets",
+        "body": {
+          "title": "Help",
+          "group": "Users",
+          "customer": "a@x.io",
+          "article": {
+            "subject": "S",
+            "body": "B",
+            "type": "note",
+            "internal": false
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/ticket_articles/by_ticket/5"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tickets",
+      "body": {
+        "title": "Help",
+        "group": "Users",
+        "customer": "a@x.io",
+        "article": {
+          "subject": "S",
+          "body": "B",
+          "type": "note",
+          "internal": false
+        }
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "ticket.delete": {
+    "params": {
+      "id": "5"
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/tickets/5",
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "ticket.get": {
+    "params": {
+      "id": "5"
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "responses": [
+      {
+        "id": 5
+      },
+      [
+        {
+          "id": 9
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tickets/5",
+      "items": 1,
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "ticket.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tickets",
+      "query": {
+        "page": "1",
+        "per_page": "2"
+      },
+      "items": 2,
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  },
+  "ticket.update": {
+    "params": {
+      "id": "5",
+      "updateFields": {
+        "state_id": 2,
+        "note": "done",
+        "pending_time": ""
+      }
+    },
+    "credential": {
+      "base_url": "https://desk.test/",
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/tickets/5",
+      "body": {
+        "state_id": 2,
+        "article": {
+          "body": "done",
+          "internal": true,
+          "type": "note",
+          "content_type": "text/html"
+        }
+      },
+      "headers": {
+        "Authorization": "Token token=tok"
+      }
+    }
+  }
+}

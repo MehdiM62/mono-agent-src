@@ -1,0 +1,732 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "zammad",
+  "title": "Zammad",
+  "description": "Groups, organizations, tickets and users in a Zammad helpdesk",
+  "category": "app",
+  "docs_url": "https://docs.zammad.org/en/latest/api/intro.html",
+  "n8n_types": [
+    "n8n-nodes-base.zammad"
+  ],
+  "base_url": "{{ cred.base_url | re:'^(.*?)/?$' }}/api/v1",
+  "credentials": [
+    {
+      "platform": "zammad",
+      "name": "Zammad (token)",
+      "n8n_credential": "zammadTokenAuthApi",
+      "n8n_field_map": {
+        "baseUrl": "base_url",
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "required": true,
+          "help": "e.g. https://helpdesk.example.com"
+        },
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.access_token | prefix:'Token token=' }}"
+        }
+      }
+    },
+    {
+      "platform": "zammad_basic",
+      "name": "Zammad (username/password)",
+      "n8n_credential": "zammadBasicAuthApi",
+      "n8n_field_map": {
+        "baseUrl": "base_url",
+        "username": "username",
+        "password": "password"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "required": true
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "group",
+      "label": "Group"
+    },
+    {
+      "value": "organization",
+      "label": "Organization"
+    },
+    {
+      "value": "ticket",
+      "label": "Ticket"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users",
+      "body": {
+        "firstname": "{{ p.firstname }}",
+        "lastname": "{{ p.lastname }}",
+        "$merge": [
+          "{{ p.additionalFields.addressUi.addressDetails }}",
+          "{{ p.additionalFields.customFieldsUi | kv:'name,value' }}",
+          "{{ p.additionalFields | omit:'addressUi,customFieldsUi' }}"
+        ]
+      },
+      "fields": [
+        {
+          "key": "firstname",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastname",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "addressUi",
+            "customFieldsUi",
+            "department",
+            "email",
+            "fax",
+            "note",
+            "organization",
+            "phone",
+            "mobile",
+            "verified",
+            "vip",
+            "web"
+          ],
+          "help": "addressUi: {\"addressDetails\": {\"city\", \"country\", \"address\", \"zip\"}}; customFieldsUi: {\"customFieldPairs\": [{\"name\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/users/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users/search",
+      "query": {
+        "!query": "{{ p.filters.query | default:'' }}",
+        "sort_by": "{{ p.filters.sortUi.sortDetails.sort_by }}",
+        "order_by": "{{ p.filters.sortUi.sortDetails.order_by }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'_preferences' }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query",
+            "sortUi"
+          ],
+          "help": "sortUi: {\"sortDetails\": {\"sort_by\", \"order_by\"}}"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getSelf",
+      "title": "Get the current user",
+      "method": "GET",
+      "path": "/users/me",
+      "fields": []
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "PUT",
+      "path": "/users/{{ p.id }}",
+      "body": {
+        "$merge": [
+          "{{ p.updateFields.addressUi.addressDetails }}",
+          "{{ p.updateFields.customFieldsUi | kv:'name,value' }}",
+          "{{ p.updateFields | omit:'addressUi,customFieldsUi' }}"
+        ]
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "addressUi",
+            "customFieldsUi",
+            "department",
+            "email",
+            "fax",
+            "note",
+            "organization",
+            "phone",
+            "mobile",
+            "verified",
+            "vip",
+            "web",
+            "firstname",
+            "lastname"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "group",
+      "operation": "create",
+      "title": "Create a group",
+      "method": "POST",
+      "path": "/groups",
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": [
+          "{{ p.additionalFields.customFieldsUi | kv:'name,value' }}",
+          "{{ p.additionalFields | omit:'customFieldsUi' }}"
+        ]
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "customFieldsUi",
+            "note"
+          ],
+          "help": "customFieldsUi: {\"customFieldPairs\": [{\"name\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "group",
+      "operation": "delete",
+      "title": "Delete a group",
+      "method": "DELETE",
+      "path": "/groups/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "group",
+      "operation": "get",
+      "title": "Get a group",
+      "method": "GET",
+      "path": "/groups/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "group",
+      "operation": "getAll",
+      "title": "Get many groups",
+      "method": "GET",
+      "path": "/groups",
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "group",
+      "operation": "update",
+      "title": "Update a group",
+      "method": "PUT",
+      "path": "/groups/{{ p.id }}",
+      "body": {
+        "$merge": [
+          "{{ p.updateFields.customFieldsUi | kv:'name,value' }}",
+          "{{ p.updateFields | omit:'customFieldsUi' }}"
+        ]
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "customFieldsUi",
+            "note",
+            "name"
+          ],
+          "help": "customFieldsUi: {\"customFieldPairs\": [{\"name\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "create",
+      "title": "Create a organization",
+      "method": "POST",
+      "path": "/organizations",
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": [
+          "{{ p.additionalFields.customFieldsUi | kv:'name,value' }}",
+          "{{ p.additionalFields | omit:'customFieldsUi' }}"
+        ]
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "shared",
+            "domain",
+            "domain_assignment",
+            "active",
+            "vip",
+            "note",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {\"customFieldPairs\": [{\"name\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "delete",
+      "title": "Delete a organization",
+      "method": "DELETE",
+      "path": "/organizations/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "get",
+      "title": "Get a organization",
+      "method": "GET",
+      "path": "/organizations/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "getAll",
+      "title": "Get many organizations",
+      "method": "GET",
+      "path": "/organizations",
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "update",
+      "title": "Update a organization",
+      "method": "PUT",
+      "path": "/organizations/{{ p.id }}",
+      "body": {
+        "$merge": [
+          "{{ p.updateFields.customFieldsUi | kv:'name,value' }}",
+          "{{ p.updateFields | omit:'customFieldsUi' }}"
+        ]
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "shared",
+            "domain",
+            "domain_assignment",
+            "active",
+            "vip",
+            "note",
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {\"customFieldPairs\": [{\"name\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "create",
+      "title": "Create a ticket",
+      "method": "POST",
+      "path": "/tickets",
+      "body": {
+        "title": "{{ p.title }}",
+        "group": "{{ p.group }}",
+        "customer": "{{ p.customer }}",
+        "$merge": [
+          "{{ p.additionalFields.customFieldsUi | kv:'name,value' }}",
+          "{{ p.additionalFields | omit:'customFieldsUi' }}"
+        ],
+        "article": {
+          "$merge": "{{ p.article.articleDetails | omit:'visibility' }}",
+          "internal": "{{ p.article.articleDetails.visibility | default:'' | eq:'internal' | default:false }}"
+        }
+      },
+      "output": {
+        "expand": {
+          "method": "GET",
+          "path": "/ticket_articles/by_ticket/{{ el.id }}"
+        },
+        "expand_merge_key": "articles"
+      },
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "group",
+          "label": "Group name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "customer",
+          "label": "Customer email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "article",
+          "label": "Article",
+          "type": "collection",
+          "required": true,
+          "default": {},
+          "options": [
+            "articleDetails"
+          ],
+          "help": "{\"articleDetails\": {\"subject\", \"body\", \"visibility\": \"internal|external\", \"sender\", \"type\", \"to\", \"cc\", \"reply_to\"}}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi"
+          ],
+          "help": "customFieldsUi: {\"customFieldPairs\": [{\"name\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "delete",
+      "title": "Delete a ticket",
+      "method": "DELETE",
+      "path": "/tickets/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "get",
+      "title": "Get a ticket",
+      "method": "GET",
+      "path": "/tickets/{{ p.id }}",
+      "output": {
+        "expand": {
+          "method": "GET",
+          "path": "/ticket_articles/by_ticket/{{ el.id }}"
+        },
+        "expand_merge_key": "articles"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "getAll",
+      "title": "Get many tickets",
+      "method": "GET",
+      "path": "/tickets",
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "update",
+      "title": "Update a ticket",
+      "method": "PUT",
+      "path": "/tickets/{{ p.id }}",
+      "body": {
+        "$merge": [
+          "{{ p.updateFields.customFieldsUi | kv:'name,value' }}",
+          "{{ p.updateFields | omit:'note,customFieldsUi' }}"
+        ],
+        "article": {
+          "$when": "{{ p.updateFields.note }}",
+          "body": "{{ p.updateFields.note }}",
+          "internal": true,
+          "type": "note",
+          "content_type": "text/html"
+        }
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "title",
+            "group",
+            "state_id",
+            "pending_time",
+            "priority_id",
+            "owner_id",
+            "customer_id",
+            "note",
+            "customFieldsUi"
+          ],
+          "help": "note adds an internal note article; customFieldsUi: {\"customFieldPairs\": [{\"name\", \"value\"}]}"
+        }
+      ]
+    }
+  ]
+}

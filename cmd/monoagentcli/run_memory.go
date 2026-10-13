@@ -1,11 +1,11 @@
 package main
 
 // Workflow-run memory (#38): feeds workflow outcomes into the profile
-// knowledge graph (internal/monomind RunMemory). The workflow package has no
-// completion hook yet, so a sweeper runs inside `monoagentcli daemon`: it
-// reads the runs finished since a stored watermark and ingests the workflows
-// whose outcome changed. runMemoryExecutionFinished is ready for an engine
-// completion hook; once one exists it is a one-line wire-up in init.
+// knowledge graph (internal/monomind RunMemory). Inside `monoagentcli daemon`
+// the engine's workflow.OnExecutionFinished hook re-evaluates a workflow as
+// each of its runs finishes, and a sweeper reads the runs finished since a
+// stored watermark (runs other processes finished) and ingests the workflows
+// whose outcome changed.
 // `monoagentcli config set memory.runs off` turns all of it off.
 
 import (
@@ -47,6 +47,9 @@ func startRunMemoryForDaemon() {
 		if !ok {
 			return
 		}
+		// Live updates from the daemon's engine; the sweeper catches up on
+		// runs finished by other processes (one-shot `workflow run`).
+		workflow.OnExecutionFinished = runMemoryExecutionFinished
 		go runMemorySweeper(context.Background(), expandPath(dbPath))
 	})
 }
@@ -78,9 +81,9 @@ func runMemorySweeper(ctx context.Context, dbPath string) {
 	}
 }
 
-// runMemoryExecutionFinished is the handler for an engine completion hook
-// (see the run-memory note in the research-wave report): it re-evaluates the
-// workflow of executionID. Safe to call from a goroutine.
+// runMemoryExecutionFinished is the daemon's workflow.OnExecutionFinished
+// handler: it re-evaluates the workflow of executionID. Safe to call from a
+// goroutine.
 func runMemoryExecutionFinished(ctx context.Context, db *sql.DB, executionID, status string) {
 	if db == nil || executionID == "" {
 		return

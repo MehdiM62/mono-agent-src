@@ -1,0 +1,556 @@
+{
+  "ticket.create": {
+    "params": {
+      "description": "Broken",
+      "additionalFields": {
+        "subject": "S",
+        "tags": [
+          "a"
+        ],
+        "group": 5,
+        "customFieldsUi": {
+          "customFieldsValues": [
+            {
+              "id": 1,
+              "value": "x"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "ticket": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/tickets.json",
+      "body": {
+        "ticket": {
+          "comment": {
+            "body": "Broken"
+          },
+          "subject": "S",
+          "tags": [
+            "a"
+          ],
+          "group_id": 5,
+          "custom_fields": [
+            {
+              "id": 1,
+              "value": "x"
+            }
+          ]
+        }
+      },
+      "items": 1
+    }
+  },
+  "ticket.delete": {
+    "params": {
+      "ticketType": "suspended",
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/suspended_tickets/1.json",
+      "items": 1
+    }
+  },
+  "ticket.get": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "ticket": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/tickets/1.json",
+      "items": 1
+    }
+  },
+  "ticket.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "status": "open",
+        "query": "printer",
+        "sortBy": "created_at"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "results": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/search.json",
+      "query": {
+        "query": "type:ticket printer status:open",
+        "sort_by": "created_at",
+        "per_page": "5"
+      },
+      "items": 1
+    }
+  },
+  "ticket.recover": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "ticket": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/suspended_tickets/1/recover.json",
+      "items": 1
+    }
+  },
+  "ticket.update": {
+    "params": {
+      "id": "1",
+      "updateFields": {
+        "status": "solved",
+        "internalNote": "<b>n</b>",
+        "assigneeEmail": "b@x.io"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/tickets/1.json",
+      "body": {
+        "ticket": {
+          "status": "solved",
+          "assignee_email": "b@x.io",
+          "comment": {
+            "html_body": "<b>n</b>",
+            "public": false
+          }
+        }
+      }
+    }
+  },
+  "ticketField.get": {
+    "params": {
+      "ticketFieldId": "9"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "ticket_field": {
+        "id": 9
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/ticket_fields/9.json",
+      "items": 1
+    }
+  },
+  "ticketField.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "ticket_fields": [
+        {
+          "id": 9
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/ticket_fields.json",
+      "query": {
+        "per_page": "100"
+      },
+      "items": 1
+    }
+  },
+  "user.create": {
+    "params": {
+      "name": "Ada",
+      "additionalFields": {
+        "email": "a@x.io",
+        "role": "agent",
+        "userFieldsUi": {
+          "userFieldValues": [
+            {
+              "field": "plan",
+              "value": "pro"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/users.json",
+      "body": {
+        "user": {
+          "name": "Ada",
+          "email": "a@x.io",
+          "role": "agent",
+          "user_fields": {
+            "plan": "pro"
+          }
+        }
+      }
+    }
+  },
+  "user.delete": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/users/1.json"
+    }
+  },
+  "user.get": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/users/1.json"
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "filters": {
+        "role": [
+          "agent",
+          "admin"
+        ]
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "users": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/users.json",
+      "query": {
+        "role[]": [
+          "agent",
+          "admin"
+        ],
+        "per_page": "100"
+      },
+      "items": 1
+    }
+  },
+  "user.getOrganizations": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "organizations": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/users/1/organizations.json",
+      "items": 2
+    }
+  },
+  "user.getRelatedData": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "user_related": {
+        "tickets": 1
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/users/1/related.json",
+      "items": 1
+    }
+  },
+  "user.search": {
+    "params": {
+      "filters": {
+        "query": "ada"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "users": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/users/search.json",
+      "query": {
+        "query": "ada",
+        "per_page": "100"
+      },
+      "items": 1
+    }
+  },
+  "user.update": {
+    "params": {
+      "id": "1",
+      "updateFields": {
+        "name": "Ada L"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/users/1.json",
+      "body": {
+        "user": {
+          "name": "Ada L"
+        }
+      }
+    }
+  },
+  "organization.create": {
+    "params": {
+      "name": "Acme",
+      "additionalFields": {
+        "notes": "n",
+        "organizationFieldsUi": {
+          "organizationFieldValues": [
+            {
+              "field": "tier",
+              "value": "gold"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/organizations.json",
+      "body": {
+        "organization": {
+          "name": "Acme",
+          "notes": "n",
+          "organization_fields": {
+            "tier": "gold"
+          }
+        }
+      }
+    }
+  },
+  "organization.count": {
+    "params": {},
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "response": {
+      "count": {
+        "value": 3
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/organizations/count.json",
+      "items": 1
+    }
+  },
+  "organization.delete": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/organizations/1.json"
+    }
+  },
+  "organization.get": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/organizations/1.json"
+    }
+  },
+  "organization.getAll": {
+    "params": {
+      "limit": 10
+    },
+    "credential": {
+      "subdomain": "acme",
+      "access_token": "tok",
+      "marketplace_name": "m"
+    },
+    "response": {
+      "organizations": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/organizations.json",
+      "query": {
+        "per_page": "10"
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Bearer tok",
+        "X-Zendesk-Marketplace-Name": "m"
+      }
+    }
+  },
+  "organization.getRelatedData": {
+    "params": {
+      "id": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/organizations/1/related.json"
+    }
+  },
+  "organization.update": {
+    "params": {
+      "id": "1",
+      "updateFields": {
+        "domain_names": "acme.io"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "email": "a@x.io",
+      "api_token": "tok"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/organizations/1.json",
+      "body": {
+        "organization": {
+          "domain_names": "acme.io"
+        }
+      }
+    }
+  }
+}
