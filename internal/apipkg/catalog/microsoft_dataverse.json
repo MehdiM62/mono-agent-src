@@ -1,0 +1,155 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_dataverse",
+  "node_type": "app.microsoft_dataverse",
+  "title": "Microsoft Dataverse",
+  "description": "Rows in Microsoft Dataverse tables (Power Platform Web API)",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+  "n8n_types": ["n8n-nodes-base.microsoftDataverse"],
+  "base_url": "{{ cred.environment_url | re:'^(.*?)/*$' }}/api/data/v9.2",
+  "headers": { "OData-MaxVersion": "4.0", "OData-Version": "4.0" },
+  "credentials": [
+    {
+      "platform": "microsoft_dataverse",
+      "name": "Microsoft Dataverse (Entra app)",
+      "n8n_credential": "microsoftDataverseOAuth2Api",
+      "n8n_field_map": { "tenantId": "tenant_id", "environmentUrl": "environment_url", "clientId": "client_id", "clientSecret": "client_secret" },
+      "methods": ["client_credentials"],
+      "fields": [
+        { "key": "environment_url", "label": "Environment URL", "required": true, "help": "e.g. https://yourorg.crm.dynamics.com" },
+        { "key": "tenant_id", "label": "Tenant ID", "required": true, "help": "Directory (tenant) GUID or verified domain of the Entra app." },
+        { "key": "client_id", "label": "Application (client) ID", "required": true, "help": "An Entra app added as an application user in the environment." },
+        { "key": "client_secret", "label": "Client secret", "secret": true, "required": true }
+      ],
+      "oauth": {
+        "token_url": "https://login.microsoftonline.com/{{ cred.tenant_id }}/oauth2/v2.0/token",
+        "extra_params": { "scope": "{{ cred.environment_url | re:'^(.*?)/*$' }}/.default" }
+      },
+      "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } }
+    }
+  ],
+  "resources": [ { "value": "row", "label": "Row" } ],
+  "operations": [
+    {
+      "resource": "row", "operation": "getAll", "title": "Get many rows",
+      "method": "GET", "path": "/{{ p.entitySet | rl }}",
+      "headers": {
+        "Prefer": "{{ p.getAllOptions.returnFullMetadata | then:'odata.include-annotations=\"*\"' }}",
+        "MSCRM.SessionToken": "{{ p.getAllOptions.sessionToken }}"
+      },
+      "fields": [
+        { "key": "entitySet", "label": "Table (entity set)", "type": "text", "required": true, "placeholder": "accounts" },
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50, "min": 1 },
+        { "key": "getAllOptions", "label": "Options", "type": "collection", "default": {},
+          "options": ["expand", "fetchXml", "filter", "partitionId", "sessionToken", "returnFullMetadata", "top", "select", "orderbyColumn", "orderbyDirection", "orderby"],
+          "help": "fetchXml replaces the OData options (not with Return all); orderbyColumn + orderbyDirection (asc/desc) win over orderby; select: list of columns." }
+      ],
+      "query": {
+        "fetchXml": "{{ p.getAllOptions.fetchXml }}",
+        "$select": "{{ p.getAllOptions.fetchXml | default:'' | eq:'' | then:(p.getAllOptions.select | csv) }}",
+        "$filter": "{{ p.getAllOptions.fetchXml | default:'' | eq:'' | then:p.getAllOptions.filter }}",
+        "$expand": "{{ p.getAllOptions.fetchXml | default:'' | eq:'' | then:p.getAllOptions.expand }}",
+        "$orderby": "{{ p.getAllOptions.fetchXml | default:'' | eq:'' | then:(p.getAllOptions.orderbyColumn | suffix:' ' | suffix:(p.getAllOptions.orderbyDirection | default:'asc') | default:p.getAllOptions.orderby) }}",
+        "$top": "{{ p.getAllOptions.fetchXml | default:'' | eq:'' | then:(p.returnAll | ne:'true' | then:(p.getAllOptions.top | default:p.limit)) }}",
+        "partitionId": "{{ p.getAllOptions.partitionId }}"
+      },
+      "pagination": { "type": "next_url", "next_url_path": "@odata.nextLink", "results_path": "value" }
+    },
+    {
+      "resource": "row", "operation": "create", "title": "Create a row",
+      "method": "POST", "path": "/{{ p.entitySet | rl }}",
+      "headers": {
+        "Prefer": "return=representation{{ p.createOptions.returnFullMetadata | then:',odata.include-annotations=\"*\"' }}",
+        "MSCRM.SessionToken": "{{ p.createOptions.sessionToken }}"
+      },
+      "fields": [
+        { "key": "entitySet", "label": "Table (entity set)", "type": "text", "required": true, "placeholder": "accounts" },
+        { "key": "inputMode", "label": "Input mode", "type": "select", "default": "json", "options": ["json", "fields"] },
+        { "key": "fieldsJson", "label": "Row item (JSON)", "type": "json", "default": "{}", "help": "The row's columns as a JSON object. Bind lookups with \"col@odata.bind\": \"/table(id)\"." },
+        { "key": "fieldsCollection", "label": "Fields", "type": "collection", "default": {}, "options": ["field"], "help": "{field: [{name, value}]} — used when Input mode is fields." },
+        { "key": "createOptions", "label": "Options", "type": "collection", "default": {}, "options": ["returnFullMetadata", "sessionToken", "returnSessionToken"] }
+      ],
+      "body": { "$merge": [
+        "{{ p.inputMode | ne:'fields' | then:(p.fieldsJson | fromjson) }}",
+        "{{ p.inputMode | eq:'fields' | then:(p.fieldsCollection.field | kv:'name,value') }}"
+      ] }
+    },
+    {
+      "resource": "row", "operation": "upsert", "title": "Create or update a row",
+      "method": "PATCH",
+      "path": "/{{ p.entitySet | rl }}({{ p.identifierType | eq:'alternateKey' | then:p.alternateKey | default:(p.recordId | rl) }})",
+      "headers": {
+        "Prefer": "return=representation{{ p.upsertOptions.returnFullMetadata | then:',odata.include-annotations=\"*\"' }}",
+        "MSCRM.SessionToken": "{{ p.upsertOptions.sessionToken }}",
+        "If-Match": "{{ p.upsertOptions.behavior | eq:'updateOnly' | then:'*' }}",
+        "If-None-Match": "{{ p.upsertOptions.behavior | eq:'createOnly' | then:'*' }}"
+      },
+      "fields": [
+        { "key": "entitySet", "label": "Table (entity set)", "type": "text", "required": true, "placeholder": "accounts" },
+        { "key": "identifierType", "label": "Identify row by", "type": "select", "default": "guid", "options": ["guid", "alternateKey"] },
+        { "key": "recordId", "label": "Row ID", "type": "text", "help": "GUID of the row (identifier type guid)." },
+        { "key": "alternateKey", "label": "Alternate key", "type": "text", "placeholder": "accountnumber='ACC-001'", "help": "OData alternate-key predicate (identifier type alternateKey)." },
+        { "key": "inputMode", "label": "Input mode", "type": "select", "default": "json", "options": ["json", "fields"] },
+        { "key": "fieldsJson", "label": "Row item (JSON)", "type": "json", "default": "{}" },
+        { "key": "fieldsCollection", "label": "Fields", "type": "collection", "default": {}, "options": ["field"], "help": "{field: [{name, value}]} — used when Input mode is fields." },
+        { "key": "upsertOptions", "label": "Options", "type": "collection", "default": {}, "options": ["behavior", "allowElasticTableReplacement", "returnFullMetadata", "sessionToken", "returnSessionToken"], "help": "behavior: upsert (default), updateOnly or createOnly." }
+      ],
+      "body": { "$merge": [
+        "{{ p.inputMode | ne:'fields' | then:(p.fieldsJson | fromjson) }}",
+        "{{ p.inputMode | eq:'fields' | then:(p.fieldsCollection.field | kv:'name,value') }}"
+      ] }
+    },
+    {
+      "resource": "row", "operation": "delete", "title": "Delete a row",
+      "method": "DELETE", "path": "/{{ p.entitySet | rl }}({{ p.recordId | rl }})",
+      "fields": [
+        { "key": "entitySet", "label": "Table (entity set)", "type": "text", "required": true, "placeholder": "accounts" },
+        { "key": "recordId", "label": "Row ID", "type": "text", "required": true },
+        { "key": "deleteOptions", "label": "Options", "type": "collection", "default": {}, "options": ["partitionId"] }
+      ],
+      "query": { "partitionId": "{{ p.deleteOptions.partitionId }}" },
+      "output": { "to": { "success": true, "id": "{{ p.recordId | rl }}" } }
+    },
+    {
+      "resource": "row", "operation": "get", "title": "Get a row",
+      "method": "GET", "path": "/{{ p.entitySet | rl }}({{ p.recordId | rl }})",
+      "headers": {
+        "Prefer": "{{ p.getOptions.returnFullMetadata | then:'odata.include-annotations=\"*\"' }}",
+        "MSCRM.SessionToken": "{{ p.getOptions.sessionToken }}"
+      },
+      "fields": [
+        { "key": "entitySet", "label": "Table (entity set)", "type": "text", "required": true, "placeholder": "accounts" },
+        { "key": "recordId", "label": "Row ID", "type": "text", "required": true },
+        { "key": "getOptions", "label": "Options", "type": "collection", "default": {}, "options": ["select", "expand", "returnFullMetadata", "partitionId", "sessionToken"] }
+      ],
+      "query": {
+        "$select": "{{ p.getOptions.select | csv }}",
+        "$expand": "{{ p.getOptions.expand }}",
+        "partitionId": "{{ p.getOptions.partitionId }}"
+      }
+    },
+    {
+      "resource": "row", "operation": "update", "title": "Update a row",
+      "method": "PATCH", "path": "/{{ p.entitySet | rl }}({{ p.recordId | rl }})",
+      "headers": {
+        "Prefer": "return=representation{{ p.updateOptions.returnFullMetadata | then:',odata.include-annotations=\"*\"' }}",
+        "MSCRM.SessionToken": "{{ p.updateOptions.sessionToken }}",
+        "If-Match": "*"
+      },
+      "fields": [
+        { "key": "entitySet", "label": "Table (entity set)", "type": "text", "required": true, "placeholder": "accounts" },
+        { "key": "recordId", "label": "Row ID", "type": "text", "required": true },
+        { "key": "inputMode", "label": "Input mode", "type": "select", "default": "json", "options": ["json", "fields"] },
+        { "key": "fieldsJson", "label": "Row item (JSON)", "type": "json", "default": "{}" },
+        { "key": "fieldsCollection", "label": "Fields", "type": "collection", "default": {}, "options": ["field"], "help": "{field: [{name, value}]} — used when Input mode is fields." },
+        { "key": "updateOptions", "label": "Options", "type": "collection", "default": {}, "options": ["returnFullMetadata", "sessionToken", "returnSessionToken"] }
+      ],
+      "body": { "$merge": [
+        "{{ p.inputMode | ne:'fields' | then:(p.fieldsJson | fromjson) }}",
+        "{{ p.inputMode | eq:'fields' | then:(p.fieldsCollection.field | kv:'name,value') }}"
+      ] }
+    }
+  ]
+}

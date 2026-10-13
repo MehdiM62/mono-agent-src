@@ -1,0 +1,190 @@
+{
+  "message.send": {
+    "params": { "toRecipients": "a@x.com, b@x.com", "subject": "Hi", "bodyContent": "<p>Hello</p>", "additionalFields": { "ccRecipients": "c@x.com", "importance": "High", "bodyContentType": "html", "saveToSentItems": false } },
+    "response_status": 202,
+    "expect": {
+      "method": "POST", "path": "/v1.0/me/sendMail",
+      "body": {
+        "message": {
+          "subject": "Hi", "importance": "High",
+          "body": { "content": "<p>Hello</p>", "contentType": "html" },
+          "toRecipients": [ { "emailAddress": { "address": "a@x.com" } }, { "emailAddress": { "address": "b@x.com" } } ],
+          "ccRecipients": [ { "emailAddress": { "address": "c@x.com" } } ]
+        },
+        "saveToSentItems": false
+      },
+      "items": 1
+    }
+  },
+  "message.delete": { "params": { "messageId": "M1" }, "response_status": 204, "expect": { "method": "DELETE", "path": "/v1.0/me/messages/M1" } },
+  "message.get": {
+    "params": { "messageId": { "__rl": true, "mode": "id", "value": "M1" } },
+    "response": { "id": "M1", "subject": "s", "from": { "emailAddress": { "address": "f@x.com" } }, "toRecipients": [ { "emailAddress": { "address": "t@x.com" } } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/messages/M1", "query": { "$select": "id,conversationId,subject,bodyPreview,from,toRecipients,categories,hasAttachments" }, "items": 1 }
+  },
+  "message.getAll": {
+    "params": {
+      "limit": 10, "output": "raw",
+      "filtersUI": { "values": { "filterBy": "filters", "filters": { "foldersToInclude": ["inbox", "archive"], "sender": "boss@x.com", "readStatus": "unread", "hasAttachments": true, "receivedAfter": "2026-10-01T00:00:00Z" } } }
+    },
+    "response": { "value": [ { "id": "M1" } ] },
+    "expect": {
+      "method": "GET", "path": "/v1.0/me/messages",
+      "query": {
+        "$filter": "(parentFolderId eq 'inbox' or parentFolderId eq 'archive') and (from/emailAddress/address eq 'boss@x.com' or from/emailAddress/name eq 'boss@x.com') and hasAttachments eq true and isRead eq false and receivedDateTime ge 2026-10-01T00:00:00Z",
+        "$top": "10"
+      },
+      "items": 1
+    }
+  },
+  "message.move": {
+    "params": { "messageId": "M1", "folderId": "F2" },
+    "expect": { "method": "POST", "path": "/v1.0/me/messages/M1/move", "body": { "destinationId": "F2" } }
+  },
+  "message.reply": {
+    "params": { "messageId": "M1", "message": "Thanks!", "options": { "saveAsDraft": false } },
+    "responses": [ { "id": "D9" }, {} ],
+    "expect_requests": [
+      { "method": "POST", "path": "/v1.0/me/messages/M1/createReplyAll", "body": { "comment": "Thanks!" } },
+      { "method": "POST", "path": "/v1.0/me/messages/D9/send" }
+    ]
+  },
+  "message.update": {
+    "params": { "messageId": "M1", "updateFields": { "isRead": true, "categories": ["Red"], "folderId": "F2" } },
+    "responses": [ { "id": "M1" }, {} ],
+    "expect_requests": [
+      { "method": "PATCH", "path": "/v1.0/me/messages/M1", "body": { "isRead": true, "categories": ["Red"] } },
+      { "method": "POST", "path": "/v1.0/me/messages/M1/move", "body": { "destinationId": "F2" } }
+    ]
+  },
+  "messageAttachment.add": {
+    "params": { "messageId": "M1", "options": { "fileName": "a.txt" } },
+    "input": { "data": "aGVsbG8=" },
+    "expect": { "method": "POST", "path": "/v1.0/me/messages/M1/attachments", "body": { "@odata.type": "#microsoft.graph.fileAttachment", "name": "a.txt", "contentBytes": "aGVsbG8=" } }
+  },
+  "messageAttachment.download": {
+    "params": { "messageId": "M1", "attachmentId": "A1" },
+    "responses": [ { "name": "a.txt", "contentType": "text/plain" }, { "x": 1 } ],
+    "expect": { "method": "GET", "path": "/v1.0/me/messages/M1/attachments/A1/$value" }
+  },
+  "messageAttachment.get": {
+    "params": { "messageId": "M1", "attachmentId": "A1" },
+    "expect": { "method": "GET", "path": "/v1.0/me/messages/M1/attachments/A1", "query": { "$select": "id,lastModifiedDateTime,name,contentType,size,isInline" } }
+  },
+  "messageAttachment.getAll": {
+    "params": { "messageId": "M1", "options": { "fields": ["name", "size"] } },
+    "response": { "value": [ { "id": "A1" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/messages/M1/attachments", "query": { "$select": "name,size", "$top": "50" }, "items": 1 }
+  },
+  "draft.create": {
+    "params": { "subject": "Draft", "additionalFields": { "toRecipients": "a@x.com", "internetMessageHeaders": { "headers": [ { "name": "x-a", "value": "1" } ] } } },
+    "expect": {
+      "method": "POST", "path": "/v1.0/me/messages",
+      "body": { "subject": "Draft", "body": { "content": " " }, "toRecipients": [ { "emailAddress": { "address": "a@x.com" } } ], "internetMessageHeaders": [ { "name": "x-a", "value": "1" } ] }
+    }
+  },
+  "draft.delete": { "params": { "draftId": "D1" }, "response_status": 204, "expect": { "method": "DELETE", "path": "/v1.0/me/messages/D1" } },
+  "draft.get": {
+    "params": { "draftId": "D1", "output": "fields", "fields": ["subject"] },
+    "expect": { "method": "GET", "path": "/v1.0/me/messages/D1", "query": { "$select": "subject" } }
+  },
+  "draft.send": {
+    "params": { "draftId": "D1", "to": "z@x.com" },
+    "responses": [ {}, {} ],
+    "expect_requests": [
+      { "method": "PATCH", "path": "/v1.0/me/messages/D1", "body": { "toRecipients": [ { "emailAddress": { "address": "z@x.com" } } ] } },
+      { "method": "POST", "path": "/v1.0/me/messages/D1/send" }
+    ]
+  },
+  "draft.update": {
+    "params": { "draftId": "D1", "updateFields": { "subject": "New", "from": "me@x.com" } },
+    "expect": { "method": "PATCH", "path": "/v1.0/me/messages/D1", "body": { "subject": "New", "from": { "emailAddress": { "address": "me@x.com" } } } }
+  },
+  "folder.create": {
+    "params": { "displayName": "Receipts", "options": { "folderId": "inbox" } },
+    "expect": { "method": "POST", "path": "/v1.0/me/mailFolders/inbox/childFolders", "body": { "displayName": "Receipts" } }
+  },
+  "folder.delete": { "params": { "folderId": "F1" }, "response_status": 204, "expect": { "method": "DELETE", "path": "/v1.0/me/mailFolders/F1" } },
+  "folder.get": { "params": { "folderId": "F1", "options": { "fields": ["displayName"] } }, "expect": { "method": "GET", "path": "/v1.0/me/mailFolders/F1", "query": { "$select": "displayName" } } },
+  "folder.getAll": {
+    "params": { "returnAll": true }, "response": { "value": [ { "id": "F1" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/mailFolders", "query": { "$top": "100" }, "items": 1 }
+  },
+  "folder.update": { "params": { "folderId": "F1", "displayName": "Bills" }, "expect": { "method": "PATCH", "path": "/v1.0/me/mailFolders/F1", "body": { "displayName": "Bills" } } },
+  "folderMessage.getAll": {
+    "params": { "folderId": "inbox", "filtersUI": { "values": { "filterBy": "search", "search": "invoice" } } },
+    "response": { "value": [ { "id": "M1", "toRecipients": [] } ] },
+    "expect": {
+      "method": "GET", "path": "/v1.0/me/mailFolders/inbox/messages",
+      "query": { "$select": "id,conversationId,subject,bodyPreview,from,toRecipients,categories,hasAttachments", "$search": "\"invoice\"", "$top": "50" }, "items": 1
+    }
+  },
+  "calendar.getAll": {
+    "params": { "filters": { "custom": "name eq 'Work'" } }, "response": { "value": [ { "id": "C1" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/calendars", "query": { "$filter": "name eq 'Work'", "$top": "50" }, "items": 1 }
+  },
+  "calendar.create": {
+    "params": { "name": "Team", "additionalFields": { "calendarGroup": "G1", "color": "lightRed" } },
+    "expect": { "method": "POST", "path": "/v1.0/me/calendarGroups/G1/calendars", "body": { "name": "Team", "color": "lightRed" } }
+  },
+  "calendar.delete": { "params": { "calendarId": "C1" }, "response_status": 204, "expect": { "method": "DELETE", "path": "/v1.0/me/calendars/C1" } },
+  "calendar.get": { "params": { "calendarId": "C1" }, "expect": { "method": "GET", "path": "/v1.0/me/calendars/C1" } },
+  "calendar.update": { "params": { "calendarId": "C1", "updateFields": { "name": "Ops" } }, "expect": { "method": "PATCH", "path": "/v1.0/me/calendars/C1", "body": { "name": "Ops" } } },
+  "contact.getAll": {
+    "params": { "filters": { "emailAddress": "a@x.com" } }, "response": { "value": [ { "id": "P1" } ] },
+    "expect": {
+      "method": "GET", "path": "/v1.0/me/contacts",
+      "query": { "$select": "id,displayName,emailAddresses,businessPhones,mobilePhone", "$filter": "emailAddresses/any(a:a/address eq 'a@x.com')", "$top": "50" }, "items": 1
+    }
+  },
+  "contact.create": {
+    "params": { "givenName": "Ada", "surname": "Lovelace", "additionalFields": { "businessPhones": "1, 2", "emailAddresses": { "values": [ { "name": "Ada", "address": "ada@x.com" } ] }, "jobTitle": "Engineer" } },
+    "expect": {
+      "method": "POST", "path": "/v1.0/me/contacts",
+      "body": { "givenName": "Ada", "surname": "Lovelace", "jobTitle": "Engineer", "businessPhones": ["1", "2"], "emailAddresses": [ { "name": "Ada", "address": "ada@x.com" } ] }
+    }
+  },
+  "contact.delete": { "params": { "contactId": "P1" }, "response_status": 204, "expect": { "method": "DELETE", "path": "/v1.0/me/contacts/P1" } },
+  "contact.get": { "params": { "contactId": "P1", "output": "raw" }, "expect": { "method": "GET", "path": "/v1.0/me/contacts/P1" } },
+  "contact.update": {
+    "params": { "contactId": "P1", "additionalFields": { "businessAddress": { "values": { "city": "London" } } } },
+    "expect": { "method": "PATCH", "path": "/v1.0/me/contacts/P1", "body": { "businessAddress": { "city": "London" } } }
+  },
+  "event.getAll": {
+    "params": { "fromAllCalendars": false, "calendarId": "C1", "includeRecurringInstances": true, "startDateTime": "2026-10-01T00:00:00Z", "endDateTime": "2026-10-31T00:00:00Z", "output": "raw" },
+    "response": { "value": [ { "id": "E1" } ] },
+    "expect": {
+      "method": "GET", "path": "/v1.0/me/calendars/C1/calendarView",
+      "query": { "startDateTime": "2026-10-01T00:00:00Z", "endDateTime": "2026-10-31T00:00:00Z", "$top": "50" }, "items": 1
+    }
+  },
+  "event.create": {
+    "params": {
+      "calendarId": "C1", "subject": "Lunch", "startDateTime": "2026-10-20T12:00:00", "endDateTime": "2026-10-20T13:00:00",
+      "additionalFields": { "timeZone": "Europe/Berlin", "location": "Cafe", "body": "Bring notes", "attendees": { "values": [ { "email": "a@x.com", "type": "required" } ] }, "showAs": "busy" }
+    },
+    "expect": {
+      "method": "POST", "path": "/v1.0/me/calendars/C1/events",
+      "body": {
+        "subject": "Lunch", "showAs": "busy",
+        "start": { "dateTime": "2026-10-20T12:00:00", "timeZone": "Europe/Berlin" },
+        "end": { "dateTime": "2026-10-20T13:00:00", "timeZone": "Europe/Berlin" },
+        "location": { "displayName": "Cafe" },
+        "body": { "content": "Bring notes", "contentType": "html" },
+        "attendees": [ { "emailAddress": { "address": "a@x.com" }, "type": "required" } ]
+      }
+    }
+  },
+  "event.delete": { "params": { "eventId": "E1" }, "response_status": 204, "expect": { "method": "DELETE", "path": "/v1.0/me/calendar/events/E1" } },
+  "event.get": {
+    "params": { "eventId": "E1", "mailbox": "room@x.com" },
+    "expect": { "method": "GET", "path": "/v1.0/users/room@x.com/calendar/events/E1", "query": { "$select": "id,subject,bodyPreview,start,end,organizer,attendees,webLink" } }
+  },
+  "event.update": {
+    "params": { "eventId": "E1", "additionalFields": { "isAllDay": true, "start": "2026-10-20T00:00:00Z", "end": "2026-10-21T00:00:00Z" } },
+    "expect": {
+      "method": "PATCH", "path": "/v1.0/me/calendar/events/E1",
+      "body": { "isAllDay": true, "start": { "dateTime": "2026-10-20", "timeZone": "UTC" }, "end": { "dateTime": "2026-10-21", "timeZone": "UTC" } }
+    }
+  }
+}
