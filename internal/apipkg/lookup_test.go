@@ -626,3 +626,15 @@ func TestJWTES256(t *testing.T) {
 		t.Error("ES256 signature does not verify")
 	}
 }
+
+func TestExtendsCannotShadowNativeOps(t *testing.T) {
+	_, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"gh","title":"GH","base_url":"https://api.github.test","extends":"service.github",
+	  "operations":[{"resource":"","operation":"create_issue","title":"X","method":"POST","path":"/x"}]}`), "test")
+	if err == nil || !strings.Contains(err.Error(), "would replace the native one") {
+		t.Errorf("want shadowing error, got %v", err)
+	}
+	if _, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"gh","title":"GH","base_url":"https://api.github.test","extends":"service.github",
+	  "operations":[{"resource":"","operation":"get_user_n8n","title":"X","method":"GET","path":"/x"}]}`), "test"); err != nil {
+		t.Errorf("a new resourceless op is fine: %v", err)
+	}
+}

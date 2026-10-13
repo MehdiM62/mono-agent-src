@@ -487,6 +487,8 @@ or the operation is unknown (`apipkg.HasExtension(nativeType, resource, op)`
 tells whether a package handles it). Wave 2 adds that 3-line hook per native
 node. Only one package may extend a given native node.
 
+An `extends` package's operation without a resource must not reuse one of the native node's operation names (validation rejects it): it would take that native operation over at run time.
+
 ## 12. n8n compatibility
 
 - `n8n_types` — n8n node types imported as this package; `n8n_trigger_types`
