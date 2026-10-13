@@ -149,7 +149,7 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
-		if op.Binary != nil && op.Binary.UploadField != "" {
+		if r.uploads() {
 			r.scope.Bin = r.binMeta()
 		}
 		if op.Batch {

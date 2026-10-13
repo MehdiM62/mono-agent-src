@@ -489,3 +489,38 @@ func TestPollMainRoot(t *testing.T) {
 		t.Errorf("polls: %d, last %s", len(*seen), (*seen)[len(*seen)-1].URL.Path)
 	}
 }
+
+func TestUploadWhenAndTemplatedMultipart(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"POST","title":"P","method":"POST","path":"/node","body_type":"multipart",
+	  "fields":[{"key":"sendBinaryData","label":"S","type":"boolean"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"},{"key":"msg","label":"M","type":"text"}],
+	  "body":{"message":"{{ p.msg }}"},
+	  "binary":{"upload_field":"binaryPropertyName","upload_when":"{{ p.sendBinaryData }}",
+	    "multipart_field":"{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}",
+	    "property":"{{ p.binaryPropertyName | split:':' | get:'-1' }}"}}`))
+	var cts, bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		cts, bodies = append(cts, r.Header.Get("Content-Type")), append(bodies, string(b))
+		w.Write([]byte(`{}`))
+	})
+	in := map[string]any{"pic": "aGk=", "file_name": "a.png"}
+	if _, err := runPackageOp(p, map[string]any{"operation": "POST", "sendBinaryData": true, "binaryPropertyName": "source:pic", "msg": "hi"}, cred, in); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(cts[0], "multipart/form-data") || !strings.Contains(bodies[0], `name="source"; filename="a.png"`) || !strings.Contains(bodies[0], "\r\nhi\r\n") {
+		t.Errorf("upload: %s\n%s", cts[0], bodies[0])
+	}
+	if _, err := runPackageOp(p, map[string]any{"operation": "POST", "msg": "hi"}, cred, in); err != nil {
+		t.Fatal(err)
+	}
+	if cts[1] != "application/json" || bodies[1] != `{"message":"hi"}` {
+		t.Errorf("no upload: %s %s", cts[1], bodies[1])
+	}
+}
+
+func TestPluck(t *testing.T) {
+	sc := Scope{P: map[string]any{"f": map[string]any{"field": []any{map[string]any{"name": "id"}, map[string]any{"name": ""}, map[string]any{"name": "name"}}}}}
+	if got, err := renderString("{{ p.f.field | pluck:'name' | csv }}", sc); err != nil || got != "id,name" {
+		t.Errorf("pluck = %#v, %v", got, err)
+	}
+}

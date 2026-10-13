@@ -136,7 +136,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 // buildBody renders the body for the op's body type.
 func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 	sc := r.scope
-	bt := r.op.effectiveBodyType()
+	bt := r.bodyType()
 	var obj map[string]any
 	if bt == BodyJSON || bt == BodyForm || bt == BodyMultipart {
 		v, err := renderValue(r.op.Body, sc)
@@ -181,7 +181,7 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 	case BodyMultipart:
 		return r.multipartBody(obj)
 	case BodyRaw:
-		if r.op.Binary != nil && r.op.Binary.UploadField != "" {
+		if r.uploads() {
 			data, err := r.uploadData()
 			if err != nil {
 				return nil, "", err
@@ -223,12 +223,12 @@ func (r *opRun) multipartBody(obj map[string]any) ([]byte, string, error) {
 			}
 		}
 	}
-	if b := r.op.Binary; b != nil && b.UploadField != "" {
+	if b := r.op.Binary; r.uploads() {
 		data, err := r.uploadData()
 		if err != nil {
 			return nil, "", err
 		}
-		field := b.MultipartField
+		field, _ := renderText(b.MultipartField, r.scope)
 		if field == "" {
 			field = "file"
 		}
@@ -259,6 +259,11 @@ func (r *opRun) multipartBody(obj map[string]any) ([]byte, string, error) {
 
 // uploadProperty is the input item's binary property to upload.
 func (r *opRun) uploadProperty() string {
+	if t := r.op.Binary.Property; t != "" {
+		if p, err := renderText(t, r.scope); err == nil && p != "" {
+			return p
+		}
+	}
 	prop := stringify(r.params[r.op.Binary.UploadField])
 	if prop == "" {
 		prop = "data"
@@ -377,4 +382,30 @@ func (r *opRun) binMeta() map[string]any {
 		"file_name": name, "mime_type": r.uploadMime(),
 		"file_extension": strings.TrimPrefix(path.Ext(name), "."),
 	}
+}
+
+// uploads reports whether this run uploads the item's binary.
+func (r *opRun) uploads() bool {
+	b := r.op.Binary
+	if b == nil || b.UploadField == "" {
+		return false
+	}
+	if b.UploadWhen == "" {
+		return true
+	}
+	w, err := renderString(b.UploadWhen, r.scope)
+	return err == nil && !isEmpty(w) && w != false
+}
+
+// bodyType is the op's body type for this run: without an upload, an op
+// that only uploads sends no body and a multipart op sends JSON.
+func (r *opRun) bodyType() string {
+	bt := r.op.effectiveBodyType()
+	if r.op.Binary == nil || r.op.Binary.UploadWhen == "" || r.uploads() {
+		return bt
+	}
+	if r.op.Body != nil {
+		return BodyJSON
+	}
+	return BodyNone
 }
