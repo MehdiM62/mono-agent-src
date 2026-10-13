@@ -29,6 +29,9 @@ type NodeInput struct {
 	ExecutionID string
 	NodeID      string
 	NodeName    string
+	// ItemKeys, when set, holds the idempotency key of each item in Items
+	// (see ItemKey). Nil means the keys follow the items' positions.
+	ItemKeys []string
 }
 
 // NodeOutput is returned by NodeExecutor.Execute.
