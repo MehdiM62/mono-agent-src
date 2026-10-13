@@ -2,7 +2,9 @@ package apipkg
 
 import (
 	"encoding/json"
+
 	"fmt"
+	"github.com/google/uuid"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +19,10 @@ type Scope struct {
 	Item map[string]any
 	El   any
 	Res  any
+	// Items is every input item's JSON, set for batch operations.
+	Items []any
+	// Pre is the decoded response of the op's "before" request.
+	Pre any
 }
 
 func (s Scope) root(name string) any {
@@ -31,6 +37,12 @@ func (s Scope) root(name string) any {
 		return s.El
 	case "res":
 		return s.Res
+	case "items":
+		return s.Items
+	case "pre":
+		return s.Pre
+	case "uuid":
+		return uuid.NewString()
 	}
 	return nil
 }
@@ -161,9 +173,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res":
+	case "p", "cred", "item", "el", "res", "items", "pre", "uuid":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., el. or res.", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., pre. or be uuid", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
