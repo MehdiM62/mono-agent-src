@@ -1,4 +1,4 @@
-package main
+package workflowtemplates
 
 import (
 	"context"
@@ -19,16 +19,16 @@ import (
 // newWorkflowTemplatesCmd manages bundled, ready-to-use workflow templates
 // (e.g. "Outlook Email Sync") that ship with the CLI/app and can be turned
 // into a real, editable workflow with one command.
-func newWorkflowTemplatesCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTemplatesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "templates",
 		Short: i18n.T("workflow.templates.short"),
 	}
 	cmd.AddCommand(
-		newWorkflowTemplatesListCmd(cfg),
-		newWorkflowTemplatesShowCmd(cfg),
-		newWorkflowTemplatesUseCmd(cfg),
-		newWorkflowTemplatesRunCmd(cfg),
+		d.newTemplatesListCmd(),
+		d.newTemplatesShowCmd(),
+		d.newTemplatesUseCmd(),
+		d.RunCmd(),
 	)
 	return cmd
 }
@@ -37,7 +37,7 @@ func newWorkflowTemplatesCmd(cfg *globalConfig) *cobra.Command {
 // workflows in one place. This is the "what can this thing already do for me?"
 // entry point — an agent that knows nothing but the binary name can run it,
 // find something relevant, and get the exact command to run it.
-func newWorkflowSearchCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSearchCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "search [query]",
 		Short: i18n.T("workflow.search.short"),
@@ -75,21 +75,21 @@ func newWorkflowSearchCmd(cfg *globalConfig) *cobra.Command {
 					continue
 				}
 				runCmd := "monoagentcli workflow templates run " + t.ID
-				if ex := exampleInputJSON(t.Inputs); ex != "" {
+				if ex := ExampleInputJSON(t.Inputs); ex != "" {
 					runCmd += " --input '" + ex + "'"
 				}
 				hits = append(hits, hit{Source: "template", ID: t.ID, Name: t.Name, Inputs: t.Inputs, Command: runCmd})
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
 			ctx := context.Background()
-			store := openWorkflowStore(db)
-			saved, err := store.ListWorkflows(ctx, cfg.ProfileID)
+			store := d.WorkflowStore(db)
+			saved, err := store.ListWorkflows(ctx, d.ProfileID())
 			if err != nil {
 				return fmt.Errorf("list workflows: %w", err)
 			}
@@ -110,7 +110,7 @@ func newWorkflowSearchCmd(cfg *globalConfig) *cobra.Command {
 				})
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				if hits == nil {
 					hits = []hit{}
 				}
@@ -132,13 +132,13 @@ func newWorkflowSearchCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-// instantiateTemplate turns a bundled template into a concrete, unsaved
+// InstantiateTemplate turns a bundled template into a concrete, unsaved
 // Workflow owned by profileID. Node IDs in the template are stable,
 // human-readable placeholders (e.g. "trigger") shared across every
 // instantiation, so they are remapped to fresh UUIDs — that is what lets the
 // same template be instantiated (and run) many times concurrently without the
 // copies colliding.
-func instantiateTemplate(tmplFile workflow.WorkflowFile, profileID string) workflow.Workflow {
+func InstantiateTemplate(tmplFile workflow.WorkflowFile, profileID string) workflow.Workflow {
 	idMap := make(map[string]string, len(tmplFile.Nodes))
 	for _, n := range tmplFile.Nodes {
 		idMap[n.ID] = uuid.New().String()
@@ -191,17 +191,17 @@ func instantiateTemplate(tmplFile workflow.WorkflowFile, profileID string) workf
 	return wf
 }
 
-// inputKeyList renders a template's trigger-data keys for table output.
-func inputKeyList(inputs []string) string {
+// InputKeyList renders a template's trigger-data keys for table output.
+func InputKeyList(inputs []string) string {
 	if len(inputs) == 0 {
 		return "(none)"
 	}
 	return strings.Join(inputs, ",")
 }
 
-// exampleInputJSON builds a copy-pasteable --input value for a template, so an
+// ExampleInputJSON builds a copy-pasteable --input value for a template, so an
 // agent can run it without reading the node configs first.
-func exampleInputJSON(inputs []string) string {
+func ExampleInputJSON(inputs []string) string {
 	if len(inputs) == 0 {
 		return ""
 	}
@@ -219,7 +219,7 @@ func exampleInputJSON(inputs []string) string {
 }
 
 // newWorkflowTemplatesShowCmd prints everything needed to run one template.
-func newWorkflowTemplatesShowCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTemplatesShowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <template-id>",
 		Short: "Show a template's description, inputs, nodes, and the exact command to run it",
@@ -237,7 +237,7 @@ func newWorkflowTemplatesShowCmd(cfg *globalConfig) *cobra.Command {
 				}
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{
 					"id":          meta.ID,
 					"name":        tmplFile.Name,
@@ -248,7 +248,7 @@ func newWorkflowTemplatesShowCmd(cfg *globalConfig) *cobra.Command {
 			}
 
 			fmt.Fprintf(os.Stdout, "%s  (%s)\n\n%s\n\n", tmplFile.Name, args[0], tmplFile.Description)
-			fmt.Fprintf(os.Stdout, "INPUT KEYS: %s\n\n", inputKeyList(meta.Inputs))
+			fmt.Fprintf(os.Stdout, "INPUT KEYS: %s\n\n", InputKeyList(meta.Inputs))
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "NODE\tTYPE")
@@ -260,7 +260,7 @@ func newWorkflowTemplatesShowCmd(cfg *globalConfig) *cobra.Command {
 			}
 
 			fmt.Fprintf(os.Stdout, "\nRun it:\n  monoagentcli workflow templates run %s", args[0])
-			if ex := exampleInputJSON(meta.Inputs); ex != "" {
+			if ex := ExampleInputJSON(meta.Inputs); ex != "" {
 				fmt.Fprintf(os.Stdout, " --input '%s'", ex)
 			}
 			fmt.Fprintln(os.Stdout)
@@ -271,19 +271,19 @@ func newWorkflowTemplatesShowCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newWorkflowTemplatesListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTemplatesListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List bundled workflow templates",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			templates := workflow.ListTemplates()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(templates)
 			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "ID\tINPUT KEYS\tNAME\tDESCRIPTION")
 			for _, t := range templates {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.ID, inputKeyList(t.Inputs), t.Name, t.Description)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.ID, InputKeyList(t.Inputs), t.Name, t.Description)
 			}
 			if err := w.Flush(); err != nil {
 				return err
@@ -296,7 +296,7 @@ func newWorkflowTemplatesListCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newWorkflowTemplatesUseCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTemplatesUseCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "use <template-id>",
 		Short: "Instantiate a bundled template as a new, editable workflow",
@@ -310,17 +310,17 @@ func newWorkflowTemplatesUseCmd(cfg *globalConfig) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("unknown template %q. Run `monoagentcli workflow templates list` to see available IDs", args[0])
 			}
-			if err := checkTemplateNodeTypes(args[0], tmplFile, buildNodeRegistry(cfg.Verbose, nil).Has); err != nil {
+			if err := d.CheckNodeTypes(args[0], tmplFile); err != nil {
 				return err
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			wf := instantiateTemplate(tmplFile, cfg.ProfileID)
+			wf := InstantiateTemplate(tmplFile, d.ProfileID())
 			for i := range wf.Nodes {
 				wf.Nodes[i].WorkflowID = wf.ID
 			}
@@ -337,13 +337,13 @@ func newWorkflowTemplatesUseCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
-			if err := createOrOverwriteWorkflowAtomically(ctx, store, &wf, false); err != nil {
+			if err := d.CreateWorkflow(ctx, store, &wf, false); err != nil {
 				return err
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(wf)
 			}
 			fmt.Fprintf(os.Stdout, "Created workflow %q from template %q  (id: %s, %d nodes, %d connections)\n",
