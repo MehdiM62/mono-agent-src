@@ -221,3 +221,50 @@ func TestTeamsMeetingByJoinURL(t *testing.T) {
 		}
 	}
 }
+
+// Excel worksheet.update with updateAll rewrites the used range with every
+// matching row changed and returns only those rows.
+func TestExcelUpdateAll(t *testing.T) {
+	for _, id := range []string{"microsoft_excel", "microsoft_excel_share_point"} {
+		p := catalogPkg(t, id)
+		var sent map[string]any
+		var patched string
+		pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+			if r.Method == http.MethodGet {
+				fmt.Fprint(w, `{"address":"Sheet1!A1:C4","values":[["name","team","n"],["ada","x",1],["bob","y",2],["cy","x",3]]}`)
+				return
+			}
+			patched = r.URL.EscapedPath()
+			b, _ := io.ReadAll(r.Body)
+			json.Unmarshal(b, &sent)
+			fmt.Fprint(w, `{"values":[["name","team","n"],["ada","x","9"],["bob","y",2],["cy","x","9"]]}`)
+		})
+		params := map[string]any{"resource": "worksheet", "operation": "update", "workbook": "W", "worksheet": "S",
+			"site": "s", "library": "l", "dataMode": "define", "columnToMatchOn": "team", "valueToMatchOn": "x",
+			"fieldsUi": map[string]any{"values": []any{map[string]any{"column": "n", "fieldValue": "9"}}},
+			"options":  map[string]any{"updateAll": true}}
+		items, err := runPackageOp(p, params, graphCred, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", id, err)
+		}
+		want := []any{[]any{"name", "team", "n"}, []any{nil, nil, "9"}, []any{"bob", "y", 2.0}, []any{nil, nil, "9"}}
+		if !reflect.DeepEqual(sent["values"], want) {
+			t.Errorf("%s values %v", id, sent["values"])
+		}
+		if !strings.HasSuffix(patched, "/range(address='A1:C4')") {
+			t.Errorf("%s path %s", id, patched)
+		}
+		if len(items) != 2 || items[0].JSON["name"] != "ada" || items[1].JSON["name"] != "cy" || items[1].JSON["n"] != "9" {
+			t.Errorf("%s items %v", id, items)
+		}
+		params["dataMode"], params["options"] = "autoMap", map[string]any{"updateAll": true}
+		delete(params, "fieldsUi")
+		if _, err := runPackageOp(p, params, graphCred, map[string]any{"team": "x", "n": 7}); err != nil {
+			t.Fatalf("%s autoMap: %v", id, err)
+		}
+		want = []any{[]any{"name", "team", "n"}, []any{nil, "x", 7.0}, []any{"bob", "y", 2.0}, []any{nil, "x", 7.0}}
+		if !reflect.DeepEqual(sent["values"], want) {
+			t.Errorf("%s autoMap values %v", id, sent["values"])
+		}
+	}
+}
