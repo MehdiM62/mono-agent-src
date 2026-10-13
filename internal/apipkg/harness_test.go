@@ -249,7 +249,7 @@ func checkQuery(t *testing.T, where string, got url.Values, want map[string]any,
 		}
 		wantM[k] = stringify(v)
 	}
-	if !reflect.DeepEqual(gotM, wantM) {
+	if !reflect.DeepEqual(gotM, anyWildcards(wantM, gotM)) {
 		t.Errorf("%s: query: got %s, want %s (expect.query must list every param sent, auth query params excepted)",
 			where, jsonText(gotM), jsonText(wantM))
 	}
@@ -297,7 +297,7 @@ func checkBody(t *testing.T, where string, got captured, want any) {
 	default:
 		gotV = string(got.body)
 	}
-	if !reflect.DeepEqual(normalize(gotV), normalize(want)) {
+	if !reflect.DeepEqual(normalize(gotV), anyWildcards(normalize(want), normalize(gotV))) {
 		t.Errorf("%s: body: got %s, want %s", where, jsonText(gotV), jsonText(want))
 	}
 }
@@ -399,4 +399,35 @@ func mainRequest(reqs []captured, op *Operation, e expectReq) int {
 		return i
 	}
 	return len(reqs) - 1
+}
+
+// anyWildcards replaces each "<any>" in want by got's value at the same
+// place when that value is present and non-empty ({{ uuid }}, timestamps).
+func anyWildcards(want, got any) any {
+	switch w := want.(type) {
+	case string:
+		if w == "<any>" && !isEmpty(got) {
+			return got
+		}
+		return w
+	case map[string]any:
+		g, _ := got.(map[string]any)
+		out := make(map[string]any, len(w))
+		for k, v := range w {
+			out[k] = anyWildcards(v, g[k])
+		}
+		return out
+	case []any:
+		g, _ := got.([]any)
+		out := make([]any, len(w))
+		for i, v := range w {
+			var gv any
+			if i < len(g) {
+				gv = g[i]
+			}
+			out[i] = anyWildcards(v, gv)
+		}
+		return out
+	}
+	return want
 }

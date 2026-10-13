@@ -69,6 +69,9 @@ var readOnlyNodes = setOf(
 	"core.human_in_loop", "core.if", "core.limit", "core.merge",
 	"core.remove_duplicates", "core.set", "core.sort", "core.split_in_batches",
 	"core.stop_error", "core.switch", "core.wait",
+	// core.respond_webhook only answers the webhook request that started
+	// the run; in any other run (a granted call) it does nothing.
+	"core.respond_webhook",
 	"data.compression", "data.crypto", "data.datetime", "data.html",
 	"data.markdown", "data.xml",
 	// Image transforms write a new derived file; image.info only reads.
@@ -244,6 +247,8 @@ var outboundNodes = setOf(
 	"ai.extract_page", "applications.evaluate",
 	"browser.jev", // goal-driven agent in the user's browser
 	"mcp.call",    // calls any tool of an arbitrary MCP server
+	// Runs another workflow, which may contain any outbound node.
+	"core.execute_workflow",
 	"http.ftp", "http.ssh", "system.execute_command",
 	"http.graphql",
 	"data.write_binary_file", // writes any local path

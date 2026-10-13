@@ -166,6 +166,7 @@ func (s *SQLiteWorkflowStore) CreateWorkflow(ctx context.Context, w *Workflow) e
 	if err != nil {
 		return fmt.Errorf("creating workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, s.db, w)
 	return nil
 }
 
@@ -188,6 +189,7 @@ func (s *SQLiteWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 		return nil, fmt.Errorf("getting workflow %s: %w", id, err)
 	}
 	w.IsActive = isActive != 0
+	loadWorkflowSettings(ctx, s.db, w)
 
 	nodes, err := s.loadWorkflowNodes(ctx, id)
 	if err != nil {
@@ -240,7 +242,11 @@ func (s *SQLiteWorkflowStore) ListWorkflows(ctx context.Context, profileID strin
 		w.IsActive = isActive != 0
 		out = append(out, w)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	loadWorkflowsSettings(ctx, s.db, out)
+	return out, nil
 }
 
 // NodeCounts returns each workflow's node count, keyed by workflow id, for
@@ -299,6 +305,7 @@ func (s *SQLiteWorkflowStore) UpdateWorkflow(ctx context.Context, w *Workflow) e
 	if err != nil {
 		return fmt.Errorf("updating workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, s.db, w)
 	return nil
 }
 
@@ -345,7 +352,19 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 	if err != nil {
 		return fmt.Errorf("beginning save-nodes transaction: %w", err)
 	}
+	if err := saveNodesTx(ctx, tx, workflowID, nodes); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing save-nodes transaction: %w", err)
+	}
+	return nil
+}
 
+// saveNodesTx is SaveWorkflowNodes inside the caller's transaction; the
+// caller rolls back on error.
+func saveNodesTx(ctx context.Context, tx *sql.Tx, workflowID string, nodes []WorkflowNode) error {
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO workflow_nodes
 			(id, workflow_id, node_type, name, config, position_x, position_y, disabled, created_at, updated_at)
@@ -360,7 +379,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 			disabled    = excluded.disabled,
 			updated_at  = excluded.updated_at`)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("preparing node upsert: %w", err)
 	}
 	defer stmt.Close()
@@ -375,7 +393,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 		}
 		n.WorkflowID = workflowID
 		if err := n.MarshalConfig(); err != nil {
-			tx.Rollback()
 			return fmt.Errorf("marshalling config for node %s: %w", n.ID, err)
 		}
 		n.CreatedAt = now
@@ -386,7 +403,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 			n.PositionX, n.PositionY, boolToInt(n.Disabled),
 			n.CreatedAt, n.UpdatedAt,
 		); err != nil {
-			tx.Rollback()
 			return fmt.Errorf("upserting node %s: %w", n.ID, err)
 		}
 		args = append(args, n.ID)
@@ -401,12 +417,7 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 		delSQL = "DELETE FROM workflow_nodes WHERE workflow_id = ? AND id NOT IN (" + placeholders + ")"
 	}
 	if _, err := tx.ExecContext(ctx, delSQL, args...); err != nil {
-		tx.Rollback()
 		return fmt.Errorf("deleting removed nodes for workflow %s: %w", workflowID, err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing save-nodes transaction: %w", err)
 	}
 	return nil
 }
@@ -418,9 +429,20 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 	if err != nil {
 		return fmt.Errorf("beginning save-connections transaction: %w", err)
 	}
-
-	if _, err := tx.ExecContext(ctx, "DELETE FROM workflow_connections WHERE workflow_id = ?", workflowID); err != nil {
+	if err := saveConnectionsTx(ctx, tx, workflowID, conns); err != nil {
 		tx.Rollback()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing save-connections transaction: %w", err)
+	}
+	return nil
+}
+
+// saveConnectionsTx is SaveWorkflowConnections inside the caller's
+// transaction; the caller rolls back on error.
+func saveConnectionsTx(ctx context.Context, tx *sql.Tx, workflowID string, conns []WorkflowConnection) error {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM workflow_connections WHERE workflow_id = ?", workflowID); err != nil {
 		return fmt.Errorf("deleting old connections for workflow %s: %w", workflowID, err)
 	}
 
@@ -433,7 +455,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 	// connection or which node id is actually wrong.
 	nodeRows, err := tx.QueryContext(ctx, "SELECT id FROM workflow_nodes WHERE workflow_id = ?", workflowID)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("loading node ids for workflow %s: %w", workflowID, err)
 	}
 	validNodeIDs := make(map[string]bool)
@@ -441,24 +462,20 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 		var id string
 		if err := nodeRows.Scan(&id); err != nil {
 			nodeRows.Close()
-			tx.Rollback()
 			return fmt.Errorf("scanning node id for workflow %s: %w", workflowID, err)
 		}
 		validNodeIDs[id] = true
 	}
 	if err := nodeRows.Err(); err != nil {
 		nodeRows.Close()
-		tx.Rollback()
 		return fmt.Errorf("reading node ids for workflow %s: %w", workflowID, err)
 	}
 	nodeRows.Close()
 	for _, c := range conns {
 		if !validNodeIDs[c.SourceNodeID] {
-			tx.Rollback()
 			return fmt.Errorf("%w: connection %q references unknown source node %q", ErrDanglingConnection, c.ID, c.SourceNodeID)
 		}
 		if !validNodeIDs[c.TargetNodeID] {
-			tx.Rollback()
 			return fmt.Errorf("%w: connection %q references unknown target node %q", ErrDanglingConnection, c.ID, c.TargetNodeID)
 		}
 	}
@@ -468,7 +485,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 			(id, workflow_id, source_node_id, source_handle, target_node_id, target_handle, position)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("preparing connection insert: %w", err)
 	}
 	defer stmt.Close()
@@ -484,13 +500,8 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 			c.ID, c.WorkflowID, c.SourceNodeID, c.SourceHandle,
 			c.TargetNodeID, c.TargetHandle, c.Position,
 		); err != nil {
-			tx.Rollback()
 			return fmt.Errorf("inserting connection %s: %w", c.ID, err)
 		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing save-connections transaction: %w", err)
 	}
 	return nil
 }
@@ -595,11 +606,11 @@ func (s *SQLiteWorkflowStore) GetExecution(ctx context.Context, id string) (*Wor
 	e := &WorkflowExecution{}
 	var createdAt sqliteTime
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), COALESCE(profile_id,'default'), COALESCE(trigger_node_id,'')
+		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), COALESCE(profile_id,'default'), COALESCE(trigger_node_id,''), COALESCE(error_class,'')
 		FROM workflow_executions WHERE id = ?`, id,
 	).Scan(
 		&e.ID, &e.WorkflowID, &e.Status, &e.TriggerType, &e.TriggerDataRaw,
-		newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ResumeState, &e.ProfileID, &e.TriggerNodeID,
+		newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ResumeState, &e.ProfileID, &e.TriggerNodeID, &e.ErrorClass,
 	)
 	e.CreatedAt = createdAt.Time
 	if err == sql.ErrNoRows {
@@ -626,7 +637,7 @@ func (s *SQLiteWorkflowStore) GetExecution(ctx context.Context, id string) (*Wor
 // Pass limit <= 0 to return all executions. Execution nodes are not populated.
 func (s *SQLiteWorkflowStore) ListExecutions(ctx context.Context, workflowID string, limit int) ([]WorkflowExecution, error) {
 	query := `
-		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at
+		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(error_class,'')
 		FROM workflow_executions WHERE workflow_id = ? ORDER BY created_at DESC`
 	var args []interface{}
 	args = append(args, workflowID)
@@ -648,7 +659,7 @@ func (s *SQLiteWorkflowStore) ListExecutions(ctx context.Context, workflowID str
 		var createdAt sqliteTime
 		if err := rows.Scan(
 			&e.ID, &e.WorkflowID, &e.Status, &e.TriggerType, &e.TriggerDataRaw,
-			newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt,
+			newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ErrorClass,
 		); err != nil {
 			return nil, fmt.Errorf("scanning execution row: %w", err)
 		}
@@ -837,7 +848,8 @@ func (s *SQLiteWorkflowStore) SetExecutionNodeFinished(ctx context.Context, id s
 // loadExecutionNodes is an internal helper to fetch execution-node records.
 func (s *SQLiteWorkflowStore) loadExecutionNodes(ctx context.Context, executionID string) ([]WorkflowExecutionNode, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, execution_id, node_id, node_name, status, input_items, output_items, error_message, started_at, finished_at, retry_count
+		SELECT id, execution_id, node_id, node_name, status, input_items, output_items, error_message, started_at, finished_at, retry_count,
+		       COALESCE(error_class,''), COALESCE(error_hint,'')
 		FROM workflow_execution_nodes WHERE execution_id = ? ORDER BY rowid ASC`, executionID)
 	if err != nil {
 		return nil, fmt.Errorf("loading execution nodes for execution %s: %w", executionID, err)
@@ -851,6 +863,7 @@ func (s *SQLiteWorkflowStore) loadExecutionNodes(ctx context.Context, executionI
 			&en.ID, &en.ExecutionID, &en.NodeID, &en.NodeName, &en.Status,
 			&en.InputRaw, &en.OutputRaw, &en.ErrorMessage,
 			newSqliteNullTime(&en.StartedAt), newSqliteNullTime(&en.FinishedAt), &en.RetryCount,
+			&en.ErrorClass, &en.ErrorHint,
 		); err != nil {
 			return nil, fmt.Errorf("scanning execution node row: %w", err)
 		}

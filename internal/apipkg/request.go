@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"path"
 	"sort"
 	"strings"
 )
@@ -186,7 +188,7 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 			}
 			ct, _ := renderText(r.op.Binary.MimeType, sc)
 			if ct == "" {
-				ct = "application/octet-stream"
+				ct = r.uploadMime()
 			}
 			return data, ct, nil
 		}
@@ -236,7 +238,7 @@ func (r *opRun) multipartBody(obj map[string]any) ([]byte, string, error) {
 		}
 		ct, _ := renderText(b.MimeType, r.scope)
 		if ct == "" {
-			ct = "application/octet-stream"
+			ct = r.uploadMime()
 		}
 		h := make(textproto.MIMEHeader)
 		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, field, name))
@@ -330,5 +332,35 @@ func addValues(q url.Values, obj map[string]any) {
 			continue
 		}
 		q.Set(k, stringify(v))
+	}
+}
+
+// uploadMime is the upload's MIME type: the binary's own (n8n mimeType or
+// mono's mime_type field), else guessed from the file name, else
+// application/octet-stream.
+func (r *opRun) uploadMime() string {
+	prop := r.uploadProperty()
+	if m, ok := r.item.JSON["binary"].(map[string]any); ok {
+		if meta, ok := m[prop].(map[string]any); ok {
+			if t, _ := meta["mimeType"].(string); t != "" {
+				return t
+			}
+		}
+	}
+	if t, _ := r.item.JSON["mime_type"].(string); t != "" {
+		return t
+	}
+	if t := mime.TypeByExtension(path.Ext(r.uploadName())); t != "" {
+		return t
+	}
+	return "application/octet-stream"
+}
+
+// binMeta describes the upload for the bin template root.
+func (r *opRun) binMeta() map[string]any {
+	name := r.uploadName()
+	return map[string]any{
+		"file_name": name, "mime_type": r.uploadMime(),
+		"file_extension": strings.TrimPrefix(path.Ext(name), "."),
 	}
 }

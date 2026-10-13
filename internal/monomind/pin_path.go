@@ -3,7 +3,7 @@ package monomind
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -191,7 +191,7 @@ var fallbackNotices sync.Map
 
 func noticeFallback(kind string, err error) {
 	if _, seen := fallbackNotices.LoadOrStore(kind, true); !seen {
-		log.Printf("monomind: %s's global tool dirs are unavailable (%v); its shims dir stays last on PATH for monomind and its agents", kind, err)
+		slog.Warn(fmt.Sprintf("monomind: %s's global tool dirs are unavailable (%v); its shims dir stays last on PATH for monomind and its agents", kind, err))
 	}
 }
 
