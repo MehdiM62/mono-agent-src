@@ -130,7 +130,26 @@
         "output": {
           "type": "object",
           "additionalProperties": false,
-          "properties": { "path": { "type": "string" }, "split": { "type": "boolean" }, "header_row": { "type": "boolean" } }
+          "properties": { "path": { "type": "string" }, "split": { "type": "boolean" }, "header_row": { "type": "boolean" },
+            "each": { "type": "string" },
+            "expand": {
+          "type": "object",
+          "required": ["method", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "when": { "type": "string" },
+            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+            "path": { "type": "string", "minLength": 1 },
+            "base_url": { "type": "string" },
+            "query": { "type": "object" },
+            "body": {},
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "headers": { "$ref": "#/$defs/stringMap" }
+          }
+        },
+            "match": { "type": "object", "required": ["rows", "column", "value"], "additionalProperties": false,
+              "properties": { "rows": { "type": "string" }, "column": { "type": "string" }, "value": { "type": "string" },
+                "combine": { "type": "string" }, "first": { "type": "string" } } } }
         },
         "binary": {
           "type": "object",
