@@ -1,0 +1,531 @@
+# API packages (`apipkg.v1`) — author guide
+
+An API package is one JSON file that describes a REST API: its base URL, how it
+authenticates, and every operation (method, path, query, body, pagination,
+output). One Go engine (`internal/apipkg`) runs every package as a workflow
+node `app.<id>`. You write JSON and test data — no Go.
+
+This guide is complete for catalog authors. The JSON Schema is
+`data/schemas/apipkg.v1.schema.json`; the shape is fixed by
+`nodes-apipkg-design.md` and the additions listed at the end.
+
+## 1. Author workflow
+
+```bash
+# 1. study the n8n node (names only — never copy n8n text or code)
+ls ~/scratch/n8n-src/packages/nodes-base/nodes/<App>/
+
+# 2. write the package and its test cases
+$EDITOR internal/apipkg/catalog/<id>.json
+$EDITOR internal/apipkg/catalog/testdata/<id>.json
+
+# 3. validate + run the harness for your package (every op, against httptest).
+#    A validation failure lists every problem of the file.
+GOMAXPROCS=4 go test ./internal/apipkg -run 'TestCatalog/<id>$' -v
+
+# 4. (optional) the same validation through the CLI — like every monoagentcli
+#    command it needs a monoes.me sign-in, and on a branch build always a
+#    scratch HOME:
+env HOME=$SCRATCH_HOME go run ./cmd/monoagentcli integration validate internal/apipkg/catalog/<id>.json
+#    one operation:   go test ./internal/apipkg -run 'TestCatalog/<id>/<resource>.<operation>$'
+
+# 5. the whole package suite (also checks ids and n8n types are unique)
+GOMAXPROCS=4 go test ./internal/apipkg
+```
+
+Starting from an OpenAPI
+document: `monoagentcli integration import-openapi <file|url> --id <id> --out
+internal/apipkg/catalog`, then edit the result (pagination and output paths are
+never inferred) and write test cases.
+
+Where packages live:
+
+| Place | Path | Notes |
+|---|---|---|
+| Built-in catalog | `internal/apipkg/catalog/<id>.json` | embedded; the file name must equal `id` |
+| Installed | `~/.monoagent/apipkgs/<id>/package.json` | `apipkg.InstallDir()`; replaces a catalog package with the same id |
+
+## 2. The package file
+
+```jsonc
+{
+  "$schema": "apipkg.v1",
+  "id": "todoist",                         // [a-z0-9_]+, unique; = file name
+  "node_type": "app.todoist",              // optional; default "app.<id>"; must start with "app."
+  "extends": "",                           // "service.github" etc. — see §11; then no node_type
+  "title": "Todoist",                      // palette label and `node list` title
+  "description": "Tasks, projects, … in Todoist",
+  "category": "app",                       // palette group (keep "app")
+  "docs_url": "https://developer.todoist.com/api/v1/",
+  "n8n_types": ["n8n-nodes-base.todoist"],           // n8n node types this package imports
+  "n8n_trigger_types": ["n8n-nodes-base.todoistTrigger"], // trigger types (not supported yet; listed for the importer)
+  "base_url": "https://api.todoist.com/api/v1",       // may use {{ cred.x }}
+  "headers": { "Accept": "application/json" },        // sent on every request; templates allowed
+  "credentials": [ … ],                    // §7
+  "resources": [ { "value": "task", "label": "Task" } ],  // n8n "resource" options; omit when n8n has none
+  "operations": [ … ]                      // §3, at least one
+}
+```
+
+Unknown keys are errors (typos are caught). Rules checked by `validate`:
+
+- `resources[].value` unique; every resource has at least one operation.
+- With `resources`, each op's `resource` is one of them; without, it is `""`.
+- (`resource`, `operation`) pairs are unique.
+- Every `{{ p.X }}` names a field of that op, every `{{ cred.X }}` a credential
+  field (or an OAuth token key: `access_token`, `refresh_token`, `token_type`,
+  `scope`, `expires_at`, `instance_url`).
+
+## 3. Operations
+
+```jsonc
+{
+  "resource": "task",                 // "" when the package has no resources
+  "operation": "create",              // n8n's operation value, verbatim
+  "title": "Create a task",
+  "description": "",                  // optional
+  "method": "POST",                   // GET POST PUT PATCH DELETE HEAD
+  "path": "/tasks/{{ p.taskId }}",    // starts with "/" (or is an absolute URL template)
+  "base_url": "",                     // optional per-op override of the package base_url
+  "query":   { "project_id": "{{ p.projectId }}" },
+  "body":    { "content": "{{ p.content }}" },
+  "body_type": "json",                // json | form | multipart | raw | none
+  "headers": { },
+  "fields": [ … ],                    // §4
+  "pagination": { … },                // §8, optional
+  "output": { "path": "data", "split": true },  // §9, optional
+  "binary": { … },                    // §10, optional
+  "n8n_param_map": { }                // n8nParam → our field, only when names differ
+}
+```
+
+**Defaults matter for n8n imports.** n8n does not save a parameter that holds
+its default value, so an imported node often has no `resource` or
+`operation`. The engine then uses the **first resource** in `resources` and
+the **first operation listed for that resource**. Order your operations so the
+first one per resource is n8n's default (in n8n's node source: the `default:`
+of the `operation` property shown for that resource; usually `create` or
+`get`). The same is true for fields: give a field n8n's `default` so a
+missing param behaves as in n8n.
+
+Use n8n's parameter names verbatim as field keys (`taskId`, `additionalFields`,
+`returnAll`, `limit`, `updateFields`, …) so an n8n node's `parameters` object
+drops in unchanged. The API's own names go in `query`/`body` keys.
+
+## 4. Fields
+
+Same shape as the workflow editor's `NodeSchemaField`:
+
+```jsonc
+{ "key": "taskId", "label": "Task ID", "type": "text", "required": true,
+  "default": "", "placeholder": "", "help": "", "options": [], "examples": [],
+  "min": 1, "max": 100, "rows": 4, "item_type": "text", "language": "json" }
+```
+
+| `type` | Holds | Editor shows |
+|---|---|---|
+| `text`, `textarea`, `password`, `code` | string | as named |
+| `number` | number | number |
+| `boolean` | bool | toggle |
+| `select` | one of `options` (required) | select |
+| `multiselect` | array of `options` (required) | list |
+| `array` | array (`item_type`) | list |
+| `datetime` | ISO 8601 string | text |
+| `json` | any JSON | JSON editor |
+| `collection` | object; `options` lists the allowed keys | JSON editor, keys in help |
+
+- `key` matches `^[A-Za-z_][A-Za-z0-9_]*$`. Reserved: `resource`,
+  `operation`, `credential`, `credential_id`, `on_error`, `retry`.
+- `required: true` is enforced at run time, per item, before any request:
+  `apipkg todoist task.create: field "content" (Content) is required`. An
+  n8n resource locator (`{"__rl":true,"value":""}`) with an empty value
+  counts as missing.
+- `default` is applied when the config lacks the key.
+- n8n `collection`/`fixedCollection` → `collection` (same key, e.g.
+  `additionalFields`), with `options` = the inner n8n names.
+- n8n `resourceLocator` → `text`; read it with `| rl` (§5), which accepts
+  both a plain value and n8n's `{"__rl":true,"mode":"id","value":"x"}`.
+- n8n `options` with values loaded from the API (`loadOptionsMethod`) →
+  `text` (or `array` for `multiOptions`).
+
+Generated node schema: a `credential_id` picker, a `resource` select, one
+`operation` select per resource (`depends_on` the resource), then every op's
+fields. Fields with the same key, type, label and options are merged into one
+entry. Each field carries `depends_on: {"key": "operation", "values": […]}`
+and an exact `visible_for: [{"resource": …, "operation": …}]`.
+
+Every field is resolved **per input item** from workflow expressions
+(`{{ $json.id }}` in the node config), so one node run makes one request per
+item.
+
+## 5. Template language
+
+Strings in `base_url`, `headers`, `path`, `query`, `body`, `binary.file_name`,
+`binary.mime_type` and `inject` are templates.
+
+Scopes:
+
+| Root | What |
+|---|---|
+| `p.<field>` | the op params (node config after workflow expressions; defaults applied) |
+| `cred.<key>` | the credential (the connection's fields, or OAuth tokens) |
+| `item.<path>` | the current input item's JSON |
+
+Paths walk objects by key and arrays by index; `-1` is the last element
+(`p.list.-1.id`). A missing path is `nil`. Only `cred.*` is available in
+`inject` and the package `base_url`/`headers`.
+
+**Typed vs interpolated.** A string that is exactly one `{{ … }}` keeps the
+typed value (number, bool, object, array): `"labels": "{{ p.labels }}"` sends
+a JSON array. Anything else is string-interpolated: `"Bearer {{ cred.token }}"`;
+`nil` interpolates as `""`, objects/arrays as JSON.
+
+**Omit empty.** In `query` and `body` objects a key whose value resolves to
+`nil`, `""`, `[]` or `{}` is left out. `0` and `false` are kept. A nested
+object that ends up empty is left out too. Array elements that resolve
+empty are dropped. Write `"!key"` to send the value even when empty
+(`"!description": "{{ p.description }}"` sends `""`/`null`).
+
+**`$merge`.** `"$merge": "{{ p.additionalFields }}"` spreads an object into
+the parent (its empty values are dropped). Explicit keys override merged
+ones, but an explicit key that resolves empty leaves the merged value in
+place. `$merge` may be a list: `"$merge": ["{{ p.a }}", "{{ p.b }}"]`. Merging
+a non-object is an error. Use `$merge` only when n8n's keys already equal the
+API's; otherwise map each key explicitly:
+`"due_string": "{{ p.options.dueString }}"`.
+
+**Filters** (pipe, left to right). All but `default` and `then` pass `nil`
+through, so an unset param stays unset:
+
+| Filter | Does |
+|---|---|
+| `json` | value → JSON string |
+| `csv` | array → `"a,b,c"` (a scalar → its string) |
+| `int` | number/numeric string → integer (`""` → nil); error otherwise |
+| `float` | → float |
+| `bool` | bool, `"true"/"false"/"1"/"0"/"yes"/"no"`, numbers ≠ 0 |
+| `string` | → string |
+| `lower`, `upper` | case |
+| `default:"x"` | `x` when the value is empty; the argument may be a quoted string (`'x'` or `"x"`), a number, `true`/`false`/`null`, or a path (`default:p.other`, `default:cred.region`) |
+| `then:'x'` | `x` when the value is non-empty, else nil |
+| `rl` | n8n resource locator → its `value`; other values pass |
+
+**Paths are escaped.** In `path`, each expression's value is URL-escaped
+(`a b/c` → `a%20b%2Fc`). Literals the author wrote as a `then`/`default`
+argument are not, so an optional path suffix works:
+`"/tasks{{ p.filters.filter | then:'/filter' }}"`.
+
+**Query encoding.** Arrays repeat the key (`tags=a&tags=b`; use `| csv` for
+`tags=a,b`), objects are sent as JSON, everything else as its string.
+
+## 6. Request building
+
+1. URL = `op.base_url` or `base_url` (rendered) + rendered `path`. A path that
+   renders to an absolute `http(s)://` URL is used as is.
+2. `query` is rendered and added; pagination params next (§8).
+3. Body by `body_type` (default: `json` when `body` is set; `raw` for a binary
+   upload with no body; else `none`):
+   - `json` — the rendered body (any JSON value); `Content-Type: application/json`.
+   - `form` — object → `application/x-www-form-urlencoded` (encoded like query).
+   - `multipart` — object fields as form fields plus the binary file part (§10).
+   - `raw` — the binary upload, or the rendered body as text.
+   - `none` — no body (`body` must be unset).
+4. Package `headers`, then op `headers` (rendered; empty values not sent).
+   `Accept: application/json` unless set (or a download).
+5. Auth is injected last (§7).
+
+Responses: 2xx bodies are read up to 64 MiB (larger is an error); a non-2xx
+status is an error carrying up to 64 KiB of the body:
+`apipkg todoist task.get: HTTP 404: {"error":"…"}`. Error handling in
+workflows is the node's normal `on_error`.
+
+## 7. Credentials and auth injection
+
+```jsonc
+"credentials": [{
+  "platform": "todoist",              // connection platform id, registered at run time
+  "name": "Todoist",                  // shown in `connect` listings
+  "n8n_credential": "todoistApi",     // n8n credential type, for the importer
+  "n8n_credential_alt": ["todoistOAuth2Api"],    // more n8n types mapping here
+  "n8n_field_map": { "apiKey": "access_token" }, // n8n credential field → our field key
+  "methods": ["bearer", "oauth"],     // api_key | bearer | basic | oauth | none
+  "fields": [ { "key": "access_token", "label": "API token", "secret": true, "required": true, "help": "…" } ],
+  "oauth": { "auth_url": "…", "token_url": "…", "scopes": ["a", "b"], "pkce": true, "extra_params": {} },
+  "inject": {
+    "headers":   { "Authorization": "Bearer {{ cred.access_token }}" },
+    "query":     { "key": "{{ cred.api_key }}" },
+    "basic":     { "username": "{{ cred.email }}", "password": "{{ cred.api_token }}" },
+    "aws_sigv4": { "service": "s3", "region": "{{ cred.region }}" }
+  },
+  "reuse_platform": ""                // use an existing built-in platform instead (e.g. "google_drive")
+}]
+```
+
+- Each credential's `platform` is registered into the connection registry,
+  so `monoagentcli connect <platform>` (API key form or OAuth with PKCE),
+  `connect save`, `connect oauth`, `connect list --all` and credential
+  resolution in workflows all work. `api_key`/`bearer` collect `fields` (the
+  API-key form), `basic` collects `fields` as the username/password form,
+  `oauth` runs the browser flow and stores `access_token`, `refresh_token`,
+  `expires_at` (silent refresh works). OAuth client ids come from
+  `connect set-oauth-client` or `MONOAGENT_<PLATFORM>_CLIENT_ID/_SECRET`.
+- **Name the token field `access_token`** when an API takes the same bearer
+  token from an API key and from OAuth: one `inject` then covers both methods.
+- PKCE is always used. `scopes` are space-joined; for an API that wants
+  another separator put the whole string in `extra_params.scope`
+  (Todoist: `"extra_params": {"scope": "data:read_write,data:delete"}`).
+- A `platform` may not be a built-in platform id (`github`, `notion`,
+  `slack`, … — `connect list --all`). To use a built-in connection, set
+  `reuse_platform` and still write `inject` for it.
+- `none` (alone or with others) makes the credential optional.
+- Credentials are read **only** from `config["credential"]` (the engine puts
+  the resolved connection there). With several credentials the engine picks
+  the first whose required fields are all present (an OAuth connection
+  satisfies them with `access_token`), else the first.
+- A header whose expressions all render empty (e.g. `"Bearer "`) is not sent.
+- `aws_sigv4` signs with AWS Signature V4 (after everything else). Keys
+  default to `cred.access_key_id`, `cred.secret_access_key`,
+  `cred.session_token`; override with `access_key_id`,
+  `secret_access_key`, `session_token` templates. S3 also gets
+  `X-Amz-Content-Sha256`.
+- `inject` must not be empty unless the only method is `none`.
+
+## 8. Pagination
+
+```jsonc
+"pagination": {
+  "type": "cursor",                 // cursor | offset | page | link_header | next_url
+  "cursor_param": "cursor",         // cursor: request param carrying the cursor
+  "cursor_path": "next_cursor",     // cursor: response path of the next cursor ("items.-1.token" ok)
+  "has_more_path": "has_more",      // cursor: optional bool; false stops
+  "offset_param": "offset",         // offset
+  "page_param": "page",             // page
+  "start_page": 1,                  // page: first page number (default 1)
+  "limit_param": "limit",           // page-size param (all types except link_header/next_url pages 2+)
+  "page_size": 100,                 // default 100
+  "next_url_path": "paging.next",   // next_url: response path of the next URL (relative ok)
+  "results_path": "data",           // where each page's array is (default: output.path; "" = whole body)
+  "return_all_field": "returnAll",  // default "returnAll"
+  "limit_field": "limit",           // default "limit"
+  "param_in": "query",              // "body": send page params in the JSON body
+  "max_pages": 1000                 // safety stop; items then get pagination_truncated=true
+}
+```
+
+- If the op has a `returnAll` field: `returnAll: true` fetches every page,
+  otherwise the run stops at `limit` items (field default, else 50) and
+  requests `min(limit, page_size)` per page. Without a `returnAll` field the
+  op fetches every page (n8n "get many" ops with no limit).
+- Stops: cursor — empty/repeated cursor, empty page or `has_more` false;
+  offset/page — empty page, or fewer than `page_size` results when
+  `limit_param` is set; link_header — no `rel="next"`; next_url — empty path.
+- `link_header`/`next_url` follow the server's URL as given (op query is not
+  re-added; auth is).
+- Paginated results are always split into one item per element.
+
+## 9. Output
+
+`"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)
+selects part of the JSON response; `split` (default true) turns an array into
+one item per element. Objects are one item; scalars become `{"data": v}`; a
+non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
+`{"success": true}`; a path that resolves to nothing yields no items.
+
+## 10. Binary data
+
+Workflow items carry files in `item.binary[<property>]` (n8n's
+"binary property", default `data`).
+
+```jsonc
+"binary": {
+  "download": true,                    // response body is a file
+  "property_field": "binaryPropertyName", // op field naming the output property (default "data")
+  "upload_field": "binaryPropertyName",   // op field naming the input property to send
+  "multipart_field": "file",           // multipart: form field of the file part (default "file")
+  "file_name": "{{ p.fileName }}",     // multipart: file name (default: n8n fileName or the property)
+  "mime_type": "{{ p.mimeType }}"      // part / raw Content-Type (default application/octet-stream)
+}
+```
+
+- Download: the output item is `{"mime_type", "file_name", "size",
+  "binary_property"}` with the bytes in `binary[<property>]`.
+- Upload: bytes come from the input item's `binary[<property>]`, else a
+  base64 string at `item.json[<property>]` or n8n's
+  `item.json.binary.<property>.data`. With `body_type: multipart` the file is
+  one part beside the body fields; otherwise (`raw`) it is the whole body.
+- `upload_field`/`property_field` must be declared op fields (n8n uses
+  `binaryPropertyName`).
+
+## 11. `extends` (apps with a native Go node)
+
+`{"id": "github_more", "extends": "service.github", …}` registers no node
+type. The native node's schema gets the package's `resource` select (first
+option `""` = the native operations), per-resource `operation` selects and
+fields appended after the native fields; without `resources` the package's
+operations are appended to the native `operation` select's options. At run
+time the native node calls `apipkg.ExecuteExtension(ctx, "service.github",
+input, config)` from its `default:` branch when `config["resource"]` is set
+or the operation is unknown (`apipkg.HasExtension(nativeType, resource, op)`
+tells whether a package handles it). Wave 2 adds that 3-line hook per native
+node. Only one package may extend a given native node.
+
+## 12. n8n compatibility
+
+- `n8n_types` — n8n node types imported as this package; `n8n_trigger_types`
+  — trigger types of the same app, listed so the importer can say "not
+  supported yet". A type may appear in one package only.
+- `apipkg.N8nIndex()` gives the importer, per n8n type: package id,
+  `node_type`/`extends`, default resource and default operation per resource,
+  credential mappings (n8n credential type → platform + field map) and per
+  op `param_map` (= `n8n_param_map`) and field keys.
+- Only add `n8n_param_map` when you had to rename an n8n param.
+
+## 13. Testing a package
+
+`catalog/testdata/<id>.json` has one case per operation, keyed
+`"<resource>.<operation>"` (just `"<operation>"` without resources):
+
+```jsonc
+{
+  "task.create": {
+    "params": { "project": "2203306141", "content": "Buy milk", "options": { "priority": 4 } },
+    "credential": { "access_token": "x" },   // optional; default: every credential field = "test-<key>"
+    "input": { "id": 1 },                    // optional input item JSON
+    "response": { "id": "1" },               // optional JSON for the first response (default {})
+    "response_status": 200,                  // optional
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tasks",               // full path as the server sees it (base_url path included), escaped
+      "query": { "limit": "50" },            // EVERY query param sent (auth query params excepted); arrays for repeats
+      "body": { "content": "Buy milk", "project_id": "2203306141", "priority": 4 },
+      "headers": { "X-Custom": "v" },        // optional, checked when given
+      "items": 1                             // optional: number of output items
+    }
+  }
+}
+```
+
+`TestCatalog/<id>` checks, for the package:
+
+1. it parses and validates; its `id` equals the file name;
+2. every operation has a case and every case names an operation;
+3. per case, the first request's method, path, query (exact), body (exact
+   JSON; form → `{"k": "v"}`; multipart → fields plus
+   `"file:<name>:<content>"`; when `body` is absent, no body may be sent
+   beyond `{}`), headers you list, and the item count;
+4. auth: every `inject.headers`/`inject.query` value arrived rendered with
+   the case's credential; Basic and SigV4 `Authorization` headers present;
+5. required fields: dropping each required field without a default fails
+   with an error naming the field, and no request is sent.
+
+All traffic goes to an `httptest` server (any host is rerouted); nothing
+leaves the machine. The server answers the first request with `response`
+and later ones with `{}`, so paginated ops stop after page one. Failure
+messages name the package, op and what differed, e.g.
+`todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
+
+## 14. Worked example
+
+`catalog/acme.json`:
+
+```json
+{
+  "$schema": "apipkg.v1",
+  "id": "acme",
+  "title": "Acme",
+  "description": "Widgets in Acme",
+  "category": "app",
+  "n8n_types": ["n8n-nodes-base.acme"],
+  "base_url": "https://{{ cred.subdomain }}.acme.test/api",
+  "credentials": [{
+    "platform": "acme", "name": "Acme", "n8n_credential": "acmeApi",
+    "n8n_field_map": { "apiKey": "access_token", "subdomain": "subdomain" },
+    "methods": ["bearer"],
+    "fields": [
+      { "key": "subdomain", "label": "Subdomain", "required": true },
+      { "key": "access_token", "label": "API key", "secret": true, "required": true }
+    ],
+    "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } }
+  }],
+  "resources": [ { "value": "widget", "label": "Widget" } ],
+  "operations": [
+    {
+      "resource": "widget", "operation": "create", "title": "Create a widget",
+      "method": "POST", "path": "/widgets",
+      "fields": [
+        { "key": "name", "label": "Name", "type": "text", "required": true },
+        { "key": "additionalFields", "label": "Additional fields", "type": "collection",
+          "default": {}, "options": ["color", "size"] }
+      ],
+      "body": { "name": "{{ p.name }}", "$merge": "{{ p.additionalFields }}" },
+      "output": { "path": "widget" }
+    },
+    {
+      "resource": "widget", "operation": "getAll", "title": "Get many widgets",
+      "method": "GET", "path": "/widgets",
+      "fields": [
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50 },
+        { "key": "filters", "label": "Filters", "type": "collection", "default": {}, "options": ["color"] }
+      ],
+      "query": { "color": "{{ p.filters.color | lower }}" },
+      "pagination": { "type": "page", "page_param": "page", "limit_param": "per_page",
+                      "page_size": 100, "results_path": "widgets" }
+    }
+  ]
+}
+```
+
+`catalog/testdata/acme.json`:
+
+```json
+{
+  "widget.create": {
+    "params": { "name": "Sprocket", "additionalFields": { "color": "red", "size": "" } },
+    "response": { "widget": { "id": 1 } },
+    "expect": { "method": "POST", "path": "/api/widgets",
+                "body": { "name": "Sprocket", "color": "red" }, "items": 1 }
+  },
+  "widget.getAll": {
+    "params": { "limit": 5, "filters": { "color": "RED" } },
+    "response": { "widgets": [ { "id": 1 }, { "id": 2 } ] },
+    "expect": { "method": "GET", "path": "/api/widgets",
+                "query": { "color": "red", "page": "1", "per_page": "5" }, "items": 2 }
+  }
+}
+```
+
+Then `go test ./internal/apipkg -run 'TestCatalog/acme$' -v` (this example
+passes as written). The shipped
+`todoist.json` (cursor pagination, `| rl`, `then`, `$merge`, OAuth),
+`typeform.json` (page and `items.-1.token` cursor pagination, triggers) and
+`calendly.json` (`output.path`, cursor in a nested path) are full examples.
+
+## 15. Checklist
+
+- [ ] `id` = file name; `n8n_types` / `n8n_trigger_types` filled from the n8n node.
+- [ ] Field keys are n8n's parameter names; first op per resource = n8n default.
+- [ ] Every n8n default you rely on is a field `default`.
+- [ ] Credential platform is new (not built-in) or uses `reuse_platform`;
+      `n8n_credential`, `_alt` and `n8n_field_map` set.
+- [ ] Lists paginate and honour `returnAll`/`limit`; `output.path` set where
+      the API wraps results.
+- [ ] Every op has a test case with an exact `expect.query` and `expect.body`.
+- [ ] `go test ./internal/apipkg -run 'TestCatalog/<id>$'` passes.
+
+## 16. Additions to the design contract
+
+Optional keys the engine added (the design's keys are unchanged):
+
+| Where | Key | Meaning |
+|---|---|---|
+| package | `n8n_trigger_types` | n8n trigger types of the app (unsupported for now) |
+| credential | `n8n_credential_alt` | further n8n credential types |
+| credential | `n8n_field_map` | n8n credential field → our field |
+| resource | `description` | help text |
+| operation | `description`, `base_url` | help text; per-op base URL |
+| pagination | `page_size`, `start_page`, `max_pages`, `param_in` | §8 |
+| binary | `property_field`, `multipart_field`, `file_name`, `mime_type` | §10 |
+| inject.aws_sigv4 | `access_key_id`, `secret_access_key`, `session_token` | key templates |
+| templates | filters `float`, `string`, `upper`, `rl`, `then`; `default:<path>`; `$merge` lists | §5 |
+| schema output | `visible_for`, `apipkg`, `extended_by` | exact op visibility; package id; extending packages |

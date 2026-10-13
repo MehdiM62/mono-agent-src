@@ -977,6 +977,8 @@ func nodeCategory(t string) string {
 		return "browser/social"
 	case strings.HasPrefix(t, "people."):
 		return "people"
+	case strings.HasPrefix(t, "app."):
+		return "app"
 	case t == "mysql" || t == "postgres" || t == "mongodb" || t == "redis":
 		return "database"
 	case t == "github" || t == "notion" || t == "airtable" || t == "jira" || t == "linear" || t == "asana" || t == "stripe" || t == "shopify" || t == "salesforce" || t == "hubspot" || t == "google_sheets" || t == "gmail" || t == "google_drive":
