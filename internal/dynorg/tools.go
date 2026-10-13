@@ -41,8 +41,8 @@ func strList(desc string) map[string]any {
 // ToolSpecs are the lead's org tools.
 func ToolSpecs() []monomind.ToolSpec {
 	return []monomind.ToolSpec{
-		{Name: ToolRoster, Description: "List what you can staff workers with: the ready models (runtime, model, effort levels, access), the access profiles, the built-in roles, the limits, and the workers so far.",
-			Schema: obj(map[string]any{})},
+		{Name: ToolRoster, Description: "List what you can staff workers with: the ready models (runtime, model, effort levels, access), the access profiles, the built-in roles, the registry agents by category, cost/quality hints per model, the limits, and the workers so far. Pass brief to get the smallest suggested team for it (an empty team means do it yourself).",
+			Schema: obj(map[string]any{"brief": str("Optional: the task, to get a suggested team.")})},
 		spawnSpec(true),
 		{Name: ToolWait, Description: "Wait for workers to finish (up to timeout_s, at most 100) and get their reports. Call it again for workers still running.",
 			Schema: obj(map[string]any{
@@ -63,12 +63,12 @@ func ToolSpecs() []monomind.ToolSpec {
 func spawnSpec(lead bool) monomind.ToolSpec {
 	props := map[string]any{
 		"brief":       str("What the worker should do, with everything it needs to know. It can't see this conversation."),
-		"role":        str("A role: a monomind agent id (e.g. engineering-code-reviewer) or a built-in role (coder, reviewer, tester, researcher, planner)."),
+		"role":        str("A role: a monomind agent id (e.g. engineering-code-reviewer) or a built-in role (coder, reviewer, tester, researcher, planner, task-manager, doc-writer, people-researcher, vault-keeper, workflow-builder, automation-operator, browser-operator, org-designer, data-analyst, security-reviewer)."),
 		"skills":      strList("Skill names to give the worker."),
 		"runtime":     str("Runtime to run on (e.g. claude, codex). Must have a ready model; see org_roster."),
 		"model":       str("Model id on that runtime; see org_roster."),
 		"effort":      str("Reasoning effort, one of the model's effort levels."),
-		"access":      str("Access profile: coding (default for writers), qa, automation, or research (read only)."),
+		"access":      str("Access profile: workspace (coding plus every monoagent surface; sends need approval), coding, qa, automation, or research (read only)."),
 		"files":       strList("Files the worker should keep to."),
 		"needs_write": map[string]any{"type": "boolean", "description": "The worker will edit files (it then waits its turn for the write lease)."},
 		"wait":        map[string]any{"type": "boolean", "description": "Wait for the worker to finish (up to 100s) before returning."},
@@ -122,7 +122,15 @@ func (c *Conductor) handle(ctx context.Context, parent *worker, name string, arg
 	}
 	switch name {
 	case ToolRoster:
-		return marshal(c.Roster())
+		var a struct {
+			Brief string `json:"brief"`
+		}
+		_ = json.Unmarshal(orEmpty(args), &a)
+		v := c.Roster()
+		if strings.TrimSpace(a.Brief) != "" {
+			v.Suggested = c.suggestTeam(ctx, a.Brief)
+		}
+		return marshal(v)
 	case ToolSpawn:
 		var req SpawnRequest
 		if err := json.Unmarshal(orEmpty(args), &req); err != nil {
@@ -204,17 +212,25 @@ type RosterView struct {
 	RoleNote string            `json:"roles_note"`
 	Limits   map[string]any    `json:"limits"`
 	Workers  []WorkerInfo      `json:"workers"`
+	// Registry agents by category, one line each; ModelHints say which
+	// ready model suits which work; Suggested is the smallest team for the
+	// brief passed to org_roster (empty: do it yourself).
+	Agents     map[string][]AgentInfo `json:"registry_agents,omitempty"`
+	ModelHints []ModelHint            `json:"model_hints"`
+	Suggested  []SuggestedWorker      `json:"suggested_team,omitempty"`
 }
 
 // Roster describes what the lead can staff with, and the workers so far.
 func (c *Conductor) Roster() RosterView {
 	v := RosterView{
-		Models:   c.cfg.Staffer.Roster,
-		Profiles: profileRules,
-		RoleNote: "role also accepts any monomind agent id from this folder's agent registry; leave it empty to have one picked for the brief",
+		Models:     c.cfg.Staffer.Roster,
+		Profiles:   profileRules,
+		RoleNote:   "role accepts any registry agent id listed here (monomind's agents come first) or a built-in role; leave it empty to have one picked for the brief. Smallest sufficient role, at most 3 skills",
+		Agents:     c.registryAgents(context.Background()),
+		ModelHints: c.cfg.Staffer.ModelHints(),
 	}
 	for _, r := range builtinRoles {
-		v.Roles = append(v.Roles, map[string]any{"id": r.ID, "title": r.Title, "default_access": r.Profile})
+		v.Roles = append(v.Roles, map[string]any{"id": r.ID, "title": r.Title, "category": r.Category, "default_access": r.Profile, "does": firstSentence(r.Body)})
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()

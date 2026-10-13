@@ -1,6 +1,7 @@
 package dynorg
 
 import (
+	"context"
 	"fmt"
 	"strings"
 )
@@ -13,7 +14,8 @@ const (
 
 // profileRules is what each access profile tells the worker it may do.
 var profileRules = map[string]string{
-	ProfileCoding: "You have full access to this folder: run commands, edit and create files, and use the web.",
+	ProfileWorkspace: workspaceRules,
+	ProfileCoding:    "You have full access to this folder: run commands, edit and create files, and use the web.",
 	ProfileQA: "You have full access to this folder and the web. You can also drive the user's browser through " +
 		"`monoagentcli` on your PATH: `monoagentcli ref commands` lists what it can do (`node run` for browser.* " +
 		"nodes, `extension` for the browser extension, `login` for sites). Test like a user would and report evidence.",
@@ -60,7 +62,11 @@ func workerSystemPrompt(st Staff, cwd string, files []string, canSpawn bool) str
 	} else {
 		b.WriteString("- You can't hand work to other agents and can't change anyone's access.\n")
 	}
-	b.WriteString("- Never read, send or change the user's messages or people records.\n")
+	if st.Access == ProfileWorkspace {
+		b.WriteString("- " + sendRule + "\n")
+	} else {
+		b.WriteString("- Never read, send or change the user's messages or people records.\n")
+	}
 	b.WriteString("- Finish with a report for the lead of at most 200 words: what you did, what you found, and, if you changed files, the list of files.\n")
 	return b.String()
 }
@@ -75,10 +81,11 @@ func LeadPrompt(l Limits) string {
 	return "\n\nYou lead a dynamic org. Besides your own tools you have org tools to bring in workers: " +
 		"org_roster (the models, roles and access profiles you can use), org_spawn (start a worker with a brief), " +
 		"org_wait (wait for workers and read their reports), org_message (a follow-up to a finished worker), " +
-		"org_stop and org_rate (rate a worker's result). Use workers when the task splits into parts that can run in parallel or need a different " +
-		"specialty (review, testing, research); do small things yourself. " +
+		"org_stop and org_rate (rate a worker's result). " + efficiencyRules +
 		"You decide each worker's brief and may choose its role, skills, model, effort and access profile " +
-		"(coding, qa, automation, research); leave any of them out and they are picked for you. " +
+		"(workspace, coding, qa, automation, research); leave any of them out and they are picked for you. " +
+		"Roles and skills come from monomind's registered agents first (org_roster lists them by category); the built-in roles are the fallback. " +
+		"Your own rules: " + workspaceRules + " " + sendRule + " " +
 		"Only one worker edits files at a time (the others queue), so run research and review workers in parallel and " +
 		"give writers separate files. " +
 		"A worker can start sub-workers of its own only when you pass allow_spawn: true (for a big part that splits further); " +
@@ -94,6 +101,27 @@ func LeadPrompt(l Limits) string {
 		"Prefer org_spawn over your runtime's own subagent tool: org workers can use other models and the user sees them. " +
 		"After you read a worker's report, org_rate it once: good if it did the job, bad if it didn't; ratings teach staffing which models fit which work. " +
 		"Always org_wait for the workers you started before you finish, then tell the user what the team did."
+}
+
+// efficiencyRules is the lead's staffing discipline: every worker costs
+// tokens and money, so the smallest team that does the job wins.
+const efficiencyRules = "EFFICIENCY FIRST. Do small things yourself; start no worker for a one-step job. Spawn only when parts run in parallel " +
+	"or need a specialty. Use the fewest workers (one per distinct concern, never two with the same role), the smallest sufficient role, " +
+	"at most 3 skills, and the cheapest model that fits the category (org_roster shows each model's tier and quality by category: " +
+	"cheap models for research, docs, tasks and tests; the strongest only for hard implementation, security and architecture). " +
+	"Pick a different model when a better-fitting one is ready; don't default to your own. Reuse veterans (org_message) before spawning. "
+
+// LeadExtras is the part of the lead's system prompt that depends on the
+// settings and the profile: how roles are routed, and the profile context.
+func LeadExtras(ctx context.Context, router string) string {
+	var note string
+	switch NormalizeRouter(router) {
+	case RouterModel:
+		note = "\n\nYou choose every worker's role yourself: pass role (an agent id or built-in role from org_roster); spawns without a role are refused."
+	case RouterJev:
+		note = "\n\nLeave role and skills out: Jev chooses them from monomind's shortlist."
+	}
+	return note + profileBlock(ctx)
 }
 
 func clipText(s string, max int) string {
