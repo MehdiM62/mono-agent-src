@@ -27,6 +27,8 @@ them here; analyze turns one into a draft automation action.`,
 		newRecordListCmd(cfg),
 		newRecordShowCmd(cfg),
 		newRecordDeleteCmd(cfg),
+		newRecordAPICmd(cfg),
+		newRecordReplayCmd(cfg),
 	)
 	addRecordAnalyzeCommands(cmd, cfg)
 	// Every record subcommand, analyze's included, prints {"error": …} on
