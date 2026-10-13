@@ -261,6 +261,8 @@ through, so an unset param stays unset:
 ```
 (`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
 
+**Joined text (`$join`).** `{"$join": [ <template>, … ] | <template/builder giving a list>, "$sep": " AND ", "$prefix": "\"", "$suffix": "\""}` renders the parts, drops empty ones, joins the rest with `$sep` and wraps them in `$prefix`/`$suffix`; nothing left → omitted. Freshservice filters `"name:'Ada' AND department_id:5"`; Grist sort `{"$join": {"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}`.
+
 **JSON text of a built value (`$json`).** `{"$json": { … }}` renders the inner template (with `$concat`, `$map`, …) and returns it as a JSON string (Confluence ADF bodies).
 
 **Objects with built keys (`$entries`).** `{"$entries": "{{ p.filters.date }}", "$key": "date[{{ el.operation }}]", "$value": "{{ el.value | epoch }}"}` → `{"date[after]": 1704067200}`; empty keys/values are skipped (works inside `query`, `body` and `$merge`).

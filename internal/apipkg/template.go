@@ -426,6 +426,9 @@ func renderValue(v any, sc Scope) (any, error) {
 		if parts, ok := t["$concat"]; ok {
 			return renderConcat(parts, sc)
 		}
+		if parts, ok := t["$join"]; ok {
+			return renderJoin(parts, t, sc)
+		}
 		if inner, ok := t["$json"]; ok {
 			r, err := renderValue(inner, sc)
 			if err != nil {
@@ -719,4 +722,41 @@ func isListBuilder(v any) bool {
 	_, isMap := m["$map"]
 	_, isConcat := m["$concat"]
 	return isMap || isConcat
+}
+
+// renderJoin renders "$join" (a list of templates, or one template or
+// builder yielding a list), drops empty parts, joins the rest with "$sep"
+// and wraps them in "$prefix"/"$suffix". Nothing left → nil (omitted).
+func renderJoin(parts any, m map[string]any, sc Scope) (any, error) {
+	var vals []any
+	if arr, ok := parts.([]any); ok {
+		for i, p := range arr {
+			r, err := renderValue(p, sc)
+			if err != nil {
+				return nil, fmt.Errorf("$join part %d: %w", i, err)
+			}
+			vals = append(vals, r)
+		}
+	} else {
+		r, err := renderValue(parts, sc)
+		if err != nil {
+			return nil, fmt.Errorf("$join: %w", err)
+		}
+		if l, ok := r.([]any); ok {
+			vals = l
+		} else if r != nil {
+			vals = []any{r}
+		}
+	}
+	var keep []string
+	for _, v := range vals {
+		if s := stringify(v); !isEmpty(v) && s != "" {
+			keep = append(keep, s)
+		}
+	}
+	if len(keep) == 0 {
+		return nil, nil
+	}
+	str := func(k string) string { s, _ := m[k].(string); return s }
+	return str("$prefix") + strings.Join(keep, str("$sep")) + str("$suffix"), nil
 }

@@ -746,3 +746,21 @@ func TestBracketQueryStyle(t *testing.T) {
 		t.Errorf("query = %v", q)
 	}
 }
+
+func TestJoinBuilder(t *testing.T) {
+	sc := Scope{P: map[string]any{"name": "Ada", "dep": 5.0, "none": "",
+		"sort": []any{map[string]any{"field": "a", "direction": "desc"}, map[string]any{"field": "b"}}}}
+	join := map[string]any{"$join": []any{"{{ p.name | prefix:\"name:'\" | suffix:\"'\" }}", "{{ p.none | prefix:'x:' }}", "{{ p.dep | prefix:'department_id:' }}"},
+		"$sep": " AND ", "$prefix": "\"", "$suffix": "\""}
+	if got, err := renderValue(join, sc); err != nil || got != `"name:'Ada' AND department_id:5"` {
+		t.Errorf("join = %#v, %v", got, err)
+	}
+	empty := map[string]any{"$join": []any{"{{ p.none }}"}, "$sep": ",", "$prefix": "\""}
+	if got, _ := renderValue(empty, sc); got != nil {
+		t.Errorf("empty join = %#v", got)
+	}
+	grist := map[string]any{"$join": map[string]any{"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}
+	if got, _ := renderValue(grist, sc); got != "-a,b" {
+		t.Errorf("grist = %#v", got)
+	}
+}
