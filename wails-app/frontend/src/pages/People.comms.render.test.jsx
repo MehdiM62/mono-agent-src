@@ -11,7 +11,7 @@ vi.mock('../services/api.js', () => ({
     getPeople: () => Promise.resolve([
       { id: 'p1', username: 'sam', platform: 'LINKEDIN', full_name: 'Sam', kind: 'person' },
       { id: 'c1', username: 'acme', platform: 'LINKEDIN', full_name: 'Acme Inc', kind: 'company' },
-      { id: 'me', username: 'mine', platform: 'X', full_name: 'Me', kind: 'person', is_own_account: true },
+      { id: 'me', username: 'mine', platform: 'X', full_name: 'Me', kind: 'person', own_account: true },
     ]),
     getPeopleCount: () => Promise.resolve(3),
     getPeopleTagsMap: () => Promise.resolve({}),

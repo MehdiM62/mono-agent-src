@@ -3,7 +3,7 @@
 // (the HIL item id); people carry `kind` ('person' | 'company'). If the
 // backend renames any of it, change the accessors below and nothing else.
 
-export const STATUSES = ['pending_approval', 'approved', 'sending', 'sent', 'rejected', 'failed', 'expired']
+export const STATUSES = ['draft', 'pending_approval', 'approved', 'sending', 'sent', 'rejected', 'failed', 'expired']
 
 // Filter chips on the Communications page: key -> the statuses it shows.
 export const STATUS_FILTERS = [
@@ -17,6 +17,7 @@ export const STATUS_FILTERS = [
 
 // Colour AND a glyph: the badge never relies on colour alone.
 const META = {
+  draft:            { color: '#94a3b8', glyph: '✎' },
   pending_approval: { color: '#f59e0b', glyph: '⏳' },
   approved:         { color: '#00b4d8', glyph: '✓' },
   sending:          { color: '#00b4d8', glyph: '→' },
@@ -62,7 +63,13 @@ export function statusTimeline(msg) {
 
 // People: kind, own account, and the communications of one person.
 export const isCompany = (p) => p?.kind === 'company'
-export const isOwnAccount = (p) => !!(p && (p.is_own_account || p.own_account || p.is_self))
+// The CLI marks our own account as profile_details.own_account (an object, or
+// its JSON text).
+export function isOwnAccount(p) {
+  let d = p?.profile_details
+  if (typeof d === 'string') { try { d = JSON.parse(d) } catch { d = null } }
+  return !!(p?.own_account || (d && d.own_account))
+}
 
 // commsByPerson: person id -> { total, pending } from the messages list.
 export function commsByPerson(messages) {

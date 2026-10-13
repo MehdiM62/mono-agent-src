@@ -254,3 +254,14 @@ func targeting(ctx context.Context, db *sql.DB, executionID, nodeID string) []st
 	}
 	return refs
 }
+
+// LinkFor is the person a HIL item's Communications row belongs to: hilRef is
+// the HIL id, so the HIL page can link to the person and the row. ok is false
+// when the item queued no row (a HIL with nothing outbound after it).
+func LinkFor(ctx context.Context, db *sql.DB, hilRef string) (personID, name string, ok bool) {
+	err := db.QueryRowContext(ctx,
+		`SELECT m.person_id, COALESCE(NULLIF(p.full_name,''), p.platform_username)
+		 FROM person_messages m JOIN people p ON p.id = m.person_id
+		 WHERE m.hil_ref = ? LIMIT 1`, hilRef).Scan(&personID, &name)
+	return personID, name, err == nil
+}

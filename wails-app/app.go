@@ -651,6 +651,10 @@ type HILItem struct {
 	EditableData map[string]interface{} `json:"editable_data"`
 	NodeConfig   map[string]interface{} `json:"node_config"`
 	CreatedAt    string                 `json:"created_at"`
+	// The Communications row this item queued, when it has one.
+	PersonID   string `json:"person_id,omitempty"`
+	PersonName string `json:"person_full_name,omitempty"`
+	HilRef     string `json:"hil_ref,omitempty"`
 }
 
 // GetHILItems returns the active profile's pending Human-in-Loop items,

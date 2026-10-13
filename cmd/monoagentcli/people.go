@@ -101,7 +101,7 @@ func newPeopleListCmd(cfg *globalConfig) *cobra.Command {
 			                 COALESCE(image_url,''), COALESCE(profile_url,''),
 			                 COALESCE(follower_count,''), COALESCE(following_count,0), COALESCE(is_verified,0),
 			                 COALESCE(category,''), COALESCE(job_title,''), COALESCE(created_at,''),
-			                 COALESCE(kind,'person')
+			                 COALESCE(kind,'person'), COALESCE(json_extract(profile_details,'$.own_account'),0)
 			          FROM people` + where + " ORDER BY created_at DESC"
 			switch {
 			case limit > 0:
@@ -130,21 +130,23 @@ func newPeopleListCmd(cfg *globalConfig) *cobra.Command {
 				JobTitle         string `json:"job_title,omitempty"`
 				CreatedAt        string `json:"created_at"`
 				Kind             string `json:"kind"`
+				OwnAccount       bool   `json:"own_account,omitempty"`
 			}
 
 			people := []personSummary{}
 			for rows.Next() {
 				var p personSummary
-				var verified sql.NullInt64
+				var verified, own sql.NullInt64
 				if err := rows.Scan(
 					&p.ID, &p.PlatformUsername, &p.Platform, &p.FullName,
 					&p.ImageURL, &p.ProfileURL,
 					&p.FollowerCount, &p.FollowingCount,
-					&verified, &p.Category, &p.JobTitle, &p.CreatedAt, &p.Kind,
+					&verified, &p.Category, &p.JobTitle, &p.CreatedAt, &p.Kind, &own,
 				); err != nil {
 					return fmt.Errorf("scanning person: %w", err)
 				}
 				p.IsVerified = verified.Valid && verified.Int64 != 0
+				p.OwnAccount = own.Valid && own.Int64 != 0
 				people = append(people, p)
 			}
 			if err := rows.Err(); err != nil {

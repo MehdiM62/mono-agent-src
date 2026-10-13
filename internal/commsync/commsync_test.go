@@ -245,3 +245,19 @@ func TestBulkRejectForExecution(t *testing.T) {
 		t.Fatal(s)
 	}
 }
+
+func TestLinkForFindsThePersonOfAQueuedItem(t *testing.T) {
+	db, ctx := testDB(t), context.Background()
+	res, err := Queue(ctx, db, Item{HilRef: "h9", Source: "instagram", Action: "dm", Account: Account{Platform: "instagram", Handle: "acme"},
+		Recipient: Recipient{Name: "Ada", ProfileURL: "https://www.instagram.com/ada/"}, Text: "Hi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, name, ok := LinkFor(ctx, db, "h9")
+	if !ok || pid != res.PersonID || name != "Ada" {
+		t.Fatalf("LinkFor = %q %q %v", pid, name, ok)
+	}
+	if _, _, ok := LinkFor(ctx, db, "nothing-outbound"); ok {
+		t.Fatal("an item with no row must have no link")
+	}
+}

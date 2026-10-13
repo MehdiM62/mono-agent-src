@@ -28,7 +28,7 @@ describe('commsStatus', () => {
   it('kind and ask accessors', () => {
     expect(isCompany({ kind: 'company' })).toBe(true)
     expect(isCompany({ kind: 'person' })).toBe(false)
-    expect(isOwnAccount({ is_own_account: true })).toBe(true)
+    expect(isOwnAccount({ own_account: true })).toBe(true)
     expect(askHilRef({ kind: 'send', id: 'h1' })).toBe('h1')
     expect(askHilRef({ kind: 'hil', id: 'h2' })).toBe('')
     expect(askPersonId({ recipient: { personId: 'p' } })).toBe('p')

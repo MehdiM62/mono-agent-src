@@ -1504,6 +1504,7 @@
   },
   "comms": {
     "status": {
+      "draft": "Borrador",
       "pending_approval": "Pendiente de aprobación",
       "approved": "Aprobado",
       "sending": "Enviando",

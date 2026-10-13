@@ -30,7 +30,7 @@ describe('Communications status', () => {
     getAll.mockResolvedValue(rows)
     render(<Communications onProfile={vi.fn()} />)
     await screen.findByText('subj sent')
-    const want = { pending_approval: 'Pending approval', approved: 'Approved', sending: 'Sending', sent: 'Sent', rejected: 'Rejected', failed: 'Failed', expired: 'Expired' }
+    const want = { draft: 'Draft', pending_approval: 'Pending approval', approved: 'Approved', sending: 'Sending', sent: 'Sent', rejected: 'Rejected', failed: 'Failed', expired: 'Expired' }
     for (const s of STATUSES) {
       const b = within(rowOf(`subj ${s}`)).getByTestId('comms-status')
       expect(b).toHaveAttribute('data-status', s)

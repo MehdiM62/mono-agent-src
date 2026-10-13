@@ -1546,6 +1546,7 @@
   },
   "comms": {
     "status": {
+      "draft": "Draft",
       "pending_approval": "Pending approval",
       "approved": "Approved",
       "sending": "Sending",
