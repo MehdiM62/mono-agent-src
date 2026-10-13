@@ -72,7 +72,6 @@ func TestCheckOutputProblems(t *testing.T) {
 	out.Action.SideEffects = "sometimes"
 	out.Action.Steps[1].Intent = ""
 	out.Action.Steps[2].ConfigKey = "missing.key"
-	out.Selectors["contact.save_button"] = out.Selectors["contact.save_button"]
 	out.Action.Steps = append(out.Action.Steps, out.Action.Steps[0])
 	out.Action.Steps[len(out.Action.Steps)-1].Type = "call_fragment"
 	out.Action.Steps[len(out.Action.Steps)-1].Fragment = "nope"

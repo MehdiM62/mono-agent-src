@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -132,6 +134,54 @@ func TestPromoteHealedNoSelectors(t *testing.T) {
 	got, err := PromoteHealed(dir, []Observation{{Key: "a", Index: -1, OK: true, Healed: true}})
 	if err != nil || len(got) != 0 {
 		t.Errorf("jev heal (index -1) must not reorder: %v %v", got, err)
+	}
+}
+
+// A draft holds what the user did on a site: its folders and files are
+// private (statedir), also after PromoteHealed rewrites selectors.json.
+func TestDraftFilesArePrivate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix modes")
+	}
+	dir := formDraft(t)
+	sel := filepath.Join(dir, "selectors.json")
+	if err := os.Chmod(sel, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var e struct {
+		Candidates []json.RawMessage `json:"candidates"`
+	}
+	var sels map[string]json.RawMessage
+	b, _ := os.ReadFile(sel)
+	_ = json.Unmarshal(b, &sels)
+	var key string
+	for k, raw := range sels {
+		if json.Unmarshal(raw, &e) == nil && len(e.Candidates) > 1 {
+			key = k
+		}
+	}
+	if got, err := PromoteHealed(dir, []Observation{{Key: key, Index: 1, OK: true, Healed: true}}); err != nil || len(got) != 1 {
+		t.Fatalf("promote %q: %v %v", key, got, err)
+	}
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		want := fs.FileMode(0o600)
+		if d.IsDir() {
+			want = 0o700
+		}
+		if info.Mode().Perm() != want {
+			t.Errorf("%s: mode %o, want %o", path, info.Mode().Perm(), want)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // Save targets.
@@ -223,11 +224,10 @@ func WriteDraft(dir string, out *Output, env *Env, m *automation.Manifest, d *Dr
 	return nil
 }
 
+// writeFile writes a draft file privately (statedir: 0700 folders, 0600
+// files); a draft holds what the user did on a site.
 func writeFile(path string, b []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, b, 0o644)
+	return statedir.WriteFile(path, b)
 }
 
 // ReadDraft reads <dir>/draft.json.
@@ -241,13 +241,4 @@ func ReadDraft(dir string) (*Draft, error) {
 		return nil, fmt.Errorf("%s: %w", DraftFile, err)
 	}
 	return &d, nil
-}
-
-// WriteDraftMeta rewrites draft.json only.
-func WriteDraftMeta(dir string, d *Draft) error {
-	b, err := json.MarshalIndent(d, "", "  ")
-	if err != nil {
-		return err
-	}
-	return writeFile(filepath.Join(dir, DraftFile), append(b, '\n'))
 }
