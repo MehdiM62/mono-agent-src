@@ -78,7 +78,7 @@ make_artifacts() { # <dir> <version> : the host CLI asset is a real binary for v
   printf 'app windows amd64 %s\n' "$v" > "$d/MonoAgent-windows-amd64.exe"
   printf 'bundled windows amd64 %s\n' "$v" > "$d/monoagentcli-windows-amd64-bundled.exe"
   printf 'app linux amd64 %s\n' "$v" > "$d/MonoAgent-linux-amd64.tar.gz"
-  printf 'extension %s\n' "$v" > "$d/monoagent-chrome-extension.zip"   # in SHA256SUMS, not in the manifest
+  printf 'extension %s\n' "$v" > "$d/monoagent-chrome-extension.zip"   # in SHA256SUMS and the manifest
   if [ "$v" = v9.9.9 ]; then cp "$bin/new-cli" "$d/monoagentcli-$goos-$goarch"
   else printf '#!/bin/sh\necho "monoagentcli %s (fake)"\n' "$v" > "$d/monoagentcli-$goos-$goarch"; fi
 }
