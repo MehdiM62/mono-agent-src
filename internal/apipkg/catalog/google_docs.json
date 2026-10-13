@@ -85,7 +85,7 @@
       "title": "Get a document",
       "description": "Returns the full document structure (body.content holds the paragraphs).",
       "method": "GET",
-      "path": "/documents/{{ p.documentURL | rl }}",
+      "path": "/documents/{{ p.documentURL | gid }}",
       "fields": [
         {
           "key": "documentURL",
@@ -108,7 +108,7 @@
       "title": "Update a document",
       "description": "Applies the listed actions in one batchUpdate call.",
       "method": "POST",
-      "path": "/documents/{{ p.documentURL | rl }}:batchUpdate",
+      "path": "/documents/{{ p.documentURL | gid }}:batchUpdate",
       "fields": [
         {
           "key": "documentURL",
@@ -156,28 +156,33 @@
               }
             },
             "insertText": {
+              "$when": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'insert' }}",
               "text": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'insert' | then:el.text }}",
               "location": {
                 "segmentId": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.insertSegment | ne:'body' | then:el.segmentId }}",
                 "index": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.index }}"
               },
               "endOfSegmentLocation": {
-                "segmentId": "{{ el.object | default:'text' | eq:'text' | then:el.action | eq:'insert' | then:el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' | then:el.insertSegment | ne:'body' | then:el.segmentId }}"
+                "$when": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' }}",
+                "segmentId": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' | then:el.insertSegment | ne:'body' | then:el.segmentId }}"
               }
             },
             "deletePositionedObject": {
               "objectId": "{{ el.object | default:'text' | eq:'positionedObject' | then:el.action | eq:'delete' | then:el.objectId }}"
             },
             "insertPageBreak": {
+              "$when": "{{ el.object | default:'text' | eq:'pageBreak' | then:el.action | eq:'insert' }}",
               "location": {
                 "segmentId": "{{ el.object | default:'text' | eq:'pageBreak' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.insertSegment | ne:'body' | then:el.segmentId }}",
                 "index": "{{ el.object | default:'text' | eq:'pageBreak' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.index }}"
               },
               "endOfSegmentLocation": {
-                "segmentId": "{{ el.object | default:'text' | eq:'pageBreak' | then:el.action | eq:'insert' | then:el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' | then:el.insertSegment | ne:'body' | then:el.segmentId }}"
+                "$when": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' }}",
+                "segmentId": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' | then:el.insertSegment | ne:'body' | then:el.segmentId }}"
               }
             },
             "insertTable": {
+              "$when": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' }}",
               "rows": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' | then:el.rows }}",
               "columns": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' | then:el.columns }}",
               "location": {
@@ -185,7 +190,8 @@
                 "index": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' | then:el.locationChoice | eq:'location' | then:el.index }}"
               },
               "endOfSegmentLocation": {
-                "segmentId": "{{ el.object | default:'text' | eq:'table' | then:el.action | eq:'insert' | then:el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' | then:el.insertSegment | ne:'body' | then:el.segmentId }}"
+                "$when": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' }}",
+                "segmentId": "{{ el.locationChoice | default:'endOfSegmentLocation' | eq:'endOfSegmentLocation' | then:el.insertSegment | ne:'body' | then:el.segmentId }}"
               }
             },
             "createFooter": {

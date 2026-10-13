@@ -26,14 +26,14 @@
   },
   "document.get": {
     "params": {
-      "documentURL": "doc1"
+      "documentURL": "https://docs.google.com/document/d/1AbCdEfGhIjK_doc/edit"
     },
     "response": {
       "documentId": "doc1"
     },
     "expect": {
       "method": "GET",
-      "path": "/v1/documents/doc1",
+      "path": "/v1/documents/1AbCdEfGhIjK_doc",
       "items": 1
     }
   },
@@ -56,6 +56,11 @@
             "locationChoice": "location",
             "insertSegment": "body",
             "index": 1
+          },
+          {
+            "object": "text",
+            "action": "insert",
+            "text": "Bye"
           },
           {
             "object": "tableRow",
@@ -110,6 +115,12 @@
               "location": {
                 "index": 1
               }
+            }
+          },
+          {
+            "insertText": {
+              "text": "Bye",
+              "endOfSegmentLocation": {}
             }
           },
           {
