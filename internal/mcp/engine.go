@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog"
+	"github.com/monoes/mono-agent/internal/logging"
 
 	aichat "github.com/monoes/mono-agent/internal/ai/chat"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
@@ -286,7 +286,7 @@ func (rt *runtime) ensureEngine(ctx context.Context) error {
 	if rt.engine != nil {
 		return nil
 	}
-	logger := zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.WarnLevel)
+	logger := logging.Zerolog() // the process's level (default warn) and format, on stderr
 
 	registry := noderegistry.Build(rt.db.DB)
 	nodes.SetGlobalCredentialStore(connections.NewStore(rt.db.DB))
