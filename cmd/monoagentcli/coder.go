@@ -40,6 +40,9 @@ type coderSettings struct {
 	// worktree and branch, merged by the lead (#230), or "shared" (the
 	// default): writers take turns under the write lease.
 	OrgWriters string `json:"orgWriters"`
+	// SendApproval (default on): an agent's outbound sends wait for the
+	// operator's approval (internal/hilsend). Only the operator changes it.
+	SendApproval *bool `json:"sendApproval,omitempty"`
 }
 
 const (
@@ -73,6 +76,10 @@ func (s coderSettings) withDefaults() coderSettings {
 	s.OrgRouter = dynorg.NormalizeRouter(s.OrgRouter)
 	if s.OrgWriters != dynorg.WritersIsolated {
 		s.OrgWriters = dynorg.WritersShared
+	}
+	if s.SendApproval == nil {
+		on := true
+		s.SendApproval = &on
 	}
 	return s
 }
@@ -315,6 +322,7 @@ func newCoderSetCmd(cfg *globalConfig) *cobra.Command {
 		picker   string
 		router   string
 		writers  string
+		sendAppr bool
 	)
 	c := coderSettingsCmd(cfg, "set", "Change coder mode's defaults", func(cmd *cobra.Command, s *coderSettings) error {
 		f := cmd.Flags()
@@ -380,8 +388,15 @@ func newCoderSetCmd(cfg *globalConfig) *cobra.Command {
 			}
 			s.OrgWriters = writers
 		}
+		if f.Changed("send-approval") {
+			if err := requireOperator("change the send-approval setting"); err != nil {
+				return err
+			}
+			s.SendApproval = &sendAppr
+		}
 		return nil
 	})
+	c.Flags().BoolVar(&sendAppr, "send-approval", true, "An agent's sends (email, DM, comment, post, connect, publish) wait for your approval (operator only)")
 	c.Flags().StringVar(&root, "workspace-root", "", "Folder new test workspaces are created in")
 	c.Flags().IntVar(&maxTurns, "max-turns", 0, "Agent turn cap per message")
 	c.Flags().StringVar(&timeout, "timeout", "", "Wall-clock cap per message (e.g. 60m)")

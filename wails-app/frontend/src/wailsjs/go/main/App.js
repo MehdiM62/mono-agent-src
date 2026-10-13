@@ -690,6 +690,50 @@ export function HasGeneratedDocuments(arg1) {
   return window['go']['main']['App']['HasGeneratedDocuments'](arg1);
 }
 
+export function HilSendAllowAdd(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['HilSendAllowAdd'](arg1, arg2, arg3, arg4);
+}
+
+export function HilSendAllowList() {
+  return window['go']['main']['App']['HilSendAllowList']();
+}
+
+export function HilSendAllowRemove(arg1) {
+  return window['go']['main']['App']['HilSendAllowRemove'](arg1);
+}
+
+export function HilSendAttachment(arg1, arg2) {
+  return window['go']['main']['App']['HilSendAttachment'](arg1, arg2);
+}
+
+export function HilSendAttachmentData(arg1, arg2) {
+  return window['go']['main']['App']['HilSendAttachmentData'](arg1, arg2);
+}
+
+export function HilSendEdit(arg1, arg2, arg3) {
+  return window['go']['main']['App']['HilSendEdit'](arg1, arg2, arg3);
+}
+
+export function HilSendList(arg1) {
+  return window['go']['main']['App']['HilSendList'](arg1);
+}
+
+export function HilSendRecipient(arg1) {
+  return window['go']['main']['App']['HilSendRecipient'](arg1);
+}
+
+export function HilSendResolve(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['HilSendResolve'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function HilSendSetApproval(arg1) {
+  return window['go']['main']['App']['HilSendSetApproval'](arg1);
+}
+
+export function HilSendShow(arg1) {
+  return window['go']['main']['App']['HilSendShow'](arg1);
+}
+
 export function ImportVaultAll(arg1, arg2) {
   return window['go']['main']['App']['ImportVaultAll'](arg1, arg2);
 }
