@@ -31,6 +31,24 @@
   },
   "$defs": {
     "stringMap": { "type": "object", "additionalProperties": { "type": "string" } },
+    "walkStep": {
+      "type": "object",
+      "required": ["method", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "auth": { "type": "boolean" },
+        "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
+        "path": { "type": "string", "minLength": 1 },
+        "base_url": { "type": "string" },
+        "query": { "type": "object" },
+        "body": {},
+        "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+        "headers": { "$ref": "#/$defs/stringMap" },
+        "chunk": { "type": "integer" },
+        "results_path": { "type": "string" },
+        "key": { "type": "string" }
+      }
+    },
     "resource": {
       "type": "object",
       "required": ["value", "label"],
@@ -217,6 +235,23 @@
             "headers": { "$ref": "#/$defs/stringMap" }
           }
         },
+            "walk": {
+              "type": "object",
+              "required": ["start", "request"],
+              "additionalProperties": false,
+              "properties": {
+                "when": { "type": "string" },
+                "start": { "type": "string", "minLength": 1 },
+                "request": { "$ref": "#/$defs/walkStep" },
+                "pagination": { "$ref": "#/$defs/pagination" },
+                "results_path": { "type": "string" },
+                "id": { "type": "string" },
+                "descend": { "type": "string" },
+                "keep": { "type": "string" },
+                "max": { "type": "string" },
+                "fetch": { "$ref": "#/$defs/walkStep" }
+              }
+            },
             "match": { "type": "object", "required": ["rows", "column", "value"], "additionalProperties": false,
               "properties": { "rows": { "type": "string" }, "column": { "type": "string" }, "value": { "type": "string" },
                 "combine": { "type": "string" }, "first": { "type": "string" } } } }

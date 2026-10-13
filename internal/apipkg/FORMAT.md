@@ -570,6 +570,24 @@ no `for_each`) plus `files`, `property`, `file_name`, `mime_type`.
   `Accept: application/json`; `"auth": false` leaves the credential off
   (presigned file URLs: Notion files, Google Slides thumbnails).
 
+**Tree walks (`output.walk`).** Some n8n operations return a whole sub-tree: the API lists the records below an id only to a fixed depth, so the records at that depth are listed again until nothing new turns up. `walk` appends what it finds to the main result (the main response stays first; a list result keeps its elements):
+```json
+"output": { "walk": {
+  "when": "{{ p.includeDescendants }}",
+  "start": "{{ res.id }}",
+  "request": { "method": "GET", "path": "/wiki/api/v2/pages/{{ el }}/descendants", "query": { "depth": 10 } },
+  "pagination": { "type": "next_url", "next_url_path": "_links.next", "limit_param": "limit", "page_size": 250 },
+  "results_path": "results",
+  "descend": "{{ el.type | in:'page,folder' | then:(el.depth | eq:'10') }}",
+  "keep": "{{ el.type | eq:'page' }}",
+  "max": "{{ p.maxPages | sub:1 }}",
+  "fetch": { "method": "GET", "path": "/wiki/api/v2/pages", "query": { "id": "{{ el | csv }}" }, "chunk": 250, "results_path": "results" } } }
+```
+- `start` (`res` = the main response) gives the first frontier: an id or a list of ids. Each round sends `request` once per frontier id (`el` = the id), every page of it when `pagination` is set (any §8 type; `results_path` says where the records are). `request` and `fetch` take a step's `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers` and `auth`.
+- Per record (`el` = the record): `id` (default `{{ el.id }}`) — records with an empty or already seen id are skipped (start ids count as seen, so cycles end); `descend` — its id joins the next round's frontier; `keep` (default true) — it is collected. The walk ends when a round finds nothing to descend into or `max` records are kept; it stops mid-page at the cap. `max` empty = no cap; `0` or less walks nothing.
+- `fetch` (optional) replaces the kept records by full objects: the ids go out in chunks of `chunk` (default 100) with `el` = the chunk's list of ids, the objects at its `results_path` are matched back by `key` (default `{{ el.id }}`), in walk order; ids the API does not return are dropped.
+- The walked records go through the rest of `output` (`each`, `to`, …) with the main result. A walk can't be combined with the op's own `pagination`.
+
 **Header-row output.** `"output": {"path": "values", "header_row": true}` turns `[[h1,h2],[v1,v2],…]` into one item per row keyed by the first row.
 
 **Polling (`poll`).** After the main request, `"poll": {"method": "GET", "path": "/projects/{{ p.projectId }}/queries/{{ res.jobReference.jobId }}", "until": "{{ res.jobComplete }}", "interval_ms": 1000, "max_wait_ms": 300000}` repeats the request (with `res` = the latest response) until `until` is true; the last response becomes the op's response. Defaults: 1 s interval, 5 min max wait.
@@ -835,3 +853,4 @@ Optional keys the engine added (the design's keys are unchanged):
 | credential | `oauth.connect_fields` (templated per-tenant OAuth endpoints), `oauth.metadata` | §7 |
 | credential | AWS AssumeRole via connection `role_arn` (`external_id`, `role_session_name`) | §7 |
 | templates, binary | filters `wrap`, `mime_parts`; `binary.properties` without `upload_field` | §5, §10 |
+| output | `walk` (tree walk over a growing id frontier, optional chunked `fetch`) | §9 |
