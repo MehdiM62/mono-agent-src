@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,6 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/profilectx"
 )
 
 // coderTurn is one full-access turn: the agent runs as a full session of
@@ -33,6 +36,17 @@ func coderSystemPrompt(cwd string) string {
 		"access to this computer, working in " + cwd + ". The user sees every tool call you make " +
 		"(commands, edits, file writes) live in the chat. Work inside that folder unless the user " +
 		"asks for something elsewhere, and say plainly what you changed."
+}
+
+// coderLeadSystemPrompt is the lead's whole system prompt for a turn in cwd:
+// the coder preamble, the active profile's context (who the chat works for,
+// what that profile holds; secrets never), and the publication rules.
+func coderLeadSystemPrompt(ctx context.Context, db *sql.DB, cfg *globalConfig, cwd string) string {
+	parts := []string{coderSystemPrompt(cwd)}
+	if block := profilectx.Block(ctx, db, cfg.ProfileID); block != "" {
+		parts = append(parts, block)
+	}
+	return strings.Join(append(parts, publicationAgentPrompt(cfg)), "\n\n")
 }
 
 // dropKiloOptions clears the options kilo's runner refuses outright
@@ -63,6 +77,8 @@ func runCoderTurn(cmd *cobra.Command, cfg *globalConfig, journal *turnJournal, t
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	settings, st, rt, err := requireCoderReady(cmd, db.DB, t.runtime)
+	// The profile block is read while the database is open; it never fails.
+	systemPrompt := coderLeadSystemPrompt(ctx, db.DB, cfg, t.cwd)
 	db.Close()
 	if err != nil {
 		return err
@@ -88,7 +104,7 @@ func runCoderTurn(cmd *cobra.Command, cfg *globalConfig, journal *turnJournal, t
 		MaxTurns:     settings.MaxTurns,
 		Timeout:      settings.timeout(),
 		BudgetUSD:    settings.BudgetUSD,
-		SystemPrompt: coderSystemPrompt(t.cwd) + "\n\n" + publicationAgentPrompt(cfg),
+		SystemPrompt: systemPrompt,
 	}
 	kiloDropped := dropKiloOptions(&opts)
 	onEvent := func(ev monomind.Event) {
@@ -139,16 +155,18 @@ func runCoderTurn(cmd *cobra.Command, cfg *globalConfig, journal *turnJournal, t
 
 // coderFolderChoice is where a new coder conversation or plain coder turn
 // works: a folder the user picked (--cwd), the coder root itself
-// (--coder-root), or a fresh test folder inside it (--new-workspace).
+// (--coder-root), a fresh test folder inside it (--new-workspace), or the
+// active profile's own folder (--profile-folder, the app's default).
 type coderFolderChoice struct {
 	cwd          string
 	root         bool
 	newWorkspace bool
+	profile      bool
 }
 
 func (c coderFolderChoice) set() int {
 	n := 0
-	for _, on := range []bool{c.cwd != "", c.root, c.newWorkspace} {
+	for _, on := range []bool{c.cwd != "", c.root, c.newWorkspace, c.profile} {
 		if on {
 			n++
 		}
@@ -161,10 +179,10 @@ func (c coderFolderChoice) set() int {
 func coderFolder(cmd *cobra.Command, cfg *globalConfig, c coderFolderChoice, runtime string) (string, error) {
 	switch c.set() {
 	case 0:
-		return "", errInvalidInput("coder mode needs a folder: pass --cwd <dir>, --coder-root or --new-workspace")
+		return "", errInvalidInput("coder mode needs a folder: pass --cwd <dir>, --profile-folder, --coder-root or --new-workspace")
 	case 1:
 	default:
-		return "", errInvalidInput("--cwd, --coder-root and --new-workspace are alternatives; pass one")
+		return "", errInvalidInput("--cwd, --profile-folder, --coder-root and --new-workspace are alternatives; pass one")
 	}
 	db, err := initDB(cfg)
 	if err != nil {
@@ -174,6 +192,13 @@ func coderFolder(cmd *cobra.Command, cfg *globalConfig, c coderFolderChoice, run
 	settings, _, rt, err := requireCoderReady(cmd, db.DB, runtime)
 	if err != nil {
 		return "", err
+	}
+	if c.profile {
+		ws, err := profileCoderWorkspace(cmd.Context(), db.DB, cfg.ProfileID, rt.InitTarget)
+		if err != nil {
+			return "", err
+		}
+		return ws.Path, nil
 	}
 	if c.newWorkspace || c.root {
 		setUp := newCoderWorkspace
