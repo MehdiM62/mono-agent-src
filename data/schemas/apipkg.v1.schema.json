@@ -135,6 +135,8 @@
             "to": {},
             "to_when": { "type": "string" },
             "firestore": { "type": "string" },
+            "schema_rows": { "type": "string" },
+            "numbers": { "type": "string" },
             "expand": {
           "type": "object",
           "required": ["method", "path"],
@@ -170,6 +172,24 @@
         },
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
         "batch": { "type": "boolean" },
+        "poll": {
+          "type": "object",
+          "required": ["method", "path", "until"],
+          "additionalProperties": false,
+          "properties": {
+            "when": { "type": "string" },
+              "until": { "type": "string" },
+              "interval_ms": { "type": "integer" },
+              "max_wait_ms": { "type": "integer" },
+            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+            "path": { "type": "string", "minLength": 1 },
+            "base_url": { "type": "string" },
+            "query": { "type": "object" },
+            "body": {},
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "headers": { "$ref": "#/$defs/stringMap" }
+          }
+        },
         "before": { "oneOf": [ {
           "type": "object",
           "required": ["method", "path"],

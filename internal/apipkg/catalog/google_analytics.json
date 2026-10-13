@@ -1,0 +1,488 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_analytics",
+  "node_type": "app.google_analytics",
+  "title": "Google Analytics",
+  "description": "Google Analytics 4 reports",
+  "category": "app",
+  "docs_url": "https://developers.google.com/analytics/devguides/reporting/data/v1/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleAnalytics"
+  ],
+  "base_url": "https://analyticsdata.googleapis.com/v1beta",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Analytics)",
+      "n8n_credential": "googleAnalyticsOAuth2",
+      "n8n_credential_alt": [
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "report",
+      "label": "Report"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "report",
+      "operation": "get",
+      "title": "Get a GA4 report",
+      "method": "POST",
+      "path": "/properties/{{ p.propertyId | rl | re:'/p([0-9]+)' }}:runReport",
+      "description": "Google Analytics 4 runReport. lastCalendarWeek/lastCalendarMonth are not supported yet (use custom dates). Universal Analytics was shut down by Google and is not supported.",
+      "fields": [
+        {
+          "key": "propertyType",
+          "label": "Property type",
+          "type": "select",
+          "options": [
+            "ga4",
+            "universal"
+          ],
+          "default": "ga4"
+        },
+        {
+          "key": "propertyId",
+          "label": "Property",
+          "type": "text",
+          "required": true,
+          "help": "GA4 property ID or its analytics.google.com URL."
+        },
+        {
+          "key": "dateRange",
+          "label": "Date range",
+          "type": "select",
+          "options": [
+            "last7days",
+            "last30days",
+            "today",
+            "yesterday",
+            "lastCalendarWeek",
+            "lastCalendarMonth",
+            "custom"
+          ],
+          "default": "last7days"
+        },
+        {
+          "key": "startDate",
+          "label": "Start",
+          "type": "datetime"
+        },
+        {
+          "key": "endDate",
+          "label": "End",
+          "type": "datetime"
+        },
+        {
+          "key": "metricsGA4",
+          "label": "Metrics",
+          "type": "collection",
+          "default": {
+            "metricValues": [
+              {
+                "listName": "totalUsers"
+              }
+            ]
+          },
+          "options": [
+            "metricValues"
+          ],
+          "help": "metricValues: list of {listName (e.g. totalUsers, sessions; other/custom with name), name, expression, invisible}."
+        },
+        {
+          "key": "dimensionsGA4",
+          "label": "Dimensions",
+          "type": "collection",
+          "default": {
+            "dimensionValues": [
+              {
+                "listName": "date"
+              }
+            ]
+          },
+          "options": [
+            "dimensionValues"
+          ],
+          "help": "dimensionValues: list of {listName (e.g. date, country; other with name), name}."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "currencyCode",
+            "dimensionFiltersUI",
+            "metricAggregations",
+            "metricsFiltersUI",
+            "keepEmptyRows",
+            "orderByUI",
+            "returnPropertyQuota"
+          ]
+        }
+      ],
+      "body": {
+        "dateRanges": [
+          {
+            "startDate": "{{ p.dateRange | eq:'last7days' | then:'7daysAgo' }}{{ p.dateRange | eq:'last30days' | then:'30daysAgo' }}{{ p.dateRange | eq:'today' | then:'today' }}{{ p.dateRange | eq:'yesterday' | then:'yesterday' }}{{ p.dateRange | eq:'custom' | then:(p.startDate | date:'YYYY-MM-DD') }}",
+            "endDate": "{{ p.dateRange | eq:'last7days' | then:'today' }}{{ p.dateRange | eq:'last30days' | then:'today' }}{{ p.dateRange | eq:'today' | then:'today' }}{{ p.dateRange | eq:'yesterday' | then:'yesterday' }}{{ p.dateRange | eq:'custom' | then:(p.endDate | date:'YYYY-MM-DD') }}"
+          }
+        ],
+        "metrics": {
+          "$map": "{{ p.metricsGA4.metricValues }}",
+          "$to": {
+            "name": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+            "expression": "{{ el.listName | eq:'custom' | then:el.expression }}",
+            "invisible": "{{ el.listName | eq:'custom' | then:el.invisible | eq:'true' | then:true }}"
+          }
+        },
+        "dimensions": {
+          "$map": "{{ p.dimensionsGA4.dimensionValues }}",
+          "$to": {
+            "name": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}"
+          }
+        },
+        "currencyCode": "{{ p.additionalFields.currencyCode }}",
+        "dimensionFilter": {
+          "andGroup": {
+            "$when": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.filterExpressionType | default:'andGroup' | eq:'andGroup' | then:p.additionalFields.dimensionFiltersUI.filterExpressions.expression }}",
+            "expressions": {
+              "$concat": [
+                {
+                  "$map": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.expression.stringFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "stringFilter": {
+                        "value": "{{ el.value }}",
+                        "caseSensitive": "{{ el.caseSensitive }}",
+                        "matchType": "{{ el.matchType }}"
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.expression.inListFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "inListFilter": {
+                        "values": "{{ el.values | split }}",
+                        "caseSensitive": "{{ el.caseSensitive }}"
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.expression.numericFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "numericFilter": {
+                        "operation": "{{ el.operation }}",
+                        "value": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.value }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.value }}"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.expression.betweenFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "betweenFilter": {
+                        "fromValue": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.fromValue }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.fromValue }}"
+                        },
+                        "toValue": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.toValue }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.toValue }}"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "orGroup": {
+            "$when": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.filterExpressionType | eq:'orGroup' | then:p.additionalFields.dimensionFiltersUI.filterExpressions.expression }}",
+            "expressions": {
+              "$concat": [
+                {
+                  "$map": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.expression.stringFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "stringFilter": {
+                        "value": "{{ el.value }}",
+                        "caseSensitive": "{{ el.caseSensitive }}",
+                        "matchType": "{{ el.matchType }}"
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.expression.inListFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "inListFilter": {
+                        "values": "{{ el.values | split }}",
+                        "caseSensitive": "{{ el.caseSensitive }}"
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.expression.numericFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "numericFilter": {
+                        "operation": "{{ el.operation }}",
+                        "value": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.value }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.value }}"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.dimensionFiltersUI.filterExpressions.expression.betweenFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "betweenFilter": {
+                        "fromValue": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.fromValue }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.fromValue }}"
+                        },
+                        "toValue": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.toValue }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.toValue }}"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "metricFilter": {
+          "andGroup": {
+            "$when": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.filterExpressionType | default:'andGroup' | eq:'andGroup' | then:p.additionalFields.metricsFiltersUI.filterExpressions.expression }}",
+            "expressions": {
+              "$concat": [
+                {
+                  "$map": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.expression.stringFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "stringFilter": {
+                        "value": "{{ el.value }}",
+                        "caseSensitive": "{{ el.caseSensitive }}",
+                        "matchType": "{{ el.matchType }}"
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.expression.inListFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "inListFilter": {
+                        "values": "{{ el.values | split }}",
+                        "caseSensitive": "{{ el.caseSensitive }}"
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.expression.numericFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "numericFilter": {
+                        "operation": "{{ el.operation }}",
+                        "value": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.value }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.value }}"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.expression.betweenFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "betweenFilter": {
+                        "fromValue": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.fromValue }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.fromValue }}"
+                        },
+                        "toValue": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.toValue }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.toValue }}"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "orGroup": {
+            "$when": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.filterExpressionType | eq:'orGroup' | then:p.additionalFields.metricsFiltersUI.filterExpressions.expression }}",
+            "expressions": {
+              "$concat": [
+                {
+                  "$map": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.expression.stringFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "stringFilter": {
+                        "value": "{{ el.value }}",
+                        "caseSensitive": "{{ el.caseSensitive }}",
+                        "matchType": "{{ el.matchType }}"
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.expression.inListFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "inListFilter": {
+                        "values": "{{ el.values | split }}",
+                        "caseSensitive": "{{ el.caseSensitive }}"
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.expression.numericFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "numericFilter": {
+                        "operation": "{{ el.operation }}",
+                        "value": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.value }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.value }}"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.additionalFields.metricsFiltersUI.filterExpressions.expression.betweenFilter }}",
+                  "$to": {
+                    "filter": {
+                      "fieldName": "{{ el.listName | eq:'other' | then:el.name }}{{ el.listName | eq:'custom' | then:el.name }}{{ el.listName | ne:'other' | then:(el.listName | ne:'custom' | then:el.listName) }}",
+                      "betweenFilter": {
+                        "fromValue": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.fromValue }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.fromValue }}"
+                        },
+                        "toValue": {
+                          "int64Value": "{{ el.valueType | eq:'int64Value' | then:el.toValue }}",
+                          "doubleValue": "{{ el.valueType | eq:'doubleValue' | then:el.toValue }}"
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "metricAggregations": "{{ p.additionalFields.metricAggregations }}",
+        "keepEmptyRows": "{{ p.additionalFields.keepEmptyRows }}",
+        "orderBys": {
+          "$concat": [
+            {
+              "$map": "{{ p.additionalFields.orderByUI.metricOrderBy }}",
+              "$to": {
+                "desc": "{{ el.desc }}",
+                "metric": {
+                  "metricName": "{{ el.metricName }}"
+                }
+              }
+            },
+            {
+              "$map": "{{ p.additionalFields.orderByUI.dimmensionOrderBy }}",
+              "$to": {
+                "desc": "{{ el.desc }}",
+                "dimension": {
+                  "dimensionName": "{{ el.dimensionName }}",
+                  "orderType": "{{ el.orderType }}"
+                }
+              }
+            }
+          ]
+        },
+        "returnPropertyQuota": "{{ p.additionalFields.returnPropertyQuota }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 1000,
+        "param_in": "body"
+      },
+      "output": {
+        "path": "rows",
+        "to": {
+          "$merge": [
+            "{{ el.dimensionValues | zip:res.dimensionHeaders,'name','value' }}",
+            "{{ el.metricValues | zip:res.metricHeaders,'name','value' }}"
+          ]
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    }
+  ]
+}

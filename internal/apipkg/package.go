@@ -150,6 +150,10 @@ type Operation struct {
 	// batchUpdate/batchDelete): params come from the first item and the
 	// items root holds every item's JSON.
 	Batch bool `json:"batch,omitempty"`
+	// Poll repeats a request after the main one until Until (a template
+	// over res = the latest response) renders true (BigQuery jobs that
+	// are not complete yet). The last response replaces the main one.
+	Poll *Poll `json:"poll,omitempty"`
 	// Before is one request, or a list run in order, sent first. pre is
 	// the last decoded response and pres.<i> each step's; later steps see
 	// earlier ones (e.g. resolve a sheet title, then read its header row).
@@ -242,6 +246,12 @@ type Output struct {
 	// ({name, fields{typed values}}) into plain JSON with _name, _id,
 	// _createTime and _updateTime (n8n's "simple" output).
 	Firestore string `json:"firestore,omitempty"`
+	// SchemaRows is a path (in the whole response) to a BigQuery-style
+	// schema ([{name, type, mode, fields}]); the rows at output.path
+	// ({f: [{v}]}) become objects keyed by field name. Numbers (a
+	// template) casts INTEGER/NUMERIC/FLOAT values to numbers when true.
+	SchemaRows string `json:"schema_rows,omitempty"`
+	Numbers    string `json:"numbers,omitempty"`
 }
 
 // OutputMatch filters result elements by condition rows. Rows is a
@@ -378,4 +388,12 @@ func (s *Steps) UnmarshalJSON(b []byte) error {
 	}
 	*s = many
 	return nil
+}
+
+// Poll is a request repeated until a condition holds.
+type Poll struct {
+	Step
+	Until      string `json:"until"`
+	IntervalMs int    `json:"interval_ms,omitempty"` // default 1000
+	MaxWaitMs  int    `json:"max_wait_ms,omitempty"` // default 300000
 }

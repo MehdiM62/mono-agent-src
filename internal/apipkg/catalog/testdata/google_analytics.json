@@ -1,0 +1,109 @@
+{
+  "report.get": {
+    "params": {
+      "propertyId": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://analytics.google.com/analytics/web/#/p123456/reports"
+      },
+      "limit": 10,
+      "metricsGA4": {
+        "metricValues": [
+          {
+            "listName": "totalUsers"
+          }
+        ]
+      },
+      "dimensionsGA4": {
+        "dimensionValues": [
+          {
+            "listName": "other",
+            "name": "country"
+          }
+        ]
+      },
+      "additionalFields": {
+        "dimensionFiltersUI": {
+          "filterExpressions": {
+            "filterExpressionType": "orGroup",
+            "expression": {
+              "stringFilter": [
+                {
+                  "listName": "country",
+                  "value": "DE",
+                  "matchType": "EXACT"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "dimensionHeaders": [
+        {
+          "name": "country"
+        }
+      ],
+      "metricHeaders": [
+        {
+          "name": "totalUsers"
+        }
+      ],
+      "rows": [
+        {
+          "dimensionValues": [
+            {
+              "value": "DE"
+            }
+          ],
+          "metricValues": [
+            {
+              "value": "5"
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1beta/properties/123456:runReport",
+      "body": {
+        "dateRanges": [
+          {
+            "startDate": "7daysAgo",
+            "endDate": "today"
+          }
+        ],
+        "metrics": [
+          {
+            "name": "totalUsers"
+          }
+        ],
+        "dimensions": [
+          {
+            "name": "country"
+          }
+        ],
+        "dimensionFilter": {
+          "orGroup": {
+            "expressions": [
+              {
+                "filter": {
+                  "fieldName": "country",
+                  "stringFilter": {
+                    "value": "DE",
+                    "matchType": "EXACT"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "offset": 0,
+        "limit": 10
+      },
+      "items": 1
+    }
+  }
+}

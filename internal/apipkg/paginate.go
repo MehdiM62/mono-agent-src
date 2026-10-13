@@ -105,6 +105,9 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 			return nil, false, err
 		}
 		doc := decodeBody(resp.body)
+		if r.scope.Res == nil {
+			r.scope.Res = doc // output shaping reads headers etc. from the first page
+		}
 		results := pageResults(doc, resultsPath)
 		all = append(all, results...)
 		if !returnAll && len(all) >= limit {

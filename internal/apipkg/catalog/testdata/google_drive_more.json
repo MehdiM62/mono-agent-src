@@ -1,0 +1,414 @@
+{
+  "file.upload": {
+    "params": {
+      "name": "report.pdf",
+      "folderId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "fold1"
+      },
+      "options": {
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "k",
+              "value": "v"
+            }
+          ]
+        }
+      }
+    },
+    "input": {
+      "data": "aGVsbG8="
+    },
+    "responses": [
+      {
+        "id": "F1"
+      },
+      {
+        "id": "F1",
+        "name": "report.pdf"
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/upload/drive/v3/files",
+        "query": {
+          "uploadType": "media",
+          "supportsAllDrives": "true"
+        },
+        "body": "hello"
+      },
+      {
+        "method": "PATCH",
+        "path": "/drive/v3/files/F1",
+        "query": {
+          "includeItemsFromAllDrives": "true",
+          "supportsAllDrives": "true",
+          "spaces": "appDataFolder, drive",
+          "corpora": "allDrives",
+          "addParents": "fold1"
+        },
+        "body": {
+          "name": "report.pdf",
+          "properties": {
+            "k": "v"
+          }
+        }
+      }
+    ]
+  },
+  "file.copy": {
+    "params": {
+      "fileId": {
+        "__rl": true,
+        "mode": "list",
+        "value": "F1",
+        "cachedResultName": "Plan"
+      },
+      "sameFolder": false,
+      "driveId": "D9"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/drive/v3/files/F1/copy",
+      "query": {
+        "includeItemsFromAllDrives": "true",
+        "supportsAllDrives": "true",
+        "spaces": "appDataFolder, drive",
+        "corpora": "allDrives"
+      },
+      "body": {
+        "name": "Copy of Plan",
+        "copyRequiresWriterPermission": false,
+        "parents": [
+          "D9"
+        ]
+      }
+    }
+  },
+  "file.createFromText": {
+    "params": {
+      "content": "hi",
+      "name": "note",
+      "options": {
+        "convertToGoogleDocument": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/upload/drive/v3/files",
+      "query": {
+        "uploadType": "multipart",
+        "supportsAllDrives": "true"
+      },
+      "body": "--monoagent_part\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{\"name\":\"note\",\"parents\":[\"root\"],\"mimeType\":\"application/vnd.google-apps.document\"}\r\n--monoagent_part\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\nhi\r\n--monoagent_part--\r\n"
+    }
+  },
+  "file.deleteFile": {
+    "params": {
+      "fileId": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://drive.google.com/file/d/1FileIdAbcdef/view"
+      },
+      "options": {
+        "deletePermanently": true
+      }
+    },
+    "expect_requests": [
+      {
+        "method": "PATCH",
+        "path": "/drive/v3/files/1FileIdAbcdef",
+        "query": {
+          "supportsAllDrives": "true"
+        },
+        "body": {
+          "trashed": true
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/drive/v3/files/1FileIdAbcdef",
+        "query": {
+          "supportsAllDrives": "true"
+        }
+      }
+    ]
+  },
+  "file.download": {
+    "params": {
+      "fileId": "F1",
+      "options": {
+        "googleFileConversion": {
+          "conversion": {
+            "docsToFormat": "application/pdf"
+          }
+        }
+      }
+    },
+    "responses": [
+      {
+        "mimeType": "application/vnd.google-apps.document",
+        "name": "Plan"
+      },
+      "%PDF"
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/drive/v3/files/F1/export",
+      "query": {
+        "alt": "media",
+        "mimeType": "application/pdf",
+        "supportsAllDrives": "true"
+      },
+      "items": 1
+    }
+  },
+  "file.move": {
+    "params": {
+      "fileId": "F1",
+      "folderId": "fold2"
+    },
+    "responses": [
+      {
+        "parents": [
+          "a",
+          "b"
+        ]
+      },
+      {
+        "id": "F1"
+      }
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/drive/v3/files/F1",
+      "query": {
+        "includeItemsFromAllDrives": "true",
+        "supportsAllDrives": "true",
+        "spaces": "appDataFolder, drive",
+        "corpora": "allDrives",
+        "addParents": "fold2",
+        "removeParents": "a,b"
+      }
+    }
+  },
+  "file.share": {
+    "params": {
+      "fileId": "F1",
+      "permissionsUi": {
+        "permissionsValues": {
+          "role": "reader",
+          "type": "anyone"
+        }
+      },
+      "options": {
+        "sendNotificationEmail": false
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/drive/v3/files/F1/permissions",
+      "query": {
+        "supportsAllDrives": "true",
+        "sendNotificationEmail": "false"
+      },
+      "body": {
+        "role": "reader",
+        "type": "anyone"
+      }
+    }
+  },
+  "file.update": {
+    "params": {
+      "fileId": "F1",
+      "newUpdatedFileName": "v2",
+      "options": {
+        "fields": [
+          "id",
+          "name"
+        ],
+        "trashed": false
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/drive/v3/files/F1",
+      "query": {
+        "supportsAllDrives": "true",
+        "trashed": "false",
+        "fields": "id,name"
+      },
+      "body": {
+        "name": "v2"
+      }
+    }
+  },
+  "fileFolder.search": {
+    "params": {
+      "queryString": "report",
+      "limit": 5,
+      "filter": {
+        "whatToSearch": "files",
+        "folderId": "fold1"
+      }
+    },
+    "response": {
+      "files": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/drive/v3/files",
+      "query": {
+        "q": "name contains 'report' and 'fold1' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false",
+        "fields": "nextPageToken, files(id, name)",
+        "includeItemsFromAllDrives": "true",
+        "supportsAllDrives": "true",
+        "spaces": "appDataFolder, drive",
+        "corpora": "allDrives",
+        "pageSize": "5"
+      },
+      "items": 1
+    }
+  },
+  "folder.create": {
+    "params": {
+      "name": "Invoices",
+      "driveId": "D9"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/drive/v3/files",
+      "query": {
+        "includeItemsFromAllDrives": "true",
+        "supportsAllDrives": "true",
+        "spaces": "appDataFolder, drive",
+        "corpora": "allDrives"
+      },
+      "body": {
+        "name": "Invoices",
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [
+          "D9"
+        ]
+      }
+    }
+  },
+  "folder.deleteFolder": {
+    "params": {
+      "folderNoRootId": "fold1"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/drive/v3/files/fold1",
+      "query": {
+        "supportsAllDrives": "true"
+      },
+      "body": {
+        "trashed": true
+      }
+    }
+  },
+  "folder.share": {
+    "params": {
+      "folderNoRootId": "fold1",
+      "permissionsUi": {
+        "permissionsValues": {
+          "role": "writer",
+          "type": "user",
+          "emailAddress": "a@x"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/drive/v3/files/fold1/permissions",
+      "query": {
+        "supportsAllDrives": "true"
+      },
+      "body": {
+        "role": "writer",
+        "type": "user",
+        "emailAddress": "a@x"
+      }
+    }
+  },
+  "drive.create": {
+    "params": {
+      "name": "Team",
+      "options": {
+        "hidden": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/drive/v3/drives",
+      "query": {
+        "requestId": "<any>"
+      },
+      "body": {
+        "name": "Team",
+        "hidden": true
+      }
+    }
+  },
+  "drive.deleteDrive": {
+    "params": {
+      "driveId": "D9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/drive/v3/drives/D9"
+    }
+  },
+  "drive.get": {
+    "params": {
+      "driveId": "D9"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/drive/v3/drives/D9"
+    }
+  },
+  "drive.list": {
+    "params": {
+      "limit": 2
+    },
+    "response": {
+      "drives": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/drive/v3/drives",
+      "query": {
+        "pageSize": "2"
+      },
+      "items": 1
+    }
+  },
+  "drive.update": {
+    "params": {
+      "driveId": "D9",
+      "options": {
+        "name": "Team 2"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/drive/v3/drives/D9",
+      "body": {
+        "name": "Team 2"
+      }
+    }
+  }
+}

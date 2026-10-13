@@ -1,0 +1,552 @@
+{
+  "sheet.read": {
+    "params": {
+      "documentId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "SPRD1"
+      },
+      "sheetName": {
+        "__rl": true,
+        "mode": "list",
+        "value": "42",
+        "cachedResultName": "Leads"
+      },
+      "filtersUI": {
+        "values": [
+          {
+            "lookupColumn": "name",
+            "lookupValue": "ada"
+          }
+        ]
+      }
+    },
+    "responses": [
+      {
+        "sheets": [
+          {
+            "properties": {
+              "sheetId": 0,
+              "title": "Sheet1"
+            }
+          },
+          {
+            "properties": {
+              "sheetId": 42,
+              "title": "Leads"
+            }
+          }
+        ]
+      },
+      {
+        "values": [
+          [
+            "id",
+            "name",
+            "email"
+          ],
+          [
+            "7",
+            "ada",
+            "a@x"
+          ],
+          [
+            "8",
+            "bob",
+            "b@x"
+          ]
+        ]
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v4/spreadsheets/SPRD1/values/Leads",
+      "query": {
+        "valueRenderOption": "UNFORMATTED_VALUE",
+        "dateTimeRenderOption": "FORMATTED_STRING"
+      },
+      "items": 1
+    }
+  },
+  "sheet.append": {
+    "params": {
+      "documentId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "SPRD1"
+      },
+      "sheetName": {
+        "__rl": true,
+        "mode": "id",
+        "value": "42"
+      },
+      "columns": {
+        "mappingMode": "autoMapInputData",
+        "value": {}
+      }
+    },
+    "input": {
+      "name": "ada",
+      "id": "9"
+    },
+    "responses": [
+      {
+        "sheets": [
+          {
+            "properties": {
+              "sheetId": 0,
+              "title": "Sheet1"
+            }
+          },
+          {
+            "properties": {
+              "sheetId": 42,
+              "title": "Leads"
+            }
+          }
+        ]
+      },
+      {
+        "values": [
+          [
+            "id",
+            "name",
+            "email"
+          ]
+        ]
+      },
+      {
+        "updates": {}
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/v4/spreadsheets/SPRD1",
+        "query": {
+          "fields": "sheets.properties"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/v4/spreadsheets/SPRD1/values/Leads!1:1"
+      },
+      {
+        "method": "POST",
+        "path": "/v4/spreadsheets/SPRD1/values/Leads!A1:append",
+        "query": {
+          "valueInputOption": "USER_ENTERED",
+          "insertDataOption": "INSERT_ROWS"
+        },
+        "body": {
+          "values": [
+            [
+              "9",
+              "ada",
+              ""
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  "sheet.update": {
+    "params": {
+      "documentId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "SPRD1"
+      },
+      "sheetName": {
+        "__rl": true,
+        "mode": "list",
+        "value": "gid=0",
+        "cachedResultName": "Sheet1"
+      },
+      "columns": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "id": "8",
+          "email": "new@x"
+        },
+        "matchingColumns": [
+          "id"
+        ]
+      }
+    },
+    "responses": [
+      {
+        "sheets": [
+          {
+            "properties": {
+              "sheetId": 0,
+              "title": "Sheet1"
+            }
+          },
+          {
+            "properties": {
+              "sheetId": 42,
+              "title": "Leads"
+            }
+          }
+        ]
+      },
+      {
+        "values": [
+          [
+            "id",
+            "name",
+            "email"
+          ],
+          [
+            "7",
+            "ada",
+            "a@x"
+          ],
+          [
+            "8",
+            "bob",
+            "b@x"
+          ]
+        ]
+      },
+      {}
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/v4/spreadsheets/SPRD1/values/Sheet1!3:3",
+      "query": {
+        "valueInputOption": "USER_ENTERED"
+      },
+      "body": {
+        "values": [
+          [
+            "8",
+            null,
+            "new@x"
+          ]
+        ]
+      }
+    }
+  },
+  "sheet.appendOrUpdate": {
+    "params": {
+      "documentId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "SPRD1"
+      },
+      "sheetName": {
+        "__rl": true,
+        "mode": "list",
+        "value": "42",
+        "cachedResultName": "Leads"
+      },
+      "columns": {
+        "mappingMode": "autoMapInputData",
+        "value": {},
+        "matchingColumns": [
+          "id"
+        ]
+      }
+    },
+    "input": {
+      "id": "99",
+      "name": "cy"
+    },
+    "responses": [
+      {
+        "sheets": [
+          {
+            "properties": {
+              "sheetId": 0,
+              "title": "Sheet1"
+            }
+          },
+          {
+            "properties": {
+              "sheetId": 42,
+              "title": "Leads"
+            }
+          }
+        ]
+      },
+      {
+        "values": [
+          [
+            "id",
+            "name",
+            "email"
+          ],
+          [
+            "7",
+            "ada",
+            "a@x"
+          ],
+          [
+            "8",
+            "bob",
+            "b@x"
+          ]
+        ]
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/v4/spreadsheets/SPRD1",
+        "query": {
+          "fields": "sheets.properties"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/v4/spreadsheets/SPRD1/values/Leads"
+      },
+      {
+        "method": "POST",
+        "path": "/v4/spreadsheets/SPRD1/values/Leads!A1:append",
+        "query": {
+          "valueInputOption": "USER_ENTERED",
+          "insertDataOption": "INSERT_ROWS"
+        },
+        "body": {
+          "values": [
+            [
+              "99",
+              "cy",
+              ""
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  "sheet.clear": {
+    "params": {
+      "documentId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "SPRD1"
+      },
+      "sheetName": {
+        "__rl": true,
+        "mode": "list",
+        "value": "42",
+        "cachedResultName": "Leads"
+      },
+      "clear": "specificColumns",
+      "startIndex": "B",
+      "columnsToDelete": 3
+    },
+    "responses": [
+      {
+        "sheets": [
+          {
+            "properties": {
+              "sheetId": 0,
+              "title": "Sheet1"
+            }
+          },
+          {
+            "properties": {
+              "sheetId": 42,
+              "title": "Leads"
+            }
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v4/spreadsheets/SPRD1/values/Leads%21B:D:clear"
+    }
+  },
+  "sheet.create": {
+    "params": {
+      "documentId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "SPRD1"
+      },
+      "title": "Q4",
+      "options": {
+        "index": 1
+      }
+    },
+    "response": {
+      "replies": [
+        {
+          "addSheet": {
+            "properties": {
+              "sheetId": 9
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v4/spreadsheets/SPRD1:batchUpdate",
+      "body": {
+        "requests": [
+          {
+            "addSheet": {
+              "properties": {
+                "title": "Q4",
+                "index": 1
+              }
+            }
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "sheet.remove": {
+    "params": {
+      "documentId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "SPRD1"
+      },
+      "sheetName": {
+        "__rl": true,
+        "mode": "name",
+        "value": "Leads"
+      }
+    },
+    "responses": [
+      {
+        "sheets": [
+          {
+            "properties": {
+              "sheetId": 0,
+              "title": "Sheet1"
+            }
+          },
+          {
+            "properties": {
+              "sheetId": 42,
+              "title": "Leads"
+            }
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v4/spreadsheets/SPRD1:batchUpdate",
+      "body": {
+        "requests": [
+          {
+            "deleteSheet": {
+              "sheetId": 42
+            }
+          }
+        ]
+      }
+    }
+  },
+  "sheet.delete": {
+    "params": {
+      "documentId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "SPRD1"
+      },
+      "sheetName": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://docs.google.com/spreadsheets/d/SPRD1abcdefgh/edit#gid=42"
+      },
+      "toDelete": "columns",
+      "startIndex": "C",
+      "numberToDelete": 2
+    },
+    "responses": [
+      {
+        "sheets": [
+          {
+            "properties": {
+              "sheetId": 0,
+              "title": "Sheet1"
+            }
+          },
+          {
+            "properties": {
+              "sheetId": 42,
+              "title": "Leads"
+            }
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v4/spreadsheets/SPRD1:batchUpdate",
+      "body": {
+        "requests": [
+          {
+            "deleteDimension": {
+              "range": {
+                "sheetId": 42,
+                "dimension": "COLUMNS",
+                "startIndex": 2,
+                "endIndex": 4
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "spreadsheet.create": {
+    "params": {
+      "title": "Budget",
+      "sheetsUi": {
+        "sheetValues": [
+          {
+            "title": "Q1",
+            "hidden": false
+          }
+        ]
+      },
+      "options": {
+        "locale": "en_US"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v4/spreadsheets",
+      "body": {
+        "properties": {
+          "title": "Budget",
+          "locale": "en_US"
+        },
+        "sheets": [
+          {
+            "properties": {
+              "title": "Q1",
+              "hidden": false
+            }
+          }
+        ]
+      }
+    }
+  },
+  "spreadsheet.deleteSpreadsheet": {
+    "params": {
+      "documentId": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMn/edit"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/drive/v3/files/1AbCdEfGhIjKlMn"
+    }
+  }
+}
