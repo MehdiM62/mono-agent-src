@@ -2,6 +2,7 @@ package apipkg
 
 import (
 	"encoding/json"
+	"time"
 
 	"fmt"
 	"github.com/google/uuid"
@@ -55,6 +56,8 @@ func (s Scope) root(name string) any {
 		return s.Bin
 	case "main":
 		return s.Main
+	case "now":
+		return time.Now().UTC().Format(time.RFC3339)
 	case "uuid":
 		return uuid.NewString()
 	}
@@ -223,9 +226,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "uuid":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "uuid", "now":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., pre., pres., bin. or be uuid", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., pre., pres., bin. or be uuid / now", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {

@@ -177,6 +177,7 @@ Scopes:
 | `bin.file_name`, `bin.mime_type`, `bin.file_extension` | the uploaded binary's name and type (ops with `binary.upload_field`); raw/multipart uploads default their Content-Type to it |
 | `main.<path>` | the main request's response, unchanged while `poll` repeats rebind `res` (also set in `also` steps) |
 | `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
+| `now` | the current UTC time (RFC 3339): `{{ now \| epoch \| add:p.duration \| date:'YYYY-MM-DDTHH:mm:ssZ' }}` |
 | `uuid` | a new random UUID each time (e.g. a Calendar conference `requestId`) |
 
 Paths walk objects by key and arrays by index; `-1` is the last element
@@ -223,6 +224,7 @@ through, so an unset param stays unset:
 | `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
 | `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
 | `lines` | text → list of its non-empty trimmed lines |
+| `hex` | hex text → integer (`#ff0000` → 16711680; `#`/`0x` stripped) |
 | `pluck:'path'` | list of objects → list of their values at `path` (empties dropped): `{{ p.options.fields.field \| pluck:'name' \| csv }}` |
 | `zip:headers[,'hkey'[,'vkey']]` | pair a header list with the value list into an object: GA4 `{{ el.dimensionValues \| zip:res.dimensionHeaders,'name','value' }}` |
 | `replace:'from','to'` | replace every occurrence: `{{ p.clientCustomerId \| replace:'-','' }}` |
@@ -242,7 +244,7 @@ through, so an unset param stays unset:
 | `base64`, `base64url` | encode the value's text (`base64url` is unpadded, for Gmail `raw`) |
 | `row:<path>` / `row:<path>,'null'` | object → list of its values ordered by a header list: `{{ item \| row:pre.values }}` (a list of rows uses its first row; missing keys → `""`, or `null` with the second argument, which the Sheets API leaves unchanged on update) |
 | `split` / `split:';'` | `"a, b,c"` → `["a","b","c"]` (default separator `,`; parts trimmed, empty ones dropped; lists pass) |
-| `date:'YYYY-MM-DD'` | date or epoch-ms → formatted text in UTC; tokens `YYYY`/`yyyy`, `YY`, `MM`, `DD`/`dd`, `HH`, `hh`, `mm`, `ss`, `SSS`, `Z` (`Z` for UTC), `ZZ` (`+00:00`), `A`; other characters are literal |
+| `date:'YYYY-MM-DD'` | date or epoch (seconds, or ms from 1e11) → formatted text in UTC; tokens `YYYY`/`yyyy`, `YY`, `MM`, `DD`/`dd`, `HH`, `hh`, `mm`, `ss`, `SSS`, `Z` (`Z` for UTC), `ZZ` (`+00:00`), `A`; other characters are literal |
 | `epoch_ms`, `epoch` | date (RFC 3339, `2006-01-02T15:04:05`, `2006-01-02`, …) → Unix milliseconds / seconds; numbers pass |
 | `pick:'a,b'` | object with only the listed keys (comma string, list or path: `{{ item \| pick:p.columns }}`) |
 | `firestore_value` | a JSON value → a Firestore Value (stringValue, integerValue/doubleValue, booleanValue incl. "true"/"false", timestampValue for RFC 3339 text, nullValue, arrayValue, mapValue) |
@@ -497,6 +499,8 @@ node. Only one package may extend a given native node.
 `n8n_operation_param` (package): the n8n param that selects the operation when it isn't `operation` (FileMaker uses `action`). A config without `operation` takes that param's value, so imported nodes run unchanged; `N8nIndex` exposes it as `operation_param`.
 
 Harness: requests after `before` steps are checked with `inject` rendered against those steps' `responses` (`pre`/`pres`), so session-token auth (`"Bearer {{ pre.response.token }}"`) is tested as it runs.
+
+When a config has no `resource` and the default resource lacks the operation, an operation name that exactly one resource has is used (n8n hides `resource` in some modes, e.g. Discord webhook `sendLegacy`).
 
 ## 13. Testing a package
 

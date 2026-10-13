@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFindFindRowArithmeticColumnsGet(t *testing.T) {
@@ -522,5 +523,31 @@ func TestPluck(t *testing.T) {
 	sc := Scope{P: map[string]any{"f": map[string]any{"field": []any{map[string]any{"name": "id"}, map[string]any{"name": ""}, map[string]any{"name": "name"}}}}}
 	if got, err := renderString("{{ p.f.field | pluck:'name' | csv }}", sc); err != nil || got != "id,name" {
 		t.Errorf("pluck = %#v, %v", got, err)
+	}
+}
+
+func TestDiscordHelpers(t *testing.T) {
+	sc := Scope{P: map[string]any{"color": "#ff0000", "dur": 60.0}}
+	if got, _ := renderString("{{ p.color | hex }}", sc); got != int64(16711680) {
+		t.Errorf("hex = %#v", got)
+	}
+	got, err := renderString("{{ now | epoch | add:p.dur | date:'YYYY-MM-DDTHH:mm:ssZ' }}", sc)
+	ts, perr := time.Parse(time.RFC3339, stringify(got))
+	if err != nil || perr != nil || ts.Sub(time.Now()) < 50*time.Second || ts.Sub(time.Now()) > 70*time.Second {
+		t.Errorf("now + 60s = %v (%v %v)", got, err, perr)
+	}
+	if got, _ := renderString("{{ p.s | date:'YYYY-MM-DD' }}", Scope{P: map[string]any{"s": int64(1767312000)}}); got != "2026-01-02" {
+		t.Errorf("epoch seconds date = %v", got)
+	}
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"dc","title":"D","base_url":"https://d.test",
+	  "resources":[{"value":"channel","label":"C"},{"value":"message","label":"M"}],
+	  "operations":[{"resource":"channel","operation":"create","title":"C","method":"POST","path":"/c"},
+	    {"resource":"message","operation":"sendLegacy","title":"S","method":"POST","path":"/w"},
+	    {"resource":"message","operation":"create","title":"MC","method":"POST","path":"/m"}]}`)
+	if op, err := p.resolveOp(map[string]any{"operation": "sendLegacy"}); err != nil || op.Path != "/w" {
+		t.Errorf("unique op fallback: %v %v", op, err)
+	}
+	if op, err := p.resolveOp(map[string]any{"operation": "create"}); err != nil || op.Path != "/c" {
+		t.Errorf("default resource still wins: %v %v", op, err)
 	}
 }
