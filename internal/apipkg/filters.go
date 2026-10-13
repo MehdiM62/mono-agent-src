@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +19,7 @@ var knownFilters = map[string]bool{
 	"fromjson": true, "epoch_ms": true, "epoch": true, "split": true, "date": true,
 	"prefix": true, "suffix": true, "base64": true, "base64url": true, "row": true,
 	"gid": true, "find": true, "find_row": true,
-	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true,
+	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -103,6 +104,8 @@ func applyFilter(name string, v, arg any) (any, error) {
 		args := arg.([]any)
 		nullMissing := len(args) > 1 && (args[1] == nil || stringify(args[1]) == "null")
 		return toRow(v, args[0], nullMissing)
+	case "entries":
+		return toEntries(v, arg)
 	case "sheetgid":
 		return sheetGID(v), nil
 	case "gid":
@@ -618,4 +621,31 @@ func sheetGID(v any) any {
 		return m[1]
 	}
 	return strings.TrimSpace(s)
+}
+
+// toEntries turns an object into [{key: k, value: v}, …] sorted by key;
+// arg "keyName,valueName" renames the two keys (Coda: 'column,value').
+func toEntries(v, arg any) (any, error) {
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("entries: value is %T, not an object", v)
+	}
+	kn, vn := "key", "value"
+	if a := stringify(arg); a != "" {
+		parts := strings.SplitN(a, ",", 2)
+		if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+			return nil, fmt.Errorf(`entries: argument must be "keyName,valueName", got %q`, a)
+		}
+		kn, vn = strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	}
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]any, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, map[string]any{kn: k, vn: obj[k]})
+	}
+	return out, nil
 }

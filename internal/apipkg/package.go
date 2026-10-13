@@ -230,6 +230,11 @@ type Output struct {
 	// replaces the element with the decoded response (Gmail lists ids,
 	// then GETs each message).
 	Expand *Step `json:"expand,omitempty"`
+	// To reshapes each result element with a template (el = the element),
+	// e.g. {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}. ToWhen, a
+	// template, skips the reshape when it renders empty/false (rawData).
+	To     any    `json:"to,omitempty"`
+	ToWhen string `json:"to_when,omitempty"`
 }
 
 // OutputMatch filters result elements by condition rows. Rows is a
