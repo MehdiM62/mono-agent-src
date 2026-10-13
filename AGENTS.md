@@ -2475,14 +2475,16 @@ profiles or credentials.
 |---|---|
 | 0 | success |
 | 0 | run paused at a HIL node — status `WAITING` (paused for human review); the output carries a `hint` field pointing at `hil list` |
-| 1 | general error — also the exit for a run that ends `CANCELLED` |
+| 1 | general error — also the exit for a run that ends `CANCELLED`, and for a run that ends `SUCCESS_WITH_ERRORS` with no successful step (every non-trigger node failed; a partial success still exits 0) |
 | 2 | not found (workflow, node type, HIL item, secret name, …). Includes `hil approve`/`hil reject`, `secret rm`/`secret update`, and `workflow delete` on unknown ids |
 | 3 | invalid input / validation failure |
 | 4 | auth or connection failure — including `login_required`: no valid monoes.me sign-in (see [monoes.me account](#monoesme-account)) |
 
 Branch on these instead of parsing stderr.
 
-With `--json`, a classified failure's `{"error"}` object also carries a
+With `--json`, every command prints a failure as one JSON object on stdout
+(human text, if any, goes to stderr) with the same exit code; it may add a
+`"hint"` with the next step. A classified failure's `{"error"}` object also carries a
 `"code"`: `not_found` (2), `invalid_input` (3), `auth_or_connection` (4),
 or `agent_not_setup` — the AI agent is not set up (monomind missing or
 unusable, no runtime installed, the requested runtime missing or unknown,
