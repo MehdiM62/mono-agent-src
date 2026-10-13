@@ -1,0 +1,655 @@
+{
+  "company.create": {
+    "params": {
+      "companyName": "Acme",
+      "additionalFields": {
+        "emailAddress": "a@acme.io"
+      },
+      "addressesUi": {
+        "addressesValues": {
+          "line1": "1 Main",
+          "countryCode": "USA",
+          "postalCode": "10001"
+        }
+      },
+      "phonesUi": {
+        "phonesValues": {
+          "type": "Work",
+          "number": "555"
+        }
+      }
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/rest/v1/companies",
+      "body": {
+        "company_name": "Acme",
+        "email_address": "a@acme.io",
+        "address": {
+          "line1": "1 Main",
+          "country_code": "USA",
+          "postal_code": "10001"
+        },
+        "phone_number": {
+          "type": "Work",
+          "number": "555"
+        }
+      },
+      "items": 1
+    }
+  },
+  "company.getAll": {
+    "params": {
+      "limit": 10,
+      "options": {
+        "orderDirection": "ASCENDING",
+        "fields": "notes,website"
+      }
+    },
+    "response": {
+      "companies": [
+        {
+          "id": 1
+        }
+      ],
+      "next": ""
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/companies",
+      "query": {
+        "order_direction": "ASCENDING",
+        "optional_properties": "notes,website",
+        "limit": "10"
+      },
+      "items": 1
+    }
+  },
+  "contact.upsert": {
+    "params": {
+      "duplicateOption": "emailAndName",
+      "additionalFields": {
+        "givenName": "Ada",
+        "companyId": 7,
+        "timezone": "Europe/Rome"
+      },
+      "emailsUi": {
+        "emailsValues": [
+          {
+            "field": "EMAIL1",
+            "email": "a@x.io"
+          }
+        ]
+      },
+      "addressesUi": {
+        "addressesValues": [
+          {
+            "field": "BILLING",
+            "line1": "1 Main",
+            "zipCode": "10001"
+          }
+        ]
+      }
+    },
+    "response": {
+      "id": 3
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/rest/v1/contacts",
+      "body": {
+        "duplicate_option": "EmailAndName",
+        "given_name": "Ada",
+        "company": {
+          "id": 7
+        },
+        "time_zone": "Europe/Rome",
+        "email_addresses": [
+          {
+            "field": "EMAIL1",
+            "email": "a@x.io"
+          }
+        ],
+        "addresses": [
+          {
+            "field": "BILLING",
+            "line1": "1 Main",
+            "zip_code": "10001"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "3"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/rest/v1/contacts/3",
+      "items": 1
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "3",
+      "options": {
+        "fields": "job_title"
+      }
+    },
+    "response": {
+      "id": 3
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/contacts/3",
+      "query": {
+        "optional_properties": "job_title"
+      },
+      "items": 1
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "returnAll": true,
+      "options": {
+        "email": "a@x.io"
+      }
+    },
+    "response": {
+      "contacts": [
+        {
+          "id": 3
+        }
+      ],
+      "next": ""
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/contacts",
+      "query": {
+        "email": "a@x.io",
+        "limit": "50"
+      },
+      "items": 1
+    }
+  },
+  "contactNote.create": {
+    "params": {
+      "userId": "9",
+      "contactId": "3",
+      "additionalFields": {
+        "title": "Call",
+        "type": "call"
+      }
+    },
+    "response": {
+      "id": 4
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/rest/v1/notes",
+      "body": {
+        "user_id": 9,
+        "contact_id": 3,
+        "title": "Call",
+        "type": "Call"
+      },
+      "items": 1
+    }
+  },
+  "contactNote.delete": {
+    "params": {
+      "noteId": "4"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/rest/v1/notes/4",
+      "items": 1
+    }
+  },
+  "contactNote.get": {
+    "params": {
+      "noteId": "4"
+    },
+    "response": {
+      "id": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/notes/4",
+      "items": 1
+    }
+  },
+  "contactNote.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "contactId": 3
+      }
+    },
+    "response": {
+      "notes": [
+        {
+          "id": 4
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/notes",
+      "query": {
+        "contact_id": "3",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "contactNote.update": {
+    "params": {
+      "noteId": "4",
+      "additionalFields": {
+        "body": "Hi",
+        "type": "appointment"
+      }
+    },
+    "response": {
+      "id": 4
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/crm/rest/v1/notes/4",
+      "body": {
+        "body": "Hi",
+        "type": "Appointment"
+      },
+      "items": 1
+    }
+  },
+  "contactTag.create": {
+    "params": {
+      "contactId": "3",
+      "tagIds": [
+        11,
+        12
+      ]
+    },
+    "response": {
+      "11": "SUCCESS"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/rest/v1/contacts/3/tags",
+      "body": {
+        "tagIds": [
+          11,
+          12
+        ]
+      },
+      "items": 1
+    }
+  },
+  "contactTag.delete": {
+    "params": {
+      "contactId": "3",
+      "tagIds": "11,12"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/rest/v1/contacts/3/tags",
+      "query": {
+        "ids": "11,12"
+      },
+      "items": 1
+    }
+  },
+  "contactTag.getAll": {
+    "params": {
+      "contactId": "3",
+      "limit": 5
+    },
+    "response": {
+      "tags": [
+        {
+          "tag": {
+            "id": 11
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/contacts/3/tags",
+      "query": {
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "ecommerceOrder.create": {
+    "params": {
+      "contactId": "3",
+      "orderDate": "2026-01-02T00:00:00Z",
+      "orderTitle": "First",
+      "orderType": "online",
+      "additionalFields": {
+        "promoCodes": "A, B"
+      },
+      "orderItemsUi": {
+        "orderItemsValues": [
+          {
+            "description": "x",
+            "price": 2,
+            "product ID": 8,
+            "quantity": 1
+          }
+        ]
+      }
+    },
+    "response": {
+      "id": 20
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/rest/v1/orders",
+      "body": {
+        "contact_id": 3,
+        "order_date": "2026-01-02T00:00:00Z",
+        "order_title": "First",
+        "order_type": "Online",
+        "promo_codes": [
+          "A",
+          "B"
+        ],
+        "order_items": [
+          {
+            "description": "x",
+            "price": 2,
+            "product_id": 8,
+            "quantity": 1
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "ecommerceOrder.get": {
+    "params": {
+      "orderId": "20"
+    },
+    "response": {
+      "id": 20
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/orders/20",
+      "items": 1
+    }
+  },
+  "ecommerceOrder.delete": {
+    "params": {
+      "orderId": "20"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/rest/v1/orders/20",
+      "items": 1
+    }
+  },
+  "ecommerceOrder.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "paid": true
+      }
+    },
+    "response": {
+      "orders": [
+        {
+          "id": 20
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/orders",
+      "query": {
+        "paid": "true",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "ecommerceProduct.create": {
+    "params": {
+      "productName": "Book",
+      "additionalFields": {
+        "productPrice": 9.5,
+        "sku": "B1"
+      }
+    },
+    "response": {
+      "id": 30
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/rest/v1/products",
+      "body": {
+        "product_name": "Book",
+        "product_price": 9.5,
+        "sku": "B1"
+      },
+      "items": 1
+    }
+  },
+  "ecommerceProduct.delete": {
+    "params": {
+      "productId": "30"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/rest/v1/products/30",
+      "items": 1
+    }
+  },
+  "ecommerceProduct.get": {
+    "params": {
+      "productId": "30"
+    },
+    "response": {
+      "id": 30
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/products/30",
+      "items": 1
+    }
+  },
+  "ecommerceProduct.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "active": true
+      }
+    },
+    "response": {
+      "products": [
+        {
+          "id": 30
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/products",
+      "query": {
+        "active": "true",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "email.createRecord": {
+    "params": {
+      "sentFromAddress": "me@x.io",
+      "sentToAddress": "you@x.io",
+      "additionalFields": {
+        "subject": "Hi",
+        "sentToCCAddresses": "c@x.io"
+      }
+    },
+    "response": {
+      "id": 40
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/rest/v1/emails",
+      "body": {
+        "sent_from_address": "me@x.io",
+        "sent_to_address": "you@x.io",
+        "subject": "Hi",
+        "sent_to_cc_addresses": "c@x.io"
+      },
+      "items": 1
+    }
+  },
+  "email.deleteRecord": {
+    "params": {
+      "emailRecordId": "40"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/rest/v1/emails/40",
+      "items": 1
+    }
+  },
+  "email.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "email": "you@x.io"
+      }
+    },
+    "response": {
+      "emails": [
+        {
+          "id": 40
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/emails",
+      "query": {
+        "email": "you@x.io",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "email.send": {
+    "params": {
+      "userId": "9",
+      "contactIds": "3, 4",
+      "subject": "Hello",
+      "additionalFields": {
+        "plainContent": "Hi"
+      },
+      "attachmentsUi": {
+        "attachmentsValues": [
+          {
+            "fileData": "aGk=",
+            "fileName": "a.txt"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/rest/v1/emails/queue",
+      "body": {
+        "user_id": 9,
+        "contacts": [
+          3,
+          4
+        ],
+        "subject": "Hello",
+        "plain_content": "Hi",
+        "attachments": [
+          {
+            "file_data": "aGk=",
+            "file_name": "a.txt"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "file.delete": {
+    "params": {
+      "fileId": "50"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/rest/v1/files/50",
+      "items": 1
+    }
+  },
+  "file.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "type": "digitalProduct",
+        "viewable": "public"
+      }
+    },
+    "response": {
+      "files": [
+        {
+          "id": 50
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/rest/v1/files",
+      "query": {
+        "type": "DigitalProduct",
+        "viewable": "PUBLIC",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "file.upload": {
+    "params": {
+      "binaryData": true,
+      "fileAssociation": "contact",
+      "contactId": "3"
+    },
+    "input": {
+      "data": "aGVsbG8=",
+      "file_name": "a.txt",
+      "mime_type": "text/plain"
+    },
+    "response": {
+      "id": 51
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/rest/v1/files",
+      "body": {
+        "is_public": false,
+        "file_association": "CONTACT",
+        "contact_id": 3,
+        "file_name": "a.txt",
+        "file_data": "aGVsbG8="
+      },
+      "items": 1
+    }
+  }
+}

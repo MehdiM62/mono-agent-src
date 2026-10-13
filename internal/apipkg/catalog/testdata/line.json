@@ -1,0 +1,30 @@
+{
+  "notification.send": {
+    "params": {
+      "message": "Build done",
+      "additionalFields": {
+        "notificationDisabled": true,
+        "stickerUi": {
+          "stickerValue": {
+            "stickerId": 1,
+            "stickerPackageId": 2
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/notify",
+      "body": {
+        "message": "Build done",
+        "notificationDisabled": "true",
+        "stickerId": "1",
+        "stickerPackageId": "2"
+      },
+      "items": 1
+    }
+  }
+}
