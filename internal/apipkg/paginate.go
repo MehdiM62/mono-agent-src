@@ -108,6 +108,10 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 				if cursor != "" {
 					pp.values[pg.CursorParam] = cursor
 				}
+			case PageHeaderCursor:
+				if cursor != "" {
+					pp.headers = map[string]string{pg.CursorParam: cursor}
+				}
 			case PageOffset:
 				pp.values[pg.OffsetParam] = offset
 			case PagePage:
@@ -143,6 +147,10 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 					more = false
 				}
 			}
+			cursor = c
+		case PageHeaderCursor:
+			c := resp.header.Get(pg.CursorPath)
+			more = c != "" && c != cursor && len(results) > 0
 			cursor = c
 		case PageOffset:
 			more = len(results) > 0 && (pg.LimitParam == "" || len(results) >= pageSize)

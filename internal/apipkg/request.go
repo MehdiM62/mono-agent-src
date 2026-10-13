@@ -43,10 +43,11 @@ func (o *Operation) effectiveBodyType() string {
 
 // pageParams are the pagination params one page request adds.
 type pageParams struct {
-	values map[string]any
-	inBody bool
-	inPath bool   // values go to the path template as page.<param>
-	url    string // absolute next-page URL (link_header, next_url)
+	values  map[string]any
+	inBody  bool
+	inPath  bool              // values go to the path template as page.<param>
+	headers map[string]string // header_cursor pagination
+	url     string            // absolute next-page URL (link_header, next_url)
 }
 
 // built is a request ready to send, with the body bytes SigV4 needs.
@@ -140,6 +141,9 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	}
 	if req.Header.Get("Accept") == "" && !r.downloads() {
 		req.Header.Set("Accept", "application/json")
+	}
+	for k, v := range pp.headers {
+		req.Header.Set(k, v)
 	}
 	if err := injectAuth(req, r.credDef, sc, body); err != nil {
 		return nil, r.errf("%w", err)
