@@ -12,6 +12,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/profilectx"
 )
@@ -105,6 +106,7 @@ func runCoderTurn(cmd *cobra.Command, cfg *globalConfig, journal *turnJournal, t
 		Timeout:      settings.timeout(),
 		BudgetUSD:    settings.BudgetUSD,
 		SystemPrompt: systemPrompt,
+		Env:          agentSendEnv(journal, "lead", ""),
 	}
 	kiloDropped := dropKiloOptions(&opts)
 	onEvent := func(ev monomind.Event) {
@@ -239,4 +241,18 @@ func createCoderConversation(cmd *cobra.Command, cfg *globalConfig, runtimeID, m
 	}
 	defer closeDB()
 	return store.CreateConversationModeEffort(profileID, "agent", workflowID, runtimeID, "", model, ai.ModeCoder, dir, effort)
+}
+
+// agentSendEnv marks the agent's process so an outbound send it starts
+// waits for approval (internal/hilsend) and is tagged to this chat and
+// role, which is what puts the approval card in the right bubble.
+func agentSendEnv(journal *turnJournal, role, agentID string) map[string]string {
+	env := map[string]string{hilsend.EnvAgentContext: "1", hilsend.EnvAgentRole: role}
+	if agentID != "" {
+		env[hilsend.EnvAgentID] = agentID
+	}
+	if journal != nil && journal.conversationID != "" {
+		env[hilsend.EnvConversation] = journal.conversationID
+	}
+	return env
 }

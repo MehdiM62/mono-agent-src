@@ -9,6 +9,8 @@
 // kind:"send", a state and who prepared it.
 export function normalizeAsk(raw) {
   if (!raw || typeof raw !== 'object' || !raw.id) return null
+  // `hil list` nests a send item's payload under .send (internal/hilsend).
+  if (raw.kind === 'send' && raw.send && typeof raw.send === 'object') raw = { ...raw.send, ...raw, ...raw.send, id: raw.id }
   if (raw.kind === 'send') {
     const state = raw.state || 'pending'
     return {
@@ -18,7 +20,7 @@ export function normalizeAsk(raw) {
       account: raw.account || {}, recipient: raw.recipient || {},
       subject: raw.subject || '', text: String(raw.text ?? ''),
       attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
-      org: raw.org || '', conversationId: raw.conversationId || '',
+      org: raw.org || raw.preparedBy?.org || '', conversationId: raw.conversationId || raw.preparedBy?.conversationId || '',
     }
   }
   const state = raw.status || raw.state || 'pending'

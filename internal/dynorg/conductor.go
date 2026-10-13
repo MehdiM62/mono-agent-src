@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -713,6 +714,12 @@ func (c *Conductor) execOnce(ctx context.Context, w *worker, m Model, prompt, re
 		return nil, errUnconfined
 	}
 	opts := c.cfg.Base
+	// Each worker is marked with its own role, so a send it prepares names who prepared it.
+	opts.Env = maps.Clone(opts.Env)
+	if opts.Env == nil {
+		opts.Env = map[string]string{}
+	}
+	opts.Env["MONOAGENT_AGENT_ROLE"], opts.Env["MONOAGENT_AGENT_ID"] = w.staff.Role, w.id
 	dir := c.workDir(w)
 	opts.Runtime, opts.Model, opts.Cwd, opts.Prompt, opts.Resume = m.Runtime, m.Model, dir, prompt, resume
 	opts.Effort = ""

@@ -13,7 +13,7 @@ const { api } = vi.hoisted(() => ({
   api: {
     getChatTurns: vi.fn(), getChatEvents: vi.fn(), startChatTurn: vi.fn(), stopChatTurn: vi.fn(), coderStatus: vi.fn(),
     coderWorkspaceList: vi.fn(), coderWorkspaceRoot: vi.fn(), getAgentRuntimeModels: vi.fn(),
-    hilList: vi.fn(), hilResolve: vi.fn(), hilAttachment: vi.fn(), openPathWithOS: vi.fn(), openURL: vi.fn(),
+    hilList: vi.fn(), hilResolve: vi.fn(), hilSendResolve: vi.fn(), hilSendAttachmentData: vi.fn(), openPathWithOS: vi.fn(), openURL: vi.fn(),
   },
 }))
 vi.mock('../../services/api.js', () => ({
@@ -47,7 +47,8 @@ beforeEach(() => {
   api.getAgentRuntimeModels.mockResolvedValue([])
   api.hilList.mockResolvedValue([sendEmail, { ...sendEmail, id: 'for-other', conversationId: 'c2' }, workflow])
   api.hilResolve.mockResolvedValue({ ok: true, state: 'approved' })
-  api.hilAttachment.mockResolvedValue({ dataUrl: 'data:image/png;base64,AAAA' })
+  api.hilSendAttachmentData.mockResolvedValue('data:image/png;base64,AAAA')
+  api.hilSendResolve.mockResolvedValue({ ok: true })
 })
 afterEach(cleanup)
 
@@ -68,7 +69,7 @@ describe('asks in a coder bubble', () => {
     fireEvent.click(within(card).getByTestId('ask-edit'))
     fireEvent.change(within(card).getByTestId('ask-text-edit'), { target: { value: 'Hello' } })
     fireEvent.click(within(card).getByTestId('ask-approve'))
-    await waitFor(() => expect(api.hilResolve).toHaveBeenCalledWith('hil-send-1', { approve: true, editText: 'Hello', data: undefined }))
+    await waitFor(() => expect(api.hilSendResolve).toHaveBeenCalledWith('hil-send-1', true, { editText: 'Hello' }))
     await waitFor(() => expect(screen.getByTestId('org-chat-send')).toHaveAttribute('data-pending', 'false'))
   })
 
@@ -76,6 +77,6 @@ describe('asks in a coder bubble', () => {
     render(<Harness open={conv} />)
     const card = await screen.findByTestId('org-chat-send')
     fireEvent.click(within(card).getByTestId('ask-reject'))
-    await waitFor(() => expect(api.hilResolve).toHaveBeenCalledWith('hil-send-1', { approve: false, editText: undefined, data: undefined }))
+    await waitFor(() => expect(api.hilSendResolve).toHaveBeenCalledWith('hil-send-1', false, { editText: '' }))
   })
 })

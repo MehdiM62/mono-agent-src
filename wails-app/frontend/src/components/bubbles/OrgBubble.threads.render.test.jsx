@@ -23,7 +23,7 @@ const { api, listeners, confirmMock } = vi.hoisted(() => ({
     streamOrgEvents: vi.fn(() => Promise.resolve({ ok: true })),
     stopOrgEvents: vi.fn(() => Promise.resolve({ ok: true })),
     getChatTurns: vi.fn(), coderStatus: vi.fn(),
-    hilList: vi.fn(), hilResolve: vi.fn(), hilAttachment: vi.fn(), openPathWithOS: vi.fn(), openURL: vi.fn(),
+    hilList: vi.fn(), hilResolve: vi.fn(), hilSendResolve: vi.fn(), hilSendAttachmentData: vi.fn(), openPathWithOS: vi.fn(), openURL: vi.fn(),
   },
 }))
 vi.mock('../../services/api.js', () => ({
@@ -61,7 +61,8 @@ beforeEach(() => {
   api.coderStatus.mockResolvedValue({ enabled: false })
   api.hilList.mockResolvedValue([])
   api.hilResolve.mockResolvedValue({ ok: true, state: 'approved' })
-  api.hilAttachment.mockResolvedValue({ dataUrl: 'data:image/png;base64,AAAA' })
+  api.hilSendAttachmentData.mockResolvedValue('data:image/png;base64,AAAA')
+  api.hilSendResolve.mockResolvedValue({ ok: true })
   confirmMock.mockResolvedValue(true)
 })
 afterEach(cleanup)
@@ -173,20 +174,20 @@ describe('asks from the HIL queue in an org bubble', () => {
     const approve = within(card).getByTestId('ask-approve')
     fireEvent.click(approve)
     fireEvent.click(approve)
-    expect(api.hilResolve).toHaveBeenCalledTimes(1)
-    expect(api.hilResolve).toHaveBeenCalledWith('hil-send-1', { approve: true, editText: 'Short note.', data: undefined })
+    expect(api.hilSendResolve).toHaveBeenCalledTimes(1)
+    expect(api.hilSendResolve).toHaveBeenCalledWith('hil-send-1', true, { editText: 'Short note.' })
     await waitFor(() => expect(screen.getByTestId('org-chat-send')).toHaveAttribute('data-pending', 'false'))
     expect(screen.getByTestId('org-chat-send')).toHaveTextContent('approved')
   })
 
   it('rejects a send, and shows a refusal without losing the card', async () => {
     api.hilList.mockResolvedValue([sendEmail])
-    api.hilResolve.mockResolvedValueOnce({ error: 'account signed out' })
+    api.hilSendResolve.mockResolvedValueOnce({ error: 'account signed out' })
     render(<Harness />)
     const card = await screen.findByTestId('org-chat-send')
     fireEvent.click(within(card).getByTestId('ask-reject'))
     await waitFor(() => expect(within(screen.getByTestId('org-chat-send')).getByRole('alert')).toHaveTextContent('account signed out'))
-    expect(api.hilResolve).toHaveBeenLastCalledWith('hil-send-1', { approve: false, editText: undefined, data: undefined })
+    expect(api.hilSendResolve).toHaveBeenLastCalledWith('hil-send-1', false, { editText: '' })
     expect(screen.getByTestId('org-chat-send')).toHaveAttribute('data-pending', 'true')
   })
 

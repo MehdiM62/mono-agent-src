@@ -61,3 +61,17 @@ describe('helpers', () => {
     expect(safeImageSrc('')).toBe('')
   })
 })
+
+import { normalizeAsk as normalizeAskNested } from './askModel.js'
+import { describe as describeNested, it as itNested, expect as expectNested } from 'vitest'
+
+describeNested('normalizeAsk with `hil list` send rows', () => {
+  itNested('reads the payload nested under .send and tags the chat from preparedBy', () => {
+    const ask = normalizeAskNested({
+      id: 'h1', kind: 'send',
+      send: { id: 'h1', state: 'pending', text: 'Hi', preparedBy: { role: 'Writer', conversationId: 'c9' }, recipient: { name: 'Ana' } },
+    })
+    expectNested(ask).toMatchObject({ kind: 'send', pending: true, text: 'Hi', role: 'Writer', conversationId: 'c9' })
+    expectNested(ask.recipient.name).toBe('Ana')
+  })
+})
