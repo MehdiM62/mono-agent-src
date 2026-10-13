@@ -3,19 +3,13 @@ package main
 import (
 	"strings"
 	"testing"
-
-	"github.com/monoes/mono-agent/internal/noderegistry"
 )
 
-// Every node type the binary registers must have an entry in the offline
-// `ref` manual, so `monoagentcli ref node <type>` never answers "unknown
-// node type" for a node that `node list` shows.
-func TestRefDocsCoverEveryRegisteredNodeType(t *testing.T) {
-	for _, typ := range noderegistry.Build(nil).Types() {
-		if findNodeDoc(typ) == nil {
-			t.Errorf("node type %q is registered but has no `ref node` entry — add one to ref_nodes_more.go", typ)
-		}
-	}
+// Every hand-documented trigger keeps its entry: triggers run through the
+// trigger manager, not the node registry, so they have no other source.
+// (Registered types without an entry get a schema-generated page; see
+// TestRefNodeRendersEveryRegisteredType.)
+func TestRefDocsCoverEveryTrigger(t *testing.T) {
 	for _, typ := range []string{"trigger.manual", "trigger.schedule", "trigger.webhook", "trigger.org"} {
 		if findNodeDoc(typ) == nil {
 			t.Errorf("trigger %q has no `ref node` entry", typ)

@@ -265,7 +265,11 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		if err != nil {
 			return nil, err
 		}
-		items := toItems(results, true)
+		shaped, err := r.shapeOutput(ctx, results)
+		if err != nil {
+			return nil, err
+		}
+		items := toItems(shaped, true)
 		if truncated {
 			for i := range items {
 				items[i].JSON["pagination_truncated"] = true
@@ -292,6 +296,9 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	}
 	if r.op.Output != nil && r.op.Output.HeaderRow {
 		v = rowsToObjects(v)
+	}
+	if v, err = r.shapeOutput(ctx, v); err != nil {
+		return nil, err
 	}
 	split := r.op.Output == nil || r.op.Output.Split == nil || *r.op.Output.Split
 	return toItems(v, split), nil
@@ -434,4 +441,83 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 	step := *r
 	step.op, step.scope = &op, sc
 	return step.send(ctx, pageParams{})
+}
+
+// shapeOutput applies output.each, output.expand and output.match to a
+// result list.
+func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
+	o := r.op.Output
+	list, isList := v.([]any)
+	if o == nil || !isList {
+		return v, nil
+	}
+	if o.Each != "" {
+		path := strings.Split(o.Each, ".")
+		out := make([]any, 0, len(list))
+		for _, el := range list {
+			if x := lookupPath(el, path); x != nil {
+				out = append(out, x)
+			}
+		}
+		list = out
+	}
+	if st := o.Expand; st != nil {
+		for i, el := range list {
+			sc := r.scope
+			sc.El = el
+			resp, err := r.sendStep(ctx, *st, sc)
+			if err != nil {
+				return nil, fmt.Errorf("output.expand element %d: %w", i, err)
+			}
+			if resp != nil && len(strings.TrimSpace(string(resp.body))) > 0 {
+				list[i] = decodeBody(resp.body)
+			}
+		}
+	}
+	if m := o.Match; m != nil {
+		rowsV, err := renderString(m.Rows, r.scope)
+		if err != nil {
+			return nil, r.errf("output.match.rows: %w", err)
+		}
+		conds, _ := rowsV.([]any)
+		if len(conds) > 0 {
+			combine, err := renderText(m.Combine, r.scope)
+			if err != nil {
+				return nil, r.errf("output.match.combine: %w", err)
+			}
+			first, err := renderString(m.First, r.scope)
+			if err != nil {
+				return nil, r.errf("output.match.first: %w", err)
+			}
+			or := strings.EqualFold(combine, "OR")
+			kept := make([]any, 0, len(list))
+			for _, el := range list {
+				if matchRow(el, conds, m.Column, m.Value, or) {
+					kept = append(kept, el)
+					if b, _ := toBool(first); b == true {
+						break
+					}
+				}
+			}
+			list = kept
+		}
+	}
+	return list, nil
+}
+
+// matchRow reports whether el satisfies the condition rows (each names a
+// field via colKey and a wanted value via valKey), all (AND) or any (OR).
+func matchRow(el any, conds []any, colKey, valKey string, or bool) bool {
+	obj, _ := el.(map[string]any)
+	for _, c := range conds {
+		cm, _ := c.(map[string]any)
+		ok := stringify(obj[stringify(cm[colKey])]) == stringify(cm[valKey])
+		if or && ok {
+			return true
+		}
+		if !or && !ok {
+			return false
+		}
+	}
+	return !or
 }

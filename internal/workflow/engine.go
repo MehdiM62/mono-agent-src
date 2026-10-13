@@ -674,8 +674,8 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 	// the CLI wait hung and the next startup marked it FAILED).
 	persistCtx := func() context.Context { return context.WithoutCancel(ctx) }
 
-	// 1. Load the workflow.
-	wf, err := e.store.GetWorkflow(ctx, req.WorkflowID)
+	// 1. Load the workflow — the version this execution is pinned to.
+	wf, err := e.loadExecutionWorkflow(ctx, log, req)
 	if err != nil {
 		log.Error().Err(err).Msg("engine: handleExecution: failed to load workflow")
 		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", fmt.Sprintf("load workflow: %s", err.Error()))
@@ -735,7 +735,7 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		e.persistExecutionFinished(log, req.ExecutionID, "CANCELLED", cancelledMessage(ctx, runErr))
 	default:
 		log.Warn().Err(runErr).Str("final_status", "FAILED").Msg("engine: execution finished with error")
-		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", runErr.Error())
+		e.persistExecutionFinished(log, req.ExecutionID, failureStatus(runErr), runErr.Error())
 	}
 }
 
@@ -746,6 +746,7 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 // FAILED. A failed write is logged at error level and retried once.
 func (e *WorkflowEngine) persistExecutionFinished(log zerolog.Logger, executionID, status, errMsg string) {
 	defer e.onExecutionFinished(executionID) // wakes a parent waiting on this sub-workflow run
+	defer e.afterExecutionFinished(log, executionID, status, errMsg)
 	persistCtx := context.WithoutCancel(context.Background())
 	err := e.store.SetExecutionFinished(persistCtx, executionID, status, errMsg)
 	if err == nil {
@@ -791,11 +792,14 @@ func (e *WorkflowEngine) CreateWorkflow(ctx context.Context, w *Workflow) error 
 	return nil
 }
 
-// SaveWorkflow updates a workflow's definition (nodes + connections).
-// If the workflow is currently active, it is deactivated first, then saved,
-// then reactivated.
+// SaveWorkflow updates a workflow's definition (nodes + connections) in one
+// all-or-nothing store write; the active flag is the stored one (callers
+// control it via Activate/DeactivateWorkflow). Triggers are touched only
+// after the write committed: an active workflow's are swapped for the new
+// definition's, and if those fail to register the previous definition is
+// saved back and its triggers re-armed, so a failed save never leaves the
+// workflow inactive or half-changed.
 func (e *WorkflowEngine) SaveWorkflow(ctx context.Context, w *Workflow) error {
-	// Load current state to check IsActive.
 	existing, err := e.store.GetWorkflow(ctx, w.ID)
 	if err != nil {
 		return fmt.Errorf("engine: save workflow: load existing: %w", err)
@@ -807,38 +811,25 @@ func (e *WorkflowEngine) SaveWorkflow(ctx context.Context, w *Workflow) error {
 		return fmt.Errorf("engine: save workflow: %w", err)
 	}
 
-	wasActive := existing.IsActive
+	w.IsActive = existing.IsActive
+	if err := e.saveDefinition(ctx, w); err != nil {
+		return fmt.Errorf("engine: save workflow: %w", err)
+	}
 
-	// Deactivate triggers if currently active.
-	if wasActive {
-		e.triggerMgr.DeactivateWorkflow(w.ID)
-		if err := e.store.SetWorkflowActive(ctx, w.ID, false); err != nil {
-			return fmt.Errorf("engine: save workflow: deactivate: %w", err)
+	if existing.IsActive {
+		if err := e.rearmTriggers(ctx, w.ID); err != nil {
+			restore := *existing
+			if rerr := e.saveDefinition(ctx, &restore); rerr != nil {
+				return fmt.Errorf("engine: save workflow: register triggers: %w (restoring the previous definition also failed: %v)", err, rerr)
+			}
+			if aerr := e.rearmTriggers(ctx, w.ID); aerr != nil {
+				e.logger.Error().Err(aerr).Str("workflow_id", w.ID).Msg("engine: save workflow: previous triggers could not be re-armed")
+			}
+			return fmt.Errorf("engine: save workflow: register triggers: %w (the previous definition was kept)", err)
 		}
 	}
 
-	// Preserve the active flag from the existing record; caller controls it
-	// via Activate/DeactivateWorkflow.
-	w.IsActive = false
-
-	if err := e.store.UpdateWorkflow(ctx, w); err != nil {
-		return fmt.Errorf("engine: save workflow: update: %w", err)
-	}
-	if err := e.store.SaveWorkflowNodes(ctx, w.ID, w.Nodes); err != nil {
-		return fmt.Errorf("engine: save workflow: save nodes: %w", err)
-	}
-	if err := e.store.SaveWorkflowConnections(ctx, w.ID, w.Connections); err != nil {
-		return fmt.Errorf("engine: save workflow: save connections: %w", err)
-	}
-
-	// Reactivate if it was active before the save.
-	if wasActive {
-		if err := e.ActivateWorkflow(ctx, w.ID); err != nil {
-			return fmt.Errorf("engine: save workflow: reactivate: %w", err)
-		}
-	}
-
-	e.logger.Info().Str("workflow_id", w.ID).Msg("engine: workflow saved")
+	e.logger.Info().Str("workflow_id", w.ID).Int("version", w.Version).Msg("engine: workflow saved")
 	return nil
 }
 

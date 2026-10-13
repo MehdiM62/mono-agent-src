@@ -28,6 +28,7 @@ import (
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/i18n"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/nodes"
 	peoplenodes "github.com/monoes/mono-agent/internal/nodes/people"
@@ -593,9 +594,9 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				inputItems = []workflow.Item{{JSON: map[string]interface{}{}}}
 			}
 
-			logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
-			if !cfg.Verbose {
-				logger = logger.Level(zerolog.WarnLevel)
+			logger := logging.Zerolog()
+			if cfg.Verbose {
+				logger = logger.Level(zerolog.TraceLevel)
 			}
 			_ = logger
 
@@ -616,9 +617,9 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 			if needsBrowserSession(nodeType, factory) {
 				// Chrome extension only — no Rod/Chromium fallback, sharing
 				// another local process's connection when one already exists.
-				extLogger := zerolog.New(os.Stderr).With().Timestamp().Str("component", "extension").Logger()
-				if !cfg.Verbose {
-					extLogger = extLogger.Level(zerolog.WarnLevel)
+				extLogger := logging.Zerolog().With().Str("component", "extension").Logger()
+				if cfg.Verbose {
+					extLogger = extLogger.Level(zerolog.TraceLevel)
 				}
 				extBridge := setupProfileBridge(cfg.ProfileID, extLogger, 3*time.Second)
 				if !extBridge.IsConnected() {
@@ -641,7 +642,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				nodes.SetGlobalCredentialStore(connections.NewStore(rawDB))
 
 				// Wire up config manager for selector resolution.
-				cfgLogger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
+				cfgLogger := logging.Zerolog()
 				var cfgStore cfgpkg.ConfigStore
 				if cfgDB, err := initDB(cfg); err == nil {
 					cfgStore = &cfgpkg.DBConfigStore{DB: cfgDB}

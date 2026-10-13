@@ -13,6 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
 	"github.com/monoes/mono-agent/internal/extension"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/recording"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/rs/zerolog"
@@ -37,9 +38,9 @@ type selectorReplacer interface {
 // rerecordOpenPicker opens a tab at url through the same connect path
 // `node run` uses. Tests replace it.
 var rerecordOpenPicker = func(ctx context.Context, url string, verbose bool) (elementPicker, error) {
-	logger := zerolog.New(os.Stderr).With().Timestamp().Str("component", "extension").Logger()
-	if !verbose {
-		logger = logger.Level(zerolog.WarnLevel)
+	logger := logging.Zerolog().With().Str("component", "extension").Logger()
+	if verbose {
+		logger = logger.Level(zerolog.TraceLevel)
 	}
 	bridge := setupProfileBridge(vault.ProfileIDFromContext(ctx), logger, 3*time.Second)
 	if !bridge.IsConnected() {

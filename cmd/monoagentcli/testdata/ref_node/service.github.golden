@@ -1,0 +1,79 @@
+══════════════════════════════════════════════════════════════
+  NODE: service.github
+  Category: service
+══════════════════════════════════════════════════════════════
+
+  Create issues, PRs, or fetch repo data from GitHub
+
+  Config example:
+    { "credential_id": "github-token", "operation": "create_issue", "owner": "myorg", "repo": "myrepo", "title": "{{ $json.title }}", "body": "{{ $json.body }}" }
+
+  Inputs:   item with issue/PR data
+  Outputs:  issue_number, html_url
+
+  ────────────────────────────────────────────────────────────
+  Credential platform: github
+
+  Fields (every operation):
+    credential_id        GitHub Account · credential_picker · required
+    operation            Operation · select · required · default="list_repos"
+
+  Operations (operation):
+    list_repos  (default)
+      no further fields
+    list_issues
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      state                State · select · options: open|closed|all
+                           Filter for list_issues/list_prs (open, closed or all); the new state for update_issue (open or closed). Empty uses GitHub's default.
+    get_issue
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      number               Issue/PR Number · number
+    create_issue
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      title                Issue/PR Title · text
+      body                 Body · textarea
+      labels               Labels · array
+                           Label names to set on the issue. On update_issue they replace the existing labels.
+    update_issue
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      number               Issue/PR Number · number
+      state                State · select · options: open|closed|all
+                           Filter for list_issues/list_prs (open, closed or all); the new state for update_issue (open or closed). Empty uses GitHub's default.
+      title                Issue/PR Title · text
+      body                 Body · textarea
+      labels               Labels · array
+                           Label names to set on the issue. On update_issue they replace the existing labels.
+    list_prs
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      state                State · select · options: open|closed|all
+                           Filter for list_issues/list_prs (open, closed or all); the new state for update_issue (open or closed). Empty uses GitHub's default.
+    create_pr
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      title                Issue/PR Title · text
+      body                 Body · textarea
+      head                 Head Branch · text
+      base                 Base Branch · text
+    list_releases
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+    create_release
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      body                 Body · textarea
+      tag_name             Tag Name · text
+      release_name         Release Name · text
+
