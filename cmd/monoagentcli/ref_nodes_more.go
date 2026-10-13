@@ -101,18 +101,39 @@ this machine through monomind, and stores the answer on the item. Replaces the
 deprecated ai.chat / ai.extract / ai.classify / ai.transform / ai.agent nodes —
 ask for JSON, a category, or a rewrite in the prompt itself.`,
 		Config: `{
-  "runtime":       "claude",                       // required; see "agent scan --installed"
+  "runtime":       "claude",                       // required; see "agent scan --installed", or "auto"
   "prompt":        "Summarize: {{ $json.text }}",  // required
   "model":         "",                             // empty = runtime default
   "system_prompt": "",
   "output_key":    "agent_response",
-  "timeout":       300                             // seconds
+  "timeout":       300,                            // seconds, per item
+  "output_schema": {"type": "object",              // optional: ask for JSON matching it
+                    "required": ["category"],
+                    "properties": {"category": {"type": "string", "enum": ["lead", "spam"]}}},
+  "merge_output":  false,                          // with output_schema: copy an object's fields onto the item
+  "concurrency":   1                               // items run at once; output keeps input order
 }`,
 		Inputs:  "any items (prompt placeholders read from $json)",
-		Outputs: "input item + <output_key> with the agent's answer",
+		Outputs: "input item + <output_key> with the agent's answer (the parsed JSON value with output_schema)",
 		Notes: `Needs monomind and at least one agent runtime. Check with
 "monoagentcli agent scan --installed" and "monoagentcli agent test <runtime>";
-install one with "monoagentcli agent install <runtime>".`,
+install one with "monoagentcli agent install <runtime>".
+
+runtime "auto" picks a ready (recently validated) model from the agent roster
+("monoagentcli agent validate"): the cheapest measured, then the fastest, then
+claude, codex, antigravity and the rest. A model set alongside narrows it to
+that model. With nothing validated it uses the first installed runtime. The
+item gets _agent_runtime (and _agent_model) saying what ran.
+
+output_schema (a JSON Schema object or a JSON string) appends an instruction
+to the prompt, takes the JSON out of the reply (code fences and surrounding
+prose are stripped) and checks type, required, properties, items, enum and
+const. A mismatch is re-asked once in the same session (a fresh turn when the
+runtime can't resume); a second mismatch fails the node, which follows
+on_error.
+
+Every turn's tokens and cost, when the runtime reports them, are recorded in
+the agent_usage table with the profile, workflow, execution and node ids.`,
 	},
 	{
 		Type:     "mcp.call",
