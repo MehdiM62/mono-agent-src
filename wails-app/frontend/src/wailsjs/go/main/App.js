@@ -242,6 +242,10 @@ export function CoderWorkspaceList() {
   return window['go']['main']['App']['CoderWorkspaceList']();
 }
 
+export function CoderWorkspaceDefault(arg1) {
+  return window['go']['main']['App']['CoderWorkspaceDefault'](arg1);
+}
+
 export function CoderWorkspaceRoot(arg1) {
   return window['go']['main']['App']['CoderWorkspaceRoot'](arg1);
 }

@@ -15,7 +15,7 @@ const { api, listeners, mockConfirm } = vi.hoisted(() => ({
     stopChatTurn: vi.fn(),
     coderStatus: vi.fn(),
     coderWorkspaceList: vi.fn(),
-    coderWorkspaceRoot: vi.fn(),
+    coderWorkspaceDefault: vi.fn(),
     createCoderConversation: vi.fn(),
     getAgentRuntimeModels: vi.fn(),
     pickCoderFolder: vi.fn(),
@@ -166,7 +166,7 @@ describe('coder bubbles', () => {
   })
 
   it('starts a new coder chat from +, creates the conversation on the first message and keeps the bubble', async () => {
-    api.coderWorkspaceRoot.mockResolvedValue({ path: '/home/u/monoagent-coder', created: false })
+    api.coderWorkspaceDefault.mockResolvedValue({ path: '/home/u/monoagent-coder', created: false })
     api.createCoderConversation.mockResolvedValue({ id: 'c9', cwd: '/home/u/monoagent-coder', model: 'opus' })
     render(<Harness />)
     fireEvent.click(await screen.findByLabelText('New coder chat'))
@@ -177,7 +177,7 @@ describe('coder bubbles', () => {
     fireEvent.change(screen.getByLabelText('Effort'), { target: { value: 'high' } })
     fireEvent.keyDown(box, { key: 'Enter' })
     await waitFor(() => expect(api.createCoderConversation).toHaveBeenCalledWith('claude', 'opus', 'high', '/home/u/monoagent-coder', false))
-    expect(api.coderWorkspaceRoot).toHaveBeenCalledWith('claude')
+    expect(api.coderWorkspaceDefault).toHaveBeenCalledWith('claude')
     await waitFor(() => expect(api.startChatTurn).toHaveBeenCalledWith('c9', expect.any(String), 'add a README', false, false))
     await waitFor(() => expect(store.bubbles[0].conversationId).toBe('c9'))
     expect(JSON.parse(localStorage.getItem('monoagent:coderBubbles:v1')).bubbles[0].conversationId).toBe('c9')
@@ -195,7 +195,7 @@ describe('coder bubbles', () => {
     api.getAgentRuntimeModels.mockImplementation(rt => Promise.resolve(rt === 'codex'
       ? [{ id: 'gpt-5', label: 'GPT-5', effort_levels: ['low', 'medium'] }]
       : [{ id: 'opus', label: 'Opus 5.5', effort_levels: ['low', 'high'] }]))
-    api.coderWorkspaceRoot.mockResolvedValue({ path: '/home/u/monoagent-coder', created: true })
+    api.coderWorkspaceDefault.mockResolvedValue({ path: '/home/u/monoagent-coder', created: true })
     api.createCoderConversation.mockResolvedValue({ id: 'c9', cwd: '/home/u/monoagent-coder', model: 'gpt-5', runtimeId: 'codex' })
     render(<Harness />)
     fireEvent.click(await screen.findByLabelText('New coder chat'))
@@ -213,7 +213,7 @@ describe('coder bubbles', () => {
     fireEvent.change(box, { target: { value: 'port it' } })
     fireEvent.keyDown(box, { key: 'Enter' })
     await waitFor(() => expect(api.createCoderConversation).toHaveBeenCalledWith('codex', 'gpt-5', 'medium', '/home/u/monoagent-coder', false))
-    expect(api.coderWorkspaceRoot).toHaveBeenCalledWith('codex')
+    expect(api.coderWorkspaceDefault).toHaveBeenCalledWith('codex')
     await waitFor(() => expect(store.bubbles[0].runtime).toBe('codex'))
   })
 

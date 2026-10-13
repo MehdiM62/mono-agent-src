@@ -1011,6 +1011,13 @@
     "scopedTitle": "Claude ran with monomind's scoped access: its own tools are limited to what this turn allows. It has no separate sandbox yet.",
     "awaitingMonomindTitle": "monomind can't sandbox this agent runtime yet (monomind issue #396), so the turn ran without one. Codex and Grok turns are sandboxed today."
   },
+  "coderFolder": {
+    "profileDefault": "Profile folder (default): {{name}}",
+    "profileDefaultUnnamed": "Profile folder (default)",
+    "profileHint": "The active profile's own folder",
+    "chooseAnother": "Choose another folder…",
+    "chooseHint": "Any folder you trust"
+  },
   "bubbles": {
     "dockLabel": "Coder chats",
     "newChat": "New coder chat",

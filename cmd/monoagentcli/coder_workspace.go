@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 var (
@@ -115,6 +117,59 @@ func rootCoderWorkspace(ctx context.Context, root, initTarget string) (*coderWor
 	return ws, nil
 }
 
+// coderDefaultWorkspace is `coder workspace default --json`: the active
+// profile's own folder, ready for a coder chat.
+type coderDefaultWorkspace struct {
+	Path    string `json:"path"`
+	Profile struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	} `json:"profile"`
+	// Source is "profile" for the profile's default folder and
+	// "profile_custom_folder" when the profile was pointed elsewhere.
+	Source  string                  `json:"source"`
+	Created bool                    `json:"created"`
+	Init    *monomind.WorkspaceInit `json:"init,omitempty"`
+}
+
+// profileCoderWorkspace sets the profile's folder itself up as the coder
+// working folder: created if missing, then the runtime's add-only init
+// (nothing already there is touched). It is deliberately not git-initialized:
+// the folder holds the profile's vault and knowledge graph, and may be the
+// user's own project.
+func profileCoderWorkspace(ctx context.Context, db *sql.DB, profileID, initTarget string) (*coderDefaultWorkspace, error) {
+	p, err := lookupProfile(db, profileID)
+	if err != nil {
+		return nil, err
+	}
+	root := profiledir.Root(db, p.ID)
+	if root == "" {
+		return nil, errInvalidInput("profile %q has no usable folder", p.ID)
+	}
+	created := false
+	if _, err := os.Stat(root); errors.Is(err, fs.ErrNotExist) {
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			return nil, fmt.Errorf("creating profile folder: %w", err)
+		}
+		created = true
+	}
+	dir, err := resolveCoderCwd(root)
+	if err != nil {
+		return nil, err
+	}
+	ws := &coderDefaultWorkspace{Path: dir, Source: "profile", Created: created}
+	ws.Profile.ID, ws.Profile.Name = p.ID, p.Name
+	if !profiledir.IsDefaultManaged(db, p.ID) {
+		ws.Source = "profile_custom_folder"
+	}
+	res, err := initWorkspace(ctx, "", dir, initTarget)
+	if err != nil {
+		return ws, fmt.Errorf("profile folder %s not initialized: %w", dir, err)
+	}
+	ws.Init = res
+	return ws, nil
+}
+
 // resolveCoderCwd validates a user-picked folder: any existing directory,
 // made absolute with symlinks resolved, so resuming always finds the same
 // Claude Code session folder.
@@ -137,7 +192,7 @@ func resolveCoderCwd(p string) (string, error) {
 func newCoderWorkspaceCmd(cfg *globalConfig) *cobra.Command {
 	cmd := &cobra.Command{Use: "workspace", Short: "Coder mode working folders"}
 
-	var root, newRuntime, rootRuntime string
+	var root, newRuntime, rootRuntime, defaultRuntime string
 	newCmd := &cobra.Command{
 		Use:   "new",
 		Short: "Create a fresh, randomly named test folder and initialize it",
@@ -239,6 +294,37 @@ func newCoderWorkspaceCmd(cfg *globalConfig) *cobra.Command {
 	rootCmd.Flags().StringVar(&rootRuntime, "runtime", monomind.DefaultCoderRuntime, "Runtime whose setup files the folder gets")
 	withJSONErrors(cfg, rootCmd)
 
-	cmd.AddCommand(newCmd, rootCmd, listCmd)
+	defaultCmd := &cobra.Command{
+		Use:   "default",
+		Short: "Set up the active profile's folder as the coder working folder and print it",
+		Long: "A coder chat works in the active profile's own folder unless the user picks another. This " +
+			"creates it if missing and adds any missing monomind setup files for the runtime (--runtime). " +
+			"Nothing already there is changed. Prints {path, profile{id,name}, source} with --json.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			db, err := initDB(cfg)
+			if err != nil {
+				return fmt.Errorf("initializing database: %w", err)
+			}
+			defer db.Close()
+			_, _, rt, err := requireCoderReady(cmd, db.DB, defaultRuntime)
+			if err != nil {
+				return err
+			}
+			ws, err := profileCoderWorkspace(cmd.Context(), db.DB, cfg.ProfileID, rt.InitTarget)
+			if err != nil {
+				return err
+			}
+			if cfg.JSONOutput {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(ws)
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), ws.Path)
+			return nil
+		},
+	}
+	defaultCmd.Flags().StringVar(&defaultRuntime, "runtime", monomind.DefaultCoderRuntime, "Runtime whose setup files the folder gets")
+	withJSONErrors(cfg, defaultCmd)
+
+	cmd.AddCommand(newCmd, rootCmd, listCmd, defaultCmd)
 	return cmd
 }

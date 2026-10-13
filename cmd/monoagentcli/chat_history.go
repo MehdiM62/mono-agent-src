@@ -207,7 +207,7 @@ func printConversation(cfg *globalConfig, c ai.ConversationRecord) error {
 
 func newChatHistoryCreateCmd(cfg *globalConfig) *cobra.Command {
 	var runtimeID, model, effort, workflowID, mode, cwd string
-	var newWorkspace, coderRoot bool
+	var newWorkspace, coderRoot, profileFolder bool
 	var orgMode string
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -215,7 +215,7 @@ func newChatHistoryCreateCmd(cfg *globalConfig) *cobra.Command {
 		Long: "Create an agent conversation. --workflow is the tool and ownership context: " +
 			`"general" (the default), "draft", or a workflow id.` + "\n\n" +
 			"--mode coder creates a full-access conversation (see `coder`) that works in --cwd, or in a " +
-			"--coder-root (the coder root folder itself, shared), or a fresh test folder with --new-workspace. " +
+			"--profile-folder (the active profile's folder), a --coder-root (the coder root folder itself, shared), or a fresh test folder with --new-workspace. " +
 			"The folder is fixed for the conversation's life.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -223,7 +223,7 @@ func newChatHistoryCreateCmd(cfg *globalConfig) *cobra.Command {
 				if orgMode != ai.OrgModeSolo && orgMode != ai.OrgModeDynamic {
 					return errInvalidInput("--org must be solo or dynamic")
 				}
-				conv, err := createCoderConversation(cmd, cfg, runtimeID, model, effort, workflowID, coderFolderChoice{cwd: cwd, root: coderRoot, newWorkspace: newWorkspace})
+				conv, err := createCoderConversation(cmd, cfg, runtimeID, model, effort, workflowID, coderFolderChoice{cwd: cwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFolder})
 				if err != nil {
 					return err
 				}
@@ -242,8 +242,8 @@ func newChatHistoryCreateCmd(cfg *globalConfig) *cobra.Command {
 			}
 			switch mode {
 			case ai.ModeAssistant:
-				if cwd != "" || newWorkspace || coderRoot {
-					return errInvalidInput("--cwd, --coder-root and --new-workspace only apply to --mode coder")
+				if cwd != "" || newWorkspace || coderRoot || profileFolder {
+					return errInvalidInput("--cwd, --profile-folder, --coder-root and --new-workspace only apply to --mode coder")
 				}
 			default:
 				return errInvalidInput("unknown --mode %q (assistant or coder)", mode)
@@ -266,6 +266,7 @@ func newChatHistoryCreateCmd(cfg *globalConfig) *cobra.Command {
 	cmd.Flags().StringVar(&workflowID, "workflow", "general", "Workflow context")
 	cmd.Flags().StringVar(&mode, "mode", ai.ModeAssistant, "assistant, or coder for a full-access conversation")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Coder mode: the folder the agent works in (any existing folder)")
+	cmd.Flags().BoolVar(&profileFolder, "profile-folder", false, "Coder mode: work in the active profile's own folder (see `coder workspace default`)")
 	cmd.Flags().BoolVar(&coderRoot, "coder-root", false, "Coder mode: work in the coder root folder itself (see `coder set --workspace-root`)")
 	cmd.Flags().BoolVar(&newWorkspace, "new-workspace", false, "Coder mode: work in a fresh, randomly named test folder")
 	cmd.Flags().StringVar(&orgMode, "org", ai.OrgModeSolo, "Coder mode: solo, or dynamic to let the agent spawn worker agents")

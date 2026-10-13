@@ -39,6 +39,7 @@ func newProfileCmd(cfg *globalConfig) *cobra.Command {
 		newProfileUploadDocumentCmd(cfg),
 		newProfileDocumentsCmd(cfg),
 		newProfileSearchKnowledgeCmd(cfg),
+		newProfileContextCmd(cfg),
 	)
 	return cmd
 }
