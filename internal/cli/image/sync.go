@@ -1,5 +1,5 @@
-// cmd/monoagentcli/image_sync.go
-package main
+// internal/cli/image/sync.go
+package image
 
 import (
 	"fmt"
@@ -15,22 +15,22 @@ import (
 // rows with source "discovered") with the image files in its folder, once.
 // The desktop app runs it when its folder watcher sees a change. Uploaded,
 // chat and workflow images are never touched.
-func newImageSyncCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newImageSyncCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "sync",
 		Short:   "Register, refresh and remove discovered images to match the profile folder",
 		Args:    cobra.NoArgs,
 		Example: `  monoagentcli image sync --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
 
-			root := profiledir.Root(db.DB, cfg.ProfileID)
+			root := profiledir.Root(db.DB, d.ProfileID())
 			if root == "" {
-				return errInvalidInput("invalid profile id %q", cfg.ProfileID)
+				return d.InvalidInput("invalid profile id %q", d.ProfileID())
 			}
 			files, err := imagescan.Scan(root)
 			if err != nil {
@@ -40,8 +40,8 @@ func newImageSyncCmd(cfg *globalConfig) *cobra.Command {
 			for i, f := range files {
 				found[i] = vault.DiscoveredFile{Path: f.Path, Filename: f.Filename, SizeBytes: f.SizeBytes}
 			}
-			r := vault.SyncDiscoveredImages(cmd.Context(), db.DB, cfg.ProfileID, found)
-			return printFolderSync(cmd, cfg, "images", newFolderSyncResult(cfg.ProfileID, root, len(files), r))
+			r := vault.SyncDiscoveredImages(cmd.Context(), db.DB, d.ProfileID(), found)
+			return d.PrintFolderSync(cmd, "images", d.ProfileID(), root, len(files), r)
 		},
 	}
 }
