@@ -34,10 +34,14 @@ func TestNodePaletteGroupsRunnableTypes(t *testing.T) {
 		t.Fatalf("core.if = %+v", ifNode)
 	}
 	reg := buildNodeRegistry(false, nil)
+	aliases := reg.Aliases()
 	for group, list := range got {
 		for _, n := range list {
 			if group != "triggers" && !reg.Has(n.Type) {
 				t.Errorf("palette offers %s, which is not registered", n.Type)
+			}
+			if canonical, ok := aliases[n.Type]; ok {
+				t.Errorf("palette offers legacy alias %s; it should offer %s", n.Type, canonical)
 			}
 		}
 	}

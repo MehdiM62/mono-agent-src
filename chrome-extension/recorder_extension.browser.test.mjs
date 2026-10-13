@@ -27,7 +27,9 @@ const FIXTURE = `<!doctype html><html><head><meta charset="utf-8"><title>Rec e2e
 <body><form onsubmit="event.preventDefault()">
 <label for="email">Email</label><input id="email" name="email">
 <label>Password <input type="password" name="pw"></label>
-<button type="button" data-testid="save">Save</button></form></body></html>`;
+<button type="button" data-testid="save">Save</button>
+<button type="button" data-testid="load" onclick="fetch('/api/items?page=2',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer sekrit-hdr'},body:JSON.stringify({title:'t',password:'sekrit-body'})})">Load</button>
+</form></body></html>`;
 
 const CHROME = findChrome();
 let browser = null;
@@ -40,6 +42,11 @@ if (CHROME && typeof WebSocket === "function") {
   }
 }
 const server = createServer((req, res) => {
+  if (req.url.startsWith("/api/")) {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ items: [1, 2, 3, 4, 5], session: "sekrit-resp" }));
+    return;
+  }
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   res.end(FIXTURE);
 });
@@ -119,5 +126,30 @@ describe("the unpacked extension records a real page", { skip: browser ? false :
     await sleep(200);
     const again = await ask({ type: "record_stop" });
     assert.deepEqual(again.state.steps.map((x) => x.type), ["click"], "pick mode did not carry over");
+
+    // The page's JSON API call is captured from its own fetch, redacted.
+    await ask({ type: "record_clear" });
+    assert.equal((await ask({ type: "record_start", tabId })).ok, true);
+    await sleep(300);
+    await click("[data-testid=load]");
+    await sleep(800);
+    await ask({ type: "record_stop" });
+    const stored = JSON.parse(await cdp.evaluate(panel, `chrome.storage.local.get(null).then((o) => JSON.stringify(o))`));
+    const frames = [];
+    const walk = (v) => {
+      if (Array.isArray(v)) v.forEach(walk);
+      else if (v && typeof v === "object") v.op === "network" ? frames.push(v) : Object.values(v).forEach(walk);
+    };
+    walk(stored);
+    assert.equal(frames.length, 1, "one network frame is queued");
+    const net = frames[0].net;
+    assert.match(net.url, /\/api\/items\?page=2$/);
+    assert.deepEqual(net.requestHeaders.find((x) => x.name === "Authorization"), { name: "Authorization", credential: true, scheme: "Bearer" });
+    assert.deepEqual(JSON.parse(net.responseSample).items, [1, 2, 3]);
+    // Nothing anywhere in the outbox: not the network frame, and not the
+    // DOM snippet of the Load button, whose inline onclick holds the header.
+    const all = JSON.stringify(stored);
+    for (const secret of ["sekrit-hdr", "sekrit-body", "sekrit-resp"]) assert.ok(!all.includes(secret), `${secret} leaked`);
+    assert.ok(!/onclick/i.test(all), "inline handlers are stripped from snippets");
   });
 });

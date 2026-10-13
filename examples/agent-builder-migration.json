@@ -1,0 +1,83 @@
+{
+  "name": "Support Triage with Approval (Agent Builder migration)",
+  "description": "Starter for moving an OpenAI Agent Builder flow (classify → agent → user approval) to Mono Agent. A webhook receives {\"message\", \"customer_email\"}; one agent.ask turn triages it, a second drafts a reply, core.human_in_loop holds the draft for review (the Agent Builder approval/guardrail step), then the approved reply is emailed. agent.ask runs on your own agent CLI (runtime claude — change it to any runtime `monoagentcli agent scan --installed` lists). Set the SMTP values before activating.",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.webhook",
+      "name": "Incoming Message",
+      "position": { "x": 0, "y": 0 },
+      "disabled": false,
+      "config": {
+        "path": "support",
+        "method": "POST"
+      }
+    },
+    {
+      "id": "triage",
+      "type": "agent.ask",
+      "name": "Triage (classifier agent)",
+      "position": { "x": 320, "y": 0 },
+      "disabled": false,
+      "config": {
+        "runtime": "claude",
+        "system_prompt": "You triage customer messages. Answer with exactly one word: billing, technical, account or other.",
+        "prompt": "{{ $json.message }}",
+        "output_key": "category",
+        "timeout": 120
+      }
+    },
+    {
+      "id": "draft",
+      "type": "agent.ask",
+      "name": "Draft Reply (agent)",
+      "position": { "x": 640, "y": 0 },
+      "disabled": false,
+      "config": {
+        "runtime": "claude",
+        "system_prompt": "You write short, friendly support replies. Never promise refunds or make commitments; say a person will follow up when unsure.",
+        "prompt": "Category: {{ $json.category }}\nCustomer message: {{ $json.message }}\n\nWrite the reply email body.",
+        "output_key": "reply",
+        "timeout": 180
+      }
+    },
+    {
+      "id": "approval",
+      "type": "core.human_in_loop",
+      "name": "Approve Reply",
+      "position": { "x": 960, "y": 0 },
+      "disabled": false,
+      "config": {
+        "readonly_fields": ["customer_email", "message", "category"],
+        "editable_fields": ["reply"],
+        "timeout_minutes": 1440
+      }
+    },
+    {
+      "id": "send_reply",
+      "type": "comm.email_send",
+      "name": "Send Reply",
+      "position": { "x": 1280, "y": 0 },
+      "disabled": false,
+      "config": {
+        "smtp_host": "smtp.example.com",
+        "smtp_port": 587,
+        "username": "support@example.com",
+        "password": "REPLACE_WITH_APP_PASSWORD",
+        "from": "support@example.com",
+        "to": "{{ $json.customer_email }}",
+        "subject": "Re: your message",
+        "body": "{{ $json.reply }}",
+        "body_type": "text"
+      }
+    }
+  ],
+  "connections": [
+    { "id": "trigger-to-triage", "source": "trigger", "source_handle": "main", "target": "triage", "target_handle": "main" },
+    { "id": "triage-to-draft", "source": "triage", "source_handle": "main", "target": "draft", "target_handle": "main" },
+    { "id": "draft-to-approval", "source": "draft", "source_handle": "main", "target": "approval", "target_handle": "main" },
+    { "id": "approval-to-send", "source": "approval", "source_handle": "main", "target": "send_reply", "target_handle": "main" }
+  ]
+}

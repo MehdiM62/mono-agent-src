@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -22,8 +23,13 @@ type tool struct {
 	description string
 	schema      map[string]interface{}
 	annotations map[string]bool
-	mutating    bool // gated behind Options.AllowMutations — see callTool/toolDefinitions
-	handler     toolHandler
+	// outputSchema, when set, is the JSON schema of the tool's structuredContent.
+	outputSchema map[string]interface{}
+	// textOnly keeps the result out of structuredContent: api_key_create's
+	// result holds the new key, which goes on the wire once, in the text.
+	textOnly bool
+	mutating bool // gated behind Options.AllowMutations — see callTool/toolDefinitions
+	handler  toolHandler
 }
 
 func strParam(desc string) map[string]interface{} {
@@ -69,6 +75,9 @@ func definitionsOf(tools []tool, allowMutations bool) []map[string]interface{} {
 		if t.annotations != nil {
 			def["annotations"] = t.annotations
 		}
+		if t.outputSchema != nil {
+			def["outputSchema"] = t.outputSchema
+		}
 		out = append(out, def)
 	}
 	return out
@@ -78,31 +87,55 @@ func definitionsOf(tools []tool, allowMutations bool) []map[string]interface{} {
 // JSON text. Errors are returned as Go errors; the server renders them as
 // tool results with isError=true (per MCP spec), never protocol errors.
 func callTool(ctx context.Context, s *Server, name string, args json.RawMessage) (string, error) {
+	text, _, err := callToolResult(ctx, s, name, args)
+	return text, err
+}
+
+// callToolResult is callTool plus the result as structuredContent: the
+// compact JSON of a result that is a JSON object, nil for any other result
+// (an array, a string, a fenced text).
+func callToolResult(ctx context.Context, s *Server, name string, args json.RawMessage) (string, json.RawMessage, error) {
 	for _, t := range s.servedTools() {
 		if t.name != name {
 			continue
 		}
 		if t.mutating && !s.opts.AllowMutations {
-			return "", fmt.Errorf("%s requires --allow-mutations (or MONOAGENT_MCP_ALLOW_MUTATIONS=1) on the mcp server", t.name)
+			return "", nil, fmt.Errorf("%s requires --allow-mutations (or MONOAGENT_MCP_ALLOW_MUTATIONS=1) on the mcp server", t.name)
 		}
 		result, err := t.handler(ctx, s, args)
 		if err != nil {
-			return "", err
+			return "", nil, err
 		}
 		b, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			return "", fmt.Errorf("render tool result: %w", err)
+			return "", nil, fmt.Errorf("render tool result: %w", err)
 		}
-		return string(b), nil
+		if t.textOnly {
+			return string(b), nil, nil
+		}
+		return string(b), structuredOf(b), nil
 	}
 	if s.opts.APIOnly || s.opts.TasksOnly {
 		for _, t := range allTools() {
 			if t.name == name {
-				return "", s.notServed(name) // it exists, and this server does not serve it
+				return "", nil, s.notServed(name) // it exists, and this server does not serve it
 			}
 		}
 	}
-	return "", fmt.Errorf("unknown tool %q", name)
+	return "", nil, fmt.Errorf("unknown tool %q", name)
+}
+
+// structuredOf is rendered as compact JSON when it is a JSON object, else nil.
+func structuredOf(rendered []byte) json.RawMessage {
+	trimmed := bytes.TrimSpace(rendered)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return nil
+	}
+	var buf bytes.Buffer
+	if json.Compact(&buf, trimmed) != nil {
+		return nil
+	}
+	return json.RawMessage(buf.Bytes())
 }
 
 func allTools() []tool {
@@ -131,8 +164,9 @@ func allTools() []tool {
 				"file":     strParam("Path to a workflow JSON file"),
 				"workflow": map[string]interface{}{"type": "object", "description": "Inline workflow JSON object"},
 			}),
-			annotations: map[string]bool{"readOnlyHint": true},
-			handler:     toolWorkflowValidate,
+			annotations:  map[string]bool{"readOnlyHint": true},
+			outputSchema: validateOutputSchema,
+			handler:      toolWorkflowValidate,
 		},
 		{
 			name:        "workflow_run",
@@ -145,9 +179,10 @@ func allTools() []tool {
 				},
 				"timeout_seconds": map[string]interface{}{"type": "number", "description": "Wait limit in seconds (default 120, clamped to [1, 600])"},
 			}, "id"),
-			annotations: map[string]bool{"readOnlyHint": false},
-			mutating:    true,
-			handler:     toolWorkflowRun,
+			annotations:  map[string]bool{"readOnlyHint": false},
+			mutating:     true,
+			outputSchema: runOutputSchema,
+			handler:      toolWorkflowRun,
 		},
 		{
 			name:        "workflow_status",
@@ -155,8 +190,9 @@ func allTools() []tool {
 			schema: objSchema(map[string]interface{}{
 				"execution_id": strParam("Execution ID from workflow_run"),
 			}, "execution_id"),
-			annotations: map[string]bool{"readOnlyHint": true},
-			handler:     toolWorkflowStatus,
+			annotations:  map[string]bool{"readOnlyHint": true},
+			outputSchema: statusOutputSchema,
+			handler:      toolWorkflowStatus,
 		},
 		{
 			name:        "node_list",
@@ -209,7 +245,7 @@ func allTools() []tool {
 		},
 		{
 			name:        "docs",
-			description: "Built-in reference docs (same facts as the `monoagentcli ref` command). Topics: commands, nodes, expressions, workflow, templates, connections, org, publication. Omit topic for the index.",
+			description: "Built-in reference docs (same facts as the `monoagentcli ref` command). Topics: commands, nodes, expressions, workflow, templates, connections, org, publication, api-tools. Omit topic for the index. Also served as resources monoagent://ref/<topic>.",
 			schema: objSchema(map[string]interface{}{
 				"topic": strParam("Topic name (optional)"),
 			}),
@@ -218,11 +254,48 @@ func allTools() []tool {
 		},
 	}
 	native = append(native, monoagentAdaptedTools()...)
+	native = append(native, authoringTools()...)
+	native = append(native, nodeRunTool(), doctorTool())
 	native = append(native, taskTools()...)
 	native = append(native, apiTools()...)
 	native = append(native, publicationTools()...)
+	native = append(native, generateTools()...)
 	return append(native, apiConfigTools()...)
 }
+
+// The outputSchemas of the core workflow tools: what their structuredContent holds.
+var (
+	validateOutputSchema = objSchema(map[string]interface{}{
+		"valid":  map[string]interface{}{"type": "boolean"},
+		"errors": map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}},
+	}, "valid", "errors")
+	runOutputSchema = objSchema(map[string]interface{}{
+		"execution_id": map[string]interface{}{"type": "string"},
+		"status":       map[string]interface{}{"type": "string", "description": "SUCCESS, FAILED, CANCELLED, WAITING (a Human-in-Loop pause), RUNNING or QUEUED (timed out), UNKNOWN"},
+		"nodes": map[string]interface{}{"type": "array", "items": objSchema(map[string]interface{}{
+			"node_id":      map[string]interface{}{"type": "string"},
+			"type":         map[string]interface{}{"type": "string"},
+			"status":       map[string]interface{}{"type": "string"},
+			"output_items": map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "object"}},
+			"error":        map[string]interface{}{"type": "string"},
+		}, "node_id", "status", "output_items")},
+		"error":     map[string]interface{}{"type": "string"},
+		"timed_out": map[string]interface{}{"type": "boolean"},
+	}, "execution_id", "status", "nodes")
+	statusOutputSchema = objSchema(map[string]interface{}{
+		"id":            map[string]interface{}{"type": "string"},
+		"workflow_id":   map[string]interface{}{"type": "string"},
+		"profile_id":    map[string]interface{}{"type": "string"},
+		"status":        map[string]interface{}{"type": "string"},
+		"trigger_type":  map[string]interface{}{"type": "string"},
+		"trigger_data":  map[string]interface{}{"type": []string{"object", "null"}},
+		"started_at":    map[string]interface{}{"type": []string{"string", "null"}},
+		"finished_at":   map[string]interface{}{"type": []string{"string", "null"}},
+		"error_message": map[string]interface{}{"type": "string"},
+		"created_at":    map[string]interface{}{"type": "string"},
+		"nodes":         map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "object"}},
+	}, "id", "workflow_id", "status")
+)
 
 func decodeArgs(args json.RawMessage, dst interface{}) error {
 	if len(args) == 0 {
@@ -426,7 +499,12 @@ func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (inte
 	}
 
 	timeout := clampTimeoutSeconds(a.TimeoutSeconds)
-	exec := waitForExecution(ctx, rt, execID, timeout)
+	var exec *workflow.WorkflowExecution
+	if p := progressFrom(ctx); p != nil {
+		exec = waitWithProgress(ctx, rt, execID, a.ID, timeout, p)
+	} else {
+		exec = waitForExecution(ctx, rt, execID, timeout)
+	}
 
 	nodeTypes := map[string]string{}
 	if wf, err := rt.store.GetWorkflow(ctx, exec.WorkflowID); err == nil && wf != nil {

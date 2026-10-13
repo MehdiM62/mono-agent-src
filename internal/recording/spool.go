@@ -114,7 +114,7 @@ func (s *session) addNetwork(n *NetEntry) (Outcome, error) {
 	if n == nil {
 		return Outcome{}, errors.New("network frame has no net entry")
 	}
-	n.URL = SanitizeURL(n.URL)
+	SanitizeNet(n)
 	line, err := json.Marshal(n)
 	if err != nil {
 		return Outcome{}, err

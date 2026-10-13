@@ -53,7 +53,7 @@ export function GraceBanner({ status, onSignedIn }) {
   )
 }
 
-function SignInDialog({ onClose, onSignedIn }) {
+export function SignInDialog({ onClose, onSignedIn }) {
   const { t } = useTranslation()
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }

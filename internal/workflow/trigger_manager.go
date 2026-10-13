@@ -64,7 +64,8 @@ type triggerEntry struct {
 	kind        string // "schedule", "webhook", or "provider"
 	cronID      cron.EntryID
 	webhookPath string
-	deactivate  func() // provider entries
+	deactivate  func()            // provider entries
+	schedule    *scheduleFirePlan // schedule entries: overlap policy + guarded fire
 }
 
 // TriggerManager activates and deactivates triggers for workflows.
@@ -76,6 +77,7 @@ type TriggerManager struct {
 	triggerFn     func(workflowID string, nodeID string, items []Item)
 	mu            sync.Mutex
 	active        map[string]map[string]*triggerEntry // workflowID → nodeID → entry
+	fingerprints  map[string]string                   // workflowID → triggerFingerprint registered
 	providers     map[string]TriggerSource            // node type → provider
 	logger        zerolog.Logger
 }
@@ -95,6 +97,7 @@ func NewTriggerManager(
 		scheduler:     scheduler,
 		triggerFn:     triggerFn,
 		active:        make(map[string]map[string]*triggerEntry),
+		fingerprints:  make(map[string]string),
 		providers:     make(map[string]TriggerSource),
 		logger:        logger,
 	}
@@ -162,9 +165,17 @@ func (tm *TriggerManager) activateProvider(w *Workflow, node *WorkflowNode, p Tr
 }
 
 // ActivateWorkflow registers all trigger nodes in the given workflow.
-// It is idempotent: nodes already registered are skipped.
+// It is idempotent: nodes already registered are skipped. The first
+// activation's trigger fingerprint is what Fingerprint reports until the
+// workflow is deactivated.
 func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) error {
 	var errs []error
+	fp := triggerFingerprint(w)
+	tm.mu.Lock()
+	if _, ok := tm.fingerprints[w.ID]; !ok {
+		tm.fingerprints[w.ID] = fp
+	}
+	tm.mu.Unlock()
 
 	for i := range w.Nodes {
 		node := &w.Nodes[i]
@@ -213,6 +224,26 @@ func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) err
 	return nil
 }
 
+// scheduleParser parses specs the way internal/scheduler's cron instance
+// does (6 fields, seconds first, descriptors, CRON_TZ prefix).
+var scheduleParser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+
+// scheduleSpec builds a trigger.schedule node's cron spec from its config.
+func scheduleSpec(cfg map[string]interface{}) (string, error) {
+	spec, ok := cfg["cron"].(string)
+	if !ok || spec == "" {
+		return "", fmt.Errorf("trigger.schedule: missing or invalid \"cron\" field in config")
+	}
+	// Always pin the timezone — the underlying cron instance evaluates specs
+	// in time.Local when no CRON_TZ prefix is present, so a default-UTC
+	// schedule would silently fire at local time on non-UTC hosts.
+	tz, _ := cfg["timezone"].(string)
+	if tz == "" {
+		tz = "UTC"
+	}
+	return fmt.Sprintf("CRON_TZ=%s %s", tz, spec), nil
+}
+
 // activateSchedule registers a cron job for a trigger.schedule node.
 func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode) error {
 	key := node.ID
@@ -224,22 +255,16 @@ func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode
 		}
 	}
 
-	spec, ok := node.Config["cron"].(string)
-	if !ok || spec == "" {
-		return fmt.Errorf("trigger.schedule: missing or invalid \"cron\" field in config")
+	spec, err := scheduleSpec(node.Config)
+	if err != nil {
+		return err
 	}
-	// Always pin the timezone — the underlying cron instance evaluates specs
-	// in time.Local when no CRON_TZ prefix is present, so a default-UTC
-	// schedule would silently fire at local time on non-UTC hosts.
-	tz, _ := node.Config["timezone"].(string)
-	if tz == "" {
-		tz = "UTC"
-	}
-	spec = fmt.Sprintf("CRON_TZ=%s %s", tz, spec)
 
-	// Capture loop variables for the closure.
-	wfID := workflowID
-	nID := node.ID
+	policy, err := parseSchedulePolicy(node.Config)
+	if err != nil {
+		return err
+	}
+	plan := tm.newScheduleFirePlan(workflowID, node.ID, policy)
 
 	// Hold the mutex through the entire check-then-act to prevent TOCTOU races.
 	tm.mu.Lock()
@@ -255,15 +280,7 @@ func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode
 	}
 
 	entryID, err := tm.scheduler.AddWorkflowJob(spec, func() {
-		items := []Item{
-			{
-				JSON: map[string]interface{}{
-					"trigger_type": "schedule",
-					"timestamp":    time.Now().UTC().Format(time.RFC3339),
-				},
-			},
-		}
-		tm.triggerFn(wfID, nID, items)
+		plan.fire(scheduleItems(time.Now(), false))
 	})
 	if err != nil {
 		tm.mu.Unlock()
@@ -274,8 +291,9 @@ func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode
 		tm.active[workflowID] = make(map[string]*triggerEntry)
 	}
 	tm.active[workflowID][key] = &triggerEntry{
-		kind:   "schedule",
-		cronID: entryID,
+		kind:     "schedule",
+		cronID:   entryID,
+		schedule: plan,
 	}
 	tm.mu.Unlock()
 
@@ -375,6 +393,7 @@ func (tm *TriggerManager) DeactivateWorkflow(workflowID string) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 
+	delete(tm.fingerprints, workflowID)
 	entries := tm.active[workflowID]
 	if entries == nil {
 		return
@@ -399,6 +418,7 @@ func (tm *TriggerManager) DeactivateAll() {
 	// the same process) registers triggers again instead of skipping them as
 	// "already active".
 	tm.active = make(map[string]map[string]*triggerEntry)
+	tm.fingerprints = make(map[string]string)
 }
 
 // deactivateEntry tears down a single trigger entry. Callers remove it from
@@ -407,6 +427,9 @@ func (tm *TriggerManager) deactivateEntry(key string, entry *triggerEntry) {
 	switch entry.kind {
 	case "schedule":
 		tm.scheduler.RemoveJob(entry.cronID)
+		if entry.schedule != nil {
+			entry.schedule.stop()
+		}
 		tm.logger.Info().
 			Str("key", key).
 			Msg("schedule trigger deactivated")

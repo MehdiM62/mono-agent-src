@@ -93,7 +93,10 @@ func clipRunes(s string, n int) string {
 //     every textarea's text, when allValues is set — the snippet belongs to
 //     an event on a sensitive field);
 //   - data-* attributes are removed (apps park tokens and ids in them);
-//   - URLs in href/src/action/formaction are sanitised (SanitizeURL);
+//   - inline event handlers (on*) are removed: they are page code, and can
+//     carry a token (onclick="fetch(…, {Authorization: 'Bearer …'})");
+//   - URLs in href/src/action/formaction are sanitised (SanitizeURL), and
+//     javascript:/vbscript: ones removed;
 //   - <script> elements are dropped.
 //
 // It uses an HTML tokenizer, not a pattern: attribute order, quoting and
@@ -168,16 +171,35 @@ func sensitiveElement(tok html.Token) bool {
 	return false
 }
 
+// scriptURL reports a javascript:/vbscript: URL. Browsers skip tabs,
+// newlines and other controls inside a scheme, so they are skipped here too.
+func scriptURL(v string) bool {
+	var b strings.Builder
+	for _, r := range v {
+		if r > ' ' {
+			b.WriteRune(r)
+		}
+	}
+	s := strings.ToLower(b.String())
+	return strings.HasPrefix(s, "javascript:") || strings.HasPrefix(s, "vbscript:")
+}
+
 func scrubAttrs(tok html.Token, sensitive bool) []html.Attribute {
 	kept := tok.Attr[:0]
 	for _, a := range tok.Attr {
 		key := strings.ToLower(a.Key)
+		if a.Namespace != "" {
+			key = strings.ToLower(a.Namespace) + ":" + key
+		}
 		switch {
-		case strings.HasPrefix(key, "data-"):
+		case strings.HasPrefix(key, "data-"), strings.HasPrefix(key, "on"):
 			continue
 		case key == "value" && sensitive:
 			continue
-		case key == "href" || key == "src" || key == "action" || key == "formaction":
+		case key == "href" || key == "src" || key == "action" || key == "formaction" || key == "xlink:href":
+			if scriptURL(a.Val) {
+				continue
+			}
 			a.Val = SanitizeURL(a.Val)
 		}
 		kept = append(kept, a)

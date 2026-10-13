@@ -276,6 +276,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/monoagent/cdp", s.handleCdpSocket)
 	mux.HandleFunc("/monoagent/pair", s.handlePairPage)
 	mux.HandleFunc("/monoagent/pair/exchange", s.handlePairExchange)
+	mux.HandleFunc("/monoagent/pair/nonce", s.handlePairNonce)
 	mux.HandleFunc("/monoagent/resolve", s.handleResolve)
 	mux.HandleFunc("/monoagent/browsers", s.handleBrowsers)
 

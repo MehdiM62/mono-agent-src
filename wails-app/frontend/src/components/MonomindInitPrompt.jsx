@@ -65,7 +65,7 @@ export default function MonomindInitPrompt({ onInitialized }) {
         </>
       ) : (
         <button className="btn btn-primary btn-sm" onClick={start} style={{ marginTop: 8 }}>
-          Initiate monomind on this profile
+          Set up agents for this profile
         </button>
       )}
     </div>

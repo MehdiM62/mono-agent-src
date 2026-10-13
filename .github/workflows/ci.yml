@@ -202,7 +202,8 @@ jobs:
         with:
           go-version-file: go.mod
       - name: govulncheck
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        # Exact version, like every other tool CI runs (see mcp-pin-guard).
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '20'
@@ -216,6 +217,21 @@ jobs:
         # dependency. Production dependencies are audited at full severity.
         working-directory: wails-app/frontend
         run: npm audit --omit=dev --audit-level=high
+
+  # INFORMATIONAL (continue-on-error): staticcheck's bug checks (SA*) and
+  # unused code (U1000), so a self-comparison or a dropped error shows up in
+  # review. Not a gate yet; pinned like every other tool.
+  staticcheck:
+    name: staticcheck (informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 -checks 'SA*,U1000' ./...
 
   # Issue #24: node schemas for a small, growing set of node types are
   # generated from `schema:"..."` struct tags (internal/tools/schemagen)
@@ -241,7 +257,9 @@ jobs:
 
   # The suite under -race outgrew one 35-minute job on the hosted runners, so it
   # runs as shards: cmd/monoagentcli (most of the time) split by test name into
-  # four slices, everything else in "rest". "Build & test (default|nosocial)"
+  # four slices, everything else in "rest". The nosocial "rest" shard tests only
+  # the packages with nosocial-tagged files (cmd/monoagentcli has some, so its
+  # nosocial shards stay); "Build & test (nosocial)" builds and vets everything. "Build & test (default|nosocial)"
   # below stay the checks that gate a merge: they need every shard.
   test-shards:
     name: Test shard (${{ matrix.tags }} ${{ matrix.shard }})
@@ -265,7 +283,14 @@ jobs:
         run: |
           tags=""
           if [ "$TAGS" = nosocial ]; then tags="-tags nosocial"; fi
-          if [ "$SHARD" = rest ]; then
+          if [ "$SHARD" = rest ] && [ "$TAGS" = nosocial ]; then
+            # The tag only changes packages that hold nosocial-tagged files;
+            # the rest are already tested in the default shards. The list is
+            # computed so it follows the files.
+            pkgs="$(grep -rl --include='*.go' --exclude-dir=wails-app --exclude-dir=node_modules '//go:build.*nosocial' . | xargs -n1 dirname | sed 's|^\./||' | sort -u | grep -vx 'cmd/monoagentcli' | sed 's|^|./|' || true)"
+            echo "nosocial packages: $pkgs"
+            if [ -n "$pkgs" ]; then go test -timeout 35m $tags $pkgs -race; fi
+          elif [ "$SHARD" = rest ]; then
             go test -timeout 35m $tags $(go list $tags ./... | grep -v '/cmd/monoagentcli$') -race
           else
             names="$(go test $tags ./cmd/monoagentcli -list '^(Test|Example)' | grep -E '^(Test|Example)' | awk -v s="$SHARD" 'NR % 4 == s' | paste -sd'|')"

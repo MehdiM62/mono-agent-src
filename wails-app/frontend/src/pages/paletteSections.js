@@ -27,3 +27,37 @@ export function splitPaletteSections(categories) {
     { id: 'nodes', label: 'Nodes', categories: rest },
   ]
 }
+
+export const DEPRECATED = 'deprecated'
+const DEPRECATED_LABEL = /\(deprecated\)/i
+
+// arrangePaletteCategories orders the built-in categories for a first edit:
+// triggers first (every workflow starts with one), deprecated nodes pulled
+// out of their categories into one collapsed "Deprecated" group at the end
+// (still there for old workflows, out of the way of new ones), and a SERVICE
+// node that shares its name with a node elsewhere labelled "(API)" so the two
+// distinct node types can be told apart. Nodes keep their own category.
+export function arrangePaletteCategories(categories) {
+  const deprecated = []
+  const cats = []
+  for (const c of categories || []) {
+    const keep = []
+    for (const n of c.nodes || []) {
+      const node = { ...n, category: n.category || c.id }
+      if (DEPRECATED_LABEL.test(node.label || '')) deprecated.push(node)
+      else keep.push(node)
+    }
+    if (keep.length) cats.push({ ...c, nodes: keep })
+  }
+  const otherLabels = new Set()
+  for (const c of cats) if (c.id !== 'service') for (const n of c.nodes) otherLabels.add(String(n.label).toLowerCase())
+  const named = cats.map(c => (c.id !== 'service' ? c : {
+    ...c,
+    nodes: c.nodes.map(n => (otherLabels.has(String(n.label).toLowerCase()) ? { ...n, label: `${n.label} (API)` } : n)),
+  }))
+  const triggers = named.filter(c => c.id === 'triggers')
+  const rest = named.filter(c => c.id !== 'triggers')
+  const out = [...triggers, ...rest]
+  if (deprecated.length) out.push({ id: DEPRECATED, label: 'DEPRECATED', section: 'nodes', collapsedByDefault: true, nodes: deprecated })
+  return out
+}

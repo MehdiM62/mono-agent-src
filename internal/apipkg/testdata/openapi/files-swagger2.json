@@ -1,0 +1,46 @@
+{
+  "swagger": "2.0",
+  "info": { "title": "File Drop", "version": "1.0", "description": "A Swagger 2.0 file-drop API written for the apipkg converter tests." },
+  "host": "files.example.com",
+  "basePath": "/api/",
+  "schemes": ["https"],
+  "securityDefinitions": {
+    "key": { "type": "apiKey", "in": "query", "name": "apikey" },
+    "basic": { "type": "basic" }
+  },
+  "paths": {
+    "/folders": {
+      "get": {
+        "operationId": "listFolders", "summary": "List folders",
+        "parameters": [ { "name": "parent", "in": "query", "type": "string" },
+                        { "name": "ids", "in": "query", "type": "array", "items": { "type": "string" }, "collectionFormat": "csv" } ],
+        "responses": { "200": { "description": "ok" } }
+      },
+      "post": {
+        "operationId": "createFolder",
+        "parameters": [ { "name": "folder", "in": "body", "required": true, "schema": { "$ref": "#/definitions/Folder" } } ],
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/folders/{folderId}/files": {
+      "post": {
+        "operationId": "uploadFile", "consumes": ["multipart/form-data"],
+        "parameters": [
+          { "name": "folderId", "in": "path", "required": true, "type": "string" },
+          { "name": "name", "in": "formData", "required": true, "type": "string" },
+          { "name": "content", "in": "formData", "type": "file" } ],
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/files/{fileId}": {
+      "get": {
+        "operationId": "downloadFile", "produces": ["application/octet-stream"],
+        "parameters": [ { "name": "fileId", "in": "path", "required": true, "type": "string" } ],
+        "responses": { "200": { "description": "the file", "schema": { "type": "file" } } }
+      }
+    }
+  },
+  "definitions": {
+    "Folder": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "shared": { "type": "boolean" } } }
+  }
+}

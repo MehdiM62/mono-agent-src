@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -125,7 +126,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("comm.email_read", "Read Email", "comm", "Read emails via IMAP"),
 			mkNode("comm.slack", "Slack", "comm", "Send or read Slack messages"),
 			mkNode("comm.telegram", "Telegram", "comm", "Send or receive Telegram messages"),
-			mkNode("comm.discord", "Discord", "comm", "Send messages to a Discord channel"),
+			mkNode("service.discord", "Discord", "comm", "Send messages and embeds to a Discord channel (bot or webhook)"),
 			mkNode("comm.twilio", "Twilio", "comm", "Send SMS or make calls via Twilio"),
 			mkNode("comm.whatsapp", "WhatsApp", "comm", "Send WhatsApp messages"),
 		},
@@ -142,7 +143,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("service.hubspot", "HubSpot", "service", "Manage HubSpot CRM contacts and deals"),
 			mkNode("service.google_sheets", "Google Sheets", "service", "Read/write Google Sheets"),
 			mkNode("service.gmail", "Gmail", "service", "Send and read Gmail messages"),
-			mkNode("service.outlook_mail", "Outlook", "service", "Send and read Outlook/Hotmail messages via Microsoft Graph"),
+			mkNode("service.outlook_mail", "Outlook", "service", "Send and read Outlook/Hotmail messages (Microsoft Graph or app password)"),
 			mkNode("service.google_drive", "Google Drive", "service", "Manage Google Drive files"),
 			mkNode("service.huggingface", "HuggingFace", "service", "Generate images via HuggingFace Inference API"),
 			mkNode("service.openrouter", "OpenRouter (deprecated)", "service", "Deprecated — replace with Agent Ask"),
@@ -299,13 +300,14 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 		return deprecated && !includeDeprecated
 	}
 	seen := map[string]bool{}
+	aliases := reg.Aliases() // legacy ids resolve for saved workflows but are never offered
 	for group, list := range catalog {
 		if group == "triggers" {
 			continue // triggers run via the trigger manager, not the node registry
 		}
 		kept := list[:0]
 		for _, n := range list {
-			if reg.Has(n.Type) && !hidden(n.Type) {
+			if _, isAlias := aliases[n.Type]; !isAlias && reg.Has(n.Type) && !hidden(n.Type) {
 				kept = append(kept, n)
 				seen[n.Type] = true
 			}
@@ -315,6 +317,14 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 	for _, t := range reg.Types() { // Types() is sorted, so extras append deterministically
 		if !seen[t] && !hidden(t) {
 			g := groupOf(t)
+			if g == "app" { // API packages carry their own title and description
+				n := mkNode(t, workflow.SchemaTitle(t), g, "")
+				if p, ok := apipkg.ForNodeType(t); ok {
+					n.Description = p.Description
+				}
+				catalog[g] = append(catalog[g], n)
+				continue
+			}
 			catalog[g] = append(catalog[g], mkNode(t, deriveLabel(t), g, ""))
 		}
 	}

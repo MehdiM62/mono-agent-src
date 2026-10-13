@@ -1,0 +1,52 @@
+{
+  "id": "webhook-set-respond",
+  "mode": "both",
+  "workflow_name": "eval-webhook-set-respond",
+  "prompt": "Create a workflow named \"eval-webhook-set-respond\" that starts from a webhook\ntrigger on the path \"eval-orders\" (method POST). The request body carries\n\"customer\", \"quantity\" and \"unit_price\". Add a step that sets three fields on\nthe item: status = \"received\", total = quantity * unit_price (a number), and\ngreeting = \"Thanks, <customer>!\". The last node's output is the webhook's\nresponse. Do not activate the workflow.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "trigger.webhook"
+      ]
+    },
+    {
+      "type": "node_config",
+      "node_type": "trigger.webhook",
+      "key": "path",
+      "equals": "eval-orders"
+    },
+    {
+      "type": "output",
+      "path": "[0].status",
+      "equals": "received"
+    },
+    {
+      "type": "output",
+      "path": "[0].total",
+      "equals": 7.5
+    },
+    {
+      "type": "output",
+      "path": "[0].greeting",
+      "equals": "Thanks, Ada!"
+    }
+  ],
+  "input": {
+    "customer": "Ada",
+    "quantity": 3,
+    "unit_price": 2.5
+  },
+  "notes": "The grader runs it with `workflow run --input` carrying the body fields."
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 )
@@ -208,37 +207,6 @@ func (eh *ErrorHandler) ResetRetries(stepID string) {
 	eh.mu.Lock()
 	defer eh.mu.Unlock()
 	delete(eh.retryCounts, stepID)
-}
-
-// WithRetry executes fn with exponential backoff. The delay is capped at 60
-// seconds. It respects context cancellation.
-func WithRetry(ctx context.Context, maxRetries int, baseDelay time.Duration, fn func() error) error {
-	var lastErr error
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("retry cancelled: %w", err)
-		}
-
-		lastErr = fn()
-		if lastErr == nil {
-			return nil
-		}
-
-		if attempt < maxRetries {
-			delay := time.Duration(math.Pow(2, float64(attempt))) * baseDelay
-			const maxDelay = 60 * time.Second
-			if delay > maxDelay {
-				delay = maxDelay
-			}
-
-			select {
-			case <-ctx.Done():
-				return fmt.Errorf("retry cancelled during backoff: %w", ctx.Err())
-			case <-time.After(delay):
-			}
-		}
-	}
-	return fmt.Errorf("all %d retries exhausted: %w", maxRetries, lastErr)
 }
 
 // abortError is the error an aborted step returns: ErrAbort, wrapping the

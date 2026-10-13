@@ -185,6 +185,10 @@ func literalConfigKey(n ast.Node) (string, bool) {
 		if len(e.Args) < 2 {
 			return "", false
 		}
+		// credentialScopeCheck(config, "gmail") names a scope group, not a key.
+		if fn, ok := e.Fun.(*ast.Ident); ok && notKeyReaders[fn.Name] {
+			return "", false
+		}
 		x, key = e.Args[0], e.Args[1]
 	default:
 		return "", false
@@ -213,3 +217,7 @@ func recvName(fd *ast.FuncDecl) string {
 	}
 	return ""
 }
+
+// notKeyReaders are functions called as f(config, "x") whose string is not
+// a config key.
+var notKeyReaders = map[string]bool{"credentialScopeCheck": true}

@@ -146,14 +146,14 @@ live under ~/.monoagent/attachments/<message>/.
 		},
 	},
 	{
-		Name:  "template",
-		Short: "Manage message/comment templates",
-		Usage: "monoagentcli template <subcommand>",
+		Name:  "message-template",
+		Short: "Manage message/comment templates (alias: template; not workflow templates)",
+		Usage: "monoagentcli message-template <subcommand>",
 		Flags: `  list          List all templates
   create        Create a template
   delete <id>   Delete a template`,
 		Examples: []string{
-			"monoagentcli template list",
+			"monoagentcli message-template list",
 		},
 	},
 	{

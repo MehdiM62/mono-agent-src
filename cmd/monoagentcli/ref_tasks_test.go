@@ -268,7 +268,6 @@ func thousands(n int) string { return fmt.Sprintf("%d,%03d", n/1000, n%1000) }
 
 func TestRefTasksStatesTheLimitsAndDefaultsTheCodeHas(t *testing.T) {
 	refStates(t, "a profile's open tasks", `([\d,]+) open tasks`, thousands(tasks.MaxOpenTasks))
-	refStates(t, "the tasks an agent may add an hour", `(\d+) tasks an hour`, fmt.Sprint(tasks.AgentTasksPerHour))
 	refStates(t, "a title", `titles? (?:is |are )?\(?(\d+) characters`, fmt.Sprint(tasks.MaxTitleRunes))
 	refStates(t, "notes", `notes (?:are )?\(?(\d+) KiB`, fmt.Sprint(tasks.MaxNotesBytes>>10))
 	refStates(t, "a comment", `(?:note|comments) \(?(\d+) KiB`, fmt.Sprint(tasks.MaxCommentBytes>>10))

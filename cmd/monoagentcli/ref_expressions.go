@@ -26,10 +26,21 @@ BUILT-IN VARIABLES
   $json                       current item's JSON map
   $json.field_name            access a field on the current item
   $node["NodeName"].json.f    access a previous node's first output item
+  $node["NodeName"].all       every output item of a previous node (a list;
+                              .items is the same list)
+  $items["NodeName"]          same list as $node["NodeName"].all
   $workflow.id                workflow ID string
   $execution.id               execution run ID string
   $env.MY_VAR                 OS environment variable; gated — resolves
                               to empty unless MONOAGENT_ALLOW_ENV_TEMPLATES=1
+  $now                        current UTC time; prints as RFC3339, and has
+                              time methods: $now.Format "2006-01-02", $now.Unix
+  $today                      midnight UTC of the current day (like $now)
+  $trigger.field              the execution's trigger data
+  $vars.name                  workflow variables, when the caller sets them
+                              (empty otherwise; never holds secrets)
+  $runIndex                   loop iteration number, 0 outside a loop
+  $prevNode                   name of the node that fed this one, when known
 
 ENCODING
   json <value>                marshal Go value to JSON string
@@ -78,6 +89,10 @@ EXAMPLES
   {{ json $json.items }}                     — marshal to JSON
   {{ default "n/a" $json.optional_field }}   — default value
   {{ $node["RSS Feed"].json.title }}         — previous node output
+  {{ len $items["RSS Feed"] }}               — how many items a node output
+  {{ range $node["RSS Feed"].all }}{{ .title }}, {{ end }}
+                                             — every item of a node
+  {{ $now.Format "2006-01-02" }}             — today's date
   {{ $env.SLACK_WEBHOOK }}                   — env variable
   {{ add $json.count 1.0 }}                  — arithmetic
 

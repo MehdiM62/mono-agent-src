@@ -1,10 +1,10 @@
 // The at-a-glance home. Every number comes from the CLI — `summary`,
 // `org summary`, `workflow list` and `workflow executions --all` (see
 // dashboard/useDashboardData.js); this page only lays the cards out.
-import { useEffect, useMemo, useState } from 'react'
+import { useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RefreshCw, GitBranch } from 'lucide-react'
-import { api } from '../services/api.js'
+import { api, reportRunFailure } from '../services/api.js'
 import { GetVersion } from '../wailsjs/go/main/App'
 import { getHealth, subscribeHealth, summarize } from '../lib/health.js'
 import { useDashboardData } from './dashboard/useDashboardData.js'
@@ -20,12 +20,28 @@ import AutomationsCard from './dashboard/AutomationsCard.jsx'
 import AccountsCard from './dashboard/AccountsCard.jsx'
 import { loadScope, saveScope, currentProfileId } from './dashboard/scope.js'
 import ProfilesCard from './dashboard/ProfilesCard.jsx'
+import GetStartedCard from './dashboard/GetStartedCard.jsx'
+import { bridgeState, getStartedSteps, getStartedComplete, loadDismissed, okRunCount, saveDismissed } from './dashboard/getStarted.js'
+import { AccountContext } from '../lib/accountContext.js'
+
+const noGate = { subscribe: () => () => {}, getSnapshot: () => null }
 
 export default function Dashboard({ isActive = true, onRefresh, onNavigate, onOpenHil }) {
   const { t } = useTranslation()
   const [scope, setScopeState] = useState(loadScope)
   const setScope = (s) => { saveScope(s); setScopeState(s) }
-  const { summary, summaryFailed, orgs, workflows, executions, loading, refresh, setExecutions, reloadLists } = useDashboardData({ active: isActive, scope })
+  const { summary, summaryFailed, extension, orgs, workflows, executions, loading, refresh, setExecutions, reloadLists } = useDashboardData({ active: isActive, scope })
+  const gate = useContext(AccountContext) || noGate
+  const accountSnap = useSyncExternalStore(gate.subscribe, gate.getSnapshot)
+  const bridge = bridgeState(summary?.services?.bridge, extension)
+  const [getStartedHidden, setGetStartedHidden] = useState(loadDismissed)
+  const steps = getStartedSteps({
+    signedIn: !!accountSnap?.status?.user,
+    okRuns: okRunCount(executions),
+    bridge,
+    daemonRunning: summary?.services?.daemon?.running,
+  })
+  const showGetStarted = scope === 'profile' && !loading && !getStartedHidden && !getStartedComplete(steps)
   const currentId = currentProfileId(summary)
   const [ver, setVer] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -45,7 +61,14 @@ export default function Dashboard({ isActive = true, onRefresh, onNavigate, onOp
   // Optimistic status flips so the row reacts at once; the next poll corrects it.
   const handleRun = async (id) => {
     setExecutions(prev => prev.map(e => (e.workflow_id === id && e.status !== 'RUNNING' ? { ...e, status: 'RUNNING' } : e)))
-    await api.runWorkflow(id)
+    const started = await api.runWorkflow(id)
+    if (!started?.ok) {
+      reloadLists() // undo the optimistic RUNNING at once
+      reportRunFailure(started?.error || 'Run failed', {
+        activateAndRun: async () => { await handleToggle(id, true); await handleRun(id) },
+      })
+      return
+    }
     setTimeout(reloadLists, 1500)
   }
   const handleStop = async (executionId) => {
@@ -87,6 +110,11 @@ export default function Dashboard({ isActive = true, onRefresh, onNavigate, onOp
       </div>
 
       <div className="page-body dash-page">
+        {showGetStarted && (
+          <GetStartedCard steps={steps} bridge={bridge} onNavigate={onNavigate}
+            onSignedIn={() => gate.check?.('manual')}
+            onDismiss={() => { saveDismissed(); setGetStartedHidden(true) }} />
+        )}
         <AttentionStrip items={items} loading={loading} failed={summaryFailed} unread={unreadSections(summary)}
           onNavigate={onNavigate} onOpenHil={onOpenHil} />
         <StatRow summary={summary} orgs={orgs} loading={loading} onNavigate={onNavigate} />
@@ -100,7 +128,7 @@ export default function Dashboard({ isActive = true, onRefresh, onNavigate, onOp
           </div>
           <div className="dash-col">
             {scope === 'global' && <ProfilesCard summary={summary} />}
-            <SystemCard summary={summary} onNavigate={onNavigate} />
+            <SystemCard summary={summary} bridge={bridge} onNavigate={onNavigate} />
             <OrgsCard orgs={orgs} onNavigate={onNavigate} />
             <AutomationsCard summary={summary} onNavigate={onNavigate} />
             <AccountsCard summary={summary} onNavigate={onNavigate} />

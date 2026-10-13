@@ -137,11 +137,21 @@ test("never paired and refused are told apart", () => {
   assert.equal(refused.key, "rejected");
   assert.notEqual(never.title, refused.title);
   // Same fix, and both say it out loud with a button that goes there.
-  assert.equal(never.command, S.PAIR_COMMAND);
-  assert.equal(refused.command, S.PAIR_COMMAND);
+  assert.equal(never.command, S.PAIR_OPEN_COMMAND);
+  assert.equal(refused.command, S.PAIR_OPEN_COMMAND);
   assert.equal(never.action.id, S.ACTIONS.PAIR);
   assert.equal(refused.action.id, S.ACTIONS.PAIR);
   assert.equal(never.tone, "warn");
+});
+
+test("pairing leads with the one-step command, the token second", () => {
+  const never = S.describe({ status: "unpaired" });
+  assert.equal(S.PAIR_OPEN_COMMAND, "monoagentcli extension pair --open");
+  assert.equal(never.command, S.PAIR_OPEN_COMMAND);
+  assert.match(never.body, /pairs itself/);
+  assert.doesNotMatch(never.body, /paste/i, "the token is the button, not the lead");
+  assert.equal(never.action.label, "Paste a token instead");
+  assert.equal(S.describe({ status: "unpaired", reason: "auth_rejected" }).action.label, "Paste a new token");
 });
 
 test("a rejected token is a pairing problem whatever status carries it", () => {

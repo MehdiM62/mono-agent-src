@@ -9,14 +9,119 @@ var nodeDocsHttp = []nodeDoc{
 		Type:     "http.request",
 		Category: "http",
 		Short:    "Make an HTTP request (GET, POST, PUT, DELETE, …)",
+		Description: `Sends one request per input item (url, query_params, headers and body are
+resolved against each item's $json) and emits the response.
+
+AUTH (auth_type)
+  none        no auth (default) — unless credential_id is set, see below
+  credential  a saved connection (credential_id); OAuth tokens are refreshed first
+  basic       auth_username + auth_password
+  digest      auth_username + auth_password, answering the server's Digest challenge
+  bearer      auth_token → Authorization: Bearer <token>
+  api_key     auth_api_key_name + auth_api_key_value, auth_api_key_in header|query
+  With credential_id the connection decides: access_token → Bearer; username +
+  password (or email + api_token, account_sid + auth_token) → Basic; a single
+  api_key / token / secret_key → Bearer, or the header a generic_api connection
+  names. Override with credential_auth: bearer | basic | header:<Name> | query:<name>.
+  A url that is only a path (/v1/items) is completed with the connection's base_url.
+  Auth and custom headers are dropped when a redirect leaves the host, unless
+  send_credentials_on_redirect is true.
+
+QUERY / HEADERS
+  query_params and headers: an object, a list of {name, value}, or that as JSON
+  text. A list value repeats the parameter; query_array_format repeat (a=1&a=2),
+  brackets (a[]=1) or indices (a[0]=1).
+
+BODY (body_type; empty = JSON for an object or JSON text, text/plain otherwise;
+GET/HEAD send no body unless body_type is set)
+  json        body is an object or JSON text
+  form        application/x-www-form-urlencoded; an object, or already-encoded text
+  multipart   form-data: {"field": "text", "upload": {"file": "/path/report.pdf"}}
+              or {"upload": {"binary_property": "data"}} (the input item's binary)
+  text / raw  text/plain, or raw_content_type
+  binary      the input item's binary data (binary_property, default "data")
+
+RESPONSE
+  response_format json (default; text when not JSON) | text | autodetect |
+  file (bytes kept as the item's binary data, named by output_property) | binary (base64)
+  full_response true (default): each item is {status, headers, body}.
+  full_response false: the body is the item; a list is one item per element;
+  text goes under output_property (default "data").
+  Non-2xx responses go to the "error" output unless never_error is true.
+
+PAGINATION (pagination_type)
+  offset            page_field (default page, from 0) + per_page=page_size;
+                    list bodies are split into items; a short or empty page ends it.
+  update_parameter  pagination_parameters: [{type: query|header|body, name, value}];
+                    value is a template with $response (previous response: body,
+                    headers, statusCode) and $pageCount (pages fetched so far).
+  next_url          pagination_next_url, e.g. {{ $response.body.next }}; empty ends it.
+  pagination_complete_when: response_is_empty (default) | status_codes
+  (pagination_status_codes "404,410") | expression (pagination_complete_expression).
+  max_pages (default 1000), pagination_interval_ms between pages.
+
+OTHER
+  timeout (seconds, default 30), follow_redirects, max_redirects (10), proxy,
+  allow_unauthorized_certs, batch_size + batch_interval_ms (pause between batches
+  of items), lowercase_headers, max_body_mb (default 64), propagate_trace.
+  Import a curl command with: monoagentcli node curl '<curl command>'.
+
+MORE EXAMPLES
+  # a saved connection, the body only, all pages via a next link
+  {
+    "credential_id": "my_api",
+    "url":           "/v1/orders",
+    "full_response": false,
+    "pagination_type":     "next_url",
+    "pagination_next_url": "{{ $response.body.next }}"
+  }
+
+  # page numbers from 1, stop on an empty page
+  {
+    "url": "https://api.example.com/items",
+    "pagination_type": "update_parameter",
+    "pagination_parameters": [{ "type": "query", "name": "page", "value": "{{ add $pageCount 1 }}" }]
+  }
+
+  # form post with basic auth
+  {
+    "method": "POST", "url": "https://api.stripe.com/v1/customers",
+    "auth_type": "basic", "auth_username": "@secret:stripe_key",
+    "body_type": "form", "body": { "email": "{{ $json.email }}" }
+  }`,
 		Config: `{
   "method":  "POST",
   "url":     "https://api.example.com/data",
-  "headers": { "Content-Type": "application/json" },
+  "headers": { "Accept": "application/json" },
   "body":    "{{ json $json.payload }}"
 }`,
+		Inputs:  "any item (fields usable in config templates; binary data for body_type binary/multipart)",
+		Outputs: "main: {status, headers, body} per response (or the body itself with full_response false); error: non-2xx responses and failures ({error} or {status, headers, body})",
+		Notes:   "n8n HTTP Request parameters map onto these keys (internal/nodes/http.N8nHTTPParamMap). Secrets from a connection are never logged.",
+	},
+	{
+		Type:     "http.graphql",
+		Category: "http",
+		Short:    "Send a GraphQL query or mutation",
+		Description: `POSTs {query, variables, operationName} as JSON to endpoint (request_method
+GET puts them in the query string; request_format graphql sends the bare query
+as application/graphql). Auth works as in http.request: auth_type, auth_* fields,
+or credential_id (+ credential_auth). endpoint, query, variables, operation_name
+and headers are resolved per input item.
+
+A response with a GraphQL "errors" list goes to the "error" output (with data,
+when present) even on HTTP 200; so does a non-2xx status. Otherwise the response
+document is the item ($json.data...). response_format text keeps the raw body
+under data_property_name (default "data").`,
+		Config: `{
+  "endpoint":       "https://api.github.com/graphql",
+  "credential_id":  "github",
+  "query":          "query ($login: String!) { user(login: $login) { name followers { totalCount } } }",
+  "variables":      { "login": "{{ $json.login }}" }
+}`,
 		Inputs:  "any item (fields usable in config templates)",
-		Outputs: "status_code, body (parsed), headers",
+		Outputs: "main: the GraphQL response document ({data: …}); error: {error, errors, data} or {status, body}",
+		Notes:   "n8n GraphQL parameters map onto these keys (internal/nodes/http.N8nGraphQLParamMap). Also accepts timeout, allow_unauthorized_certs and max_body_mb.",
 	},
 	{
 		Type:     "http.ftp",

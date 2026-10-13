@@ -110,7 +110,7 @@ func resolveCredentialData(ctx context.Context, store *connections.Store, creden
 		// connection for this platform happened to be found first,
 		// silently operating on the wrong account when multiple profiles
 		// have a connection for the same platform.
-		conns, lErr := store.ListByPlatform(ctx, credentialOrPlatform, profileID)
+		conns, lErr := store.ListUsableByPlatform(ctx, credentialOrPlatform, profileID)
 		if lErr == nil && len(conns) > 0 {
 			for i := range conns {
 				if conns[i].Status == "active" {
@@ -278,6 +278,7 @@ func newNodeCmd(cfg *globalConfig) *cobra.Command {
 		newNodeRunCmd(cfg),
 		newNodeSchemaCmd(cfg),
 		newNodePaletteCmd(cfg),
+		newNodeCurlCmd(cfg),
 	)
 	return cmd
 }
@@ -321,7 +322,12 @@ func nodeTypeCategory(t string) string {
 	return nodeCategory(t)
 }
 
-// newNodeListCmd lists all registered node types.
+// triggerNodeTypes are the trigger types the engine handles itself: they are
+// never in the node registry (execution.go passes them through), so `node
+// list` adds them to the registered types.
+var triggerNodeTypes = []string{"trigger.manual", "trigger.org", "trigger.schedule", "trigger.webhook"}
+
+// newNodeListCmd lists all registered node types and the engine's triggers.
 func newNodeListCmd(cfg *globalConfig) *cobra.Command {
 	var filter string
 
@@ -340,6 +346,11 @@ func newNodeListCmd(cfg *globalConfig) *cobra.Command {
 			}
 			registry := buildNodeRegistry(cfg.Verbose, rawDB)
 			types := registry.Types()
+			for _, t := range triggerNodeTypes {
+				if !registry.Has(t) {
+					types = append(types, t)
+				}
+			}
 			sort.Strings(types)
 
 			if filter != "" {
@@ -368,8 +379,7 @@ func newNodeListCmd(cfg *globalConfig) *cobra.Command {
 			fmt.Fprintln(w, "TYPE\tCATEGORY")
 			fmt.Fprintln(w, "────\t────────")
 			for _, t := range types {
-				cat := nodeCategory(t)
-				fmt.Fprintf(w, "%s\t%s\n", t, cat)
+				fmt.Fprintf(w, "%s\t%s\n", t, nodeTypeCategory(t))
 			}
 			w.Flush()
 			fmt.Printf("\n%d node types\n", len(types))
@@ -977,6 +987,8 @@ func nodeCategory(t string) string {
 		return "browser/social"
 	case strings.HasPrefix(t, "people."):
 		return "people"
+	case strings.HasPrefix(t, "app."):
+		return "app"
 	case t == "mysql" || t == "postgres" || t == "mongodb" || t == "redis":
 		return "database"
 	case t == "github" || t == "notion" || t == "airtable" || t == "jira" || t == "linear" || t == "asana" || t == "stripe" || t == "shopify" || t == "salesforce" || t == "hubspot" || t == "google_sheets" || t == "gmail" || t == "google_drive":

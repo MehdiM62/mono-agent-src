@@ -186,7 +186,7 @@ func TestToolsHashTellsTheSameDeclarationsFromOthers(t *testing.T) {
 	if toolsHash(reordered) != toolsHash(reordered2) {
 		t.Error("the order of the tools does not matter")
 	}
-	if toolsHash(nil) != toolsHash(nil) || toolsHash(nil) == toolsHash(a) {
+	if toolsHash(nil) != toolsHash([]toolDecl{}) || toolsHash(nil) == toolsHash(a) {
 		t.Error("no tools is a hash of its own")
 	}
 }
