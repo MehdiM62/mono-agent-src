@@ -18,6 +18,11 @@
             "dataType": "ip",
             "data": "1.2.3.4",
             "tags": "x"
+          },
+          {
+            "dataType": "file",
+            "binaryProperty": "evidence",
+            "message": "pcap"
           }
         ]
       }
@@ -29,24 +34,8 @@
       "method": "POST",
       "path": "/api/v1/alert",
       "body": {
-        "title": "T",
-        "type": "ext",
-        "source": "s",
-        "sourceRef": "r",
-        "date": 1704067200000,
-        "tags": [
-          "a",
-          "b"
-        ],
-        "observables": [
-          {
-            "dataType": "ip",
-            "data": "1.2.3.4",
-            "tags": [
-              "x"
-            ]
-          }
-        ]
+        "_json": "{\"date\":1704067200000,\"observables\":[{\"data\":\"1.2.3.4\",\"dataType\":\"ip\",\"tags\":[\"x\"]},{\"attachment\":\"evidence\",\"dataType\":\"file\",\"message\":\"pcap\"}],\"source\":\"s\",\"sourceRef\":\"r\",\"tags\":[\"a\",\"b\"],\"title\":\"T\",\"type\":\"ext\"}",
+        "evidence": "file:x.pcap:hi"
       },
       "items": 1
     },
@@ -54,6 +43,15 @@
       "url": "https://hive.example.com",
       "api_key": "k",
       "allow_unauthorized_certs": true
+    },
+    "input": {
+      "binary": {
+        "evidence": {
+          "data": "aGk=",
+          "fileName": "x.pcap",
+          "mimeType": "application/vnd.tcpdump.pcap"
+        }
+      }
     }
   },
   "alert.deleteAlert": {

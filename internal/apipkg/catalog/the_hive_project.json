@@ -94,26 +94,58 @@
       "method": "POST",
       "path": "/v1/alert",
       "body": {
-        "$merge": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | unflatten }}",
-        "date": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'date' | epoch_ms }}",
-        "lastSyncDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'lastSyncDate' | epoch_ms }}",
-        "startDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'startDate' | epoch_ms }}",
-        "endDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'endDate' | epoch_ms }}",
-        "dueDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'dueDate' | epoch_ms }}",
-        "includeInTimeline": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'includeInTimeline' | epoch_ms }}",
-        "sightedAt": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'sightedAt' | epoch_ms }}",
-        "tags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'tags' | split }}",
-        "addTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'addTags' | split }}",
-        "removeTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'removeTags' | split }}",
-        "observables": {
-          "$map": "{{ p.observableUi.values }}",
-          "$to": {
-            "dataType": "{{ el.dataType }}",
-            "data": "{{ el.data }}",
-            "message": "{{ el.message }}",
-            "tags": "{{ el.tags | split }}"
+        "_json": {
+          "$json": {
+            "$when": "{{ p.observableUi.values | find:'dataType','file' }}",
+            "$merge": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | unflatten }}",
+            "date": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'date' | epoch_ms }}",
+            "lastSyncDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'lastSyncDate' | epoch_ms }}",
+            "startDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'startDate' | epoch_ms }}",
+            "endDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'endDate' | epoch_ms }}",
+            "dueDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'dueDate' | epoch_ms }}",
+            "includeInTimeline": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'includeInTimeline' | epoch_ms }}",
+            "sightedAt": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'sightedAt' | epoch_ms }}",
+            "tags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'tags' | split }}",
+            "addTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'addTags' | split }}",
+            "removeTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'removeTags' | split }}",
+            "observables": {
+              "$map": "{{ p.observableUi.values }}",
+              "$to": {
+                "dataType": "{{ el.dataType }}",
+                "data": "{{ el.dataType | ne:'file' | then:el.data }}",
+                "attachment": "{{ el.dataType | eq:'file' | then:(el.binaryProperty | default:'data') }}",
+                "message": "{{ el.message }}",
+                "tags": "{{ el.tags | split }}"
+              }
+            }
           }
-        }
+        },
+        "$merge": [
+          {
+            "$when": "{{ p.observableUi.values | find:'dataType','file' | default:'' | eq:'' }}",
+            "$merge": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | unflatten }}",
+            "date": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'date' | epoch_ms }}",
+            "lastSyncDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'lastSyncDate' | epoch_ms }}",
+            "startDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'startDate' | epoch_ms }}",
+            "endDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'endDate' | epoch_ms }}",
+            "dueDate": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'dueDate' | epoch_ms }}",
+            "includeInTimeline": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'includeInTimeline' | epoch_ms }}",
+            "sightedAt": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'sightedAt' | epoch_ms }}",
+            "tags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'tags' | split }}",
+            "addTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'addTags' | split }}",
+            "removeTags": "{{ (p.alertFields.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.alertFields.schema | pluck:'id')) | default:p.alertFields.value) | get:'removeTags' | split }}",
+            "observables": {
+              "$map": "{{ p.observableUi.values }}",
+              "$to": {
+                "dataType": "{{ el.dataType }}",
+                "data": "{{ el.dataType | ne:'file' | then:el.data }}",
+                "attachment": "{{ el.dataType | eq:'file' | then:(el.binaryProperty | default:'data') }}",
+                "message": "{{ el.message }}",
+                "tags": "{{ el.tags | split }}"
+              }
+            }
+          }
+        ]
       },
       "fields": [
         {
@@ -135,9 +167,17 @@
           "options": [
             "values"
           ],
-          "help": "values: [{dataType, data, message, tags}] (file observables are not supported yet)"
+          "help": "values: [{dataType, data, message, tags}]; a file observable is {dataType: \"file\", binaryProperty: \"data\"} and uploads that input binary"
         }
-      ]
+      ],
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "observableUi",
+        "properties": "{{ p.observableUi.values | pluck:'binaryProperty' }}",
+        "multipart_field": "{{ el.property }}",
+        "upload_when": "{{ p.observableUi.values | find:'dataType','file' }}",
+        "fallback_body_type": "json"
+      }
     },
     {
       "resource": "alert",
