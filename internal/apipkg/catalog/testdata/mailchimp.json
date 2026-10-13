@@ -1,0 +1,358 @@
+{
+  "member.create": {
+    "params": {
+      "list": "L1",
+      "email": "a@x.io",
+      "status": "subscribed",
+      "options": {
+        "tags": "a,b",
+        "vip": true,
+        "timestampOpt": "2024-01-02T03:04:05Z"
+      },
+      "mergeFieldsUi": {
+        "mergeFieldsValues": [
+          {
+            "name": "FNAME",
+            "value": "Ada"
+          }
+        ]
+      },
+      "locationFieldsUi": {
+        "locationFieldsValues": {
+          "latitude": "1.5",
+          "longitude": "2"
+        }
+      },
+      "groupsUi": {
+        "groupsValues": [
+          {
+            "categoryId": "c",
+            "categoryFieldId": "g1",
+            "value": true
+          }
+        ]
+      }
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/3.0/lists/L1/members",
+      "body": {
+        "email_address": "a@x.io",
+        "status": "subscribed",
+        "tags": [
+          "a",
+          "b"
+        ],
+        "vip": true,
+        "timestamp_opt": "2024-01-02 03:04:05",
+        "merge_fields": {
+          "FNAME": "Ada"
+        },
+        "location": {
+          "latitude": 1.5,
+          "longitude": 2
+        },
+        "interests": {
+          "g1": true
+        }
+      }
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "member.delete": {
+    "params": {
+      "list": "L1",
+      "email": "A@x.io"
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/3.0/lists/L1/members/a@x.io/actions/delete-permanent",
+      "items": 1
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "member.get": {
+    "params": {
+      "list": "L1",
+      "email": "a@x.io",
+      "options": {
+        "fields": "id"
+      }
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/3.0/lists/L1/members/a@x.io",
+      "query": {
+        "fields": "id"
+      }
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "member.getAll": {
+    "params": {
+      "list": "L1",
+      "limit": 5,
+      "options": {
+        "status": "subscribed"
+      }
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/3.0/lists/L1/members",
+      "query": {
+        "status": "subscribed",
+        "offset": "0",
+        "count": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "members": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "member.update": {
+    "params": {
+      "list": "L1",
+      "email": "a@x.io",
+      "jsonParameters": true,
+      "mergeFieldsJson": "{\"LNAME\":\"L\"}",
+      "updateFields": {
+        "status": "unsubscribed",
+        "skipMergeValidation": true
+      }
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/3.0/lists/L1/members/a@x.io",
+      "body": {
+        "email_address": "a@x.io",
+        "status": "unsubscribed",
+        "merge_fields": {
+          "LNAME": "L"
+        }
+      },
+      "query": {
+        "skip_merge_validation": "true"
+      }
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "memberTag.create": {
+    "params": {
+      "list": "L1",
+      "email": "a@x.io",
+      "tags": [
+        "vip"
+      ]
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/3.0/lists/L1/members/a@x.io/tags",
+      "body": {
+        "tags": [
+          {
+            "name": "vip",
+            "status": "active"
+          }
+        ]
+      }
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "memberTag.delete": {
+    "params": {
+      "list": "L1",
+      "email": "a@x.io",
+      "tags": [
+        "vip"
+      ],
+      "options": {
+        "isSyncing": true
+      }
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/3.0/lists/L1/members/a@x.io/tags",
+      "body": {
+        "tags": [
+          {
+            "name": "vip",
+            "status": "inactive"
+          }
+        ],
+        "is_syncing": true
+      }
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "listGroup.getAll": {
+    "params": {
+      "list": "L1",
+      "groupCategory": "c1",
+      "returnAll": true
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/3.0/lists/L1/interest-categories/c1/interests",
+      "query": {
+        "offset": "0",
+        "count": "500"
+      },
+      "items": 1
+    },
+    "response": {
+      "interests": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "campaign.getAll": {
+    "params": {
+      "limit": 2,
+      "options": {
+        "status": "sent"
+      }
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/3.0/campaigns",
+      "query": {
+        "status": "sent",
+        "fields": "campaigns.id,campaigns.status,campaigns.tracking,campaigns.settings.from_name,campaigns.settings.reply_to,campaigns.settings.title",
+        "offset": "0",
+        "count": "2"
+      },
+      "items": 2
+    },
+    "response": {
+      "campaigns": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    }
+  },
+  "campaign.delete": {
+    "params": {
+      "campaignId": "c1"
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/3.0/campaigns/c1"
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "campaign.get": {
+    "params": {
+      "campaignId": "c1"
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/3.0/campaigns/c1"
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "campaign.replicate": {
+    "params": {
+      "campaignId": "c1"
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/3.0/campaigns/c1/actions/replicate"
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "campaign.resend": {
+    "params": {
+      "campaignId": "c1"
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/3.0/campaigns/c1/actions/create-resend"
+    },
+    "response": {
+      "id": "x"
+    }
+  },
+  "campaign.send": {
+    "params": {
+      "campaignId": "c1"
+    },
+    "credential": {
+      "api_key": "abc-us6"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/3.0/campaigns/c1/actions/send"
+    },
+    "response": {
+      "id": "x"
+    }
+  }
+}
