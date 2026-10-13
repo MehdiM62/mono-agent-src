@@ -1,6 +1,6 @@
 # Example Workflows
 
-Ten ready-to-import, structurally valid workflow JSONs. None of them use
+Eleven ready-to-import, structurally valid workflow JSONs. None of them use
 social-platform nodes — they work with the default build
 (`go build ./cmd/monoagentcli`; none of them need the social platform nodes).
 
@@ -23,6 +23,7 @@ will succeed — `workflow import` and `--dry-run` work without them.
 | `outlook-inbox-sync.json` | Hourly: sync Outlook inbox + sent mail into People (adapted from the bundled template) | `trigger.schedule` | `service.outlook_mail` → `people.sync_outlook_message` (×2 branches) |
 | `telegram-notify.json` | Every morning: RSS items pushed as Telegram bot messages | `trigger.schedule` | `system.rss_read` → `comm.telegram` |
 | `data-pipeline.json` | Fetch API JSON → reshape in code → write CSV → sum totals | `trigger.manual` | `http.request` → `core.code` → `data.spreadsheet` → `core.aggregate` |
+| `error-auto-repair.json` | Template error workflow: when another workflow fails, an agent proposes a fix and a person reviews it | `trigger.error` | `core.set` → `agent.ask` → `core.human_in_loop` |
 
 ## Quickstart
 
