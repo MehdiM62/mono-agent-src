@@ -239,11 +239,45 @@ jobs:
       - name: Check generated schemas match committed files
         run: go run ./cmd/schemagen -check
 
+  # The suite under -race outgrew one 35-minute job on the hosted runners, so it
+  # runs as shards: cmd/monoagentcli (most of the time) split by test name into
+  # four slices, everything else in "rest". "Build & test (default|nosocial)"
+  # below stay the checks that gate a merge: they need every shard.
+  test-shards:
+    name: Test shard (${{ matrix.tags }} ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tags: [default, nosocial]
+        shard: [rest, '0', '1', '2', '3']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        env:
+          SHARD: ${{ matrix.shard }}
+          TAGS: ${{ matrix.tags }}
+        run: |
+          tags=""
+          if [ "$TAGS" = nosocial ]; then tags="-tags nosocial"; fi
+          if [ "$SHARD" = rest ]; then
+            go test -timeout 35m $tags $(go list $tags ./... | grep -v '/cmd/monoagentcli$') -race
+          else
+            names="$(go test $tags ./cmd/monoagentcli -list '^(Test|Example)' | grep -E '^(Test|Example)' | awk -v s="$SHARD" 'NR % 4 == s' | paste -sd'|')"
+            go test -timeout 35m $tags ./cmd/monoagentcli -race -run "^($names)$"
+          fi
+
   # NOTE: no CGO_ENABLED=0 here. `go test -race` requires cgo ("go: -race
   # requires cgo" on Go 1.25), and ubuntu runners ship gcc — the default
   # CGO_ENABLED=1 works for modernc.org/sqlite and everything else we use.
   test:
     name: Build & test (default)
+    needs: test-shards
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -272,7 +306,7 @@ jobs:
           fi
 
       - name: Test
-        run: go test -timeout 35m ./... -race
+        run: echo "the tests ran in the Test shard jobs, which this job needs"
 
   # INFORMATIONAL (continue-on-error): runs internal/account's tests on Windows
   # and macOS, where no other job here does. The package has Windows-only code
@@ -306,6 +340,7 @@ jobs:
   # (-tags nosocial) build compiling and passing.
   test-nosocial:
     name: Build & test (nosocial)
+    needs: test-shards
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -321,7 +356,7 @@ jobs:
         run: go vet -tags nosocial ./...
 
       - name: Test
-        run: go test -timeout 35m -tags nosocial ./... -race
+        run: echo "the tests ran in the Test shard jobs, which this job needs"
 
   # Mirror of the release.yml test gate's Wails steps (minus release/tagging):
   # system deps for GTK/WebKit headers, frontend build (main.go //go:embeds
