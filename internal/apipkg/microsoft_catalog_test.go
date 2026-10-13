@@ -204,7 +204,7 @@ func TestTeamsMeetingByJoinURL(t *testing.T) {
 			fmt.Fprint(w, `{"id":"MSo1"}`)
 		})
 		params := map[string]any{"resource": "onlineMeeting", "operation": op,
-			"meetingId": map[string]any{"__rl": true, "mode": "url", "value": join},
+			"meetingId":    map[string]any{"__rl": true, "mode": "url", "value": join},
 			"updateFields": map[string]any{"subject": "s"}}
 		if _, err := runPackageOp(p, params, graphCred, nil); err != nil {
 			t.Fatalf("%s: %v", op, err)

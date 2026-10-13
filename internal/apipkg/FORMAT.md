@@ -268,6 +268,7 @@ through, so an unset param stays unset:
 | `dotnet_date` | .NET JSON date `/Date(1586833770780)/` (optional `+0100` offset) → `2020-04-14T03:09:30.780Z`; objects and lists are converted deeply, other values pass. A whole response: `"output": {"to": "{{ el \| dotnet_date }}"}` (Unleashed) |
 | `wrap:n` | text broken into lines of at most `n` characters joined by CRLF (base64 bodies in MIME messages: `{{ p.message \| base64 \| wrap:76 }}`) |
 | `mime_parts:'boundary'` | `bin.files` → one base64 attachment part per file (Content-Type with the file's MIME type and name, Content-Disposition attachment, lines wrapped at 76) plus the closing `--boundary--`; an empty list is nil, a file without data fails naming its property. The template writes the `multipart/mixed` header and the text part (Gmail send/reply/draft) |
+| `sealbox:key` | the value's text sealed for a base64 X25519 public key (libsodium `crypto_box_seal`), base64: Venafi `"{{ p.privateKeyPassphrase \| sealbox:pres.1.key }}"` |
 | `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -855,4 +856,5 @@ Optional keys the engine added (the design's keys are unchanged):
 | credential | AWS AssumeRole via connection `role_arn` (`external_id`, `role_session_name`) | §7 |
 | templates, binary | filters `wrap`, `mime_parts`; `binary.properties` without `upload_field` | §5, §10 |
 | output | `where` (keep elements by a template) | §9 |
+| templates | filter `sealbox` | §5 |
 | output | `walk` (tree walk over a growing id frontier, optional chunked `fetch`) | §9 |
