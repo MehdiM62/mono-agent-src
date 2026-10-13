@@ -60,6 +60,7 @@ mkkey() { # <name> -> $work/<name>.key (base64 seed||pub), <name>.line ("<id> <b
   openssl pkey -in "$work/$1.pem" -outform DER 2>/dev/null | tail -c 32 > "$work/$1.seed"
   openssl pkey -in "$work/$1.pem" -pubout -outform DER 2>/dev/null | tail -c 32 > "$work/$1.pub"
   cat "$work/$1.seed" "$work/$1.pub" | openssl base64 -A > "$work/$1.key"
+  chmod 600 "$work/$1.key" # release-manifest refuses a signing key readable by others
   local id; id="$(openssl dgst -sha256 -binary < "$work/$1.pub" | od -An -tx1 | tr -d ' \n' | cut -c1-16)"
   printf '%s %s' "$id" "$(openssl base64 -A < "$work/$1.pub")" > "$work/$1.line"
   openssl base64 -A < "$work/$1.pub" > "$work/$1.pub64"
@@ -128,7 +129,7 @@ echo "== 4: monoagentcli release verify"
 cli() { HOME="$home" env -u MONOAGENT_E2E_LOOPBACK "$@"; }
 m="$work/art-v9.9.9/manifest.json"; s="$m.sig"
 out="$(cli "$bin/old-cli" release verify "$m" "$s" --pubkey "$good_line" 2>&1)"; rc=$?
-grep -q "^OK: v9.9.9, 9 assets" <<<"$out"; check "verify --pubkey: good signature" $? "$out"
+grep -q "^OK: v9.9.9, 10 assets" <<<"$out"; check "verify --pubkey: good signature" $? "$out"
 out="$(MONOAGENT_E2E_PINNED_KEY="$good_line" cli "$bin/old-cli" release verify "$m" "$s" 2>&1)"
 grep -q "^OK: v9.9.9" <<<"$out"; check "verify with the key pinned in the binary" $? "$out"
 out="$(cli "$bin/old-cli" release verify "$m" "$s" 2>&1)" && rc=0 || rc=$?
@@ -174,9 +175,11 @@ echo "== 5: install.sh"
 n=0
 inst() { # <name> <ok|fail> <pattern> [env...]
   local name="$1" want="$2" pat="$3"; shift 3
+  local script="$root/install.sh"
+  if [ "${1:-}" = --unpinned ]; then script="$work/install-unpinned.sh"; shift; fi
   n=$((n+1)); local dest="$work/inst-$n" rc=0 o
   o="$(env -u MONOAGENT_RELEASE_PUBKEY HOME="$home" INSTALL_DIR="$dest" MONOAGENT_TEST_ASSET_URL_PREFIX="$base/" \
-       MONOAGENT_MANIFEST_URL="$base/sh/manifest.json" "$@" bash "$root/install.sh" 2>&1)" || rc=$?
+       MONOAGENT_MANIFEST_URL="$base/sh/manifest.json" "$@" bash "$script" 2>&1)" || rc=$?
   local ok=0
   if [ "$want" = ok ]; then
     [ "$rc" -eq 0 ] && [ -x "$dest/monoagentcli" ] && [ "$("$dest/monoagentcli" version 2>&1 | head -n1 | grep -c 'v9.9.9')" -ge 1 ] && ok=1
@@ -187,18 +190,21 @@ inst() { # <name> <ok|fail> <pattern> [env...]
   case "$name" in *no-false-claim*) ! grep -qi "signature verified" <<<"$o" || ok=0 ;; esac
   if [ "$ok" -eq 1 ]; then pass "install: $name"; else fail "install: $name (rc=$rc)" "$o"; fi
 }
+# install.sh pins the release key; the "no key configured" cases run a copy
+# with the pin blanked, as a build without a key would ship.
+sed 's/^RELEASE_PUBKEY=".*"$/RELEASE_PUBKEY=""/' "$root/install.sh" > "$work/install-unpinned.sh"
 reset_sh() { set_sh_latest "$work/art-v9.9.9/manifest.json" good; publish_assets v9.9.9; }
 
 reset_sh
 inst "signed with the pinned key: verified, right binary" ok "Manifest signature verified" MONOAGENT_RELEASE_PUBKEY="$good_pub64"
-inst "no key configured: says SKIPPED, never claims a signature (no-false-claim)" ok "signature verification is SKIPPED"
+inst "no key configured: says SKIPPED, never claims a signature (no-false-claim)" ok "signature verification is SKIPPED" --unpinned
 inst "wrong pinned key" fail "signature verification FAILED" MONOAGENT_RELEASE_PUBKEY="$other_pub64"
 
 set_sh_latest "$work/exp/manifest.json" good
 inst "manifest with a future expires_at installs" ok "Manifest signature verified" MONOAGENT_RELEASE_PUBKEY="$good_pub64"
 set_sh_latest "$work/expired.json" good
 inst "expired manifest (validly signed)" fail "expired" MONOAGENT_RELEASE_PUBKEY="$good_pub64"
-inst "expired manifest, no key configured" fail "expired"
+inst "expired manifest, no key configured" fail "expired" --unpinned
 
 reset_sh
 sed 's/v9.9.9/v9.9.8/' "$srv/sh/manifest.json" > "$work/t2" && cp "$work/t2" "$srv/sh/manifest.json"
