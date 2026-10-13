@@ -278,6 +278,6 @@ func newConnectOAuthCmd(cfg *globalConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringSliceVar(&scopeGroups, "scopes", nil,
-		"Scope groups to grant an umbrella platform, comma-separated (default: all). "+connections.ScopeGroupsHelp())
+		"Scope groups to grant an umbrella platform, comma-separated (default: every group not marked opt-in; \"all\" adds the opt-in ones too). "+connections.ScopeGroupsHelp())
 	return cmd
 }

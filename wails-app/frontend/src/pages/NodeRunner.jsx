@@ -19,7 +19,8 @@ import {
 import { SaveModal, WorkflowsModal, TriggerInputModal } from './NodeRunnerModals.jsx'
 import WorkflowImportDialog from './WorkflowImportDialog.jsx'
 import PublishToMonoesDialog from '../components/library/PublishToMonoesDialog.jsx'
-import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom } from './nodeInspectorRules.js'
+import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom, credentialPickerMode, connectionLabel, fieldIsVisible, jsonTextError, curlImportConfig } from './nodeInspectorRules.js'
+import { CollectionField, AnyPlatformConnections, CurlImport } from './NodeInspectorWidgets.jsx'
 import { onAutomationsChanged } from '../lib/appEvents.js'
 import { arrangePaletteCategories, DEPRECATED, paletteCategoryLabel, paletteSectionOf, splitPaletteSections } from './paletteSections.js'
 import { runProblem } from '../lib/runFailure.js'
@@ -367,14 +368,6 @@ function Palette({ categories, onAdd, onNodeMouseDown, onBrowseAutomations }) {
   )
 }
 
-// ── Platforms that require a credential selection ─────────────────────────────
-// ── Field visibility check (depends_on support) ───────────────────────────────
-function fieldIsVisible(field, config) {
-  if (!field.depends_on) return true
-  const depValue = String(config?.[field.depends_on.key] ?? config?.[field.depends_on.field] ?? '')
-  return (field.depends_on.values || []).includes(depValue)
-}
-
 // ── Inspector panel (right side) ──────────────────────────────────────────────
 // liveSchema resolves a node's schema from the node catalog rather than the
 // copy saved inside the workflow. Schemas are code: a workflow file keeps the
@@ -397,23 +390,27 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
 
   const platformId = derivePlatformId(node, schema, automationIds)
   const isBrowserPlatform = isSessionPicker(node, automationIds)
+  // 'any': a generic HTTP/GraphQL node takes a connection of any platform.
+  const pickerMode = credentialPickerMode(platformId, schema)
 
   useEffect(() => {
-    if (!platformId) { setConnections([]); return }
+    if (!pickerMode) { setConnections([]); return }
     setLoadingCreds(true)
-    api.getConnectionsForPlatform(platformId)
+    const load = pickerMode === 'any' ? api.listConnections('') : api.getConnectionsForPlatform(platformId)
+    load
       .then(list => {
         const conns = Array.isArray(list) ? list : []
         setConnections(conns)
-        // Auto-select the first (or only) credential if none is set
-        if (conns.length > 0 && !node.config?.credential_id) {
+        // Auto-select the first (or only) credential if none is set. Not in
+        // any-platform mode: there a connection is optional and adds auth.
+        if (pickerMode === 'platform' && conns.length > 0 && !node.config?.credential_id) {
           const firstId = String(conns[0].id || conns[0].ID || '')
           if (firstId) onConfigChange(node.id, 'credential_id', firstId)
         }
       })
       .catch(() => setConnections([]))
       .finally(() => setLoadingCreds(false))
-  }, [platformId, node?.id])
+  }, [platformId, pickerMode, node?.id])
 
   useEffect(() => {
     WailsApp.GetVaultImages(50).then(imgs => setVaultImages(imgs || [])).catch(() => {})
@@ -451,7 +448,7 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
         {/* Credential dropdown — shown for platforms that require auth */}
-        {platformId && (
+        {pickerMode && (
           <>
             <Label>{isBrowserPlatform ? 'SESSION' : 'CREDENTIAL'}</Label>
             <div style={{ marginBottom: 10 }}>
@@ -463,12 +460,18 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                 disabled={loadingCreds}
               >
                 <option value="">— None —</option>
-                {connections.map(c => {
-                  const id = c.id || c.ID || ''
-                  const label = c.label || c.Label || c.AccountID || c.account_id || c.platform || id
-                  return <option key={id} value={String(id)}>{label}</option>
-                })}
+                {pickerMode === 'any'
+                  ? <AnyPlatformConnections connections={connections} />
+                  : connections.map(c => {
+                    const id = c.id || c.ID || ''
+                    return <option key={id} value={String(id)}>{connectionLabel(c)}</option>
+                  })}
               </select>
+              {pickerMode === 'any' && (
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Any saved connection, grouped by platform. Optional.
+                </div>
+              )}
               {loadingCreds && (
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
                   Loading…
@@ -503,10 +506,19 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
           return (
             <>
               <Label>CONFIG</Label>
+              {node.subtype === 'http.request' && (
+                <CurlImport
+                  inputStyle={inputStyle}
+                  onImport={imported => {
+                    const next = curlImportConfig(fields, node.config, imported)
+                    Object.entries(next).forEach(([k, v]) => onConfigChange(node.id, k, v))
+                  }}
+                />
+              )}
               {fields.map(f => {
-                if (!fieldIsVisible(f, node.config)) return null
+                if (!fieldIsVisible(f, node.config, fields)) return null
                 // Skip credential_id text field when a credential picker is rendered above
-                if (f.key === 'credential_id' && platformId) return null
+                if (f.key === 'credential_id' && pickerMode) return null
                 const rawVal0 = node.config?.[f.key] ?? f.default ?? ''
                 // A list/object value in a text editor (e.g. core.switch cases
                 // edited in the textarea fallback) shows as JSON, not "[object Object]".
@@ -551,8 +563,21 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                         autoCorrect="off"
                         style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: 11 }}
                       />
+                      {f.language === 'json' && jsonTextError(val) && (
+                        <div role="alert" style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: '#f87171', marginTop: 4 }}>{jsonTextError(val)}</div>
+                      )}
                       {f.help && <p className="field-help">{f.help}</p>}
                     </div>
+                  )
+                } else if (f.type === 'collection') {
+                  inputEl = (
+                    <CollectionField
+                      key={`${node.id}:${f.key}`}
+                      field={f}
+                      value={node.config?.[f.key]}
+                      onCommit={v => onConfigChange(node.id, f.key, v)}
+                      inputStyle={inputStyle}
+                    />
                   )
                 } else if (f.type === 'select') {
                   inputEl = (

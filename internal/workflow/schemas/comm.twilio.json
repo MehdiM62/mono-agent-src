@@ -79,5 +79,17 @@
       "rows": 3,
       "type": "textarea"
     }
+  ],
+  "outputs": [
+    {
+      "description": "message SID",
+      "key": "sid",
+      "type": "string"
+    },
+    {
+      "description": "delivery status",
+      "key": "status",
+      "type": "string"
+    }
   ]
 }

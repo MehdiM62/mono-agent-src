@@ -1,0 +1,398 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "perplexity",
+  "title": "Perplexity",
+  "description": "Agent responses, Sonar chat, embeddings and web search from Perplexity",
+  "category": "app",
+  "docs_url": "https://docs.perplexity.ai/",
+  "n8n_types": [
+    "n8n-nodes-base.perplexity"
+  ],
+  "base_url": "https://api.perplexity.ai",
+  "credentials": [
+    {
+      "platform": "perplexity",
+      "name": "Perplexity",
+      "n8n_credential": "perplexityApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "agent",
+      "label": "Agent"
+    },
+    {
+      "value": "chat",
+      "label": "Chat"
+    },
+    {
+      "value": "embedding",
+      "label": "Embedding"
+    },
+    {
+      "value": "search",
+      "label": "Search"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "agent",
+      "operation": "createResponse",
+      "title": "Create an agent response",
+      "method": "POST",
+      "path": "/v1/agent",
+      "fields": [
+        {
+          "key": "input",
+          "label": "Input",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "model",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "help": "e.g. openai/gpt-5; an n8n resource locator is accepted."
+        },
+        {
+          "key": "preset",
+          "label": "Preset",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "instructions",
+            "languagePreference",
+            "maxOutputTokens",
+            "maxSteps",
+            "modelsFallback",
+            "reasoning",
+            "responseFormat",
+            "tools"
+          ]
+        }
+      ],
+      "body": {
+        "input": "{{ p.input }}",
+        "model": "{{ p.model | rl }}",
+        "preset": "{{ p.preset }}",
+        "instructions": "{{ p.options.instructions }}",
+        "language_preference": "{{ p.options.languagePreference }}",
+        "max_output_tokens": "{{ p.options.maxOutputTokens }}",
+        "max_steps": "{{ p.options.maxSteps }}",
+        "models": "{{ p.options.modelsFallback | split }}",
+        "reasoning": "{{ p.options.reasoning | fromjson }}",
+        "response_format": "{{ p.options.responseFormat | fromjson }}",
+        "tools": "{{ p.options.tools | fromjson }}"
+      },
+      "output": {
+        "to_when": "{{ p.simplify }}",
+        "to": {
+          "id": "{{ el.id }}",
+          "model": "{{ el.model }}",
+          "output_text": "{{ el.output | find:'type','message' | get:'content' | find:'type','output_text' | get:'text' }}",
+          "citations": {
+            "$map": "{{ el.output | find:'type','search_results' | get:'results' }}",
+            "$to": {
+              "title": "{{ el.title }}",
+              "url": "{{ el.url }}"
+            }
+          },
+          "usage": "{{ el.usage }}"
+        }
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "complete",
+      "title": "Message a Sonar model",
+      "method": "POST",
+      "path": "/chat/completions",
+      "fields": [
+        {
+          "key": "model",
+          "label": "Model",
+          "type": "text",
+          "default": "sonar",
+          "required": true
+        },
+        {
+          "key": "messages",
+          "label": "Messages",
+          "type": "collection",
+          "default": {
+            "message": [
+              {
+                "role": "user",
+                "content": ""
+              }
+            ]
+          },
+          "options": [
+            "message"
+          ],
+          "required": true,
+          "help": "{\"message\": [{\"role\": \"user\", \"content\": \"Hi\"}]}"
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "disableSearch",
+            "enableSearchClassifier",
+            "frequencyPenalty",
+            "imageDomainFilter",
+            "imageFormatFilter",
+            "languagePreference",
+            "lastUpdatedAfter",
+            "lastUpdatedBefore",
+            "maxTokens",
+            "temperature",
+            "presencePenalty",
+            "reasoningEffort",
+            "responseFormat",
+            "returnImages",
+            "returnRelatedQuestions",
+            "searchAfterDate",
+            "searchBeforeDate",
+            "searchDomainFilter",
+            "searchLanguageFilter",
+            "searchMode",
+            "searchRecency",
+            "stop",
+            "topK",
+            "topP",
+            "webSearchOptions"
+          ]
+        }
+      ],
+      "body": {
+        "model": "{{ p.model }}",
+        "messages": "{{ p.messages.message }}",
+        "disable_search": "{{ p.options.disableSearch }}",
+        "enable_search_classifier": "{{ p.options.enableSearchClassifier }}",
+        "frequency_penalty": "{{ p.options.frequencyPenalty }}",
+        "image_domain_filter": "{{ p.options.imageDomainFilter | split }}",
+        "image_format_filter": "{{ p.options.imageFormatFilter | split }}",
+        "language_preference": "{{ p.options.languagePreference }}",
+        "last_updated_after_filter": "{{ p.options.lastUpdatedAfter }}",
+        "last_updated_before_filter": "{{ p.options.lastUpdatedBefore }}",
+        "max_tokens": "{{ p.options.maxTokens }}",
+        "temperature": "{{ p.options.temperature }}",
+        "presence_penalty": "{{ p.options.presencePenalty }}",
+        "reasoning_effort": "{{ p.options.reasoningEffort }}",
+        "response_format": "{{ p.options.responseFormat | fromjson }}",
+        "return_images": "{{ p.options.returnImages }}",
+        "return_related_questions": "{{ p.options.returnRelatedQuestions }}",
+        "search_after_date_filter": "{{ p.options.searchAfterDate }}",
+        "search_before_date_filter": "{{ p.options.searchBeforeDate }}",
+        "search_domain_filter": "{{ p.options.searchDomainFilter | split }}",
+        "search_language_filter": "{{ p.options.searchLanguageFilter | split }}",
+        "search_mode": "{{ p.options.searchMode }}",
+        "search_recency_filter": "{{ p.options.searchRecency }}",
+        "stop": "{{ p.options.stop | split }}",
+        "top_k": "{{ p.options.topK }}",
+        "top_p": "{{ p.options.topP }}",
+        "web_search_options": "{{ p.options.webSearchOptions | fromjson }}"
+      },
+      "output": {
+        "to_when": "{{ p.simplify }}",
+        "to": {
+          "id": "{{ el.id }}",
+          "created": "{{ el.created }}",
+          "citations": "{{ el.citations }}",
+          "message": "{{ el.choices.0.message.content }}"
+        }
+      }
+    },
+    {
+      "resource": "embedding",
+      "operation": "createEmbedding",
+      "title": "Create embeddings",
+      "method": "POST",
+      "path": "/v1/embeddings",
+      "fields": [
+        {
+          "key": "model",
+          "label": "Model",
+          "type": "select",
+          "default": "pplx-embed-v1-4b",
+          "required": true,
+          "options": [
+            "pplx-embed-v1-0.6b",
+            "pplx-embed-v1-4b"
+          ]
+        },
+        {
+          "key": "input",
+          "label": "Input",
+          "type": "textarea",
+          "default": "",
+          "required": true,
+          "help": "One text per line."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dimensions",
+            "encoding_format"
+          ]
+        }
+      ],
+      "body": {
+        "model": "{{ p.model }}",
+        "input": "{{ p.input | lines }}",
+        "dimensions": "{{ p.options.dimensions | ne:'0' | then:p.options.dimensions }}",
+        "encoding_format": "{{ p.options.encoding_format }}"
+      }
+    },
+    {
+      "resource": "embedding",
+      "operation": "createContextualized",
+      "title": "Create contextualized embeddings",
+      "method": "POST",
+      "path": "/v1/contextualizedembeddings",
+      "fields": [
+        {
+          "key": "model",
+          "label": "Model",
+          "type": "select",
+          "default": "pplx-embed-context-v1-4b",
+          "required": true,
+          "options": [
+            "pplx-embed-context-v1-4b"
+          ]
+        },
+        {
+          "key": "input",
+          "label": "Input (JSON)",
+          "type": "json",
+          "default": "[[\"paragraph 1 of doc A\", \"paragraph 2 of doc A\"], [\"paragraph 1 of doc B\"]]",
+          "required": true,
+          "help": "A list of documents, each a list of chunks."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dimensions",
+            "encoding_format"
+          ]
+        }
+      ],
+      "body": {
+        "model": "{{ p.model }}",
+        "input": "{{ p.input | fromjson }}",
+        "dimensions": "{{ p.options.dimensions | ne:'0' | then:p.options.dimensions }}",
+        "encoding_format": "{{ p.options.encoding_format }}"
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "search",
+      "title": "Search the web",
+      "method": "POST",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "query",
+          "label": "Query",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "country",
+            "lastUpdatedAfter",
+            "lastUpdatedBefore",
+            "maxResults",
+            "maxTokens",
+            "maxTokensPerPage",
+            "searchAfterDate",
+            "searchBeforeDate",
+            "searchDomainFilter",
+            "searchLanguageFilter",
+            "searchRecencyFilter"
+          ]
+        }
+      ],
+      "body": {
+        "query": "{{ p.query }}",
+        "country": "{{ p.options.country }}",
+        "last_updated_after_filter": "{{ p.options.lastUpdatedAfter }}",
+        "last_updated_before_filter": "{{ p.options.lastUpdatedBefore }}",
+        "max_results": "{{ p.options.maxResults }}",
+        "max_tokens": "{{ p.options.maxTokens }}",
+        "max_tokens_per_page": "{{ p.options.maxTokensPerPage }}",
+        "search_after_date_filter": "{{ p.options.searchAfterDate }}",
+        "search_before_date_filter": "{{ p.options.searchBeforeDate }}",
+        "search_domain_filter": "{{ p.options.searchDomainFilter | split }}",
+        "search_language_filter": "{{ p.options.searchLanguageFilter | split }}",
+        "search_recency_filter": "{{ p.options.searchRecencyFilter }}"
+      },
+      "output": {
+        "to_when": "{{ p.simplify }}",
+        "to": {
+          "id": "{{ el.id }}",
+          "results": "{{ el.results }}"
+        }
+      }
+    }
+  ]
+}

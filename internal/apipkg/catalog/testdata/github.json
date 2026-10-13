@@ -1,0 +1,1124 @@
+{
+  "issue.create": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "title": "T",
+      "labels": [
+        {
+          "label": "bug"
+        }
+      ],
+      "assignees": [
+        {
+          "assignee": "me"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/repos/octo/hello/issues",
+      "body": {
+        "title": "T",
+        "labels": [
+          "bug"
+        ],
+        "assignees": [
+          "me"
+        ]
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "issue.createComment": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "issueNumber": 3,
+      "body": "c"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/repos/octo/hello/issues/3/comments",
+      "body": {
+        "body": "c"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "issue.edit": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "issueNumber": 3,
+      "editFields": {
+        "state": "closed",
+        "labels": [
+          {
+            "label": "x"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/repos/octo/hello/issues/3",
+      "body": {
+        "state": "closed",
+        "labels": [
+          "x"
+        ]
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "issue.get": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "issueNumber": 3
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/issues/3"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "issue.lock": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "issueNumber": 3
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/repos/octo/hello/issues/3/lock",
+      "query": {
+        "lock_reason": "resolved"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "file.create": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "filePath": "docs/a.md",
+      "fileContent": "hi",
+      "commitMessage": "m",
+      "additionalParameters": {
+        "branch": {
+          "branch": "dev"
+        },
+        "author": {
+          "name": "A",
+          "email": "a@x"
+        }
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/repos/octo/hello/contents/docs%2Fa.md",
+      "body": {
+        "message": "m",
+        "content": "aGk=",
+        "branch": "dev",
+        "author": {
+          "name": "A",
+          "email": "a@x"
+        }
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "file.delete": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "filePath": "a.md",
+      "commitMessage": "m"
+    },
+    "responses": [
+      {
+        "sha": "abc"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/repos/octo/hello/contents/a.md",
+      "body": {
+        "message": "m",
+        "sha": "abc"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "file.edit": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "filePath": "a.md",
+      "commitMessage": "m",
+      "binaryData": true
+    },
+    "input": {
+      "data": "eA=="
+    },
+    "responses": [
+      {
+        "sha": "abc"
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/repos/octo/hello/contents/a.md"
+      },
+      {
+        "method": "PUT",
+        "path": "/repos/octo/hello/contents/a.md",
+        "body": {
+          "message": "m",
+          "content": "eA==",
+          "sha": "abc"
+        }
+      }
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/repos/octo/hello/contents/a.md",
+      "body": {
+        "message": "m",
+        "content": "eA==",
+        "sha": "abc"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "file.get": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "filePath": "a.md",
+      "additionalParameters": {
+        "reference": "dev"
+      }
+    },
+    "response": {
+      "name": "a.md",
+      "content": "aGk=\n"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/contents/a.md",
+      "query": {
+        "ref": "dev"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "file.list": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "filePath": "src/"
+    },
+    "response": [
+      {
+        "name": "a"
+      },
+      {
+        "name": "b"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/contents/src",
+      "items": 2
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "organization.getRepositories": {
+    "params": {
+      "owner": "acme",
+      "limit": 5
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/orgs/acme/repos",
+      "query": {
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "organization.getMembers": {
+    "params": {
+      "owner": "acme",
+      "returnAll": true
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/orgs/acme/members",
+      "query": {
+        "per_page": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.create": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "base": "main",
+      "head": "feat",
+      "title": "T"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/repos/octo/hello/pulls",
+      "body": {
+        "title": "T",
+        "head": "feat",
+        "base": "main",
+        "draft": false
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.update": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4,
+      "editFields": {
+        "title": "N"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/repos/octo/hello/pulls/4",
+      "body": {
+        "title": "N"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.close": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/repos/octo/hello/pulls/4",
+      "body": {
+        "state": "closed"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.reopen": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/repos/octo/hello/pulls/4",
+      "body": {
+        "state": "open"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.get": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/pulls/4"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.createComment": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4,
+      "body": "c"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/repos/octo/hello/issues/4/comments",
+      "body": {
+        "body": "c"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.editComment": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "commentId": 9,
+      "body": "c"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/repos/octo/hello/issues/comments/9",
+      "body": {
+        "body": "c"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.getDiff": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/pulls/4",
+      "headers": {
+        "Accept": "application/vnd.github.v3.diff"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.getPatch": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/pulls/4",
+      "headers": {
+        "Accept": "application/vnd.github.v3.patch"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "pullRequest.merge": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4,
+      "mergeMethod": "squash",
+      "commitTitle": "t"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/repos/octo/hello/pulls/4/merge",
+      "body": {
+        "commit_title": "t",
+        "merge_method": "squash"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "release.create": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "releaseTag": "v1",
+      "additionalFields": {
+        "name": "One",
+        "draft": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/repos/octo/hello/releases",
+      "body": {
+        "tag_name": "v1",
+        "name": "One",
+        "draft": true
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "release.delete": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "release_id": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/repos/octo/hello/releases/5"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "release.get": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "release_id": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/releases/5"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "release.getAll": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "limit": 2
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/releases",
+      "query": {
+        "per_page": "2"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "release.update": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "release_id": "5",
+      "additionalFields": {
+        "prerelease": true
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/repos/octo/hello/releases/5",
+      "body": {
+        "prerelease": true
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "repository.getIssues": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "limit": 2,
+      "getRepositoryIssuesFilters": {
+        "state": "open",
+        "labels": "bug"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/issues",
+      "query": {
+        "state": "open",
+        "labels": "bug",
+        "per_page": "2"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "repository.get": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "repository.getLicense": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/license"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "repository.getProfile": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/community/profile"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "repository.getPullRequests": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "returnAll": true,
+      "getRepositoryPullRequestsFilters": {
+        "state": "all"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/pulls",
+      "query": {
+        "state": "all",
+        "per_page": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "repository.listPopularPaths": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello"
+    },
+    "response": [
+      {
+        "path": "/"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/traffic/popular/paths",
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "repository.listReferrers": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello"
+    },
+    "response": [
+      {
+        "referrer": "x"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/traffic/popular/referrers",
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "review.create": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4,
+      "event": "requestChanges",
+      "body": "fix",
+      "additionalFields": {
+        "commitId": "abc"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/repos/octo/hello/pulls/4/reviews",
+      "body": {
+        "event": "REQUEST_CHANGES",
+        "body": "fix",
+        "commit_id": "abc"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "review.get": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4,
+      "reviewId": "8"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/pulls/4/reviews/8"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "review.getAll": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4,
+      "limit": 3
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/pulls/4/reviews",
+      "query": {
+        "per_page": "3"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "review.update": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "pullRequestNumber": 4,
+      "reviewId": "8",
+      "body": "b"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/repos/octo/hello/pulls/4/reviews/8",
+      "body": {
+        "body": "b"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "user.getRepositories": {
+    "params": {
+      "owner": "octo",
+      "limit": 2
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/users/octo/repos",
+      "query": {
+        "per_page": "2"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "user.getUserIssues": {
+    "params": {
+      "limit": 2,
+      "getUserIssuesFilters": {
+        "state": "closed"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/issues",
+      "query": {
+        "state": "closed",
+        "per_page": "2"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "user.invite": {
+    "params": {
+      "organization": "acme",
+      "email": "a@x"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/orgs/acme/invitations",
+      "body": {
+        "email": "a@x"
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "workflow.dispatch": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "workflowId": {
+        "__rl": true,
+        "mode": "list",
+        "value": "ci.yml"
+      },
+      "inputs": "{\"env\":\"prod\"}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/repos/octo/hello/actions/workflows/ci.yml/dispatches",
+      "body": {
+        "ref": "main",
+        "inputs": {
+          "env": "prod"
+        }
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "workflow.disable": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "workflowId": "7"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/repos/octo/hello/actions/workflows/7/disable"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "workflow.enable": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "workflowId": "7"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/repos/octo/hello/actions/workflows/7/enable"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "workflow.get": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "workflowId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/actions/workflows/7"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "workflow.getUsage": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "workflowId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/actions/workflows/7/timing"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
+  "workflow.list": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/repos/octo/hello/actions/workflows"
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  }
+}

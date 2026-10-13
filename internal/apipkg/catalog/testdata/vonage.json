@@ -1,0 +1,35 @@
+{
+  "sms.send": {
+    "params": {
+      "from": "Acme",
+      "to": "15551234567",
+      "message": "hi",
+      "additionalFields": {
+        "client-ref": "r1",
+        "ttl": 2
+      }
+    },
+    "response": {
+      "messages": [
+        {
+          "status": "0"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/sms/json",
+      "body": {
+        "from": "Acme",
+        "to": "15551234567",
+        "type": "text",
+        "text": "hi",
+        "client-ref": "r1",
+        "ttl": "120000",
+        "api_key": "test-api_key",
+        "api_secret": "test-api_secret"
+      },
+      "items": 1
+    }
+  }
+}

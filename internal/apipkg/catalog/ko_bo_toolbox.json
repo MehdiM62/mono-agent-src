@@ -1,0 +1,660 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "ko_bo_toolbox",
+  "node_type": "app.ko_bo_toolbox",
+  "title": "KoBoToolbox",
+  "description": "Forms, submissions, hooks and form media in KoBoToolbox",
+  "category": "app",
+  "docs_url": "https://support.kobotoolbox.org/api.html",
+  "n8n_types": [
+    "n8n-nodes-base.koBoToolbox"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.koBoToolboxTrigger"
+  ],
+  "base_url": "{{ cred.url | default:'https://kf.kobotoolbox.org' | re:'^(.*?)/*$' }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "kobotoolbox",
+      "name": "KoBoToolbox",
+      "n8n_credential": "koBoToolboxApi",
+      "n8n_field_map": {
+        "URL": "url",
+        "token": "token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Server URL",
+          "help": "https://kf.kobotoolbox.org (default), https://eu.kobotoolbox.org or your own server"
+        },
+        {
+          "key": "token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Token {{ cred.token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "submission",
+      "label": "Submission"
+    },
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "form",
+      "label": "Form"
+    },
+    {
+      "value": "hook",
+      "label": "Hook"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "submission",
+      "operation": "getAll",
+      "title": "Get many submissions",
+      "method": "GET",
+      "path": "/api/v2/assets/{{ p.formId }}/data/",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filterType",
+          "label": "Filter",
+          "type": "select",
+          "options": [
+            "none",
+            "json"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "filterJson",
+          "label": "Filter (JSON)",
+          "type": "code",
+          "language": "json",
+          "default": "",
+          "help": "Mongo-style query, e.g. {\"status\": \"done\"}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "sort"
+          ],
+          "help": "fields: comma-separated field names to return; sort: JSON such as {\"_submission_time\": -1}. Attachment download and reformatting are not applied."
+        }
+      ],
+      "query": {
+        "query": "{{ p.filterType | eq:'json' | then:p.filterJson }}",
+        "sort": "{{ p.options.sort }}",
+        "fields": "{{ p.options.fields | split | json }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 3000,
+        "results_path": "results"
+      },
+      "output": {
+        "path": "results"
+      }
+    },
+    {
+      "resource": "submission",
+      "operation": "delete",
+      "title": "Delete a submission",
+      "method": "DELETE",
+      "path": "/api/v2/assets/{{ p.formId }}/data/{{ p.submissionId }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "submissionId",
+          "label": "Submission ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "submission",
+      "operation": "get",
+      "title": "Get a submission",
+      "method": "GET",
+      "path": "/api/v2/assets/{{ p.formId }}/data/{{ p.submissionId }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "submissionId",
+          "label": "Submission ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "sort"
+          ],
+          "help": "fields: comma-separated field names to return; sort: JSON such as {\"_submission_time\": -1}. Attachment download and reformatting are not applied."
+        }
+      ],
+      "query": {
+        "fields": "{{ p.options.fields | split | json }}"
+      }
+    },
+    {
+      "resource": "submission",
+      "operation": "getValidation",
+      "title": "Get a submission's validation status",
+      "method": "GET",
+      "path": "/api/v2/assets/{{ p.formId }}/data/{{ p.submissionId }}/validation_status/",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "submissionId",
+          "label": "Submission ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "submission",
+      "operation": "setValidation",
+      "title": "Set a submission's validation status",
+      "method": "PATCH",
+      "path": "/api/v2/assets/{{ p.formId }}/data/{{ p.submissionId }}/validation_status/",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "submissionId",
+          "label": "Submission ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "validationStatus",
+          "label": "Validation status",
+          "type": "select",
+          "options": [
+            "validation_status_approved",
+            "validation_status_not_approved",
+            "validation_status_on_hold"
+          ],
+          "required": true
+        }
+      ],
+      "body": {
+        "validation_status.uid": "{{ p.validationStatus }}"
+      }
+    },
+    {
+      "resource": "form",
+      "operation": "get",
+      "title": "Get a form",
+      "method": "GET",
+      "path": "/api/v2/assets/{{ p.formId }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        }
+      ]
+    },
+    {
+      "resource": "form",
+      "operation": "getAll",
+      "title": "Get many forms",
+      "method": "GET",
+      "path": "/api/v2/assets/",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 1000,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort.value: {ordering: asset_type | date_modified | name | owner__username | subscribers_count, descending}"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter"
+          ],
+          "help": "filter: KoBo query such as asset_type:survey"
+        }
+      ],
+      "query": {
+        "q": "{{ p.filters.filter }}",
+        "ordering": "{{ p.options.sort.value.descending | eq:'true' | then:'-' }}{{ p.options.sort.value.ordering }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 3000,
+        "results_path": "results"
+      },
+      "output": {
+        "path": "results"
+      }
+    },
+    {
+      "resource": "form",
+      "operation": "redeploy",
+      "title": "Redeploy a form",
+      "method": "PATCH",
+      "path": "/api/v2/assets/{{ p.formId }}/deployment/",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        }
+      ]
+    },
+    {
+      "resource": "hook",
+      "operation": "getAll",
+      "title": "Get many hooks",
+      "method": "GET",
+      "path": "/api/v2/assets/{{ p.formId }}/hooks/",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 1000,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 3000,
+        "results_path": "results"
+      },
+      "output": {
+        "path": "results"
+      }
+    },
+    {
+      "resource": "hook",
+      "operation": "get",
+      "title": "Get a hook",
+      "method": "GET",
+      "path": "/api/v2/assets/{{ p.formId }}/hooks/{{ p.hookId }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "hookId",
+          "label": "Hook ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "hook",
+      "operation": "getLogs",
+      "title": "Get a hook's logs",
+      "method": "GET",
+      "path": "/api/v2/assets/{{ p.formId }}/hooks/{{ p.hookId }}/logs/",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "hookId",
+          "label": "Hook ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "options": [
+            "",
+            "0",
+            "1",
+            "2"
+          ],
+          "default": "",
+          "help": "0 failed, 1 pending, 2 success; empty = all"
+        },
+        {
+          "key": "startDate",
+          "label": "Start date",
+          "type": "datetime",
+          "default": ""
+        },
+        {
+          "key": "endDate",
+          "label": "End date",
+          "type": "datetime",
+          "default": ""
+        }
+      ],
+      "query": {
+        "start": "{{ p.startDate }}",
+        "end": "{{ p.endDate }}",
+        "status": "{{ p.status }}"
+      },
+      "output": {
+        "path": "results"
+      }
+    },
+    {
+      "resource": "hook",
+      "operation": "retryAll",
+      "title": "Retry all failed hook calls",
+      "method": "PATCH",
+      "path": "/api/v2/assets/{{ p.formId }}/hooks/{{ p.hookId }}/retry/",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "hookId",
+          "label": "Hook ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "hook",
+      "operation": "retryOne",
+      "title": "Retry one hook call",
+      "method": "PATCH",
+      "path": "/api/v2/assets/{{ p.formId }}/hooks/{{ p.hookId }}/logs/{{ p.logId }}/retry/",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "hookId",
+          "label": "Hook ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "logId",
+          "label": "Log ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "get",
+      "title": "Get a form file",
+      "method": "GET",
+      "path": "/api/v2/assets/{{ p.formId }}/files/{{ p.fileId }}{{ p.download | eq:'true' | then:'/content' }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "download",
+          "label": "Download",
+          "type": "boolean",
+          "default": false,
+          "help": "Return the file content as binary instead of its metadata"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "download_when": "{{ p.download }}",
+        "property_field": "binaryPropertyName"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "create",
+      "title": "Upload a form media file",
+      "method": "POST",
+      "path": "/api/v2/assets/{{ p.formId }}/files/",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "fileMode",
+          "label": "File mode",
+          "type": "select",
+          "options": [
+            "binary",
+            "url"
+          ],
+          "default": "binary"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "fileUrl",
+          "label": "File URL",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "body_type": "json",
+      "body": {
+        "description": "Uploaded file",
+        "file_type": "form_media",
+        "base64Encoded": "{{ p.fileMode | ne:'url' | then:(bin.base64 | prefix:(bin.mime_type | prefix:'data:' | suffix:';base64,')) }}",
+        "metadata": {
+          "filename": "{{ p.fileMode | ne:'url' | then:bin.file_name }}",
+          "redirect_url": "{{ p.fileMode | eq:'url' | then:p.fileUrl }}"
+        }
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.fileMode | ne:'url' }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a form file",
+      "method": "DELETE",
+      "path": "/api/v2/assets/{{ p.formId }}/files/{{ p.fileId }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        },
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "getAll",
+      "title": "Get many form files",
+      "method": "GET",
+      "path": "/api/v2/assets/{{ p.formId }}/files",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "Asset UID of the form"
+        }
+      ],
+      "query": {
+        "file_type": "form_media"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "page_size": 3000,
+        "results_path": "results"
+      },
+      "output": {
+        "path": "results"
+      }
+    }
+  ]
+}

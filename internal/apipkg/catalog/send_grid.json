@@ -1,0 +1,501 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "send_grid",
+  "title": "SendGrid",
+  "description": "Marketing contacts, lists and transactional mail on SendGrid",
+  "category": "app",
+  "docs_url": "https://www.twilio.com/docs/sendgrid/api-reference",
+  "n8n_types": [
+    "n8n-nodes-base.sendGrid"
+  ],
+  "base_url": "https://api.sendgrid.com/v3",
+  "credentials": [
+    {
+      "platform": "sendgrid",
+      "name": "SendGrid",
+      "n8n_credential": "sendGridApi",
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Settings → API Keys in the SendGrid console"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "list",
+      "label": "List"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "mail",
+      "label": "Mail"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "list",
+      "operation": "create",
+      "title": "Create a list",
+      "method": "POST",
+      "path": "/marketing/lists",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}"
+      }
+    },
+    {
+      "resource": "list",
+      "operation": "delete",
+      "title": "Delete a list",
+      "method": "DELETE",
+      "path": "/marketing/lists/{{ p.listId }}",
+      "fields": [
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "deleteContacts",
+          "label": "Delete contacts too",
+          "type": "boolean",
+          "default": false,
+          "help": "Also delete the contacts on the list"
+        }
+      ],
+      "query": {
+        "delete_contacts": "{{ p.deleteContacts }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "list",
+      "operation": "get",
+      "title": "Get a list",
+      "method": "GET",
+      "path": "/marketing/lists/{{ p.listId }}",
+      "fields": [
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactSample",
+          "label": "Include contact sample",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "contact_sample": "{{ p.contactSample }}"
+      }
+    },
+    {
+      "resource": "list",
+      "operation": "getAll",
+      "title": "Get many lists",
+      "method": "GET",
+      "path": "/marketing/lists",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 1000
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_metadata.next",
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "list",
+      "operation": "update",
+      "title": "Rename a list",
+      "method": "PATCH",
+      "path": "/marketing/lists/{{ p.listId }}",
+      "fields": [
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "upsert",
+      "title": "Create or update a contact",
+      "method": "PUT",
+      "path": "/marketing/contacts",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressUi",
+            "alternateEmails",
+            "city",
+            "country",
+            "firstName",
+            "lastName",
+            "postalCode",
+            "stateProvinceRegion",
+            "listIdsUi",
+            "customFieldsUi"
+          ],
+          "help": "addressUi: {\"addressValues\": {\"address1\", \"address2\"}}; listIdsUi: {\"listIdValues\": {\"listIds\": [..]}}; customFieldsUi: {\"customFieldValues\": [{\"fieldId\", \"fieldValue\"}]}; alternateEmails: comma separated"
+        }
+      ],
+      "body": {
+        "list_ids": "{{ p.additionalFields.listIdsUi.listIdValues.listIds }}",
+        "contacts": [
+          {
+            "email": "{{ p.email }}",
+            "address_line_1": "{{ p.additionalFields.addressUi.addressValues.address1 }}",
+            "address_line_2": "{{ p.additionalFields.addressUi.addressValues.address2 }}",
+            "city": "{{ p.additionalFields.city }}",
+            "country": "{{ p.additionalFields.country }}",
+            "first_name": "{{ p.additionalFields.firstName }}",
+            "last_name": "{{ p.additionalFields.lastName }}",
+            "postal_code": "{{ p.additionalFields.postalCode }}",
+            "state_province_region": "{{ p.additionalFields.stateProvinceRegion }}",
+            "alternate_emails": "{{ p.additionalFields.alternateEmails | split }}",
+            "custom_fields": "{{ p.additionalFields.customFieldsUi.customFieldValues | kv:'fieldId,fieldValue' }}"
+          }
+        ]
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete contacts",
+      "method": "DELETE",
+      "path": "/marketing/contacts",
+      "fields": [
+        {
+          "key": "ids",
+          "label": "Contact IDs",
+          "type": "text",
+          "help": "Comma separated contact IDs"
+        },
+        {
+          "key": "deleteAll",
+          "label": "Delete all contacts",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "ids": "{{ p.ids | replace:' ','' }}",
+        "delete_all_contacts": "{{ p.deleteAll | eq:'true' | then:'true' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "{{ p.by | eq:'email' | then:'POST' | default:'GET' }}",
+      "path": "/marketing/contacts/{{ p.by | eq:'email' | then:'search' | default:p.contactId }}",
+      "fields": [
+        {
+          "key": "by",
+          "label": "Look up by",
+          "type": "select",
+          "options": [
+            "id",
+            "email"
+          ],
+          "default": "id"
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "help": "When looking up by ID"
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "help": "When looking up by email"
+        }
+      ],
+      "body": {
+        "query": {
+          "$join": [
+            "{{ p.by | eq:'email' | then:(p.email | replace:'\\','\\\\' | replace:\"'\",\"\\'\" | replace:'%','%%') }}"
+          ],
+          "$sep": "",
+          "$prefix": "email LIKE '",
+          "$suffix": "' "
+        }
+      },
+      "output": {
+        "path": "{{ p.by | eq:'email' | then:'result.0' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "{{ p.filters.query | then:'POST' | default:'GET' }}",
+      "path": "/marketing/contacts{{ p.filters.query | then:'/search' }}",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: an SGQL condition, e.g. first_name = 'Ada'"
+        }
+      ],
+      "body": {
+        "query": "{{ p.filters.query }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_metadata.next",
+        "results_path": "result"
+      }
+    },
+    {
+      "resource": "mail",
+      "operation": "send",
+      "title": "Send an email",
+      "method": "POST",
+      "path": "/mail/send",
+      "fields": [
+        {
+          "key": "fromEmail",
+          "label": "Sender email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fromName",
+          "label": "Sender name",
+          "type": "text"
+        },
+        {
+          "key": "toEmail",
+          "label": "Recipient email(s)",
+          "type": "text",
+          "required": true,
+          "help": "Comma separated"
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text"
+        },
+        {
+          "key": "dynamicTemplate",
+          "label": "Use a dynamic template",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "contentType",
+          "label": "MIME type",
+          "type": "select",
+          "options": [
+            "text/plain",
+            "text/html"
+          ],
+          "default": "text/plain"
+        },
+        {
+          "key": "contentValue",
+          "label": "Message body",
+          "type": "textarea",
+          "help": "When not using a dynamic template"
+        },
+        {
+          "key": "templateId",
+          "label": "Template ID",
+          "type": "text",
+          "help": "When using a dynamic template"
+        },
+        {
+          "key": "dynamicTemplateFields",
+          "label": "Dynamic template fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "{\"fields\": [{\"key\": \"name\", \"value\": \"Ada\"}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachments",
+            "bccEmail",
+            "categories",
+            "ccEmail",
+            "enableSandbox",
+            "ipPoolName",
+            "replyToEmail",
+            "headers",
+            "sendAt"
+          ],
+          "help": "attachments: comma separated binary properties; headers: {\"details\": [{\"key\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "personalizations": [
+          {
+            "to": {
+              "$map": "{{ p.toEmail | split }}",
+              "$to": {
+                "email": "{{ el }}"
+              }
+            },
+            "cc": {
+              "$map": "{{ p.additionalFields.ccEmail | split }}",
+              "$to": {
+                "email": "{{ el }}"
+              }
+            },
+            "bcc": {
+              "$map": "{{ p.additionalFields.bccEmail | split }}",
+              "$to": {
+                "email": "{{ el }}"
+              }
+            },
+            "subject": "{{ p.dynamicTemplate | ne:'true' | then:p.subject }}",
+            "dynamic_template_data": "{{ p.dynamicTemplate | eq:'true' | then:(p.dynamicTemplateFields.fields | kv:'key,value') }}",
+            "send_at": "{{ p.additionalFields.sendAt | epoch }}"
+          }
+        ],
+        "from": {
+          "email": "{{ p.fromEmail }}",
+          "name": "{{ p.fromName }}"
+        },
+        "mail_settings": {
+          "sandbox_mode": {
+            "enable": "{{ p.additionalFields.enableSandbox | default:false }}"
+          }
+        },
+        "template_id": "{{ p.dynamicTemplate | eq:'true' | then:p.templateId }}",
+        "content": [
+          {
+            "$when": "{{ p.dynamicTemplate | ne:'true' }}",
+            "type": "{{ p.contentType }}",
+            "value": "{{ p.contentValue }}"
+          }
+        ],
+        "attachments": {
+          "$map": "{{ bin.files }}",
+          "$to": {
+            "content": "{{ el.base64 }}",
+            "filename": "{{ el.file_name }}",
+            "type": "{{ el.mime_type }}"
+          }
+        },
+        "headers": "{{ p.additionalFields.headers.details | kv:'key,value' }}",
+        "categories": "{{ p.additionalFields.categories | split }}",
+        "ip_pool_name": "{{ p.additionalFields.ipPoolName }}",
+        "reply_to_list": {
+          "$map": "{{ p.additionalFields.replyToEmail | split }}",
+          "$to": {
+            "email": "{{ el }}"
+          }
+        }
+      },
+      "binary": {
+        "upload_field": "additionalFields",
+        "property": "{{ p.additionalFields.attachments | split | get:'0' }}",
+        "properties": "{{ p.additionalFields.attachments }}",
+        "upload_when": "{{ p.additionalFields.attachments }}"
+      },
+      "output": {
+        "to": {
+          "messageId": "{{ hdr.X-Message-Id }}"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,190 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "oura",
+  "title": "Oura",
+  "description": "Profile and daily sleep, readiness and activity summaries from an Oura ring",
+  "category": "app",
+  "docs_url": "https://cloud.ouraring.com/v2/docs",
+  "n8n_types": [
+    "n8n-nodes-base.oura"
+  ],
+  "base_url": "https://api.ouraring.com/v2",
+  "credentials": [
+    {
+      "platform": "oura",
+      "name": "Oura",
+      "n8n_credential": "ouraApi",
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "summary",
+      "label": "Summary"
+    },
+    {
+      "value": "profile",
+      "label": "Profile"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "summary",
+      "operation": "getSleep",
+      "title": "Get daily sleep summaries",
+      "method": "GET",
+      "path": "/usercollection/daily_sleep",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "max": 10
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "start",
+            "end"
+          ],
+          "help": "start / end: dates (ISO 8601); end defaults to today."
+        }
+      ],
+      "query": {
+        "start_date": "{{ p.filters.start | date:'YYYY-MM-DD' }}",
+        "end_date": "{{ p.filters.end | date:'YYYY-MM-DD' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "next_token",
+        "cursor_path": "next_token",
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "summary",
+      "operation": "getActivity",
+      "title": "Get daily activity summaries",
+      "method": "GET",
+      "path": "/usercollection/daily_activity",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "max": 10
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "start",
+            "end"
+          ],
+          "help": "start / end: dates (ISO 8601); end defaults to today."
+        }
+      ],
+      "query": {
+        "start_date": "{{ p.filters.start | date:'YYYY-MM-DD' }}",
+        "end_date": "{{ p.filters.end | date:'YYYY-MM-DD' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "next_token",
+        "cursor_path": "next_token",
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "summary",
+      "operation": "getReadiness",
+      "title": "Get daily readiness summaries",
+      "method": "GET",
+      "path": "/usercollection/daily_readiness",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1,
+          "max": 10
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "start",
+            "end"
+          ],
+          "help": "start / end: dates (ISO 8601); end defaults to today."
+        }
+      ],
+      "query": {
+        "start_date": "{{ p.filters.start | date:'YYYY-MM-DD' }}",
+        "end_date": "{{ p.filters.end | date:'YYYY-MM-DD' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "next_token",
+        "cursor_path": "next_token",
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "profile",
+      "operation": "get",
+      "title": "Get the personal profile",
+      "method": "GET",
+      "path": "/usercollection/personal_info",
+      "fields": []
+    }
+  ]
+}

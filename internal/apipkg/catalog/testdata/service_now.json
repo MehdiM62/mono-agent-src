@@ -1,0 +1,643 @@
+{
+  "businessService.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "sysparm_fields": [
+          "sys_id",
+          "name"
+        ],
+        "sysparm_query": "active=true"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/cmdb_ci_service",
+      "query": {
+        "sysparm_fields": "sys_id,name",
+        "sysparm_query": "active=true",
+        "sysparm_limit": "5",
+        "sysparm_offset": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "sys_id": "1"
+        }
+      ]
+    }
+  },
+  "configurationItems.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "sysparm_fields": [
+          "sys_id",
+          "name"
+        ],
+        "sysparm_query": "active=true"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/cmdb_ci",
+      "query": {
+        "sysparm_fields": "sys_id,name",
+        "sysparm_query": "active=true",
+        "sysparm_limit": "5",
+        "sysparm_offset": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "sys_id": "1"
+        }
+      ]
+    }
+  },
+  "department.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "sysparm_fields": [
+          "sys_id",
+          "name"
+        ],
+        "sysparm_query": "active=true"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/cmn_department",
+      "query": {
+        "sysparm_fields": "sys_id,name",
+        "sysparm_query": "active=true",
+        "sysparm_limit": "5",
+        "sysparm_offset": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "sys_id": "1"
+        }
+      ]
+    }
+  },
+  "dictionary.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "sysparm_fields": [
+          "sys_id",
+          "name"
+        ],
+        "sysparm_query": "active=true"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/sys_dictionary",
+      "query": {
+        "sysparm_fields": "sys_id,name",
+        "sysparm_query": "active=true",
+        "sysparm_limit": "5",
+        "sysparm_offset": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "sys_id": "1"
+        }
+      ]
+    }
+  },
+  "userGroup.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "sysparm_fields": [
+          "sys_id",
+          "name"
+        ],
+        "sysparm_query": "active=true"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/sys_user_group",
+      "query": {
+        "sysparm_fields": "sys_id,name",
+        "sysparm_query": "active=true",
+        "sysparm_limit": "5",
+        "sysparm_offset": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "sys_id": "1"
+        }
+      ]
+    }
+  },
+  "userRole.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "sysparm_fields": [
+          "sys_id",
+          "name"
+        ],
+        "sysparm_query": "active=true"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/sys_user_role",
+      "query": {
+        "sysparm_fields": "sys_id,name",
+        "sysparm_query": "active=true",
+        "sysparm_limit": "5",
+        "sysparm_offset": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "sys_id": "1"
+        }
+      ]
+    }
+  },
+  "user.get": {
+    "params": {
+      "getOption": "user_name",
+      "user_name": "ada"
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/sys_user",
+      "query": {
+        "sysparm_query": "user_name=ada",
+        "sysparm_limit": "1"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "sys_id": "1"
+        }
+      ]
+    }
+  },
+  "user.create": {
+    "params": {
+      "additionalFields": {
+        "user_name": "ada",
+        "active": true
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/now/table/sys_user",
+      "body": {
+        "user_name": "ada",
+        "active": true
+      },
+      "items": 1
+    },
+    "response": {
+      "result": {
+        "sys_id": "1"
+      }
+    }
+  },
+  "user.delete": {
+    "params": {
+      "id": "u1"
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/now/table/sys_user/u1",
+      "items": 1
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/sys_user",
+      "query": {
+        "sysparm_limit": "100",
+        "sysparm_offset": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "sys_id": "1"
+        }
+      ]
+    }
+  },
+  "user.update": {
+    "params": {
+      "id": "u1",
+      "updateFields": {
+        "email": "a@b.c"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/now/table/sys_user/u1",
+      "body": {
+        "email": "a@b.c"
+      }
+    }
+  },
+  "attachment.upload": {
+    "params": {
+      "tableName": "incident",
+      "id": "i1"
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/now/attachment/file",
+      "query": {
+        "table_name": "incident",
+        "table_sys_id": "i1",
+        "file_name": "f.txt"
+      },
+      "body": "hi"
+    },
+    "input": {
+      "data": "aGk=",
+      "file_name": "f.txt"
+    }
+  },
+  "attachment.delete": {
+    "params": {
+      "attachmentId": "a1"
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/now/attachment/a1",
+      "items": 1
+    }
+  },
+  "attachment.get": {
+    "params": {
+      "attachmentId": "a1",
+      "download": true
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/attachment/a1/file",
+      "items": 1
+    },
+    "responses": [
+      {
+        "result": {
+          "file_name": "r.pdf",
+          "content_type": "application/pdf"
+        }
+      },
+      {
+        "x": 1
+      }
+    ]
+  },
+  "attachment.getAll": {
+    "params": {
+      "tableName": "incident",
+      "limit": 10,
+      "options": {
+        "queryFilter": "file_nameLIKEpdf"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/attachment",
+      "query": {
+        "sysparm_query": "table_name=incident^file_nameLIKEpdf",
+        "sysparm_limit": "10",
+        "sysparm_offset": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "sys_id": "1"
+        }
+      ]
+    }
+  },
+  "incident.get": {
+    "params": {
+      "id": "i1",
+      "options": {
+        "sysparm_display_value": "all"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/incident/i1",
+      "query": {
+        "sysparm_display_value": "all"
+      }
+    }
+  },
+  "incident.create": {
+    "params": {
+      "short_description": "Down",
+      "additionalFields": {
+        "urgency": 1,
+        "cmdb_ci": [
+          "c1"
+        ]
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/now/table/incident",
+      "body": {
+        "short_description": "Down",
+        "urgency": 1,
+        "cmdb_ci": [
+          "c1"
+        ]
+      }
+    }
+  },
+  "incident.delete": {
+    "params": {
+      "id": "i1"
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/now/table/incident/i1"
+    }
+  },
+  "incident.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/incident",
+      "query": {
+        "sysparm_limit": "2",
+        "sysparm_offset": "0"
+      },
+      "items": 2
+    },
+    "response": {
+      "result": [
+        {
+          "a": 1
+        },
+        {
+          "a": 2
+        }
+      ]
+    }
+  },
+  "incident.update": {
+    "params": {
+      "id": "i1",
+      "updateFields": {
+        "work_notes": "n"
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/now/table/incident/i1",
+      "body": {
+        "work_notes": "n"
+      }
+    }
+  },
+  "tableRecord.get": {
+    "params": {
+      "tableName": "x_tbl",
+      "id": "r1"
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/x_tbl/r1",
+      "query": {}
+    }
+  },
+  "tableRecord.create": {
+    "params": {
+      "tableName": "x_tbl",
+      "fieldsToSend": {
+        "field": [
+          {
+            "column": "name",
+            "value": "A"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/now/table/x_tbl",
+      "body": {
+        "name": "A"
+      }
+    }
+  },
+  "tableRecord.delete": {
+    "params": {
+      "tableName": "x_tbl",
+      "id": "r1"
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/now/table/x_tbl/r1"
+    }
+  },
+  "tableRecord.getAll": {
+    "params": {
+      "tableName": "x_tbl",
+      "limit": 3
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/now/table/x_tbl",
+      "query": {
+        "sysparm_limit": "3",
+        "sysparm_offset": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "result": [
+        {
+          "a": 1
+        }
+      ]
+    }
+  },
+  "tableRecord.update": {
+    "params": {
+      "tableName": "x_tbl",
+      "id": "r1",
+      "dataToSend": "mapInput",
+      "inputsToIgnore": "skip, id"
+    },
+    "credential": {
+      "subdomain": "dev1",
+      "user": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/now/table/x_tbl/r1",
+      "body": {
+        "name": "B"
+      }
+    },
+    "input": {
+      "name": "B",
+      "skip": 1,
+      "id": "r1"
+    }
+  }
+}

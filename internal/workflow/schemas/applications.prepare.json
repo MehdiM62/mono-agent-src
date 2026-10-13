@@ -33,5 +33,32 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "Application id",
+      "key": "application_id",
+      "type": "string"
+    },
+    {
+      "description": "CV (HTML)",
+      "key": "cv_html_document_id",
+      "type": "string"
+    },
+    {
+      "description": "CV (PDF)",
+      "key": "cv_pdf_document_id",
+      "type": "string"
+    },
+    {
+      "description": "cover letter (HTML)",
+      "key": "cover_letter_html_document_id",
+      "type": "string"
+    },
+    {
+      "description": "cover letter (PDF)",
+      "key": "cover_letter_pdf_document_id",
+      "type": "string"
+    }
   ]
 }

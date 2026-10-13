@@ -1,0 +1,366 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "open_ai",
+  "title": "OpenAI (legacy node)",
+  "description": "Text, chat, moderation and image generation through the OpenAI API (n8n's old OpenAI node)",
+  "category": "app",
+  "docs_url": "https://platform.openai.com/docs/api-reference",
+  "n8n_types": [
+    "n8n-nodes-base.openAi"
+  ],
+  "base_url": "{{ cred.base_url | default:'https://api.openai.com/v1' }}",
+  "credentials": [
+    {
+      "platform": "openai",
+      "reuse_platform": "openai",
+      "name": "OpenAI",
+      "n8n_credential": "openAiApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "url": "base_url",
+        "organizationId": "organization_id"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "help": "Defaults to https://api.openai.com/v1"
+        },
+        {
+          "key": "organization_id",
+          "label": "Organization ID"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}",
+          "OpenAI-Organization": "{{ cred.organization_id }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "text",
+      "label": "Text"
+    },
+    {
+      "value": "chat",
+      "label": "Chat"
+    },
+    {
+      "value": "image",
+      "label": "Image"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "text",
+      "operation": "complete",
+      "title": "Complete text",
+      "method": "POST",
+      "path": "/completions",
+      "fields": [
+        {
+          "key": "model",
+          "label": "Model",
+          "type": "text",
+          "default": "gpt-3.5-turbo-instruct"
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "simplifyOutput",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the choices, one item each."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "echo",
+            "frequency_penalty",
+            "maxTokens",
+            "n",
+            "presence_penalty",
+            "temperature",
+            "topP"
+          ]
+        }
+      ],
+      "body": {
+        "model": "{{ p.model }}",
+        "prompt": "{{ p.prompt }}",
+        "frequency_penalty": "{{ p.options.frequency_penalty }}",
+        "max_tokens": "{{ p.options.maxTokens }}",
+        "n": "{{ p.options.n }}",
+        "presence_penalty": "{{ p.options.presence_penalty }}",
+        "temperature": "{{ p.options.temperature }}",
+        "top_p": "{{ p.options.topP }}",
+        "echo": "{{ p.options.echo }}"
+      },
+      "output": {
+        "path": "{{ p.simplifyOutput | ne:'false' | then:'choices' }}"
+      }
+    },
+    {
+      "resource": "text",
+      "operation": "edit",
+      "title": "Edit text",
+      "method": "POST",
+      "path": "/edits",
+      "description": "Uses the retired /v1/edits endpoint, kept for old workflows.",
+      "fields": [
+        {
+          "key": "model",
+          "label": "Model",
+          "type": "select",
+          "default": "text-davinci-edit-001",
+          "options": [
+            "code-davinci-edit-001",
+            "text-davinci-edit-001"
+          ]
+        },
+        {
+          "key": "input",
+          "label": "Input",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "instruction",
+          "label": "Instruction",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "simplifyOutput",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the choices, one item each."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "echo",
+            "frequency_penalty",
+            "maxTokens",
+            "n",
+            "presence_penalty",
+            "temperature",
+            "topP"
+          ]
+        }
+      ],
+      "body": {
+        "model": "{{ p.model }}",
+        "input": "{{ p.input }}",
+        "instruction": "{{ p.instruction }}",
+        "frequency_penalty": "{{ p.options.frequency_penalty }}",
+        "max_tokens": "{{ p.options.maxTokens }}",
+        "n": "{{ p.options.n }}",
+        "presence_penalty": "{{ p.options.presence_penalty }}",
+        "temperature": "{{ p.options.temperature }}",
+        "top_p": "{{ p.options.topP }}"
+      },
+      "output": {
+        "path": "{{ p.simplifyOutput | ne:'false' | then:'choices' }}"
+      }
+    },
+    {
+      "resource": "text",
+      "operation": "moderate",
+      "title": "Classify text for policy violations",
+      "method": "POST",
+      "path": "/moderations",
+      "fields": [
+        {
+          "key": "model",
+          "label": "Model",
+          "type": "select",
+          "default": "text-moderation-latest",
+          "options": [
+            "text-moderation-stable",
+            "text-moderation-latest"
+          ]
+        },
+        {
+          "key": "input",
+          "label": "Input",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "simplifyOutput",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the choices, one item each."
+        }
+      ],
+      "body": {
+        "model": "{{ p.model }}",
+        "input": "{{ p.input }}"
+      },
+      "output": {
+        "path": "{{ p.simplifyOutput | ne:'false' | then:'results' }}"
+      }
+    },
+    {
+      "resource": "chat",
+      "operation": "complete",
+      "title": "Complete a chat",
+      "method": "POST",
+      "path": "/chat/completions",
+      "fields": [
+        {
+          "key": "model",
+          "label": "Model (v1)",
+          "type": "text",
+          "default": "",
+          "help": "n8n version 1 name; empty uses Model below."
+        },
+        {
+          "key": "chatModel",
+          "label": "Model",
+          "type": "text",
+          "default": "gpt-3.5-turbo",
+          "help": "Used when Model (v1) is empty."
+        },
+        {
+          "key": "prompt",
+          "label": "Messages",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "messages"
+          ],
+          "help": "{\"messages\": [{\"role\": \"user\", \"content\": \"Hi\"}]}"
+        },
+        {
+          "key": "simplifyOutput",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the choices, one item each."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "echo",
+            "frequency_penalty",
+            "maxTokens",
+            "n",
+            "presence_penalty",
+            "temperature",
+            "topP"
+          ]
+        }
+      ],
+      "body": {
+        "model": "{{ p.model | default:p.chatModel }}",
+        "messages": "{{ p.prompt.messages }}",
+        "frequency_penalty": "{{ p.options.frequency_penalty }}",
+        "max_tokens": "{{ p.options.maxTokens }}",
+        "n": "{{ p.options.n }}",
+        "presence_penalty": "{{ p.options.presence_penalty }}",
+        "temperature": "{{ p.options.temperature }}",
+        "top_p": "{{ p.options.topP }}",
+        "echo": "{{ p.options.echo }}"
+      },
+      "output": {
+        "path": "{{ p.simplifyOutput | ne:'false' | then:'choices' }}"
+      }
+    },
+    {
+      "resource": "image",
+      "operation": "create",
+      "title": "Create images",
+      "method": "POST",
+      "path": "/images/generations",
+      "fields": [
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "model",
+          "label": "Model (v1)",
+          "type": "text",
+          "default": "",
+          "help": "n8n version 1 name; empty uses Model below."
+        },
+        {
+          "key": "imageModel",
+          "label": "Model",
+          "type": "text",
+          "default": "dall-e-2",
+          "help": "Used when Model (v1) is empty."
+        },
+        {
+          "key": "responseFormat",
+          "label": "Respond with",
+          "type": "select",
+          "default": "binaryData",
+          "options": [
+            "binaryData",
+            "imageUrl"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "n",
+            "quality",
+            "size",
+            "style"
+          ]
+        }
+      ],
+      "body": {
+        "prompt": "{{ p.prompt }}",
+        "model": "{{ p.model | default:p.imageModel }}",
+        "response_format": "{{ p.responseFormat | eq:'imageUrl' | then:'url' | default:'b64_json' }}",
+        "$merge": "{{ p.options }}"
+      },
+      "binary": {
+        "download_when": "{{ p.responseFormat | ne:'imageUrl' }}",
+        "download_base64": "{{ res.data.0.b64_json }}",
+        "file_name": "data.png",
+        "mime_type": "image/png"
+      },
+      "output": {
+        "path": "data"
+      }
+    }
+  ]
+}

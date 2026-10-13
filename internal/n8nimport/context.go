@@ -15,6 +15,9 @@ type SubNode struct {
 	Kind        string // connection type, e.g. "ai_languageModel"
 	Parameters  map[string]interface{}
 	Credentials map[string]n8nCredentialRef
+	// Children are the sub-nodes attached to this sub-node (a document
+	// loader's text splitter, …).
+	Children []SubNode
 }
 
 // MapContext is what a Mapper reads the n8n node from and records report

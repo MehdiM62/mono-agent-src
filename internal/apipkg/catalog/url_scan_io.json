@@ -1,0 +1,162 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "url_scan_io",
+  "node_type": "app.url_scan_io",
+  "title": "urlscan.io",
+  "description": "Submit URLs for scanning and read scan results on urlscan.io",
+  "category": "app",
+  "docs_url": "https://urlscan.io/docs/api/",
+  "n8n_types": [
+    "n8n-nodes-base.urlScanIo"
+  ],
+  "base_url": "https://urlscan.io/api/v1",
+  "credentials": [
+    {
+      "platform": "url_scan_io",
+      "name": "urlscan.io",
+      "n8n_credential": "urlScanIoApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "urlscan.io: Settings & API"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "API-Key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "scan",
+      "label": "Scan"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "scan",
+      "operation": "perform",
+      "title": "Scan a URL",
+      "method": "POST",
+      "path": "/scan",
+      "body": {
+        "url": "{{ p.url }}",
+        "customAgent": "{{ p.additionalFields.customAgent }}",
+        "overrideSafety": "{{ p.additionalFields.overrideSafety }}",
+        "referer": "{{ p.additionalFields.referer }}",
+        "visibility": "{{ p.additionalFields.visibility }}",
+        "tags": "{{ p.additionalFields.tags | split }}"
+      },
+      "output": {
+        "to": {
+          "scanId": "{{ el._id | default:el.uuid }}",
+          "$merge": "{{ el | omit:'_id,uuid' }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customAgent",
+            "overrideSafety",
+            "referer",
+            "tags",
+            "visibility"
+          ],
+          "help": "tags: comma-separated (at most 10); visibility: public, private or unlisted"
+        }
+      ]
+    },
+    {
+      "resource": "scan",
+      "operation": "get",
+      "title": "Get a scan result",
+      "method": "GET",
+      "path": "/result/{{ p.scanId }}",
+      "output": {
+        "to": {
+          "scanId": "{{ el._id | default:el.uuid }}",
+          "$merge": "{{ el | omit:'_id,uuid' }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "scanId",
+          "label": "Scan ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "scan",
+      "operation": "getAll",
+      "title": "Search scans",
+      "method": "GET",
+      "path": "/search",
+      "query": {
+        "q": "{{ p.filters.query }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "search_after",
+        "cursor_path": "results.-1.sort",
+        "has_more_path": "has_more",
+        "limit_param": "size",
+        "page_size": 100,
+        "results_path": "results"
+      },
+      "output": {
+        "to": {
+          "scanId": "{{ el._id | default:el.uuid }}",
+          "$merge": "{{ el | omit:'_id,uuid' }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: an Elasticsearch query string, e.g. domain:example.com"
+        }
+      ]
+    }
+  ]
+}

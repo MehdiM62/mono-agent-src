@@ -1,0 +1,198 @@
+{
+  "file.upload": {
+    "params": {
+      "path": "/a.txt",
+      "fileContent": "hello"
+    },
+    "response": {
+      "id": "id:1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/upload",
+      "query": {
+        "arg": "{\"mode\":\"overwrite\",\"path\":\"/a.txt\"}"
+      },
+      "headers": {
+        "Content-Type": "application/octet-stream"
+      },
+      "items": 1,
+      "body": "hello"
+    }
+  },
+  "file.copy": {
+    "params": {
+      "path": "/a.txt",
+      "toPath": "/b.txt"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/copy_v2",
+      "body": {
+        "from_path": "/a.txt",
+        "to_path": "/b.txt"
+      }
+    }
+  },
+  "file.delete": {
+    "params": {
+      "path": "/a.txt"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/delete_v2",
+      "body": {
+        "path": "/a.txt"
+      }
+    }
+  },
+  "file.download": {
+    "params": {
+      "path": "/a.txt"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/download",
+      "query": {
+        "arg": "{\"path\":\"/a.txt\"}"
+      },
+      "items": 1
+    }
+  },
+  "file.move": {
+    "params": {
+      "path": "/a.txt",
+      "toPath": "/c.txt"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/move_v2",
+      "body": {
+        "from_path": "/a.txt",
+        "to_path": "/c.txt"
+      }
+    }
+  },
+  "folder.create": {
+    "params": {
+      "path": "/new"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/create_folder_v2",
+      "body": {
+        "path": "/new"
+      }
+    }
+  },
+  "folder.copy": {
+    "params": {
+      "path": "/a",
+      "toPath": "/b"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/copy_v2",
+      "body": {
+        "from_path": "/a",
+        "to_path": "/b"
+      }
+    }
+  },
+  "folder.delete": {
+    "params": {
+      "path": "/a"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/delete_v2",
+      "body": {
+        "path": "/a"
+      }
+    }
+  },
+  "folder.list": {
+    "params": {
+      "path": "",
+      "limit": 10,
+      "filters": {
+        "recursive": true
+      }
+    },
+    "response": {
+      "entries": [
+        {
+          ".tag": "file",
+          "name": "a.txt",
+          "id": "id:1",
+          "size": 5
+        }
+      ],
+      "has_more": false
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/list_folder",
+      "body": {
+        "path": "",
+        "limit": 10,
+        "recursive": true
+      },
+      "items": 1
+    }
+  },
+  "folder.move": {
+    "params": {
+      "path": "/a",
+      "toPath": "/b"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/move_v2",
+      "body": {
+        "from_path": "/a",
+        "to_path": "/b"
+      }
+    }
+  },
+  "search.query": {
+    "params": {
+      "query": "report",
+      "filters": {
+        "file_extensions": "pdf,docx"
+      }
+    },
+    "response": {
+      "matches": [
+        {
+          "match_type": {
+            ".tag": "filename"
+          },
+          "metadata": {
+            ".tag": "metadata",
+            "metadata": {
+              "name": "report.pdf"
+            }
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/2/files/search_v2",
+      "body": {
+        "query": "report",
+        "options": {
+          "filename_only": true,
+          "file_status": "active",
+          "file_extensions": [
+            "pdf",
+            "docx"
+          ],
+          "max_results": 100
+        }
+      },
+      "items": 1
+    }
+  }
+}

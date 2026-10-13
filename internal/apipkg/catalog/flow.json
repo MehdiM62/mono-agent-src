@@ -1,0 +1,282 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "flow",
+  "node_type": "app.flow",
+  "title": "Flow",
+  "description": "Tasks in Flow (getflow.com)",
+  "category": "app",
+  "docs_url": "https://www.getflow.com/api",
+  "n8n_types": [
+    "n8n-nodes-base.flow"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.flowTrigger"
+  ],
+  "base_url": "https://api.getflow.com/v2",
+  "credentials": [
+    {
+      "platform": "flow",
+      "name": "Flow",
+      "n8n_credential": "flowApi",
+      "n8n_field_map": {
+        "organizationId": "organization_id",
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "organization_id",
+          "label": "Organization ID",
+          "required": true
+        },
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "task",
+      "label": "Task"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ownerid",
+            "listID",
+            "startsOn",
+            "dueOn",
+            "mirrorParentSubscribers",
+            "mirrorParentTags",
+            "noteContent",
+            "noteMimeType",
+            "parentId",
+            "positionList",
+            "positionUpcoming",
+            "position",
+            "sectionId",
+            "tags"
+          ],
+          "help": "noteMimeType: text/plain, text/x-markdown or text/html; tags: comma-separated"
+        }
+      ],
+      "body": {
+        "organization_id": "{{ cred.organization_id | numeric }}",
+        "task": {
+          "workspace_id": "{{ p.workspaceId | int }}",
+          "owner_id": "{{ p.additionalFields.ownerid | default:p.additionalFields.ownerId | int }}",
+          "list_id": "{{ p.additionalFields.listID | default:p.additionalFields.listId | int }}",
+          "starts_on": "{{ p.additionalFields.startsOn }}",
+          "due_on": "{{ p.additionalFields.dueOn }}",
+          "mirror_parent_subscribers": "{{ p.additionalFields.mirrorParentSubscribers | eq:'true' | then:true }}",
+          "mirror_parent_tags": "{{ p.additionalFields.mirrorParentTags | eq:'true' | then:true }}",
+          "note_content": "{{ p.additionalFields.noteContent }}",
+          "note_mime_type": "{{ p.additionalFields.noteMimeType }}",
+          "parent_id": "{{ p.additionalFields.parentId | int }}",
+          "position_list": "{{ p.additionalFields.positionList }}",
+          "position_upcoming": "{{ p.additionalFields.positionUpcoming }}",
+          "position": "{{ p.additionalFields.position }}",
+          "section_id": "{{ p.additionalFields.sectionId }}",
+          "tags": "{{ p.additionalFields.tags | split }}",
+          "name": "{{ p.name }}"
+        }
+      },
+      "output": {
+        "path": "task"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PUT",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "completed",
+            "ownerid",
+            "listID",
+            "startsOn",
+            "dueOn",
+            "mirrorParentSubscribers",
+            "mirrorParentTags",
+            "noteContent",
+            "noteMimeType",
+            "parentId",
+            "positionList",
+            "positionUpcoming",
+            "position",
+            "sectionId",
+            "tags"
+          ],
+          "help": "noteMimeType: text/plain, text/x-markdown or text/html; tags: comma-separated"
+        }
+      ],
+      "body": {
+        "organization_id": "{{ cred.organization_id | numeric }}",
+        "task": {
+          "workspace_id": "{{ p.workspaceId | int }}",
+          "owner_id": "{{ p.updateFields.ownerid | default:p.updateFields.ownerId | int }}",
+          "list_id": "{{ p.updateFields.listID | default:p.updateFields.listId | int }}",
+          "starts_on": "{{ p.updateFields.startsOn }}",
+          "due_on": "{{ p.updateFields.dueOn }}",
+          "mirror_parent_subscribers": "{{ p.updateFields.mirrorParentSubscribers | eq:'true' | then:true }}",
+          "mirror_parent_tags": "{{ p.updateFields.mirrorParentTags | eq:'true' | then:true }}",
+          "note_content": "{{ p.updateFields.noteContent }}",
+          "note_mime_type": "{{ p.updateFields.noteMimeType }}",
+          "parent_id": "{{ p.updateFields.parentId | int }}",
+          "position_list": "{{ p.updateFields.positionList }}",
+          "position_upcoming": "{{ p.updateFields.positionUpcoming }}",
+          "position": "{{ p.updateFields.position }}",
+          "section_id": "{{ p.updateFields.sectionId }}",
+          "tags": "{{ p.updateFields.tags | split }}",
+          "id": "{{ p.taskId | int }}",
+          "name": "{{ p.updateFields.name }}",
+          "completed": "{{ p.updateFields.completed | eq:'true' | then:true }}"
+        }
+      },
+      "output": {
+        "path": "task"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include"
+          ],
+          "help": "include: schedule, files, file_associations, parent"
+        }
+      ],
+      "query": {
+        "organization_id": "{{ cred.organization_id }}",
+        "include": "{{ p.filters.include | csv }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "order",
+            "workspaceId",
+            "createdBefore",
+            "createdAfter",
+            "updateBefore",
+            "updateAfter",
+            "deleted",
+            "cleared"
+          ]
+        }
+      ],
+      "query": {
+        "organization_id": "{{ cred.organization_id }}",
+        "include": "{{ p.filters.include | csv }}",
+        "order": "{{ p.filters.order }}",
+        "workspace_id": "{{ p.filters.workspaceId }}",
+        "created_before": "{{ p.filters.createdBefore }}",
+        "created_after": "{{ p.filters.createdAfter }}",
+        "updated_before": "{{ p.filters.updateBefore }}",
+        "updated_after": "{{ p.filters.updateAfter }}",
+        "deleted": "{{ p.filters.deleted | eq:'true' | then:true }}",
+        "cleared": "{{ p.filters.cleared | eq:'true' | then:true }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "tasks"
+      }
+    }
+  ]
+}

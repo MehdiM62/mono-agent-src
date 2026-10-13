@@ -1,0 +1,2872 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "zoho_crm",
+  "title": "Zoho CRM",
+  "description": "Accounts, contacts, deals, invoices, leads, products, purchase orders, quotes, sales orders and vendors in Zoho CRM",
+  "category": "app",
+  "docs_url": "https://www.zoho.com/crm/developer/docs/api/v2/",
+  "n8n_types": [
+    "n8n-nodes-base.zohoCrm"
+  ],
+  "base_url": "{{ cred.api_domain | default:'https://www.zohoapis.com' }}/crm/v2",
+  "credentials": [
+    {
+      "platform": "zoho_crm",
+      "name": "Zoho CRM",
+      "n8n_credential": "zohoOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth"
+      ],
+      "fields": [],
+      "oauth": {
+        "auth_url": "https://accounts.zoho.com/oauth/v2/auth",
+        "token_url": "https://accounts.zoho.com/oauth/v2/token",
+        "scopes": [],
+        "extra_params": {
+          "scope": "ZohoCRM.modules.ALL,ZohoCRM.settings.all,ZohoCRM.users.all",
+          "access_type": "offline",
+          "prompt": "consent"
+        },
+        "token_fields": [
+          "api_domain"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Zoho-oauthtoken {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "account",
+      "label": "Account"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "deal",
+      "label": "Deal"
+    },
+    {
+      "value": "invoice",
+      "label": "Invoice"
+    },
+    {
+      "value": "lead",
+      "label": "Lead"
+    },
+    {
+      "value": "product",
+      "label": "Product"
+    },
+    {
+      "value": "purchaseOrder",
+      "label": "Purchase order"
+    },
+    {
+      "value": "quote",
+      "label": "Quote"
+    },
+    {
+      "value": "salesOrder",
+      "label": "Sales order"
+    },
+    {
+      "value": "vendor",
+      "label": "Vendor"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "account",
+      "operation": "create",
+      "title": "Create a account",
+      "method": "POST",
+      "path": "/accounts",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Account_Name": "{{ p.accountName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "accountName",
+          "label": "Account name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Account_Number",
+            "Account_Site",
+            "Account_Type",
+            "Annual_Revenue",
+            "Billing_Address",
+            "Contact_Details",
+            "Currency",
+            "customFields",
+            "Description",
+            "Employees",
+            "Exchange_Rate",
+            "Fax",
+            "Industry",
+            "Phone",
+            "Shipping_Address",
+            "Ticker_Symbol",
+            "Website"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "account",
+      "operation": "upsert",
+      "title": "Create or update a account",
+      "method": "POST",
+      "path": "/accounts/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Account_Name": "{{ p.accountName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "accountName",
+          "label": "Account name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Account_Number",
+            "Account_Site",
+            "Account_Type",
+            "Annual_Revenue",
+            "Billing_Address",
+            "Contact_Details",
+            "Currency",
+            "customFields",
+            "Description",
+            "Employees",
+            "Exchange_Rate",
+            "Fax",
+            "Industry",
+            "Phone",
+            "Shipping_Address",
+            "Ticker_Symbol",
+            "Website"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "account",
+      "operation": "delete",
+      "title": "Delete a account",
+      "method": "DELETE",
+      "path": "/accounts/{{ p.accountId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "account",
+      "operation": "get",
+      "title": "Get a account",
+      "method": "GET",
+      "path": "/accounts/{{ p.accountId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "account",
+      "operation": "getAll",
+      "title": "Get many accounts",
+      "method": "GET",
+      "path": "/accounts",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "account",
+      "operation": "update",
+      "title": "Update a account",
+      "method": "PUT",
+      "path": "/accounts/{{ p.accountId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details' }}",
+              "{{ p.updateFields.Billing_Address.address_fields | default:p.updateFields.Billing_Address.billing_address_fields }}",
+              "{{ p.updateFields.Shipping_Address.address_fields }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ]
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Account_Name",
+            "Account_Number",
+            "Account_Site",
+            "Account_Type",
+            "Annual_Revenue",
+            "Billing_Address",
+            "Contact_Details",
+            "Currency",
+            "Description",
+            "Employees",
+            "Exchange_Rate",
+            "Fax",
+            "Industry",
+            "Phone",
+            "Shipping_Address",
+            "Ticker_Symbol",
+            "Website",
+            "customFields"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/contacts",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Mailing_Address,Other_Address,customFields,Product_Details,Date_of_Birth' }}",
+              "{{ p.additionalFields.Mailing_Address.address_fields }}",
+              "{{ p.additionalFields.Other_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Date_of_Birth": "{{ p.additionalFields.Date_of_Birth | split:'T' | get:'0' }}",
+            "Last_Name": "{{ p.lastName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Assistant",
+            "customFields",
+            "Date_of_Birth",
+            "Department",
+            "Description",
+            "Email",
+            "Secondary_Email",
+            "Fax",
+            "First_Name",
+            "Full_Name",
+            "Mailing_Address",
+            "Mobile",
+            "Other_Address",
+            "Phone",
+            "Asst_Phone",
+            "Home_Phone",
+            "Other_Phone",
+            "Salutation",
+            "Skype_ID",
+            "Title",
+            "Twitter"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "upsert",
+      "title": "Create or update a contact",
+      "method": "POST",
+      "path": "/contacts/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Mailing_Address,Other_Address,customFields,Product_Details,Date_of_Birth' }}",
+              "{{ p.additionalFields.Mailing_Address.address_fields }}",
+              "{{ p.additionalFields.Other_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Date_of_Birth": "{{ p.additionalFields.Date_of_Birth | split:'T' | get:'0' }}",
+            "Last_Name": "{{ p.lastName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Assistant",
+            "customFields",
+            "Date_of_Birth",
+            "Department",
+            "Description",
+            "Email",
+            "Secondary_Email",
+            "Fax",
+            "First_Name",
+            "Full_Name",
+            "Mailing_Address",
+            "Mobile",
+            "Other_Address",
+            "Phone",
+            "Asst_Phone",
+            "Home_Phone",
+            "Other_Phone",
+            "Salutation",
+            "Skype_ID",
+            "Title",
+            "Twitter"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PUT",
+      "path": "/contacts/{{ p.contactId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'Mailing_Address,Other_Address,customFields,Product_Details,Date_of_Birth' }}",
+              "{{ p.updateFields.Mailing_Address.address_fields }}",
+              "{{ p.updateFields.Other_Address.address_fields }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Date_of_Birth": "{{ p.updateFields.Date_of_Birth | split:'T' | get:'0' }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Assistant",
+            "Asst_Phone",
+            "Currency",
+            "Date_of_Birth",
+            "Department",
+            "Description",
+            "Email",
+            "Fax",
+            "First_Name",
+            "Full_Name",
+            "Home_Phone",
+            "Last_Name",
+            "Mailing_Address",
+            "Mobile",
+            "Other_Address",
+            "Other_Phone",
+            "Phone",
+            "Salutation",
+            "Secondary_Email",
+            "Skype_ID",
+            "Title",
+            "Twitter",
+            "customFields"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "deal",
+      "operation": "create",
+      "title": "Create a deal",
+      "method": "POST",
+      "path": "/deals",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'customFields,Product_Details,Closing_Date' }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Closing_Date": "{{ p.additionalFields.Closing_Date | split:'T' | get:'0' }}",
+            "Deal_Name": "{{ p.dealName }}",
+            "Stage": "{{ p.stage }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "dealName",
+          "label": "Deal name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "stage",
+          "label": "Stage",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Amount",
+            "Closing_Date",
+            "Currency",
+            "customFields",
+            "Description",
+            "Lead_Conversion_Time",
+            "Next_Step",
+            "Overall_Sales_Duration",
+            "Probability",
+            "Sales_Cycle_Duration"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "deal",
+      "operation": "upsert",
+      "title": "Create or update a deal",
+      "method": "POST",
+      "path": "/deals/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'customFields,Product_Details,Closing_Date' }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Closing_Date": "{{ p.additionalFields.Closing_Date | split:'T' | get:'0' }}",
+            "Deal_Name": "{{ p.dealName }}",
+            "Stage": "{{ p.stage }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "dealName",
+          "label": "Deal name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "stage",
+          "label": "Stage",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Amount",
+            "Closing_Date",
+            "Currency",
+            "customFields",
+            "Description",
+            "Lead_Conversion_Time",
+            "Next_Step",
+            "Overall_Sales_Duration",
+            "Probability",
+            "Sales_Cycle_Duration"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "deal",
+      "operation": "delete",
+      "title": "Delete a deal",
+      "method": "DELETE",
+      "path": "/deals/{{ p.dealId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "deal",
+      "operation": "get",
+      "title": "Get a deal",
+      "method": "GET",
+      "path": "/deals/{{ p.dealId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "deal",
+      "operation": "getAll",
+      "title": "Get many deals",
+      "method": "GET",
+      "path": "/deals",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "deal",
+      "operation": "update",
+      "title": "Update a deal",
+      "method": "PUT",
+      "path": "/deals/{{ p.dealId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'customFields,Product_Details,Closing_Date' }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Closing_Date": "{{ p.updateFields.Closing_Date | split:'T' | get:'0' }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Amount",
+            "Closing_Date",
+            "Currency",
+            "Deal_Name",
+            "Description",
+            "Lead_Conversion_Time",
+            "Next_Step",
+            "Overall_Sales_Duration",
+            "Probability",
+            "Sales_Cycle_Duration",
+            "Stage",
+            "customFields"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "invoice",
+      "operation": "create",
+      "title": "Create a invoice",
+      "method": "POST",
+      "path": "/invoices",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,accountId,Invoice_Date,Due_Date' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Invoice_Date": "{{ p.additionalFields.Invoice_Date | split:'T' | get:'0' }}",
+            "Due_Date": "{{ p.additionalFields.Due_Date | split:'T' | get:'0' }}",
+            "Account_Name": {
+              "id": "{{ p.additionalFields.accountId }}"
+            },
+            "Subject": "{{ p.subject }}",
+            "Product_Details": {
+              "$map": "{{ p.Product_Details }}",
+              "$to": {
+                "$merge": "{{ el | omit:'product' }}",
+                "product": {
+                  "id": "{{ el.id }}"
+                },
+                "quantity": "{{ el.quantity | default:1 }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Product_Details",
+          "label": "Products",
+          "type": "json",
+          "required": true,
+          "help": "[{\"id\": product ID, \"quantity\", \"list_price\", \"unit_price\", \"Tax\", \"total\", \"net_total\", \"product_description\", …}]"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountId",
+            "Adjustment",
+            "Billing_Address",
+            "Currency",
+            "customFields",
+            "Description",
+            "Due_Date",
+            "Exchange_Rate",
+            "Grand_Total",
+            "Invoice_Date",
+            "Invoice_Number",
+            "Sales_Commission",
+            "Shipping_Address",
+            "Status",
+            "Sub_Total",
+            "Tax",
+            "Terms_and_Conditions"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "invoice",
+      "operation": "upsert",
+      "title": "Create or update a invoice",
+      "method": "POST",
+      "path": "/invoices/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,accountId,Invoice_Date,Due_Date' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Invoice_Date": "{{ p.additionalFields.Invoice_Date | split:'T' | get:'0' }}",
+            "Due_Date": "{{ p.additionalFields.Due_Date | split:'T' | get:'0' }}",
+            "Account_Name": {
+              "id": "{{ p.additionalFields.accountId }}"
+            },
+            "Subject": "{{ p.subject }}",
+            "Product_Details": {
+              "$map": "{{ p.Product_Details }}",
+              "$to": {
+                "$merge": "{{ el | omit:'product' }}",
+                "product": {
+                  "id": "{{ el.id }}"
+                },
+                "quantity": "{{ el.quantity | default:1 }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Product_Details",
+          "label": "Products",
+          "type": "json",
+          "required": true,
+          "help": "[{\"id\": product ID, \"quantity\", \"list_price\", \"unit_price\", \"Tax\", \"total\", \"net_total\", \"product_description\", …}]"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountId",
+            "Adjustment",
+            "Billing_Address",
+            "Currency",
+            "customFields",
+            "Description",
+            "Due_Date",
+            "Exchange_Rate",
+            "Grand_Total",
+            "Invoice_Date",
+            "Invoice_Number",
+            "Sales_Commission",
+            "Shipping_Address",
+            "Status",
+            "Sub_Total",
+            "Tax",
+            "Terms_and_Conditions"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "invoice",
+      "operation": "delete",
+      "title": "Delete a invoice",
+      "method": "DELETE",
+      "path": "/invoices/{{ p.invoiceId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "invoice",
+      "operation": "get",
+      "title": "Get a invoice",
+      "method": "GET",
+      "path": "/invoices/{{ p.invoiceId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "invoice",
+      "operation": "getAll",
+      "title": "Get many invoices",
+      "method": "GET",
+      "path": "/invoices",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "invoice",
+      "operation": "update",
+      "title": "Update a invoice",
+      "method": "PUT",
+      "path": "/invoices/{{ p.invoiceId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,accountId,Invoice_Date,Due_Date' }}",
+              "{{ p.updateFields.Billing_Address.address_fields | default:p.updateFields.Billing_Address.billing_address_fields }}",
+              "{{ p.updateFields.Shipping_Address.address_fields }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Invoice_Date": "{{ p.updateFields.Invoice_Date | split:'T' | get:'0' }}",
+            "Due_Date": "{{ p.updateFields.Due_Date | split:'T' | get:'0' }}",
+            "Account_Name": {
+              "id": "{{ p.updateFields.accountId }}"
+            },
+            "Product_Details": {
+              "$map": "{{ p.updateFields.Product_Details }}",
+              "$to": {
+                "$merge": "{{ el | omit:'product' }}",
+                "product": {
+                  "id": "{{ el.id }}"
+                },
+                "quantity": "{{ el.quantity | default:1 }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Currency",
+            "Description",
+            "Due_Date",
+            "Exchange_Rate",
+            "Grand_Total",
+            "Invoice_Date",
+            "Invoice_Number",
+            "Product_Details",
+            "Sales_Commission",
+            "Shipping_Address",
+            "Status",
+            "Sub_Total",
+            "Subject",
+            "Tax",
+            "Terms_and_Conditions",
+            "accountId",
+            "customFields"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "create",
+      "title": "Create a lead",
+      "method": "POST",
+      "path": "/leads",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Address,customFields,Product_Details' }}",
+              "{{ p.additionalFields.Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Company": "{{ p.Company }}",
+            "Last_Name": "{{ p.lastName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "Company",
+          "label": "Company",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Address",
+            "Annual_Revenue",
+            "Currency",
+            "customFields",
+            "Description",
+            "Designation",
+            "Email",
+            "Email_Opt_Out",
+            "Fax",
+            "First_Name",
+            "Full_Name",
+            "Industry",
+            "Industry_Type",
+            "Lead_Source",
+            "Lead_Status",
+            "Mobile",
+            "No_of_Employees",
+            "Phone",
+            "Salutation",
+            "Secondary_Email",
+            "Skype_ID",
+            "Twitter",
+            "Website"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "upsert",
+      "title": "Create or update a lead",
+      "method": "POST",
+      "path": "/leads/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Address,customFields,Product_Details' }}",
+              "{{ p.additionalFields.Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Company": "{{ p.Company }}",
+            "Last_Name": "{{ p.lastName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "Company",
+          "label": "Company",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Address",
+            "Annual_Revenue",
+            "Currency",
+            "customFields",
+            "Description",
+            "Designation",
+            "Email",
+            "Email_Opt_Out",
+            "Fax",
+            "First_Name",
+            "Full_Name",
+            "Industry",
+            "Industry_Type",
+            "Lead_Source",
+            "Lead_Status",
+            "Mobile",
+            "No_of_Employees",
+            "Phone",
+            "Salutation",
+            "Secondary_Email",
+            "Skype_ID",
+            "Twitter",
+            "Website"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "delete",
+      "title": "Delete a lead",
+      "method": "DELETE",
+      "path": "/leads/{{ p.leadId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "get",
+      "title": "Get a lead",
+      "method": "GET",
+      "path": "/leads/{{ p.leadId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "getAll",
+      "title": "Get many leads",
+      "method": "GET",
+      "path": "/leads",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "lead",
+      "operation": "getFields",
+      "title": "Get lead fields",
+      "method": "GET",
+      "path": "/settings/fields",
+      "query": {
+        "module": "leads"
+      },
+      "output": {
+        "path": "fields"
+      },
+      "fields": []
+    },
+    {
+      "resource": "lead",
+      "operation": "update",
+      "title": "Update a lead",
+      "method": "PUT",
+      "path": "/leads/{{ p.leadId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'Address,customFields,Product_Details' }}",
+              "{{ p.updateFields.Address.address_fields }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ]
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Address",
+            "Annual_Revenue",
+            "Company",
+            "Currency",
+            "Description",
+            "Designation",
+            "Email",
+            "Email_Opt_Out",
+            "Fax",
+            "First_Name",
+            "Full_Name",
+            "Industry",
+            "Industry_Type",
+            "Last_Name",
+            "Lead_Source",
+            "Lead_Status",
+            "Mobile",
+            "No_of_Employees",
+            "Phone",
+            "Salutation",
+            "Secondary_Email",
+            "Skype_ID",
+            "Twitter",
+            "Website",
+            "customFields"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "create",
+      "title": "Create a product",
+      "method": "POST",
+      "path": "/products",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'customFields,Product_Details' }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Product_Name": "{{ p.productName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "productName",
+          "label": "Product name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Commission_Rate",
+            "customFields",
+            "Description",
+            "Manufacturer",
+            "Product_Active",
+            "Product_Category",
+            "Qty_in_Demand",
+            "Qty_in_Stock",
+            "Taxable",
+            "Unit_Price"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "upsert",
+      "title": "Create or update a product",
+      "method": "POST",
+      "path": "/products/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'customFields,Product_Details' }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Product_Name": "{{ p.productName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "productName",
+          "label": "Product name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Commission_Rate",
+            "customFields",
+            "Description",
+            "Manufacturer",
+            "Product_Active",
+            "Product_Category",
+            "Qty_in_Demand",
+            "Qty_in_Stock",
+            "Taxable",
+            "Unit_Price"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "delete",
+      "title": "Delete a product",
+      "method": "DELETE",
+      "path": "/products/{{ p.productId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "get",
+      "title": "Get a product",
+      "method": "GET",
+      "path": "/products/{{ p.productId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "getAll",
+      "title": "Get many products",
+      "method": "GET",
+      "path": "/products",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "update",
+      "title": "Update a product",
+      "method": "PUT",
+      "path": "/products/{{ p.productId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'customFields,Product_Details' }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ]
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Commission_Rate",
+            "Description",
+            "Manufacturer",
+            "Product_Active",
+            "Product_Category",
+            "Qty_in_Demand",
+            "Qty_in_Stock",
+            "Taxable",
+            "Unit_Price",
+            "customFields"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "purchaseOrder",
+      "operation": "create",
+      "title": "Create a purchase order",
+      "method": "POST",
+      "path": "/purchase_orders",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,Due_Date,PO_Date' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Due_Date": "{{ p.additionalFields.Due_Date | split:'T' | get:'0' }}",
+            "PO_Date": "{{ p.additionalFields.PO_Date | split:'T' | get:'0' }}",
+            "Subject": "{{ p.subject }}",
+            "Vendor_Name": {
+              "id": "{{ p.vendorId }}"
+            },
+            "Product_Details": {
+              "$map": "{{ p.Product_Details }}",
+              "$to": {
+                "$merge": "{{ el | omit:'product' }}",
+                "product": {
+                  "id": "{{ el.id }}"
+                },
+                "quantity": "{{ el.quantity | default:1 }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "vendorId",
+          "label": "Vendor ID",
+          "type": "text"
+        },
+        {
+          "key": "Product_Details",
+          "label": "Products",
+          "type": "json",
+          "required": true,
+          "help": "[{\"id\": product ID, \"quantity\", \"list_price\", \"unit_price\", \"Tax\", \"total\", \"net_total\", \"product_description\", …}]"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Carrier",
+            "Currency",
+            "customFields",
+            "Description",
+            "Discount",
+            "Due_Date",
+            "Exchange_Rate",
+            "Grand_Total",
+            "PO_Date",
+            "PO_Number",
+            "Sales_Commission",
+            "Shipping_Address",
+            "Status",
+            "Sub_Total",
+            "Tax",
+            "Terms_and_Conditions",
+            "Tracking_Number"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "purchaseOrder",
+      "operation": "upsert",
+      "title": "Create or update a purchase order",
+      "method": "POST",
+      "path": "/purchase_orders/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,Due_Date,PO_Date' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Due_Date": "{{ p.additionalFields.Due_Date | split:'T' | get:'0' }}",
+            "PO_Date": "{{ p.additionalFields.PO_Date | split:'T' | get:'0' }}",
+            "Subject": "{{ p.subject }}",
+            "Vendor_Name": {
+              "id": "{{ p.vendorId }}"
+            },
+            "Product_Details": {
+              "$map": "{{ p.Product_Details }}",
+              "$to": {
+                "$merge": "{{ el | omit:'product' }}",
+                "product": {
+                  "id": "{{ el.id }}"
+                },
+                "quantity": "{{ el.quantity | default:1 }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "vendorId",
+          "label": "Vendor ID",
+          "type": "text"
+        },
+        {
+          "key": "Product_Details",
+          "label": "Products",
+          "type": "json",
+          "required": true,
+          "help": "[{\"id\": product ID, \"quantity\", \"list_price\", \"unit_price\", \"Tax\", \"total\", \"net_total\", \"product_description\", …}]"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Carrier",
+            "Currency",
+            "customFields",
+            "Description",
+            "Discount",
+            "Due_Date",
+            "Exchange_Rate",
+            "Grand_Total",
+            "PO_Date",
+            "PO_Number",
+            "Sales_Commission",
+            "Shipping_Address",
+            "Status",
+            "Sub_Total",
+            "Tax",
+            "Terms_and_Conditions",
+            "Tracking_Number"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "purchaseOrder",
+      "operation": "delete",
+      "title": "Delete a purchase order",
+      "method": "DELETE",
+      "path": "/purchase_orders/{{ p.purchaseOrderId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "purchaseOrderId",
+          "label": "Purchase order ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "purchaseOrder",
+      "operation": "get",
+      "title": "Get a purchase order",
+      "method": "GET",
+      "path": "/purchase_orders/{{ p.purchaseOrderId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "purchaseOrderId",
+          "label": "Purchase order ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "purchaseOrder",
+      "operation": "getAll",
+      "title": "Get many purchase orders",
+      "method": "GET",
+      "path": "/purchase_orders",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "purchaseOrder",
+      "operation": "update",
+      "title": "Update a purchase order",
+      "method": "PUT",
+      "path": "/purchase_orders/{{ p.purchaseOrderId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,Due_Date,PO_Date' }}",
+              "{{ p.updateFields.Billing_Address.address_fields | default:p.updateFields.Billing_Address.billing_address_fields }}",
+              "{{ p.updateFields.Shipping_Address.address_fields }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Due_Date": "{{ p.updateFields.Due_Date | split:'T' | get:'0' }}",
+            "PO_Date": "{{ p.updateFields.PO_Date | split:'T' | get:'0' }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "purchaseOrderId",
+          "label": "Purchase order ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Carrier",
+            "Currency",
+            "Description",
+            "Discount",
+            "Due_Date",
+            "Exchange_Rate",
+            "Grand_Total",
+            "PO_Date",
+            "PO_Number",
+            "Sales_Commission",
+            "Shipping_Address",
+            "Status",
+            "Sub_Total",
+            "Subject",
+            "Tax",
+            "Terms_and_Conditions",
+            "Tracking_Number",
+            "customFields"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "quote",
+      "operation": "create",
+      "title": "Create a quote",
+      "method": "POST",
+      "path": "/quotes",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,Valid_Till' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Valid_Till": "{{ p.additionalFields.Valid_Till | split:'T' | get:'0' }}",
+            "Subject": "{{ p.subject }}",
+            "Product_Details": {
+              "$map": "{{ p.Product_Details }}",
+              "$to": {
+                "$merge": "{{ el | omit:'product' }}",
+                "product": {
+                  "id": "{{ el.id }}"
+                },
+                "quantity": "{{ el.quantity | default:1 }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Product_Details",
+          "label": "Products",
+          "type": "json",
+          "required": true,
+          "help": "[{\"id\": product ID, \"quantity\", \"list_price\", \"unit_price\", \"Tax\", \"total\", \"net_total\", \"product_description\", …}]"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Carrier",
+            "Currency",
+            "customFields",
+            "Description",
+            "Exchange_Rate",
+            "Grand_Total",
+            "Quote_Stage",
+            "Shipping_Address",
+            "Sub_Total",
+            "Tax",
+            "Team",
+            "Terms_and_Conditions",
+            "Valid_Till"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "quote",
+      "operation": "upsert",
+      "title": "Create or update a quote",
+      "method": "POST",
+      "path": "/quotes/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,Valid_Till' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Valid_Till": "{{ p.additionalFields.Valid_Till | split:'T' | get:'0' }}",
+            "Subject": "{{ p.subject }}",
+            "Product_Details": {
+              "$map": "{{ p.Product_Details }}",
+              "$to": {
+                "$merge": "{{ el | omit:'product' }}",
+                "product": {
+                  "id": "{{ el.id }}"
+                },
+                "quantity": "{{ el.quantity | default:1 }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Product_Details",
+          "label": "Products",
+          "type": "json",
+          "required": true,
+          "help": "[{\"id\": product ID, \"quantity\", \"list_price\", \"unit_price\", \"Tax\", \"total\", \"net_total\", \"product_description\", …}]"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Carrier",
+            "Currency",
+            "customFields",
+            "Description",
+            "Exchange_Rate",
+            "Grand_Total",
+            "Quote_Stage",
+            "Shipping_Address",
+            "Sub_Total",
+            "Tax",
+            "Team",
+            "Terms_and_Conditions",
+            "Valid_Till"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "quote",
+      "operation": "delete",
+      "title": "Delete a quote",
+      "method": "DELETE",
+      "path": "/quotes/{{ p.quoteId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "quoteId",
+          "label": "Quote ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "quote",
+      "operation": "get",
+      "title": "Get a quote",
+      "method": "GET",
+      "path": "/quotes/{{ p.quoteId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "quoteId",
+          "label": "Quote ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "quote",
+      "operation": "getAll",
+      "title": "Get many quotes",
+      "method": "GET",
+      "path": "/quotes",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "quote",
+      "operation": "update",
+      "title": "Update a quote",
+      "method": "PUT",
+      "path": "/quotes/{{ p.quoteId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,Valid_Till' }}",
+              "{{ p.updateFields.Billing_Address.address_fields | default:p.updateFields.Billing_Address.billing_address_fields }}",
+              "{{ p.updateFields.Shipping_Address.address_fields }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Valid_Till": "{{ p.updateFields.Valid_Till | split:'T' | get:'0' }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "quoteId",
+          "label": "Quote ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Carrier",
+            "Currency",
+            "Description",
+            "Exchange_Rate",
+            "Grand_Total",
+            "Quote_Stage",
+            "Shipping_Address",
+            "Sub_Total",
+            "Subject",
+            "Tax",
+            "Team",
+            "Terms_and_Conditions",
+            "Valid_Till",
+            "customFields"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "salesOrder",
+      "operation": "create",
+      "title": "Create a sales order",
+      "method": "POST",
+      "path": "/sales_orders",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,contactId,dealId,Due_Date' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Due_Date": "{{ p.additionalFields.Due_Date | split:'T' | get:'0' }}",
+            "Contact_Name": {
+              "id": "{{ p.additionalFields.contactId }}"
+            },
+            "Deal_Name": {
+              "id": "{{ p.additionalFields.dealId }}"
+            },
+            "Account_Name": {
+              "id": "{{ p.accountId }}"
+            },
+            "Subject": "{{ p.subject }}",
+            "Product_Details": {
+              "$map": "{{ p.Product_Details }}",
+              "$to": {
+                "$merge": "{{ el | omit:'product' }}",
+                "product": {
+                  "id": "{{ el.id }}"
+                },
+                "quantity": "{{ el.quantity | default:1 }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Product_Details",
+          "label": "Products",
+          "type": "json",
+          "required": true,
+          "help": "[{\"id\": product ID, \"quantity\", \"list_price\", \"unit_price\", \"Tax\", \"total\", \"net_total\", \"product_description\", …}]"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Carrier",
+            "contactId",
+            "Currency",
+            "customFields",
+            "dealId",
+            "Description",
+            "Discount",
+            "Due_Date",
+            "Exchange_Rate",
+            "Grand_Total",
+            "SO_Number",
+            "Sales_Commission",
+            "Shipping_Address",
+            "Status",
+            "Sub_Total",
+            "Tax",
+            "Terms_and_Conditions"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "salesOrder",
+      "operation": "upsert",
+      "title": "Create or update a sales order",
+      "method": "POST",
+      "path": "/sales_orders/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,contactId,dealId,Due_Date' }}",
+              "{{ p.additionalFields.Billing_Address.address_fields | default:p.additionalFields.Billing_Address.billing_address_fields }}",
+              "{{ p.additionalFields.Shipping_Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Due_Date": "{{ p.additionalFields.Due_Date | split:'T' | get:'0' }}",
+            "Contact_Name": {
+              "id": "{{ p.additionalFields.contactId }}"
+            },
+            "Deal_Name": {
+              "id": "{{ p.additionalFields.dealId }}"
+            },
+            "Account_Name": {
+              "id": "{{ p.accountId }}"
+            },
+            "Subject": "{{ p.subject }}",
+            "Product_Details": {
+              "$map": "{{ p.Product_Details }}",
+              "$to": {
+                "$merge": "{{ el | omit:'id' }}",
+                "product": {
+                  "id": "{{ el.id }}"
+                },
+                "quantity": "{{ el.quantity | default:1 }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Product_Details",
+          "label": "Products",
+          "type": "json",
+          "required": true,
+          "help": "[{\"id\": product ID, \"quantity\", \"list_price\", \"unit_price\", \"Tax\", \"total\", \"net_total\", \"product_description\", …}]"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Carrier",
+            "contactId",
+            "Currency",
+            "customFields",
+            "dealId",
+            "Description",
+            "Discount",
+            "Due_Date",
+            "Exchange_Rate",
+            "Grand_Total",
+            "SO_Number",
+            "Sales_Commission",
+            "Shipping_Address",
+            "Status",
+            "Sub_Total",
+            "Tax",
+            "Terms_and_Conditions"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "salesOrder",
+      "operation": "delete",
+      "title": "Delete a sales order",
+      "method": "DELETE",
+      "path": "/sales_orders/{{ p.salesOrderId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "salesOrderId",
+          "label": "Sales order ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "salesOrder",
+      "operation": "get",
+      "title": "Get a sales order",
+      "method": "GET",
+      "path": "/sales_orders/{{ p.salesOrderId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "salesOrderId",
+          "label": "Sales order ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "salesOrder",
+      "operation": "getAll",
+      "title": "Get many sales orders",
+      "method": "GET",
+      "path": "/sales_orders",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "salesOrder",
+      "operation": "update",
+      "title": "Update a sales order",
+      "method": "PUT",
+      "path": "/sales_orders/{{ p.salesOrderId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'Billing_Address,Shipping_Address,customFields,Product_Details,contactId,dealId,Due_Date' }}",
+              "{{ p.updateFields.Billing_Address.address_fields | default:p.updateFields.Billing_Address.billing_address_fields }}",
+              "{{ p.updateFields.Shipping_Address.address_fields }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Due_Date": "{{ p.updateFields.Due_Date | split:'T' | get:'0' }}",
+            "Contact_Name": {
+              "id": "{{ p.updateFields.contactId }}"
+            },
+            "Deal_Name": {
+              "id": "{{ p.updateFields.dealId }}"
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "salesOrderId",
+          "label": "Sales order ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Adjustment",
+            "Billing_Address",
+            "Carrier",
+            "Currency",
+            "Description",
+            "Discount",
+            "Due_Date",
+            "Exchange_Rate",
+            "Grand_Total",
+            "SO_Number",
+            "Sales_Commission",
+            "Shipping_Address",
+            "Status",
+            "Sub_Total",
+            "Subject",
+            "Tax",
+            "Terms_and_Conditions",
+            "accountId",
+            "contactId",
+            "customFields",
+            "dealId"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "vendor",
+      "operation": "create",
+      "title": "Create a vendor",
+      "method": "POST",
+      "path": "/vendors",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Address,customFields,Product_Details' }}",
+              "{{ p.additionalFields.Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Vendor_Name": "{{ p.vendorName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "vendorName",
+          "label": "Vendor name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Address",
+            "Category",
+            "Currency",
+            "customFields",
+            "Description",
+            "Email",
+            "Phone",
+            "Website"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "vendor",
+      "operation": "upsert",
+      "title": "Create or update a vendor",
+      "method": "POST",
+      "path": "/vendors/upsert",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.additionalFields | omit:'Address,customFields,Product_Details' }}",
+              "{{ p.additionalFields.Address.address_fields }}",
+              "{{ p.additionalFields.customFields | kv:'fieldId,value' }}"
+            ],
+            "Vendor_Name": "{{ p.vendorName }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "vendorName",
+          "label": "Vendor name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Address",
+            "Category",
+            "Currency",
+            "customFields",
+            "Description",
+            "Email",
+            "Phone",
+            "Website"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "vendor",
+      "operation": "delete",
+      "title": "Delete a vendor",
+      "method": "DELETE",
+      "path": "/vendors/{{ p.vendorId }}",
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "vendorId",
+          "label": "Vendor ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "vendor",
+      "operation": "get",
+      "title": "Get a vendor",
+      "method": "GET",
+      "path": "/vendors/{{ p.vendorId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "vendorId",
+          "label": "Vendor ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "vendor",
+      "operation": "getAll",
+      "title": "Get many vendors",
+      "method": "GET",
+      "path": "/vendors",
+      "query": {
+        "$merge": "{{ p.options | omit:'fields' }}",
+        "fields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "limit_param": "per_page",
+        "page_size": 200,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "converted",
+            "fields",
+            "include_child",
+            "sort_by",
+            "sort_order",
+            "territory_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "vendor",
+      "operation": "update",
+      "title": "Update a vendor",
+      "method": "PUT",
+      "path": "/vendors/{{ p.vendorId }}",
+      "body": {
+        "data": [
+          {
+            "$merge": [
+              "{{ p.updateFields | omit:'Address,customFields,Product_Details' }}",
+              "{{ p.updateFields.Address.address_fields }}",
+              "{{ p.updateFields.customFields | kv:'fieldId,value' }}"
+            ]
+          }
+        ]
+      },
+      "output": {
+        "path": "data.0.details"
+      },
+      "fields": [
+        {
+          "key": "vendorId",
+          "label": "Vendor ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Address",
+            "Category",
+            "Currency",
+            "Description",
+            "Email",
+            "Phone",
+            "Vendor_Name",
+            "Website",
+            "customFields"
+          ],
+          "help": "Zoho API field names; addresses as {\"address_fields\": {…}}; customFields: {\"customFields\": [{\"fieldId\", \"value\"}]}"
+        }
+      ]
+    }
+  ]
+}

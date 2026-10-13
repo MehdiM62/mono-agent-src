@@ -165,6 +165,7 @@ export const api = {
   testSession:          (id) => GoApp.TestSession(id).catch(e => { reportError('test session', e); return `error: ${e}` }),
   removeConnection:     (id) => GoApp.RemoveConnection(id).catch(e => { reportError('remove connection', e); return `error: ${e}` }),
   getConnectionsForPlatform: (platformID) => GoApp.GetConnectionsForPlatform(platformID).catch(guard('connections for platform', [])),
+  nodeConfigFromCurl:   (command) => GoApp.NodeConfigFromCurl(command).catch(e => ({ config: null, notes: [], error: String(e?.message || e) })),
   saveConnectionDirect: (platformID, method, fieldValues) =>
     GoApp.SaveConnectionDirect(platformID, method, JSON.stringify(fieldValues))
       .catch(e => { reportError('save connection', e); return `error: ${e}` }),

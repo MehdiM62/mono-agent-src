@@ -1,0 +1,250 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "erp_next",
+  "node_type": "app.erp_next",
+  "title": "ERPNext",
+  "description": "Documents of any DocType in ERPNext / Frappe",
+  "category": "app",
+  "docs_url": "https://frappeframework.com/docs/user/en/api/rest",
+  "n8n_types": [
+    "n8n-nodes-base.erpNext"
+  ],
+  "base_url": "{{ cred.environment | eq:'selfHosted' | then:cred.domain | default:(cred.subdomain | prefix:'https://' | suffix:'.' | suffix:(cred.domain | default:'erpnext.com')) }}",
+  "credentials": [
+    {
+      "platform": "erpnext",
+      "name": "ERPNext",
+      "n8n_credential": "erpNextApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "apiSecret": "api_secret",
+        "environment": "environment",
+        "subdomain": "subdomain",
+        "domain": "domain"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "api_secret",
+          "label": "API secret",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "environment",
+          "label": "Environment",
+          "help": "cloudHosted (default) or selfHosted"
+        },
+        {
+          "key": "subdomain",
+          "label": "Subdomain",
+          "help": "Cloud: the part before .erpnext.com / .frappe.cloud"
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "help": "Cloud: erpnext.com (default) or frappe.cloud; self-hosted: the full URL, e.g. https://erp.example.com"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "token {{ cred.api_key }}:{{ cred.api_secret }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "document",
+      "label": "Document"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "document",
+      "operation": "create",
+      "title": "Create a document",
+      "method": "POST",
+      "path": "/api/resource/{{ p.docType }}",
+      "fields": [
+        {
+          "key": "docType",
+          "label": "DocType",
+          "type": "text",
+          "required": true,
+          "help": "e.g. Customer, Item, Sales Invoice"
+        },
+        {
+          "key": "properties",
+          "label": "Properties",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customProperty"
+          ],
+          "help": "{\"customProperty\": [{\"field\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.properties | kv:'field,value' }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "delete",
+      "title": "Delete a document",
+      "method": "DELETE",
+      "path": "/api/resource/{{ p.docType }}/{{ p.documentName }}",
+      "fields": [
+        {
+          "key": "docType",
+          "label": "DocType",
+          "type": "text",
+          "required": true,
+          "help": "e.g. Customer, Item, Sales Invoice"
+        },
+        {
+          "key": "documentName",
+          "label": "Document name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "document",
+      "operation": "get",
+      "title": "Get a document",
+      "method": "GET",
+      "path": "/api/resource/{{ p.docType }}/{{ p.documentName }}",
+      "fields": [
+        {
+          "key": "docType",
+          "label": "DocType",
+          "type": "text",
+          "required": true,
+          "help": "e.g. Customer, Item, Sales Invoice"
+        },
+        {
+          "key": "documentName",
+          "label": "Document name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "getAll",
+      "title": "Get many documents",
+      "method": "GET",
+      "path": "/api/resource/{{ p.docType }}",
+      "fields": [
+        {
+          "key": "docType",
+          "label": "DocType",
+          "type": "text",
+          "required": true,
+          "help": "e.g. Customer, Item, Sales Invoice"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "filters"
+          ],
+          "help": "fields: list of field names (or [\"*\"]); filters: {\"customProperty\": [{\"field\", \"operator\": is|isNot|greater|less|equalsGreater|equalsLess, \"value\"}]}"
+        }
+      ],
+      "query": {
+        "fields": "{{ p.options.fields | json }}",
+        "filters": {
+          "$json": {
+            "$map": "{{ p.options.filters.customProperty }}",
+            "$to": [
+              "{{ p.docType }}",
+              "{{ el.field }}",
+              "{{ el.operator | eq:'isNot' | then:'!=' | default:(el.operator | eq:'greater' | then:'>') | default:(el.operator | eq:'less' | then:'<') | default:(el.operator | eq:'equalsGreater' | then:'>=') | default:(el.operator | eq:'equalsLess' | then:'<=') | default:'=' }}",
+              "{{ el.value }}"
+            ]
+          }
+        }
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "limit_start",
+        "limit_param": "limit_page_length",
+        "page_size": 1000,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "document",
+      "operation": "update",
+      "title": "Update a document",
+      "method": "PUT",
+      "path": "/api/resource/{{ p.docType }}/{{ p.documentName }}",
+      "fields": [
+        {
+          "key": "docType",
+          "label": "DocType",
+          "type": "text",
+          "required": true,
+          "help": "e.g. Customer, Item, Sales Invoice"
+        },
+        {
+          "key": "documentName",
+          "label": "Document name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "properties",
+          "label": "Properties",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customProperty"
+          ],
+          "help": "{\"customProperty\": [{\"field\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.properties | kv:'field,value' }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    }
+  ]
+}

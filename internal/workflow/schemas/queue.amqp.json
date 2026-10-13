@@ -1,0 +1,39 @@
+{
+  "credential_platform": "amqp",
+  "fields": [
+    {
+      "key": "sink",
+      "label": "Queue / Topic",
+      "placeholder": "topic://events",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "key": "header_parameters",
+      "label": "Application Properties (JSON object)",
+      "required": false,
+      "rows": 2,
+      "type": "textarea"
+    },
+    {
+      "help": "Send just this item field instead of the whole item.",
+      "key": "send_only_property",
+      "label": "Send Only Property",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Send an AMQP value instead of a JSON string body.",
+      "key": "data_as_object",
+      "label": "Data as Object",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "key": "container_id",
+      "label": "Container ID",
+      "required": false,
+      "type": "text"
+    }
+  ]
+}

@@ -32,5 +32,27 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the saved PNG",
+      "key": "file_path",
+      "type": "string"
+    },
+    {
+      "description": "the model endpoint",
+      "key": "url",
+      "type": "string"
+    },
+    {
+      "description": "its Image Vault entry, when saved",
+      "key": "vault_id",
+      "type": "string"
+    }
   ]
 }

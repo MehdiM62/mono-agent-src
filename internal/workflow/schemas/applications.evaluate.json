@@ -25,5 +25,27 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "Application id",
+      "key": "application_id",
+      "type": "string"
+    },
+    {
+      "description": "the verdict",
+      "key": "verdict",
+      "type": "string"
+    },
+    {
+      "description": "overall score",
+      "key": "overall_score",
+      "type": "number"
+    },
+    {
+      "description": "why",
+      "key": "rationale",
+      "type": "string"
+    }
   ]
 }

@@ -71,6 +71,16 @@ func RenderJSON(repoRoot string, entry ManifestEntry) ([]byte, error) {
 		return nil, fmt.Errorf("schemagen: re-decode %s: %w", entry.NodeType, err)
 	}
 	m[generatedMarker] = true
+	// Outputs aren't derived from the struct tags: keep the hand-written
+	// "outputs" of the committed file.
+	if existing, err := os.ReadFile(SchemaPath(repoRoot, entry)); err == nil {
+		var prev map[string]interface{}
+		if json.Unmarshal(existing, &prev) == nil {
+			if outputs, ok := prev["outputs"]; ok {
+				m["outputs"] = outputs
+			}
+		}
+	}
 
 	out, err := marshalOrdered(m)
 	if err != nil {

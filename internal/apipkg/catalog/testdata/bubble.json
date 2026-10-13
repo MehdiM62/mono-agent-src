@@ -1,0 +1,148 @@
+{
+  "object.get": {
+    "params": {
+      "typeName": "User",
+      "objectId": "1x2"
+    },
+    "credential": {
+      "access_token": "tok",
+      "app_name": "myapp"
+    },
+    "response": {
+      "response": {
+        "_id": "1x2"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/1.1/obj/user/1x2",
+      "query": {},
+      "items": 1
+    }
+  },
+  "object.create": {
+    "params": {
+      "typeName": "order",
+      "properties": {
+        "property": [
+          {
+            "key": "name",
+            "value": "A"
+          },
+          {
+            "key": "qty",
+            "value": "2"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "app_name": "myapp"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/1.1/obj/order",
+      "query": {},
+      "body": {
+        "name": "A",
+        "qty": "2"
+      }
+    }
+  },
+  "object.delete": {
+    "params": {
+      "typeName": "order",
+      "objectId": "9"
+    },
+    "credential": {
+      "access_token": "tok",
+      "hosting": "selfHosted",
+      "domain": "https://app.example.com",
+      "environment": "development"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/version-test/api/1.1/obj/order/9",
+      "query": {}
+    }
+  },
+  "object.getAll": {
+    "params": {
+      "typeName": "order",
+      "limit": 5,
+      "options": {
+        "filters": {
+          "filter": [
+            {
+              "key": "name",
+              "constraint_type": "equals",
+              "value": "A"
+            }
+          ]
+        },
+        "sort": {
+          "sortValue": {
+            "sort_field": "name",
+            "descending": true
+          }
+        }
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "app_name": "myapp"
+    },
+    "response": {
+      "response": {
+        "results": [
+          {
+            "_id": "1"
+          },
+          {
+            "_id": "2"
+          }
+        ],
+        "remaining": 0
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/1.1/obj/order",
+      "query": {
+        "constraints": "[{\"constraint_type\":\"equals\",\"key\":\"name\",\"value\":\"A\"}]",
+        "sort_field": "name",
+        "descending": "true",
+        "cursor": "0",
+        "limit": "5"
+      },
+      "items": 2
+    }
+  },
+  "object.update": {
+    "params": {
+      "typeName": "order",
+      "objectId": "9",
+      "properties": {
+        "property": [
+          {
+            "key": "qty",
+            "value": "3"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "app_name": "myapp"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/1.1/obj/order/9",
+      "query": {},
+      "body": {
+        "qty": "3"
+      }
+    }
+  }
+}

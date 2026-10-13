@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -34,6 +35,9 @@ type OutlookReadNode struct{}
 func (n *OutlookReadNode) Type() string { return "comm.outlook_read" }
 
 func (n *OutlookReadNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.outlook_read", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.outlook_read", input, config)
+	}
 	const imapHost = "outlook.office365.com"
 	const imapPort = 993
 

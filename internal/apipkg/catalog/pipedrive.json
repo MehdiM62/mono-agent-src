@@ -1,0 +1,2072 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "pipedrive",
+  "node_type": "app.pipedrive",
+  "title": "Pipedrive",
+  "description": "Deals, activities, leads, notes, files, organizations, persons and products in Pipedrive",
+  "category": "app",
+  "docs_url": "https://developers.pipedrive.com/docs/api/v1",
+  "n8n_types": [
+    "n8n-nodes-base.pipedrive"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.pipedriveTrigger"
+  ],
+  "base_url": "https://api.pipedrive.com",
+  "credentials": [
+    {
+      "platform": "pipedrive",
+      "name": "Pipedrive (API token)",
+      "n8n_credential": "pipedriveApi",
+      "n8n_field_map": {
+        "apiToken": "api_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "query": {
+          "api_token": "{{ cred.api_token }}"
+        }
+      }
+    },
+    {
+      "platform": "pipedrive_oauth",
+      "name": "Pipedrive (OAuth2)",
+      "n8n_credential": "pipedriveOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://oauth.pipedrive.com/oauth/authorize",
+        "token_url": "https://oauth.pipedrive.com/oauth/token",
+        "scopes": []
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "deal",
+      "label": "Deal"
+    },
+    {
+      "value": "activity",
+      "label": "Activity"
+    },
+    {
+      "value": "dealProduct",
+      "label": "Deal Product"
+    },
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "lead",
+      "label": "Lead"
+    },
+    {
+      "value": "note",
+      "label": "Note"
+    },
+    {
+      "value": "organization",
+      "label": "Organization"
+    },
+    {
+      "value": "person",
+      "label": "Person"
+    },
+    {
+      "value": "product",
+      "label": "Product"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "deal",
+      "operation": "create",
+      "title": "Create a deal",
+      "method": "POST",
+      "path": "/api/v2/deals",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "associateWith",
+          "label": "Associate with",
+          "type": "select",
+          "required": true,
+          "default": "organization",
+          "options": [
+            "organization",
+            "person"
+          ]
+        },
+        {
+          "key": "org_id",
+          "label": "Organization ID",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "person_id",
+          "label": "Person ID",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "currency",
+            "expected_close_date",
+            "label_ids",
+            "lost_reason",
+            "org_id",
+            "person_id",
+            "probability",
+            "stage_id",
+            "status",
+            "user_id",
+            "value",
+            "visible_to",
+            "customFields"
+          ],
+          "help": "customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'customFields,visible_to,user_id,expected_close_date,value,probability' }}",
+        "custom_fields": "{{ p.additionalFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.additionalFields.visible_to | numeric }}",
+        "owner_id": "{{ p.additionalFields.user_id }}",
+        "expected_close_date": "{{ p.additionalFields.expected_close_date | date:'YYYY-MM-DD' }}",
+        "value": "{{ p.additionalFields.value | numeric }}",
+        "probability": "{{ p.additionalFields.probability | numeric }}",
+        "title": "{{ p.title }}",
+        "org_id": "{{ p.associateWith | eq:'organization' | then:p.org_id | default:p.additionalFields.org_id }}",
+        "person_id": "{{ p.associateWith | eq:'person' | then:p.person_id | default:p.additionalFields.person_id }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "delete",
+      "title": "Delete a deal",
+      "method": "DELETE",
+      "path": "/api/v2/deals/{{ p.dealId }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "duplicate",
+      "title": "Duplicate a deal",
+      "method": "POST",
+      "path": "/api/v2/deals/{{ p.dealId }}/duplicate",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "get",
+      "title": "Get a deal",
+      "method": "GET",
+      "path": "/api/v2/deals/{{ p.dealId }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "getAll",
+      "title": "Get many deals",
+      "method": "GET",
+      "path": "/api/v2/deals",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter_id",
+            "stage_id",
+            "status",
+            "user_id"
+          ]
+        }
+      ],
+      "query": {
+        "filter_id": "{{ p.filters.filter_id }}",
+        "stage_id": "{{ p.filters.stage_id }}",
+        "status": "{{ p.filters.status }}",
+        "owner_id": "{{ p.filters.user_id }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "additional_data.next_cursor",
+        "limit_param": "limit",
+        "page_size": 500,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "search",
+      "title": "Search deals",
+      "method": "GET",
+      "path": "/v1/deals/search",
+      "fields": [
+        {
+          "key": "term",
+          "label": "Search term",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "exactMatch",
+          "label": "Exact match",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeFields",
+            "organizationId",
+            "personId",
+            "fields",
+            "status"
+          ]
+        }
+      ],
+      "query": {
+        "term": "{{ p.term }}",
+        "exact_match": "{{ p.exactMatch | bool | string }}",
+        "fields": "{{ p.additionalFields.fields | csv }}",
+        "organization_id": "{{ p.additionalFields.organizationId | int }}",
+        "person_id": "{{ p.additionalFields.personId | int }}",
+        "include_fields": "{{ p.additionalFields.includeFields }}",
+        "status": "{{ p.additionalFields.status }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "start",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data.items"
+      },
+      "output": {
+        "to": {
+          "result_score": "{{ el.result_score }}",
+          "$merge": "{{ el.item }}"
+        }
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "update",
+      "title": "Update a deal",
+      "method": "PATCH",
+      "path": "/api/v2/deals/{{ p.dealId }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "currency",
+            "expected_close_date",
+            "label_ids",
+            "lost_reason",
+            "org_id",
+            "person_id",
+            "probability",
+            "stage_id",
+            "status",
+            "user_id",
+            "value",
+            "visible_to",
+            "customFields",
+            "title"
+          ],
+          "help": "customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFields,visible_to,user_id,expected_close_date,value,probability' }}",
+        "custom_fields": "{{ p.updateFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.updateFields.visible_to | numeric }}",
+        "owner_id": "{{ p.updateFields.user_id }}",
+        "expected_close_date": "{{ p.updateFields.expected_close_date | date:'YYYY-MM-DD' }}",
+        "value": "{{ p.updateFields.value | numeric }}",
+        "probability": "{{ p.updateFields.probability | numeric }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "create",
+      "title": "Create an activity",
+      "method": "POST",
+      "path": "/api/v2/activities",
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "done",
+          "label": "Done",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text",
+          "required": true,
+          "help": "Activity type key, e.g. call or meeting"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "deal_id",
+            "due_date",
+            "note",
+            "org_id",
+            "person_id",
+            "user_id",
+            "customFields"
+          ],
+          "help": "customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'customFields,visible_to,user_id,person_id,due_date' }}",
+        "custom_fields": "{{ p.additionalFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.additionalFields.visible_to | numeric }}",
+        "owner_id": "{{ p.additionalFields.user_id }}",
+        "participants": [
+          {
+            "person_id": "{{ p.additionalFields.person_id | numeric }}",
+            "primary": true,
+            "$when": "{{ p.additionalFields.person_id }}"
+          }
+        ],
+        "due_date": "{{ p.additionalFields.due_date | date:'YYYY-MM-DD' }}",
+        "subject": "{{ p.subject }}",
+        "done": "{{ p.done | bool }}",
+        "type": "{{ p.type }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "delete",
+      "title": "Delete a activity",
+      "method": "DELETE",
+      "path": "/api/v2/activities/{{ p.activityId }}",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "get",
+      "title": "Get a activity",
+      "method": "GET",
+      "path": "/api/v2/activities/{{ p.activityId }}",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "getAll",
+      "title": "Get many activities",
+      "method": "GET",
+      "path": "/api/v2/activities",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dealId",
+            "done",
+            "end_date",
+            "filterId",
+            "start_date",
+            "type",
+            "user_id"
+          ]
+        }
+      ],
+      "query": {
+        "filter_id": "{{ p.filters.filterId }}",
+        "type": "{{ p.filters.type | csv }}",
+        "owner_id": "{{ p.filters.user_id }}",
+        "done": "{{ p.filters.done | bool | eq:'true' | then:1 | default:(p.filters.done | bool | string | eq:'false' | then:0) }}",
+        "start_date": "{{ p.filters.start_date }}",
+        "end_date": "{{ p.filters.end_date }}",
+        "deal_id": "{{ p.filters.dealId }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "additional_data.next_cursor",
+        "limit_param": "limit",
+        "page_size": 500,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "update",
+      "title": "Update an activity",
+      "method": "PATCH",
+      "path": "/api/v2/activities/{{ p.activityId }}",
+      "fields": [
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "busy_flag",
+            "deal_id",
+            "done",
+            "due_date",
+            "note",
+            "org_id",
+            "person_id",
+            "public_description",
+            "subject",
+            "type",
+            "user_id",
+            "customFields"
+          ],
+          "help": "customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFields,visible_to,user_id,person_id,due_date,done' }}",
+        "custom_fields": "{{ p.updateFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.updateFields.visible_to | numeric }}",
+        "owner_id": "{{ p.updateFields.user_id }}",
+        "participants": [
+          {
+            "person_id": "{{ p.updateFields.person_id | numeric }}",
+            "primary": true,
+            "$when": "{{ p.updateFields.person_id }}"
+          }
+        ],
+        "due_date": "{{ p.updateFields.due_date | date:'YYYY-MM-DD' }}",
+        "done": "{{ p.updateFields.done | bool }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "dealProduct",
+      "operation": "add",
+      "title": "Add a product to a deal",
+      "method": "POST",
+      "path": "/api/v2/deals/{{ p.dealId }}/products",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "item_price",
+          "label": "Item price",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "quantity",
+          "label": "Quantity",
+          "type": "number",
+          "required": true,
+          "default": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "comments",
+            "discount",
+            "discount_type",
+            "tax"
+          ]
+        }
+      ],
+      "body": {
+        "product_id": "{{ p.productId | numeric }}",
+        "item_price": "{{ p.item_price | numeric }}",
+        "quantity": "{{ p.quantity | numeric }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "dealProduct",
+      "operation": "getAll",
+      "title": "Get many products of a deal",
+      "method": "GET",
+      "path": "/api/v2/deals/{{ p.dealId }}/products",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "additional_data.next_cursor",
+        "limit_param": "limit",
+        "page_size": 500,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "dealProduct",
+      "operation": "remove",
+      "title": "Remove a product from a deal",
+      "method": "DELETE",
+      "path": "/api/v2/deals/{{ p.dealId }}/products/{{ p.productAttachmentId }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "productAttachmentId",
+          "label": "Product attachment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "dealProduct",
+      "operation": "update",
+      "title": "Update a product of a deal",
+      "method": "PATCH",
+      "path": "/api/v2/deals/{{ p.dealId }}/products/{{ p.productAttachmentId }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "Deal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "productAttachmentId",
+          "label": "Product attachment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "comments",
+            "discount",
+            "discount_type",
+            "item_price",
+            "quantity",
+            "tax"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "create",
+      "title": "Upload a file",
+      "method": "POST",
+      "path": "/v1/files",
+      "fields": [
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "required": true,
+          "default": "data"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activity_id",
+            "deal_id",
+            "lead_id",
+            "org_id",
+            "person_id",
+            "product_id"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "multipart_field": "file"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file",
+      "method": "DELETE",
+      "path": "/v1/files/{{ p.fileId }}",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "download",
+      "title": "Download a file",
+      "method": "GET",
+      "path": "/v1/files/{{ p.fileId }}/download",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "required": true,
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "get",
+      "title": "Get a file",
+      "method": "GET",
+      "path": "/v1/files/{{ p.fileId }}",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "update",
+      "title": "Update a file",
+      "method": "PUT",
+      "path": "/v1/files/{{ p.fileId }}",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "description"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "create",
+      "title": "Create a lead",
+      "method": "POST",
+      "path": "/v1/leads",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "associateWith",
+          "label": "Associate with",
+          "type": "select",
+          "required": true,
+          "default": "organization",
+          "options": [
+            "organization",
+            "person"
+          ]
+        },
+        {
+          "key": "organization_id",
+          "label": "Organization ID",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "person_id",
+          "label": "Person ID",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expected_close_date",
+            "label_ids",
+            "organization_id",
+            "owner_id",
+            "person_id",
+            "value",
+            "visible_to",
+            "was_seen"
+          ],
+          "help": "value: {valueProperties: {amount, currency}}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'value,expected_close_date' }}",
+        "value": "{{ p.additionalFields.value.valueProperties }}",
+        "expected_close_date": "{{ p.additionalFields.expected_close_date | date:'YYYY-MM-DD' }}",
+        "title": "{{ p.title }}",
+        "organization_id": "{{ p.associateWith | eq:'organization' | then:p.organization_id | default:p.additionalFields.organization_id }}",
+        "person_id": "{{ p.associateWith | eq:'person' | then:p.person_id | default:p.additionalFields.person_id }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "delete",
+      "title": "Delete a lead",
+      "method": "DELETE",
+      "path": "/v1/leads/{{ p.leadId }}",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "get",
+      "title": "Get a lead",
+      "method": "GET",
+      "path": "/v1/leads/{{ p.leadId }}",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "getAll",
+      "title": "Get many leads",
+      "method": "GET",
+      "path": "/v1/leads",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "archived_status",
+            "organization_id",
+            "owner_id",
+            "person_id"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "start",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "lead",
+      "operation": "update",
+      "title": "Update a lead",
+      "method": "PATCH",
+      "path": "/v1/leads/{{ p.leadId }}",
+      "fields": [
+        {
+          "key": "leadId",
+          "label": "Lead ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expected_close_date",
+            "is_archived",
+            "label_ids",
+            "owner_id",
+            "person_id",
+            "title",
+            "value",
+            "visible_to",
+            "was_seen"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'value,expected_close_date' }}",
+        "value": "{{ p.updateFields.value.valueProperties }}",
+        "expected_close_date": "{{ p.updateFields.expected_close_date | date:'YYYY-MM-DD' }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "create",
+      "title": "Create a note",
+      "method": "POST",
+      "path": "/v1/notes",
+      "fields": [
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "deal_id",
+            "lead_id",
+            "org_id",
+            "person_id",
+            "pinned_to_deal_flag",
+            "pinned_to_organization_flag",
+            "pinned_to_person_flag"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'pinned_to_deal_flag,pinned_to_organization_flag,pinned_to_person_flag' }}",
+        "pinned_to_deal_flag": "{{ p.additionalFields.pinned_to_deal_flag | bool | eq:'true' | then:1 | default:(p.additionalFields.pinned_to_deal_flag | bool | string | eq:'false' | then:0) }}",
+        "pinned_to_organization_flag": "{{ p.additionalFields.pinned_to_organization_flag | bool | eq:'true' | then:1 | default:(p.additionalFields.pinned_to_organization_flag | bool | string | eq:'false' | then:0) }}",
+        "pinned_to_person_flag": "{{ p.additionalFields.pinned_to_person_flag | bool | eq:'true' | then:1 | default:(p.additionalFields.pinned_to_person_flag | bool | string | eq:'false' | then:0) }}",
+        "content": "{{ p.content }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "delete",
+      "title": "Delete a note",
+      "method": "DELETE",
+      "path": "/v1/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "Note ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "get",
+      "title": "Get a note",
+      "method": "GET",
+      "path": "/v1/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "Note ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "getAll",
+      "title": "Get many notes",
+      "method": "GET",
+      "path": "/v1/notes",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "deal_id",
+            "end_date",
+            "lead_id",
+            "org_id",
+            "person_id",
+            "pinned_to_deal_flag",
+            "pinned_to_organization_flag",
+            "pinned_to_person_flag",
+            "sort",
+            "start_date"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'pinned_to_deal_flag,pinned_to_organization_flag,pinned_to_person_flag' }}",
+        "pinned_to_deal_flag": "{{ p.filters.pinned_to_deal_flag | bool | eq:'true' | then:1 | default:(p.filters.pinned_to_deal_flag | bool | string | eq:'false' | then:0) }}",
+        "pinned_to_organization_flag": "{{ p.filters.pinned_to_organization_flag | bool | eq:'true' | then:1 | default:(p.filters.pinned_to_organization_flag | bool | string | eq:'false' | then:0) }}",
+        "pinned_to_person_flag": "{{ p.filters.pinned_to_person_flag | bool | eq:'true' | then:1 | default:(p.filters.pinned_to_person_flag | bool | string | eq:'false' | then:0) }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "start",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "update",
+      "title": "Update a note",
+      "method": "PUT",
+      "path": "/v1/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "Note ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "content",
+            "deal_id",
+            "lead_id",
+            "org_id",
+            "person_id",
+            "pinned_to_deal_flag",
+            "pinned_to_organization_flag",
+            "pinned_to_person_flag"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'pinned_to_deal_flag,pinned_to_organization_flag,pinned_to_person_flag' }}",
+        "pinned_to_deal_flag": "{{ p.updateFields.pinned_to_deal_flag | bool | eq:'true' | then:1 | default:(p.updateFields.pinned_to_deal_flag | bool | string | eq:'false' | then:0) }}",
+        "pinned_to_organization_flag": "{{ p.updateFields.pinned_to_organization_flag | bool | eq:'true' | then:1 | default:(p.updateFields.pinned_to_organization_flag | bool | string | eq:'false' | then:0) }}",
+        "pinned_to_person_flag": "{{ p.updateFields.pinned_to_person_flag | bool | eq:'true' | then:1 | default:(p.updateFields.pinned_to_person_flag | bool | string | eq:'false' | then:0) }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "create",
+      "title": "Create an organization",
+      "method": "POST",
+      "path": "/api/v2/organizations",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "label_ids",
+            "owner_id",
+            "visible_to",
+            "customFields"
+          ],
+          "help": "customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'customFields,visible_to' }}",
+        "custom_fields": "{{ p.additionalFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.additionalFields.visible_to | numeric }}",
+        "name": "{{ p.name }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "delete",
+      "title": "Delete a organization",
+      "method": "DELETE",
+      "path": "/api/v2/organizations/{{ p.organizationId }}",
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "get",
+      "title": "Get a organization",
+      "method": "GET",
+      "path": "/api/v2/organizations/{{ p.organizationId }}",
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "getAll",
+      "title": "Get many organizations",
+      "method": "GET",
+      "path": "/api/v2/organizations",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "first_char",
+            "filter_id"
+          ]
+        }
+      ],
+      "query": {
+        "filter_id": "{{ p.filters.filter_id }}",
+        "first_char": "{{ p.filters.first_char | re:'^(.)' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "additional_data.next_cursor",
+        "limit_param": "limit",
+        "page_size": 500,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "search",
+      "title": "Search organizations",
+      "method": "GET",
+      "path": "/v1/organizations/search",
+      "fields": [
+        {
+          "key": "term",
+          "label": "Search term",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "exactMatch",
+          "label": "Exact match",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ],
+      "query": {
+        "term": "{{ p.term }}",
+        "exact_match": "{{ p.exactMatch | bool | string }}",
+        "fields": "{{ p.additionalFields.fields | csv }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "start",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data.items"
+      },
+      "output": {
+        "to": {
+          "result_score": "{{ el.result_score }}",
+          "$merge": "{{ el.item }}"
+        }
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "update",
+      "title": "Update an organization",
+      "method": "PATCH",
+      "path": "/api/v2/organizations/{{ p.organizationId }}",
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "label_ids",
+            "name",
+            "owner_id",
+            "visible_to",
+            "customFields"
+          ],
+          "help": "customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFields,visible_to' }}",
+        "custom_fields": "{{ p.updateFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.updateFields.visible_to | numeric }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "person",
+      "operation": "create",
+      "title": "Create a person",
+      "method": "POST",
+      "path": "/api/v2/persons",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emails",
+            "label_ids",
+            "org_id",
+            "owner_id",
+            "phones",
+            "visible_to",
+            "customFields"
+          ],
+          "help": "emails: {emailProperties: [{value, primary, label}]}; phones: {phoneProperties: [...]}; customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'customFields,visible_to,emails,phones' }}",
+        "custom_fields": "{{ p.additionalFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.additionalFields.visible_to | numeric }}",
+        "emails": "{{ p.additionalFields.emails.emailProperties }}",
+        "phones": "{{ p.additionalFields.phones.phoneProperties }}",
+        "name": "{{ p.name }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "person",
+      "operation": "delete",
+      "title": "Delete a person",
+      "method": "DELETE",
+      "path": "/api/v2/persons/{{ p.personId }}",
+      "fields": [
+        {
+          "key": "personId",
+          "label": "Person ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "person",
+      "operation": "get",
+      "title": "Get a person",
+      "method": "GET",
+      "path": "/api/v2/persons/{{ p.personId }}",
+      "fields": [
+        {
+          "key": "personId",
+          "label": "Person ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "person",
+      "operation": "getAll",
+      "title": "Get many persons",
+      "method": "GET",
+      "path": "/api/v2/persons",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "first_char",
+            "filter_id"
+          ]
+        }
+      ],
+      "query": {
+        "filter_id": "{{ p.filters.filter_id }}",
+        "first_char": "{{ p.filters.first_char | re:'^(.)' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "additional_data.next_cursor",
+        "limit_param": "limit",
+        "page_size": 500,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "person",
+      "operation": "search",
+      "title": "Search persons",
+      "method": "GET",
+      "path": "/v1/persons/search",
+      "fields": [
+        {
+          "key": "term",
+          "label": "Search term",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "exactMatch",
+          "label": "Exact match",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeFields",
+            "organizationId",
+            "fields"
+          ]
+        }
+      ],
+      "query": {
+        "term": "{{ p.term }}",
+        "exact_match": "{{ p.exactMatch | bool | string }}",
+        "fields": "{{ p.additionalFields.fields | csv }}",
+        "organization_id": "{{ p.additionalFields.organizationId | int }}",
+        "include_fields": "{{ p.additionalFields.includeFields }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "start",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data.items"
+      },
+      "output": {
+        "to": {
+          "result_score": "{{ el.result_score }}",
+          "$merge": "{{ el.item }}"
+        }
+      }
+    },
+    {
+      "resource": "person",
+      "operation": "update",
+      "title": "Update a person",
+      "method": "PATCH",
+      "path": "/api/v2/persons/{{ p.personId }}",
+      "fields": [
+        {
+          "key": "personId",
+          "label": "Person ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emails",
+            "label_ids",
+            "org_id",
+            "owner_id",
+            "phones",
+            "visible_to",
+            "customFields",
+            "name"
+          ],
+          "help": "customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFields,visible_to,emails,phones' }}",
+        "custom_fields": "{{ p.updateFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.updateFields.visible_to | numeric }}",
+        "emails": "{{ p.updateFields.emails.emailProperties }}",
+        "phones": "{{ p.updateFields.phones.phoneProperties }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "create",
+      "title": "Create a product",
+      "method": "POST",
+      "path": "/api/v2/products",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "code",
+            "owner_id",
+            "prices",
+            "tax",
+            "unit",
+            "visible_to",
+            "customFields"
+          ],
+          "help": "prices: {pricesValues: [{price, currency, cost}]}; customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'customFields,visible_to,prices' }}",
+        "custom_fields": "{{ p.additionalFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.additionalFields.visible_to | numeric }}",
+        "name": "{{ p.name }}",
+        "prices": "{{ p.additionalFields.prices.pricesValues }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "delete",
+      "title": "Delete a product",
+      "method": "DELETE",
+      "path": "/api/v2/products/{{ p.productId }}",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "get",
+      "title": "Get a product",
+      "method": "GET",
+      "path": "/api/v2/products/{{ p.productId }}",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "getAll",
+      "title": "Get many products",
+      "method": "GET",
+      "path": "/api/v2/products",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "rawCustomFieldOutput",
+          "label": "Raw custom field output",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom fields are always returned with Pipedrive's raw keys here"
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "additional_data.next_cursor",
+        "limit_param": "limit",
+        "page_size": 500,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "search",
+      "title": "Search products",
+      "method": "GET",
+      "path": "/v1/products/search",
+      "fields": [
+        {
+          "key": "term",
+          "label": "Search term",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "exactMatch",
+          "label": "Exact match",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeFields",
+            "fields"
+          ]
+        }
+      ],
+      "query": {
+        "term": "{{ p.term }}",
+        "exact_match": "{{ p.exactMatch | bool | string }}",
+        "fields": "{{ p.additionalFields.fields | csv }}",
+        "include_fields": "{{ p.additionalFields.includeFields }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "start",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data.items"
+      },
+      "output": {
+        "to": {
+          "result_score": "{{ el.result_score }}",
+          "$merge": "{{ el.item }}"
+        }
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "update",
+      "title": "Update a product",
+      "method": "PATCH",
+      "path": "/api/v2/products/{{ p.productId }}",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "code",
+            "owner_id",
+            "prices",
+            "tax",
+            "unit",
+            "visible_to",
+            "customFields",
+            "name"
+          ],
+          "help": "customFields: {property: [{name, value}]} (field keys)"
+        },
+        {
+          "key": "rawCustomFieldKeys",
+          "label": "Raw custom field keys",
+          "type": "boolean",
+          "default": false,
+          "help": "Custom field names must be Pipedrive field keys here"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFields,visible_to,prices' }}",
+        "custom_fields": "{{ p.updateFields.customFields.property | kv:'name,value' }}",
+        "visible_to": "{{ p.updateFields.visible_to | numeric }}",
+        "prices": "{{ p.updateFields.prices.pricesValues }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    }
+  ]
+}

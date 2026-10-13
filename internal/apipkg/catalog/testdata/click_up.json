@@ -1,0 +1,1011 @@
+{
+  "checklist.create": {
+    "params": {
+      "task": "t1",
+      "name": "C"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/task/t1/checklist",
+      "query": {},
+      "body": {
+        "name": "C"
+      },
+      "items": 1
+    },
+    "response": {
+      "checklist": {
+        "id": "c"
+      }
+    }
+  },
+  "checklist.delete": {
+    "params": {
+      "checklist": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/checklist/c1",
+      "query": {}
+    }
+  },
+  "checklist.update": {
+    "params": {
+      "checklist": "c1",
+      "updateFields": {
+        "position": 2
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/checklist/c1",
+      "query": {},
+      "body": {
+        "position": 2
+      }
+    }
+  },
+  "checklistItem.create": {
+    "params": {
+      "checklist": "c1",
+      "name": "I",
+      "additionalFields": {
+        "assignee": "42"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/checklist/c1/checklist_item",
+      "query": {},
+      "body": {
+        "name": "I",
+        "assignee": 42
+      }
+    }
+  },
+  "checklistItem.delete": {
+    "params": {
+      "checklist": "c1",
+      "checklistItem": "i1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/checklist/c1/checklist_item/i1",
+      "query": {}
+    }
+  },
+  "checklistItem.update": {
+    "params": {
+      "checklist": "c1",
+      "checklistItem": "i1",
+      "updateFields": {
+        "resolved": true
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/checklist/c1/checklist_item/i1",
+      "query": {},
+      "body": {
+        "resolved": true
+      }
+    }
+  },
+  "comment.create": {
+    "params": {
+      "commentOn": "task",
+      "id": "t1",
+      "commentText": "hi",
+      "additionalFields": {
+        "notifyAll": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/task/t1/comment",
+      "query": {},
+      "body": {
+        "comment_text": "hi",
+        "notify_all": true
+      }
+    }
+  },
+  "comment.delete": {
+    "params": {
+      "comment": "9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/comment/9",
+      "query": {}
+    }
+  },
+  "comment.getAll": {
+    "params": {
+      "commentsOn": "list",
+      "id": "l1",
+      "limit": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/list/l1/comment",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "comments": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    }
+  },
+  "comment.update": {
+    "params": {
+      "comment": "9",
+      "updateFields": {
+        "commentText": "x"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/comment/9",
+      "query": {},
+      "body": {
+        "comment_text": "x"
+      }
+    }
+  },
+  "folder.create": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "name": "F"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/space/2/folder",
+      "query": {},
+      "body": {
+        "name": "F"
+      }
+    }
+  },
+  "folder.delete": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/folder/3",
+      "query": {}
+    }
+  },
+  "folder.get": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/folder/3",
+      "query": {}
+    }
+  },
+  "folder.getAll": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "filters": {
+        "archived": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/space/2/folder",
+      "query": {
+        "archived": "true"
+      },
+      "items": 1
+    },
+    "response": {
+      "folders": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "folder.update": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "updateFields": {
+        "name": "G"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/folder/3",
+      "query": {},
+      "body": {
+        "name": "G"
+      }
+    }
+  },
+  "goal.create": {
+    "params": {
+      "team": "1",
+      "name": "G",
+      "additionalFields": {
+        "owners": "1,2",
+        "dueDate": "2024-01-01T00:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/team/1/goal",
+      "query": {},
+      "body": {
+        "name": "G",
+        "owners": [
+          1,
+          2
+        ],
+        "due_date": 1704067200000
+      }
+    }
+  },
+  "goal.delete": {
+    "params": {
+      "goal": "g1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/goal/g1",
+      "query": {}
+    }
+  },
+  "goal.get": {
+    "params": {
+      "goal": "g1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/goal/g1",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "goal": {
+        "id": "g1"
+      }
+    }
+  },
+  "goal.getAll": {
+    "params": {
+      "team": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/team/1/goal",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "goals": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "goal.update": {
+    "params": {
+      "goal": "g1",
+      "updateFields": {
+        "removeOwners": "5"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/goal/g1",
+      "query": {},
+      "body": {
+        "rem_owners": [
+          5
+        ]
+      }
+    }
+  },
+  "goalKeyResult.create": {
+    "params": {
+      "goal": "g1",
+      "name": "K",
+      "type": "number",
+      "additionalFields": {
+        "unit": "km",
+        "stepsStart": 0,
+        "stepsEnd": 10,
+        "taskIds": "a,b"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/goal/g1/key_result",
+      "query": {},
+      "body": {
+        "name": "K",
+        "type": "number",
+        "unit": "km",
+        "steps_start": 0,
+        "steps_end": 10,
+        "task_ids": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  },
+  "goalKeyResult.delete": {
+    "params": {
+      "keyResult": "k1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/key_result/k1",
+      "query": {}
+    }
+  },
+  "goalKeyResult.update": {
+    "params": {
+      "keyResult": "k1",
+      "updateFields": {
+        "stepsCurrent": 3
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/key_result/k1",
+      "query": {},
+      "body": {
+        "steps_current": 3
+      }
+    }
+  },
+  "list.customFields": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "list": "l1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/list/l1/field",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "fields": [
+        {
+          "id": "f"
+        }
+      ]
+    }
+  },
+  "list.create": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "folderless": true,
+      "name": "L"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/space/2/list",
+      "query": {},
+      "body": {
+        "name": "L"
+      }
+    }
+  },
+  "list.delete": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "list": "l1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/list/l1",
+      "query": {}
+    }
+  },
+  "list.get": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "list": "l1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/list/l1",
+      "query": {}
+    }
+  },
+  "list.getAll": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/folder/3/list",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "lists": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "list.member": {
+    "params": {
+      "id": "l1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/list/l1/member",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "members": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "list.update": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "list": "l1",
+      "updateFields": {
+        "unsetStatus": true
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/list/l1",
+      "query": {},
+      "body": {
+        "unset_status": true
+      }
+    }
+  },
+  "spaceTag.create": {
+    "params": {
+      "space": "2",
+      "name": "bug"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/space/2/tag",
+      "query": {},
+      "body": {
+        "tag": {
+          "name": "bug",
+          "tag_bg": "#000000",
+          "tag_fg": "#000000"
+        }
+      }
+    }
+  },
+  "spaceTag.delete": {
+    "params": {
+      "space": "2",
+      "name": "bug"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/space/2/tag/bug",
+      "query": {}
+    }
+  },
+  "spaceTag.getAll": {
+    "params": {
+      "space": "2"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/space/2/tag",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "tags": [
+        {
+          "name": "a"
+        }
+      ]
+    }
+  },
+  "spaceTag.update": {
+    "params": {
+      "space": "2",
+      "name": "bug",
+      "newName": "defect",
+      "backgroundColor": "#ff0000"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/space/2/tag/bug",
+      "query": {},
+      "body": {
+        "tag": {
+          "name": "defect",
+          "tag_bg": "#ff0000",
+          "tag_fg": "#000000"
+        }
+      }
+    }
+  },
+  "task.create": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "list": "l1",
+      "name": "T",
+      "additionalFields": {
+        "content": "**x**",
+        "markdownContent": true,
+        "timeEstimate": 10,
+        "tags": [
+          "a"
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/list/l1/task",
+      "query": {},
+      "body": {
+        "name": "T",
+        "markdown_content": "**x**",
+        "time_estimate": 60000,
+        "tags": [
+          "a"
+        ]
+      }
+    }
+  },
+  "task.delete": {
+    "params": {
+      "id": "t1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/task/t1",
+      "query": {}
+    }
+  },
+  "task.get": {
+    "params": {
+      "id": "t1",
+      "includeSubtasks": true
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/task/t1",
+      "query": {
+        "include_subtasks": "true"
+      }
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "list": "l1",
+      "filters": {
+        "statuses": [
+          "open"
+        ],
+        "orderBy": "created",
+        "customFieldsUi": {
+          "customFieldsValues": [
+            {
+              "fieldId": "f1",
+              "operator": "equal",
+              "value": "x"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/list/l1/task",
+      "query": {
+        "statuses[]": "open",
+        "order_by": "created",
+        "custom_fields": "[{\"field_id\":\"f1\",\"operator\":\"=\",\"value\":\"x\"}]",
+        "page": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "tasks": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "task.member": {
+    "params": {
+      "id": "t1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/task/t1/member",
+      "query": {},
+      "items": 0
+    },
+    "response": {
+      "members": []
+    }
+  },
+  "task.setCustomField": {
+    "params": {
+      "task": "t1",
+      "field": "f1",
+      "value": "42"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/task/t1/field/f1",
+      "query": {},
+      "body": {
+        "value": 42
+      }
+    }
+  },
+  "task.update": {
+    "params": {
+      "id": "t1",
+      "updateFields": {
+        "name": "N",
+        "addAssignees": "7"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/task/t1",
+      "query": {},
+      "body": {
+        "name": "N",
+        "assignees": {
+          "add": [
+            7
+          ],
+          "rem": []
+        }
+      }
+    }
+  },
+  "taskDependency.create": {
+    "params": {
+      "task": "t1",
+      "dependsOnTask": "t2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/task/t1/dependency",
+      "query": {},
+      "body": {
+        "depends_on": "t2"
+      }
+    }
+  },
+  "taskDependency.delete": {
+    "params": {
+      "task": "t1",
+      "dependsOnTask": "t2"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/task/t1/dependency",
+      "query": {
+        "depends_on": "t2"
+      }
+    }
+  },
+  "taskList.add": {
+    "params": {
+      "taskId": "t1",
+      "listId": "l1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/list/l1/task/t1",
+      "query": {}
+    }
+  },
+  "taskList.remove": {
+    "params": {
+      "taskId": "t1",
+      "listId": "l1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/list/l1/task/t1",
+      "query": {}
+    }
+  },
+  "taskTag.add": {
+    "params": {
+      "taskId": "t1",
+      "tagName": "urgent",
+      "additionalFields": {
+        "custom_task_ids": true,
+        "team_id": "1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/task/t1/tag/urgent",
+      "query": {
+        "custom_task_ids": "true",
+        "team_id": "1"
+      }
+    }
+  },
+  "taskTag.remove": {
+    "params": {
+      "taskId": "t1",
+      "tagName": "urgent"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/task/t1/tag/urgent",
+      "query": {}
+    }
+  },
+  "timeEntry.create": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "start": "2024-01-01T00:00:00Z",
+      "duration": 30,
+      "task": "t1",
+      "additionalFields": {
+        "billable": true,
+        "tags": [
+          "{\"name\":\"x\"}"
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/team/1/time_entries",
+      "query": {},
+      "body": {
+        "start": 1704067200000,
+        "duration": 1800000,
+        "tid": "t1",
+        "billable": true,
+        "tags": [
+          {
+            "name": "x"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": "e"
+      }
+    }
+  },
+  "timeEntry.delete": {
+    "params": {
+      "team": "1",
+      "timeEntry": "e1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/team/1/time_entries/e1",
+      "query": {}
+    }
+  },
+  "timeEntry.get": {
+    "params": {
+      "team": "1",
+      "running": true
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/team/1/time_entries/current",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": "e"
+      }
+    }
+  },
+  "timeEntry.getAll": {
+    "params": {
+      "team": "1",
+      "filters": {
+        "start_date": "2024-01-01T00:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/team/1/time_entries",
+      "query": {
+        "start_date": "1704067200000"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "timeEntry.start": {
+    "params": {
+      "team": "1",
+      "task": "t1",
+      "additionalFields": {
+        "description": "d"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/team/1/time_entries/start",
+      "query": {},
+      "body": {
+        "tid": "t1",
+        "description": "d"
+      }
+    }
+  },
+  "timeEntry.stop": {
+    "params": {
+      "team": "1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/team/1/time_entries/stop",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "data": {
+        "id": "e"
+      }
+    }
+  },
+  "timeEntry.update": {
+    "params": {
+      "team": "1",
+      "space": "2",
+      "folder": "3",
+      "timeEntry": "e1",
+      "updateFields": {
+        "duration": 1,
+        "task": "t9"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/team/1/time_entries/e1",
+      "query": {},
+      "body": {
+        "duration": 60000,
+        "tid": "t9",
+        "custom_task_ids": true
+      }
+    }
+  },
+  "timeEntryTag.add": {
+    "params": {
+      "team": "1",
+      "timeEntryIds": "e1,e2",
+      "tagsUi": {
+        "tagsValues": [
+          {
+            "name": "x"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/team/1/time_entries/tags",
+      "query": {},
+      "body": {
+        "time_entry_ids": [
+          "e1",
+          "e2"
+        ],
+        "tags": [
+          {
+            "name": "x"
+          }
+        ]
+      }
+    }
+  },
+  "timeEntryTag.getAll": {
+    "params": {
+      "team": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/team/1/time_entries/tags",
+      "query": {},
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "name": "x"
+        }
+      ]
+    }
+  },
+  "timeEntryTag.remove": {
+    "params": {
+      "team": "1",
+      "timeEntryIds": "e1",
+      "tagNames": [
+        "{\"name\":\"x\"}"
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/team/1/time_entries/tags",
+      "query": {},
+      "body": {
+        "time_entry_ids": [
+          "e1"
+        ],
+        "tags": [
+          "x"
+        ]
+      }
+    }
+  }
+}

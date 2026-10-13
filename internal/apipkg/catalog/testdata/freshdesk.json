@@ -1,0 +1,209 @@
+{
+  "ticket.create": {
+    "params": {
+      "requester": "email",
+      "requesterIdentificationValue": "a@b.test",
+      "status": "open",
+      "priority": "urgent",
+      "source": "OutboundEmail",
+      "options": {
+        "subject": "S",
+        "tags": "a, b",
+        "agent": "12"
+      }
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/tickets",
+      "body": {
+        "email": "a@b.test",
+        "status": 2,
+        "priority": 4,
+        "source": 10,
+        "subject": "S",
+        "description": "null",
+        "tags": [
+          "a",
+          "b"
+        ],
+        "responder_id": 12
+      },
+      "items": 1
+    }
+  },
+  "ticket.delete": {
+    "params": {
+      "ticketId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/tickets/1"
+    }
+  },
+  "ticket.get": {
+    "params": {
+      "ticketId": "1"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/tickets/1",
+      "items": 1
+    }
+  },
+  "ticket.getAll": {
+    "params": {
+      "options": {
+        "orderBy": "dueBy",
+        "order": "asc",
+        "include": [
+          "stats",
+          "requester"
+        ]
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/tickets",
+      "query": {
+        "order_by": "due_by",
+        "order_type": "asc",
+        "include": "stats,requester",
+        "per_page": "5"
+      },
+      "items": 1
+    }
+  },
+  "ticket.update": {
+    "params": {
+      "ticketId": "1",
+      "updateFields": {
+        "requester": "requesterId",
+        "requesterIdentificationValue": "77",
+        "status": "closed",
+        "source": "email"
+      }
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/tickets/1",
+      "body": {
+        "requester_id": 77,
+        "status": 5,
+        "source": 1
+      },
+      "items": 1
+    }
+  },
+  "contact.create": {
+    "params": {
+      "name": "Ada",
+      "email": "a@b.test",
+      "additionalFields": {
+        "job_title": "Eng",
+        "customFields": {
+          "customField": [
+            {
+              "name": "tier",
+              "value": "gold"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/contacts",
+      "body": {
+        "name": "Ada",
+        "email": "a@b.test",
+        "job_title": "Eng",
+        "custom_fields": {
+          "tier": "gold"
+        }
+      },
+      "items": 1
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/contacts/1"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "1"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/contacts/1",
+      "items": 1
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "filters": {
+        "state": "verified"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/contacts",
+      "query": {
+        "state": "verified",
+        "per_page": "100"
+      },
+      "items": 2
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "1",
+      "additionalFields": {
+        "phone": "123"
+      }
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/contacts/1",
+      "body": {
+        "phone": "123"
+      },
+      "items": 1
+    }
+  }
+}

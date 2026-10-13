@@ -73,5 +73,27 @@
       "required": false,
       "type": "number"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the agent's answer",
+      "key": "<output_key>",
+      "type": "string"
+    },
+    {
+      "description": "the agent session id",
+      "key": "_agent_session_id",
+      "type": "string"
+    },
+    {
+      "description": "sandbox status, when the turn ran sandboxed",
+      "key": "_agent_sandbox",
+      "type": "string"
+    }
   ]
 }

@@ -1,0 +1,408 @@
+{
+  "post.create": {
+    "params": {
+      "title": "Hi",
+      "content": "Hello there",
+      "additionalFields": {
+        "category": "4"
+      }
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/posts.json",
+      "body": {
+        "title": "Hi",
+        "raw": "Hello there",
+        "category": "4"
+      }
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "post.get": {
+    "params": {
+      "postId": "9"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/posts/9.json"
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "post.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "responses": [
+      {
+        "latest_posts": [
+          {
+            "id": 10
+          },
+          {
+            "id": 9
+          }
+        ]
+      },
+      {
+        "latest_posts": [
+          {
+            "id": 8
+          }
+        ]
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/posts.json"
+      },
+      {
+        "method": "GET",
+        "path": "/posts.json",
+        "query": {
+          "before": "9"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/posts.json",
+        "query": {
+          "before": "8"
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/posts.json",
+      "items": 3
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "post.update": {
+    "params": {
+      "postId": "9",
+      "content": "New",
+      "updateFields": {
+        "edit_reason": "typo"
+      }
+    },
+    "response": {
+      "post": {
+        "id": 9
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/posts/9.json",
+      "body": {
+        "post": {
+          "raw": "New",
+          "edit_reason": "typo"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "category.create": {
+    "params": {
+      "name": "News"
+    },
+    "response": {
+      "category": {
+        "id": 3
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/categories.json",
+      "body": {
+        "name": "News",
+        "color": "0000FF",
+        "text_color": "0000FF"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "category.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "response": {
+      "category_list": {
+        "categories": [
+          {
+            "id": 1
+          },
+          {
+            "id": 2
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/categories.json",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "category.update": {
+    "params": {
+      "categoryId": "3",
+      "name": "News2",
+      "updateFields": {
+        "textColor": "FFFFFF"
+      }
+    },
+    "response": {
+      "category": {
+        "id": 3
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/categories/3.json",
+      "body": {
+        "name": "News2",
+        "text_color": "FFFFFF"
+      }
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "group.create": {
+    "params": {
+      "name": "team"
+    },
+    "response": {
+      "basic_group": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/admin/groups.json",
+      "body": {
+        "group": {
+          "name": "team"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "group.get": {
+    "params": {
+      "name": "team"
+    },
+    "response": {
+      "group": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/groups/team.json",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "group.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "groups": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/groups.json",
+      "items": 2
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "group.update": {
+    "params": {
+      "groupId": "1",
+      "name": "team2"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/groups/1.json",
+      "body": {
+        "group": {
+          "name": "team2"
+        }
+      }
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "user.create": {
+    "params": {
+      "name": "Ann",
+      "email": "a@b.co",
+      "username": "ann",
+      "password": "secret123",
+      "additionalFields": {
+        "active": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/users.json",
+      "body": {
+        "name": "Ann",
+        "email": "a@b.co",
+        "username": "ann",
+        "password": "secret123",
+        "active": true
+      }
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "user.get": {
+    "params": {
+      "username": "ann"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/users/ann.json"
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "flag": "active",
+      "limit": 2,
+      "options": {
+        "order": "posts",
+        "showEmails": true
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      },
+      {
+        "id": 3
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/admin/users/list/active.json",
+      "query": {
+        "order": "posts",
+        "show_emails": "true",
+        "page": "1"
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "userGroup.add": {
+    "params": {
+      "usernames": "ann,bob",
+      "groupId": "1"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/groups/1/members.json",
+      "body": {
+        "usernames": "ann,bob"
+      }
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  },
+  "userGroup.remove": {
+    "params": {
+      "usernames": "ann",
+      "groupId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/groups/1/members.json",
+      "body": {
+        "usernames": "ann"
+      }
+    },
+    "credential": {
+      "url": "https://forum.example.com",
+      "api_key": "k",
+      "username": "system"
+    }
+  }
+}

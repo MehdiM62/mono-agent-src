@@ -29,5 +29,12 @@
       "required": false,
       "type": "number"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the fields of the items the code returns",
+      "key": "<returned fields>",
+      "type": "any"
+    }
   ]
 }

@@ -978,6 +978,10 @@ export function MoveProfileFolder(arg1, arg2) {
   return window['go']['main']['App']['MoveProfileFolder'](arg1, arg2);
 }
 
+export function NodeConfigFromCurl(arg1) {
+  return window['go']['main']['App']['NodeConfigFromCurl'](arg1);
+}
+
 export function OpenAnyFilePicker(arg1) {
   return window['go']['main']['App']['OpenAnyFilePicker'](arg1);
 }

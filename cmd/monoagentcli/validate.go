@@ -27,26 +27,10 @@ type dryRunJSON struct {
 
 // validationJSON is the `workflow validate --json` payload.
 type validationJSON struct {
-	Valid    bool     `json:"valid"`
-	Errors   []string `json:"errors"`
-	Warnings []string `json:"warnings,omitempty"`
-}
-
-// unknownNodeTypeWarnings names the nodes whose type no registered node
-// handles (a typo, or an automation that isn't installed). They are
-// warnings, not errors: validation never checked node types before, and a
-// workflow may be validated on a machine that lacks one of its packages.
-func unknownNodeTypeWarnings(wf *workflow.Workflow) []string {
-	reg := buildNodeRegistry(false, nil)
-	var out []string
-	for _, n := range wf.Nodes {
-		// Triggers aren't registry nodes; ValidateForActivation checks them.
-		if n.Type == "" || strings.HasPrefix(n.Type, "trigger.") || reg.Has(n.Type) {
-			continue
-		}
-		out = append(out, fmt.Sprintf("node %q: unknown node type %q (run `monoagentcli node list`; an automation it needs may not be installed)", n.ID, n.Type))
-	}
-	return out
+	Valid    bool                       `json:"valid"`
+	Errors   []string                   `json:"errors"`
+	Warnings []string                   `json:"warnings,omitempty"`
+	Issues   []workflow.ValidationIssue `json:"issues"`
 }
 
 // loadWorkflowDefinition fetches a workflow by id from the canonical hybrid
@@ -122,7 +106,10 @@ func newWorkflowValidateCmd(cfg *globalConfig) *cobra.Command {
 			"no cycles, a trigger node present, and required trigger config (cron/path). " +
 			"Files are normalized the same way `workflow import` does it (legacy key " +
 			"conversion; unset connection handles default to \"main\"), so validate " +
-			"checks the post-normalization shape. " +
+			"checks the post-normalization shape. Schema checks follow: unknown node types, " +
+			"missing required fields, select values outside their options, node references and " +
+			"expression syntax (errors); unknown config keys and $json fields no upstream node " +
+			"outputs (warnings). --json adds them as issues[] {node_id, field, code, severity, message, hint}. " +
 			"Exit 0 when valid, 2 when the workflow is not found, 3 when invalid.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -153,20 +140,31 @@ func newWorkflowValidateCmd(cfg *globalConfig) *cobra.Command {
 
 			normalizeConnectionHandles(wf)
 
-			if err := workflow.ValidateForActivation(wf); err != nil {
-				if cfg.JSONOutput {
-					_ = json.NewEncoder(cmd.OutOrStdout()).Encode(validationJSON{Valid: false, Errors: []string{err.Error()}})
-					return reportedError{errInvalidInput("%v", err)}
-				}
-				return errInvalidInput("%v", err)
-			}
-
-			warnings := unknownNodeTypeWarnings(wf)
+			reg := buildNodeRegistry(false, nil)
+			rep := workflow.ValidateWorkflow(wf, workflow.ValidateOptions{KnownNodeType: reg.Has})
 			if cfg.JSONOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(validationJSON{Valid: true, Errors: []string{}, Warnings: warnings})
+				_ = json.NewEncoder(cmd.OutOrStdout()).Encode(validationJSON{Valid: rep.Valid, Errors: rep.Errors, Warnings: rep.Warnings, Issues: rep.Issues})
+			} else {
+				for _, is := range rep.Issues {
+					if is.Severity == "warning" {
+						fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+issueLine(is))
+					}
+				}
 			}
-			for _, w := range warnings {
-				fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+w)
+			if !rep.Valid {
+				lines := []string{}
+				for _, is := range rep.Issues {
+					if is.Severity == "error" {
+						lines = append(lines, issueLine(is))
+					}
+				}
+				if cfg.JSONOutput {
+					return reportedError{errInvalidInput("%s", strings.Join(lines, "\n"))}
+				}
+				return errInvalidInput("%s", strings.Join(lines, "\n"))
+			}
+			if cfg.JSONOutput {
+				return nil
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), "Workflow is valid.")
 			return nil
@@ -175,6 +173,18 @@ func newWorkflowValidateCmd(cfg *globalConfig) *cobra.Command {
 
 	cmd.Flags().StringVarP(&inputFile, "file", "f", "", "Validate a workflow JSON file without saving it")
 	return cmd
+}
+
+// issueLine renders a validation issue as one line of text.
+func issueLine(is workflow.ValidationIssue) string {
+	line := is.Message
+	if is.NodeID != "" {
+		line = fmt.Sprintf("node %q: %s", is.NodeID, line)
+	}
+	if is.Hint != "" {
+		line += " (" + is.Hint + ")"
+	}
+	return line
 }
 
 // runWorkflowDryRun backs `workflow run --dry-run`: validate + print the

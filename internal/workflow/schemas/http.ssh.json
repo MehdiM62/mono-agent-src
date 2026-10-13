@@ -62,5 +62,22 @@
       "required": false,
       "type": "number"
     }
+  ],
+  "outputs": [
+    {
+      "description": "standard output",
+      "key": "stdout",
+      "type": "string"
+    },
+    {
+      "description": "standard error",
+      "key": "stderr",
+      "type": "string"
+    },
+    {
+      "description": "remote exit code",
+      "key": "exit_code",
+      "type": "number"
+    }
   ]
 }

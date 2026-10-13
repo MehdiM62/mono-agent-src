@@ -21,7 +21,7 @@ const validWorkflowFile = `{
   "name": "test-wf",
   "nodes": [
     {"id": "trigger", "type": "trigger.manual", "name": "Manual", "position": {"x": 0, "y": 0}, "config": {}},
-    {"id": "set", "type": "core.set", "name": "Set", "position": {"x": 1, "y": 0}, "config": {"fields": {}}}
+    {"id": "set", "type": "core.set", "name": "Set", "position": {"x": 1, "y": 0}, "config": {"assignments": [{"field": "a", "value": "1"}]}}
   ],
   "connections": [
     {"id": "c1", "source": "trigger", "source_handle": "main", "target": "set", "target_handle": "main"}
@@ -59,7 +59,7 @@ const handlelessWorkflowFile = `{
   "name": "handleless-wf",
   "nodes": [
     {"id": "trigger", "type": "trigger.schedule", "name": "Cron", "position": {"x": 0, "y": 0}, "config": {"cron": "0 0 9 * * *"}},
-    {"id": "a", "type": "core.set", "name": "A", "position": {"x": 1, "y": 0}, "config": {}}
+    {"id": "a", "type": "core.set", "name": "A", "position": {"x": 1, "y": 0}, "config": {"assignments": [{"field": "a", "value": "1"}]}}
   ],
   "connections": [
     {"id": "c1", "source": "trigger", "target": "a"}
@@ -72,7 +72,7 @@ const legacyHandlelessWorkflowFile = `{
   "name": "legacy-handleless-wf",
   "nodes": [
     {"id": "trigger", "node_type": "trigger.manual", "name": "Manual", "position_x": 0, "position_y": 0, "config": {}},
-    {"id": "a", "node_type": "core.set", "name": "A", "position_x": 1, "position_y": 0, "config": {}}
+    {"id": "a", "node_type": "core.set", "name": "A", "position_x": 1, "position_y": 0, "config": {"assignments": [{"field": "a", "value": "1"}]}}
   ],
   "connections": [
     {"id": "c1", "source_node_id": "trigger", "target_node_id": "a"}
@@ -1158,9 +1158,9 @@ func TestWorkflowTemplatesUse_PersistsSuccessfully(t *testing.T) {
 	}
 }
 
-// A valid workflow has no warnings; an unknown node type is a warning, and
-// the workflow still validates (node types were never checked before).
-func TestWorkflowValidateFile_UnknownNodeTypeWarns(t *testing.T) {
+// A valid workflow has no warnings or issues; an unknown node type is an
+// error (exit 3) whose issue keeps the hint about installing an automation.
+func TestWorkflowValidateFile_UnknownNodeTypeIsAnError(t *testing.T) {
 	out, err := runValidateCmd(t, true, "--file", writeTempWorkflow(t, validWorkflowFile))
 	if err != nil {
 		t.Fatal(err)
@@ -1169,20 +1169,57 @@ func TestWorkflowValidateFile_UnknownNodeTypeWarns(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Warnings) != 0 {
-		t.Fatalf("valid workflow got warnings: %v", got.Warnings)
+	if len(got.Warnings) != 0 || len(got.Issues) != 0 {
+		t.Fatalf("valid workflow got warnings/issues: %+v", got)
 	}
 
 	unknown := strings.Replace(validWorkflowFile, `"type": "core.set"`, `"type": "acme-crm.list_deals"`, 1)
 	out, err = runValidateCmd(t, true, "--file", writeTempWorkflow(t, unknown))
-	if err != nil {
-		t.Fatalf("unknown node type must not fail validation: %v", err)
+	if code := exitCodeFor(err); code != 3 {
+		t.Fatalf("unknown node type: exit %d (%v), want 3", code, err)
 	}
 	got = validationJSON{}
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	// The first JSON value; cobra's usage text may follow the error.
+	if err := json.NewDecoder(strings.NewReader(out)).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
-	if !got.Valid || len(got.Warnings) != 1 || !strings.Contains(got.Warnings[0], "acme-crm.list_deals") {
-		t.Fatalf("want valid with one warning naming the type, got %+v", got)
+	if got.Valid || len(got.Errors) != 1 || !strings.Contains(got.Errors[0], "acme-crm.list_deals") {
+		t.Fatalf("want invalid with one error naming the type, got %+v", got)
+	}
+	if len(got.Issues) != 1 || got.Issues[0].Code != "unknown_node_type" || got.Issues[0].NodeID != "set" ||
+		!strings.Contains(got.Issues[0].Hint, "automation") {
+		t.Fatalf("want one unknown_node_type issue with the install hint, got %+v", got.Issues)
+	}
+}
+
+// The schema-aware repro: a typo'd key, a method outside its options and
+// a reference to a node that does not exist.
+func TestWorkflowValidateFile_SchemaIssues(t *testing.T) {
+	const repro = `{"name": "repro", "nodes": [
+  {"id": "t", "type": "trigger.manual", "name": "Start", "config": {}},
+  {"id": "h", "type": "http.request", "name": "Fetch", "config": {"urll": "https://x", "method": "FETCH"}},
+  {"id": "s", "type": "core.set", "name": "Set", "config": {"value": "{{ $node[\"Nope\"].json.x }}"}}
+], "connections": [
+  {"id": "c1", "source": "t", "target": "h"}, {"id": "c2", "source": "h", "target": "s"}
+]}`
+	out, err := runValidateCmd(t, true, "--file", writeTempWorkflow(t, repro))
+	if code := exitCodeFor(err); code != 3 {
+		t.Fatalf("exit %d (%v), want 3", code, err)
+	}
+	var got validationJSON
+	if err := json.NewDecoder(strings.NewReader(out)).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	codes := map[string]bool{}
+	for _, is := range got.Issues {
+		codes[is.Code+"/"+is.NodeID+"/"+is.Field] = true
+	}
+	for _, want := range []string{"missing_required/h/url", "invalid_option/h/method", "unknown_field/h/urll", "dangling_node_ref/s/value"} {
+		if !codes[want] {
+			t.Errorf("missing issue %s in %+v", want, got.Issues)
+		}
+	}
+	if got.Valid || len(got.Errors) == 0 || len(got.Warnings) == 0 {
+		t.Errorf("want invalid with errors and warnings, got %+v", got)
 	}
 }

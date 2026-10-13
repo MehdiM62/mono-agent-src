@@ -1,0 +1,345 @@
+{
+  "table.createRow": {
+    "params": {
+      "docId": "d1",
+      "tableId": "t1",
+      "options": {
+        "keyColumns": "Name"
+      }
+    },
+    "input": {
+      "Name": "A",
+      "Qty": 2
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/apis/v1/docs/d1/tables/t1/rows",
+      "query": {},
+      "body": {
+        "rows": [
+          {
+            "cells": [
+              {
+                "column": "Name",
+                "value": "A"
+              },
+              {
+                "column": "Qty",
+                "value": 2
+              }
+            ]
+          }
+        ],
+        "keyColumns": [
+          "Name"
+        ]
+      }
+    }
+  },
+  "table.deleteRow": {
+    "params": {
+      "docId": "d1",
+      "tableId": "t1",
+      "rowId": "r1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/apis/v1/docs/d1/tables/t1/rows/r1",
+      "query": {}
+    }
+  },
+  "table.getAllColumns": {
+    "params": {
+      "docId": "d1",
+      "tableId": "t1",
+      "limit": 3
+    },
+    "response": {
+      "items": [
+        {
+          "id": "c1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/tables/t1/columns",
+      "query": {
+        "limit": "3"
+      },
+      "items": 1
+    }
+  },
+  "table.getAllRows": {
+    "params": {
+      "docId": "d1",
+      "tableId": "t1",
+      "limit": 3,
+      "options": {
+        "sortBy": "natural",
+        "visibleOnly": true
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": "r1",
+          "values": {
+            "Name": "A"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/tables/t1/rows",
+      "query": {
+        "useColumnNames": "true",
+        "sortBy": "natural",
+        "visibleOnly": "true",
+        "limit": "3"
+      },
+      "items": 1
+    }
+  },
+  "table.getColumn": {
+    "params": {
+      "docId": "d1",
+      "tableId": "t1",
+      "columnId": "c1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/tables/t1/columns/c1",
+      "query": {}
+    }
+  },
+  "table.getRow": {
+    "params": {
+      "docId": "d1",
+      "tableId": "t1",
+      "rowId": "r1",
+      "options": {
+        "useColumnNames": false,
+        "valueFormat": "rich"
+      }
+    },
+    "response": {
+      "id": "r1",
+      "values": {
+        "c-1": "A"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/tables/t1/rows/r1",
+      "query": {
+        "useColumnNames": "false",
+        "valueFormat": "rich"
+      },
+      "items": 1
+    }
+  },
+  "table.pushButton": {
+    "params": {
+      "docId": "d1",
+      "tableId": "t1",
+      "rowId": "r1",
+      "columnId": "c1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/apis/v1/docs/d1/tables/t1/rows/r1/buttons/c1",
+      "query": {}
+    }
+  },
+  "formula.get": {
+    "params": {
+      "docId": "d1",
+      "formulaId": "f1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/formulas/f1",
+      "query": {}
+    }
+  },
+  "formula.getAll": {
+    "params": {
+      "docId": "d1"
+    },
+    "response": {
+      "items": [
+        {
+          "id": "f1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/formulas",
+      "query": {
+        "limit": "50"
+      },
+      "items": 1
+    }
+  },
+  "control.get": {
+    "params": {
+      "docId": "d1",
+      "controlId": "k1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/controls/k1",
+      "query": {}
+    }
+  },
+  "control.getAll": {
+    "params": {
+      "docId": "d1"
+    },
+    "response": {
+      "items": []
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/controls",
+      "query": {
+        "limit": "50"
+      },
+      "items": 0
+    }
+  },
+  "view.get": {
+    "params": {
+      "docId": "d1",
+      "viewId": "v1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/tables/v1",
+      "query": {}
+    }
+  },
+  "view.deleteViewRow": {
+    "params": {
+      "docId": "d1",
+      "viewId": "v1",
+      "rowId": "r1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/apis/v1/docs/d1/tables/v1/rows/r1",
+      "query": {}
+    }
+  },
+  "view.getAllViewColumns": {
+    "params": {
+      "docId": "d1",
+      "viewId": "v1"
+    },
+    "response": {
+      "items": [
+        {
+          "id": "c1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/tables/v1/columns",
+      "query": {
+        "limit": "50"
+      },
+      "items": 1
+    }
+  },
+  "view.getAll": {
+    "params": {
+      "docId": "d1"
+    },
+    "response": {
+      "items": [
+        {
+          "id": "v1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/tables",
+      "query": {
+        "tableTypes": "view",
+        "limit": "50"
+      },
+      "items": 1
+    }
+  },
+  "view.getAllViewRows": {
+    "params": {
+      "docId": "d1",
+      "viewId": "v1",
+      "options": {
+        "rawData": true
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": "r1",
+          "values": {}
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/apis/v1/docs/d1/tables/v1/rows",
+      "query": {
+        "useColumnNames": "true",
+        "limit": "50"
+      },
+      "items": 1
+    }
+  },
+  "view.pushViewButton": {
+    "params": {
+      "docId": "d1",
+      "viewId": "v1",
+      "rowId": "r1",
+      "columnId": "c1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/apis/v1/docs/d1/tables/v1/rows/r1/buttons/c1",
+      "query": {}
+    }
+  },
+  "view.updateViewRow": {
+    "params": {
+      "docId": "d1",
+      "viewId": "v1",
+      "rowId": "r1"
+    },
+    "input": {
+      "columns": {
+        "Name": "B"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/apis/v1/docs/d1/tables/v1/rows/r1",
+      "query": {},
+      "body": {
+        "row": {
+          "cells": [
+            {
+              "column": "Name",
+              "value": "B"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

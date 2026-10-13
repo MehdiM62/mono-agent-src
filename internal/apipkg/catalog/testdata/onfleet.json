@@ -1,0 +1,667 @@
+{
+  "task.get": {
+    "params": {
+      "id": "abc12345"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/tasks/shortId/abc12345"
+    }
+  },
+  "task.create": {
+    "params": {
+      "destination": {
+        "destinationProperties": {
+          "unparsed": true,
+          "address": "1 Main St, SF",
+          "addressNotes": "gate"
+        }
+      },
+      "additionalFields": {
+        "notes": "fragile",
+        "completeBefore": "2024-01-01T00:00:00Z",
+        "recipient": {
+          "recipientProperties": {
+            "recipientName": "Ada",
+            "recipientPhone": "+15550001111"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/tasks",
+      "body": {
+        "destination": {
+          "address": {
+            "unparsed": "1 Main St, SF"
+          },
+          "notes": "gate"
+        },
+        "recipients": [
+          {
+            "name": "Ada",
+            "phone": "+15550001111"
+          }
+        ],
+        "completeBefore": 1704067200000,
+        "notes": "fragile"
+      }
+    }
+  },
+  "task.clone": {
+    "params": {
+      "id": "T1",
+      "overrideFields": {
+        "includeMetadata": true,
+        "notes": "n",
+        "pickupTask": false
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/tasks/T1/clone",
+      "body": {
+        "options": {
+          "includeMetadata": true,
+          "overrides": {
+            "notes": "n",
+            "pickupTask": false
+          }
+        }
+      }
+    }
+  },
+  "task.complete": {
+    "params": {
+      "id": "T1",
+      "additionalFields": {
+        "notes": "done"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/tasks/T1/complete",
+      "body": {
+        "completionDetails": {
+          "success": true,
+          "notes": "done"
+        }
+      },
+      "items": 1
+    }
+  },
+  "task.delete": {
+    "params": {
+      "id": "T1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/tasks/T1",
+      "items": 1
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "from": "2024-01-01T00:00:00Z",
+        "state": [
+          "all"
+        ]
+      }
+    },
+    "response": {
+      "tasks": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        },
+        {
+          "id": 3
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/tasks/all",
+      "query": {
+        "from": "1704067200000",
+        "state": "0,1,2,3"
+      },
+      "items": 2
+    }
+  },
+  "task.update": {
+    "params": {
+      "id": "T1",
+      "updateFields": {
+        "notes": "x",
+        "completeAfter": "2024-01-01T00:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/tasks/T1",
+      "body": {
+        "completeAfter": 1704067200000,
+        "notes": "x"
+      }
+    }
+  },
+  "destination.get": {
+    "params": {
+      "id": "D1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/destinations/D1"
+    }
+  },
+  "destination.create": {
+    "params": {
+      "addressNumber": "1",
+      "addressStreet": "Main",
+      "addressCity": "SF",
+      "addressCountry": "US",
+      "additionalFields": {
+        "addressPostalCode": "94103"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/destinations",
+      "body": {
+        "address": {
+          "number": "1",
+          "street": "Main",
+          "city": "SF",
+          "country": "US",
+          "postalCode": "94103"
+        }
+      }
+    }
+  },
+  "recipient.get": {
+    "params": {
+      "getBy": "phone",
+      "phone": "+15550001111"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/recipients/phone/+15550001111"
+    }
+  },
+  "recipient.create": {
+    "params": {
+      "recipientName": "Ada",
+      "recipientPhone": "+1555",
+      "additionalFields": {
+        "recipientNotes": "n"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/recipients",
+      "body": {
+        "name": "Ada",
+        "phone": "+1555",
+        "notes": "n",
+        "skipPhoneNumberValidation": false
+      }
+    }
+  },
+  "recipient.update": {
+    "params": {
+      "id": "R1",
+      "updateFields": {
+        "recipientName": "Bo",
+        "skipSMSNotifications": true
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/recipients/R1",
+      "body": {
+        "name": "Bo",
+        "skipSMSNotifications": true
+      }
+    }
+  },
+  "admin.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/admins",
+      "items": 1
+    }
+  },
+  "admin.create": {
+    "params": {
+      "name": "A",
+      "email": "a@x.io",
+      "additionalFields": {
+        "isReadOnly": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/admins",
+      "body": {
+        "name": "A",
+        "email": "a@x.io",
+        "isReadOnly": true
+      }
+    }
+  },
+  "admin.delete": {
+    "params": {
+      "id": "A1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/admins/A1"
+    }
+  },
+  "admin.update": {
+    "params": {
+      "id": "A1",
+      "updateFields": {
+        "name": "B"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/admins/A1",
+      "body": {
+        "name": "B"
+      }
+    }
+  },
+  "hub.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/hubs",
+      "items": 1
+    }
+  },
+  "hub.create": {
+    "params": {
+      "name": "H",
+      "destination": {
+        "destinationProperties": {
+          "unparsed": true,
+          "address": "1 Main St, SF",
+          "addressNotes": "gate"
+        }
+      },
+      "additionalFields": {
+        "teams": [
+          "t1"
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/hubs",
+      "body": {
+        "name": "H",
+        "address": {
+          "unparsed": "1 Main St, SF"
+        },
+        "notes": "gate",
+        "teams": [
+          "t1"
+        ]
+      }
+    }
+  },
+  "hub.update": {
+    "params": {
+      "id": "H1",
+      "updateFields": {
+        "name": "H2"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/hubs/H1",
+      "body": {
+        "name": "H2"
+      }
+    }
+  },
+  "organization.get": {
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/organization"
+    }
+  },
+  "organization.getDelegatee": {
+    "params": {
+      "id": "O1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/organizations/O1"
+    }
+  },
+  "container.get": {
+    "params": {
+      "containerType": "workers",
+      "containerId": "W1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/containers/workers/W1"
+    }
+  },
+  "container.addTask": {
+    "params": {
+      "containerType": "teams",
+      "containerId": "T1",
+      "type": 1,
+      "index": 2,
+      "tasks": [
+        "a",
+        "b"
+      ],
+      "options": {
+        "considerDependencies": true
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/containers/teams/T1",
+      "body": {
+        "tasks": [
+          2,
+          "a",
+          "b"
+        ],
+        "considerDependencies": true
+      }
+    }
+  },
+  "container.updateTask": {
+    "params": {
+      "containerId": "W1",
+      "tasks": [
+        "a"
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/containers/workers/W1",
+      "body": {
+        "tasks": [
+          "a"
+        ]
+      }
+    }
+  },
+  "team.getAll": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/teams",
+      "items": 1
+    }
+  },
+  "team.autoDispatch": {
+    "params": {
+      "id": "T1",
+      "additionalFields": {
+        "maxTasksPerRoute": 5,
+        "endingRoute": {
+          "endingRouteProperties": {
+            "routeEnd": "hub",
+            "hub": "H1"
+          }
+        },
+        "scheduleTimeWindow": {
+          "scheduleTimeWindowProperties": {
+            "startTime": "2024-01-01T00:00:00Z",
+            "endTime": "2024-01-01T01:00:00Z"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/teams/T1/dispatch",
+      "body": {
+        "scheduleTimeWindow": [
+          1704067200,
+          1704070800
+        ],
+        "routeEnd": "hub://H1",
+        "maxTasksPerRoute": 5
+      }
+    }
+  },
+  "team.create": {
+    "params": {
+      "name": "N",
+      "workers": [
+        "w"
+      ],
+      "managers": [
+        "m"
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/teams",
+      "body": {
+        "name": "N",
+        "workers": [
+          "w"
+        ],
+        "managers": [
+          "m"
+        ]
+      }
+    }
+  },
+  "team.delete": {
+    "params": {
+      "id": "T1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/teams/T1"
+    }
+  },
+  "team.get": {
+    "params": {
+      "id": "T1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/teams/T1"
+    }
+  },
+  "team.getTimeEstimates": {
+    "params": {
+      "id": "T1",
+      "filters": {
+        "dropOff": {
+          "dropOffProperties": {
+            "dropOffLongitude": -122.4,
+            "dropOffLatitude": 37.7
+          }
+        },
+        "restrictedVehicleTypes": [
+          "CAR",
+          "TRUCK"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/teams/T1/estimate",
+      "query": {
+        "dropoffLocation": "-122.4,37.7",
+        "restrictedVehicleTypes": "CAR,TRUCK"
+      }
+    }
+  },
+  "team.update": {
+    "params": {
+      "id": "T1",
+      "updateFields": {
+        "name": "Z"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/teams/T1",
+      "body": {
+        "name": "Z"
+      }
+    }
+  },
+  "worker.get": {
+    "params": {
+      "id": "W1",
+      "options": {
+        "analytics": false,
+        "filter": [
+          "name",
+          "phone"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/workers/W1",
+      "query": {
+        "filter": "name,phone",
+        "analytics": "false"
+      }
+    }
+  },
+  "worker.create": {
+    "params": {
+      "name": "W",
+      "phone": "+1",
+      "teams": [
+        "t"
+      ],
+      "additionalFields": {
+        "capacity": 3,
+        "vehicle": {
+          "vehicleProperties": {
+            "type": "CAR"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/workers",
+      "body": {
+        "name": "W",
+        "phone": "+1",
+        "teams": [
+          "t"
+        ],
+        "vehicle": {
+          "type": "CAR"
+        },
+        "capacity": 3
+      }
+    }
+  },
+  "worker.delete": {
+    "params": {
+      "id": "W1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/workers/W1"
+    }
+  },
+  "worker.getAll": {
+    "params": {
+      "byLocation": true,
+      "longitude": 1.5,
+      "latitude": 2.5,
+      "filters": {
+        "radius": 500
+      },
+      "limit": 1
+    },
+    "response": {
+      "workers": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/workers/location",
+      "query": {
+        "longitude": "1.5",
+        "latitude": "2.5",
+        "radius": "500"
+      },
+      "items": 1
+    }
+  },
+  "worker.getSchedule": {
+    "params": {
+      "id": "W1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/workers/W1/schedule"
+    }
+  },
+  "worker.update": {
+    "params": {
+      "id": "W1",
+      "updateFields": {
+        "capacity": 2
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v2/workers/W1",
+      "body": {
+        "capacity": 2
+      }
+    }
+  }
+}

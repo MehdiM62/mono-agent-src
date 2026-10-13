@@ -1,0 +1,519 @@
+{
+  "case.create": {
+    "params": {
+      "title": "Breach",
+      "connectorId": "k1",
+      "connectorType": ".jira",
+      "issueType": "10001",
+      "priority": "High",
+      "additionalFields": {
+        "syncAlerts": true
+      }
+    },
+    "responses": [
+      {
+        "id": "k1",
+        "name": "Jira",
+        "connector_type_id": ".jira"
+      },
+      {
+        "id": "c1"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/cases",
+      "body": {
+        "title": "Breach",
+        "owner": "securitySolution",
+        "description": "",
+        "tags": [],
+        "settings": {
+          "syncAlerts": true
+        },
+        "connector": {
+          "id": "k1",
+          "name": "Jira",
+          "type": ".jira",
+          "fields": {
+            "issueType": "10001",
+            "priority": "High"
+          }
+        }
+      }
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "case.delete": {
+    "params": {
+      "caseId": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/cases",
+      "query": {
+        "ids": "[\"c1\"]"
+      },
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "case.get": {
+    "params": {
+      "caseId": "c1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/cases/c1"
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "case.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "status": "open",
+        "tags": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "response": {
+      "cases": [
+        {
+          "id": "c1"
+        }
+      ],
+      "total": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/cases/_find",
+      "query": {
+        "sortField": "createdAt",
+        "sortOrder": "asc",
+        "status": "open",
+        "tags": "a,b",
+        "page": "1",
+        "perPage": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "case.getStatus": {
+    "expect": {
+      "method": "GET",
+      "path": "/api/cases/status"
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "case.update": {
+    "params": {
+      "caseId": "c1",
+      "updateFields": {
+        "status": "closed",
+        "syncAlerts": true
+      }
+    },
+    "responses": [
+      {
+        "id": "c1",
+        "title": "T",
+        "connector": {
+          "id": "none",
+          "name": "none",
+          "type": ".none",
+          "fields": null
+        },
+        "owner": "securitySolution",
+        "description": "d",
+        "settings": {
+          "syncAlerts": true
+        },
+        "version": "v1",
+        "tags": [
+          "x",
+          "y"
+        ]
+      },
+      [
+        {
+          "id": "c1",
+          "title": "T",
+          "connector": {
+            "id": "none",
+            "name": "none",
+            "type": ".none",
+            "fields": null
+          },
+          "owner": "securitySolution",
+          "description": "d",
+          "settings": {
+            "syncAlerts": true
+          },
+          "version": "v1",
+          "tags": [
+            "x",
+            "y"
+          ]
+        }
+      ]
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/cases",
+      "body": {
+        "cases": [
+          {
+            "id": "c1",
+            "version": "v1",
+            "status": "closed",
+            "settings": {
+              "syncAlerts": true
+            }
+          }
+        ]
+      }
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "caseComment.add": {
+    "params": {
+      "caseId": "c1",
+      "comment": "hi"
+    },
+    "response": {
+      "comments": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/cases/c1/comments",
+      "body": {
+        "comment": "hi",
+        "type": "user",
+        "owner": "securitySolution"
+      },
+      "items": 1
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "caseComment.get": {
+    "params": {
+      "caseId": "c1",
+      "commentId": "m1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/cases/c1/comments/m1"
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "caseComment.getAll": {
+    "params": {
+      "caseId": "c1",
+      "returnAll": true
+    },
+    "response": [
+      {
+        "id": "a"
+      },
+      {
+        "id": "b"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/cases/c1/comments",
+      "items": 2
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "caseComment.remove": {
+    "params": {
+      "caseId": "c1",
+      "commentId": "m1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/cases/c1/comments/m1"
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "caseComment.update": {
+    "params": {
+      "caseId": "c1",
+      "commentId": "m1",
+      "comment": "edited",
+      "simple": false
+    },
+    "responses": [
+      {
+        "id": "m1",
+        "version": "w2"
+      },
+      {
+        "comments": []
+      }
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/cases/c1/comments",
+      "body": {
+        "comment": "edited",
+        "id": "m1",
+        "type": "user",
+        "owner": "securitySolution",
+        "version": "w2"
+      }
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "caseTag.add": {
+    "params": {
+      "caseId": "c1",
+      "tag": "z"
+    },
+    "responses": [
+      {
+        "id": "c1",
+        "title": "T",
+        "connector": {
+          "id": "none",
+          "name": "none",
+          "type": ".none",
+          "fields": null
+        },
+        "owner": "securitySolution",
+        "description": "d",
+        "settings": {
+          "syncAlerts": true
+        },
+        "version": "v1",
+        "tags": [
+          "x",
+          "y"
+        ]
+      },
+      [
+        {
+          "id": "c1",
+          "title": "T",
+          "connector": {
+            "id": "none",
+            "name": "none",
+            "type": ".none",
+            "fields": null
+          },
+          "owner": "securitySolution",
+          "description": "d",
+          "settings": {
+            "syncAlerts": true
+          },
+          "version": "v1",
+          "tags": [
+            "x",
+            "y"
+          ]
+        }
+      ]
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/cases",
+      "body": {
+        "cases": [
+          {
+            "id": "c1",
+            "title": "T",
+            "connector": {
+              "id": "none",
+              "name": "none",
+              "type": ".none",
+              "fields": null
+            },
+            "owner": "securitySolution",
+            "description": "d",
+            "settings": {
+              "syncAlerts": true
+            },
+            "version": "v1",
+            "tags": [
+              "x",
+              "y",
+              "z"
+            ]
+          }
+        ]
+      }
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "caseTag.remove": {
+    "params": {
+      "caseId": "c1",
+      "tag": "x"
+    },
+    "responses": [
+      {
+        "id": "c1",
+        "title": "T",
+        "connector": {
+          "id": "none",
+          "name": "none",
+          "type": ".none",
+          "fields": null
+        },
+        "owner": "securitySolution",
+        "description": "d",
+        "settings": {
+          "syncAlerts": true
+        },
+        "version": "v1",
+        "tags": [
+          "x",
+          "y"
+        ]
+      },
+      [
+        {
+          "id": "c1",
+          "title": "T",
+          "connector": {
+            "id": "none",
+            "name": "none",
+            "type": ".none",
+            "fields": null
+          },
+          "owner": "securitySolution",
+          "description": "d",
+          "settings": {
+            "syncAlerts": true
+          },
+          "version": "v1",
+          "tags": [
+            "x",
+            "y"
+          ]
+        }
+      ]
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/cases",
+      "body": {
+        "cases": [
+          {
+            "id": "c1",
+            "title": "T",
+            "connector": {
+              "id": "none",
+              "name": "none",
+              "type": ".none",
+              "fields": null
+            },
+            "owner": "securitySolution",
+            "description": "d",
+            "settings": {
+              "syncAlerts": true
+            },
+            "version": "v1",
+            "tags": [
+              "y"
+            ]
+          }
+        ]
+      }
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  },
+  "connector.create": {
+    "params": {
+      "name": "SN",
+      "connectorType": ".servicenow",
+      "apiUrl": "https://sn.example.com",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/actions/connector",
+      "body": {
+        "connector_type_id": ".servicenow",
+        "name": "SN",
+        "config": {
+          "apiUrl": "https://sn.example.com"
+        },
+        "secrets": {
+          "username": "u",
+          "password": "p"
+        }
+      }
+    },
+    "credential": {
+      "base_url": "https://kb.example.com",
+      "username": "elastic",
+      "password": "pw"
+    }
+  }
+}

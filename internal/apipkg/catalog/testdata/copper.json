@@ -1,0 +1,496 @@
+{
+  "company.create": {
+    "params": {
+      "name": "Acme",
+      "additionalFields": {
+        "details": "d",
+        "address": {
+          "addressFields": {
+            "city": "Oslo"
+          }
+        },
+        "phone_numbers": {
+          "phoneFields": [
+            {
+              "number": "1",
+              "category": "work"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/companies",
+      "query": {},
+      "body": {
+        "name": "Acme",
+        "details": "d",
+        "address": {
+          "city": "Oslo"
+        },
+        "phone_numbers": [
+          {
+            "number": "1",
+            "category": "work"
+          }
+        ]
+      }
+    }
+  },
+  "company.delete": {
+    "params": {
+      "companyId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/developer_api/v1/companies/1",
+      "query": {}
+    }
+  },
+  "company.get": {
+    "params": {
+      "companyId": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/developer_api/v1/companies/1",
+      "query": {}
+    }
+  },
+  "company.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/companies/search",
+      "query": {},
+      "body": {
+        "page_number": 1,
+        "page_size": 5
+      },
+      "items": 1
+    }
+  },
+  "company.update": {
+    "params": {
+      "companyId": "1",
+      "updateFields": {
+        "name": "M"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/developer_api/v1/companies/1",
+      "query": {},
+      "body": {
+        "name": "M"
+      }
+    }
+  },
+  "lead.create": {
+    "params": {
+      "name": "N"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/leads",
+      "query": {},
+      "body": {
+        "name": "N"
+      }
+    }
+  },
+  "lead.delete": {
+    "params": {
+      "leadId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/developer_api/v1/leads/1",
+      "query": {}
+    }
+  },
+  "lead.get": {
+    "params": {
+      "leadId": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/developer_api/v1/leads/1",
+      "query": {}
+    }
+  },
+  "lead.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/leads/search",
+      "query": {},
+      "body": {
+        "page_number": 1,
+        "page_size": 5
+      },
+      "items": 1
+    }
+  },
+  "lead.update": {
+    "params": {
+      "leadId": "1",
+      "updateFields": {
+        "email": {
+          "emailFields": {
+            "email": "a@b.c",
+            "category": "work"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/developer_api/v1/leads/1",
+      "query": {},
+      "body": {
+        "email": {
+          "email": "a@b.c",
+          "category": "work"
+        }
+      }
+    }
+  },
+  "opportunity.create": {
+    "params": {
+      "name": "Deal",
+      "customerSourceId": "3",
+      "primaryContactId": "4"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/opportunities",
+      "query": {},
+      "body": {
+        "name": "Deal",
+        "customer_source_id": "3",
+        "primary_contact_id": "4"
+      }
+    }
+  },
+  "opportunity.delete": {
+    "params": {
+      "opportunityId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/developer_api/v1/opportunities/1",
+      "query": {}
+    }
+  },
+  "opportunity.get": {
+    "params": {
+      "opportunityId": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/developer_api/v1/opportunities/1",
+      "query": {}
+    }
+  },
+  "opportunity.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/opportunities/search",
+      "query": {},
+      "body": {
+        "page_number": 1,
+        "page_size": 5
+      },
+      "items": 1
+    }
+  },
+  "opportunity.update": {
+    "params": {
+      "opportunityId": "1",
+      "updateFields": {
+        "name": "M"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/developer_api/v1/opportunities/1",
+      "query": {},
+      "body": {
+        "name": "M"
+      }
+    }
+  },
+  "person.create": {
+    "params": {
+      "name": "N"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/people",
+      "query": {},
+      "body": {
+        "name": "N"
+      }
+    }
+  },
+  "person.delete": {
+    "params": {
+      "personId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/developer_api/v1/people/1",
+      "query": {}
+    }
+  },
+  "person.get": {
+    "params": {
+      "personId": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/developer_api/v1/people/1",
+      "query": {}
+    }
+  },
+  "person.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/people/search",
+      "query": {},
+      "body": {
+        "page_number": 1,
+        "page_size": 5
+      },
+      "items": 1
+    }
+  },
+  "person.update": {
+    "params": {
+      "personId": "1",
+      "updateFields": {
+        "name": "M"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/developer_api/v1/people/1",
+      "query": {},
+      "body": {
+        "name": "M"
+      }
+    }
+  },
+  "project.create": {
+    "params": {
+      "name": "N"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/projects",
+      "query": {},
+      "body": {
+        "name": "N"
+      }
+    }
+  },
+  "project.delete": {
+    "params": {
+      "projectId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/developer_api/v1/projects/1",
+      "query": {}
+    }
+  },
+  "project.get": {
+    "params": {
+      "projectId": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/developer_api/v1/projects/1",
+      "query": {}
+    }
+  },
+  "project.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/projects/search",
+      "query": {},
+      "body": {
+        "page_number": 1,
+        "page_size": 5
+      },
+      "items": 1
+    }
+  },
+  "project.update": {
+    "params": {
+      "projectId": "1",
+      "updateFields": {
+        "name": "M"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/developer_api/v1/projects/1",
+      "query": {},
+      "body": {
+        "name": "M"
+      }
+    }
+  },
+  "task.create": {
+    "params": {
+      "name": "N"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/tasks",
+      "query": {},
+      "body": {
+        "name": "N"
+      }
+    }
+  },
+  "task.delete": {
+    "params": {
+      "taskId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/developer_api/v1/tasks/1",
+      "query": {}
+    }
+  },
+  "task.get": {
+    "params": {
+      "taskId": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/developer_api/v1/tasks/1",
+      "query": {}
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "limit": 5,
+      "filterFields": {
+        "project_ids": "1,2"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/tasks/search",
+      "query": {},
+      "body": {
+        "project_ids": [
+          "1",
+          "2"
+        ],
+        "page_number": 1,
+        "page_size": 5
+      },
+      "items": 1
+    }
+  },
+  "task.update": {
+    "params": {
+      "taskId": "1",
+      "updateFields": {
+        "name": "M"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/developer_api/v1/tasks/1",
+      "query": {},
+      "body": {
+        "name": "M"
+      }
+    }
+  },
+  "customerSource.getAll": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/developer_api/v1/customer_sources",
+      "query": {},
+      "items": 2
+    }
+  },
+  "user.getAll": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/developer_api/v1/users/search",
+      "query": {},
+      "body": {
+        "page_number": 1,
+        "page_size": 5
+      },
+      "items": 1
+    }
+  }
+}

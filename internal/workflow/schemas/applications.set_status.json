@@ -47,5 +47,17 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "Application id",
+      "key": "id",
+      "type": "string"
+    },
+    {
+      "description": "the new status",
+      "key": "status",
+      "type": "string"
+    }
   ]
 }

@@ -74,6 +74,13 @@ var readOnlyNodes = setOf(
 	"core.respond_webhook",
 	"data.compression", "data.crypto", "data.datetime", "data.html",
 	"data.markdown", "data.xml",
+	// n8n-parity data shaping: pure transforms of the items (convert/
+	// extract work on item data; jwt/totp only compute).
+	"data.convert_to_file", "data.debug_helper", "data.extract_from_file",
+	"data.ical", "data.jwt", "data.rename_keys", "data.split_out",
+	"data.summarize", "data.totp", "image.edit",
+	// Text chunking and document loading (from item data or local files).
+	"vector.split_text", "vector.load_document",
 	// Image transforms write a new derived file; image.info only reads.
 	// remove_background downloads its model with a GET.
 	"image.adjust", "image.convert", "image.crop", "image.info",
@@ -252,11 +259,15 @@ var outboundNodes = setOf(
 	"http.ftp", "http.ssh", "system.execute_command",
 	"http.graphql",
 	"data.write_binary_file", // writes any local path
+	"data.read_write_file",   // writes any local path
 	"vault.secret_save",      // overwrites credentials
 )
 
 var outboundPrefixes = []string{
 	"comm.", "service.", "action.", "db.", "org.",
+	// API packages (app.*) call third-party APIs; queue.* publish to
+	// brokers; vector.embed/store call embedding and vector-store APIs.
+	"app.", "queue.", "vector.",
 	// Browser automations; their read actions are in readOnlyActions.
 	"gemini.", "hackernews.", "instagram.", "linkedin.", "producthunt.",
 	"tiktok.", "x.",

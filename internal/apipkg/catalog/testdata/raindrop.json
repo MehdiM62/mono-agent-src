@@ -1,0 +1,246 @@
+{
+  "collection.get": {
+    "params": {
+      "collectionId": "7"
+    },
+    "response": {
+      "item": {
+        "_id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/v1/collection/7",
+      "items": 1
+    }
+  },
+  "collection.create": {
+    "params": {
+      "title": "Reading",
+      "additionalFields": {
+        "parentId": "3",
+        "view": "grid"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/v1/collection",
+      "body": {
+        "title": "Reading",
+        "parent.$id": 3,
+        "view": "grid"
+      }
+    }
+  },
+  "collection.delete": {
+    "params": {
+      "collectionId": "7"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/v1/collection/7"
+    }
+  },
+  "collection.getAll": {
+    "params": {
+      "type": "children",
+      "limit": 1
+    },
+    "response": {
+      "items": [
+        {
+          "_id": 1
+        },
+        {
+          "_id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/v1/collections/childrens",
+      "items": 1
+    }
+  },
+  "collection.update": {
+    "params": {
+      "collectionId": "7",
+      "updateFields": {
+        "title": "New",
+        "cover": "data"
+      }
+    },
+    "input": {
+      "data": "aW1n"
+    },
+    "responses": [
+      {
+        "item": {
+          "_id": 7
+        }
+      },
+      {
+        "item": {
+          "_id": 7
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "PUT",
+        "path": "/rest/v1/collection/7",
+        "body": {
+          "title": "New"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/rest/v1/collection/7/cover",
+        "body": {
+          "cover": "file:data:img"
+        }
+      }
+    ]
+  },
+  "bookmark.get": {
+    "params": {
+      "bookmarkId": "9"
+    },
+    "response": {
+      "item": {
+        "_id": 9
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/v1/raindrop/9",
+      "items": 1
+    }
+  },
+  "bookmark.create": {
+    "params": {
+      "collectionId": "5",
+      "link": "https://x.test",
+      "additionalFields": {
+        "pleaseParse": true,
+        "tags": "a, b"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/v1/raindrop",
+      "body": {
+        "link": "https://x.test",
+        "collection": {
+          "$id": 5
+        },
+        "pleaseParse": {},
+        "tags": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  },
+  "bookmark.delete": {
+    "params": {
+      "bookmarkId": "9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/v1/raindrop/9"
+    }
+  },
+  "bookmark.getAll": {
+    "params": {
+      "collectionId": "0",
+      "limit": 2
+    },
+    "response": {
+      "items": [
+        {
+          "_id": 1
+        },
+        {
+          "_id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/v1/raindrops/0",
+      "query": {
+        "page": "0",
+        "perpage": "2"
+      },
+      "items": 2
+    }
+  },
+  "bookmark.update": {
+    "params": {
+      "bookmarkId": "9",
+      "updateFields": {
+        "title": "T",
+        "important": true
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/rest/v1/raindrop/9",
+      "body": {
+        "title": "T",
+        "important": true
+      }
+    }
+  },
+  "tag.getAll": {
+    "params": {
+      "filters": {
+        "collectionId": "5"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "_id": "a"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/v1/tags/5",
+      "items": 1
+    }
+  },
+  "tag.delete": {
+    "params": {
+      "tags": "a,b"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/v1/tags",
+      "body": {
+        "tags": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  },
+  "user.get": {
+    "params": {
+      "self": false,
+      "userId": "42"
+    },
+    "response": {
+      "user": {
+        "_id": 42
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/v1/user/42",
+      "items": 1
+    }
+  }
+}

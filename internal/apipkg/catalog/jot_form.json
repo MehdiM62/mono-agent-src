@@ -1,0 +1,49 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "jot_form",
+  "title": "Jotform",
+  "description": "Jotform form submissions (trigger only; recorded for the importer)",
+  "category": "app",
+  "docs_url": "https://api.jotform.com/docs/",
+  "n8n_types": [],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.jotFormTrigger"
+  ],
+  "base_url": "https://{{ cred.api_domain | default:'api.jotform.com' }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "jotform",
+      "name": "Jotform",
+      "n8n_credential": "jotFormApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "apiDomain": "api_domain"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "api_domain",
+          "label": "API domain",
+          "help": "api.jotform.com (default), eu-api.jotform.com or hipaa-api.jotform.com"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "APIKEY": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "operations": []
+}

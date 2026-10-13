@@ -1,0 +1,1092 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "noco_db",
+  "title": "NocoDB",
+  "description": "Rows, links and bases in NocoDB (n8n node version 4, NocoDB API v3)",
+  "category": "app",
+  "docs_url": "https://nocodb.com/apis/v3/data",
+  "n8n_types": [
+    "n8n-nodes-base.nocoDb"
+  ],
+  "base_url": "{{ cred.host }}",
+  "credentials": [
+    {
+      "platform": "nocodb",
+      "name": "NocoDB (API token)",
+      "n8n_credential": "nocoDbApiToken",
+      "n8n_field_map": {
+        "apiToken": "api_token",
+        "host": "host"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "host",
+          "label": "Host",
+          "required": true,
+          "help": "e.g. https://app.nocodb.com (no trailing slash)"
+        },
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "xc-token": "{{ cred.api_token }}"
+        }
+      }
+    },
+    {
+      "platform": "nocodb_user",
+      "name": "NocoDB (user token)",
+      "n8n_credential": "nocoDb",
+      "n8n_field_map": {
+        "apiToken": "user_token",
+        "host": "host"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "host",
+          "label": "Host",
+          "required": true,
+          "help": "e.g. https://app.nocodb.com (no trailing slash)"
+        },
+        {
+          "key": "user_token",
+          "label": "User token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "xc-auth": "{{ cred.user_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "row",
+      "label": "Row"
+    },
+    {
+      "value": "linkrow",
+      "label": "Link row"
+    },
+    {
+      "value": "base",
+      "label": "Base"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "row",
+      "operation": "get",
+      "title": "Get a row",
+      "method": "GET",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/records/{{ p.id }}",
+      "description": "Attachment download (downloadAttachments) is not supported; attachment URLs are in the row.",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "downloadAttachments",
+          "label": "Download attachments",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "downloadFieldNames",
+          "label": "Attachment fields",
+          "type": "array",
+          "default": [],
+          "item_type": "text"
+        }
+      ]
+    },
+    {
+      "resource": "row",
+      "operation": "create",
+      "title": "Create a row",
+      "method": "POST",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/records",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "mapWithFields",
+          "options": [
+            "autoMapInputData",
+            "mapWithFields"
+          ]
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated, with autoMapInputData (reads the item's fields object)."
+        },
+        {
+          "key": "fieldsMapper",
+          "label": "Columns",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"value\": {\"Title\": \"x\"}}"
+        }
+      ],
+      "body": [
+        {
+          "fields": {
+            "$merge": [
+              "{{ p.dataToSend | eq:'autoMapInputData' | then:(item.fields | omit:p.inputsToIgnore) }}",
+              "{{ p.dataToSend | ne:'autoMapInputData' | then:p.fieldsMapper.value }}"
+            ]
+          }
+        }
+      ],
+      "output": {
+        "path": "records"
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "upsert",
+      "title": "Create or update a row",
+      "method": "{{ p.id | then:'PATCH' | default:'POST' }}",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/records",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "mapWithFields",
+          "options": [
+            "autoMapInputData",
+            "mapWithFields"
+          ]
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "default": "",
+          "help": "Empty creates a new row."
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated, with autoMapInputData (reads the item's fields object)."
+        },
+        {
+          "key": "fieldsMapper",
+          "label": "Columns",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"value\": {\"Title\": \"x\"}}"
+        }
+      ],
+      "body": [
+        {
+          "id": "{{ p.id }}",
+          "fields": {
+            "$merge": [
+              "{{ p.dataToSend | eq:'autoMapInputData' | then:(item.fields | omit:p.inputsToIgnore) }}",
+              "{{ p.dataToSend | ne:'autoMapInputData' | then:p.fieldsMapper.value }}"
+            ]
+          }
+        }
+      ],
+      "output": {
+        "path": "records"
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "update",
+      "title": "Update a row",
+      "method": "PATCH",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/records",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "mapWithFields",
+          "options": [
+            "autoMapInputData",
+            "mapWithFields"
+          ]
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated, with autoMapInputData (reads the item's fields object)."
+        },
+        {
+          "key": "fieldsMapper",
+          "label": "Columns",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"value\": {\"Title\": \"x\"}}"
+        }
+      ],
+      "body": [
+        {
+          "id": "{{ p.id }}",
+          "fields": {
+            "$merge": [
+              "{{ p.dataToSend | eq:'autoMapInputData' | then:(item.fields | omit:p.inputsToIgnore) }}",
+              "{{ p.dataToSend | ne:'autoMapInputData' | then:p.fieldsMapper.value }}"
+            ]
+          }
+        }
+      ],
+      "output": {
+        "path": "records"
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "delete",
+      "title": "Delete a row",
+      "method": "DELETE",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/records",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "body": [
+        {
+          "id": "{{ p.id }}"
+        }
+      ],
+      "output": {
+        "path": "records"
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "search",
+      "title": "Search rows",
+      "method": "GET",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/records",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "downloadAttachments",
+          "label": "Download attachments",
+          "type": "boolean",
+          "default": false,
+          "help": "Not supported; attachment URLs are in the rows."
+        },
+        {
+          "key": "downloadFieldNames",
+          "label": "Attachment fields",
+          "type": "array",
+          "default": [],
+          "item_type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "viewId",
+            "fields",
+            "sort",
+            "where",
+            "page",
+            "shuffle"
+          ],
+          "help": "sort: {\"property\": [{\"field\": \"Title\", \"direction\": \"asc\"}]}; where: (Title,eq,x)"
+        }
+      ],
+      "query": {
+        "viewId": "{{ p.options.viewId | rl }}",
+        "fields": "{{ p.options.fields | csv }}",
+        "sort": {
+          "$json": {
+            "$map": "{{ p.options.sort.property }}",
+            "$to": {
+              "field": "{{ el.field | rl }}",
+              "direction": "{{ el.direction }}"
+            }
+          }
+        },
+        "where": "{{ p.options.where }}",
+        "page": "{{ p.options.page }}",
+        "shuffle": "{{ p.options.shuffle | eq:'true' | then:1 }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "count",
+      "title": "Count rows",
+      "method": "GET",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/count",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "where"
+          ]
+        }
+      ],
+      "query": {
+        "where": "{{ p.options.where }}"
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "upload",
+      "title": "Upload an attachment to a cell",
+      "method": "{{ p.uploadMode | eq:'url' | then:'PATCH' | default:'POST' }}",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/records{{ p.uploadMode | ne:'url' | then:(p.id | prefix:'/') | path }}{{ p.uploadMode | ne:'url' | then:(p.uploadFieldName | rl | prefix:'/fields/' | suffix:'/upload') | path }}",
+      "before": {
+        "when": "{{ p.uploadMode | eq:'url' }}",
+        "method": "GET",
+        "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/records/{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "uploadMode",
+          "label": "Upload mode",
+          "type": "select",
+          "default": "base64",
+          "required": true,
+          "options": [
+            "base64",
+            "url"
+          ]
+        },
+        {
+          "key": "uploadFieldName",
+          "label": "Attachment field",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "filename",
+          "label": "File name",
+          "type": "text",
+          "default": "",
+          "help": "base64 mode"
+        },
+        {
+          "key": "contentType",
+          "label": "Content type",
+          "type": "text",
+          "default": "",
+          "help": "base64 mode"
+        },
+        {
+          "key": "base64value",
+          "label": "Base64 content",
+          "type": "textarea",
+          "default": "",
+          "help": "base64 mode"
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "default": "",
+          "help": "url mode"
+        }
+      ],
+      "body": {
+        "contentType": "{{ p.uploadMode | ne:'url' | then:p.contentType }}",
+        "file": "{{ p.uploadMode | ne:'url' | then:p.base64value }}",
+        "filename": "{{ p.uploadMode | ne:'url' | then:p.filename }}",
+        "id": "{{ p.uploadMode | eq:'url' | then:p.id }}",
+        "fields": {
+          "$entries": "{{ p.uploadMode | eq:'url' | then:(p.uploadFieldName | rl) | split }}",
+          "$key": "{{ el }}",
+          "$value": {
+            "$concat": [
+              "{{ pre.fields | get:el | fromjson }}",
+              [
+                {
+                  "url": "{{ p.url }}"
+                }
+              ]
+            ]
+          }
+        }
+      }
+    },
+    {
+      "resource": "linkrow",
+      "operation": "list",
+      "title": "List linked rows",
+      "method": "GET",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/links/{{ p.linkFieldName | rl }}/{{ p.id }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "linkFieldName",
+          "label": "Link field ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "sort",
+            "where"
+          ],
+          "help": "fields: {\"items\": [{\"field\": \"Title\"}]}"
+        }
+      ],
+      "query": {
+        "fields": {
+          "$join": {
+            "$map": "{{ p.options.fields.items }}",
+            "$to": "{{ el.field | rl }}"
+          },
+          "$sep": ","
+        },
+        "sort": {
+          "$json": {
+            "$map": "{{ p.options.sort.property }}",
+            "$to": {
+              "field": "{{ el.field | rl }}",
+              "direction": "{{ el.direction }}"
+            }
+          }
+        },
+        "where": "{{ p.options.where }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "records"
+      }
+    },
+    {
+      "resource": "linkrow",
+      "operation": "link",
+      "title": "Link rows",
+      "method": "POST",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/links/{{ p.linkFieldName | rl }}/{{ p.id }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "linkFieldName",
+          "label": "Link field ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "linkId",
+          "label": "Linked row IDs",
+          "type": "array",
+          "default": [],
+          "required": true,
+          "item_type": "text"
+        }
+      ],
+      "body": {
+        "$map": "{{ p.linkId | split }}",
+        "$to": {
+          "id": "{{ el }}"
+        }
+      }
+    },
+    {
+      "resource": "linkrow",
+      "operation": "unlink",
+      "title": "Unlink rows",
+      "method": "DELETE",
+      "path": "/api/v3/data/{{ p.projectId | rl }}/{{ p.table | rl }}/links/{{ p.linkFieldName | rl }}/{{ p.id }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "table",
+          "label": "Table ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "id",
+          "label": "Row ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "linkFieldName",
+          "label": "Link field ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "linkId",
+          "label": "Linked row IDs",
+          "type": "array",
+          "default": [],
+          "required": true,
+          "item_type": "text"
+        }
+      ],
+      "body": {
+        "$map": "{{ p.linkId | split }}",
+        "$to": {
+          "id": "{{ el }}"
+        }
+      }
+    },
+    {
+      "resource": "base",
+      "operation": "get",
+      "title": "Get a base and its tables",
+      "method": "GET",
+      "path": "/api/v3/meta/bases/{{ p.projectId | rl }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        },
+        {
+          "key": "projectId",
+          "label": "Base ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        }
+      ],
+      "output": {
+        "expand": {
+          "method": "GET",
+          "path": "/api/v3/meta/bases/{{ p.projectId | rl }}/tables"
+        },
+        "expand_merge_key": "tables",
+        "expand_merge_path": "list"
+      }
+    },
+    {
+      "resource": "base",
+      "operation": "getAll",
+      "title": "Get many bases",
+      "method": "GET",
+      "path": "/api/{{ p.workspaceId | rl | then:'v3/meta/workspaces/' | default:'v2/meta/bases/' }}{{ p.workspaceId | rl }}{{ p.workspaceId | rl | then:'/bases' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "nocoDb",
+          "options": [
+            "nocoDbApiToken",
+            "nocoDb"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "default": "",
+          "help": "Optional; an n8n resource locator is accepted."
+        }
+      ],
+      "output": {
+        "path": "list"
+      }
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import (
 
 	slackgo "github.com/slack-go/slack"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -29,6 +30,9 @@ type SlackNode struct{}
 func (n *SlackNode) Type() string { return "comm.slack" }
 
 func (n *SlackNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.slack", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.slack", input, config)
+	}
 	token, _ := config["access_token"].(string)
 	if token == "" {
 		token, _ = config["token"].(string)

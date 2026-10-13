@@ -12,6 +12,7 @@ import (
 	"github.com/monoes/mono-agent/internal/apipkg"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/hilsend"
+	_ "github.com/monoes/mono-agent/internal/n8nimport/n8napps" // n8n import of API package nodes
 	"github.com/monoes/mono-agent/internal/nodes"
 	agentnodes "github.com/monoes/mono-agent/internal/nodes/agent"
 	choosenodes "github.com/monoes/mono-agent/internal/nodes/ai/choose"

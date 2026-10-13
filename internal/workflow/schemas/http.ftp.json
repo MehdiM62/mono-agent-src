@@ -62,5 +62,32 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "true when the operation succeeded",
+      "key": "success",
+      "type": "boolean"
+    },
+    {
+      "description": "remote path",
+      "key": "path",
+      "type": "string"
+    },
+    {
+      "description": "download: the local file written",
+      "key": "local_path",
+      "type": "string"
+    },
+    {
+      "description": "download without a local path: base64 file contents",
+      "key": "contents",
+      "type": "string"
+    },
+    {
+      "description": "list: {name, type, size, time} per entry",
+      "key": "entries",
+      "type": "array"
+    }
   ]
 }

@@ -493,6 +493,8 @@ export function MarkPersonMessagesRead(arg1:string,arg2:Array<string>):Promise<v
 
 export function MoveProfileFolder(arg1:string,arg2:string):Promise<void>;
 
+export function NodeConfigFromCurl(arg1:string):Promise<main.CurlImport>;
+
 export function OpenAnyFilePicker(arg1:string):Promise<string>;
 
 export function OpenJSONFilePicker(arg1:string):Promise<string>;

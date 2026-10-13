@@ -9,5 +9,37 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "width in px",
+      "key": "image_width",
+      "type": "number"
+    },
+    {
+      "description": "height in px",
+      "key": "image_height",
+      "type": "number"
+    },
+    {
+      "description": "file extension",
+      "key": "image_format",
+      "type": "string"
+    },
+    {
+      "description": "file size",
+      "key": "image_size_bytes",
+      "type": "number"
+    },
+    {
+      "description": "width/height",
+      "key": "image_aspect_ratio",
+      "type": "string"
+    }
   ]
 }

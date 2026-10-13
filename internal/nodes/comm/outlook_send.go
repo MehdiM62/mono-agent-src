@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/smtp"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -40,6 +41,9 @@ type OutlookSendNode struct{}
 func (n *OutlookSendNode) Type() string { return "comm.outlook_send" }
 
 func (n *OutlookSendNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.outlook_send", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.outlook_send", input, config)
+	}
 	const smtpHost = "smtp-mail.outlook.com"
 	const smtpPort = 587
 

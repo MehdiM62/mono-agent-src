@@ -10,5 +10,12 @@
     { "key": "view", "label": "View", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["list_records"] } },
     { "key": "max_records", "label": "Max Records", "type": "number", "required": false, "help": "Stop after this many records. Empty or 0 returns every record.", "depends_on": { "key": "operation", "values": ["list_records"] } },
     { "key": "fields", "label": "Fields (JSON)", "type": "textarea", "required": false, "rows": 5, "depends_on": { "key": "operation", "values": ["create_record", "update_record"] } }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
+    }
   ]
 }

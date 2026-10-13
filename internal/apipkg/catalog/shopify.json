@@ -1,0 +1,523 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "shopify",
+  "extends": "service.shopify",
+  "title": "Shopify",
+  "description": "Orders and products in a Shopify store (n8n operations)",
+  "category": "app",
+  "docs_url": "https://shopify.dev/docs/api/admin-rest",
+  "n8n_types": [
+    "n8n-nodes-base.shopify"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.shopifyTrigger"
+  ],
+  "base_url": "https://{{ cred.shop_domain | replace:'.myshopify.com','' }}.myshopify.com/admin/api/2024-07",
+  "credentials": [
+    {
+      "platform": "shopify",
+      "reuse_platform": "shopify",
+      "name": "Shopify",
+      "n8n_credential": "shopifyAccessTokenApi",
+      "n8n_credential_alt": [
+        "shopifyApi",
+        "shopifyOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "shopSubdomain": "shop_domain",
+        "accessToken": "access_token",
+        "password": "access_token"
+      },
+      "methods": [
+        "api_key",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "shop_domain",
+          "label": "Shop domain",
+          "required": true,
+          "help": "mystore or mystore.myshopify.com"
+        },
+        {
+          "key": "access_token",
+          "label": "Admin API access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Shopify-Access-Token": "{{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "order",
+      "label": "Order"
+    },
+    {
+      "value": "product",
+      "label": "Product"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "order",
+      "operation": "create",
+      "title": "Create an order",
+      "method": "POST",
+      "path": "/orders.json",
+      "fields": [
+        {
+          "key": "limeItemsUi",
+          "label": "Line items",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "lineItemValues"
+          ],
+          "required": true,
+          "help": "{\"lineItemValues\": [{\"productId\", \"variantId\", \"title\", \"grams\", \"quantity\", \"price\"}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billingAddressUi",
+            "discountCodesUi",
+            "email",
+            "fulfillmentStatus",
+            "inventoryBehaviour",
+            "locationId",
+            "note",
+            "sendFulfillmentReceipt",
+            "sendReceipt",
+            "shippingAddressUi",
+            "sourceName",
+            "tags",
+            "test"
+          ],
+          "help": "billingAddressUi: {\"billingAddressValues\": {\"firstName\", \"lastName\", \"company\", \"country\", \"address1\", \"address2\", \"city\", \"province\", \"zip\", \"phone\"}}; shippingAddressUi: same with shippingAddressValues; discountCodesUi: {\"discountCodesValues\": [{\"amount\", \"code\", \"type\"}]}"
+        }
+      ],
+      "body": {
+        "order": {
+          "test": "{{ p.additionalFields.test | default:true }}",
+          "line_items": {
+            "$map": "{{ p.limeItemsUi.lineItemValues }}",
+            "$to": {
+              "product_id": "{{ el.productId }}",
+              "variant_id": "{{ el.variantId }}",
+              "title": "{{ el.title }}",
+              "grams": "{{ el.grams }}",
+              "quantity": "{{ el.quantity }}",
+              "price": "{{ el.price }}"
+            }
+          },
+          "fulfillment_status": "{{ p.additionalFields.fulfillmentStatus }}",
+          "inventory_behaviour": "{{ p.additionalFields.inventoryBehaviour }}",
+          "location_id": "{{ p.additionalFields.locationId }}",
+          "note": "{{ p.additionalFields.note }}",
+          "send_fulfillment_receipt": "{{ p.additionalFields.sendFulfillmentReceipt }}",
+          "send_receipt": "{{ p.additionalFields.sendReceipt }}",
+          "source_name": "{{ p.additionalFields.sourceName }}",
+          "tags": "{{ p.additionalFields.tags }}",
+          "email": "{{ p.additionalFields.email }}",
+          "discount_codes": "{{ p.additionalFields.discountCodesUi.discountCodesValues }}",
+          "billing_address": {
+            "first_name": "{{ p.additionalFields.billingAddressUi.billingAddressValues.firstName }}",
+            "last_name": "{{ p.additionalFields.billingAddressUi.billingAddressValues.lastName }}",
+            "company": "{{ p.additionalFields.billingAddressUi.billingAddressValues.company }}",
+            "country": "{{ p.additionalFields.billingAddressUi.billingAddressValues.country }}",
+            "address1": "{{ p.additionalFields.billingAddressUi.billingAddressValues.address1 }}",
+            "address2": "{{ p.additionalFields.billingAddressUi.billingAddressValues.address2 }}",
+            "city": "{{ p.additionalFields.billingAddressUi.billingAddressValues.city }}",
+            "province": "{{ p.additionalFields.billingAddressUi.billingAddressValues.province }}",
+            "zip": "{{ p.additionalFields.billingAddressUi.billingAddressValues.zip }}",
+            "phone": "{{ p.additionalFields.billingAddressUi.billingAddressValues.phone }}"
+          },
+          "shipping_address": {
+            "first_name": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.firstName }}",
+            "last_name": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.lastName }}",
+            "company": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.company }}",
+            "country": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.country }}",
+            "address1": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.address1 }}",
+            "address2": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.address2 }}",
+            "city": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.city }}",
+            "province": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.province }}",
+            "zip": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.zip }}",
+            "phone": "{{ p.additionalFields.shippingAddressUi.shippingAddressValues.phone }}"
+          }
+        }
+      },
+      "output": {
+        "path": "order"
+      }
+    },
+    {
+      "resource": "order",
+      "operation": "delete",
+      "title": "Delete an order",
+      "method": "DELETE",
+      "path": "/orders/{{ p.orderId }}.json",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "order",
+      "operation": "get",
+      "title": "Get an order",
+      "method": "GET",
+      "path": "/orders/{{ p.orderId }}.json",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ],
+      "query": {
+        "fields": "{{ p.options.fields }}"
+      },
+      "output": {
+        "path": "order"
+      }
+    },
+    {
+      "resource": "order",
+      "operation": "getAll",
+      "title": "Get many orders",
+      "method": "GET",
+      "path": "/orders.json",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 250
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attributionAppId",
+            "createdAtMin",
+            "createdAtMax",
+            "financialStatus",
+            "fulfillmentStatus",
+            "fields",
+            "ids",
+            "processedAtMax",
+            "processedAtMin",
+            "status",
+            "sinceId",
+            "updatedAtMax",
+            "updatedAtMin"
+          ]
+        }
+      ],
+      "query": {
+        "fields": "{{ p.options.fields }}",
+        "attribution_app_id": "{{ p.options.attributionAppId }}",
+        "created_at_min": "{{ p.options.createdAtMin }}",
+        "created_at_max": "{{ p.options.createdAtMax }}",
+        "updated_at_max": "{{ p.options.updatedAtMax }}",
+        "updated_at_min": "{{ p.options.updatedAtMin }}",
+        "processed_at_min": "{{ p.options.processedAtMin }}",
+        "processed_at_max": "{{ p.options.processedAtMax }}",
+        "since_id": "{{ p.options.sinceId }}",
+        "ids": "{{ p.options.ids }}",
+        "status": "{{ p.options.status }}",
+        "financial_status": "{{ p.options.financialStatus }}",
+        "fulfillment_status": "{{ p.options.fulfillmentStatus }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "orders"
+      }
+    },
+    {
+      "resource": "order",
+      "operation": "update",
+      "title": "Update an order",
+      "method": "PUT",
+      "path": "/orders/{{ p.orderId }}.json",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "locationId",
+            "note",
+            "shippingAddressUi",
+            "sourceName",
+            "tags"
+          ]
+        }
+      ],
+      "body": {
+        "order": {
+          "location_id": "{{ p.updateFields.locationId }}",
+          "note": "{{ p.updateFields.note }}",
+          "source_name": "{{ p.updateFields.sourceName }}",
+          "tags": "{{ p.updateFields.tags }}",
+          "email": "{{ p.updateFields.email }}",
+          "shipping_address": {
+            "first_name": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.firstName }}",
+            "last_name": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.lastName }}",
+            "company": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.company }}",
+            "country": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.country }}",
+            "address1": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.address1 }}",
+            "address2": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.address2 }}",
+            "city": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.city }}",
+            "province": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.province }}",
+            "zip": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.zip }}",
+            "phone": "{{ p.updateFields.shippingAddressUi.shippingAddressValues.phone }}"
+          }
+        }
+      },
+      "output": {
+        "path": "order"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "create",
+      "title": "Create a product",
+      "method": "POST",
+      "path": "/products.json",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body_html",
+            "handle",
+            "images",
+            "productOptions",
+            "product_type",
+            "published_at",
+            "published_scope",
+            "tags",
+            "template_suffix",
+            "vendor"
+          ],
+          "help": "productOptions: {\"option\": [{\"name\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "product": {
+          "$merge": "{{ p.additionalFields | omit:'productOptions' }}",
+          "options": "{{ p.additionalFields.productOptions.option | kv:'name,value' }}",
+          "title": "{{ p.title }}"
+        }
+      },
+      "output": {
+        "path": "product"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "delete",
+      "title": "Delete a product",
+      "method": "DELETE",
+      "path": "/products/{{ p.productId }}.json",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "get",
+      "title": "Get a product",
+      "method": "GET",
+      "path": "/products/{{ p.productId }}.json",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "product"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "getAll",
+      "title": "Get many products",
+      "method": "GET",
+      "path": "/products.json",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 250
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "collection_id",
+            "created_at_max",
+            "created_at_min",
+            "fields",
+            "handle",
+            "ids",
+            "presentment_currencies",
+            "product_type",
+            "published_at_max",
+            "published_at_min",
+            "published_status",
+            "title",
+            "updated_at_max",
+            "updated_at_min",
+            "vendor"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "products"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "update",
+      "title": "Update a product",
+      "method": "PUT",
+      "path": "/products/{{ p.productId }}.json",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body_html",
+            "handle",
+            "images",
+            "productOptions",
+            "product_type",
+            "published_at",
+            "published_scope",
+            "tags",
+            "template_suffix",
+            "title",
+            "vendor"
+          ]
+        }
+      ],
+      "body": {
+        "product": {
+          "$merge": "{{ p.updateFields | omit:'productOptions' }}",
+          "options": "{{ p.updateFields.productOptions.option | kv:'name,value' }}"
+        }
+      },
+      "output": {
+        "path": "product"
+      }
+    }
+  ]
+}

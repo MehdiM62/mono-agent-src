@@ -1,0 +1,153 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "post_bin",
+  "node_type": "app.post_bin",
+  "title": "PostBin",
+  "description": "Create throwaway PostBin bins and send or inspect the requests they receive",
+  "category": "app",
+  "docs_url": "https://www.postb.in/api",
+  "n8n_types": [
+    "n8n-nodes-base.postBin"
+  ],
+  "base_url": "https://www.postb.in",
+  "resources": [
+    {
+      "value": "bin",
+      "label": "Bin"
+    },
+    {
+      "value": "request",
+      "label": "Request"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "bin",
+      "operation": "create",
+      "title": "Create a bin",
+      "method": "POST",
+      "path": "/api/bin",
+      "fields": [],
+      "output": {
+        "to": {
+          "binId": "{{ el.binId }}",
+          "nowTimestamp": "{{ el.now }}",
+          "nowIso": "{{ el.now | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+          "expiresTimestamp": "{{ el.expires }}",
+          "expiresIso": "{{ el.expires | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+          "requestUrl": "https://www.postb.in/{{ el.binId }}",
+          "viewUrl": "https://www.postb.in/b/{{ el.binId }}"
+        }
+      }
+    },
+    {
+      "resource": "bin",
+      "operation": "get",
+      "title": "Get a bin",
+      "method": "GET",
+      "path": "/api/bin/{{ p.binId | re:'(\\d{13}-\\d{13})' }}",
+      "fields": [
+        {
+          "key": "binId",
+          "label": "Bin ID",
+          "type": "text",
+          "required": true,
+          "help": "The bin id or its URL"
+        }
+      ],
+      "output": {
+        "to": {
+          "binId": "{{ el.binId }}",
+          "nowTimestamp": "{{ el.now }}",
+          "nowIso": "{{ el.now | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+          "expiresTimestamp": "{{ el.expires }}",
+          "expiresIso": "{{ el.expires | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+          "requestUrl": "https://www.postb.in/{{ el.binId }}",
+          "viewUrl": "https://www.postb.in/b/{{ el.binId }}"
+        }
+      }
+    },
+    {
+      "resource": "bin",
+      "operation": "delete",
+      "title": "Delete a bin",
+      "method": "DELETE",
+      "path": "/api/bin/{{ p.binId | re:'(\\d{13}-\\d{13})' }}",
+      "fields": [
+        {
+          "key": "binId",
+          "label": "Bin ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "request",
+      "operation": "get",
+      "title": "Get a request",
+      "method": "GET",
+      "path": "/api/bin/{{ p.binId | re:'(\\d{13}-\\d{13})' }}/req/{{ p.requestId }}",
+      "fields": [
+        {
+          "key": "binId",
+          "label": "Bin ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "requestId",
+          "label": "Request ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "request",
+      "operation": "removeFirst",
+      "title": "Take the oldest request",
+      "description": "Returns the oldest request of the bin and removes it",
+      "method": "GET",
+      "path": "/api/bin/{{ p.binId | re:'(\\d{13}-\\d{13})' }}/req/shift",
+      "fields": [
+        {
+          "key": "binId",
+          "label": "Bin ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "request",
+      "operation": "send",
+      "title": "Send a test request",
+      "method": "POST",
+      "path": "/{{ p.binId | re:'(\\d{13}-\\d{13})' }}",
+      "fields": [
+        {
+          "key": "binId",
+          "label": "Bin ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binContent",
+          "label": "Content",
+          "type": "textarea",
+          "default": "",
+          "rows": 5
+        }
+      ],
+      "body": {
+        "content": "{{ p.binContent }}"
+      },
+      "output": {
+        "to": {
+          "requestId": "{{ el.data | default:el }}"
+        }
+      }
+    }
+  ]
+}

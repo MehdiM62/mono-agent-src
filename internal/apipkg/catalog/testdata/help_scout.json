@@ -1,0 +1,350 @@
+{
+  "conversation.create": {
+    "params": {
+      "mailboxId": "5",
+      "status": "active",
+      "subject": "Hi",
+      "type": "email",
+      "additionalFields": {
+        "customerEmail": "c@x",
+        "tags": [
+          "vip"
+        ]
+      },
+      "threadsUi": {
+        "threadsValues": [
+          {
+            "type": "customer",
+            "text": "hello"
+          },
+          {
+            "type": "note",
+            "text": "n"
+          }
+        ]
+      }
+    },
+    "response_status": 201,
+    "expect": {
+      "method": "POST",
+      "path": "/v2/conversations",
+      "body": {
+        "mailboxId": 5,
+        "status": "active",
+        "subject": "Hi",
+        "type": "email",
+        "tags": [
+          "vip"
+        ],
+        "customer": {
+          "email": "c@x"
+        },
+        "threads": [
+          {
+            "type": "customer",
+            "text": "hello",
+            "customer": {
+              "email": "c@x"
+            }
+          },
+          {
+            "type": "note",
+            "text": "n"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "conversation.delete": {
+    "params": {
+      "conversationId": "1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/conversations/1"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "conversation.get": {
+    "params": {
+      "conversationId": "1"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/conversations/1",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "conversation.getAll": {
+    "params": {
+      "limit": 2,
+      "options": {
+        "status": "all",
+        "tags": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    "response": {
+      "_embedded": {
+        "conversations": [
+          {
+            "id": 1
+          },
+          {
+            "id": 2
+          },
+          {
+            "id": 3
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/conversations",
+      "query": {
+        "status": "all",
+        "tag": "a,b"
+      },
+      "items": 2
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "customer.create": {
+    "params": {
+      "additionalFields": {
+        "firstName": "A",
+        "age": 30
+      },
+      "addressUi": {
+        "addressValue": {
+          "line1": "1 St",
+          "city": "X"
+        }
+      },
+      "emailsUi": {
+        "emailsValues": [
+          {
+            "type": "work",
+            "value": "a@x"
+          }
+        ]
+      },
+      "resolveData": false
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/customers",
+      "body": {
+        "firstName": "A",
+        "age": "30",
+        "address": {
+          "city": "X",
+          "lines": [
+            "1 St"
+          ]
+        },
+        "emails": [
+          {
+            "type": "work",
+            "value": "a@x"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "customer.get": {
+    "params": {
+      "customerId": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/customers/1"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "customer.getAll": {
+    "params": {
+      "returnAll": true,
+      "options": {
+        "query": "(email:a@x)"
+      }
+    },
+    "response": {
+      "_embedded": {
+        "customers": [
+          {
+            "id": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/customers",
+      "query": {
+        "query": "(email:a@x)"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "customer.properties": {
+    "response": {
+      "_embedded": {
+        "customer-properties": [
+          {
+            "slug": "a"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/customer-properties",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "customer.update": {
+    "params": {
+      "customerId": "1",
+      "updateFields": {
+        "lastName": "B"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v2/customers/1",
+      "body": {
+        "lastName": "B"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "mailbox.get": {
+    "params": {
+      "mailboxId": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/mailboxes/1"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "mailbox.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "_embedded": {
+        "mailboxes": [
+          {
+            "id": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/mailboxes",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "thread.create": {
+    "params": {
+      "conversationId": "9",
+      "type": "note",
+      "text": "t",
+      "additionalFields": {
+        "customerId": 4
+      },
+      "attachmentsUi": {
+        "attachmentsBinary": [
+          {
+            "property": "data"
+          }
+        ]
+      }
+    },
+    "input": {
+      "data": "aGk="
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/conversations/9/notes",
+      "body": {
+        "text": "t",
+        "customer": {
+          "id": 4
+        },
+        "attachments": [
+          {
+            "fileName": "data",
+            "mimeType": "application/octet-stream",
+            "data": "aGk="
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "thread.getAll": {
+    "params": {
+      "conversationId": "9",
+      "returnAll": true
+    },
+    "response": {
+      "_embedded": {
+        "threads": [
+          {
+            "id": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/conversations/9/threads",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  }
+}

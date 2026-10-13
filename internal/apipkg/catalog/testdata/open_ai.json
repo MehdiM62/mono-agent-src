@@ -1,0 +1,171 @@
+{
+  "text.complete": {
+    "credential": {
+      "api_key": "k",
+      "organization_id": "org1"
+    },
+    "params": {
+      "prompt": "Say hi",
+      "options": {
+        "maxTokens": 20,
+        "temperature": 0.2
+      }
+    },
+    "response": {
+      "choices": [
+        {
+          "text": "hi"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/completions",
+      "body": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "Say hi",
+        "max_tokens": 20,
+        "temperature": 0.2
+      },
+      "items": 1
+    }
+  },
+  "text.edit": {
+    "credential": {
+      "api_key": "k",
+      "organization_id": "org1"
+    },
+    "params": {
+      "input": "teh",
+      "instruction": "fix"
+    },
+    "response": {
+      "choices": [
+        {
+          "text": "the"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/edits",
+      "body": {
+        "model": "text-davinci-edit-001",
+        "input": "teh",
+        "instruction": "fix"
+      },
+      "items": 1
+    }
+  },
+  "text.moderate": {
+    "credential": {
+      "api_key": "k",
+      "organization_id": "org1"
+    },
+    "params": {
+      "input": "x",
+      "simplifyOutput": false
+    },
+    "response": {
+      "results": [
+        {
+          "flagged": false
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/moderations",
+      "body": {
+        "model": "text-moderation-latest",
+        "input": "x"
+      },
+      "items": 1
+    }
+  },
+  "chat.complete": {
+    "credential": {
+      "api_key": "k",
+      "organization_id": "org1"
+    },
+    "params": {
+      "chatModel": "gpt-4o-mini",
+      "model": "",
+      "prompt": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Hi"
+          }
+        ]
+      }
+    },
+    "response": {
+      "choices": [
+        {
+          "message": {
+            "content": "Hello"
+          }
+        },
+        {
+          "message": {
+            "content": "Hey"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "body": {
+        "model": "gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Hi"
+          }
+        ]
+      },
+      "items": 2,
+      "headers": {
+        "OpenAI-Organization": "org1"
+      }
+    }
+  },
+  "image.create": {
+    "credential": {
+      "api_key": "k",
+      "organization_id": "org1"
+    },
+    "params": {
+      "prompt": "a cat",
+      "responseFormat": "imageUrl",
+      "options": {
+        "size": "512x512",
+        "n": 2
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "url": "https://x/1.png"
+        },
+        {
+          "url": "https://x/2.png"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/images/generations",
+      "body": {
+        "prompt": "a cat",
+        "model": "dall-e-2",
+        "response_format": "url",
+        "size": "512x512",
+        "n": 2
+      },
+      "items": 2
+    }
+  }
+}

@@ -466,5 +466,108 @@
         "is_favorite": true
       }
     }
+  },
+  "reminder.create": {
+    "params": {
+      "itemId": "123",
+      "dueDateType": "fixed_timezone",
+      "datetime": "2024-05-01T09:00:00",
+      "timezone": "Europe/Oslo",
+      "reminderOptions": {
+        "type": "absolute"
+      }
+    },
+    "response": {
+      "sync_status": {}
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_add",
+            "uuid": "<any>",
+            "temp_id": "<any>",
+            "args": {
+              "item_id": "123",
+              "due": {
+                "datetime": "2024-05-01T09:00:00",
+                "timezone": "Europe/Oslo"
+              },
+              "type": "absolute"
+            }
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "reminder.delete": {
+    "params": {
+      "reminderId": "9"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_delete",
+            "uuid": "<any>",
+            "args": {
+              "id": "9"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "reminder.getAll": {
+    "response": {
+      "reminders": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sync",
+      "body": {
+        "sync_token": "*",
+        "resource_types": [
+          "reminders"
+        ]
+      },
+      "items": 2
+    }
+  },
+  "reminder.update": {
+    "params": {
+      "reminderId": "9",
+      "reminderUpdateFields": {
+        "minute_offset": 30
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_update",
+            "uuid": "<any>",
+            "args": {
+              "id": "9",
+              "minute_offset": 30
+            }
+          }
+        ]
+      }
+    }
   }
 }

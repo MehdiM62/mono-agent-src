@@ -1,0 +1,118 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "signl4",
+  "title": "SIGNL4",
+  "description": "Send and resolve SIGNL4 team alerts through the team webhook",
+  "category": "app",
+  "docs_url": "https://connect.signl4.com/webhook/docs/index.html",
+  "n8n_types": [
+    "n8n-nodes-base.signl4"
+  ],
+  "base_url": "https://connect.signl4.com",
+  "credentials": [
+    {
+      "platform": "signl4",
+      "name": "SIGNL4",
+      "n8n_credential": "signl4Api",
+      "n8n_field_map": {
+        "teamSecret": "team_secret"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "team_secret",
+          "label": "Team secret",
+          "secret": true,
+          "required": true,
+          "help": "The last part of your team webhook URL"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Accept": "*/*"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "alert",
+      "label": "Alert"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "alert",
+      "operation": "send",
+      "title": "Send an alert",
+      "method": "POST",
+      "path": "/webhook/{{ cred.team_secret }}",
+      "body_type": "multipart",
+      "fields": [
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "alertingScenario",
+            "attachmentsUi",
+            "externalId",
+            "filtering",
+            "locationFieldsUi",
+            "service",
+            "title"
+          ],
+          "help": "alertingScenario: single_ack or multi_ack; attachmentsUi: {\"attachmentsBinary\": {\"property\": \"data\"}} (png, jpg, bmp, gif, mp3, wav); locationFieldsUi: {\"locationFieldsValues\": {\"latitude\", \"longitude\"}}"
+        }
+      ],
+      "body": {
+        "message": "{{ p.message }}",
+        "title": "{{ p.additionalFields.title }}",
+        "service": "{{ p.additionalFields.service }}",
+        "X-S4-Location": "{{ p.additionalFields.locationFieldsUi.locationFieldsValues.latitude }}{{ p.additionalFields.locationFieldsUi.locationFieldsValues.longitude | prefix:',' }}",
+        "X-S4-AlertingScenario": "{{ p.additionalFields.alertingScenario }}",
+        "X-S4-Filtering": "{{ p.additionalFields.filtering | eq:'true' | then:'true' }}",
+        "X-S4-ExternalID": "{{ p.additionalFields.externalId }}",
+        "X-S4-Status": "new",
+        "X-S4-SourceSystem": "mono-agent"
+      },
+      "binary": {
+        "upload_field": "additionalFields",
+        "property": "{{ p.additionalFields.attachmentsUi.attachmentsBinary.property }}",
+        "upload_when": "{{ p.additionalFields.attachmentsUi.attachmentsBinary.property }}",
+        "multipart_field": "attachment",
+        "fallback_body_type": "multipart"
+      }
+    },
+    {
+      "resource": "alert",
+      "operation": "resolve",
+      "title": "Resolve an alert",
+      "method": "POST",
+      "path": "/webhook/{{ cred.team_secret }}",
+      "body_type": "multipart",
+      "fields": [
+        {
+          "key": "externalId",
+          "label": "External ID",
+          "type": "text",
+          "required": true,
+          "help": "The external ID the alert was sent with"
+        }
+      ],
+      "body": {
+        "X-S4-ExternalID": "{{ p.externalId }}",
+        "X-S4-Status": "resolved",
+        "X-S4-SourceSystem": "mono-agent"
+      }
+    }
+  ]
+}
