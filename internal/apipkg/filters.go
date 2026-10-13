@@ -26,7 +26,7 @@ var knownFilters = map[string]bool{
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
-	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true, "snake": true,
+	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true, "snake": true, "matches": true, "in": true, "flatten": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -134,6 +134,49 @@ func applyFilter(name string, v, arg any) (any, error) {
 			}
 		}
 		return firestoreFields(obj, cols), nil
+	case "matches":
+		re, err := cachedRegexp(stringify(arg))
+		if err != nil {
+			return nil, fmt.Errorf("matches: %w", err)
+		}
+		if re.MatchString(stringify(v)) {
+			return true, nil
+		}
+		return nil, nil
+	case "in":
+		var set []any
+		if l, ok := arg.([]any); ok {
+			set = l
+		} else {
+			for _, x := range strings.Split(stringify(arg), ",") {
+				set = append(set, strings.TrimSpace(x))
+			}
+		}
+		for _, x := range set {
+			if stringify(x) == stringify(v) {
+				return true, nil
+			}
+		}
+		return nil, nil
+	case "flatten":
+		var out []any
+		var add func(x any)
+		add = func(x any) {
+			switch t := x.(type) {
+			case []any:
+				out = append(out, t...)
+			case map[string]any:
+				for _, k := range sortedKeys(t) {
+					add(t[k])
+				}
+			default:
+				if x != nil {
+					out = append(out, x)
+				}
+			}
+		}
+		add(v)
+		return out, nil
 	case "snake":
 		return snakeCase(stringify(v)), nil
 	case "values":
