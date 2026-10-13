@@ -82,7 +82,7 @@ require (
 	github.com/ysmood/got v0.40.0 // indirect
 	github.com/ysmood/leakless v0.9.0 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
-	golang.org/x/image v0.45.0 // indirect
+	golang.org/x/image v0.45.0
 	golang.org/x/sync v0.23.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/libc v1.77.1 // indirect
