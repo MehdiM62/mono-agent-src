@@ -1,4 +1,4 @@
-package main
+package record
 
 import (
 	"context"
@@ -11,11 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
-	browserpkg "github.com/monoes/mono-agent/internal/browser"
-	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/recordanalyze"
 	"github.com/monoes/mono-agent/internal/recording"
@@ -24,50 +21,28 @@ import (
 )
 
 // addRecordAnalyzeCommands adds `record analyze|verify|save`. Owned by the
-// analyze builder. JSON errors come from newRecordCmd's wrapper.
-func addRecordAnalyzeCommands(parent *cobra.Command, cfg *globalConfig) {
-	parent.AddCommand(newRecordAnalyzeCmd(cfg), newRecordVerifyCmd(cfg), newRecordSaveCmd(cfg))
+// analyze builder. JSON errors come from NewCommand's wrapper.
+func addRecordAnalyzeCommands(parent *cobra.Command, d Deps) {
+	parent.AddCommand(newRecordAnalyzeCmd(d), newRecordVerifyCmd(d), newRecordSaveCmd(d))
 }
 
-// recordAnalyzeRunner is the AI runner; tests replace it with a stub.
-var recordAnalyzeRunner = func(runtime, model string, timeout time.Duration) recordanalyze.Runner {
+// ExecRunner is analyze's production AI runner: monomind agent exec.
+func ExecRunner(runtime, model string, timeout time.Duration) recordanalyze.Runner {
 	return recordanalyze.ExecRunner{Runtime: runtime, Model: model, Timeout: timeout}
 }
 
-// recordVerifyExec returns the replay function for verify, or an error
-// when no browser is reachable; tests replace it.
-var recordVerifyExec = func(ctx context.Context, automationID string, verbose, keepOpen bool, secrets func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
-	logger := logging.Zerolog().With().Str("component", "extension").Logger()
-	if verbose {
-		logger = logger.Level(zerolog.TraceLevel)
-	}
-	// Same connect path as `node run`: reuse or start the bridge, and when
-	// the extension is not attached launch the user's real Chrome and wait.
-	bridge := setupProfileBridge(vault.ProfileIDFromContext(ctx), logger, 3*time.Second)
-	if !bridge.IsConnected() {
-		if err := ensureExtensionConnected(bridge, 30*time.Second); err != nil {
-			return nil, fmt.Errorf("browser bridge not connected: %w", err)
-		}
-	}
-	provider := &browserpkg.HybridSessionProvider{ExtBridge: bridge, Logger: logger}
-	page, err := provider.GetPage(ctx, automationID, "")
-	if err != nil {
-		return nil, fmt.Errorf("browser bridge not connected: %w", err)
-	}
-	return recordanalyze.PageExecWith(page, logger, recordanalyze.PageExecOptions{Secrets: secrets, KeepOpen: keepOpen}), nil
-}
-
-// recordSecretLookup returns the profile vault lookup for an automation's
+// VaultSecretLookup returns the profile vault lookup for an automation's
 // secrets — the same one node runs use ("<automation>/<name>", then the bare
 // name unless the package is imported) — or nil when the database cannot be
-// opened. The returned func closes the database. Tests replace it.
-var recordSecretLookup = func(ctx context.Context, cfg *globalConfig, automationID string) (func(string) (string, bool), func()) {
-	db, err := initDB(cfg)
+// opened. The returned func closes the database. It is the production
+// Deps.SecretLookup.
+func (d Deps) VaultSecretLookup(ctx context.Context, automationID string) (func(string) (string, bool), func()) {
+	db, err := d.OpenDB()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "warning: vault unavailable for verify secrets:", err)
 		return nil, func() {}
 	}
-	return nodes.SecretLookup(ctx, db.DB, cfg.ProfileID, automationID), func() { db.Close() }
+	return nodes.SecretLookup(ctx, db.DB, d.ProfileID(), automationID), func() { db.Close() }
 }
 
 // resolveDraftArg accepts a draft name, an absolute path, or a path
@@ -93,7 +68,7 @@ func monoagentHome() (string, error) {
 	return filepath.Dir(drafts), nil
 }
 
-func newRecordAnalyzeCmd(cfg *globalConfig) *cobra.Command {
+func newRecordAnalyzeCmd(d Deps) *cobra.Command {
 	var target, runtime, model string
 	var timeout time.Duration
 	var allowAdvanced bool
@@ -105,7 +80,7 @@ asks the AI (monomind agent exec) for an action draft, lints it against the
 recorded DOM and writes it to ~/.monoagent/recording-drafts/<recording>/.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := applyRecordScope(cfg); err != nil {
+			if err := applyRecordScope(d); err != nil {
 				return err
 			}
 			dir, err := recording.Find(args[0])
@@ -120,19 +95,19 @@ recorded DOM and writes it to ~/.monoagent/recording-drafts/<recording>/.`,
 			if err != nil {
 				return err
 			}
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
 			res, err := recordanalyze.Analyze(cmd.Context(), rec, recordanalyze.AnalyzeOptions{
 				Home: home, Target: target, Registry: reg, AllowAdvanced: allowAdvanced,
-				Runner: recordAnalyzeRunner(runtime, model, timeout),
+				Runner: d.AnalyzeRunner(runtime, model, timeout),
 			})
 			if err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), res)
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), res)
 			}
 			printAnalyzeResult(cmd.OutOrStdout(), res)
 			return nil
@@ -159,7 +134,7 @@ func printAnalyzeResult(w io.Writer, res *recordanalyze.Result) {
 	fmt.Fprintf(w, "Next: monoagentcli record verify %s\n", res.DraftDir)
 }
 
-func newRecordVerifyCmd(cfg *globalConfig) *cobra.Command {
+func newRecordVerifyCmd(d Deps) *cobra.Command {
 	var full, keepOpen bool
 	var inputs []string
 	var inputsFile string
@@ -172,13 +147,13 @@ func newRecordVerifyCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			d, err := recordanalyze.ReadDraft(dir)
+			draft, err := recordanalyze.ReadDraft(dir)
 			if err != nil {
 				return err
 			}
-			secrets, release := recordSecretLookup(cmd.Context(), cfg, d.TargetAutomation)
+			secrets, release := d.SecretLookup(cmd.Context(), draft.TargetAutomation)
 			defer release()
-			exec, err := recordVerifyExec(vault.ContextWithProfileID(cmd.Context(), browserProfile(cfg)), d.TargetAutomation, cfg.Verbose, keepOpen, secrets)
+			exec, err := d.VerifyExec(vault.ContextWithProfileID(cmd.Context(), d.BrowserProfile()), draft.TargetAutomation, d.Verbose(), keepOpen, secrets)
 			if err != nil {
 				return err
 			}
@@ -201,8 +176,8 @@ func newRecordVerifyCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
-				if err := writeJSONTo(cmd.OutOrStdout(), rep); err != nil {
+			if d.JSONOutput() {
+				if err := d.WriteJSON(cmd.OutOrStdout(), rep); err != nil {
 					return err
 				}
 			} else {
@@ -213,7 +188,7 @@ func newRecordVerifyCmd(cfg *globalConfig) *cobra.Command {
 			}
 			if !rep.OK {
 				// Exit 1 on a failed replay; the report is the output.
-				return reportedError{errors.New("verify failed: see the step results")}
+				return d.Reported(errors.New("verify failed: see the step results"))
 			}
 			return nil
 		},
@@ -226,7 +201,7 @@ func newRecordVerifyCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newRecordSaveCmd(cfg *globalConfig) *cobra.Command {
+func newRecordSaveCmd(d Deps) *cobra.Command {
 	var as, target, newID, name string
 	var force, keepSelectors bool
 	var renames []string
@@ -239,7 +214,7 @@ func newRecordSaveCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := applyRecordScope(cfg); err != nil {
+			if err := applyRecordScope(d); err != nil {
 				return err
 			}
 			ren := map[string]string{}
@@ -250,21 +225,21 @@ func newRecordSaveCmd(cfg *globalConfig) *cobra.Command {
 				}
 				ren[old] = nw
 			}
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
 			res, err := recordanalyze.Save(cmd.Context(), reg, dir, recordanalyze.SaveOptions{
 				As: as, Automation: target, New: newID, Name: name, RenameInputs: ren, Force: force,
 				KeepPackageSelectors: keepSelectors,
-				CreateWorkflow:       recordWorkflowCreator(cfg),
+				CreateWorkflow:       recordWorkflowCreator(d),
 				LinkRecording:        linkRecording,
 			})
 			if err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), res)
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), res)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Saved %s into %s %s", res.Action, res.Automation, res.Version)
 			if res.NodeType != "" {
@@ -301,21 +276,21 @@ func linkRecording(recordingID, automationID string) error {
 
 // recordWorkflowCreator stores trigger.manual → node… through the same
 // store `workflow create/import` use.
-func recordWorkflowCreator(cfg *globalConfig) recordanalyze.WorkflowCreator {
+func recordWorkflowCreator(d Deps) recordanalyze.WorkflowCreator {
 	return func(ctx context.Context, name, description string, nodes []recordanalyze.WorkflowNode) (string, error) {
-		db, err := initDB(cfg)
+		db, err := d.OpenDB()
 		if err != nil {
 			return "", fmt.Errorf("open database: %w", err)
 		}
 		defer db.Close()
-		wf := buildRecordedWorkflow(name, description, cfg.ProfileID, nodes)
+		wf := buildRecordedWorkflow(name, description, d.ProfileID(), nodes)
 		if err := workflow.ValidateConnectionsAgainstNodes(wf.Nodes, wf.Connections); err != nil {
 			return "", err
 		}
 		// Persist exactly as `workflow import` does (workflow row, then nodes
 		// and connections), so SQLite readers such as `workflow run --json`
 		// see the node types too.
-		if err := createOrOverwriteWorkflowAtomically(ctx, openWorkflowStore(db), wf, false); err != nil {
+		if err := d.StoreWorkflow(ctx, db, wf); err != nil {
 			return "", err
 		}
 		return wf.ID, nil

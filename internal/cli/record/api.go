@@ -1,4 +1,4 @@
-package main
+package record
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 
 // newRecordAPICmd builds `record api`: the JSON API calls a page made while
 // it was recorded, and http.request nodes / a workflow built from them.
-func newRecordAPICmd(cfg *globalConfig) *cobra.Command {
+func newRecordAPICmd(d Deps) *cobra.Command {
 	var emitWorkflow bool
 	var emitNode int
 	var only, name string
@@ -34,9 +34,9 @@ vault secrets before running. Cookies are never recorded.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if emitWorkflow && emitNode > 0 {
-				return errInvalidInput("use either --emit-workflow or --emit-node")
+				return d.InvalidInput("use either --emit-workflow or --emit-node")
 			}
-			if err := applyRecordScope(cfg); err != nil {
+			if err := applyRecordScope(d); err != nil {
 				return err
 			}
 			dir, err := recording.Find(args[0])
@@ -52,17 +52,17 @@ vault secrets before running. Cookies are never recorded.`,
 			switch {
 			case emitNode > 0:
 				if emitNode > len(calls) {
-					return errInvalidInput("no call %d (the recording has %d)", emitNode, len(calls))
+					return d.InvalidInput("no call %d (the recording has %d)", emitNode, len(calls))
 				}
 				n := recording.BuildHTTPNode(calls[emitNode-1])
-				return writeJSONTo(out, map[string]any{"type": "http.request", "name": n.Name, "config": n.Config, "secrets": nonNilStrings(n.Secrets)})
+				return d.WriteJSON(out, map[string]any{"type": "http.request", "name": n.Name, "config": n.Config, "secrets": nonNilStrings(n.Secrets)})
 			case emitWorkflow:
-				picked, err := pickCalls(calls, only)
+				picked, err := d.pickCalls(calls, only)
 				if err != nil {
 					return err
 				}
 				if len(picked) == 0 {
-					return errInvalidInput("the recording captured no JSON API calls")
+					return d.InvalidInput("the recording captured no JSON API calls")
 				}
 				sum, _, err := recording.Load(dir)
 				if err != nil {
@@ -73,12 +73,12 @@ vault secrets before running. Cookies are never recorded.`,
 					wfName = "API calls from " + recordFirstNonBlank(sum.Title, sum.ID)
 				}
 				wf, _ := recording.BuildAPIWorkflow(wfName, picked)
-				return writeJSONTo(out, wf)
-			case cfg.JSONOutput:
+				return d.WriteJSON(out, wf)
+			case d.JSONOutput():
 				if calls == nil {
 					calls = []recording.APICall{}
 				}
-				return writeJSONTo(out, map[string]any{"calls": calls})
+				return d.WriteJSON(out, map[string]any{"calls": calls})
 			}
 			printAPICalls(out, calls)
 			return nil
@@ -91,7 +91,7 @@ vault secrets before running. Cookies are never recorded.`,
 	return cmd
 }
 
-func pickCalls(calls []recording.APICall, only string) ([]recording.APICall, error) {
+func (d Deps) pickCalls(calls []recording.APICall, only string) ([]recording.APICall, error) {
 	if strings.TrimSpace(only) == "" {
 		return calls, nil
 	}
@@ -99,7 +99,7 @@ func pickCalls(calls []recording.APICall, only string) ([]recording.APICall, err
 	for _, s := range splitCSV(only) {
 		n, err := strconv.Atoi(strings.TrimSpace(s))
 		if err != nil || n < 1 || n > len(calls) {
-			return nil, errInvalidInput("--calls: no call %q (the recording has %d)", s, len(calls))
+			return nil, d.InvalidInput("--calls: no call %q (the recording has %d)", s, len(calls))
 		}
 		out = append(out, calls[n-1])
 	}
@@ -121,7 +121,7 @@ func printAPICalls(w io.Writer, calls []recording.APICall) {
 			}
 		}
 		fmt.Fprintf(tw, "%d\t%s\t%d\t%s\t%s\t%s\n", c.N, c.Method, c.Status, recordFirstNonBlank(c.AfterEvent, "-"),
-			recordFirstNonBlank(strings.Join(creds, ","), "-"), truncateCaptureCell(c.URL, 80))
+			recordFirstNonBlank(strings.Join(creds, ","), "-"), truncateCell(c.URL, 80))
 	}
 	tw.Flush()
 	fmt.Fprintln(w, "\n--emit-node N prints one as an http.request node; --emit-workflow prints them all as a workflow.")
