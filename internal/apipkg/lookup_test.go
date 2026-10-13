@@ -325,3 +325,16 @@ func TestNextURLPrefix(t *testing.T) {
 		t.Errorf("second page = %s", r.URL)
 	}
 }
+
+func TestForcedEmptyListBuilder(t *testing.T) {
+	sc := Scope{P: map[string]any{"add": "1, 2", "rem": ""}}
+	got, err := renderValue(map[string]any{
+		"!add": map[string]any{"$map": "{{ p.add | split }}", "$to": "{{ el | int }}"},
+		"!rem": map[string]any{"$concat": []any{map[string]any{"$map": "{{ p.rem | split }}", "$to": "{{ el | int }}"}}},
+		"!nul": "{{ p.none }}",
+	}, sc)
+	want := map[string]any{"add": []any{int64(1), int64(2)}, "rem": []any{}, "nul": nil}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("got %#v, %v", got, err)
+	}
+}

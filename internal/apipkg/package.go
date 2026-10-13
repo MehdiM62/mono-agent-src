@@ -189,17 +189,17 @@ const (
 
 // Pagination describes how a list operation pages.
 type Pagination struct {
-	Type           string `json:"type"`
-	CursorParam    string `json:"cursor_param,omitempty"`
-	CursorPath     string `json:"cursor_path,omitempty"`
-	HasMorePath    string `json:"has_more_path,omitempty"`
-	OffsetParam    string `json:"offset_param,omitempty"`
-	LimitParam     string `json:"limit_param,omitempty"`
-	PageParam      string `json:"page_param,omitempty"`
-	NextURLPath    string `json:"next_url_path,omitempty"`
+	Type        string `json:"type"`
+	CursorParam string `json:"cursor_param,omitempty"`
+	CursorPath  string `json:"cursor_path,omitempty"`
+	HasMorePath string `json:"has_more_path,omitempty"`
+	OffsetParam string `json:"offset_param,omitempty"`
+	LimitParam  string `json:"limit_param,omitempty"`
+	PageParam   string `json:"page_param,omitempty"`
+	NextURLPath string `json:"next_url_path,omitempty"`
 	// NextURLPrefix (a template) is prepended to a relative next URL whose
 	// base is not the request host (Confluence v2 _links.next).
-	NextURLPrefix string `json:"next_url_prefix,omitempty"`
+	NextURLPrefix  string `json:"next_url_prefix,omitempty"`
 	ResultsPath    string `json:"results_path,omitempty"`
 	ReturnAllField string `json:"return_all_field,omitempty"`
 	LimitField     string `json:"limit_field,omitempty"`
