@@ -58,7 +58,7 @@ Where packages live:
   "category": "app",                       // palette group (keep "app")
   "docs_url": "https://developer.todoist.com/api/v1/",
   "n8n_types": ["n8n-nodes-base.todoist"],           // n8n node types this package imports
-  "n8n_trigger_types": ["n8n-nodes-base.todoistTrigger"], // trigger types (not supported yet; listed for the importer)
+  "n8n_trigger_types": ["n8n-nodes-base.todoistTrigger"], // trigger types (the importer maps them to webhook/schedule triggers, §12)
   "base_url": "https://api.todoist.com/api/v1",       // may use {{ cred.x }}
   "headers": { "Accept": "application/json" },        // sent on every request; templates allowed
   "credentials": [ … ],                    // §7
@@ -549,8 +549,12 @@ An `extends` package's operation without a resource must not reuse one of the na
 ## 12. n8n compatibility
 
 - `n8n_types` — n8n node types imported as this package; `n8n_trigger_types`
-  — trigger types of the same app, listed so the importer can say "not
-  supported yet". A type may appear in one package only.
+  — trigger types of the same app. The importer rebuilds them from its
+  trigger tables (`internal/n8nimport/app_triggers_*.go`): a webhook trigger
+  becomes `trigger.webhook`, a polling trigger `trigger.schedule` → this
+  package's list operation → `core.remove_duplicates`. A new trigger type
+  needs a line in one of those tables (`TestEveryCatalogTriggerIsMapped`
+  checks). A type may appear in one package only.
 - `apipkg.N8nIndex()` gives the importer, per n8n type: package id,
   `node_type`/`extends`, default resource and default operation per resource,
   credential mappings (n8n credential type → platform + field map) and per
@@ -718,7 +722,7 @@ Optional keys the engine added (the design's keys are unchanged):
 
 | Where | Key | Meaning |
 |---|---|---|
-| package | `n8n_trigger_types` | n8n trigger types of the app (unsupported for now) |
+| package | `n8n_trigger_types` | n8n trigger types of the app (imported as webhook/schedule triggers) |
 | credential | `n8n_credential_alt` | further n8n credential types |
 | credential | `n8n_field_map` | n8n credential field → our field |
 | resource | `description` | help text |
