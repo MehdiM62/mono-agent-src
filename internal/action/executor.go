@@ -362,10 +362,12 @@ func (ae *ActionExecutor) buildResult() *ExecutionResult {
 	}
 
 	return &ExecutionResult{
-		ExtractedItems: extracted,
-		ListOutput:     ae.execCtx.ListOutput,
-		FailedItems:    failed,
-		TotalProcessed: len(extracted) + len(failed),
-		Duration:       time.Since(ae.startTime),
+		ExtractedItems:   extracted,
+		ListOutput:       ae.execCtx.ListOutput,
+		FailedItems:      failed,
+		SucceededTargets: ae.execCtx.succeededTargets(),
+		ExtractedTargets: append([]int(nil), ae.execCtx.extractedTargets...),
+		TotalProcessed:   len(extracted) + len(failed),
+		Duration:         time.Since(ae.startTime),
 	}
 }

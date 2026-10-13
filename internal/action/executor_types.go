@@ -144,7 +144,10 @@ type FailedItem struct {
 	StepID    string
 	Error     error
 	Timestamp time.Time
-	Index     int
+	// Index is the loop item the failure happened on; when Target is set it
+	// is the failed item's index in the run's target list (selectedListItems).
+	Index  int
+	Target bool
 }
 
 // StepResult captures the outcome of a single step execution.
@@ -164,10 +167,16 @@ type ExecutionResult struct {
 	ExtractedItems []map[string]interface{}
 	// ListOutput: ExtractedItems are separate records (see
 	// ExecutionContext.ListOutput), not facets of one item.
-	ListOutput     bool
-	FailedItems    []FailedItem
-	TotalProcessed int
-	Duration       time.Duration
+	ListOutput  bool
+	FailedItems []FailedItem
+	// SucceededTargets are the indexes, in the run's target list, of the
+	// targets whose iteration ran to its end without a failure recorded.
+	SucceededTargets []int
+	// ExtractedTargets[i] is the target ExtractedItems[i] was produced for,
+	// -1 when it came from outside a target iteration.
+	ExtractedTargets []int
+	TotalProcessed   int
+	Duration         time.Duration
 }
 
 // ---------------------------------------------------------------------------
