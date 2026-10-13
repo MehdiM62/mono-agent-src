@@ -97,7 +97,7 @@ func TestICalAndICSRoundTrip(t *testing.T) {
 		"description": "Line one, with; specials\nline two", "location": "Room 1", "uid": "u-1",
 		"attendees": `[{"name":"Ada","email":"ada@example.com","rsvp":true}]`,
 		"organizer": map[string]interface{}{"name": "Bob", "email": "bob@example.com"},
-		"status": "CONFIRMED", "recurrence_rule": "FREQ=WEEKLY;COUNT=3", "file_name": "standup.ics",
+		"status":    "CONFIRMED", "recurrence_rule": "FREQ=WEEKLY;COUNT=3", "file_name": "standup.ics",
 	})
 	raw, _ := base64.StdEncoding.DecodeString(ev[0].JSON["data"].(string))
 	ics := string(raw)
