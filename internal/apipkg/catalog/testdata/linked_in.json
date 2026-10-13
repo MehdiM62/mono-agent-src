@@ -1,0 +1,39 @@
+{
+  "post.create": {
+    "params": {
+      "person": "abc123",
+      "text": "Hello (world) @team",
+      "shareMediaCategory": "ARTICLE",
+      "additionalFields": {
+        "title": "Post",
+        "originalUrl": "https://example.com/p",
+        "visibility": "CONNECTIONS"
+      }
+    },
+    "response_status": 201,
+    "expect": {
+      "method": "POST",
+      "path": "/rest/posts",
+      "headers": {
+        "LinkedIn-Version": "202604"
+      },
+      "body": {
+        "author": "urn:li:person:abc123",
+        "commentary": "Hello \\(world\\) \\@team",
+        "visibility": "CONNECTIONS",
+        "lifecycleState": "PUBLISHED",
+        "distribution": {
+          "feedDistribution": "MAIN_FEED",
+          "thirdPartyDistributionChannels": []
+        },
+        "content": {
+          "article": {
+            "title": "Post",
+            "source": "https://example.com/p"
+          }
+        }
+      },
+      "items": 1
+    }
+  }
+}

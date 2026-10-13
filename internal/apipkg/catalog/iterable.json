@@ -1,0 +1,319 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "iterable",
+  "node_type": "app.iterable",
+  "title": "Iterable",
+  "description": "Track events, upsert users and manage list subscriptions in Iterable",
+  "category": "app",
+  "docs_url": "https://api.iterable.com/api/docs",
+  "n8n_types": [
+    "n8n-nodes-base.iterable"
+  ],
+  "base_url": "{{ cred.region | default:'https://api.iterable.com' }}/api",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "iterable",
+      "name": "Iterable",
+      "n8n_credential": "iterableApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region API URL",
+          "help": "https://api.iterable.com (US, default) or https://api.eu.iterable.com (EU)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Api_Key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "event",
+      "label": "Event"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "userList",
+      "label": "User List"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "event",
+      "operation": "track",
+      "title": "Track an event",
+      "description": "Sends one event per input item. Set email or id in Additional fields to name the user.",
+      "method": "POST",
+      "path": "/events/track",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Event name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "campaignId",
+            "createdAt",
+            "dataFieldsUi",
+            "email",
+            "id",
+            "templateId",
+            "userId"
+          ],
+          "help": "dataFieldsUi.dataFieldValues: list of {key, value}"
+        }
+      ],
+      "body": {
+        "eventName": "{{ p.name }}",
+        "email": "{{ p.additionalFields.email }}",
+        "userId": "{{ p.additionalFields.userId }}",
+        "id": "{{ p.additionalFields.id }}",
+        "campaignId": "{{ p.additionalFields.campaignId | int }}",
+        "templateId": "{{ p.additionalFields.templateId | int }}",
+        "createdAt": "{{ p.additionalFields.createdAt | epoch }}",
+        "dataFields": "{{ p.additionalFields.dataFieldsUi.dataFieldValues | kv:'key,value' }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "upsert",
+      "title": "Create or update a user",
+      "method": "POST",
+      "path": "/users/update",
+      "fields": [
+        {
+          "key": "identifier",
+          "label": "Identifier",
+          "type": "select",
+          "options": [
+            "email",
+            "userId"
+          ],
+          "required": true
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true,
+          "help": "Email address or user ID, as chosen in Identifier"
+        },
+        {
+          "key": "preferUserId",
+          "label": "Prefer user ID",
+          "type": "boolean",
+          "default": true,
+          "help": "Create a user with this ID when no user matches (identifier userId)"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dataFieldsUi",
+            "mergeNestedObjects"
+          ],
+          "help": "dataFieldsUi.dataFieldValues: list of {key, value}"
+        }
+      ],
+      "body": {
+        "email": "{{ p.identifier | eq:'email' | then:p.value }}",
+        "userId": "{{ p.identifier | eq:'userId' | then:p.value }}",
+        "preferUserId": "{{ p.identifier | eq:'userId' | then:p.preferUserId }}",
+        "dataFields": "{{ p.additionalFields.dataFieldsUi.dataFieldValues | kv:'key,value' }}",
+        "mergeNestedObjects": "{{ p.additionalFields.mergeNestedObjects }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/users{{ p.by | eq:'userId' | then:'/byUserId' }}/{{ p.by | eq:'userId' | then:p.userId | default:p.email }}",
+      "fields": [
+        {
+          "key": "by",
+          "label": "By",
+          "type": "select",
+          "options": [
+            "email",
+            "userId"
+          ],
+          "default": "email"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.by | eq:'userId' | then:'byUserId/' | default:'getByEmail' }}{{ p.by | eq:'userId' | then:p.userId }}",
+      "fields": [
+        {
+          "key": "by",
+          "label": "By",
+          "type": "select",
+          "options": [
+            "email",
+            "userId"
+          ],
+          "default": "email"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "query": {
+        "email": "{{ p.by | ne:'userId' | then:p.email }}"
+      },
+      "output": {
+        "path": "user"
+      }
+    },
+    {
+      "resource": "userList",
+      "operation": "add",
+      "title": "Add a user to a list",
+      "description": "Subscribes one user per input item",
+      "method": "POST",
+      "path": "/lists/subscribe",
+      "fields": [
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "identifier",
+          "label": "Identifier",
+          "type": "select",
+          "options": [
+            "email",
+            "userId"
+          ],
+          "required": true
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "listId": "{{ p.listId | int }}",
+        "subscribers": [
+          {
+            "email": "{{ p.identifier | eq:'email' | then:p.value }}",
+            "userId": "{{ p.identifier | eq:'userId' | then:p.value }}"
+          }
+        ]
+      }
+    },
+    {
+      "resource": "userList",
+      "operation": "remove",
+      "title": "Remove a user from a list",
+      "description": "Unsubscribes one user per input item",
+      "method": "POST",
+      "path": "/lists/unsubscribe",
+      "fields": [
+        {
+          "key": "listId",
+          "label": "List ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "identifier",
+          "label": "Identifier",
+          "type": "select",
+          "options": [
+            "email",
+            "userId"
+          ],
+          "required": true
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "campaignId",
+            "channelUnsubscribe"
+          ]
+        }
+      ],
+      "body": {
+        "listId": "{{ p.listId | int }}",
+        "subscribers": [
+          {
+            "email": "{{ p.identifier | eq:'email' | then:p.value }}",
+            "userId": "{{ p.identifier | eq:'userId' | then:p.value }}"
+          }
+        ],
+        "campaignId": "{{ p.additionalFields.campaignId }}",
+        "channelUnsubscribe": "{{ p.additionalFields.channelUnsubscribe }}"
+      }
+    }
+  ]
+}

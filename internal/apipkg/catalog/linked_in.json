@@ -1,0 +1,167 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "linked_in",
+  "node_type": "app.linked_in",
+  "title": "LinkedIn",
+  "description": "Publish posts as a member or an organization through the LinkedIn API",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api",
+  "n8n_types": [
+    "n8n-nodes-base.linkedIn"
+  ],
+  "base_url": "https://api.linkedin.com/rest",
+  "headers": {
+    "Accept": "application/json",
+    "X-Restli-Protocol-Version": "2.0.0",
+    "LinkedIn-Version": "202604"
+  },
+  "credentials": [
+    {
+      "platform": "linkedin_api",
+      "name": "LinkedIn API",
+      "n8n_credential": "linkedInOAuth2Api",
+      "n8n_credential_alt": [
+        "linkedInCommunityManagementOAuth2Api"
+      ],
+      "n8n_field_map": {},
+      "methods": [
+        "oauth",
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://www.linkedin.com/oauth/v2/authorization",
+        "token_url": "https://www.linkedin.com/oauth/v2/accessToken",
+        "scopes": [
+          "openid",
+          "profile",
+          "email",
+          "w_member_social",
+          "w_organization_social"
+        ],
+        "pkce": true
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "post",
+      "label": "Post"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "post",
+      "operation": "create",
+      "title": "Create a post",
+      "description": "Text and article posts. Image posts and article thumbnails need a binary upload step the engine does not run yet.",
+      "method": "POST",
+      "path": "/posts",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "standard",
+            "communityManagement"
+          ],
+          "default": "standard",
+          "help": "Kept for n8n imports; the connection decides."
+        },
+        {
+          "key": "postAs",
+          "label": "Post as",
+          "type": "select",
+          "options": [
+            "person",
+            "organization"
+          ],
+          "default": "person"
+        },
+        {
+          "key": "person",
+          "label": "Person ID",
+          "type": "text",
+          "default": "",
+          "help": "Member ID (the part after urn:li:person:), when posting as a person"
+        },
+        {
+          "key": "organization",
+          "label": "Organization ID",
+          "type": "text",
+          "default": "",
+          "help": "Organization ID (the part after urn:li:organization:), when posting as an organization"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "shareMediaCategory",
+          "label": "Media category",
+          "type": "select",
+          "options": [
+            "NONE",
+            "ARTICLE",
+            "IMAGE"
+          ],
+          "default": "NONE"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data",
+          "help": "Image file for IMAGE posts"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "originalUrl",
+            "thumbnailBinaryPropertyName",
+            "title",
+            "visibility"
+          ],
+          "help": "visibility: PUBLIC or CONNECTIONS (person posts only)"
+        }
+      ],
+      "body": {
+        "author": "urn:li:{{ p.postAs | default:'person' }}:{{ p.postAs | eq:'organization' | then:p.organization | default:p.person }}",
+        "commentary": "{{ p.text | replace:'(','\\(' | replace:')','\\)' | replace:'*','\\*' | replace:'[','\\[' | replace:']','\\]' | replace:'{','\\{' | replace:'}','\\}' | replace:'<','\\<' | replace:'>','\\>' | replace:'@','\\@' | replace:'|','\\|' | replace:'~','\\~' | replace:'_','\\_' }}",
+        "visibility": "{{ p.postAs | ne:'organization' | then:p.additionalFields.visibility | default:'PUBLIC' }}",
+        "lifecycleState": "PUBLISHED",
+        "distribution": {
+          "feedDistribution": "MAIN_FEED",
+          "!thirdPartyDistributionChannels": []
+        },
+        "content": {
+          "article": {
+            "$when": "{{ p.shareMediaCategory | eq:'ARTICLE' }}",
+            "title": "{{ p.additionalFields.title }}",
+            "description": "{{ p.additionalFields.description }}",
+            "source": "{{ p.additionalFields.originalUrl }}"
+          }
+        }
+      }
+    }
+  ]
+}
