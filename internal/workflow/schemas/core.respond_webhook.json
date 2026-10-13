@@ -1,0 +1,53 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "firstIncomingItem",
+      "help": "What the webhook caller gets back. Used when the webhook trigger's Response Mode is responseNode; elsewhere the node only passes items through.",
+      "key": "respond_with",
+      "label": "Respond With",
+      "options": [
+        "firstIncomingItem",
+        "allIncomingItems",
+        "json",
+        "text",
+        "noData"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": 200,
+      "key": "response_code",
+      "label": "Response Code",
+      "max": 599,
+      "min": 100,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "key": "response_headers",
+      "label": "Response Headers (JSON)",
+      "placeholder": "{ \"X-Request-Id\": \"{{ $json.id }}\" }",
+      "required": false,
+      "rows": 3,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "respond_with",
+        "values": [
+          "json",
+          "text"
+        ]
+      },
+      "help": "For json: JSON text (expressions allowed). For text: the body as is.",
+      "key": "response_body",
+      "label": "Response Body",
+      "required": false,
+      "rows": 5,
+      "type": "textarea"
+    }
+  ]
+}

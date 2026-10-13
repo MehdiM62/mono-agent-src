@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/autostart"
 )
 
 // GroupServices covers monoagent's long-running processes.
@@ -138,5 +140,24 @@ func fixDaemonStart(ctx context.Context, env *Env, progress func(string)) error 
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
-	return fmt.Errorf("the daemon was started but no heartbeat appeared within 15s — see ~/.monoagent/logs/daemon.log")
+	return fmt.Errorf("the daemon was started but no heartbeat appeared within 15s — see %s", daemonLogHint(ctx, env))
 }
+
+// daemonLogHint says where the daemon logs: where the registered login
+// service sends its output (the user journal on Linux) when one is
+// registered — startDaemon starts the daemon through it then — else the file
+// the detached start writes, ~/.monoagent/logs/daemon.log.
+func daemonLogHint(ctx context.Context, env *Env) string {
+	if env.AutostartStatus != nil {
+		if ok, _ := env.AutostartStatus(ctx); ok {
+			return serviceLogHint()
+		}
+	}
+	return fallbackLogPath()
+}
+
+// Where the daemon logs, by how it was started; tests replace them.
+var (
+	serviceLogHint  = autostart.ServiceLogHint
+	fallbackLogPath = autostart.FallbackLogPath
+)

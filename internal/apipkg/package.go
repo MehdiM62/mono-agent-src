@@ -197,6 +197,9 @@ type Pagination struct {
 	LimitParam     string `json:"limit_param,omitempty"`
 	PageParam      string `json:"page_param,omitempty"`
 	NextURLPath    string `json:"next_url_path,omitempty"`
+	// NextURLPrefix (a template) is prepended to a relative next URL whose
+	// base is not the request host (Confluence v2 _links.next).
+	NextURLPrefix string `json:"next_url_prefix,omitempty"`
 	ResultsPath    string `json:"results_path,omitempty"`
 	ReturnAllField string `json:"return_all_field,omitempty"`
 	LimitField     string `json:"limit_field,omitempty"`

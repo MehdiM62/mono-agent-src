@@ -25,6 +25,9 @@ type Scope struct {
 	// Pres holds every before step's response in order.
 	Pre  any
 	Pres []any
+	// Bin describes the upload's binary property: file_name, mime_type,
+	// file_extension (set when the op uploads a file).
+	Bin map[string]any
 }
 
 func (s Scope) root(name string) any {
@@ -45,6 +48,8 @@ func (s Scope) root(name string) any {
 		return s.Pre
 	case "pres":
 		return s.Pres
+	case "bin":
+		return s.Bin
 	case "uuid":
 		return uuid.NewString()
 	}
@@ -213,9 +218,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "uuid":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "uuid":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., pre., pres. or be uuid", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., pre., pres., bin. or be uuid", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
@@ -353,7 +358,7 @@ func (t *tmpl) render(sc Scope, escape func(string) string) (any, error) {
 			return nil, err
 		}
 		s := stringify(v)
-		if escape != nil && !literal {
+		if _, pre := v.(pathValue); escape != nil && !literal && !pre {
 			s = escape(s)
 		}
 		b.WriteString(s)
@@ -394,6 +399,20 @@ func renderValue(v any, sc Scope) (any, error) {
 		}
 		if parts, ok := t["$concat"]; ok {
 			return renderConcat(parts, sc)
+		}
+		if inner, ok := t["$json"]; ok {
+			r, err := renderValue(inner, sc)
+			if err != nil {
+				return nil, fmt.Errorf("$json: %w", err)
+			}
+			if isEmpty(r) {
+				return nil, nil
+			}
+			b, err := json.Marshal(r)
+			if err != nil {
+				return nil, fmt.Errorf("$json: %w", err)
+			}
+			return string(b), nil
 		}
 		if src, ok := t["$entries"]; ok {
 			return renderEntries(src, t["$key"], t["$value"], sc)
@@ -508,6 +527,8 @@ func stringify(v any) string {
 		return ""
 	case string:
 		return t
+	case pathValue:
+		return string(t)
 	case float64:
 		return strconv.FormatFloat(t, 'f', -1, 64)
 	case float32:

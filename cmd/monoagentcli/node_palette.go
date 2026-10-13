@@ -38,8 +38,13 @@ const (
 // grouped by palette category, with a label, a description and its schema.
 // Unlike `node list` (a flat list of registered types), this is the
 // hand-curated catalog, reconciled against the live registry.
+//
+// Deprecated node types (workflow.DeprecatedNodeTypes) stay registered so
+// old workflows load and fail with their migration hint, but are left out
+// of the palette unless --all is given.
 func newNodePaletteCmd(cfg *globalConfig) *cobra.Command {
-	return &cobra.Command{
+	var all bool
+	cmd := &cobra.Command{
 		Use:   "palette",
 		Short: "Print the node palette (node types grouped by category, with labels and schemas) as JSON",
 		Args:  cobra.NoArgs,
@@ -50,16 +55,19 @@ func newNodePaletteCmd(cfg *globalConfig) *cobra.Command {
 				rawDB = db.DB
 				defer db.Close()
 			}
-			return json.NewEncoder(cmd.OutOrStdout()).Encode(nodePalette(rawDB))
+			return json.NewEncoder(cmd.OutOrStdout()).Encode(nodePalette(rawDB, all))
 		},
 	}
+	cmd.Flags().BoolVar(&all, "all", false, "Include deprecated node types")
+	return cmd
 }
 
 // nodePalette is the hand-written catalog reconciled against the live node
 // registry (the same one `node run` uses), so the palette always matches
 // what can actually run: stale entries drop out, and newly registered
-// types appear with a derived label.
-func nodePalette(db *sql.DB) map[string][]paletteNode {
+// types appear with a derived label. Deprecated types are left out unless
+// includeDeprecated is set.
+func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 	mkNode := func(t, label, cat, desc string) paletteNode {
 		schema, _ := workflow.LoadDefaultSchema(t)
 		return paletteNode{Type: t, Label: label, Category: cat, Description: desc, Schema: schema}
@@ -287,6 +295,10 @@ func nodePalette(db *sql.DB) map[string][]paletteNode {
 		return title(prefix) + ": " + title(rest)
 	}
 
+	hidden := func(t string) bool {
+		_, deprecated := workflow.IsDeprecatedNodeType(t)
+		return deprecated && !includeDeprecated
+	}
 	seen := map[string]bool{}
 	aliases := reg.Aliases() // legacy ids resolve for saved workflows but are never offered
 	for group, list := range catalog {
@@ -295,7 +307,7 @@ func nodePalette(db *sql.DB) map[string][]paletteNode {
 		}
 		kept := list[:0]
 		for _, n := range list {
-			if _, isAlias := aliases[n.Type]; !isAlias && reg.Has(n.Type) {
+			if _, isAlias := aliases[n.Type]; !isAlias && reg.Has(n.Type) && !hidden(n.Type) {
 				kept = append(kept, n)
 				seen[n.Type] = true
 			}
@@ -303,7 +315,7 @@ func nodePalette(db *sql.DB) map[string][]paletteNode {
 		catalog[group] = kept
 	}
 	for _, t := range reg.Types() { // Types() is sorted, so extras append deterministically
-		if !seen[t] {
+		if !seen[t] && !hidden(t) {
 			g := groupOf(t)
 			if g == "app" { // API packages carry their own title and description
 				n := mkNode(t, workflow.SchemaTitle(t), g, "")

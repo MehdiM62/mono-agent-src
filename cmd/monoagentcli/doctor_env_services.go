@@ -16,6 +16,7 @@ import (
 	"github.com/monoes/mono-agent/internal/browserdetect"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/health"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/statedir"
 )
@@ -135,6 +136,9 @@ func startDaemon(ctx context.Context, args []string, as autostart.Installer, pro
 		return err
 	}
 	logPath := filepath.Join(logDir, "daemon.log")
+	if _, err := logging.RotateDaemonLog(logPath); err != nil {
+		progress(fmt.Sprintf("could not rotate %s: %v", logPath, err))
+	}
 	logf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, statedir.FilePerm)
 	if err != nil {
 		return err
