@@ -1,4 +1,4 @@
-package main
+package action
 
 import (
 	"encoding/json"
@@ -10,17 +10,18 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/monoes/mono-agent/internal/action"
+	actiondef "github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/cli/autoinstall"
 	"github.com/spf13/cobra"
 )
 
 // `action export` / `action import`: single actions moved between machines
 // as minimal packages (spec §5.3).
 
-func newActionExportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newActionExportCmd() *cobra.Command {
 	var outFile string
-	var df exportDomainFlags
+	var df autoinstall.DomainFlags
 	cmd := &cobra.Command{
 		Use:   "export <automation>.<action>",
 		Short: "Export one action, with the fragments/selectors/scripts it uses, as a .mpkg",
@@ -30,31 +31,31 @@ func newActionExportCmd(cfg *globalConfig) *cobra.Command {
 			if !ok || id == "" || name == "" {
 				return fmt.Errorf("expected <automation>.<action>, got %q", args[0])
 			}
-			reg, err := openAutomationRegistry()
+			reg, err := d.Install.OpenRegistry()
 			if err != nil {
 				return err
 			}
 			if outFile == "" {
 				outFile = fmt.Sprintf("%s.%s.mpkg", id, name)
 			}
-			doms, err := df.resolve(reg, id)
+			doms, err := df.Resolve(reg, id)
 			if err != nil {
 				return err
 			}
 			opts := automation.ExportOptions{Actions: []string{name}, Domains: doms}
-			sum, err := writeHashed(outFile, func(w io.Writer) error { return reg.Export(id, w, opts) })
+			sum, err := autoinstall.WriteHashed(outFile, func(w io.Writer) error { return reg.Export(id, w, opts) })
 			if err != nil {
 				return err
 			}
-			return printFileResult(cmd.OutOrStdout(), cfg, outFile, sum, "Exported")
+			return d.Install.PrintFileResult(cmd.OutOrStdout(), outFile, sum, "Exported")
 		},
 	}
 	cmd.Flags().StringVarP(&outFile, "output", "o", "", "Output file (default <automation>.<action>.mpkg)")
-	df.register(cmd)
+	df.Register(cmd)
 	return cmd
 }
 
-func newActionImportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newActionImportCmd() *cobra.Command {
 	var into string
 	var yes, dryRun, replace, replaceBuiltin bool
 	cmd := &cobra.Command{
@@ -64,7 +65,7 @@ func newActionImportCmd(cfg *globalConfig) *cobra.Command {
 automation id). When that automation is not installed it is created.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, err := openAutomationRegistry()
+			reg, err := d.Install.OpenRegistry()
 			if err != nil {
 				return err
 			}
@@ -77,16 +78,16 @@ automation id). When that automation is not installed it is created.`,
 			if target == "" {
 				target = src.Manifest.ID
 			}
-			c := installConfirmer{yes: yes, interactive: !cfg.JSONOutput && stdinIsTerminal(),
-				in: cmd.InOrStdin(), out: cmd.ErrOrStderr()}
-			res, err := runInstall(automation.InstallOptions{DryRun: dryRun, Source: actionImportSource(args[0]), Replace: replace || replaceBuiltin}, c, func(o automation.InstallOptions) (*automation.InstallResult, error) {
+			c := autoinstall.Confirmer{Yes: yes, Interactive: !d.Install.JSONOutput() && d.Install.StdinIsTerminal(),
+				In: cmd.InOrStdin(), Out: cmd.ErrOrStderr()}
+			res, err := d.Install.RunInstall(automation.InstallOptions{DryRun: dryRun, Source: actionImportSource(args[0]), Replace: replace || replaceBuiltin}, c, func(o automation.InstallOptions) (*automation.InstallResult, error) {
 				return addActions(reg, target, src, o)
 			})
 			if err != nil {
-				printFailedIssues(cmd, cfg, err)
+				d.Install.PrintFailedIssues(cmd, err)
 				return err
 			}
-			return printInstallResult(cmd.OutOrStdout(), cfg, res)
+			return d.Install.PrintInstallResult(cmd.OutOrStdout(), res)
 		},
 	}
 	cmd.Flags().StringVar(&into, "into", "", "Target automation id (default: the source's id)")
@@ -166,7 +167,7 @@ func wrapActionJSON(file string, reg *automation.Registry) (*automation.Package,
 	if err != nil {
 		return nil, noop, err
 	}
-	var def action.ActionDef
+	var def actiondef.ActionDef
 	if err := json.Unmarshal(raw, &def); err != nil {
 		return nil, noop, fmt.Errorf("invalid ActionDef JSON: %w", err)
 	}
@@ -239,10 +240,10 @@ func wrapActionJSON(file string, reg *automation.Registry) (*automation.Package,
 
 // stepTypes returns the sorted step types used in steps (nested included):
 // a wrapped action is permitted exactly what it already does.
-func stepTypes(steps []action.StepDef) []string {
+func stepTypes(steps []actiondef.StepDef) []string {
 	seen := map[string]bool{}
-	var walk func([]action.StepDef)
-	walk = func(steps []action.StepDef) {
+	var walk func([]actiondef.StepDef)
+	walk = func(steps []actiondef.StepDef) {
 		for _, s := range steps {
 			seen[s.Type] = true
 			walk(s.Steps)
@@ -259,11 +260,11 @@ func stepTypes(steps []action.StepDef) []string {
 
 // navigateHosts returns the hosts of absolute http(s) navigate URLs in steps
 // (nested included), in first-seen order. Templated URLs are skipped.
-func navigateHosts(steps []action.StepDef) []string {
+func navigateHosts(steps []actiondef.StepDef) []string {
 	out := []string{}
 	seen := map[string]bool{}
-	var walk func([]action.StepDef)
-	walk = func(steps []action.StepDef) {
+	var walk func([]actiondef.StepDef)
+	walk = func(steps []actiondef.StepDef) {
 		for _, s := range steps {
 			walk(s.Steps)
 			if s.Type != "navigate" || strings.Contains(s.URL, "{{") {
