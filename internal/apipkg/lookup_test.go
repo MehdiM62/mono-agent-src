@@ -280,3 +280,48 @@ func TestPathFilterBinRootAndAnyWildcard(t *testing.T) {
 	    {"method":"PATCH","path":"/v1/files/f1","query":{"requestId":"<any>"},"body":{"name":"report.pdf","mimeType":"application/pdf"}}]}`), &c)
 	checkCase(t, p, &p.Operations[0], c)
 }
+
+func TestConfluenceAndClickUpFilters(t *testing.T) {
+	sc := Scope{P: map[string]any{"text": "Hello <b>\r\n\n  a & b  \n", "mins": "2", "est": 3.0, "num": "42", "frac": "1.5", "word": "abc",
+		"adf": `{"content":[{"type":"paragraph"}]}`}}
+	cases := map[string]any{
+		"{{ p.text | lines | escape_html | prefix:'<p>' | suffix:'</p>' | join:'' }}": "<p>Hello &lt;b&gt;</p><p>a &amp; b</p>",
+		"{{ p.mins | mul:60000 }}": int64(120000),
+		"{{ p.est | mul:6000 }}":   int64(18000),
+		"{{ p.num | numeric }}":    int64(42),
+		"{{ p.frac | numeric }}":   1.5,
+		"{{ p.word | numeric }}":   "abc",
+		"{{ p.none | lines }}":     nil,
+	}
+	for in, want := range cases {
+		if got, err := renderString(in, sc); err != nil || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s = %#v, %v; want %#v", in, got, err, want)
+		}
+	}
+	got, err := renderValue(map[string]any{"value": map[string]any{"$json": map[string]any{
+		"type": "doc", "content": map[string]any{"$concat": []any{"{{ p.adf | fromjson | get:'content' }}"}}}}}, sc)
+	if err != nil || got.(map[string]any)["value"] != `{"content":[{"type":"paragraph"}],"type":"doc"}` {
+		t.Errorf("$json = %#v, %v", got, err)
+	}
+}
+
+func TestNextURLPrefix(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"labels","title":"L","method":"GET","path":"/pages/1/labels",
+	  "fields":[{"key":"returnAll","label":"A","type":"boolean","default":true}],
+	  "pagination":{"type":"next_url","next_url_path":"_links.next","results_path":"results",
+	    "next_url_prefix":"https://gw.example.test/ex/confluence/cloud1"}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		if n == 1 {
+			w.Write([]byte(`{"results":[{"id":1}],"_links":{"next":"/wiki/api/v2/pages/1/labels?cursor=c2"}}`))
+			return
+		}
+		w.Write([]byte(`{"results":[{"id":2}],"_links":{}}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "labels", "returnAll": true}, cred, nil)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("items %v %v", items, err)
+	}
+	if r := (*seen)[1]; r.URL.Path != "/ex/confluence/cloud1/wiki/api/v2/pages/1/labels" || r.URL.Query().Get("cursor") != "c2" {
+		t.Errorf("second page = %s", r.URL)
+	}
+}

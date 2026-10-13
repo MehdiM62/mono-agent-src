@@ -219,7 +219,11 @@ through, so an unset param stays unset:
 | `find:'path',value` | first list element whose value at `path` equals `value` (text compare), else nil: `{{ pre.sheets \| find:'properties.title',p.sheetName \| get:'properties.sheetId' }}` |
 | `find_row:column,value` | value rows (first row = header) → 1-based row number of the first data row whose `column` cell equals `value` (an object value, e.g. `item`, is read at `column`), else nil: `{{ pre.values \| find_row:p.columnToMatchOn,item }}` |
 | `get:'path'` | walk into the value: `{{ pre.payload.headers \| find:'name','Message-ID' \| get:'value' }}` |
-| `add:n`, `sub:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`); whole results are integers |
+| `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
+| `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
+| `lines` | text → list of its non-empty trimmed lines |
+| `escape_html` | escape `& < > " '`; on a list, each element (also `prefix`/`suffix`) |
+| `join:'sep'` | list → text joined by `sep`: `{{ p.bodyPlainText \| lines \| escape_html \| prefix:'<p>' \| suffix:'</p>' \| join:'' }}` |
 | `colnum`, `colname` | spreadsheet column letter ↔ 1-based number (`"C"` ↔ 3, `"AA"` ↔ 27) |
 | `path` | in a `path` template: escape each segment but keep `/` (Google resource names `spaces/A/messages/B`, `accounts/1/locations/2`) |
 | `entries` / `entries:'column,value'` | object → `[{key, value}, …]` sorted by key (names optional): Coda `"cells": "{{ el \| entries:'column,value' }}"`; `get:p.keyName` picks a key named by a param |
@@ -245,6 +249,8 @@ through, so an unset param stays unset:
 ] }
 ```
 (`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
+
+**JSON text of a built value (`$json`).** `{"$json": { … }}` renders the inner template (with `$concat`, `$map`, …) and returns it as a JSON string (Confluence ADF bodies).
 
 **Objects with built keys (`$entries`).** `{"$entries": "{{ p.filters.date }}", "$key": "date[{{ el.operation }}]", "$value": "{{ el.value | epoch }}"}` → `{"date[after]": 1704067200}`; empty keys/values are skipped (works inside `query`, `body` and `$merge`).
 
@@ -386,6 +392,8 @@ workflows is the node's normal `on_error`.
 - `link_header`/`next_url` follow the server's URL as given (op query is not
   re-added; auth is).
 - Paginated results are always split into one item per element.
+
+`next_url_prefix` (template) is prepended to a next URL that starts with `/` when its base is not the request host (Confluence v2: `"next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl }}"`).
 
 ## 9. Output
 

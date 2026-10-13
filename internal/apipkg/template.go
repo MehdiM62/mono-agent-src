@@ -400,6 +400,20 @@ func renderValue(v any, sc Scope) (any, error) {
 		if parts, ok := t["$concat"]; ok {
 			return renderConcat(parts, sc)
 		}
+		if inner, ok := t["$json"]; ok {
+			r, err := renderValue(inner, sc)
+			if err != nil {
+				return nil, fmt.Errorf("$json: %w", err)
+			}
+			if isEmpty(r) {
+				return nil, nil
+			}
+			b, err := json.Marshal(r)
+			if err != nil {
+				return nil, fmt.Errorf("$json: %w", err)
+			}
+			return string(b), nil
+		}
 		if src, ok := t["$entries"]; ok {
 			return renderEntries(src, t["$key"], t["$value"], sc)
 		}
