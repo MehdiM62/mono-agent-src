@@ -22,7 +22,7 @@
     "headers": { "$ref": "#/$defs/stringMap" },
     "credentials": { "type": "array", "items": { "$ref": "#/$defs/credential" } },
     "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } },
-    "operations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/operation" } }
+    "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } }
   },
   "$defs": {
     "stringMap": { "type": "object", "additionalProperties": { "type": "string" } },

@@ -502,6 +502,8 @@ Harness: requests after `before` steps are checked with `inject` rendered agains
 
 When a config has no `resource` and the default resource lacks the operation, an operation name that exactly one resource has is used (n8n hides `resource` in some modes, e.g. Discord webhook `sendLegacy`).
 
+**Trigger-only apps** (n8n has only a `…Trigger` node, e.g. Eventbrite, Figma): write a package with `"operations": []` and the app's `n8n_trigger_types` (plus its credentials). It registers no action node; it records the triggers for the importer and the trigger work.
+
 ## 13. Testing a package
 
 `catalog/testdata/<id>.json` has one case per operation, keyed

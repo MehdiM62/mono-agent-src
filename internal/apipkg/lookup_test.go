@@ -551,3 +551,18 @@ func TestDiscordHelpers(t *testing.T) {
 		t.Errorf("default resource still wins: %v %v", op, err)
 	}
 }
+
+func TestTriggerOnlyPackage(t *testing.T) {
+	p, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"eventbrite","title":"Eventbrite","base_url":"https://www.eventbriteapi.com/v3",
+	  "n8n_trigger_types":["n8n-nodes-base.eventbriteTrigger"],"operations":[]}`), "test")
+	if err != nil {
+		t.Fatalf("trigger-only package must validate: %v", err)
+	}
+	if len(p.Operations) != 0 || len(p.N8nTriggerTypes) != 1 {
+		t.Errorf("parsed: %+v", p)
+	}
+	if _, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"empty","title":"E","base_url":"https://e.test","operations":[]}`), "test"); err == nil ||
+		!strings.Contains(err.Error(), "n8n_trigger_types") {
+		t.Errorf("no ops and no triggers must fail: %v", err)
+	}
+}

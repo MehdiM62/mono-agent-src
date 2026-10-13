@@ -80,6 +80,9 @@ func (p *Package) check() []string {
 		probs = append(probs, checkTemplates("headers."+k, v, nil, credKeys)...)
 	}
 
+	if len(p.Operations) == 0 && len(p.N8nTriggerTypes) == 0 {
+		add("operations: a package needs operations (or, for a trigger-only app, n8n_trigger_types)")
+	}
 	seen := map[string]bool{}
 	used := map[string]bool{}
 	for i := range p.Operations {
