@@ -79,6 +79,9 @@ type AppMapper struct {
 	// it is not "operation" (e.g. "action"). The parameter is copied under
 	// its own name, which the package reads.
 	OperationParam string
+	// ResourceParam is the n8n parameter that selects the resource when
+	// it is not "resource" (uProc: "group"); copied under its own name.
+	ResourceParam string
 	// ParamMap renames n8n parameters per operation, keyed
 	// "resource.operation" (or "operation" when there is no resource):
 	// n8n parameter name → package field name. Only for names that differ.
@@ -214,14 +217,18 @@ func mapApp(a AppMapper, c *MapContext) Mapping {
 		opParam = "operation"
 	}
 	cfg := map[string]interface{}{}
-	resource := c.Literal("resource", a.DefaultResource)
+	resParam := a.ResourceParam
+	if resParam == "" {
+		resParam = "resource"
+	}
+	resource := c.Literal(resParam, a.DefaultResource)
 	defOp := a.DefaultOperation
 	if d, ok := a.DefaultOperations[resource]; ok {
 		defOp = d
 	}
 	operation := c.Literal(opParam, defOp)
 	if resource != "" {
-		cfg["resource"] = resource
+		cfg[resParam] = resource
 	}
 	if operation != "" {
 		cfg[opParam] = operation
@@ -241,7 +248,7 @@ func mapApp(a AppMapper, c *MapContext) Mapping {
 		}
 	}
 	for k := range c.Params {
-		if k == "resource" || k == opParam {
+		if k == resParam || k == opParam {
 			continue
 		}
 		dst := k

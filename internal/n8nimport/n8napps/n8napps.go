@@ -47,6 +47,7 @@ func appMapper(m apipkg.N8nMapping) n8nimport.AppMapper {
 		DefaultResource:   m.DefaultResource,
 		DefaultOperations: m.DefaultOperations,
 		OperationParam:    m.OperationParam,
+		ResourceParam:     m.ResourceParam,
 		VersionDefaults:   m.VersionDefaults,
 	}
 	if m.Extends != "" {
