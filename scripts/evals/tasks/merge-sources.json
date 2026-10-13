@@ -1,0 +1,45 @@
+{
+  "id": "merge-sources",
+  "mode": "both",
+  "workflow_name": "eval-merge-sources",
+  "prompt": "Create a workflow named \"eval-merge-sources\", run manually, that fetches both\n{{FIXTURE_URL}}/products.json and {{FIXTURE_URL}}/extra.json in parallel (each\nhas its products under \"items\"), turns each response into one item per\nproduct, and merges the two streams into one list with a Merge node.",
+  "fixtures": [
+    "products.json",
+    "extra.json"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "core.merge"
+      ]
+    },
+    {
+      "type": "output",
+      "node_type": "core.merge",
+      "path": "[*].name",
+      "count": 6
+    },
+    {
+      "type": "output",
+      "node_type": "core.merge",
+      "path": "[*].name",
+      "contains": [
+        "pen",
+        "lamp",
+        "desk",
+        "novel"
+      ]
+    }
+  ]
+}

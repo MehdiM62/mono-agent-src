@@ -1,0 +1,33 @@
+{
+  "id": "datetime-format",
+  "mode": "both",
+  "workflow_name": "eval-datetime-format",
+  "prompt": "Create a workflow named \"eval-datetime-format\", run manually with the input\n{\"when\":\"2026-03-14T15:09:26Z\"}, that reformats \"when\" as a plain date\n(year-month-day, e.g. 2026-03-14) into a field named \"day\" with the date/time\nnode.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "data.datetime"
+      ]
+    },
+    {
+      "type": "output",
+      "path": "[0].day",
+      "equals": "2026-03-14"
+    }
+  ],
+  "input": {
+    "when": "2026-03-14T15:09:26Z"
+  }
+}

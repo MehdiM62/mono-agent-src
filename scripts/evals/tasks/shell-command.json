@@ -1,0 +1,33 @@
+{
+  "id": "shell-command",
+  "mode": "both",
+  "workflow_name": "eval-shell-command",
+  "prompt": "Create a workflow named \"eval-shell-command\", run manually, that runs the shell\ncommand `echo eval-ok` and keeps its output.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "system.execute_command"
+      ]
+    },
+    {
+      "type": "output",
+      "node_type": "system.execute_command",
+      "path": "[0]",
+      "contains": [
+        "eval-ok"
+      ]
+    }
+  ]
+}

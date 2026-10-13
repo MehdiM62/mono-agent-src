@@ -1,0 +1,42 @@
+{
+  "name": "eval-shell-command",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.manual",
+      "name": "trigger",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {}
+    },
+    {
+      "id": "cmd",
+      "type": "system.execute_command",
+      "name": "cmd",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "command": "echo",
+        "args": [
+          "eval-ok"
+        ]
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "cmd",
+      "target_handle": "main"
+    }
+  ]
+}
