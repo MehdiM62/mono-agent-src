@@ -1,0 +1,511 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_calendar",
+  "node_type": "app.google_calendar",
+  "title": "Google Calendar",
+  "description": "Events and free/busy availability in Google Calendar",
+  "category": "app",
+  "docs_url": "https://developers.google.com/calendar/api/v3/reference",
+  "n8n_types": [
+    "n8n-nodes-base.googleCalendar"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.googleCalendarTrigger"
+  ],
+  "base_url": "https://www.googleapis.com/calendar/v3",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Calendar scope group)",
+      "n8n_credential": "googleCalendarOAuth2Api",
+      "n8n_credential_alt": [
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google",
+      "scope_group": "calendar"
+    }
+  ],
+  "resources": [
+    {
+      "value": "event",
+      "label": "Event"
+    },
+    {
+      "value": "calendar",
+      "label": "Calendar"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "event",
+      "operation": "create",
+      "title": "Create an event",
+      "description": "Dates without a UTC offset need Additional fields → timezone (an IANA name such as Europe/Berlin).",
+      "method": "POST",
+      "path": "/calendars/{{ p.calendar | rl }}/events",
+      "fields": [
+        {
+          "key": "calendar",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true,
+          "help": "A calendar ID such as primary or someone@example.com; a resource locator is accepted."
+        },
+        {
+          "key": "start",
+          "label": "Start",
+          "type": "datetime",
+          "required": true,
+          "help": "RFC 3339 date-time of the event start."
+        },
+        {
+          "key": "end",
+          "label": "End",
+          "type": "datetime",
+          "required": true,
+          "help": "RFC 3339 date-time of the event end."
+        },
+        {
+          "key": "useDefaultReminders",
+          "label": "Use default reminders",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "allday",
+            "attendees",
+            "color",
+            "conferenceDataUi",
+            "description",
+            "guestsCanInviteOthers",
+            "guestsCanModify",
+            "guestsCanSeeOtherGuests",
+            "id",
+            "location",
+            "maxAttendees",
+            "repeatFrecuency",
+            "repeatHowManyTimes",
+            "repeatUntil",
+            "rrule",
+            "sendNotifications",
+            "sendUpdates",
+            "showMeAs",
+            "summary",
+            "visibility",
+            "timezone"
+          ],
+          "help": "attendees is a list of e-mail addresses; conferenceDataUi.conferenceDataValues.conferenceSolution is hangoutsMeet, eventHangout or eventNamedHangout; showMeAs is opaque (busy) or transparent (available); rrule is an RFC 5545 rule without the RRULE: prefix. allday 'yes' sends start/end as dates (UTC date of the value). Attendee entries may hold several comma-separated addresses."
+        },
+        {
+          "key": "remindersUi",
+          "label": "Reminders",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remindersValues"
+          ],
+          "help": "Used when Use default reminders is off: remindersValues is a list of {method: email|popup, minutes}."
+        }
+      ],
+      "query": {
+        "maxAttendees": "{{ p.additionalFields.maxAttendees }}",
+        "sendNotifications": "{{ p.additionalFields.sendNotifications }}",
+        "sendUpdates": "{{ p.additionalFields.sendUpdates }}",
+        "conferenceDataVersion": "{{ p.additionalFields.conferenceDataUi.conferenceDataValues.conferenceSolution | then:'1' }}"
+      },
+      "body": {
+        "start": {
+          "dateTime": "{{ p.additionalFields.allday | ne:'yes' | then:p.start }}",
+          "date": "{{ p.additionalFields.allday | eq:'yes' | then:p.start | date:'YYYY-MM-DD' }}",
+          "timeZone": "{{ p.start | then:p.additionalFields.timezone }}"
+        },
+        "end": {
+          "dateTime": "{{ p.additionalFields.allday | ne:'yes' | then:p.end }}",
+          "date": "{{ p.additionalFields.allday | eq:'yes' | then:p.end | date:'YYYY-MM-DD' }}",
+          "timeZone": "{{ p.end | then:p.additionalFields.timezone }}"
+        },
+        "attendees": {
+          "$map": "{{ p.additionalFields.attendees | csv | split }}",
+          "$to": {
+            "email": "{{ el }}"
+          }
+        },
+        "colorId": "{{ p.additionalFields.color }}",
+        "description": "{{ p.additionalFields.description }}",
+        "guestsCanInviteOthers": "{{ p.additionalFields.guestsCanInviteOthers }}",
+        "guestsCanModify": "{{ p.additionalFields.guestsCanModify }}",
+        "guestsCanSeeOtherGuests": "{{ p.additionalFields.guestsCanSeeOtherGuests }}",
+        "id": "{{ p.additionalFields.id }}",
+        "location": "{{ p.additionalFields.location }}",
+        "summary": "{{ p.additionalFields.summary }}",
+        "transparency": "{{ p.additionalFields.showMeAs }}",
+        "visibility": "{{ p.additionalFields.visibility }}",
+        "reminders": {
+          "useDefault": "{{ p.useDefaultReminders | eq:'false' | then:false }}",
+          "overrides": "{{ p.useDefaultReminders | eq:'false' | then:p.remindersUi.remindersValues }}"
+        },
+        "recurrence": [
+          "{{ p.additionalFields.rrule | prefix:'RRULE:' }}",
+          "{{ p.additionalFields.repeatFrecuency | upper | prefix:'RRULE:FREQ=' }}{{ p.additionalFields.repeatHowManyTimes | prefix:';COUNT=' }}{{ p.additionalFields.repeatUntil | date:'YYYYMMDDTHHmmss' | prefix:';UNTIL=' | suffix:'Z' }}"
+        ],
+        "conferenceData": {
+          "createRequest": {
+            "requestId": "{{ p.additionalFields.conferenceDataUi.conferenceDataValues.conferenceSolution | then:p.start | epoch_ms | prefix:'monoagent-' }}",
+            "conferenceSolutionKey": {
+              "type": "{{ p.additionalFields.conferenceDataUi.conferenceDataValues.conferenceSolution }}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "delete",
+      "title": "Delete an event",
+      "method": "DELETE",
+      "path": "/calendars/{{ p.calendar | rl }}/events/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "calendar",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sendUpdates"
+          ],
+          "help": "sendUpdates: all, externalOnly or none."
+        }
+      ],
+      "query": {
+        "sendUpdates": "{{ p.options.sendUpdates }}"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "get",
+      "title": "Get an event",
+      "method": "GET",
+      "path": "/calendars/{{ p.calendar | rl }}/events/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "calendar",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "maxAttendees",
+            "timeZone"
+          ],
+          "help": "timeZone is an IANA time zone for the response."
+        }
+      ],
+      "query": {
+        "maxAttendees": "{{ p.options.maxAttendees }}",
+        "timeZone": "{{ p.options.timeZone | rl }}"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "getAll",
+      "title": "Get many events",
+      "method": "GET",
+      "path": "/calendars/{{ p.calendar | rl }}/events",
+      "fields": [
+        {
+          "key": "calendar",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "timeMin",
+          "label": "After",
+          "type": "datetime",
+          "help": "Only events ending after this RFC 3339 time."
+        },
+        {
+          "key": "timeMax",
+          "label": "Before",
+          "type": "datetime",
+          "help": "Only events starting before this RFC 3339 time."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "iCalUID",
+            "maxAttendees",
+            "orderBy",
+            "query",
+            "recurringEventHandling",
+            "showDeleted",
+            "showHiddenInvitations",
+            "singleEvents",
+            "timeMax",
+            "timeMin",
+            "timeZone",
+            "updatedMin"
+          ],
+          "help": "recurringEventHandling expand (default) lists each occurrence; orderBy is startTime or updated."
+        }
+      ],
+      "query": {
+        "timeMin": "{{ p.options.timeMin | default:p.timeMin }}",
+        "timeMax": "{{ p.options.timeMax | default:p.timeMax }}",
+        "singleEvents": "{{ p.options.recurringEventHandling | default:'expand' | eq:'expand' | default:p.options.singleEvents }}",
+        "iCalUID": "{{ p.options.iCalUID }}",
+        "maxAttendees": "{{ p.options.maxAttendees }}",
+        "orderBy": "{{ p.options.orderBy }}",
+        "q": "{{ p.options.query }}",
+        "showDeleted": "{{ p.options.showDeleted }}",
+        "showHiddenInvitations": "{{ p.options.showHiddenInvitations }}",
+        "timeZone": "{{ p.options.timeZone | rl }}",
+        "updatedMin": "{{ p.options.updatedMin }}",
+        "fields": "{{ p.options.fields }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 250,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "update",
+      "title": "Update an event",
+      "method": "PATCH",
+      "path": "/calendars/{{ p.calendar | rl }}/events/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "calendar",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "modifyTarget",
+          "label": "Modify",
+          "type": "select",
+          "default": "instance",
+          "options": [
+            "instance",
+            "event"
+          ],
+          "help": "For a recurring-event instance ID; this package always patches the ID given (pass the series ID to change the whole series)."
+        },
+        {
+          "key": "useDefaultReminders",
+          "label": "Use default reminders",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "allday",
+            "attendees",
+            "attendeesUi",
+            "color",
+            "description",
+            "end",
+            "guestsCanInviteOthers",
+            "guestsCanModify",
+            "guestsCanSeeOtherGuests",
+            "id",
+            "location",
+            "maxAttendees",
+            "repeatFrecuency",
+            "repeatHowManyTimes",
+            "repeatUntil",
+            "rrule",
+            "sendNotifications",
+            "sendUpdates",
+            "showMeAs",
+            "start",
+            "summary",
+            "visibility",
+            "timezone"
+          ],
+          "help": "attendeesUi.values.attendees replaces the attendee list with these e-mail addresses. allday 'yes' sends start/end as dates (UTC date of the value). Attendee entries may hold several comma-separated addresses."
+        },
+        {
+          "key": "remindersUi",
+          "label": "Reminders",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "remindersValues"
+          ]
+        }
+      ],
+      "query": {
+        "maxAttendees": "{{ p.updateFields.maxAttendees }}",
+        "sendNotifications": "{{ p.updateFields.sendNotifications }}",
+        "sendUpdates": "{{ p.updateFields.sendUpdates }}"
+      },
+      "body": {
+        "start": {
+          "dateTime": "{{ p.updateFields.allday | ne:'yes' | then:p.updateFields.start }}",
+          "date": "{{ p.updateFields.allday | eq:'yes' | then:p.updateFields.start | date:'YYYY-MM-DD' }}",
+          "timeZone": "{{ p.updateFields.start | then:p.updateFields.timezone }}"
+        },
+        "end": {
+          "dateTime": "{{ p.updateFields.allday | ne:'yes' | then:p.updateFields.end }}",
+          "date": "{{ p.updateFields.allday | eq:'yes' | then:p.updateFields.end | date:'YYYY-MM-DD' }}",
+          "timeZone": "{{ p.updateFields.end | then:p.updateFields.timezone }}"
+        },
+        "attendees": {
+          "$concat": [
+            {
+              "$map": "{{ p.updateFields.attendees | csv | split }}",
+              "$to": {
+                "email": "{{ el }}"
+              }
+            },
+            {
+              "$map": "{{ p.updateFields.attendeesUi.values.attendees | csv | split }}",
+              "$to": {
+                "email": "{{ el }}"
+              }
+            }
+          ]
+        },
+        "colorId": "{{ p.updateFields.color }}",
+        "description": "{{ p.updateFields.description }}",
+        "guestsCanInviteOthers": "{{ p.updateFields.guestsCanInviteOthers }}",
+        "guestsCanModify": "{{ p.updateFields.guestsCanModify }}",
+        "guestsCanSeeOtherGuests": "{{ p.updateFields.guestsCanSeeOtherGuests }}",
+        "id": "{{ p.updateFields.id }}",
+        "location": "{{ p.updateFields.location }}",
+        "summary": "{{ p.updateFields.summary }}",
+        "transparency": "{{ p.updateFields.showMeAs }}",
+        "visibility": "{{ p.updateFields.visibility }}",
+        "reminders": {
+          "useDefault": "{{ p.useDefaultReminders | eq:'false' | then:false }}",
+          "overrides": "{{ p.useDefaultReminders | eq:'false' | then:p.remindersUi.remindersValues }}"
+        },
+        "recurrence": [
+          "{{ p.updateFields.rrule | prefix:'RRULE:' }}",
+          "{{ p.updateFields.repeatFrecuency | upper | prefix:'RRULE:FREQ=' }}{{ p.updateFields.repeatHowManyTimes | prefix:';COUNT=' }}{{ p.updateFields.repeatUntil | date:'YYYYMMDDTHHmmss' | prefix:';UNTIL=' | suffix:'Z' }}"
+        ]
+      }
+    },
+    {
+      "resource": "calendar",
+      "operation": "availability",
+      "title": "Check availability",
+      "description": "Returns the free/busy result for the calendar (Google's calendars map); busy is empty when the calendar is free.",
+      "method": "POST",
+      "path": "/freeBusy",
+      "fields": [
+        {
+          "key": "calendar",
+          "label": "Calendar ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "timeMin",
+          "label": "Start of interval",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "timeMax",
+          "label": "End of interval",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "outputFormat",
+            "timezone"
+          ],
+          "help": "timezone: IANA time zone of the response."
+        }
+      ],
+      "body": {
+        "timeMin": "{{ p.timeMin }}",
+        "timeMax": "{{ p.timeMax }}",
+        "items": [
+          {
+            "id": "{{ p.calendar | rl }}"
+          }
+        ],
+        "timeZone": "{{ p.options.timezone | rl }}"
+      },
+      "output": {
+        "path": "calendars"
+      }
+    }
+  ]
+}

@@ -1,0 +1,236 @@
+{
+  "event.create": {
+    "params": {
+      "calendar": {
+        "__rl": true,
+        "mode": "id",
+        "value": "team@example.com"
+      },
+      "start": "2026-10-20T10:00:00Z",
+      "end": "2026-10-20T11:00:00Z",
+      "useDefaultReminders": false,
+      "remindersUi": {
+        "remindersValues": [
+          {
+            "method": "popup",
+            "minutes": 10
+          }
+        ]
+      },
+      "additionalFields": {
+        "summary": "Planning",
+        "attendees": [
+          "a@example.com",
+          "b@example.com"
+        ],
+        "rrule": "FREQ=WEEKLY;COUNT=4",
+        "sendUpdates": "all",
+        "showMeAs": "transparent",
+        "timezone": "Europe/Berlin",
+        "conferenceDataUi": {
+          "conferenceDataValues": {
+            "conferenceSolution": "hangoutsMeet"
+          }
+        }
+      }
+    },
+    "response": {
+      "id": "evt1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/calendar/v3/calendars/team@example.com/events",
+      "query": {
+        "sendUpdates": "all",
+        "conferenceDataVersion": "1"
+      },
+      "body": {
+        "start": {
+          "dateTime": "2026-10-20T10:00:00Z",
+          "timeZone": "Europe/Berlin"
+        },
+        "end": {
+          "dateTime": "2026-10-20T11:00:00Z",
+          "timeZone": "Europe/Berlin"
+        },
+        "attendees": [
+          {
+            "email": "a@example.com"
+          },
+          {
+            "email": "b@example.com"
+          }
+        ],
+        "summary": "Planning",
+        "transparency": "transparent",
+        "reminders": {
+          "useDefault": false,
+          "overrides": [
+            {
+              "method": "popup",
+              "minutes": 10
+            }
+          ]
+        },
+        "recurrence": [
+          "RRULE:FREQ=WEEKLY;COUNT=4"
+        ],
+        "conferenceData": {
+          "createRequest": {
+            "requestId": "monoagent-1792490400000",
+            "conferenceSolutionKey": {
+              "type": "hangoutsMeet"
+            }
+          }
+        }
+      },
+      "items": 1
+    }
+  },
+  "event.delete": {
+    "params": {
+      "calendar": "primary",
+      "eventId": "evt1",
+      "options": {
+        "sendUpdates": "none"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/calendar/v3/calendars/primary/events/evt1",
+      "query": {
+        "sendUpdates": "none"
+      }
+    }
+  },
+  "event.get": {
+    "params": {
+      "calendar": "primary",
+      "eventId": "evt1",
+      "options": {
+        "timeZone": {
+          "__rl": true,
+          "mode": "id",
+          "value": "UTC"
+        }
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/calendar/v3/calendars/primary/events/evt1",
+      "query": {
+        "timeZone": "UTC"
+      }
+    }
+  },
+  "event.getAll": {
+    "params": {
+      "calendar": "primary",
+      "limit": 10,
+      "timeMin": "2026-10-01T00:00:00Z",
+      "options": {
+        "query": "standup",
+        "orderBy": "startTime"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/calendar/v3/calendars/primary/events",
+      "query": {
+        "timeMin": "2026-10-01T00:00:00Z",
+        "singleEvents": "true",
+        "q": "standup",
+        "orderBy": "startTime",
+        "maxResults": "10"
+      },
+      "items": 2
+    }
+  },
+  "event.update": {
+    "params": {
+      "calendar": "primary",
+      "eventId": "evt1",
+      "updateFields": {
+        "summary": "Renamed",
+        "start": "2026-10-21T09:00:00Z",
+        "timezone": "Europe/Berlin",
+        "attendeesUi": {
+          "values": {
+            "mode": "add",
+            "attendees": [
+              "c@example.com, d@example.com"
+            ]
+          }
+        },
+        "repeatFrecuency": "Daily",
+        "allday": "yes",
+        "end": "2026-10-22T09:00:00Z",
+        "repeatUntil": "2026-12-01T00:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/calendar/v3/calendars/primary/events/evt1",
+      "body": {
+        "start": {
+          "date": "2026-10-21",
+          "timeZone": "Europe/Berlin"
+        },
+        "attendees": [
+          {
+            "email": "c@example.com"
+          },
+          {
+            "email": "d@example.com"
+          }
+        ],
+        "summary": "Renamed",
+        "recurrence": [
+          "RRULE:FREQ=DAILY;UNTIL=20261201T000000Z"
+        ],
+        "end": {
+          "date": "2026-10-22",
+          "timeZone": "Europe/Berlin"
+        }
+      }
+    }
+  },
+  "calendar.availability": {
+    "params": {
+      "calendar": "primary",
+      "timeMin": "2026-10-20T10:00:00Z",
+      "timeMax": "2026-10-20T11:00:00Z"
+    },
+    "response": {
+      "calendars": {
+        "primary": {
+          "busy": []
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/calendar/v3/freeBusy",
+      "body": {
+        "timeMin": "2026-10-20T10:00:00Z",
+        "timeMax": "2026-10-20T11:00:00Z",
+        "items": [
+          {
+            "id": "primary"
+          }
+        ]
+      },
+      "items": 1
+    }
+  }
+}
