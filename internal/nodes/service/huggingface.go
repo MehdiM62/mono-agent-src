@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -29,6 +30,9 @@ var huggingFaceTextRemoved = errors.New(`huggingface: operation generate_text wa
 func (n *HuggingFaceNode) Type() string { return "service.huggingface" }
 
 func (n *HuggingFaceNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.huggingface", config) {
+		return apipkg.ExecuteExtension(ctx, "service.huggingface", input, config)
+	}
 	operation := strVal(config, "operation")
 	if operation == "" {
 		operation = "generate_image"

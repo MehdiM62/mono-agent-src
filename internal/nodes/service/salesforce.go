@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -39,6 +40,9 @@ func salesforceAPIVersion(config map[string]interface{}) (string, error) {
 }
 
 func (n *SalesforceNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.salesforce", config) {
+		return apipkg.ExecuteExtension(ctx, "service.salesforce", input, config)
+	}
 	instanceURL := strVal(config, "instance_url")
 	if instanceURL == "" {
 		return nil, fmt.Errorf("salesforce: instance_url is required")

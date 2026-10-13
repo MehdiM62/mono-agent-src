@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -18,6 +19,9 @@ type AirtableNode struct{}
 func (n *AirtableNode) Type() string { return "service.airtable" }
 
 func (n *AirtableNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.airtable", config) {
+		return apipkg.ExecuteExtension(ctx, "service.airtable", input, config)
+	}
 	token := strVal(config, "api_key")
 	if token == "" {
 		token = strVal(config, "access_token")
