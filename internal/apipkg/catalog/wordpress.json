@@ -1,0 +1,750 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "wordpress",
+  "title": "WordPress",
+  "description": "Posts, pages and users on a WordPress site (self-hosted or WordPress.com)",
+  "category": "app",
+  "docs_url": "https://developer.wordpress.org/rest-api/reference/",
+  "n8n_types": [
+    "n8n-nodes-base.wordpress"
+  ],
+  "base_url": "{{ cred.url | re:'^(.*?)/?$' | suffix:'/wp-json/wp/v2' | default:(cred.wordpress_site | re:'^(?:https?://)?([^/]+)' | prefix:'https://public-api.wordpress.com/wp/v2/sites/') }}",
+  "headers": {
+    "Cache-Control": "no-cache"
+  },
+  "credentials": [
+    {
+      "platform": "wordpress",
+      "name": "WordPress (self-hosted)",
+      "n8n_credential": "wordpressApi",
+      "n8n_field_map": {
+        "url": "url",
+        "username": "username",
+        "password": "password"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Site URL",
+          "required": true,
+          "help": "e.g. https://blog.example.com"
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Application password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      }
+    },
+    {
+      "platform": "wordpress_com",
+      "name": "WordPress.com",
+      "n8n_credential": "wordpressOAuth2Api",
+      "n8n_field_map": {
+        "wordpressSite": "wordpress_site"
+      },
+      "methods": [
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "wordpress_site",
+          "label": "Site",
+          "required": true,
+          "help": "e.g. example.wordpress.com"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://public-api.wordpress.com/oauth2/authorize",
+        "token_url": "https://public-api.wordpress.com/oauth2/token",
+        "scopes": [
+          "global"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "post",
+      "label": "Post"
+    },
+    {
+      "value": "page",
+      "label": "Page"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "post",
+      "operation": "create",
+      "title": "Create a post",
+      "method": "POST",
+      "path": "/posts",
+      "body": {
+        "title": "{{ p.title }}",
+        "author": "{{ p.additionalFields.authorId }}",
+        "content": "{{ p.additionalFields.content }}",
+        "slug": "{{ p.additionalFields.slug }}",
+        "password": "{{ p.additionalFields.password }}",
+        "status": "{{ p.additionalFields.status }}",
+        "comment_status": "{{ p.additionalFields.commentStatus }}",
+        "ping_status": "{{ p.additionalFields.pingStatus }}",
+        "template": "{{ p.additionalFields.postTemplate.values.template }}",
+        "sticky": "{{ p.additionalFields.sticky | then:true }}",
+        "categories": "{{ p.additionalFields.categories }}",
+        "tags": "{{ p.additionalFields.tags }}",
+        "format": "{{ p.additionalFields.format }}",
+        "date": "{{ p.additionalFields.date }}"
+      },
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authorId",
+            "content",
+            "slug",
+            "password",
+            "status",
+            "date",
+            "commentStatus",
+            "pingStatus",
+            "format",
+            "sticky",
+            "categories",
+            "tags",
+            "postTemplate"
+          ],
+          "help": "postTemplate: {\"values\": {\"elementor\": bool, \"template\": \"…\"}}"
+        }
+      ]
+    },
+    {
+      "resource": "post",
+      "operation": "get",
+      "title": "Get a post",
+      "method": "GET",
+      "path": "/posts/{{ p.postId }}",
+      "query": {
+        "password": "{{ p.options.password }}",
+        "context": "{{ p.options.context }}"
+      },
+      "fields": [
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "password",
+            "context"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "post",
+      "operation": "getAll",
+      "title": "Get many posts",
+      "method": "GET",
+      "path": "/posts",
+      "query": {
+        "context": "{{ p.options.context }}",
+        "orderby": "{{ p.options.orderBy }}",
+        "order": "{{ p.options.order }}",
+        "search": "{{ p.options.search }}",
+        "before": "{{ p.options.before }}",
+        "after": "{{ p.options.after }}",
+        "author": "{{ p.options.author | csv }}",
+        "categories": "{{ p.options.categories | csv }}",
+        "categories_exclude": "{{ p.options.excludedCategories | csv }}",
+        "tags": "{{ p.options.tags | csv }}",
+        "tags_exclude": "{{ p.options.excludedTags | csv }}",
+        "sticky": "{{ p.options.sticky | then:true }}",
+        "status": "{{ p.options.status }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "after",
+            "author",
+            "before",
+            "categories",
+            "context",
+            "excludedCategories",
+            "excludedTags",
+            "order",
+            "orderBy",
+            "search",
+            "status",
+            "sticky",
+            "tags"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "post",
+      "operation": "update",
+      "title": "Update a post",
+      "method": "POST",
+      "path": "/posts/{{ p.postId }}",
+      "body": {
+        "id": "{{ p.postId | int }}",
+        "title": "{{ p.updateFields.title }}",
+        "author": "{{ p.updateFields.authorId }}",
+        "content": "{{ p.updateFields.content }}",
+        "slug": "{{ p.updateFields.slug }}",
+        "password": "{{ p.updateFields.password }}",
+        "status": "{{ p.updateFields.status }}",
+        "comment_status": "{{ p.updateFields.commentStatus }}",
+        "ping_status": "{{ p.updateFields.pingStatus }}",
+        "template": "{{ p.updateFields.postTemplate.values.template }}",
+        "sticky": "{{ p.updateFields.sticky | then:true }}",
+        "categories": "{{ p.updateFields.categories }}",
+        "tags": "{{ p.updateFields.tags }}",
+        "format": "{{ p.updateFields.format }}",
+        "date": "{{ p.updateFields.date }}"
+      },
+      "fields": [
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "title",
+            "authorId",
+            "content",
+            "slug",
+            "password",
+            "status",
+            "date",
+            "commentStatus",
+            "pingStatus",
+            "format",
+            "sticky",
+            "categories",
+            "tags",
+            "postTemplate"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "post",
+      "operation": "delete",
+      "title": "Delete a post",
+      "method": "DELETE",
+      "path": "/posts/{{ p.postId }}",
+      "query": {
+        "force": "{{ p.options.force | then:true }}"
+      },
+      "fields": [
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "create",
+      "title": "Create a page",
+      "method": "POST",
+      "path": "/pages",
+      "body": {
+        "title": "{{ p.title }}",
+        "author": "{{ p.additionalFields.authorId }}",
+        "content": "{{ p.additionalFields.content }}",
+        "slug": "{{ p.additionalFields.slug }}",
+        "password": "{{ p.additionalFields.password }}",
+        "status": "{{ p.additionalFields.status }}",
+        "comment_status": "{{ p.additionalFields.commentStatus }}",
+        "ping_status": "{{ p.additionalFields.pingStatus }}",
+        "template": "{{ p.additionalFields.pageTemplate.values.template }}",
+        "menu_order": "{{ p.additionalFields.menuOrder }}",
+        "parent": "{{ p.additionalFields.parent }}",
+        "featured_media": "{{ p.additionalFields.featuredMediaId }}"
+      },
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authorId",
+            "parent",
+            "content",
+            "slug",
+            "password",
+            "status",
+            "commentStatus",
+            "pingStatus",
+            "pageTemplate",
+            "menuOrder",
+            "featuredMediaId"
+          ],
+          "help": "pageTemplate: {\"values\": {\"elementor\": bool, \"template\": \"…\"}}"
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "get",
+      "title": "Get a page",
+      "method": "GET",
+      "path": "/pages/{{ p.pageId }}",
+      "query": {
+        "password": "{{ p.options.password }}",
+        "context": "{{ p.options.context }}"
+      },
+      "fields": [
+        {
+          "key": "pageId",
+          "label": "Page ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "password",
+            "context"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "getAll",
+      "title": "Get many pages",
+      "method": "GET",
+      "path": "/pages",
+      "query": {
+        "context": "{{ p.options.context }}",
+        "orderby": "{{ p.options.orderBy }}",
+        "order": "{{ p.options.order }}",
+        "search": "{{ p.options.search }}",
+        "before": "{{ p.options.before }}",
+        "after": "{{ p.options.after }}",
+        "author": "{{ p.options.author | csv }}",
+        "parent": "{{ p.options.parent }}",
+        "menu_order": "{{ p.options.menuOrder }}",
+        "status": "{{ p.options.status }}",
+        "page": "{{ p.options.page }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "after",
+            "author",
+            "before",
+            "context",
+            "menuOrder",
+            "order",
+            "orderBy",
+            "page",
+            "parent",
+            "search",
+            "status"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "update",
+      "title": "Update a page",
+      "method": "POST",
+      "path": "/pages/{{ p.pageId }}",
+      "body": {
+        "id": "{{ p.pageId | int }}",
+        "title": "{{ p.updateFields.title }}",
+        "author": "{{ p.updateFields.authorId }}",
+        "content": "{{ p.updateFields.content }}",
+        "slug": "{{ p.updateFields.slug }}",
+        "password": "{{ p.updateFields.password }}",
+        "status": "{{ p.updateFields.status }}",
+        "comment_status": "{{ p.updateFields.commentStatus }}",
+        "ping_status": "{{ p.updateFields.pingStatus }}",
+        "template": "{{ p.updateFields.pageTemplate.values.template }}",
+        "menu_order": "{{ p.updateFields.menuOrder }}",
+        "parent": "{{ p.updateFields.parent }}",
+        "featured_media": "{{ p.updateFields.featuredMediaId }}"
+      },
+      "fields": [
+        {
+          "key": "pageId",
+          "label": "Page ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "title",
+            "authorId",
+            "parent",
+            "content",
+            "slug",
+            "password",
+            "status",
+            "commentStatus",
+            "pingStatus",
+            "pageTemplate",
+            "menuOrder",
+            "featuredMediaId"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "delete",
+      "title": "Delete a page",
+      "method": "DELETE",
+      "path": "/pages/{{ p.pageId }}",
+      "query": {
+        "force": "{{ p.options.force | then:true }}"
+      },
+      "fields": [
+        {
+          "key": "pageId",
+          "label": "Page ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users",
+      "body": {
+        "name": "{{ p.name }}",
+        "username": "{{ p.username }}",
+        "first_name": "{{ p.firstName }}",
+        "last_name": "{{ p.lastName }}",
+        "email": "{{ p.email }}",
+        "password": "{{ p.password }}",
+        "url": "{{ p.additionalFields.url }}",
+        "description": "{{ p.additionalFields.description }}",
+        "nickname": "{{ p.additionalFields.nickname }}",
+        "slug": "{{ p.additionalFields.slug }}"
+      },
+      "fields": [
+        {
+          "key": "username",
+          "label": "Username",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Display name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "url",
+            "description",
+            "nickname",
+            "slug"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.userId }}",
+      "query": {
+        "context": "{{ p.options.context }}"
+      },
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "context"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users",
+      "query": {
+        "context": "{{ p.options.context }}",
+        "orderby": "{{ p.options.orderBy }}",
+        "order": "{{ p.options.order }}",
+        "search": "{{ p.options.search }}",
+        "who": "{{ p.options.who }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "context",
+            "orderBy",
+            "order",
+            "search",
+            "who"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "POST",
+      "path": "/users/{{ p.userId }}",
+      "body": {
+        "id": "{{ p.userId | numeric }}",
+        "name": "{{ p.updateFields.name }}",
+        "first_name": "{{ p.updateFields.firstName }}",
+        "last_name": "{{ p.updateFields.lastName }}",
+        "email": "{{ p.updateFields.email }}",
+        "password": "{{ p.updateFields.password }}",
+        "username": "{{ p.updateFields.username }}",
+        "url": "{{ p.updateFields.url }}",
+        "description": "{{ p.updateFields.description }}",
+        "nickname": "{{ p.updateFields.nickname }}",
+        "slug": "{{ p.updateFields.slug }}"
+      },
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "username",
+            "name",
+            "firstName",
+            "lastName",
+            "email",
+            "password",
+            "url",
+            "description",
+            "nickname",
+            "slug"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete the current user",
+      "method": "DELETE",
+      "path": "/users/me",
+      "query": {
+        "reassign": "{{ p.reassign }}",
+        "force": "true"
+      },
+      "fields": [
+        {
+          "key": "reassign",
+          "label": "Reassign posts to user ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}
