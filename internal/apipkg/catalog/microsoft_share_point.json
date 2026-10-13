@@ -518,8 +518,21 @@
         }
       ],
       "binary": {
-        "upload_field": "binaryPropertyName"
-      }
+        "upload_field": "binaryPropertyName",
+        "upload_session": {
+          "create": {
+            "method": "POST",
+            "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+            "path": "/drive/items/{{ p.folder | rl }}:/{{ p.fileName }}:/createUploadSession",
+            "body": {
+              "item": {
+                "@microsoft.graph.conflictBehavior": "replace"
+              }
+            }
+          }
+        }
+      },
+      "description": "Files over 4 MiB go through an upload session in 10 MiB chunks."
     },
     {
       "resource": "file",
