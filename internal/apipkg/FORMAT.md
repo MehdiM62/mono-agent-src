@@ -511,6 +511,16 @@ and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
 
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one after any `before` steps. To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
+```json
+"values.append": {
+  "params": { "documentId": "abc", "sheetName": "Main" },
+  "input": { "name": "ada" },
+  "responses": [ { "values": [["name", "email"]] }, { "updates": {} } ],
+  "expect": { "method": "POST", "path": "/v4/spreadsheets/abc/values/Main:append", "body": { "values": [["ada", ""]] } }
+}
+```
+
 ## 14. Worked example
 
 `catalog/acme.json`:
