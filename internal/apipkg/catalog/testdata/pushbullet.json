@@ -1,28 +1,52 @@
 {
   "push.create": {
     "params": {
-      "type": "link",
-      "title": "T",
-      "body": "B",
-      "url": "https://x.test",
-      "target": "email",
-      "value": "a@b.c"
+      "type": "file",
+      "body": "B"
     },
-    "response": {
-      "iden": "p1"
+    "input": {
+      "data": "aGVsbG8="
     },
-    "expect": {
-      "method": "POST",
-      "path": "/v2/pushes",
-      "body": {
-        "type": "link",
-        "body": "B",
-        "title": "T",
-        "url": "https://x.test",
-        "email": "a@b.c"
+    "responses": [
+      {
+        "file_name": "f.bin",
+        "file_type": "application/octet-stream",
+        "file_url": "https://dl.test/f.bin",
+        "upload_url": "https://up.test/u"
       },
-      "items": 1
-    }
+      {},
+      {
+        "iden": "p"
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/v2/upload-request",
+        "body": {
+          "file_name": "data",
+          "file_type": "application/octet-stream"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/u",
+        "body": {
+          "file": "file:data:hello"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/v2/pushes",
+        "body": {
+          "type": "file",
+          "body": "B",
+          "file_name": "f.bin",
+          "file_type": "application/octet-stream",
+          "file_url": "https://dl.test/f.bin"
+        }
+      }
+    ]
   },
   "push.delete": {
     "params": {

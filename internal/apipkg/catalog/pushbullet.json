@@ -131,12 +131,15 @@
           "upload": true,
           "method": "POST",
           "path": "{{ pre.upload_url }}",
-          "body_type": "multipart"
+          "body_type": "multipart",
+          "body": {
+            "$merge": "{{ pre.data }}"
+          }
         }
       ],
       "binary": {
         "upload_field": "binaryPropertyName",
-        "upload_when": "{{ p.type | eq:'__main_never_uploads__' }}",
+        "upload_when": "false",
         "multipart_field": "file"
       },
       "body": {

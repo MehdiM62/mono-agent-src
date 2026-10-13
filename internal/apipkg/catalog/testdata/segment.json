@@ -1,0 +1,101 @@
+{
+  "identify.create": {
+    "params": {
+      "userId": "u1",
+      "traits": {
+        "traitsUi": [
+          {
+            "key": "email",
+            "value": "a@b.c"
+          }
+        ]
+      },
+      "context": {
+        "contextUi": {
+          "ip": "1.2.3.4",
+          "app": {
+            "appUi": {
+              "name": "web"
+            }
+          }
+        }
+      },
+      "integrations": {
+        "integrationsUi": {
+          "all": true
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/identify",
+      "body": {
+        "userId": "u1",
+        "traits": {
+          "email": "a@b.c"
+        },
+        "context": {
+          "ip": "1.2.3.4",
+          "app": {
+            "name": "web"
+          }
+        },
+        "integrations": {
+          "all": true
+        }
+      }
+    }
+  },
+  "group.add": {
+    "params": {
+      "groupId": "g1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/group",
+      "body": {
+        "groupId": "g1",
+        "anonymousId": "<any>"
+      }
+    }
+  },
+  "track.event": {
+    "params": {
+      "userId": "u1",
+      "event": "Signed Up",
+      "properties": {
+        "propertiesUi": [
+          {
+            "key": "plan",
+            "value": "pro"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/track",
+      "body": {
+        "userId": "u1",
+        "event": "Signed Up",
+        "properties": {
+          "plan": "pro"
+        }
+      }
+    }
+  },
+  "track.page": {
+    "params": {
+      "userId": "u1",
+      "name": "Home"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/page",
+      "body": {
+        "userId": "u1",
+        "name": "Home"
+      }
+    }
+  }
+}
