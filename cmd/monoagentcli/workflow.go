@@ -19,6 +19,7 @@ import (
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/i18n"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/scheduler"
@@ -1047,9 +1048,9 @@ func newWorkflowActivateCmd(cfg *globalConfig) *cobra.Command {
 		Use:   "activate <id>",
 		Short: "Activate a workflow and start its triggers",
 		Long: "Activate a workflow and start its triggers.\n\n" +
-			"IMPORTANT: activation only registers triggers for the lifetime of this command. " +
-			"For a trigger.schedule or trigger.webhook to actually fire later, `monoagentcli daemon` " +
-			"must be running continuously (it restores every active workflow's triggers on startup).",
+			"Schedule and webhook triggers fire from `monoagentcli daemon`. A running daemon picks " +
+			"the activation up within a few seconds — no restart needed — and it also follows later " +
+			"edits, deactivation and deletion. Without a daemon running, nothing fires until one starts.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			engine, closeBrowsers, err := buildEngine(cfg, false)
@@ -1072,7 +1073,11 @@ func newWorkflowActivateCmd(cfg *globalConfig) *cobra.Command {
 			}
 
 			fmt.Fprintf(os.Stdout, "Workflow %s activated.\n", args[0])
-			fmt.Fprintln(os.Stdout, "Note: run `monoagentcli daemon` (kept running continuously) for this workflow's triggers to actually fire — activation alone only registers them for this command's lifetime.")
+			if _, live := daemonhb.Read(); live {
+				fmt.Fprintln(os.Stdout, "The running daemon starts this workflow's triggers within a few seconds.")
+			} else {
+				fmt.Fprintln(os.Stdout, "Note: no daemon is running. Start `monoagentcli daemon` (kept running) for this workflow's schedule and webhook triggers to fire.")
+			}
 			return nil
 		},
 	}
@@ -1083,7 +1088,9 @@ func newWorkflowDeactivateCmd(cfg *globalConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:   "deactivate <id>",
 		Short: "Deactivate a workflow and stop its triggers",
-		Args:  cobra.ExactArgs(1),
+		Long: "Deactivate a workflow and stop its triggers. A running `monoagentcli daemon` " +
+			"stops firing them within a few seconds — no restart needed.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			engine, closeBrowsers, err := buildEngine(cfg, false)
 			if err != nil {
