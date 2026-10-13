@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 )
 
@@ -92,5 +93,6 @@ func resolveHIL(ctx context.Context, db *sql.DB, id string, approve bool) error 
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("HIL item %s is no longer pending", id)
 	}
+	_ = commsync.SetStatus(ctx, db, id, commsync.Status(status), commsync.Detail{})
 	return nil
 }

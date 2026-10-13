@@ -759,7 +759,7 @@ func (d *Database) ListPersonMessages(personID, source, profileID string, limit,
 	query := `
 		SELECT pm.id, pm.person_id, pm.source, pm.external_id, pm.direction,
 		       COALESCE(pm.sender,''), COALESCE(pm.subject,''), COALESCE(pm.body,''),
-		       COALESCE(pm.metadata,''), pm.status, pm.sent_at, pm.created_at, pm.read_at
+		       COALESCE(pm.metadata,''), pm.status, pm.sent_at, pm.created_at, pm.read_at, COALESCE(pm.hil_ref,'')
 		FROM person_messages pm
 		JOIN people p ON p.id = pm.person_id
 		WHERE pm.person_id = ? AND COALESCE(p.profile_id,'default') = ?`
@@ -784,7 +784,7 @@ func (d *Database) ListPersonMessages(personID, source, profileID string, limit,
 		var sentAt, readAt sql.NullTime
 		if err := rows.Scan(
 			&m.ID, &m.PersonID, &m.Source, &m.ExternalID, &m.Direction,
-			&m.Sender, &m.Subject, &m.Body, &m.Metadata, &m.Status, &sentAt, &m.CreatedAt, &readAt,
+			&m.Sender, &m.Subject, &m.Body, &m.Metadata, &m.Status, &sentAt, &m.CreatedAt, &readAt, &m.HilRef,
 		); err != nil {
 			return nil, fmt.Errorf("scanning person message row: %w", err)
 		}
@@ -804,11 +804,11 @@ func (d *Database) GetPersonMessage(id string) (*PersonMessage, error) {
 	err := d.DB.QueryRow(`
 		SELECT id, person_id, source, external_id, direction,
 		       COALESCE(sender,''), COALESCE(subject,''), COALESCE(body,''),
-		       COALESCE(metadata,''), status, sent_at, created_at, read_at
+		       COALESCE(metadata,''), status, sent_at, created_at, read_at, COALESCE(hil_ref,'')
 		FROM person_messages WHERE id = ?`, id,
 	).Scan(
 		&m.ID, &m.PersonID, &m.Source, &m.ExternalID, &m.Direction,
-		&m.Sender, &m.Subject, &m.Body, &m.Metadata, &m.Status, &sentAt, &m.CreatedAt, &readAt,
+		&m.Sender, &m.Subject, &m.Body, &m.Metadata, &m.Status, &sentAt, &m.CreatedAt, &readAt, &m.HilRef,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -865,7 +865,7 @@ func (d *Database) ListPersonMessagesByStatus(profileID, status string) ([]*Pers
 		SELECT pm.id, pm.person_id, pm.source, pm.external_id, pm.direction,
 		       COALESCE(pm.sender,''), COALESCE(pm.subject,''), COALESCE(pm.body,''),
 		       COALESCE(pm.metadata,''), pm.status, pm.sent_at, pm.created_at,
-		       COALESCE(p.full_name,''), p.platform_username, p.platform, pm.read_at
+		       COALESCE(p.full_name,''), p.platform_username, p.platform, pm.read_at, COALESCE(pm.hil_ref,'')
 		FROM person_messages pm
 		JOIN people p ON p.id = pm.person_id
 		WHERE COALESCE(p.profile_id,'default') = ? AND pm.status = ?
@@ -883,7 +883,7 @@ func (d *Database) ListPersonMessagesByStatus(profileID, status string) ([]*Pers
 		if err := rows.Scan(
 			&m.ID, &m.PersonID, &m.Source, &m.ExternalID, &m.Direction,
 			&m.Sender, &m.Subject, &m.Body, &m.Metadata, &m.Status, &sentAt, &m.CreatedAt,
-			&m.PersonFullName, &m.PersonPlatformUsername, &m.PersonPlatform, &readAt,
+			&m.PersonFullName, &m.PersonPlatformUsername, &m.PersonPlatform, &readAt, &m.HilRef,
 		); err != nil {
 			return nil, fmt.Errorf("scanning person message row: %w", err)
 		}
@@ -915,6 +915,12 @@ func (d *Database) ListAllPersonMessages(profileID, source string, limit, offset
 // ListAllPersonMessagesFiltered is ListAllPersonMessages, optionally only
 // the unread inbound messages.
 func (d *Database) ListAllPersonMessagesFiltered(profileID, source string, unreadOnly bool, limit, offset int) ([]*PersonMessageWithPerson, error) {
+	return d.ListAllPersonMessagesByStatus(profileID, source, "", unreadOnly, limit, offset)
+}
+
+// ListAllPersonMessagesByStatus is ListAllPersonMessagesFiltered, optionally
+// only the messages in one status (e.g. "pending_approval"; "" = any).
+func (d *Database) ListAllPersonMessagesByStatus(profileID, source, status string, unreadOnly bool, limit, offset int) ([]*PersonMessageWithPerson, error) {
 	if profileID == "" {
 		profileID = "default"
 	}
@@ -929,7 +935,7 @@ func (d *Database) ListAllPersonMessagesFiltered(profileID, source string, unrea
 		SELECT pm.id, pm.person_id, pm.source, pm.external_id, pm.direction,
 		       COALESCE(pm.sender,''), COALESCE(pm.subject,''), COALESCE(pm.body,''),
 		       COALESCE(pm.metadata,''), pm.status, pm.sent_at, pm.created_at,
-		       COALESCE(p.full_name,''), p.platform_username, p.platform, pm.read_at
+		       COALESCE(p.full_name,''), p.platform_username, p.platform, pm.read_at, COALESCE(pm.hil_ref,'')
 		FROM person_messages pm
 		JOIN people p ON p.id = pm.person_id
 		WHERE COALESCE(p.profile_id,'default') = ?`
@@ -938,6 +944,10 @@ func (d *Database) ListAllPersonMessagesFiltered(profileID, source string, unrea
 	if source != "" {
 		query += " AND pm.source = ?"
 		args = append(args, source)
+	}
+	if status != "" {
+		query += " AND pm.status = ?"
+		args = append(args, status)
 	}
 	if unreadOnly {
 		query += " AND pm.direction = 'inbound' AND pm.read_at IS NULL"
@@ -958,7 +968,7 @@ func (d *Database) ListAllPersonMessagesFiltered(profileID, source string, unrea
 		if err := rows.Scan(
 			&m.ID, &m.PersonID, &m.Source, &m.ExternalID, &m.Direction,
 			&m.Sender, &m.Subject, &m.Body, &m.Metadata, &m.Status, &sentAt, &m.CreatedAt,
-			&m.PersonFullName, &m.PersonPlatformUsername, &m.PersonPlatform, &readAt,
+			&m.PersonFullName, &m.PersonPlatformUsername, &m.PersonPlatform, &readAt, &m.HilRef,
 		); err != nil {
 			return nil, fmt.Errorf("scanning person message row: %w", err)
 		}

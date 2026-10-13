@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
@@ -234,6 +235,7 @@ func cancelExecution(ctx context.Context, db *sql.DB, profileID, executionID str
 		executionID, profileID); err != nil {
 		return res, fmt.Errorf("reject pending reviews: %w", err)
 	}
+	_ = commsync.SetStatusForExecution(ctx, db, executionID, commsync.Rejected)
 	res.Status = "CANCELLED"
 	return res, nil
 }

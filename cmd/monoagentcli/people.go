@@ -100,7 +100,8 @@ func newPeopleListCmd(cfg *globalConfig) *cobra.Command {
 			query := `SELECT id, platform_username, platform, COALESCE(full_name,''),
 			                 COALESCE(image_url,''), COALESCE(profile_url,''),
 			                 COALESCE(follower_count,''), COALESCE(following_count,0), COALESCE(is_verified,0),
-			                 COALESCE(category,''), COALESCE(job_title,''), COALESCE(created_at,'')
+			                 COALESCE(category,''), COALESCE(job_title,''), COALESCE(created_at,''),
+			                 COALESCE(kind,'person')
 			          FROM people` + where + " ORDER BY created_at DESC"
 			switch {
 			case limit > 0:
@@ -128,6 +129,7 @@ func newPeopleListCmd(cfg *globalConfig) *cobra.Command {
 				Category         string `json:"category,omitempty"`
 				JobTitle         string `json:"job_title,omitempty"`
 				CreatedAt        string `json:"created_at"`
+				Kind             string `json:"kind"`
 			}
 
 			people := []personSummary{}
@@ -138,7 +140,7 @@ func newPeopleListCmd(cfg *globalConfig) *cobra.Command {
 					&p.ID, &p.PlatformUsername, &p.Platform, &p.FullName,
 					&p.ImageURL, &p.ProfileURL,
 					&p.FollowerCount, &p.FollowingCount,
-					&verified, &p.Category, &p.JobTitle, &p.CreatedAt,
+					&verified, &p.Category, &p.JobTitle, &p.CreatedAt, &p.Kind,
 				); err != nil {
 					return fmt.Errorf("scanning person: %w", err)
 				}
@@ -285,14 +287,15 @@ func newPeopleGetCmd(cfg *globalConfig) *cobra.Command {
 				        COALESCE(following_count, 0), introduction, COALESCE(is_verified, 0),
 				        category, job_title,
 				        created_at, updated_at, profile_url,
-				        headline, location, about, experience, education, profile_details
+				        headline, location, about, experience, education, profile_details,
+				        COALESCE(kind, 'person')
 				 FROM people WHERE id = ? AND profile_id = ?`, personID, cfg.ProfileID,
 			).Scan(
 				&p.ID, &p.PlatformUsername, &p.Platform, &fullName,
 				&imageURL, &contactDetails, &website, &contentCount,
 				&followerCount, &followingCount, &introduction,
 				&verified, &category, &jobTitle, &p.CreatedAt, &p.UpdatedAt, &profileURL,
-				&headline, &location, &about, &experience, &education, &details,
+				&headline, &location, &about, &experience, &education, &details, &p.Kind,
 			)
 			if err == sql.ErrNoRows {
 				return errNotFound("person %q not found", personID)

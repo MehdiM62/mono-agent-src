@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/hilsuggest"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
@@ -278,6 +279,7 @@ func newHILApproveCmd(cfg *globalConfig) *cobra.Command {
 			if n, _ := res.RowsAffected(); n == 0 {
 				return errNotFound("HIL item %q not found or already resolved", args[0])
 			}
+			_ = commsync.SetStatus(cmd.Context(), db.DB, args[0], commsync.Approved, commsync.Detail{Edited: check})
 			if cfg.JSONOutput {
 				return json.NewEncoder(os.Stdout).Encode(map[string]string{"id": args[0], "status": "approved"})
 			}
@@ -316,6 +318,7 @@ func newHILRejectCmd(cfg *globalConfig) *cobra.Command {
 			if n, _ := res.RowsAffected(); n == 0 {
 				return errNotFound("HIL item %q not found or already resolved", args[0])
 			}
+			_ = commsync.SetStatus(cmd.Context(), db.DB, args[0], commsync.Rejected, commsync.Detail{})
 			if cfg.JSONOutput {
 				return json.NewEncoder(os.Stdout).Encode(map[string]string{"id": args[0], "status": "rejected"})
 			}
