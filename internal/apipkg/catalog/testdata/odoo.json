@@ -1,0 +1,729 @@
+{
+  "contact.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "filter": [
+          {
+            "fieldName": "id",
+            "operator": "in",
+            "value": "1, 2"
+          },
+          {
+            "fieldName": "name",
+            "operator": "like",
+            "value": "Ada"
+          }
+        ]
+      },
+      "options": {
+        "fieldsList": [
+          "name",
+          "email"
+        ]
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/res.partner/search_read",
+      "headers": {
+        "X-Odoo-Database": "acme"
+      },
+      "body": {
+        "domain": [
+          [
+            "id",
+            "in",
+            [
+              "1",
+              "2"
+            ]
+          ],
+          [
+            "name",
+            "like",
+            "Ada"
+          ]
+        ],
+        "fields": [
+          "name",
+          "email"
+        ],
+        "offset": 0,
+        "limit": 5
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "contact.create": {
+    "params": {
+      "fieldsToSend": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "name": "Ada"
+        }
+      }
+    },
+    "response": [
+      42
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/res.partner/create",
+      "body": {
+        "vals_list": [
+          {
+            "name": "Ada"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "7"
+      }
+    },
+    "response": true,
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/res.partner/unlink",
+      "body": {
+        "ids": [
+          7
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "7"
+    },
+    "response": [
+      {
+        "id": 7
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/res.partner/read",
+      "body": {
+        "ids": [
+          7
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "7",
+      "fieldsToSend": {
+        "mappingMode": "autoMapInputData"
+      }
+    },
+    "input": {
+      "phone": "1"
+    },
+    "response": true,
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/res.partner/write",
+      "body": {
+        "ids": [
+          7
+        ],
+        "vals": {
+          "phone": "1"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "opportunity.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "filter": [
+          {
+            "fieldName": "id",
+            "operator": "in",
+            "value": "1, 2"
+          },
+          {
+            "fieldName": "name",
+            "operator": "like",
+            "value": "Ada"
+          }
+        ]
+      },
+      "options": {
+        "fieldsList": [
+          "name",
+          "email"
+        ]
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/crm.lead/search_read",
+      "headers": {
+        "X-Odoo-Database": "acme"
+      },
+      "body": {
+        "domain": [
+          [
+            "id",
+            "in",
+            [
+              "1",
+              "2"
+            ]
+          ],
+          [
+            "name",
+            "like",
+            "Ada"
+          ]
+        ],
+        "fields": [
+          "name",
+          "email"
+        ],
+        "offset": 0,
+        "limit": 5
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "opportunity.create": {
+    "params": {
+      "fieldsToSend": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "name": "Ada"
+        }
+      }
+    },
+    "response": [
+      42
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/crm.lead/create",
+      "body": {
+        "vals_list": [
+          {
+            "name": "Ada"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "opportunity.delete": {
+    "params": {
+      "opportunityId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "7"
+      }
+    },
+    "response": true,
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/crm.lead/unlink",
+      "body": {
+        "ids": [
+          7
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "opportunity.get": {
+    "params": {
+      "opportunityId": "7"
+    },
+    "response": [
+      {
+        "id": 7
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/crm.lead/read",
+      "body": {
+        "ids": [
+          7
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "opportunity.update": {
+    "params": {
+      "opportunityId": "7",
+      "fieldsToSend": {
+        "mappingMode": "autoMapInputData"
+      }
+    },
+    "input": {
+      "phone": "1"
+    },
+    "response": true,
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/crm.lead/write",
+      "body": {
+        "ids": [
+          7
+        ],
+        "vals": {
+          "phone": "1"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "custom.getAll": {
+    "params": {
+      "customResource": {
+        "__rl": true,
+        "mode": "id",
+        "value": "x.model"
+      },
+      "limit": 5,
+      "filters": {
+        "filter": [
+          {
+            "fieldName": "id",
+            "operator": "in",
+            "value": "1, 2"
+          },
+          {
+            "fieldName": "name",
+            "operator": "like",
+            "value": "Ada"
+          }
+        ]
+      },
+      "options": {
+        "fieldsList": "name,email"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/x.model/search_read",
+      "headers": {
+        "X-Odoo-Database": "acme"
+      },
+      "body": {
+        "domain": [
+          [
+            "id",
+            "in",
+            [
+              "1",
+              "2"
+            ]
+          ],
+          [
+            "name",
+            "like",
+            "Ada"
+          ]
+        ],
+        "fields": [
+          "name",
+          "email"
+        ],
+        "offset": 0,
+        "limit": 5
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "custom.create": {
+    "params": {
+      "customResource": {
+        "__rl": true,
+        "mode": "id",
+        "value": "x.model"
+      },
+      "fieldsToSend": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "name": "Ada"
+        }
+      }
+    },
+    "response": [
+      42
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/x.model/create",
+      "body": {
+        "vals_list": [
+          {
+            "name": "Ada"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "custom.delete": {
+    "params": {
+      "customResource": {
+        "__rl": true,
+        "mode": "id",
+        "value": "x.model"
+      },
+      "recordId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "7"
+      }
+    },
+    "response": true,
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/x.model/unlink",
+      "body": {
+        "ids": [
+          7
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "custom.get": {
+    "params": {
+      "customResource": {
+        "__rl": true,
+        "mode": "id",
+        "value": "x.model"
+      },
+      "recordId": "7"
+    },
+    "response": [
+      {
+        "id": 7
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/x.model/read",
+      "body": {
+        "ids": [
+          7
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "custom.update": {
+    "params": {
+      "customResource": {
+        "__rl": true,
+        "mode": "id",
+        "value": "x.model"
+      },
+      "recordId": "7",
+      "fieldsToSend": {
+        "mappingMode": "autoMapInputData"
+      }
+    },
+    "input": {
+      "phone": "1"
+    },
+    "response": true,
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/x.model/write",
+      "body": {
+        "ids": [
+          7
+        ],
+        "vals": {
+          "phone": "1"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "activity.getAll": {
+    "params": {
+      "returnAll": true,
+      "filters": {
+        "res_model": "res.partner",
+        "res_id": 5
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/mail.activity/search_read",
+      "body": {
+        "domain": [
+          [
+            "res_model",
+            "=",
+            "res.partner"
+          ],
+          [
+            "res_id",
+            "=",
+            5
+          ]
+        ],
+        "offset": 0
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "activity.create": {
+    "params": {
+      "res_model": "res.partner",
+      "res_id": "5",
+      "activity_type_id": "2",
+      "additionalFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "summary": "Call"
+        }
+      }
+    },
+    "responses": [
+      [
+        {
+          "id": 88
+        }
+      ],
+      [
+        9
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/json/2/ir.model/search_read",
+        "body": {
+          "domain": [
+            [
+              "model",
+              "=",
+              "res.partner"
+            ]
+          ],
+          "fields": [
+            "id"
+          ],
+          "limit": 1,
+          "offset": 0
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/json/2/mail.activity/create",
+        "body": {
+          "vals_list": [
+            {
+              "summary": "Call",
+              "res_model_id": 88,
+              "res_id": 5,
+              "activity_type_id": 2
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/mail.activity/create",
+      "body": {
+        "vals_list": [
+          {
+            "summary": "Call",
+            "res_model_id": 88,
+            "res_id": 5,
+            "activity_type_id": 2
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "activity.delete": {
+    "params": {
+      "activityId": "3"
+    },
+    "response": true,
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/mail.activity/unlink",
+      "body": {
+        "ids": [
+          3
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "activity.get": {
+    "params": {
+      "activityId": "3"
+    },
+    "response": [
+      {
+        "id": 3
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/mail.activity/read",
+      "body": {
+        "ids": [
+          3
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  },
+  "activity.update": {
+    "params": {
+      "activityId": "3",
+      "fieldsToSend": {
+        "value": {
+          "note": "x"
+        }
+      }
+    },
+    "response": true,
+    "expect": {
+      "method": "POST",
+      "path": "/json/2/mail.activity/write",
+      "body": {
+        "ids": [
+          3
+        ],
+        "vals": {
+          "note": "x"
+        }
+      }
+    },
+    "credential": {
+      "url": "https://acme.odoo.com",
+      "api_key": "K"
+    }
+  }
+}

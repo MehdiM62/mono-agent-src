@@ -1,0 +1,598 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "pager_duty",
+  "title": "PagerDuty",
+  "description": "Incidents, notes, log entries and users in PagerDuty",
+  "category": "app",
+  "docs_url": "https://developer.pagerduty.com/api-reference/",
+  "n8n_types": [
+    "n8n-nodes-base.pagerDuty"
+  ],
+  "base_url": "https://api.pagerduty.com",
+  "headers": {
+    "Accept": "application/vnd.pagerduty+json;version=2"
+  },
+  "credentials": [
+    {
+      "platform": "pagerduty",
+      "name": "PagerDuty",
+      "n8n_credential": "pagerDutyApi",
+      "n8n_credential_alt": [
+        "pagerDutyOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "apiToken": "api_token"
+      },
+      "methods": [
+        "api_key",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://app.pagerduty.com/oauth/authorize",
+        "token_url": "https://app.pagerduty.com/oauth/token",
+        "scopes": [
+          "write"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.api_token | prefix:'Token token=' | default:(cred.access_token | prefix:'Bearer ') }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "incident",
+      "label": "Incident"
+    },
+    {
+      "value": "incidentNote",
+      "label": "Incident note"
+    },
+    {
+      "value": "logEntry",
+      "label": "Log entry"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "incident",
+      "operation": "create",
+      "title": "Create an incident",
+      "method": "POST",
+      "path": "/incidents",
+      "headers": {
+        "From": "{{ p.email }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiToken",
+          "options": [
+            "apiToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "serviceId",
+          "label": "Service ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Requester email",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Email of a PagerDuty user; sent as the From header."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "escalationPolicyId",
+            "details",
+            "incidentKey",
+            "priorityId",
+            "urgency"
+          ]
+        },
+        {
+          "key": "conferenceBridgeUi",
+          "label": "Conference bridge",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conferenceBridgeValues"
+          ],
+          "help": "{\"conferenceBridgeValues\": {\"conferenceNumber\": \"+1\u2026\", \"conferenceUrl\": \"https://\u2026\"}}"
+        }
+      ],
+      "body": {
+        "incident": {
+          "type": "incident",
+          "title": "{{ p.title }}",
+          "service": {
+            "id": "{{ p.serviceId }}",
+            "type": "service_reference"
+          },
+          "body": {
+            "type": "incident_body",
+            "details": "{{ p.additionalFields.details }}",
+            "$when": "{{ p.additionalFields.details }}"
+          },
+          "priority": {
+            "id": "{{ p.additionalFields.priorityId }}",
+            "type": "priority_reference",
+            "$when": "{{ p.additionalFields.priorityId }}"
+          },
+          "escalation_policy": {
+            "id": "{{ p.additionalFields.escalationPolicyId }}",
+            "type": "escalation_policy_reference",
+            "$when": "{{ p.additionalFields.escalationPolicyId }}"
+          },
+          "urgency": "{{ p.additionalFields.urgency }}",
+          "incident_key": "{{ p.additionalFields.incidentKey }}",
+          "conference_bridge": {
+            "conference_number": "{{ p.conferenceBridgeUi.conferenceBridgeValues.conferenceNumber }}",
+            "conference_url": "{{ p.conferenceBridgeUi.conferenceBridgeValues.conferenceUrl }}"
+          }
+        }
+      },
+      "output": {
+        "path": "incident"
+      }
+    },
+    {
+      "resource": "incident",
+      "operation": "get",
+      "title": "Get an incident",
+      "method": "GET",
+      "path": "/incidents/{{ p.incidentId }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiToken",
+          "options": [
+            "apiToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "incidentId",
+          "label": "Incident ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "incident"
+      }
+    },
+    {
+      "resource": "incident",
+      "operation": "getAll",
+      "title": "Get many incidents",
+      "method": "GET",
+      "path": "/incidents",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiToken",
+          "options": [
+            "apiToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dateRange",
+            "incidentKey",
+            "include",
+            "serviceIds",
+            "since",
+            "sortBy",
+            "statuses",
+            "teamIds",
+            "timeZone",
+            "until",
+            "urgencies",
+            "userIds"
+          ],
+          "help": "teamIds / userIds: comma-separated; include / serviceIds / statuses / urgencies: lists."
+        }
+      ],
+      "query": {
+        "date_range": "{{ p.options.dateRange }}",
+        "incident_key": "{{ p.options.incidentKey }}",
+        "include[]": {
+          "$map": "{{ p.options.include }}",
+          "$to": "{{ el | replace:'conferenceBridge','conference_bridge' | replace:'escalationPolicies','escalation_policies' | replace:'firstTriggerLogEntries','first_trigger_log_entries' }}"
+        },
+        "service_ids[]": "{{ p.options.serviceIds }}",
+        "since": "{{ p.options.since }}",
+        "sort_by": "{{ p.options.sortBy }}",
+        "statuses[]": "{{ p.options.statuses }}",
+        "team_ids[]": "{{ p.options.teamIds | split }}",
+        "time_zone": "{{ p.options.timeZone }}",
+        "until": "{{ p.options.until }}",
+        "urgencies[]": "{{ p.options.urgencies }}",
+        "user_ids[]": "{{ p.options.userIds | split }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "incidents"
+      }
+    },
+    {
+      "resource": "incident",
+      "operation": "update",
+      "title": "Update an incident",
+      "method": "PUT",
+      "path": "/incidents/{{ p.incidentId }}",
+      "headers": {
+        "From": "{{ p.email }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiToken",
+          "options": [
+            "apiToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "incidentId",
+          "label": "Incident ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Requester email",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Email of a PagerDuty user; sent as the From header."
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "escalationLevel",
+            "escalationPolicyId",
+            "priorityId",
+            "resolution",
+            "status",
+            "title",
+            "urgency",
+            "details"
+          ]
+        },
+        {
+          "key": "conferenceBridgeUi",
+          "label": "Conference bridge",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conferenceBridgeValues"
+          ],
+          "help": "{\"conferenceBridgeValues\": {\"conferenceNumber\": \"+1\u2026\", \"conferenceUrl\": \"https://\u2026\"}}"
+        }
+      ],
+      "body": {
+        "incident": {
+          "type": "incident",
+          "title": "{{ p.updateFields.title }}",
+          "escalation_level": "{{ p.updateFields.escalationLevel }}",
+          "body": {
+            "type": "incident_body",
+            "details": "{{ p.updateFields.details }}",
+            "$when": "{{ p.updateFields.details }}"
+          },
+          "priority": {
+            "id": "{{ p.updateFields.priorityId }}",
+            "type": "priority_reference",
+            "$when": "{{ p.updateFields.priorityId }}"
+          },
+          "escalation_policy": {
+            "id": "{{ p.updateFields.escalationPolicyId }}",
+            "type": "escalation_policy_reference",
+            "$when": "{{ p.updateFields.escalationPolicyId }}"
+          },
+          "urgency": "{{ p.updateFields.urgency }}",
+          "resolution": "{{ p.updateFields.resolution }}",
+          "status": "{{ p.updateFields.status }}",
+          "conference_bridge": {
+            "conference_number": "{{ p.conferenceBridgeUi.conferenceBridgeValues.conferenceNumber }}",
+            "conference_url": "{{ p.conferenceBridgeUi.conferenceBridgeValues.conferenceUrl }}"
+          }
+        }
+      },
+      "output": {
+        "path": "incident"
+      }
+    },
+    {
+      "resource": "incidentNote",
+      "operation": "create",
+      "title": "Add a note to an incident",
+      "method": "POST",
+      "path": "/incidents/{{ p.incidentId }}/notes",
+      "headers": {
+        "From": "{{ p.email }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiToken",
+          "options": [
+            "apiToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "incidentId",
+          "label": "Incident ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Requester email",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Email of a PagerDuty user; sent as the From header."
+        }
+      ],
+      "body": {
+        "note": {
+          "content": "{{ p.content }}"
+        }
+      }
+    },
+    {
+      "resource": "incidentNote",
+      "operation": "getAll",
+      "title": "Get an incident's notes",
+      "method": "GET",
+      "path": "/incidents/{{ p.incidentId }}/notes",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiToken",
+          "options": [
+            "apiToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "incidentId",
+          "label": "Incident ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "notes"
+      }
+    },
+    {
+      "resource": "logEntry",
+      "operation": "get",
+      "title": "Get a log entry",
+      "method": "GET",
+      "path": "/log_entries/{{ p.logEntryId }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiToken",
+          "options": [
+            "apiToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "logEntryId",
+          "label": "Log entry ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "log_entry"
+      }
+    },
+    {
+      "resource": "logEntry",
+      "operation": "getAll",
+      "title": "Get many log entries",
+      "method": "GET",
+      "path": "/log_entries",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiToken",
+          "options": [
+            "apiToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "isOverview",
+            "since",
+            "timeZone",
+            "until"
+          ]
+        }
+      ],
+      "query": {
+        "include[]": "{{ p.options.include }}",
+        "is_overview": "{{ p.options.isOverview }}",
+        "since": "{{ p.options.since }}",
+        "time_zone": "{{ p.options.timeZone }}",
+        "until": "{{ p.options.until }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "log_entries"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiToken",
+          "options": [
+            "apiToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "user"
+      }
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "currentWeather": {
+    "params": {
+      "cityName": "berlin,de",
+      "language": "de"
+    },
+    "response": {
+      "name": "Berlin"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/data/2.5/weather",
+      "query": {
+        "units": "metric",
+        "q": "berlin,de",
+        "lang": "de"
+      },
+      "items": 1
+    }
+  },
+  "5DayForecast": {
+    "params": {
+      "locationSelection": "coordinates",
+      "latitude": "52.5",
+      "longitude": "13.4",
+      "format": "imperial"
+    },
+    "response": {
+      "list": []
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/data/2.5/forecast",
+      "query": {
+        "units": "imperial",
+        "lat": "52.5",
+        "lon": "13.4"
+      },
+      "items": 1
+    }
+  }
+}

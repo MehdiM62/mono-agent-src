@@ -1,0 +1,161 @@
+{
+  "agent.createResponse": {
+    "params": {
+      "input": "Why is the sky blue?",
+      "model": {
+        "__rl": true,
+        "mode": "id",
+        "value": "openai/gpt-5"
+      },
+      "simplify": true,
+      "options": {
+        "maxSteps": 3,
+        "tools": "[{\"type\":\"web_search\"}]",
+        "modelsFallback": "a, b"
+      }
+    },
+    "response": {
+      "id": "r1",
+      "model": "m",
+      "output": [
+        {
+          "type": "search_results",
+          "results": [
+            {
+              "title": "T",
+              "url": "https://u",
+              "x": 1
+            }
+          ]
+        },
+        {
+          "type": "message",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Rayleigh"
+            }
+          ]
+        }
+      ],
+      "usage": {
+        "t": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/agent",
+      "body": {
+        "input": "Why is the sky blue?",
+        "model": "openai/gpt-5",
+        "max_steps": 3,
+        "models": [
+          "a",
+          "b"
+        ],
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "chat.complete": {
+    "params": {
+      "messages": {
+        "message": [
+          {
+            "role": "user",
+            "content": "Hi"
+          }
+        ]
+      },
+      "options": {
+        "searchDomainFilter": "a.com, b.com",
+        "temperature": 0.5
+      }
+    },
+    "response": {
+      "id": "c"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/chat/completions",
+      "body": {
+        "model": "sonar",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Hi"
+          }
+        ],
+        "search_domain_filter": [
+          "a.com",
+          "b.com"
+        ],
+        "temperature": 0.5
+      },
+      "items": 1
+    }
+  },
+  "embedding.createEmbedding": {
+    "params": {
+      "input": "one\n two \n\n"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/embeddings",
+      "body": {
+        "model": "pplx-embed-v1-4b",
+        "input": [
+          "one",
+          "two"
+        ]
+      }
+    }
+  },
+  "embedding.createContextualized": {
+    "params": {
+      "input": "[[\"a\"],[\"b\",\"c\"]]",
+      "options": {
+        "dimensions": 0,
+        "encoding_format": "base64_binary"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/contextualizedembeddings",
+      "body": {
+        "model": "pplx-embed-context-v1-4b",
+        "input": [
+          [
+            "a"
+          ],
+          [
+            "b",
+            "c"
+          ]
+        ],
+        "encoding_format": "base64_binary"
+      }
+    }
+  },
+  "search.search": {
+    "params": {
+      "query": "go",
+      "options": {
+        "maxResults": 3
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/search",
+      "body": {
+        "query": "go",
+        "max_results": 3
+      }
+    }
+  }
+}
