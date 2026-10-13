@@ -132,6 +132,8 @@
           "additionalProperties": false,
           "properties": { "path": { "type": "string" }, "split": { "type": "boolean" }, "header_row": { "type": "boolean" },
             "each": { "type": "string" },
+            "to": {},
+            "to_when": { "type": "string" },
             "expand": {
           "type": "object",
           "required": ["method", "path"],
