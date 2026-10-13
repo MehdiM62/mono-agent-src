@@ -411,3 +411,21 @@ func TestBigQueryPollAndSchemaRows(t *testing.T) {
 		t.Errorf("rows = %#v", items)
 	}
 }
+
+func TestReplaceAndRe(t *testing.T) {
+	sc := Scope{P: map[string]any{"cid": "123-456-7890", "long": "accounts/1/locations/2/reviews/ABC/reply", "bare": "ABC"}}
+	for in, want := range map[string]any{
+		"{{ p.cid | replace:'-','' }}":               "1234567890",
+		"{{ p.long | re:'reviews/([^/]+)' }}":        "ABC",
+		"{{ p.bare | re:'reviews/([^/]+)' }}":        "ABC",
+		"{{ p.long | re:'locations/[0-9]+' }}":       "locations/2",
+		"{{ p.cid | replace:'-',(p.bare | lower) }}": "123abc456abc7890",
+	} {
+		if got, err := renderString(in, sc); err != nil || got != want {
+			t.Errorf("%s = %#v, %v; want %#v", in, got, err, want)
+		}
+	}
+	if _, err := renderString("{{ p.cid | re:'(' }}", sc); err == nil {
+		t.Error("bad regexp must error")
+	}
+}

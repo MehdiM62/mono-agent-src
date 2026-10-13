@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,6 +25,7 @@ var knownFilters = map[string]bool{
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
+	"replace": true, "re": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -131,6 +133,23 @@ func applyFilter(name string, v, arg any) (any, error) {
 			}
 		}
 		return firestoreFields(obj, cols), nil
+	case "replace":
+		a := arg.([]any)
+		return strings.ReplaceAll(stringify(v), stringify(a[0]), stringify(a[1])), nil
+	case "re":
+		re, err := cachedRegexp(stringify(arg))
+		if err != nil {
+			return nil, fmt.Errorf("re: %w", err)
+		}
+		s := stringify(v)
+		m := re.FindStringSubmatch(s)
+		switch {
+		case m == nil:
+			return v, nil
+		case len(m) > 1:
+			return m[1], nil
+		}
+		return m[0], nil
 	case "lines":
 		var out []any
 		for _, ln := range strings.Split(strings.ReplaceAll(stringify(v), "\r\n", "\n"), "\n") {
@@ -761,4 +780,18 @@ func pickKeys(v, arg any) (any, error) {
 		}
 	}
 	return out, nil
+}
+
+var reCache sync.Map // pattern → *regexp.Regexp
+
+func cachedRegexp(p string) (*regexp.Regexp, error) {
+	if v, ok := reCache.Load(p); ok {
+		return v.(*regexp.Regexp), nil
+	}
+	re, err := regexp.Compile(p)
+	if err != nil {
+		return nil, err
+	}
+	reCache.Store(p, re)
+	return re, nil
 }

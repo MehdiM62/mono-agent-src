@@ -222,6 +222,8 @@ through, so an unset param stays unset:
 | `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
 | `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
 | `lines` | text → list of its non-empty trimmed lines |
+| `replace:'from','to'` | replace every occurrence: `{{ p.clientCustomerId \| replace:'-','' }}` |
+| `re:'pattern'` | first capture group of the first match (whole match without groups); no match → the value unchanged: `{{ p.review \| rl \| re:'reviews/([^/]+)' }}` |
 | `escape_html` | escape `& < > " '`; on a list, each element (also `prefix`/`suffix`) |
 | `join:'sep'` | list → text joined by `sep`: `{{ p.bodyPlainText \| lines \| escape_html \| prefix:'<p>' \| suffix:'</p>' \| join:'' }}` |
 | `colnum`, `colname` | spreadsheet column letter ↔ 1-based number (`"C"` ↔ 3, `"AA"` ↔ 27) |
