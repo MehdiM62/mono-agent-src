@@ -15,6 +15,9 @@ type RedisNode struct{}
 
 func (n *RedisNode) Type() string { return "db.redis" }
 
+// PerItemConfigFields declares redisPerItemFields (see its doc comment).
+func (n *RedisNode) PerItemConfigFields() []string { return redisPerItemFields }
+
 func (n *RedisNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	operation, _ := config["operation"].(string)
 	if operation == "" {
@@ -28,6 +31,16 @@ func (n *RedisNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 	opts, err := redis.ParseURL(connStr)
 	if err != nil {
 		return nil, fmt.Errorf("db.redis: invalid connection_string: %w", err)
+	}
+
+	if isN8nRedisConfig(config) {
+		rdb := redis.NewClient(opts)
+		defer rdb.Close()
+		return executeRedisN8n(ctx, rdb, operation, input, config)
+	}
+	config, err = resolveForItem(ctx, config, redisPerItemFields, firstItem(input), input)
+	if err != nil {
+		return nil, fmt.Errorf("db.redis: %w", err)
 	}
 
 	key, _ := config["key"].(string)

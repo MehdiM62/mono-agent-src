@@ -37,6 +37,29 @@ require (
 )
 
 require (
+	github.com/Azure/go-amqp v1.7.0 // indirect
+	github.com/Azure/go-ntlmssp v0.1.1 // indirect
+	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
+	github.com/alicebob/miniredis/v2 v2.40.0 // indirect
+	github.com/eclipse/paho.mqtt.golang v1.5.1 // indirect
+	github.com/go-asn1-ber/asn1-ber v1.5.8 // indirect
+	github.com/go-ldap/ldap/v3 v3.4.15 // indirect
+	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
+	github.com/golang-sql/sqlexp v0.1.0 // indirect
+	github.com/microsoft/go-mssqldb v1.11.2 // indirect
+	github.com/mochi-mqtt/server/v2 v2.7.9 // indirect
+	github.com/pierrec/lz4/v4 v4.1.33 // indirect
+	github.com/rabbitmq/amqp091-go v1.15.0 // indirect
+	github.com/rs/xid v1.6.0 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
+	github.com/sijms/go-ora/v2 v2.9.0 // indirect
+	github.com/twmb/franz-go v1.22.2 // indirect
+	github.com/twmb/franz-go/pkg/kfake v0.0.0-20261013022759-7b6cac30a57a // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.15.0 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
+)
+
+require (
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/go-mysql-org/go-mysql v1.16.0
 	github.com/pingcap/errors v0.11.5-0.20260310054046-9c8b3586e4b2 // indirect
@@ -62,7 +85,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
