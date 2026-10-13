@@ -69,7 +69,10 @@
     },
     "params": {
       "assetId": "a1",
-      "environmentId": "staging"
+      "environmentId": "staging",
+      "additionalFields": {
+        "rawData": true
+      }
     },
     "expect": {
       "method": "GET",

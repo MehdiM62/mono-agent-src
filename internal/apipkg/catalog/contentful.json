@@ -36,19 +36,18 @@
           "key": "access_token",
           "label": "Content Delivery API token",
           "secret": true,
-          "required": true,
           "help": "Settings → API keys"
         },
         {
           "key": "preview_token",
           "label": "Content Preview API token",
           "secret": true,
-          "help": "Kept for n8n imports; Source = previewApi needs engine support to pick this token"
+          "help": "Used when Source = previewApi"
         }
       ],
       "inject": {
         "query": {
-          "access_token": "{{ cred.access_token }}"
+          "access_token": "{{ p.source | eq:'previewApi' | then:cred.preview_token | default:cred.access_token }}"
         }
       }
     }
@@ -84,7 +83,7 @@
       "path": "/spaces/{{ cred.space_id }}/environments/{{ p.environmentId }}/entries/{{ p.entryId }}",
       "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
       "output": {
-        "path": "fields"
+        "path": "{{ p.additionalFields.rawData | ne:'true' | then:'fields' }}"
       },
       "fields": [
         {
@@ -117,7 +116,7 @@
           "options": [
             "rawData"
           ],
-          "help": "rawData is not supported yet: the item is the record's fields."
+          "help": "rawData: output the whole record instead of only its fields."
         }
       ]
     },
@@ -180,7 +179,7 @@
       },
       "output": {
         "path": "items",
-        "each": "fields"
+        "each": "{{ p.additionalFields.rawData | ne:'true' | then:'fields' }}"
       },
       "fields": [
         {
@@ -231,7 +230,7 @@
             "query",
             "rawData"
           ],
-          "help": "equal/notEqual/include/exclude/exist take name=value, e.g. fields.title=Hello or fields.tags[in]=a,b. rawData is not supported yet: the item is the record's fields."
+          "help": "equal/notEqual/include/exclude/exist take name=value, e.g. fields.title=Hello or fields.tags[in]=a,b. rawData: output the whole record instead of only its fields."
         }
       ]
     },
@@ -243,7 +242,7 @@
       "path": "/spaces/{{ cred.space_id }}/environments/{{ p.environmentId }}/assets/{{ p.assetId }}",
       "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
       "output": {
-        "path": "fields"
+        "path": "{{ p.additionalFields.rawData | ne:'true' | then:'fields' }}"
       },
       "fields": [
         {
@@ -276,7 +275,7 @@
           "options": [
             "rawData"
           ],
-          "help": "rawData is not supported yet: the item is the record's fields."
+          "help": "rawData: output the whole record instead of only its fields."
         }
       ]
     },
@@ -338,7 +337,7 @@
       },
       "output": {
         "path": "items",
-        "each": "fields"
+        "each": "{{ p.additionalFields.rawData | ne:'true' | then:'fields' }}"
       },
       "fields": [
         {
@@ -388,7 +387,7 @@
             "query",
             "rawData"
           ],
-          "help": "equal/notEqual/include/exclude/exist take name=value, e.g. fields.title=Hello or fields.tags[in]=a,b. rawData is not supported yet: the item is the record's fields."
+          "help": "equal/notEqual/include/exclude/exist take name=value, e.g. fields.title=Hello or fields.tags[in]=a,b. rawData: output the whole record instead of only its fields."
         }
       ]
     },
@@ -400,7 +399,7 @@
       "path": "/spaces/{{ cred.space_id }}/environments/{{ p.environmentId }}/content_types/{{ p.contentTypeId }}",
       "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
       "output": {
-        "path": "fields"
+        "path": "{{ p.additionalFields.rawData | ne:'true' | then:'fields' }}"
       },
       "fields": [
         {
@@ -433,7 +432,7 @@
           "options": [
             "rawData"
           ],
-          "help": "rawData is not supported yet: the item is the record's fields."
+          "help": "rawData: output the whole record instead of only its fields."
         }
       ]
     },
