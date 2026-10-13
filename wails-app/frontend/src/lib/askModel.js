@@ -21,6 +21,7 @@ export function normalizeAsk(raw) {
       subject: raw.subject || '', text: String(raw.text ?? ''),
       attachments: Array.isArray(raw.attachments) ? raw.attachments : [],
       org: raw.org || raw.preparedBy?.org || '', conversationId: raw.conversationId || raw.preparedBy?.conversationId || '',
+      hilRef: raw.hil_ref || '', personId: raw.person_id || raw.recipient?.personId || '',
     }
   }
   const state = raw.status || raw.state || 'pending'
@@ -30,6 +31,7 @@ export function normalizeAsk(raw) {
     readonly: raw.readonly_data || {}, editable: raw.editable_data || {},
     org: raw.node_config?.org || raw.org || '', conversationId: raw.conversationId || '',
     role: '', suggestion: raw.suggestion || raw.node_config?.suggestion || null,
+    hilRef: raw.hil_ref || '', personId: raw.person_id || '',
   }
 }
 

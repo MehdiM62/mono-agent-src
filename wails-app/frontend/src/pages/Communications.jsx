@@ -4,14 +4,24 @@ import { api } from '../services/api.js'
 import MessageDetailModal from '../components/MessageDetailModal.jsx'
 import { isUnread, UnreadDot } from '../lib/unread.jsx'
 import { useReloadOnActivate } from '../lib/useReloadOnActivate'
+import { useTranslation } from 'react-i18next'
+import { StatusBadge } from '../components/CommsLinks.jsx'
+import { STATUS_FILTERS, messageStatus, isPending, hilRefOf, matchesStatusFilter, onCommsChanged } from '../lib/commsStatus.js'
 
-export default function Communications({ onProfile, isActive = true }) {
+export default function Communications({ onProfile, isActive = true, onOpenHil, navData }) {
+  const { t } = useTranslation()
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [sourceFilter, setSourceFilter] = useState('')
   const [unreadOnly, setUnreadOnly] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('all')
   const [openMessage, setOpenMessage] = useState(null)
+  // "See in Communications" (HIL page, bubbles) names the row to show.
+  const focusRef = navData?.hil_ref || ''
+  // "N communications" on a People row narrows the list to that person.
+  const [personFilter, setPersonFilter] = useState('')
+  useEffect(() => { setPersonFilter(navData?.person || '') }, [navData])
 
   const load = async (opts) => {
     if (opts?.silent !== true) setLoading(true)
@@ -28,12 +38,18 @@ export default function Communications({ onProfile, isActive = true }) {
 
   useEffect(() => { load() }, [])
   useReloadOnActivate(isActive, () => load({ silent: true }))
+  // Approving or rejecting a HIL item elsewhere changes a row here.
+  useEffect(() => onCommsChanged(() => load({ silent: true })), [])
+  useEffect(() => { if (focusRef) setStatusFilter('all') }, [focusRef])
 
   const sources = [...new Set(messages.map(m => m.source).filter(Boolean))]
   const unreadCount = messages.filter(isUnread).length
   const filtered = messages
     .filter(m => !sourceFilter || m.source === sourceFilter)
     .filter(m => !unreadOnly || isUnread(m))
+    .filter(m => !personFilter || m.person_id === personFilter)
+    .filter(m => matchesStatusFilter(m, statusFilter))
+  const hasOutbound = messages.some(m => messageStatus(m))
 
   // Opening a message marks it read (the CLI owns the state; this only
   // mirrors it locally so the dot goes away at once).
@@ -60,6 +76,31 @@ export default function Communications({ onProfile, isActive = true }) {
       </div>
 
       <div className="page-body">
+        {personFilter && (
+          <div className="profile-summary-chips" style={{ marginBottom: 12 }}>
+            <button type="button" className="summary-chip active" data-testid="clear-person-filter" onClick={() => setPersonFilter('')}>
+              {t('comms.onePerson')} {'\u2715'}
+            </button>
+          </div>
+        )}
+        {hasOutbound && (
+          <div className="profile-summary-chips" role="group" aria-label={t('comms.filterLabel')} style={{ marginBottom: 12 }}>
+            {STATUS_FILTERS.map(f => (
+              <button
+                key={f.key}
+                type="button"
+                data-testid={`status-filter-${f.key}`}
+                aria-pressed={statusFilter === f.key}
+                className={`summary-chip ${statusFilter === f.key ? 'active' : ''}`}
+                onClick={() => setStatusFilter(f.key)}
+              >
+                {f.key === 'all' ? t('comms.filterAll') : t(`comms.status.${f.key}`)}{' '}
+                <span>{messages.filter(m => matchesStatusFilter(m, f.key) && (f.key === 'all' || messageStatus(m))).length}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {(sources.length > 1 || unreadCount > 0 || unreadOnly) && (
           <div className="profile-summary-chips" style={{ marginBottom: 12 }}>
             {(unreadCount > 0 || unreadOnly) && (
@@ -103,6 +144,7 @@ export default function Communications({ onProfile, isActive = true }) {
             {filtered.map(msg => (
               <div
                 key={msg.id}
+                data-focused={focusRef && hilRefOf(msg) === focusRef ? 'true' : undefined}
                 role="button"
                 tabIndex={0}
                 onClick={() => openMsg(msg)}
@@ -112,6 +154,7 @@ export default function Communications({ onProfile, isActive = true }) {
                   padding: '10px 12px', borderRadius: 6, cursor: 'pointer',
                   background: 'var(--elevated)', border: '1px solid var(--border)',
                   width: '100%', font: 'inherit', color: 'inherit',
+                  ...(focusRef && hilRefOf(msg) === focusRef ? { outline: '2px solid var(--cyan)' } : {}),
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -125,6 +168,7 @@ export default function Communications({ onProfile, isActive = true }) {
                   }}>
                     {msg.source}
                   </span>
+                  <StatusBadge status={messageStatus(msg)} />
                   <button
                     onClick={e => { e.stopPropagation(); onProfile?.(msg.person_id) }}
                     style={{
@@ -147,9 +191,24 @@ export default function Communications({ onProfile, isActive = true }) {
                     fontFamily: 'var(--font-mono)', fontSize: 10,
                     color: 'var(--text-dim)',
                   }}>
-                    {msg.sent_at ? msg.sent_at.slice(0, 16).replace('T', ' ') : ''}
+                    {(msg.sent_at || msg.created_at || '').slice(0, 16).replace('T', ' ')}
                   </span>
                 </div>
+                {isPending(msg) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'var(--font-mono)', fontSize: 10.5, color: '#f59e0b' }}>
+                    <span>{t('comms.waiting')}</span>
+                    {onOpenHil && (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        data-testid="comms-review"
+                        onClick={e => { e.stopPropagation(); onOpenHil(hilRefOf(msg)) }}
+                      >
+                        {t('comms.review')}
+                      </button>
+                    )}
+                  </div>
+                )}
                 {msg.body && (
                   <div style={{
                     fontFamily: 'var(--font-mono)', fontSize: 10.5,

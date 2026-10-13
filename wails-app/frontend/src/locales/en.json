@@ -1543,5 +1543,30 @@
     "previewLoading": "Loading preview…",
     "open": "Open",
     "openNamed": "Open {{name}}"
+  },
+  "comms": {
+    "status": {
+      "pending_approval": "Pending approval",
+      "approved": "Approved",
+      "sending": "Sending",
+      "sent": "Sent",
+      "rejected": "Rejected",
+      "failed": "Failed",
+      "expired": "Expired"
+    },
+    "filterAll": "All",
+    "waiting": "Waiting for your approval",
+    "review": "Review",
+    "recipient": "Recipient",
+    "openPerson": "Open person",
+    "seeInComms": "See in Communications",
+    "statusLabel": "Status",
+    "timeline": "Status timeline",
+    "company": "Company",
+    "ownAccount": "Your account",
+    "commsCount": "{{count}} communications",
+    "commsPending": "{{count}} pending",
+    "filterLabel": "Filter by status",
+    "onePerson": "One person only"
   }
 }
