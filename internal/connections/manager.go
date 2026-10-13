@@ -456,6 +456,7 @@ func (m *Manager) ConnectOAuthWithScopes(ctx context.Context, platformID string,
 		progress(fmt.Sprintf("warning: could not persist OAuth client credentials for silent refresh: %v", err), "error")
 	}
 
+	copyTokenFields(conn.Data, cfg.TokenFields, result.Extra)
 	conn.Data["access_token"] = result.AccessToken
 	conn.Data["refresh_token"] = result.RefreshToken
 	conn.Data["token_type"] = result.TokenType
@@ -545,6 +546,7 @@ func (m *Manager) connectOAuth(ctx context.Context, p PlatformDef, conn *Connect
 	}
 
 	// Populate conn.Data
+	copyTokenFields(conn.Data, cfg.TokenFields, result.Extra)
 	conn.Data["access_token"] = result.AccessToken
 	conn.Data["refresh_token"] = result.RefreshToken
 	conn.Data["token_type"] = result.TokenType

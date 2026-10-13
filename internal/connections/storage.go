@@ -373,11 +373,13 @@ func (s *Store) RefreshToken(ctx context.Context, conn *Connection) error {
 	if err := json.Unmarshal(body, &result); err != nil {
 		return fmt.Errorf("decode token response: %w", err)
 	}
+	_ = json.Unmarshal(body, &result.Extra)
 	if result.AccessToken == "" {
 		return fmt.Errorf("token response missing access_token")
 	}
 
 	// Update connection data with new tokens.
+	copyTokenFields(conn.Data, cfg.TokenFields, result.Extra)
 	conn.Data["access_token"] = result.AccessToken
 	conn.Data["token_type"] = result.TokenType
 	if result.RefreshToken != "" {

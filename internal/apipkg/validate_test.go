@@ -15,7 +15,7 @@ func TestValidateReportsEveryProblem(t *testing.T) {
 			`$.id: "Bad" does not match`, `$.title: must not be empty`, `unknown key "quey"`,
 		}},
 		"op schema": {pkgJSON(`{"resource":"","operation":"x","title":"X","method":"FETCH","path":"/x","fields":[{"key":"a","label":"A","type":"widget"}],"pagination":{"type":"cursr"}}`), []string{
-			`.method: "FETCH" is not one of`, `.type: "widget" is not one of`, `.pagination.type: "cursr" is not one of`,
+			`.method: "FETCH" does not match`, `.type: "widget" is not one of`, `.pagination.type: "cursr" is not one of`,
 		}},
 		"semantics": {pkgJSON(`{"resource":"task","operation":"get","title":"G","method":"GET","path":"tasks/{{ p.taskId }}",
 		  "query":{"x":"{{ p.nope }}","y":"{{ cred.nokey }}","z":"{{ p.a | wat }}"},

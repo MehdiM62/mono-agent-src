@@ -106,7 +106,17 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	if body != nil {
 		rd = bytes.NewReader(body)
 	}
-	req, err := http.NewRequestWithContext(ctx, strings.ToUpper(r.op.Method), u.String(), rd)
+	method := strings.ToUpper(r.op.Method)
+	if hasTemplate(r.op.Method) {
+		m, err := renderText(r.op.Method, r.scope)
+		if err != nil {
+			return nil, r.errf("method: %w", err)
+		}
+		if method = strings.ToUpper(strings.TrimSpace(m)); !validMethods[method] {
+			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE or HEAD", m)
+		}
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), rd)
 	if err != nil {
 		return nil, r.errf("request: %w", err)
 	}
@@ -328,6 +338,15 @@ func renderPath(s string, sc Scope) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// A path that is one expression yielding an absolute URL (an upload
+	// URL from a before step, hdr.Location) is used as is, unescaped.
+	if t.single {
+		if v, err := t.parts[0].expr.eval(sc); err == nil {
+			if u := stringify(v); strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+				return u, nil
+			}
+		}
+	}
 	v, err := t.render(sc, url.PathEscape)
 	if err != nil {
 		return "", err
@@ -378,10 +397,17 @@ func (r *opRun) uploadMime() string {
 // binMeta describes the upload for the bin template root.
 func (r *opRun) binMeta() map[string]any {
 	name := r.uploadName()
-	return map[string]any{
+	m := map[string]any{
 		"file_name": name, "mime_type": r.uploadMime(),
 		"file_extension": strings.TrimPrefix(path.Ext(name), "."),
 	}
+	// base64 for JSON-body uploads (GitHub/GitLab file content); a missing
+	// binary leaves it unset so the error comes from the op that needs it.
+	if data, err := r.uploadData(); err == nil {
+		m["base64"] = base64.StdEncoding.EncodeToString(data)
+		m["file_size"] = len(data)
+	}
+	return m
 }
 
 // uploads reports whether this run uploads the item's binary.
@@ -403,6 +429,9 @@ func (r *opRun) bodyType() string {
 	bt := r.op.effectiveBodyType()
 	if r.op.Binary == nil || r.op.Binary.UploadWhen == "" || r.uploads() {
 		return bt
+	}
+	if fb := r.op.Binary.FallbackBodyType; fb != "" {
+		return fb
 	}
 	if r.op.Body != nil {
 		return BodyJSON
