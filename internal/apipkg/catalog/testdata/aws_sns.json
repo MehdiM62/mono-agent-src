@@ -1,0 +1,77 @@
+{
+  "publish": {
+    "params": {
+      "topic": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://us-east-1.console.aws.amazon.com/sns/v3/home?region=us-east-1#/topic/arn:aws:sns:us-east-1:777:news"
+      },
+      "subject": "Hi",
+      "message": "Hello & bye"
+    },
+    "response": {
+      "PublishResponse": {
+        "PublishResult": {
+          "MessageId": "m1"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "Publish",
+        "Version": "2010-03-31",
+        "TopicArn": "arn:aws:sns:us-east-1:777:news",
+        "Subject": "Hi",
+        "Message": "Hello & bye"
+      },
+      "items": 1
+    }
+  },
+  "create": {
+    "params": {
+      "name": "orders.fifo",
+      "options": {
+        "fifoTopic": true,
+        "displayName": "Orders"
+      }
+    },
+    "response": {
+      "CreateTopicResponse": {
+        "CreateTopicResult": {
+          "TopicArn": "arn"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "CreateTopic",
+        "Version": "2010-03-31",
+        "Name": "orders.fifo",
+        "Attributes.entry.1.key": "FifoTopic",
+        "Attributes.entry.1.value": "true",
+        "Attributes.entry.2.key": "DisplayName",
+        "Attributes.entry.2.value": "Orders"
+      },
+      "items": 1
+    }
+  },
+  "delete": {
+    "params": {
+      "topic": "arn:aws:sns:us-east-1:777:news"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "DeleteTopic",
+        "Version": "2010-03-31",
+        "TopicArn": "arn:aws:sns:us-east-1:777:news"
+      },
+      "items": 1
+    }
+  }
+}

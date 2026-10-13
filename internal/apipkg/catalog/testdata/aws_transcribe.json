@@ -1,0 +1,120 @@
+{
+  "transcriptionJob.create": {
+    "params": {
+      "transcriptionJobName": "j1",
+      "mediaFileUri": "s3://b/a.mp3",
+      "languageCode": "de-DE",
+      "options": {
+        "maxSpeakerLabels": 3,
+        "vocabularyFilterMethod": "mask"
+      }
+    },
+    "response": {
+      "TranscriptionJob": {
+        "TranscriptionJobName": "j1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "TranscriptionJobName": "j1",
+        "Media": {
+          "MediaFileUri": "s3://b/a.mp3"
+        },
+        "LanguageCode": "de-DE",
+        "Settings": {
+          "ShowSpeakerLabels": true,
+          "MaxSpeakerLabels": 3,
+          "VocabularyFilterMethod": "mask"
+        }
+      },
+      "headers": {
+        "X-Amz-Target": "Transcribe.StartTranscriptionJob"
+      },
+      "items": 1
+    }
+  },
+  "transcriptionJob.delete": {
+    "params": {
+      "transcriptionJobName": "j1"
+    },
+    "response": {},
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "TranscriptionJobName": "j1"
+      },
+      "headers": {
+        "X-Amz-Target": "Transcribe.DeleteTranscriptionJob"
+      },
+      "items": 1
+    }
+  },
+  "transcriptionJob.get": {
+    "params": {
+      "transcriptionJobName": "j1"
+    },
+    "response": {},
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "TranscriptionJobName": "j1"
+      },
+      "headers": {
+        "X-Amz-Target": "Transcribe.GetTranscriptionJob"
+      },
+      "items": 1
+    },
+    "responses": [
+      {
+        "TranscriptionJob": {
+          "TranscriptionJobStatus": "COMPLETED",
+          "Transcript": {
+            "TranscriptFileUri": "https://s3.test/out/j1.json?X-Amz-Signature=x"
+          }
+        }
+      },
+      {
+        "results": {
+          "transcripts": [
+            {
+              "transcript": "hello"
+            },
+            {
+              "transcript": "world"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "transcriptionJob.getAll": {
+    "params": {
+      "filters": {
+        "status": "COMPLETED"
+      }
+    },
+    "response": {
+      "TranscriptionJobSummaries": [
+        {
+          "TranscriptionJobName": "j1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Status": "COMPLETED",
+        "MaxResults": 20
+      },
+      "headers": {
+        "X-Amz-Target": "Transcribe.ListTranscriptionJobs"
+      },
+      "items": 1
+    }
+  }
+}

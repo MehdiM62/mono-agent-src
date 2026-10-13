@@ -1,0 +1,424 @@
+{
+  "user.getAll": {
+    "params": {
+      "limit": 2,
+      "additionalFields": {
+        "pathPrefix": "eng"
+      }
+    },
+    "response": {
+      "ListUsersResponse": {
+        "ListUsersResult": {
+          "IsTruncated": false,
+          "Users": [
+            {
+              "UserName": "a"
+            },
+            {
+              "UserName": "b"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "ListUsers",
+        "Version": "2010-05-08",
+        "PathPrefix": "/eng/",
+        "MaxItems": "2"
+      },
+      "items": 2
+    }
+  },
+  "user.addToGroup": {
+    "params": {
+      "user": {
+        "__rl": true,
+        "mode": "userName",
+        "value": "ada"
+      },
+      "group": "devs"
+    },
+    "response": {
+      "AddUserToGroupResponse": {
+        "ResponseMetadata": {}
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "AddUserToGroup",
+        "Version": "2010-05-08",
+        "UserName": "ada",
+        "GroupName": "devs"
+      },
+      "items": 1
+    }
+  },
+  "user.create": {
+    "params": {
+      "userName": "ada",
+      "additionalFields": {
+        "path": "/eng/",
+        "tags": {
+          "tags": [
+            {
+              "key": "team",
+              "value": "core"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "CreateUserResponse": {
+        "CreateUserResult": {
+          "User": {
+            "UserName": "ada"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "CreateUser",
+        "Version": "2010-05-08",
+        "UserName": "ada",
+        "Path": "/eng/",
+        "Tags.member.1.Key": "team",
+        "Tags.member.1.Value": "core"
+      },
+      "items": 1
+    }
+  },
+  "user.delete": {
+    "params": {
+      "user": "ada"
+    },
+    "responses": [
+      {
+        "ListGroupsForUserResponse": {
+          "ListGroupsForUserResult": {
+            "Groups": [
+              {
+                "GroupName": "devs"
+              }
+            ]
+          }
+        }
+      },
+      {},
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "Action": "ListGroupsForUser",
+          "Version": "2010-05-08",
+          "UserName": "ada"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "Action": "RemoveUserFromGroup",
+          "Version": "2010-05-08",
+          "UserName": "ada",
+          "GroupName": "devs"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "Action": "DeleteUser",
+          "Version": "2010-05-08",
+          "UserName": "ada"
+        }
+      }
+    ]
+  },
+  "user.get": {
+    "params": {
+      "user": "ada"
+    },
+    "response": {
+      "GetUserResponse": {
+        "GetUserResult": {
+          "User": {
+            "UserName": "ada"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "GetUser",
+        "Version": "2010-05-08",
+        "UserName": "ada"
+      },
+      "items": 1
+    }
+  },
+  "user.removeFromGroup": {
+    "params": {
+      "user": "ada",
+      "group": "devs"
+    },
+    "response": {
+      "RemoveUserFromGroupResponse": {
+        "ResponseMetadata": {}
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "RemoveUserFromGroup",
+        "Version": "2010-05-08",
+        "UserName": "ada",
+        "GroupName": "devs"
+      },
+      "items": 1
+    }
+  },
+  "user.update": {
+    "params": {
+      "user": "ada",
+      "userName": "ada2",
+      "additionalFields": {
+        "path": "/x/"
+      }
+    },
+    "response": {
+      "UpdateUserResponse": {
+        "ResponseMetadata": {}
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "UpdateUser",
+        "Version": "2010-05-08",
+        "UserName": "ada",
+        "NewUserName": "ada2",
+        "NewPath": "/x/"
+      },
+      "items": 1
+    }
+  },
+  "group.getAll": {
+    "params": {
+      "returnAll": true,
+      "includeUsers": true
+    },
+    "responses": [
+      {
+        "ListGroupsResponse": {
+          "ListGroupsResult": {
+            "IsTruncated": false,
+            "Groups": [
+              {
+                "GroupName": "devs"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "GetGroupResponse": {
+          "GetGroupResult": {
+            "Users": [
+              {
+                "UserName": "ada"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "Action": "ListGroups",
+          "Version": "2010-05-08",
+          "MaxItems": "1000"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "Action": "GetGroup",
+          "Version": "2010-05-08",
+          "GroupName": "devs"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "ListGroups",
+        "Version": "2010-05-08",
+        "MaxItems": "1000"
+      },
+      "items": 1
+    }
+  },
+  "group.create": {
+    "params": {
+      "groupName": "devs",
+      "additionalFields": {
+        "path": "/eng/"
+      }
+    },
+    "response": {
+      "CreateGroupResponse": {
+        "CreateGroupResult": {
+          "Group": {
+            "GroupName": "devs"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "CreateGroup",
+        "Version": "2010-05-08",
+        "GroupName": "devs",
+        "Path": "/eng/"
+      },
+      "items": 1
+    }
+  },
+  "group.delete": {
+    "params": {
+      "group": "devs"
+    },
+    "responses": [
+      {
+        "GetGroupResponse": {
+          "GetGroupResult": {
+            "Users": [
+              {
+                "UserName": "ada"
+              },
+              {
+                "UserName": "bo"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "Action": "GetGroup",
+          "Version": "2010-05-08",
+          "GroupName": "devs"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "Action": "RemoveUserFromGroup",
+          "Version": "2010-05-08",
+          "GroupName": "devs",
+          "UserName": "ada"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "Action": "RemoveUserFromGroup",
+          "Version": "2010-05-08",
+          "GroupName": "devs",
+          "UserName": "bo"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "body": {
+          "Action": "DeleteGroup",
+          "Version": "2010-05-08",
+          "GroupName": "devs"
+        }
+      }
+    ]
+  },
+  "group.get": {
+    "params": {
+      "group": "devs",
+      "includeUsers": true
+    },
+    "response": {
+      "GetGroupResponse": {
+        "GetGroupResult": {
+          "Group": {
+            "GroupName": "devs"
+          },
+          "Users": [
+            {
+              "UserName": "ada"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "GetGroup",
+        "Version": "2010-05-08",
+        "GroupName": "devs"
+      },
+      "items": 1
+    }
+  },
+  "group.update": {
+    "params": {
+      "group": "devs",
+      "groupName": "ops"
+    },
+    "response": {
+      "UpdateGroupResponse": {
+        "ResponseMetadata": {}
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "UpdateGroup",
+        "Version": "2010-05-08",
+        "GroupName": "devs",
+        "NewGroupName": "ops"
+      },
+      "items": 1
+    }
+  }
+}

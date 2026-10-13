@@ -368,7 +368,8 @@ func (e *expr) evalLit(sc Scope) (any, bool, error) {
 
 // lookupPath walks maps by key and arrays by index (negative from the end).
 func lookupPath(v any, path []string) any {
-	for _, seg := range path {
+	for i := 0; i < len(path); i++ {
+		seg := path[i]
 		switch c := v.(type) {
 		case headerMap:
 			var hit any
@@ -380,19 +381,34 @@ func lookupPath(v any, path []string) any {
 			}
 			v = hit
 		case map[string]any:
-			v = c[seg]
+			if x, ok := c[seg]; ok {
+				v = x
+				continue
+			}
+			// A key containing dots ("@odata.nextLink"): join the
+			// following segments, longest existing key first.
+			found := false
+			for j := len(path); j > i+1; j-- {
+				if x, ok := c[strings.Join(path[i:j], ".")]; ok {
+					v, i, found = x, j-1, true
+					break
+				}
+			}
+			if !found {
+				return nil
+			}
 		case []any:
-			i, err := strconv.Atoi(seg)
+			n, err := strconv.Atoi(seg)
 			if err != nil {
 				return nil
 			}
-			if i < 0 {
-				i += len(c)
+			if n < 0 {
+				n += len(c)
 			}
-			if i < 0 || i >= len(c) {
+			if n < 0 || n >= len(c) {
 				return nil
 			}
-			v = c[i]
+			v = c[n]
 		default:
 			return nil
 		}

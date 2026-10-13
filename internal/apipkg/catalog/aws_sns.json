@@ -1,0 +1,173 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_sns",
+  "node_type": "app.aws_sns",
+  "title": "AWS SNS",
+  "description": "Topics and messages in Amazon SNS",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/sns/latest/api/API_Operations.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsSns"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.awsSnsTrigger"
+  ],
+  "base_url": "https://sns.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "sns",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      }
+    }
+  ],
+  "headers": {
+    "Accept": "text/xml"
+  },
+  "operations": [
+    {
+      "resource": "",
+      "operation": "publish",
+      "title": "Publish a message to a topic",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "Publish",
+        "Version": "2010-03-31",
+        "TopicArn": "{{ p.topic | rl | re:'(arn:aws:sns:[^/#?]+)' }}",
+        "Subject": "{{ p.subject }}",
+        "Message": "{{ p.message }}"
+      },
+      "fields": [
+        {
+          "key": "topic",
+          "label": "Topic",
+          "type": "text",
+          "required": true,
+          "help": "Topic ARN, or its console URL"
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "PublishResponse.PublishResult"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "create",
+      "title": "Create a topic",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "CreateTopic",
+        "Version": "2010-03-31",
+        "Name": "{{ p.options.fifoTopic | then:(p.name | matches:'\\.fifo$' | then:p.name | default:(p.name | suffix:'.fifo')) | default:p.name }}",
+        "Attributes.entry.1.key": "{{ p.options.fifoTopic | then:'FifoTopic' }}",
+        "Attributes.entry.1.value": "{{ p.options.fifoTopic | then:'true' }}",
+        "Attributes.entry.2.key": "{{ p.options.displayName | then:'DisplayName' }}",
+        "Attributes.entry.2.value": "{{ p.options.displayName }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "displayName",
+            "fifoTopic"
+          ],
+          "help": "fifoTopic adds .fifo to the name"
+        }
+      ],
+      "output": {
+        "path": "CreateTopicResponse.CreateTopicResult"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "delete",
+      "title": "Delete a topic",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "DeleteTopic",
+        "Version": "2010-03-31",
+        "TopicArn": "{{ p.topic | rl | re:'(arn:aws:sns:[^/#?]+)' }}"
+      },
+      "fields": [
+        {
+          "key": "topic",
+          "label": "Topic",
+          "type": "text",
+          "required": true,
+          "help": "Topic ARN, or its console URL"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    }
+  ]
+}

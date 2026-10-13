@@ -2,6 +2,7 @@ package apipkg
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"sort"
 	"strconv"
@@ -88,11 +89,12 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 	inPath := pg.ParamIn == "path"
 
 	var (
-		all    []any
-		cursor string
-		offset int
-		page   = 1
-		next   string
+		all       []any
+		cursor    string
+		rawCursor any // the cursor as the API returned it (an object for DynamoDB)
+		offset    int
+		page      = 1
+		next      string
 	)
 	if pg.StartPage != nil {
 		page = *pg.StartPage
@@ -106,7 +108,15 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 			switch pg.Type {
 			case PageCursor:
 				if cursor != "" {
-					pp.values[pg.CursorParam] = cursor
+					if inBody {
+						pp.values[pg.CursorParam] = rawCursor // objects go back unchanged
+					} else {
+						pp.values[pg.CursorParam] = cursor
+					}
+				}
+			case PageHeaderCursor:
+				if cursor != "" {
+					pp.headers = map[string]string{pg.CursorParam: cursor}
 				}
 			case PageOffset:
 				pp.values[pg.OffsetParam] = offset
@@ -136,13 +146,19 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 		more := false
 		switch pg.Type {
 		case PageCursor:
-			c := stringify(lookupPath(doc, splitPath(pg.CursorPath)))
+			raw := lookupPath(doc, splitPath(pg.CursorPath))
+			c := cursorText(raw)
+			rawCursor = raw
 			more = c != "" && c != cursor && len(results) > 0
 			if pg.HasMorePath != "" {
 				if b, err := toBool(lookupPath(doc, splitPath(pg.HasMorePath))); err != nil || b == nil || !b.(bool) {
 					more = false
 				}
 			}
+			cursor = c
+		case PageHeaderCursor:
+			c := resp.header.Get(pg.CursorPath)
+			more = c != "" && c != cursor && len(results) > 0
 			cursor = c
 		case PageOffset:
 			more = len(results) > 0 && (pg.LimitParam == "" || len(results) >= pageSize)
@@ -249,4 +265,18 @@ func objectValues(m map[string]any) []any {
 		out[i] = m[k]
 	}
 	return out
+}
+
+// cursorText is a cursor's identity for the stop/repeat checks: strings as
+// is, objects and lists as their JSON.
+func cursorText(v any) string {
+	switch v.(type) {
+	case map[string]any, []any:
+		if isEmpty(v) {
+			return ""
+		}
+		b, _ := json.Marshal(v)
+		return string(b)
+	}
+	return stringify(v)
 }

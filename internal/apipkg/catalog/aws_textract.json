@@ -1,0 +1,107 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_textract",
+  "node_type": "app.aws_textract",
+  "title": "AWS Textract",
+  "description": "Read receipts and invoices with Amazon Textract",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/textract/latest/dg/API_AnalyzeExpense.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsTextract"
+  ],
+  "base_url": "https://textract.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "textract",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "analyzeExpense",
+      "title": "Analyze a receipt or invoice",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "Textract.AnalyzeExpense",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "Document": {
+          "Bytes": "{{ bin.base64 }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "required": true,
+          "default": "data",
+          "help": "PNG or JPEG image"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return {field: value} of the summary fields"
+        }
+      ],
+      "output": {
+        "to": {
+          "$entries": "{{ el.ExpenseDocuments | pluck:'SummaryFields' | flatten }}",
+          "$key": "{{ el.Type.Text | default:el.LabelDetection.Text }}",
+          "$value": "{{ el.ValueDetection.Text }}"
+        },
+        "to_when": "{{ p.simple }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName"
+      }
+    }
+  ]
+}

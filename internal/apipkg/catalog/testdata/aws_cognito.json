@@ -1,0 +1,576 @@
+{
+  "user.getAll": {
+    "params": {
+      "userPool": {
+        "__rl": true,
+        "mode": "id",
+        "value": "us-east-1_X"
+      },
+      "limit": 2,
+      "filters": {
+        "filter": {
+          "attribute": "email",
+          "value": "ada@"
+        }
+      }
+    },
+    "response": {
+      "Users": [
+        {
+          "Username": "a",
+          "Attributes": [
+            {
+              "Name": "email",
+              "Value": "ada@x"
+            }
+          ]
+        },
+        {
+          "Username": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "UserPoolId": "us-east-1_X",
+        "Filter": "\"email\"^=\"ada@\"",
+        "Limit": 2
+      },
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers"
+      },
+      "items": 2
+    }
+  },
+  "user.addToGroup": {
+    "params": {
+      "userPool": {
+        "__rl": true,
+        "mode": "id",
+        "value": "us-east-1_X"
+      },
+      "user": {
+        "__rl": true,
+        "mode": "id",
+        "value": "sub-1"
+      },
+      "group": {
+        "__rl": true,
+        "mode": "groupName",
+        "value": "devs"
+      }
+    },
+    "responses": [
+      {
+        "Users": [
+          {
+            "Username": "ada"
+          }
+        ]
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Filter": "sub = \"sub-1\""
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminAddUserToGroup"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Username": "ada",
+          "GroupName": "devs"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "items": 1
+    }
+  },
+  "user.create": {
+    "params": {
+      "userPool": "us-east-1_X",
+      "newUserName": "ada",
+      "additionalFields": {
+        "messageAction": "SUPPRESS",
+        "desiredDeliveryMediums": [
+          "EMAIL"
+        ],
+        "userAttributes": {
+          "attributes": [
+            {
+              "attributeType": "standard",
+              "standardName": "email",
+              "value": "ada@x.io"
+            },
+            {
+              "attributeType": "custom",
+              "customName": "team",
+              "value": "core"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "User": {
+        "Username": "ada"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "UserPoolId": "us-east-1_X",
+        "Username": "ada",
+        "MessageAction": "SUPPRESS",
+        "DesiredDeliveryMediums": [
+          "EMAIL"
+        ],
+        "UserAttributes": [
+          {
+            "Name": "email",
+            "Value": "ada@x.io"
+          },
+          {
+            "Name": "custom:team",
+            "Value": "core"
+          }
+        ]
+      },
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminCreateUser"
+      },
+      "items": 1
+    }
+  },
+  "user.delete": {
+    "params": {
+      "userPool": {
+        "__rl": true,
+        "mode": "id",
+        "value": "us-east-1_X"
+      },
+      "user": {
+        "__rl": true,
+        "mode": "id",
+        "value": "sub-1"
+      }
+    },
+    "responses": [
+      {
+        "Users": [
+          {
+            "Username": "ada"
+          }
+        ]
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Filter": "sub = \"sub-1\""
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminDeleteUser"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Username": "ada"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "items": 1
+    }
+  },
+  "user.get": {
+    "params": {
+      "userPool": {
+        "__rl": true,
+        "mode": "id",
+        "value": "us-east-1_X"
+      },
+      "user": {
+        "__rl": true,
+        "mode": "id",
+        "value": "sub-1"
+      }
+    },
+    "responses": [
+      {
+        "Users": [
+          {
+            "Username": "ada"
+          }
+        ]
+      },
+      {
+        "Username": "ada",
+        "UserAttributes": [
+          {
+            "Name": "email",
+            "Value": "a@x"
+          }
+        ]
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Filter": "sub = \"sub-1\""
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminGetUser"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Username": "ada"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "items": 1
+    }
+  },
+  "user.removeFromGroup": {
+    "params": {
+      "userPool": {
+        "__rl": true,
+        "mode": "id",
+        "value": "us-east-1_X"
+      },
+      "user": {
+        "__rl": true,
+        "mode": "id",
+        "value": "sub-1"
+      },
+      "group": "devs"
+    },
+    "responses": [
+      {
+        "Users": [
+          {
+            "Username": "ada"
+          }
+        ]
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Filter": "sub = \"sub-1\""
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminRemoveUserFromGroup"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Username": "ada",
+          "GroupName": "devs"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "items": 1
+    }
+  },
+  "user.update": {
+    "params": {
+      "userPool": {
+        "__rl": true,
+        "mode": "id",
+        "value": "us-east-1_X"
+      },
+      "user": {
+        "__rl": true,
+        "mode": "id",
+        "value": "sub-1"
+      },
+      "userAttributes": {
+        "attributes": [
+          {
+            "attributeType": "standard",
+            "standardName": "name",
+            "value": "Ada"
+          }
+        ]
+      }
+    },
+    "responses": [
+      {
+        "Users": [
+          {
+            "Username": "ada"
+          }
+        ]
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Filter": "sub = \"sub-1\""
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminUpdateUserAttributes"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Username": "ada",
+          "UserAttributes": [
+            {
+              "Name": "name",
+              "Value": "Ada"
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "items": 1
+    }
+  },
+  "group.getAll": {
+    "params": {
+      "userPool": "us-east-1_X",
+      "returnAll": true,
+      "includeUsers": true
+    },
+    "response": {},
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "UserPoolId": "us-east-1_X",
+        "Limit": 60
+      },
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.ListGroups"
+      },
+      "items": 1
+    },
+    "responses": [
+      {
+        "Groups": [
+          {
+            "GroupName": "devs"
+          }
+        ]
+      },
+      {
+        "Users": [
+          {
+            "Username": "ada"
+          }
+        ]
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.ListGroups"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "Limit": 60
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/",
+        "headers": {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsersInGroup"
+        },
+        "body": {
+          "UserPoolId": "us-east-1_X",
+          "GroupName": "devs"
+        }
+      }
+    ]
+  },
+  "group.create": {
+    "params": {
+      "userPool": "us-east-1_X",
+      "newGroupName": "devs",
+      "additionalFields": {
+        "description": "D",
+        "precedence": 2
+      }
+    },
+    "response": {
+      "Group": {
+        "GroupName": "devs"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "UserPoolId": "us-east-1_X",
+        "GroupName": "devs",
+        "Description": "D",
+        "Precedence": 2
+      },
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.CreateGroup"
+      },
+      "items": 1
+    }
+  },
+  "group.delete": {
+    "params": {
+      "userPool": "us-east-1_X",
+      "group": "devs"
+    },
+    "response": {},
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "UserPoolId": "us-east-1_X",
+        "GroupName": "devs"
+      },
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.DeleteGroup"
+      },
+      "items": 1
+    }
+  },
+  "group.get": {
+    "params": {
+      "userPool": "us-east-1_X",
+      "group": "devs"
+    },
+    "response": {
+      "Group": {
+        "GroupName": "devs"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "UserPoolId": "us-east-1_X",
+        "GroupName": "devs"
+      },
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.GetGroup"
+      },
+      "items": 1
+    }
+  },
+  "group.update": {
+    "params": {
+      "userPool": "us-east-1_X",
+      "group": "devs",
+      "additionalFields": {
+        "arn": "arn:aws:iam::1:role/r"
+      }
+    },
+    "response": {},
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "UserPoolId": "us-east-1_X",
+        "GroupName": "devs",
+        "RoleArn": "arn:aws:iam::1:role/r"
+      },
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.UpdateGroup"
+      },
+      "items": 1
+    }
+  },
+  "userPool.get": {
+    "params": {
+      "userPool": "us-east-1_X"
+    },
+    "response": {
+      "UserPool": {
+        "Id": "us-east-1_X",
+        "Policies": {}
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "UserPoolId": "us-east-1_X"
+      },
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.DescribeUserPool"
+      },
+      "items": 1
+    }
+  }
+}
