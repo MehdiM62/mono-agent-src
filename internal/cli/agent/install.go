@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"bufio"
@@ -19,7 +19,7 @@ import (
 	"github.com/monoes/mono-agent/internal/shellpath"
 )
 
-func newAgentInstallCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAgentInstallCmd() *cobra.Command {
 	var yes, force bool
 	var approveScript string
 	cmd := &cobra.Command{
@@ -41,10 +41,10 @@ With --json, progress is streamed as NDJSON like ` + "`doctor fix`" + `.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
-			progress := progressWriter(out, cfg.JSONOutput)
-			confirmScript := scriptConsent(yes, approveScript, !cfg.JSONOutput && stdinIsTerminal(), cmd.InOrStdin(), out)
-			msg, err := installRuntime(cmd.Context(), realRuntimeMachine(), args[0], force, confirmScript, progress)
-			return finishStreamed(out, cfg.JSONOutput, err, msg)
+			progress := d.ProgressWriter(out, d.JSONOutput())
+			confirmScript := scriptConsent(yes, approveScript, !d.JSONOutput() && d.StdinIsTerminal(), cmd.InOrStdin(), out)
+			msg, err := d.installRuntime(cmd.Context(), realRuntimeMachine(), args[0], force, confirmScript, progress)
+			return d.FinishStreamed(out, d.JSONOutput(), err, msg)
 		},
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "Run vendor install scripts without asking")
@@ -84,7 +84,7 @@ func realRuntimeMachine() runtimeMachine {
 
 // installRuntime installs one runtime by its `agent scan` id and verifies
 // it with a re-scan. confirmScript gates vendor install scripts.
-func installRuntime(ctx context.Context, m runtimeMachine, id string, force bool, confirmScript func(agentinstall.Recipe) bool,
+func (d Deps) installRuntime(ctx context.Context, m runtimeMachine, id string, force bool, confirmScript func(agentinstall.Recipe) bool,
 	progress func(string)) (string, error) {
 	scan, err := m.scan(ctx)
 	if err != nil {
@@ -97,7 +97,7 @@ func installRuntime(ctx context.Context, m runtimeMachine, id string, force bool
 			ids = append(ids, a.ID)
 		}
 		sort.Strings(ids)
-		return "", errNotFound("unknown runtime %q (known: %s)", id, strings.Join(ids, ", "))
+		return "", d.NotFound("unknown runtime %q (known: %s)", id, strings.Join(ids, ", "))
 	}
 	if entry.Installed && !force {
 		return fmt.Sprintf("%s is already installed (%s at %s) — nothing to do; use --force to reinstall",
@@ -107,10 +107,10 @@ func installRuntime(ctx context.Context, m runtimeMachine, id string, force bool
 	recipe := agentinstall.ForEntry(*entry)
 	switch recipe.Kind {
 	case agentinstall.KindManual:
-		return "", errInvalidInput("%s can't be installed automatically — %s", id, entry.InstallHint)
+		return "", d.InvalidInput("%s can't be installed automatically — %s", id, entry.InstallHint)
 	case agentinstall.KindScript:
 		if !confirmScript(recipe) {
-			return "", errInvalidInput("%s installs by running the vendor script %s — confirm, or pass --yes", id, recipe.ScriptURL)
+			return "", d.InvalidInput("%s installs by running the vendor script %s — confirm, or pass --yes", id, recipe.ScriptURL)
 		}
 	}
 	binDir := ""
@@ -124,7 +124,7 @@ func installRuntime(ctx context.Context, m runtimeMachine, id string, force bool
 	// Homebrew, a vendor installer) adds a second copy the first one still
 	// shadows on PATH: nothing would change but the report.
 	if entry.Installed && before != "" && binDir != "" && !sameDir(filepath.Dir(before), binDir) {
-		return "", errInvalidInput("%s at %s was not installed with npm into %s — --force would add a second copy there "+
+		return "", d.InvalidInput("%s at %s was not installed with npm into %s — --force would add a second copy there "+
 			"instead of updating this one; update it the way it was installed (mise, Homebrew, …), or remove it and run this again",
 			id, before, binDir)
 	}
