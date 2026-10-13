@@ -216,3 +216,24 @@ func TestPickRuntime(t *testing.T) {
 		t.Errorf("none: %v", err)
 	}
 }
+
+// A draft that passes activation but fails the schema checks (a misspelled
+// required field) is sent back with the hint, and the fix is accepted.
+func TestGenerateRetriesOnSchemaIssues(t *testing.T) {
+	typo := strings.Replace(validDoc, `"url":"https://example.com"`, `"urll":"https://example.com"`, 1)
+	f := &fakeExec{answers: []string{typo, validDoc}}
+	res, err := Generate(context.Background(), request(f))
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if res.Attempts != 2 {
+		t.Fatalf("attempts = %d, want 2 (history %+v)", res.Attempts, res.History)
+	}
+	first := strings.Join(res.History[0].Errors, "\n")
+	if !strings.Contains(first, `"url"`) || !strings.Contains(first, "required") {
+		t.Fatalf("first attempt errors should name the missing url: %q", first)
+	}
+	if len(f.prompts) < 2 || !strings.Contains(f.prompts[1], "url") {
+		t.Fatalf("retry prompt should carry the schema issue")
+	}
+}

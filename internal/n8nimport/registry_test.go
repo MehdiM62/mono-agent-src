@@ -67,6 +67,7 @@ func TestAppMapperIsNearIdentity(t *testing.T) {
 }
 
 func TestAppMapperCoversUnsupportedNativeOperation(t *testing.T) {
+	withoutAppSources(t) // the catalog's github package would map it already
 	src := `{"name":"t","nodes":[
 	 {"name":"M","type":"n8n-nodes-base.manualTrigger","typeVersion":1,"position":[0,0],"parameters":{}},
 	 {"name":"G","type":"n8n-nodes-base.github","typeVersion":1,"position":[200,0],
