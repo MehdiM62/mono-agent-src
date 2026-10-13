@@ -35,3 +35,9 @@ func providedSchema(nodeType string, fileSchema []byte) ([]byte, bool) {
 	}
 	return nil, false
 }
+
+// ReadSchemaFile returns a node type's own schema file, without any
+// provider (API package) merged in.
+func ReadSchemaFile(nodeType string) ([]byte, bool) {
+	return schemaFile(nodeType)
+}

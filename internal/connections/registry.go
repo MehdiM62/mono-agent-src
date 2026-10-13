@@ -31,6 +31,9 @@ type OAuthConfig struct {
 	Scopes       []string
 	CallbackPort int
 	ExtraParams  map[string]string // Additional auth URL query parameters (e.g., access_type=offline)
+	// TokenFields are extra keys of the token response stored on the
+	// connection at connect and refresh (GoTo: organizer_key, account_key).
+	TokenFields []string
 	// PlatformID identifies which registry entry this config came from, set
 	// by callers when they copy *p.OAuth. It lets the token-exchange layer
 	// (postForm) apply a provider's required client-auth style — most
