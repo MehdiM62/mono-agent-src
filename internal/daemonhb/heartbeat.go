@@ -137,10 +137,6 @@ func IsLive(hb Heartbeat, now time.Time) bool {
 	return ProcessAlive(hb.PID)
 }
 
-// Run writes a heartbeat now and every Interval until ctx ends, then removes
-// the file if it still names this process.
-func Run(ctx context.Context, hb Heartbeat) { RunWith(ctx, hb, nil) }
-
 // RunWith is Run with refresh called before every write, to update fields
 // that change while the daemon runs (e.g. Schedules).
 func RunWith(ctx context.Context, hb Heartbeat, refresh func(*Heartbeat)) {

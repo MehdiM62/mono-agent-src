@@ -78,12 +78,6 @@ type Manifest struct {
 	Assets    []Asset `json:"assets"`
 }
 
-// Verify checks sig (a "<key-id> <base64 signature>" line) over the exact
-// manifest bytes against the pinned keys and parses the manifest.
-func Verify(manifest, sig []byte) (*Manifest, error) {
-	return VerifyWith(PinnedKeys(), manifest, sig)
-}
-
 // VerifyWith is Verify against explicit keys.
 func VerifyWith(keys []Key, manifest, sig []byte) (*Manifest, error) {
 	if len(keys) == 0 {
