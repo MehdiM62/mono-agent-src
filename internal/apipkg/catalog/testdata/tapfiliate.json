@@ -1,0 +1,217 @@
+{
+  "affiliate.create": {
+    "params": {
+      "firstname": "A",
+      "lastname": "L",
+      "email": "a@b.c",
+      "additionalFields": {
+        "companyName": "Acme",
+        "addressUi": {
+          "addressValues": {
+            "address": "Main 1",
+            "city": "X",
+            "country": "DE"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1.6/affiliates/",
+      "body": {
+        "firstname": "A",
+        "lastname": "L",
+        "email": "a@b.c",
+        "address": {
+          "address": "Main 1",
+          "city": "X",
+          "country": {
+            "code": "DE"
+          }
+        },
+        "company": {
+          "name": "Acme"
+        }
+      }
+    }
+  },
+  "affiliate.delete": {
+    "params": {
+      "affiliateId": "af1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1.6/affiliates/af1/"
+    }
+  },
+  "affiliate.get": {
+    "params": {
+      "affiliateId": "af1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1.6/affiliates/af1/"
+    }
+  },
+  "affiliate.getAll": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "email": "a@b.c",
+        "parentId": "p1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1.6/affiliates/",
+      "query": {
+        "email": "a@b.c",
+        "parent_id": "p1"
+      },
+      "items": 2
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      },
+      {
+        "id": 3
+      }
+    ]
+  },
+  "affiliateMetadata.add": {
+    "params": {
+      "affiliateId": "af1",
+      "metadataUi": {
+        "metadataValues": [
+          {
+            "key": "tier",
+            "value": "gold"
+          },
+          {
+            "key": "x",
+            "value": "y"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1.6/affiliates/af1/meta-data/",
+      "items": 1
+    },
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/1.6/affiliates/af1/meta-data/"
+      },
+      {
+        "method": "PUT",
+        "path": "/1.6/affiliates/af1/meta-data/tier/",
+        "body": {
+          "value": "gold"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/1.6/affiliates/af1/meta-data/x/",
+        "body": {
+          "value": "y"
+        }
+      }
+    ]
+  },
+  "affiliateMetadata.remove": {
+    "params": {
+      "affiliateId": "af1",
+      "key": "tier"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1.6/affiliates/af1/meta-data/tier/"
+    }
+  },
+  "affiliateMetadata.update": {
+    "params": {
+      "affiliateId": "af1",
+      "key": "tier",
+      "value": "silver"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1.6/affiliates/af1/meta-data/",
+      "body": {
+        "tier": "silver"
+      }
+    }
+  },
+  "programAffiliate.add": {
+    "params": {
+      "programId": "pg",
+      "affiliateId": "af1",
+      "additionalFields": {
+        "approved": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1.6/programs/pg/affiliates/",
+      "body": {
+        "affiliate": {
+          "id": "af1"
+        },
+        "approved": true
+      }
+    }
+  },
+  "programAffiliate.approve": {
+    "params": {
+      "programId": "pg",
+      "affiliateId": "af1"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/1.6/programs/pg/affiliates/af1/approved/"
+    }
+  },
+  "programAffiliate.disapprove": {
+    "params": {
+      "programId": "pg",
+      "affiliateId": "af1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/1.6/programs/pg/affiliates/af1/approved/"
+    }
+  },
+  "programAffiliate.get": {
+    "params": {
+      "programId": "pg",
+      "affiliateId": "af1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1.6/programs/pg/affiliates/af1/"
+    }
+  },
+  "programAffiliate.getAll": {
+    "params": {
+      "programId": "pg",
+      "returnAll": true
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/1.6/programs/pg/affiliates/",
+      "query": {},
+      "items": 1
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ]
+  }
+}
