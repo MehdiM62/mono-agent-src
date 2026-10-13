@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/recordanalyze"
 	"github.com/monoes/mono-agent/internal/recording"
@@ -36,9 +37,9 @@ var recordAnalyzeRunner = func(runtime, model string, timeout time.Duration) rec
 // recordVerifyExec returns the replay function for verify, or an error
 // when no browser is reachable; tests replace it.
 var recordVerifyExec = func(ctx context.Context, automationID string, verbose, keepOpen bool, secrets func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
-	logger := zerolog.New(os.Stderr).With().Timestamp().Str("component", "extension").Logger()
-	if !verbose {
-		logger = logger.Level(zerolog.WarnLevel)
+	logger := logging.Zerolog().With().Str("component", "extension").Logger()
+	if verbose {
+		logger = logger.Level(zerolog.TraceLevel)
 	}
 	// Same connect path as `node run`: reuse or start the bridge, and when
 	// the extension is not attached launch the user's real Chrome and wait.

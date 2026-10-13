@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orgsign"
@@ -174,7 +175,9 @@ func newOrgRunCmd(root func() string) *cobra.Command {
 		Short: "Start an org run (blocks until it completes or hands off to a live serve daemon)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			out, err := monomind.OrgRun(cmd.Context(), root(), args[0], task, dryRun)
+			// One run id for this process's lines and monomind's (MONOAGENT_RUN_ID).
+			ctx := logging.EnsureRunID(cmd.Context(), "org-")
+			out, err := monomind.OrgRun(ctx, root(), args[0], task, dryRun)
 			if err != nil {
 				return err
 			}
