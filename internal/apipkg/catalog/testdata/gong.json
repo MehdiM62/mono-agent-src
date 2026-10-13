@@ -68,18 +68,10 @@
         "properties": [
           "brief",
           "media",
-          "publicComments"
+          "publicComments",
+          "transcript"
         ]
       }
-    },
-    "response": {
-      "calls": [
-        {
-          "metaData": {
-            "id": "9"
-          }
-        }
-      ]
     },
     "expect": {
       "method": "POST",
@@ -103,7 +95,64 @@
         }
       },
       "items": 1
-    }
+    },
+    "responses": [
+      {
+        "calls": [
+          {
+            "metaData": {
+              "id": "9"
+            }
+          }
+        ]
+      },
+      {
+        "callTranscripts": [
+          {
+            "transcript": [
+              {
+                "s": 1
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/v2/calls/extensive",
+        "body": {
+          "filter": {
+            "callIds": [
+              "9"
+            ]
+          },
+          "contentSelector": {
+            "exposedFields": {
+              "media": true,
+              "content": {
+                "brief": true
+              },
+              "collaboration": {
+                "publicComments": true
+              }
+            }
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/v2/calls/transcript",
+        "body": {
+          "filter": {
+            "callIds": [
+              "9"
+            ]
+          }
+        }
+      }
+    ]
   },
   "user.get": {
     "credential": {

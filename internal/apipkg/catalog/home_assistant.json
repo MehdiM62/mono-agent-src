@@ -155,9 +155,8 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {
@@ -229,9 +228,8 @@
         "minimal_response": "{{ p.additionalFields.minimalResponse | eq:'true' | then:true }}",
         "significant_changes_only": "{{ p.additionalFields.significantChangesOnly | eq:'true' | then:true }}"
       },
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {
@@ -292,9 +290,8 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {
@@ -369,9 +366,8 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {

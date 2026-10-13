@@ -21,24 +21,15 @@
       "methods": [
         "oauth"
       ],
-      "fields": [
-        {
-          "key": "organizer_key",
-          "label": "Organizer key",
-          "required": true,
-          "help": "Returned with the OAuth token (organizer_key); also shown in GoTo admin"
-        },
-        {
-          "key": "account_key",
-          "label": "Account key",
-          "required": true,
-          "help": "Returned with the OAuth token (account_key)"
-        }
-      ],
+      "fields": [],
       "oauth": {
         "auth_url": "https://authentication.logmeininc.com/oauth/authorize",
         "token_url": "https://authentication.logmeininc.com/oauth/token",
-        "scopes": []
+        "scopes": [],
+        "token_fields": [
+          "organizer_key",
+          "account_key"
+        ]
       },
       "inject": {
         "headers": {
@@ -134,9 +125,8 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {
@@ -287,9 +277,8 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {
@@ -413,9 +402,8 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {
@@ -591,9 +579,8 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {

@@ -104,7 +104,7 @@
           "label": "Resolve data",
           "type": "boolean",
           "default": true,
-          "help": "Not applied yet: the engine cannot read the Location header; the op returns {success: true}"
+          "help": "Fetch the created record (else return its id and URI)"
         },
         {
           "key": "additionalFields",
@@ -156,6 +156,18 @@
             }
           }
         }
+      },
+      "output": {
+        "expand": {
+          "when": "{{ p.resolveData }}",
+          "method": "GET",
+          "path": "{{ hdr.Location }}"
+        },
+        "to": {
+          "id": "{{ hdr.Resource-ID }}",
+          "uri": "{{ hdr.Location }}"
+        },
+        "to_when": "{{ p.resolveData | ne:'true' }}"
       }
     },
     {
@@ -251,7 +263,7 @@
           "label": "Resolve data",
           "type": "boolean",
           "default": true,
-          "help": "Not applied yet (needs response headers); the op returns {success: true}"
+          "help": "Fetch the created record (else return its id and URI)"
         },
         {
           "key": "additionalFields",
@@ -346,6 +358,18 @@
         "phones": "{{ p.phonesUi.phonesValues }}",
         "socialProfiles": "{{ p.socialProfilesUi.socialProfilesValues }}",
         "websites": "{{ p.websitesUi.websitesValues }}"
+      },
+      "output": {
+        "expand": {
+          "when": "{{ p.resolveData }}",
+          "method": "GET",
+          "path": "{{ hdr.Location }}"
+        },
+        "to": {
+          "id": "{{ hdr.Resource-ID }}",
+          "uri": "{{ hdr.Location }}"
+        },
+        "to_when": "{{ p.resolveData | ne:'true' }}"
       }
     },
     {

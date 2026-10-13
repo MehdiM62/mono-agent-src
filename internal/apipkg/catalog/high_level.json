@@ -620,10 +620,9 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__",
-        "results_path": "tasks"
+      "output": {
+        "path": "tasks",
+        "limit": true
       }
     },
     {

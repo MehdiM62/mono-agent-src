@@ -198,7 +198,7 @@
           "options": [
             "properties"
           ],
-          "help": "properties: pointsOfInterest, media, brief, publicComments, highlights, keyPoints, callOutcome, outline, parties, structure, topics, trackers (transcript is not fetched; use the Gong transcript endpoint with an HTTP node)"
+          "help": "properties: pointsOfInterest, media, brief, publicComments, highlights, keyPoints, callOutcome, outline, parties, structure, topics, trackers, transcript"
         }
       ],
       "body": {
@@ -229,7 +229,21 @@
         }
       },
       "output": {
-        "path": "calls"
+        "path": "calls",
+        "expand": {
+          "when": "{{ p.options.properties | zip:p.options.properties | get:'transcript' }}",
+          "method": "POST",
+          "path": "/v2/calls/transcript",
+          "body": {
+            "filter": {
+              "callIds": [
+                "{{ el.metaData.id }}"
+              ]
+            }
+          }
+        },
+        "expand_merge_key": "transcript",
+        "expand_merge_path": "callTranscripts.0.transcript"
       }
     },
     {

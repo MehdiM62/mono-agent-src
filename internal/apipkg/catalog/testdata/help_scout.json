@@ -144,7 +144,8 @@
             "value": "a@x"
           }
         ]
-      }
+      },
+      "resolveData": false
     },
     "expect": {
       "method": "POST",
@@ -164,7 +165,8 @@
             "value": "a@x"
           }
         ]
-      }
+      },
+      "items": 1
     },
     "credential": {
       "access_token": "t"

@@ -388,9 +388,8 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {
@@ -435,9 +434,8 @@
           "min": 1
         }
       ],
-      "pagination": {
-        "type": "next_url",
-        "next_url_path": "__no_next_page__"
+      "output": {
+        "limit": true
       }
     },
     {
