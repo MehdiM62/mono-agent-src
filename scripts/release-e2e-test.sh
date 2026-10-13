@@ -96,12 +96,12 @@ m = json.load(open(sys.argv[1]))
 names = sorted(a["name"] for a in m["assets"])
 want = sorted(["monoagentcli-linux-amd64","monoagentcli-linux-arm64","monoagentcli-darwin-amd64","monoagentcli-darwin-arm64",
   "monoagentcli-windows-amd64.exe","MonoAgent-darwin-arm64.zip","MonoAgent-windows-amd64.exe",
-  "monoagentcli-windows-amd64-bundled.exe","MonoAgent-linux-amd64.tar.gz"])
+  "monoagentcli-windows-amd64-bundled.exe","MonoAgent-linux-amd64.tar.gz","monoagent-chrome-extension.zip"])
 assert names == want, names
 assert "expires_at" not in m
 assert all(a["url"].startswith("https://github.com/monoes/mono-agent/releases/download/v9.9.9/") for a in m["assets"])
 EOF
-check "manifest lists the CLI+app assets, omits the extension zip, no expires_at by default" $?
+check "manifest lists the CLI+app assets and the extension zip, no expires_at by default" $?
 grep -q "monoagent-chrome-extension.zip" "$work/art-v9.9.9/SHA256SUMS"; check "SHA256SUMS covers the extension zip" $?
 ! grep -q "manifest.json" "$work/art-v9.9.9/SHA256SUMS"; check "SHA256SUMS excludes manifest files" $?
 (cd "$work/art-v9.9.9" && sha256sum -c SHA256SUMS >/dev/null 2>&1 || shasum -a 256 -c SHA256SUMS >/dev/null 2>&1); check "SHA256SUMS verifies against the artifacts" $?
