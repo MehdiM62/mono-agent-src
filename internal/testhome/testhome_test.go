@@ -1,6 +1,8 @@
 package testhome
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -18,5 +20,40 @@ func TestHomeIsATempDir(t *testing.T) {
 	}
 	if os.Getenv("GOCACHE") == "" || strings.HasPrefix(os.Getenv("GOCACHE"), home) {
 		t.Fatalf("GOCACHE = %q, want the real build cache", os.Getenv("GOCACHE"))
+	}
+}
+
+func TestDefaultTransportRefusesTheNetwork(t *testing.T) {
+	if os.Getenv(AllowNetworkEnv) == "1" {
+		t.Skip(AllowNetworkEnv + " is set")
+	}
+	_, err := http.Get("http://example.invalid/")
+	if err == nil || !strings.Contains(err.Error(), AllowNetworkEnv) {
+		t.Fatalf("err = %v, want the testhome network refusal", err)
+	}
+	// Transports cloned from the default inherit the guard.
+	c := &http.Client{Transport: http.DefaultTransport.(*http.Transport).Clone()}
+	if _, err := c.Get("https://203.0.113.1/"); err == nil || !strings.Contains(err.Error(), AllowNetworkEnv) {
+		t.Fatalf("cloned transport err = %v, want the testhome network refusal", err)
+	}
+}
+
+func TestDefaultTransportReachesLoopback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer srv.Close()
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	for _, a := range []string{"localhost:80", "[::1]:443", "0.0.0.0:1", "foo.localhost:1"} {
+		if !isLoopback(a) {
+			t.Errorf("isLoopback(%q) = false", a)
+		}
+	}
+	for _, a := range []string{"monoes.me:443", "10.0.0.1:80", "localhost.example.com:80"} {
+		if isLoopback(a) {
+			t.Errorf("isLoopback(%q) = true", a)
+		}
 	}
 }
