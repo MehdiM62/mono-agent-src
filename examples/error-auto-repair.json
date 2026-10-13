@@ -1,0 +1,66 @@
+{
+  "name": "Error Auto-Repair (template)",
+  "description": "TEMPLATE. Set this workflow as another workflow's error workflow (settings.error_workflow = this workflow's id, or `monoagentcli config set workflow.error_workflow <id>` for every workflow). When that workflow fails, a local agent reads the failure and proposes a fix, and a person reviews the proposal. Nothing is changed automatically: apply an approved fix yourself. Set the agent runtime before use.",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "on_error",
+      "type": "trigger.error",
+      "name": "On Workflow Error",
+      "position": { "x": 0, "y": 0 },
+      "disabled": false,
+      "config": {}
+    },
+    {
+      "id": "failure",
+      "type": "core.set",
+      "name": "Failure Context",
+      "position": { "x": 320, "y": 0 },
+      "disabled": false,
+      "config": {
+        "include_input": false,
+        "assignments": [
+          { "field": "workflow_id", "value": "{{ $json.workflow.id }}", "type": "string" },
+          { "field": "workflow_name", "value": "{{ $json.workflow.name }}", "type": "string" },
+          { "field": "execution_id", "value": "{{ $json.execution.id }}", "type": "string" },
+          { "field": "failed_node", "value": "{{ $json.execution.lastNodeExecuted }}", "type": "string" },
+          { "field": "error_message", "value": "{{ $json.execution.error.message }}", "type": "string" },
+          { "field": "error_class", "value": "{{ $json.execution.error_class }}", "type": "string" },
+          { "field": "error_hint", "value": "{{ $json.execution.error_hint }}", "type": "string" }
+        ]
+      }
+    },
+    {
+      "id": "propose_fix",
+      "type": "agent.ask",
+      "name": "Propose Fix",
+      "position": { "x": 640, "y": 0 },
+      "disabled": false,
+      "config": {
+        "runtime": "claude",
+        "system_prompt": "You diagnose failed mono-agent workflow runs. You cannot change anything; you only propose a fix for a person to review.",
+        "prompt": "The workflow \"{{ $json.workflow_name }}\" (id {{ $json.workflow_id }}) failed in execution {{ $json.execution_id }} at node \"{{ $json.failed_node }}\".\nError class: {{ $json.error_class }}\nError: {{ $json.error_message }}\nGeneric hint: {{ $json.error_hint }}\n\nPropose the smallest change that fixes this: which node, which config key, and the new value (or the command to run, for setup and login problems). Say what to check if you are not sure. Keep it under 15 lines.",
+        "output_key": "proposed_fix",
+        "timeout": 300
+      }
+    },
+    {
+      "id": "review",
+      "type": "core.human_in_loop",
+      "name": "Review Proposed Fix",
+      "position": { "x": 960, "y": 0 },
+      "disabled": false,
+      "config": {
+        "readonly_fields": ["workflow_name", "execution_id", "failed_node", "error_class", "error_message"],
+        "editable_fields": ["proposed_fix"],
+        "timeout_minutes": 0
+      }
+    }
+  ],
+  "connections": [
+    { "id": "error-to-context", "source": "on_error", "source_handle": "main", "target": "failure", "target_handle": "main" },
+    { "id": "context-to-agent", "source": "failure", "source_handle": "main", "target": "propose_fix", "target_handle": "main" },
+    { "id": "agent-to-review", "source": "propose_fix", "source_handle": "main", "target": "review", "target_handle": "main" }
+  ]
+}

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 )
 
@@ -237,6 +238,7 @@ func OrgRun(ctx context.Context, projectRoot, name, task string, dryRun bool) (j
 	// setProcessGroup + a manual ctx.Done()/killProcessGroup select mirrors
 	// OrgEvents below, the most similar long-running case.
 	cmd := Command(bin, full...)
+	cmd.Env = logging.ChildEnv(ctx, cmd.Env)
 	inRoot(cmd, projectRoot)
 	setProcessGroup(cmd)
 
@@ -309,6 +311,7 @@ func OrgRunStart(ctx context.Context, projectRoot, name, task string) error {
 		args = append(args, "--task", task)
 	}
 	cmd := Command(bin, args...)
+	cmd.Env = logging.ChildEnv(ctx, cmd.Env)
 	inRoot(cmd, projectRoot)
 	// A start monomind refuses (R6/R1) exits at once and says why on its
 	// output; keep that (boundedly) to report it instead of a start nobody

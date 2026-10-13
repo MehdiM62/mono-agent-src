@@ -2,7 +2,7 @@ package automation
 
 import (
 	"database/sql"
-	"log"
+	"log/slog"
 	"time"
 )
 
@@ -119,6 +119,6 @@ func (r *HealthRecorder) maybePrune() {
 	}
 	r.lastPrune = now
 	if _, err := PruneStaleSelectorHealth(r.db, r.opts.SelectorKeys, now.Add(-staleRowTTL)); err != nil {
-		log.Printf("automation: selector health: prune stale rows: %v", err)
+		slog.Warn("automation: selector health: prune stale rows", "err", err)
 	}
 }

@@ -217,6 +217,28 @@ type Output struct {
 	// HeaderRow turns a list of value rows into objects keyed by the
 	// first row (Google Sheets values, CSV-like APIs).
 	HeaderRow bool `json:"header_row,omitempty"`
+	// Each replaces every result element by its value at this dot path
+	// (Chargebee lists return [{"invoice": {…}}]; n8n emits the invoice).
+	Each string `json:"each,omitempty"`
+	// Match keeps only the result elements that satisfy n8n-style filter
+	// rows (Google Sheets read lookups).
+	Match *OutputMatch `json:"match,omitempty"`
+	// Expand sends one request per result element (el = the element) and
+	// replaces the element with the decoded response (Gmail lists ids,
+	// then GETs each message).
+	Expand *Step `json:"expand,omitempty"`
+}
+
+// OutputMatch filters result elements by condition rows. Rows is a
+// template resolving to a list of objects; each row's Column/Value keys
+// name the element field and the wanted value. Combine ("AND"/"OR",
+// default AND) and First (keep only the first match) are templates.
+type OutputMatch struct {
+	Rows    string `json:"rows"`
+	Column  string `json:"column"`
+	Value   string `json:"value"`
+	Combine string `json:"combine,omitempty"`
+	First   string `json:"first,omitempty"`
 }
 
 // Binary configures file upload and download.

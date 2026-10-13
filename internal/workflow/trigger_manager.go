@@ -347,6 +347,9 @@ func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode)
 			tm.triggerFn(wfID, nID, items)
 		},
 	}
+	if err := applyWebhookOptions(reg, node.Config); err != nil {
+		return err
+	}
 
 	// Hold the mutex through the entire check-then-act to prevent TOCTOU races.
 	tm.mu.Lock()

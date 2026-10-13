@@ -70,7 +70,14 @@ type expr struct {
 type filterCall struct {
 	name string
 	arg  *filterArg
+	// args holds every argument of a multi-argument filter (find,
+	// find_row); arg is then args[0].
+	args []*filterArg
 }
+
+// multiArgFilters take comma-separated arguments, passed to applyFilter
+// as a []any.
+var multiArgFilters = map[string]int{"find": 2, "find_row": 2}
 
 type filterArg struct {
 	lit  any   // a quoted string, number, bool or null
@@ -129,10 +136,23 @@ func parseExpr(src string) (*expr, error) {
 		name, argSrc, hasArg := strings.Cut(f, ":")
 		name = strings.TrimSpace(name)
 		if !knownFilters[name] {
-			return nil, fmt.Errorf("unknown filter %q (known: json, csv, int, float, bool, string, lower, upper, default, rl, then)", name)
+			return nil, fmt.Errorf("unknown filter %q (see FORMAT.md §5 for the list)", name)
 		}
 		fc := filterCall{name: name}
-		if hasArg {
+		if n, multi := multiArgFilters[name]; multi {
+			parts := splitArgs(argSrc)
+			if !hasArg || len(parts) != n {
+				return nil, fmt.Errorf("filter %s needs %d comma-separated arguments", name, n)
+			}
+			for _, ps := range parts {
+				a, err := parseArg(strings.TrimSpace(ps))
+				if err != nil {
+					return nil, fmt.Errorf("filter %s: %w", name, err)
+				}
+				fc.args = append(fc.args, a)
+			}
+			fc.arg = fc.args[0]
+		} else if hasArg {
 			a, err := parseArg(strings.TrimSpace(argSrc))
 			if err != nil {
 				return nil, fmt.Errorf("filter %s: %w", name, err)
@@ -224,7 +244,17 @@ func (e *expr) evalLit(sc Scope) (any, bool, error) {
 	for _, f := range e.filters {
 		var arg any
 		argLit := false
-		if f.arg != nil {
+		if len(f.args) > 0 {
+			vals := make([]any, len(f.args))
+			for i, a := range f.args {
+				if a.path != nil {
+					vals[i] = lookupPath(sc.root(a.path.root), a.path.path)
+				} else {
+					vals[i] = a.lit
+				}
+			}
+			arg = vals
+		} else if f.arg != nil {
 			if f.arg.path != nil {
 				arg = lookupPath(sc.root(f.arg.path.root), f.arg.path.path)
 			} else {
@@ -332,6 +362,9 @@ func renderValue(v any, sc Scope) (any, error) {
 		}
 		if parts, ok := t["$concat"]; ok {
 			return renderConcat(parts, sc)
+		}
+		if src, ok := t["$entries"]; ok {
+			return renderEntries(src, t["$key"], t["$value"], sc)
 		}
 		return renderObject(t, sc)
 	case []any:
@@ -520,6 +553,69 @@ func renderConcat(parts any, sc Scope) (any, error) {
 			if !isEmpty(t) {
 				out = append(out, t)
 			}
+		}
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+// splitArgs splits filter arguments on commas outside quotes.
+func splitArgs(s string) []string {
+	var out []string
+	var q byte
+	start := 0
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case q != 0:
+			if c == q {
+				q = 0
+			}
+		case c == '"' || c == '\'':
+			q = c
+		case c == ',':
+			out = append(out, s[start:i])
+			start = i + 1
+		}
+	}
+	return append(out, s[start:])
+}
+
+// renderEntries builds an object from a list: for each element (bound to
+// el) "$key" renders the key and "$value" the value; empty keys or values
+// are skipped. n8n filter rows → {"date[after]": 1704067200}.
+func renderEntries(src, key, val any, sc Scope) (any, error) {
+	ks, ok := key.(string)
+	if !ok || ks == "" || val == nil {
+		return nil, fmt.Errorf("$entries needs $key (a template) and $value")
+	}
+	list, err := renderValue(src, sc)
+	if err != nil {
+		return nil, fmt.Errorf("$entries: %w", err)
+	}
+	if isEmpty(list) {
+		return nil, nil
+	}
+	arr, ok := list.([]any)
+	if !ok {
+		return nil, fmt.Errorf("$entries: %v is %T, not a list", src, list)
+	}
+	out := map[string]any{}
+	for i, el := range arr {
+		esc := sc
+		esc.El = el
+		k, err := renderText(ks, esc)
+		if err != nil {
+			return nil, fmt.Errorf("$entries element %d key: %w", i, err)
+		}
+		v, err := renderValue(val, esc)
+		if err != nil {
+			return nil, fmt.Errorf("$entries element %d value: %w", i, err)
+		}
+		if k != "" && !isEmpty(v) {
+			out[k] = v
 		}
 	}
 	if len(out) == 0 {

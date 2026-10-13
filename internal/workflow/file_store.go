@@ -26,6 +26,8 @@ type WorkflowFile struct {
 	UpdatedAt   time.Time          `json:"updated_at"`
 	Nodes       []WorkflowFileNode `json:"nodes"`
 	Connections []WorkflowFileEdge `json:"connections"`
+
+	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
 // WorkflowFileNode is a node as stored in the JSON file.
@@ -111,6 +113,7 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 		ProfileID:   wf.ProfileID,
 		CreatedAt:   wf.CreatedAt,
 		UpdatedAt:   wf.UpdatedAt,
+		Settings:    wf.Settings,
 	}
 
 	for _, n := range wf.Nodes {
@@ -165,6 +168,48 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 		return fmt.Errorf("file_store: rename %s: %w", wf.ID, err)
 	}
 	s.invalidate(path)
+	return nil
+}
+
+// readRaw returns the workflow file's bytes as they are on disk, and whether
+// the file exists — what restoreRaw needs to undo a SaveWorkflow.
+func (s *WorkflowFileStore) readRaw(id string) ([]byte, bool, error) {
+	path, err := s.filePath(id)
+	if err != nil {
+		return nil, false, err
+	}
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("file_store: read %s: %w", id, err)
+	}
+	return data, true, nil
+}
+
+// restoreRaw puts back a workflow file captured by readRaw: the previous
+// bytes when it existed, no file when it did not.
+func (s *WorkflowFileStore) restoreRaw(id string, data []byte, existed bool) error {
+	path, err := s.filePath(id)
+	if err != nil {
+		return err
+	}
+	defer s.invalidate(path)
+	if !existed {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("file_store: remove %s: %w", id, err)
+		}
+		return nil
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("file_store: write %s: %w", id, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("file_store: rename %s: %w", id, err)
+	}
 	return nil
 }
 
@@ -288,6 +333,7 @@ func parseWorkflowFile(data []byte) (*Workflow, error) {
 		ProfileID:   wfFile.ProfileID,
 		CreatedAt:   wfFile.CreatedAt,
 		UpdatedAt:   wfFile.UpdatedAt,
+		Settings:    wfFile.Settings,
 	}
 	for _, fn := range wfFile.Nodes {
 		n := WorkflowNode{

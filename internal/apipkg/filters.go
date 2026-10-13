@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -16,6 +17,8 @@ var knownFilters = map[string]bool{
 	"then": true, "eq": true, "ne": true, "kv": true, "omit": true,
 	"fromjson": true, "epoch_ms": true, "epoch": true, "split": true, "date": true,
 	"prefix": true, "suffix": true, "base64": true, "base64url": true, "row": true,
+	"gid": true, "find": true, "find_row": true,
+	"add": true, "sub": true, "colnum": true, "colname": true, "get": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -44,8 +47,13 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return nil, nil
 	case "rl":
 		// n8n resource locator: {"__rl": true, "mode": "id", "value": "x"}.
+		// A "url" locator holding a Google Docs/Sheets/Drive/Slides URL
+		// yields the file id, which is what the APIs take.
 		if m, ok := v.(map[string]any); ok {
 			if val, ok := m["value"]; ok {
+				if m["mode"] == "url" {
+					return googleFileID(val), nil
+				}
 				return val, nil
 			}
 		}
@@ -93,6 +101,41 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return base64.RawURLEncoding.EncodeToString([]byte(stringify(v))), nil
 	case "row":
 		return toRow(v, arg)
+	case "gid":
+		return googleFileID(v), nil
+	case "add", "sub":
+		a, err := toFloat(v)
+		if err != nil || a == nil {
+			return nil, err
+		}
+		b, err := toFloat(arg)
+		if err != nil || b == nil {
+			return nil, fmt.Errorf("%s: argument %v is not a number", name, arg)
+		}
+		x, y := a.(float64), b.(float64)
+		if name == "sub" {
+			y = -y
+		}
+		if r := x + y; r == math.Trunc(r) {
+			return int64(r), nil
+		}
+		return x + y, nil
+	case "get":
+		return lookupPath(v, strings.Split(stringify(arg), ".")), nil
+	case "colnum":
+		return columnNumber(stringify(v))
+	case "colname":
+		n, err := toInt(v)
+		if err != nil || n == nil {
+			return nil, err
+		}
+		return columnName(n.(int64))
+	case "find":
+		a := arg.([]any)
+		return findIn(v, stringify(a[0]), a[1]), nil
+	case "find_row":
+		a := arg.([]any)
+		return findRow(v, stringify(a[0]), a[1]), nil
 	case "date":
 		return formatDate(v, arg)
 	case "epoch_ms":
@@ -437,4 +480,111 @@ func rowsToObjects(v any) any {
 		out = append(out, obj)
 	}
 	return out
+}
+
+var googleIDPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`/(?:d|folders|file/d|presentation/d|spreadsheets/d|document/d|forms/d)/([A-Za-z0-9_-]{10,})`),
+	regexp.MustCompile(`[?&]id=([A-Za-z0-9_-]{10,})`),
+}
+
+// googleFileID returns the file id from a Google Docs/Sheets/Slides/Drive
+// URL (…/d/<id>/edit, …/folders/<id>, …?id=<id>); anything else (a bare
+// id, a non-Google value) passes through unchanged.
+func googleFileID(v any) any {
+	s, ok := v.(string)
+	if !ok || !strings.Contains(s, "google.com") {
+		return v
+	}
+	for _, re := range googleIDPatterns {
+		if m := re.FindStringSubmatch(s); m != nil {
+			return m[1]
+		}
+	}
+	return v
+}
+
+// findIn returns the first element of the list v whose value at the dot
+// path equals want (compared as text), or nil.
+func findIn(v any, path string, want any) any {
+	list, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	w := stringify(want)
+	for _, el := range list {
+		if stringify(lookupPath(el, strings.Split(path, "."))) == w {
+			return el
+		}
+	}
+	return nil
+}
+
+// findRow searches value rows whose first row is the header: it returns the
+// 1-based row number (the sheet row when the rows start at row 1) of the
+// first data row whose cell in column equals want, or nil. When want is an
+// object (e.g. the input item), its value for the column is used.
+func findRow(v any, column string, want any) any {
+	rows, ok := v.([]any)
+	if !ok || len(rows) < 2 {
+		return nil
+	}
+	header, ok := rows[0].([]any)
+	if !ok {
+		return nil
+	}
+	col := -1
+	for i, h := range header {
+		if stringify(h) == column {
+			col = i
+			break
+		}
+	}
+	if col < 0 {
+		return nil
+	}
+	if m, ok := want.(map[string]any); ok {
+		want = m[column]
+	}
+	w := stringify(want)
+	if w == "" {
+		return nil
+	}
+	for i, r := range rows[1:] {
+		cells, _ := r.([]any)
+		if col < len(cells) && stringify(cells[col]) == w {
+			return int64(i + 2)
+		}
+	}
+	return nil
+}
+
+// columnNumber turns a spreadsheet column letter into its 1-based number
+// ("A" → 1, "AA" → 27).
+func columnNumber(s string) (any, error) {
+	s = strings.ToUpper(strings.TrimSpace(s))
+	if s == "" {
+		return nil, nil
+	}
+	n := int64(0)
+	for _, c := range s {
+		if c < 'A' || c > 'Z' {
+			return nil, fmt.Errorf("colnum: %q is not a column letter", s)
+		}
+		n = n*26 + int64(c-'A'+1)
+	}
+	return n, nil
+}
+
+// columnName turns a 1-based column number into its letter (28 → "AB").
+func columnName(n int64) (any, error) {
+	if n < 1 {
+		return nil, fmt.Errorf("colname: %d is not a column number", n)
+	}
+	var b []byte
+	for n > 0 {
+		n--
+		b = append([]byte{byte('A' + n%26)}, b...)
+		n /= 26
+	}
+	return string(b), nil
 }

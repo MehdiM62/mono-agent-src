@@ -46,6 +46,14 @@ const darwinPlistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 
 // renderPlist returns the launchd job for the binary at exe, logging under logs. ExitTimeOut is
 // stopGrace: launchd's default of 20 s is shorter than a daemon needs to finish a refresh.
+// darwinLogNames are the plist's StandardOutPath and StandardErrorPath.
+var darwinLogNames = []string{"daemon.log", "daemon.err.log"}
+
+// serviceLogHint is where the launchd job's output goes.
+func serviceLogHint() string {
+	return "~/.monoagent/logs/daemon.log (and daemon.err.log)"
+}
+
 func renderPlist(exe, logs string) (string, error) {
 	var b strings.Builder
 	tmpl := template.Must(template.New("plist").Parse(darwinPlistTemplate))
@@ -103,6 +111,7 @@ func (darwinInstaller) Install(ctx context.Context) (Result, error) {
 	// and re-running bootstrap over an already-loaded label otherwise
 	// fails with "service already loaded".
 	_ = exec.CommandContext(ctx, "launchctl", "bootout", domain+"/"+Label).Run()
+	rotateDaemonLogs(darwinLogNames...)
 	bootstrap := exec.CommandContext(ctx, "launchctl", "bootstrap", domain, path)
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		return Result{}, fmt.Errorf("launchctl bootstrap: %w: %s", err, string(out))
@@ -157,6 +166,7 @@ func (darwinInstaller) Status(ctx context.Context) (bool, string) {
 // again (and starts a job that was not running).
 func (darwinInstaller) Restart(ctx context.Context) error {
 	target := launchdDomain() + "/" + Label
+	rotateDaemonLogs(darwinLogNames...)
 	if out, err := launchctl(ctx, "kickstart", "-k", target); err != nil {
 		return fmt.Errorf("launchctl kickstart -k %s: %w: %s", target, err, strings.TrimSpace(string(out)))
 	}
@@ -167,6 +177,7 @@ func (darwinInstaller) Start(ctx context.Context) error {
 	// kickstart starts a loaded job and is a no-op for a running one
 	// (no -k: never restart a healthy daemon).
 	target := launchdDomain() + "/" + Label
+	rotateDaemonLogs(darwinLogNames...)
 	out, err := exec.CommandContext(ctx, "launchctl", "kickstart", target).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("launchctl kickstart %s: %w: %s", target, err, string(out))
