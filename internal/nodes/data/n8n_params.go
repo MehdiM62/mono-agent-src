@@ -33,6 +33,17 @@ var N8nNodeTypes = map[string]string{
 	"n8n-nodes-base.sort":             "core.sort",
 	"n8n-nodes-base.removeDuplicates": "core.remove_duplicates",
 	"n8n-nodes-base.aggregate":        "core.aggregate",
+	// Mapped in n8n_params_files.go and n8n_params_formats.go; Edit Image in
+	// internal/nodes/image/n8n_params.go.
+	"n8n-nodes-base.convertToFile":   "data.convert_to_file",
+	"n8n-nodes-base.extractFromFile": "data.extract_from_file",
+	"n8n-nodes-base.readWriteFile":   "data.read_write_file",
+	"n8n-nodes-base.iCal":            "data.ical",
+	"n8n-nodes-base.compression":     "data.compression",
+	"n8n-nodes-base.xml":             "data.xml",
+	"n8n-nodes-base.html":            "data.html",
+	"n8n-nodes-base.markdown":        "data.markdown",
+	"n8n-nodes-base.editImage":       "image.edit",
 }
 
 // ── Split Out ────────────────────────────────────────────────────────────────

@@ -7,6 +7,8 @@ package main
 
 func init() {
 	upsertNodeDocs(dataMoreNodeDocs...)
+	upsertNodeDocs(dataFilesDocOverrides...)
+	upsertNodeDocs(dataFormatsDocOverrides...)
 }
 
 // upsertNodeDocs replaces the catalogue entry of each doc's Type, or appends
@@ -196,5 +198,83 @@ random_bytes, base64_encode, base64_decode (field → output_field).`,
 		Inputs:  "any items",
 		Outputs: "input items with the result field set",
 		Notes:   "Keep secrets, keys and passphrases in the vault (@secret:name).",
+	},
+}
+
+// dataFormatsDocOverrides replaces the existing entries of the XML, HTML and
+// Markdown nodes, which gained n8n-compatible operations.
+var dataFormatsDocOverrides = []nodeDoc{
+	{
+		Type:     "data.xml",
+		Category: "data",
+		Short:    "Convert XML to JSON and back (incl. n8n XML node semantics)",
+		Description: `xml_to_json parses the XML in data_property_name (default "data") and makes the
+parsed object the item, like n8n: attributes merged into their element
+(merge_attrs, default true), text of mixed elements under charkey "_", repeated
+elements as lists (explicit_array=true makes every child a list), root element
+kept (explicit_root). json_to_xml builds XML from the whole item into
+data_property_name; "$" holds attributes and "_" text; an object with one key
+uses it as the root, otherwise root_name.
+parse / generate are the older field-based operations (field -> output_field,
+attributes as "@name", text as "#text").`,
+		Config: `{
+  "operation": "xml_to_json",       // xml_to_json | json_to_xml | parse | generate
+  "data_property_name": "data",
+  "trim": true, "normalize": false, "explicit_array": false,
+  "attrkey": "$", "charkey": "_",
+  "headless": false, "root_name": "root", "cdata": false   // json_to_xml
+}`,
+		Inputs:  "items with an XML string, or any item (json_to_xml)",
+		Outputs: "xml_to_json: the parsed object; json_to_xml: {data_property_name: xml}",
+		Notes:   "Other options: ignore_attrs, normalize_tags. attrkey/charkey may not be __proto__, constructor or prototype.",
+	},
+	{
+		Type:     "data.html",
+		Category: "data",
+		Short:    "Extract content with CSS selectors, render HTML templates, or build an HTML table (incl. n8n HTML node)",
+		Description: `extract_html_content reads HTML from a JSON field or a binary property
+(source_data json|binary, data_property_name) and fills one key per
+extraction_values entry: text, html, an attribute, or a form control's value;
+return_array gives every match. skip_selectors drops elements from text
+results; trim_values and clean_up_text tidy whitespace.
+generate_html_template renders "html" with {{ }} expressions per item into "html".
+convert_to_html_table turns all items into one {table} (caption, capitalize
+headers, custom_styling with table/header/row/cell attributes; values are not
+escaped, as in n8n).
+extract / extract_all / text / generate are the older field-based operations.`,
+		Config: `{
+  "operation": "extract_html_content",
+  "source_data": "json",
+  "data_property_name": "body",
+  "extraction_values": [
+    { "key": "title", "css_selector": "h1" },
+    { "key": "links", "css_selector": "a", "return_value": "attribute", "attribute": "href", "return_array": true }
+  ],
+  "trim_values": true
+}`,
+		Inputs:  "items with HTML (field or binary), or any items for templates/tables",
+		Outputs: "extracted keys / rendered html / one table item",
+	},
+	{
+		Type:     "data.markdown",
+		Category: "data",
+		Short:    "Convert Markdown to HTML or HTML to Markdown (incl. n8n Markdown node)",
+		Description: `mode markdown_to_html converts "markdown" (a value, evaluated per item) and
+mode html_to_markdown converts "html"; the result goes to destination_key
+(default "data") on a copy of the item. Instead of a value, "field" can name an
+item field to read. Options follow n8n: markdown_to_html tables,
+strikethrough, tasklists, simple_line_breaks, no_header_id, open_links_in_new_window,
+complete_html_document, …; html_to_markdown heading_style (atx|setext),
+bullet_marker, code_block_style (fenced|indented), em_delimiter,
+strong_delimiter, ignore (tags), keep_data_images, use_link_reference_definitions.
+Without mode the original behaviour applies: Markdown in "field" -> HTML in
+"output_field" (GFM).`,
+		Config: `{
+  "mode": "html_to_markdown",       // markdown_to_html | html_to_markdown
+  "html": "{{ $json.body }}",
+  "destination_key": "markdown"
+}`,
+		Inputs:  "any items",
+		Outputs: "the item with the converted text at destination_key",
 	},
 }

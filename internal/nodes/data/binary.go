@@ -141,11 +141,20 @@ func completeMeta(meta binaryMeta, data []byte) binaryMeta {
 		meta.MimeType = "application/octet-stream"
 	}
 	if meta.Extension == "" {
-		if exts, _ := mime.ExtensionsByType(meta.MimeType); len(exts) > 0 {
+		if ext, ok := preferredExtensions[meta.MimeType]; ok {
+			meta.Extension = ext
+		} else if exts, _ := mime.ExtensionsByType(meta.MimeType); len(exts) > 0 {
 			meta.Extension = strings.TrimPrefix(exts[0], ".")
 		}
 	}
 	return meta
+}
+
+// preferredExtensions picks the usual extension where the mime package
+// would return an obscure one first (text/plain -> .asc).
+var preferredExtensions = map[string]string{
+	"text/plain": "txt", "text/html": "html", "text/csv": "csv", "application/json": "json",
+	"image/jpeg": "jpg", "application/octet-stream": "bin", "text/calendar": "ics",
 }
 
 // setBinary stores data as binary property prop with flat metadata keys —

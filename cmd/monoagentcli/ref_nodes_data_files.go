@@ -117,8 +117,8 @@ Timed events are written in UTC; all-day events as dates (end inclusive).`,
 	},
 }
 
-// dataFilesDocOverrides replaces the data.compression entry in ref.go
-// (wired by the nodes lead).
+// dataFilesDocOverrides replaces the existing data.compression entry (see
+// upsertNodeDocs in ref_nodes_data_more.go).
 var dataFilesDocOverrides = []nodeDoc{
 	{
 		Type:     "data.compression",

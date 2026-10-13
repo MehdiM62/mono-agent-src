@@ -15,6 +15,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jlaffaye/ftp v0.2.4
+	github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0
 	github.com/lib/pq v1.12.3
 	github.com/mmcdole/gofeed v1.5.0
 	github.com/olekukonko/tablewriter v1.1.5
@@ -35,8 +36,6 @@ require (
 	golang.org/x/text v0.42.0
 	modernc.org/sqlite v1.60.1
 )
-
-require github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0 // indirect
 
 require (
 	github.com/coreos/go-semver v0.3.1 // indirect
