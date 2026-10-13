@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestRequestPairingURLMintsASingleUseNonce(t *testing.T) {
@@ -110,5 +111,34 @@ func TestRequestPairingURLOnAnOlderBridge(t *testing.T) {
 	defer odd.Close()
 	if _, err := RequestPairingURL(odd.URL); err == nil {
 		t.Fatal("a non-loopback pairing URL was accepted")
+	}
+}
+
+func TestPairNonceExpires(t *testing.T) {
+	srv, _, _ := startCaptureServer(t)
+	base := "http://127.0.0.1:" + os.Getenv(ExtensionPortEnv)
+	u, err := RequestPairingURL(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, _ := url.Parse(u)
+	nonce := parsed.Query().Get("n")
+
+	srv.pairingMu.Lock()
+	e := srv.pairingNonces[nonce]
+	if e.expiresAt.Sub(time.Now()) > pairingNonceTTL {
+		t.Errorf("nonce lives longer than %s", pairingNonceTTL)
+	}
+	e.expiresAt = time.Now().Add(-time.Second)
+	srv.pairingNonces[nonce] = e
+	srv.pairingMu.Unlock()
+
+	resp, err := http.Get(base + "/monoagent/pair/exchange?n=" + nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expired nonce: %d, want 404", resp.StatusCode)
 	}
 }
