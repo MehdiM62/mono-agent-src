@@ -220,7 +220,7 @@ through, so an unset param stays unset:
 | `string` | → string |
 | `lower`, `upper` | case |
 | `default:"x"` | `x` when the value is empty; the argument may be a quoted string (`'x'` or `"x"`), a number, `true`/`false`/`null`, or a path (`default:p.other`, `default:cred.region`) |
-| `then:'x'` | `x` when the value is non-empty, else nil |
+| `then:'x'` | `x` when the value is set, else nil — empty, `false` and the text `"false"` count as unset (n8n toggles); `0` is a value |
 | `rl` | n8n resource locator → its `value`; a `"mode": "url"` locator holding a Google Docs/Sheets/Slides/Drive URL yields the file id; other values pass |
 | `find:'path',value` | first list element whose value at `path` equals `value` (text compare), else nil: `{{ pre.sheets \| find:'properties.title',p.sheetName \| get:'properties.sheetId' }}` |
 | `find_row:column,value` | value rows (first row = header) → 1-based row number of the first data row whose `column` cell equals `value` (an object value, e.g. `item`, is read at `column`), else nil: `{{ pre.values \| find_row:p.columnToMatchOn,item }}` |

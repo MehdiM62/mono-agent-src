@@ -1,0 +1,891 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "zendesk",
+  "title": "Zendesk",
+  "description": "Tickets, ticket fields, users and organizations in Zendesk Support",
+  "category": "app",
+  "docs_url": "https://developer.zendesk.com/api-reference/",
+  "n8n_types": [
+    "n8n-nodes-base.zendesk"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.zendeskTrigger"
+  ],
+  "base_url": "https://{{ cred.subdomain }}.zendesk.com/api/v2",
+  "headers": {
+    "X-Zendesk-Marketplace-Name": "{{ cred.marketplace_name }}",
+    "X-Zendesk-Marketplace-Organization-Id": "{{ cred.marketplace_organization_id }}",
+    "X-Zendesk-Marketplace-App-Id": "{{ cred.marketplace_app_id }}"
+  },
+  "credentials": [
+    {
+      "platform": "zendesk",
+      "name": "Zendesk (API token)",
+      "n8n_credential": "zendeskApi",
+      "n8n_field_map": {
+        "subdomain": "subdomain",
+        "email": "email",
+        "apiToken": "api_token"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "subdomain",
+          "label": "Subdomain",
+          "required": true,
+          "help": "The part before .zendesk.com"
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "required": true
+        },
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.email }}/token",
+          "password": "{{ cred.api_token }}"
+        }
+      }
+    },
+    {
+      "platform": "zendesk_oauth",
+      "name": "Zendesk (OAuth token)",
+      "n8n_credential": "zendeskOAuth2Api",
+      "n8n_field_map": {
+        "subdomain": "subdomain",
+        "marketplaceName": "marketplace_name",
+        "marketplaceOrganizationId": "marketplace_organization_id",
+        "marketplaceAppId": "marketplace_app_id"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "subdomain",
+          "label": "Subdomain",
+          "required": true
+        },
+        {
+          "key": "access_token",
+          "label": "OAuth access token",
+          "secret": true,
+          "required": true,
+          "help": "A token from your Zendesk OAuth client (the authorize URL depends on the subdomain)"
+        },
+        {
+          "key": "marketplace_name",
+          "label": "Marketplace app name"
+        },
+        {
+          "key": "marketplace_organization_id",
+          "label": "Marketplace organization ID"
+        },
+        {
+          "key": "marketplace_app_id",
+          "label": "Marketplace app ID"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "ticket",
+      "label": "Ticket"
+    },
+    {
+      "value": "ticketField",
+      "label": "Ticket field"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "organization",
+      "label": "Organization"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "ticket",
+      "operation": "create",
+      "title": "Create a ticket",
+      "method": "POST",
+      "path": "/tickets.json",
+      "body": {
+        "ticket": {
+          "comment": {
+            "body": "{{ p.description }}"
+          },
+          "$merge": "{{ p.jsonParameters | then:(p.additionalFieldsJson | fromjson) }}",
+          "type": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.type) }}",
+          "external_id": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.externalId) }}",
+          "subject": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.subject) }}",
+          "status": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.status) }}",
+          "recipient": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.recipient) }}",
+          "group_id": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.group) }}",
+          "tags": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.tags) }}",
+          "custom_fields": "{{ p.jsonParameters | ne:'true' | then:(p.additionalFields.customFieldsUi.customFieldsValues) }}"
+        }
+      },
+      "output": {
+        "path": "ticket"
+      },
+      "fields": [
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "externalId",
+            "group",
+            "recipient",
+            "status",
+            "subject",
+            "tags",
+            "type"
+          ],
+          "help": "customFieldsUi: {\"customFieldsValues\": [{\"id\", \"value\"}]}"
+        },
+        {
+          "key": "additionalFieldsJson",
+          "label": "Additional fields (JSON)",
+          "type": "json",
+          "help": "Ticket fields as JSON when jsonParameters is on"
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "delete",
+      "title": "Delete a ticket",
+      "method": "DELETE",
+      "path": "/{{ p.ticketType | eq:'suspended' | then:'suspended_tickets' | default:'tickets' }}/{{ p.id }}.json",
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "ticketType",
+          "label": "Ticket type",
+          "type": "select",
+          "default": "regular",
+          "options": [
+            "regular",
+            "suspended"
+          ]
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "get",
+      "title": "Get a ticket",
+      "method": "GET",
+      "path": "/{{ p.ticketType | eq:'suspended' | then:'suspended_tickets' | default:'tickets' }}/{{ p.id }}.json",
+      "output": {
+        "path": "{{ p.ticketType | eq:'suspended' | then:'suspended_ticket' | default:'ticket' }}"
+      },
+      "fields": [
+        {
+          "key": "ticketType",
+          "label": "Ticket type",
+          "type": "select",
+          "default": "regular",
+          "options": [
+            "regular",
+            "suspended"
+          ]
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "getAll",
+      "title": "Get many tickets",
+      "method": "GET",
+      "path": "/{{ p.ticketType | eq:'suspended' | then:'suspended_tickets' | default:'search' }}.json",
+      "query": {
+        "query": {
+          "$join": [
+            "type:ticket",
+            "{{ p.options.query }}",
+            "{{ p.options.status | prefix:'status:' }}",
+            "{{ p.options.group | prefix:'group:' }}"
+          ],
+          "$sep": " "
+        },
+        "sort_by": "{{ p.options.sortBy }}",
+        "sort_order": "{{ p.options.sortOrder }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next_page",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "output": {
+        "path": "{{ p.ticketType | eq:'suspended' | then:'suspended_tickets' | default:'results' }}"
+      },
+      "fields": [
+        {
+          "key": "ticketType",
+          "label": "Ticket type",
+          "type": "select",
+          "default": "regular",
+          "options": [
+            "regular",
+            "suspended"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "group",
+            "query",
+            "sortBy",
+            "sortOrder",
+            "status"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "recover",
+      "title": "Recover a suspended ticket",
+      "method": "PUT",
+      "path": "/suspended_tickets/{{ p.id }}/recover.json",
+      "output": {
+        "path": "ticket"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "update",
+      "title": "Update a ticket",
+      "method": "PUT",
+      "path": "/tickets/{{ p.id }}.json",
+      "body": {
+        "ticket": {
+          "type": "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.type) }}",
+          "external_id": "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.externalId) }}",
+          "subject": "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.subject) }}",
+          "status": "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.status) }}",
+          "recipient": "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.recipient) }}",
+          "group_id": "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.group) }}",
+          "tags": "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.tags) }}",
+          "custom_fields": "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.customFieldsUi.customFieldsValues) }}",
+          "assignee_email": "{{ p.jsonParameters | ne:'true' | then:p.updateFields.assigneeEmail }}",
+          "comment": {
+            "$when": "{{ p.jsonParameters | ne:'true' | then:(p.updateFields.publicReply | default:p.updateFields.internalNote) }}",
+            "body": "{{ p.updateFields.publicReply }}",
+            "html_body": "{{ p.updateFields.publicReply | default:'' | eq:'' | then:p.updateFields.internalNote }}",
+            "public": "{{ p.updateFields.publicReply | then:true | default:false }}"
+          },
+          "$merge": "{{ p.jsonParameters | then:(p.updateFieldsJson | fromjson) }}"
+        }
+      },
+      "output": {
+        "path": "ticket"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "externalId",
+            "group",
+            "recipient",
+            "status",
+            "subject",
+            "tags",
+            "type",
+            "assigneeEmail",
+            "internalNote",
+            "publicReply"
+          ]
+        },
+        {
+          "key": "updateFieldsJson",
+          "label": "Update fields (JSON)",
+          "type": "json"
+        }
+      ]
+    },
+    {
+      "resource": "ticketField",
+      "operation": "get",
+      "title": "Get a ticket field",
+      "method": "GET",
+      "path": "/ticket_fields/{{ p.ticketFieldId }}.json",
+      "output": {
+        "path": "ticket_field"
+      },
+      "fields": [
+        {
+          "key": "ticketFieldId",
+          "label": "Ticket field ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticketField",
+      "operation": "getAll",
+      "title": "Get many ticket fields",
+      "method": "GET",
+      "path": "/ticket_fields.json",
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next_page",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "output": {
+        "path": "ticket_fields"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users.json",
+      "body": {
+        "user": {
+          "name": "{{ p.name }}",
+          "$merge": "{{ p.additionalFields | omit:'userFieldsUi' }}",
+          "user_fields": "{{ p.additionalFields.userFieldsUi | kv:'field,value' }}"
+        }
+      },
+      "output": {
+        "path": "user"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "alias",
+            "custom_role_id",
+            "details",
+            "email",
+            "external_id",
+            "locale",
+            "moderator",
+            "notes",
+            "only_private_comments",
+            "organization_id",
+            "phone",
+            "report_csv",
+            "restricted_agent",
+            "role",
+            "signature",
+            "suspended",
+            "tags",
+            "ticket_restriction",
+            "time_zone",
+            "userFieldsUi",
+            "verified"
+          ],
+          "help": "userFieldsUi: {\"userFieldValues\": [{\"field\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/users/{{ p.id }}.json",
+      "output": {
+        "path": "user"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.id }}.json",
+      "output": {
+        "path": "user"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users.json",
+      "query": {
+        "role[]": "{{ p.filters.role }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next_page",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "output": {
+        "path": "users"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "role"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getOrganizations",
+      "title": "Get a user's organizations",
+      "method": "GET",
+      "path": "/users/{{ p.id }}/organizations.json",
+      "output": {
+        "path": "organizations"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getRelatedData",
+      "title": "Get data related to a user",
+      "method": "GET",
+      "path": "/users/{{ p.id }}/related.json",
+      "output": {
+        "path": "user_related"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "search",
+      "title": "Search users",
+      "method": "GET",
+      "path": "/users/search.json",
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next_page",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "output": {
+        "path": "users"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query",
+            "external_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "PUT",
+      "path": "/users/{{ p.id }}.json",
+      "body": {
+        "user": {
+          "$merge": "{{ p.updateFields | omit:'userFieldsUi' }}",
+          "user_fields": "{{ p.updateFields.userFieldsUi | kv:'field,value' }}"
+        }
+      },
+      "output": {
+        "path": "user"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "alias",
+            "custom_role_id",
+            "details",
+            "email",
+            "external_id",
+            "locale",
+            "moderator",
+            "notes",
+            "only_private_comments",
+            "organization_id",
+            "phone",
+            "report_csv",
+            "restricted_agent",
+            "role",
+            "signature",
+            "suspended",
+            "tags",
+            "ticket_restriction",
+            "time_zone",
+            "userFieldsUi",
+            "verified",
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "create",
+      "title": "Create an organization",
+      "method": "POST",
+      "path": "/organizations.json",
+      "body": {
+        "organization": {
+          "name": "{{ p.name }}",
+          "$merge": "{{ p.additionalFields | omit:'organizationFieldsUi' }}",
+          "organization_fields": "{{ p.additionalFields.organizationFieldsUi | kv:'field,value' }}"
+        }
+      },
+      "output": {
+        "path": "organization"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "details",
+            "domain_names",
+            "notes",
+            "organizationFieldsUi",
+            "tags"
+          ],
+          "help": "organizationFieldsUi: {\"organizationFieldValues\": [{\"field\", \"value\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "count",
+      "title": "Count organizations",
+      "method": "GET",
+      "path": "/organizations/count.json",
+      "output": {
+        "path": "count"
+      },
+      "fields": []
+    },
+    {
+      "resource": "organization",
+      "operation": "delete",
+      "title": "Delete an organization",
+      "method": "DELETE",
+      "path": "/organizations/{{ p.id }}.json",
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "get",
+      "title": "Get an organization",
+      "method": "GET",
+      "path": "/organizations/{{ p.id }}.json",
+      "output": {
+        "path": "organization"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "getAll",
+      "title": "Get many organizations",
+      "method": "GET",
+      "path": "/organizations.json",
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next_page",
+        "limit_param": "per_page",
+        "page_size": 100
+      },
+      "output": {
+        "path": "organizations"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "getRelatedData",
+      "title": "Get data related to an organization",
+      "method": "GET",
+      "path": "/organizations/{{ p.id }}/related.json",
+      "output": {
+        "path": "organization_related"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "update",
+      "title": "Update an organization",
+      "method": "PUT",
+      "path": "/organizations/{{ p.id }}.json",
+      "body": {
+        "organization": {
+          "$merge": "{{ p.updateFields | omit:'organizationFieldsUi' }}",
+          "organization_fields": "{{ p.updateFields.organizationFieldsUi | kv:'field,value' }}"
+        }
+      },
+      "output": {
+        "path": "organization"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "details",
+            "domain_names",
+            "notes",
+            "organizationFieldsUi",
+            "tags",
+            "name"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,275 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "zoom",
+  "title": "Zoom",
+  "description": "Meetings in Zoom",
+  "category": "app",
+  "docs_url": "https://developers.zoom.us/docs/api/",
+  "n8n_types": [
+    "n8n-nodes-base.zoom"
+  ],
+  "base_url": "https://api.zoom.us/v2",
+  "credentials": [
+    {
+      "platform": "zoom",
+      "name": "Zoom",
+      "n8n_credential": "zoomApi",
+      "n8n_credential_alt": [
+        "zoomOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://zoom.us/oauth/authorize",
+        "token_url": "https://zoom.us/oauth/token",
+        "scopes": []
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "meeting",
+      "label": "Meeting"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "meeting",
+      "operation": "create",
+      "title": "Create a meeting",
+      "method": "POST",
+      "path": "/users/me/meetings",
+      "body": {
+        "settings": {
+          "cn_meeting": "{{ p.additionalFields.settings.cnMeeting | eq:'true' }}",
+          "in_meeting": "{{ p.additionalFields.settings.inMeeting | eq:'true' }}",
+          "join_before_host": "{{ p.additionalFields.settings.joinBeforeHost | eq:'true' }}",
+          "mute_upon_entry": "{{ p.additionalFields.settings.muteUponEntry | eq:'true' }}",
+          "watermark": "{{ p.additionalFields.settings.watermark | eq:'true' }}",
+          "participant_video": "{{ p.additionalFields.settings.participantVideo | eq:'true' }}",
+          "host_video": "{{ p.additionalFields.settings.hostVideo | eq:'true' }}",
+          "audio": "{{ p.additionalFields.settings.audio }}",
+          "alternative_hosts": "{{ p.additionalFields.settings.alternativeHosts }}",
+          "auto_recording": "{{ p.additionalFields.settings.autoRecording }}",
+          "registration_type": "{{ p.additionalFields.settings.registrationType }}"
+        },
+        "type": "{{ p.additionalFields.type }}",
+        "start_time": "{{ p.additionalFields.timeZone | then:(p.additionalFields.startTime | date:'YYYY-MM-DDTHH:mm:ss') | default:(p.additionalFields.startTime | date:'YYYY-MM-DDTHH:mm:ssZ') }}",
+        "duration": "{{ p.additionalFields.duration | ne:'0' | then:p.additionalFields.duration }}",
+        "schedule_for": "{{ p.additionalFields.scheduleFor }}",
+        "timezone": "{{ p.additionalFields.timeZone }}",
+        "password": "{{ p.additionalFields.password }}",
+        "agenda": "{{ p.additionalFields.agenda }}",
+        "topic": "{{ p.topic }}"
+      },
+      "fields": [
+        {
+          "key": "topic",
+          "label": "Topic",
+          "type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agenda",
+            "duration",
+            "password",
+            "scheduleFor",
+            "settings",
+            "startTime",
+            "timeZone",
+            "type"
+          ],
+          "help": "settings: {\"audio\", \"alternativeHosts\", \"autoRecording\", \"cnMeeting\", \"inMeeting\", \"hostVideo\", \"joinBeforeHost\", \"muteUponEntry\", \"participantVideo\", \"registrationType\", \"watermark\"}"
+        }
+      ]
+    },
+    {
+      "resource": "meeting",
+      "operation": "delete",
+      "title": "Delete a meeting",
+      "method": "DELETE",
+      "path": "/meetings/{{ p.meetingId }}",
+      "query": {
+        "schedule_for_reminder": "{{ p.additionalFields.scheduleForReminder | eq:'true' }}",
+        "occurrence_id": "{{ p.additionalFields.occurrenceId }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "meetingId",
+          "label": "Meeting ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "occurrenceId",
+            "scheduleForReminder"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "meeting",
+      "operation": "get",
+      "title": "Get a meeting",
+      "method": "GET",
+      "path": "/meetings/{{ p.meetingId }}",
+      "query": {
+        "show_previous_occurrences": "{{ p.additionalFields.showPreviousOccurrences | eq:'true' }}",
+        "occurrence_id": "{{ p.additionalFields.occurrenceId }}"
+      },
+      "fields": [
+        {
+          "key": "meetingId",
+          "label": "Meeting ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "occurrenceId",
+            "showPreviousOccurrences"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "meeting",
+      "operation": "getAll",
+      "title": "Get many meetings",
+      "method": "GET",
+      "path": "/users/me/meetings",
+      "query": {
+        "type": "{{ p.filters.type }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "next_page_token",
+        "cursor_path": "next_page_token",
+        "limit_param": "page_size",
+        "page_size": 300,
+        "results_path": "meetings"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 30,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "type"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "meeting",
+      "operation": "update",
+      "title": "Update a meeting",
+      "method": "PATCH",
+      "path": "/meetings/{{ p.meetingId }}",
+      "body": {
+        "settings": {
+          "cn_meeting": "{{ p.updateFields.settings.cnMeeting | eq:'true' }}",
+          "in_meeting": "{{ p.updateFields.settings.inMeeting | eq:'true' }}",
+          "join_before_host": "{{ p.updateFields.settings.joinBeforeHost | eq:'true' }}",
+          "mute_upon_entry": "{{ p.updateFields.settings.muteUponEntry | eq:'true' }}",
+          "watermark": "{{ p.updateFields.settings.watermark | eq:'true' }}",
+          "participant_video": "{{ p.updateFields.settings.participantVideo | eq:'true' }}",
+          "host_video": "{{ p.updateFields.settings.hostVideo | eq:'true' }}",
+          "audio": "{{ p.updateFields.settings.audio }}",
+          "alternative_hosts": "{{ p.updateFields.settings.alternativeHosts }}",
+          "auto_recording": "{{ p.updateFields.settings.autoRecording }}",
+          "registration_type": "{{ p.updateFields.settings.registrationType }}"
+        },
+        "type": "{{ p.updateFields.type }}",
+        "start_time": "{{ p.updateFields.startTime }}",
+        "duration": "{{ p.updateFields.duration | ne:'0' | then:p.updateFields.duration }}",
+        "schedule_for": "{{ p.updateFields.scheduleFor }}",
+        "timezone": "{{ p.updateFields.timeZone }}",
+        "password": "{{ p.updateFields.password }}",
+        "agenda": "{{ p.updateFields.agenda }}",
+        "topic": "{{ p.updateFields.topic }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "meetingId",
+          "label": "Meeting ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agenda",
+            "duration",
+            "password",
+            "scheduleFor",
+            "settings",
+            "startTime",
+            "timeZone",
+            "type",
+            "topic"
+          ],
+          "help": "settings: {\"audio\", \"alternativeHosts\", \"autoRecording\", \"cnMeeting\", \"inMeeting\", \"hostVideo\", \"joinBeforeHost\", \"muteUponEntry\", \"participantVideo\", \"registrationType\", \"watermark\"}"
+        }
+      ]
+    }
+  ]
+}

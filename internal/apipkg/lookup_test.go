@@ -1088,3 +1088,15 @@ func TestInsecureClientOptIn(t *testing.T) {
 		t.Error("default client must verify TLS")
 	}
 }
+
+func TestThenTreatsFalseAsUnset(t *testing.T) {
+	sc := Scope{P: map[string]any{"t": true, "f": false, "fs": "false", "z": 0.0}}
+	for in, want := range map[string]any{
+		"{{ p.t | then:'x' }}": "x", "{{ p.f | then:'x' }}": nil, "{{ p.fs | then:'x' }}": nil, "{{ p.z | then:'x' }}": "x",
+		"{{ p.f | then:'x' | default:'y' }}": "y",
+	} {
+		if got, _ := renderString(in, sc); got != want {
+			t.Errorf("%s = %#v, want %#v", in, got, want)
+		}
+	}
+}

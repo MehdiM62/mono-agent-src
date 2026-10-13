@@ -1,0 +1,497 @@
+{
+  "product.create": {
+    "params": {
+      "name": "Mug",
+      "additionalFields": {
+        "regularPrice": "9.99",
+        "manageStock": true,
+        "tags": [
+          "3"
+        ],
+        "categories": [
+          "5"
+        ],
+        "crossSellIds": "1,2"
+      },
+      "imagesUi": {
+        "imagesValues": [
+          {
+            "src": "https://i/m.png",
+            "alt": "m"
+          }
+        ]
+      },
+      "dimensionsUi": {
+        "dimensionsValues": {
+          "height": "10"
+        }
+      },
+      "metadataUi": {
+        "metadataValues": [
+          {
+            "key": "k",
+            "value": "v"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/wp-json/wc/v3/products",
+      "body": {
+        "name": "Mug",
+        "regular_price": "9.99",
+        "manage_stock": true,
+        "cross_sell_ids": "1,2",
+        "tags": [
+          {
+            "id": 3
+          }
+        ],
+        "categories": [
+          {
+            "id": 5
+          }
+        ],
+        "images": [
+          {
+            "src": "https://i/m.png",
+            "alt": "m"
+          }
+        ],
+        "dimensions": {
+          "height": "10"
+        },
+        "meta_data": [
+          {
+            "key": "k",
+            "value": "v"
+          }
+        ]
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "product.delete": {
+    "params": {
+      "productId": "1"
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/wp-json/wc/v3/products/1",
+      "query": {
+        "force": "true"
+      },
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "product.get": {
+    "params": {
+      "productId": "1"
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wc/v3/products/1",
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "product.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "maxPrice": "10",
+        "orderBy": "date",
+        "stockStatus": "instock",
+        "featured": true
+      }
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wc/v3/products",
+      "query": {
+        "max_price": "10",
+        "orderby": "date",
+        "stock_status": "instock",
+        "featured": "true",
+        "per_page": "5"
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "product.update": {
+    "params": {
+      "productId": "1",
+      "updateFields": {
+        "name": "Cup",
+        "salePrice": "5"
+      }
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/wp-json/wc/v3/products/1",
+      "body": {
+        "name": "Cup",
+        "sale_price": "5"
+      },
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "order.create": {
+    "params": {
+      "additionalFields": {
+        "paymentMethodId": "bacs",
+        "setPaid": true,
+        "customerId": "4"
+      },
+      "billingUi": {
+        "billingValues": {
+          "firstName": "Ada",
+          "address_1": "Main 1",
+          "email": "a@x.io"
+        }
+      },
+      "lineItemsUi": {
+        "lineItemsValues": [
+          {
+            "productId": 3,
+            "quantity": 2,
+            "metadataUi": {
+              "metadataValues": [
+                {
+                  "key": "gift",
+                  "value": "yes"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "shippingLinesUi": {
+        "shippingLinesValues": [
+          {
+            "methodTitle": "Flat",
+            "method ID": "flat_rate",
+            "total": "5"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/wp-json/wc/v3/orders",
+      "body": {
+        "payment_method": "bacs",
+        "set_paid": true,
+        "customer_id": "4",
+        "billing": {
+          "first_name": "Ada",
+          "address_1": "Main 1",
+          "email": "a@x.io"
+        },
+        "line_items": [
+          {
+            "product_id": 3,
+            "quantity": 2,
+            "meta_data": [
+              {
+                "key": "gift",
+                "value": "yes"
+              }
+            ]
+          }
+        ],
+        "shipping_lines": [
+          {
+            "method_title": "Flat",
+            "method_id": "flat_rate",
+            "total": "5"
+          }
+        ]
+      },
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "order.delete": {
+    "params": {
+      "orderId": "1"
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/wp-json/wc/v3/orders/1",
+      "query": {
+        "force": "true"
+      },
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "order.get": {
+    "params": {
+      "orderId": "1"
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wc/v3/orders/1",
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "order.getAll": {
+    "params": {
+      "returnAll": true,
+      "options": {
+        "customer": "4",
+        "decimalPoints": 2,
+        "status": "processing"
+      }
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wc/v3/orders",
+      "query": {
+        "customer": "4",
+        "dp": "2",
+        "status": "processing",
+        "per_page": "100"
+      },
+      "items": 2,
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "order.update": {
+    "params": {
+      "orderId": "1",
+      "updateFields": {
+        "status": "completed",
+        "parentId": "7"
+      }
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/wp-json/wc/v3/orders/1",
+      "body": {
+        "status": "completed",
+        "parent_id": 7
+      },
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "customer.create": {
+    "params": {
+      "email": "a@x.io",
+      "additionalFields": {
+        "first_name": "Ada",
+        "billing": {
+          "city": "Oslo"
+        },
+        "meta_data": {
+          "meta_data_fields": [
+            {
+              "key": "k",
+              "value": "v"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/wp-json/wc/v3/customers",
+      "body": {
+        "email": "a@x.io",
+        "first_name": "Ada",
+        "billing": {
+          "city": "Oslo"
+        },
+        "meta_data": [
+          {
+            "key": "k",
+            "value": "v"
+          }
+        ]
+      },
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "customer.delete": {
+    "params": {
+      "customerId": "1"
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/wp-json/wc/v3/customers/1",
+      "query": {
+        "force": "true"
+      },
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "customer.get": {
+    "params": {
+      "customerId": "1"
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wc/v3/customers/1",
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  },
+  "customer.getAll": {
+    "params": {
+      "filters": {
+        "email": "a@x.io"
+      }
+    },
+    "credential": {
+      "url": "https://shop.test/",
+      "consumer_key": "ck",
+      "consumer_secret": "cs",
+      "include_credentials_in_query": "true"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wc/v3/customers",
+      "query": {
+        "email": "a@x.io",
+        "per_page": "50"
+      },
+      "items": 1,
+      "headers": {}
+    }
+  },
+  "customer.update": {
+    "params": {
+      "customerId": "1",
+      "updateFields": {
+        "last_name": "L"
+      }
+    },
+    "credential": {
+      "url": "https://shop.test",
+      "consumer_key": "ck",
+      "consumer_secret": "cs"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/wp-json/wc/v3/customers/1",
+      "body": {
+        "last_name": "L"
+      },
+      "headers": {
+        "Authorization": "Basic Y2s6Y3M="
+      }
+    }
+  }
+}

@@ -39,7 +39,7 @@ func applyFilter(name string, v, arg any) (any, error) {
 		}
 		return v, nil
 	case "then":
-		if isEmpty(v) {
+		if unset(v) {
 			return nil, nil
 		}
 		return arg, nil
@@ -978,4 +978,10 @@ func snakeCase(s string) string {
 	}
 	flush()
 	return strings.Join(words, "_")
+}
+
+// unset is what then treats as "no value": empty, false and the text
+// "false" (n8n boolean toggles arrive as either). 0 is a value.
+func unset(v any) bool {
+	return isEmpty(v) || v == false || stringify(v) == "false"
 }
