@@ -1,0 +1,103 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "read",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "read",
+        "write"
+      ],
+      "required": true,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "read"
+        ]
+      },
+      "help": "A path or pattern: * and ? within a name, ** across directories, {a,b} alternatives. Relative paths start at the org workdir in confined runs.",
+      "key": "file_selector",
+      "label": "File(s) Selector",
+      "placeholder": "reports/**/*.csv",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "write: the path to write (parent directories are created). read: overrides the file name of the files read.",
+      "key": "file_name",
+      "label": "File Name / Path",
+      "placeholder": "out/report.csv",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "data",
+      "help": "read: the property each file is put in. write: the property holding the file to write.",
+      "key": "data_property_name",
+      "label": "Binary Property",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "write"
+        ]
+      },
+      "help": "Append to the file instead of replacing it.",
+      "key": "append",
+      "label": "Append",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "read"
+        ]
+      },
+      "help": "Overrides the detected MIME type of the files read.",
+      "key": "mime_type",
+      "label": "MIME Type",
+      "placeholder": "application/zip",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "read"
+        ]
+      },
+      "help": "Overrides the extension of the files read.",
+      "key": "file_extension",
+      "label": "File Extension",
+      "placeholder": "zip",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "read"
+        ]
+      },
+      "help": "Match [ and ] as characters. Turn off to use them as character classes like [0-9].",
+      "key": "literal_brackets",
+      "label": "Treat Brackets as Literal",
+      "required": false,
+      "type": "boolean"
+    }
+  ]
+}

@@ -1,0 +1,245 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "sign",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "sign",
+        "decode",
+        "verify"
+      ],
+      "required": true,
+      "type": "select"
+    },
+    {
+      "default": "passphrase",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign",
+          "verify"
+        ]
+      },
+      "help": "passphrase for HS* algorithms; pem_key for RS*, PS* and ES*.",
+      "key": "key_type",
+      "label": "Key Type",
+      "options": [
+        "passphrase",
+        "pem_key"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "key_type",
+        "values": [
+          "passphrase"
+        ]
+      },
+      "help": "HMAC secret (key_type passphrase). Use an @secret: reference.",
+      "key": "secret",
+      "label": "Secret",
+      "required": false,
+      "type": "password"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign"
+        ]
+      },
+      "help": "PKCS#8, PKCS#1 or SEC 1 PEM key used to sign.",
+      "key": "private_key",
+      "label": "Private Key (PEM)",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "verify"
+        ]
+      },
+      "help": "PEM public key or certificate used to verify.",
+      "key": "public_key",
+      "label": "Public Key (PEM)",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "default": "HS256",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign",
+          "verify"
+        ]
+      },
+      "key": "algorithm",
+      "label": "Algorithm",
+      "options": [
+        "HS256",
+        "HS384",
+        "HS512",
+        "RS256",
+        "RS384",
+        "RS512",
+        "PS256",
+        "PS384",
+        "PS512",
+        "ES256",
+        "ES384",
+        "ES512"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign"
+        ]
+      },
+      "help": "Take the payload from claims_json instead of claims.",
+      "key": "use_json",
+      "label": "Payload As JSON",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign"
+        ]
+      },
+      "help": "Object of claims. audience, issuer, jwtid and subject become aud, iss, jti and sub; expires_in and not_before (seconds from now) become exp and nbf; other keys are copied as-is. iat is added.",
+      "key": "claims",
+      "label": "Payload Claims",
+      "language": "json",
+      "placeholder": "{ \"subject\": \"user-1\", \"expires_in\": 3600 }",
+      "required": false,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign"
+        ]
+      },
+      "help": "Payload object used when Payload As JSON is on; may use {{ $json }} expressions (evaluated per item).",
+      "key": "claims_json",
+      "label": "Payload (JSON)",
+      "language": "json",
+      "required": false,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign"
+        ]
+      },
+      "help": "Extra header fields merged into the token header.",
+      "key": "header_claims",
+      "label": "Header Claims (JSON)",
+      "language": "json",
+      "required": false,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sign"
+        ]
+      },
+      "key": "kid",
+      "label": "Key ID (kid)",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "decode",
+          "verify"
+        ]
+      },
+      "help": "The JWT to decode or verify (evaluated per item).",
+      "key": "token",
+      "label": "Token",
+      "placeholder": "{{ $json.token }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "decode",
+          "verify"
+        ]
+      },
+      "help": "Output {header, payload, signature} instead of {payload}.",
+      "key": "complete",
+      "label": "Return Header And Signature",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "verify"
+        ]
+      },
+      "key": "ignore_expiration",
+      "label": "Ignore Expiration",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "verify"
+        ]
+      },
+      "key": "ignore_not_before",
+      "label": "Ignore Not Before",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": 0,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "verify"
+        ]
+      },
+      "key": "clock_tolerance",
+      "label": "Clock Tolerance (seconds)",
+      "min": 0,
+      "required": false,
+      "type": "number"
+    }
+  ]
+}

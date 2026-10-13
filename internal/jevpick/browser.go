@@ -86,13 +86,6 @@ type Browser struct {
 // NewBrowser wraps a tab.
 func NewBrowser(p Page) *Browser { return &Browser{page: p} }
 
-// Observe takes one snapshot of p.
-func Observe(ctx context.Context, p Page) (*PageState, error) { return NewBrowser(p).Observe(ctx) }
-
-// Fresh reports whether a (nil: the whole page) is unchanged since page was
-// observed on p.
-func Fresh(p Page, page *PageState, a *Action) (bool, error) { return NewBrowser(p).Fresh(page, a) }
-
 // Setup gives the owned tab a fixed viewport and keeps rAF running while the
 // tab is in the background, so menus and autocompletes still render.
 func (b *Browser) Setup(width, height int) error {

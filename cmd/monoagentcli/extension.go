@@ -1,7 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -36,14 +41,16 @@ func newExtensionCmd(cfg *globalConfig) *cobra.Command {
 		newExtensionBrowsersCmd(cfg),
 		newExtensionBindCmd(cfg),
 		newExtensionUnbindCmd(cfg),
+		newExtensionInstallCmd(),
 	)
 	return cmd
 }
 
 func newExtensionPairCmd() *cobra.Command {
-	return &cobra.Command{
+	var open bool
+	cmd := &cobra.Command{
 		Use:   "pair",
-		Short: "Print the pairing token to paste into the extension side panel",
+		Short: "Print the pairing token to paste into the extension side panel (--open pairs it in one click)",
 		Long: "Prints the extension bridge's pairing token. Paste this into the MonoAgent\n" +
 			"Bridge extension's side panel (\"Pairing token\" field, under Connection settings) to authenticate it — an\n" +
 			"unpaired extension cannot connect, and no other local process can\n" +
@@ -51,9 +58,16 @@ func newExtensionPairCmd() *cobra.Command {
 			"\n" +
 			"The token is stable across restarts once generated; run `extension reset`\n" +
 			"first if you need a fresh one (for example, after the token may have\n" +
-			"leaked).",
-		Example: "  monoagentcli extension pair",
+			"leaked).\n" +
+			"\n" +
+			"--open asks the running bridge for a one-time pairing page and opens it in\n" +
+			"your browser (BROWSER is honored): the extension reads it and pairs itself,\n" +
+			"nothing to paste. The page's code works once, for two minutes.",
+		Example: "  monoagentcli extension pair --open\n  monoagentcli extension pair",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if open {
+				return openPairingPage(cmd.OutOrStdout())
+			}
 			token, err := extension.CurrentToken()
 			if err != nil {
 				return fmt.Errorf("read extension token: %w", err)
@@ -62,6 +76,56 @@ func newExtensionPairCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&open, "open", false, "open the running bridge's one-time pairing page in your browser instead of printing the token")
+	return cmd
+}
+
+// openPairingPage is `extension pair --open`. Wherever the page cannot be
+// opened it falls back to the token and the paste instructions, so the
+// command always leaves the user with a way to pair.
+func openPairingPage(out io.Writer) error {
+	_, base, ok := findRunningBridge()
+	if !ok {
+		fmt.Fprintln(out, "No bridge is running, so there is no pairing page to open. Start one with `monoagentcli extension serve` and run this again, or paste this token into the extension side panel (Connection settings → Pairing token):")
+		return printPairingToken(out)
+	}
+	url, err := extension.RequestPairingURL(base)
+	switch {
+	case err == nil:
+	case errors.Is(err, extension.ErrPairingTokenRefused):
+		return fmt.Errorf("%s", extension.PairingMismatchHint)
+	case errors.Is(err, extension.ErrPairingPageUnsupported):
+		fmt.Fprintln(out, "The running bridge is older and cannot open a pairing page. Paste this token into the extension side panel (Connection settings → Pairing token):")
+		return printPairingToken(out)
+	default:
+		fmt.Fprintf(out, "Could not get a pairing page from the bridge (%v). Paste this token into the extension side panel (Connection settings → Pairing token):\n", err)
+		return printPairingToken(out)
+	}
+	if err := openInBrowser(url); err != nil {
+		fmt.Fprintf(out, "Could not open a browser (%v). Open this page in the browser with the extension (it works once, for two minutes):\n  %s\n", err, url)
+		return nil
+	}
+	fmt.Fprintln(out, "Opened the pairing page in your browser. The extension pairs itself; the page says when it is done.")
+	fmt.Fprintf(out, "If it opened in a browser without the extension, open this there instead (it works once, for two minutes):\n  %s\n", url)
+	return nil
+}
+
+func printPairingToken(out io.Writer) error {
+	token, err := extension.CurrentToken()
+	if err != nil {
+		return fmt.Errorf("read extension token: %w", err)
+	}
+	fmt.Fprintln(out, token)
+	return nil
+}
+
+// openInBrowser opens url with $BROWSER when it is set (its first entry, as
+// in the colon-separated convention), else the system default browser.
+var openInBrowser = func(url string) error {
+	if b := strings.TrimSpace(strings.Split(os.Getenv("BROWSER"), string(os.PathListSeparator))[0]); b != "" {
+		return exec.Command(b, url).Start()
+	}
+	return openURLInBrowser(url)
 }
 
 func newExtensionResetCmd() *cobra.Command {

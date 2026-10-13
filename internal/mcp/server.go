@@ -22,7 +22,30 @@ import (
 	"github.com/monoes/mono-agent/internal/secrets"
 )
 
-const protocolVersion = "2024-11-05"
+// protocolVersion is the version this server answers a client that asks
+// for none, or for one it does not know: the latest it supports. A client
+// that asks for one of supportedProtocolVersions gets that one back.
+const protocolVersion = "2025-06-18"
+
+// supportedProtocolVersions are the MCP revisions this server speaks. What
+// the later ones add (progress messages, structuredContent, outputSchema)
+// are fields an earlier client ignores.
+var supportedProtocolVersions = map[string]bool{
+	"2024-11-05": true,
+	"2025-03-26": true,
+	"2025-06-18": true,
+}
+
+// negotiateProtocolVersion is the version initialize answers for params.
+func negotiateProtocolVersion(params json.RawMessage) string {
+	var p struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	if len(params) > 0 && json.Unmarshal(params, &p) == nil && supportedProtocolVersions[p.ProtocolVersion] {
+		return p.ProtocolVersion
+	}
+	return protocolVersion
+}
 
 // maxRequestLineBytes caps a single request line. A longer line is
 // discarded and answered with a -32700 "request too large" error, but the
@@ -84,6 +107,10 @@ type Options struct {
 	// settable via MONOAGENT_MCP_TASKS_ONLY=="1". Serve refuses it together with
 	// APIOnly; grant mode ignores it.
 	TasksOnly bool
+	// WorkflowTools serves saved workflows as tools wf_<slug> (workflow_tools.go):
+	// "all" every workflow of the profile, otherwise a comma list of workflow IDs
+	// or names; empty serves none. Also settable via MONOAGENT_MCP_WORKFLOW_TOOLS.
+	WorkflowTools string
 	// APIEnv is what the API tools (api_status, api_config_get/set/apply) read
 	// of this process: its environment, the daemon's heartbeat, the service
 	// manager (api_config_apply restarts the daemon through it) and the HTTP
@@ -124,7 +151,10 @@ type toolContent struct {
 
 type toolResult struct {
 	Content []toolContent `json:"content"`
-	IsError bool          `json:"isError"`
+	// StructuredContent is the result again as a JSON object, for a tool
+	// whose result is one (MCP 2025-06-18); the text block stays the same.
+	StructuredContent json.RawMessage `json:"structuredContent,omitempty"`
+	IsError           bool            `json:"isError"`
 }
 
 // Server dispatches MCP JSON-RPC requests to tool handlers.
@@ -160,6 +190,9 @@ func NewServer(opts Options) *Server {
 	if !opts.TasksOnly {
 		opts.TasksOnly = os.Getenv("MONOAGENT_MCP_TASKS_ONLY") == "1"
 	}
+	if opts.WorkflowTools == "" {
+		opts.WorkflowTools = os.Getenv("MONOAGENT_MCP_WORKFLOW_TOOLS")
+	}
 	return &Server{opts: opts, actorSuffix: newActorSuffix()}
 }
 
@@ -189,6 +222,9 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 	if s.opts.Grant == "" && s.opts.TasksOnly && s.opts.APIOnly {
 		return ErrTasksOnlyWithAPIOnly
 	}
+	if s.opts.Grant == "" && workflowToolsRequested(s.opts.WorkflowTools) && (s.opts.TasksOnly || s.opts.APIOnly) {
+		return ErrWorkflowToolsWithNarrowMode
+	}
 
 	// serveCtx is cancelled as soon as the read loop ends (client closed
 	// stdin) — handlers below receive it, so waitForExecution-style waits
@@ -206,11 +242,29 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 		writeErr error
 	)
 	var wg sync.WaitGroup
+	// notify writes one JSON-RPC notification (progress) between responses.
+	notify := func(method string, params interface{}) {
+		b, err := json.Marshal(map[string]interface{}{"jsonrpc": "2.0", "method": method, "params": params})
+		if err != nil {
+			return
+		}
+		wmu.Lock()
+		defer wmu.Unlock()
+		if _, werr := w.Write(append(b, '\n')); werr == nil {
+			werr = w.Flush()
+			if werr != nil && writeErr == nil {
+				writeErr = werr
+			}
+		} else if writeErr == nil {
+			writeErr = werr
+		}
+	}
+	handlerCtx := withNotifier(serveCtx, notify)
 	dispatch := func(line []byte) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			resp := s.handleLine(serveCtx, line)
+			resp := s.handleLine(handlerCtx, line)
 			if resp == nil {
 				return
 			}
@@ -365,11 +419,15 @@ func (s *Server) handleLine(ctx context.Context, line []byte) *rpcResponse {
 	switch req.Method {
 	case "initialize":
 		s.recordClient(req.Params)
+		capabilities := map[string]interface{}{
+			"tools": map[string]interface{}{"listChanged": false},
+		}
+		if s.servesResources() {
+			capabilities["resources"] = map[string]interface{}{"listChanged": false, "subscribe": false}
+		}
 		return s.result(req.ID, map[string]interface{}{
-			"protocolVersion": protocolVersion,
-			"capabilities": map[string]interface{}{
-				"tools": map[string]interface{}{"listChanged": false},
-			},
+			"protocolVersion": negotiateProtocolVersion(req.Params),
+			"capabilities":    capabilities,
 			"serverInfo": map[string]interface{}{
 				"name":    "monoagentcli",
 				"version": s.version(),
@@ -389,12 +447,16 @@ func (s *Server) handleLine(ctx context.Context, line []byte) *rpcResponse {
 	case "tools/call":
 		return s.handleToolsCall(ctx, req)
 
-	default:
-		return &rpcResponse{
-			JSONRPC: "2.0",
-			ID:      req.ID,
-			Error:   &rpcError{Code: -32601, Message: "method not found: " + req.Method},
+	case "resources/list", "resources/templates/list", "resources/read":
+		if !s.servesResources() {
+			break
 		}
+		return s.handleResources(ctx, req)
+	}
+	return &rpcResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Error:   &rpcError{Code: -32601, Message: "method not found: " + req.Method},
 	}
 }
 
@@ -423,19 +485,21 @@ func (s *Server) handleToolsCall(ctx context.Context, req rpcRequest) *rpcRespon
 		}
 	}
 	var result string
+	var structured json.RawMessage
 	var err error
 	if s.opts.Grant != "" {
 		result, err = s.callGrantTool(withMeta(ctx, params.Meta), params.Name, params.Arguments)
 	} else {
-		result, err = callTool(ctx, s, params.Name, params.Arguments)
+		result, structured, err = callToolResult(withProgress(ctx, params.Meta), s, params.Name, params.Arguments)
 	}
 	text := result
 	if err != nil {
-		text = err.Error()
+		text, structured = err.Error(), nil
 	}
 	return s.result(req.ID, toolResult{
-		Content: []toolContent{{Type: "text", Text: text}},
-		IsError: err != nil,
+		Content:           []toolContent{{Type: "text", Text: text}},
+		StructuredContent: structured,
+		IsError:           err != nil,
 	})
 }
 
@@ -457,7 +521,7 @@ func (s *Server) instructions() string {
 		return tasksOnlyInstructions
 	}
 	if s.opts.APIOnly {
-		return "Tools here manage the OpenAI-compatible API: its keys, its models, its status and its settings. Start with api_status or api_config_get."
+		return "Tools here manage the OpenAI-compatible API: its keys, its models, its status and its settings. Start with api_status or api_config_get. The full rules of every tool are the resource monoagent://ref/api-tools."
 	}
 	return "Start with docs(topic) or workflow_list; validate before run; hil_list for pending approvals. The user's task board: task_next shows what is ready to work on."
 }

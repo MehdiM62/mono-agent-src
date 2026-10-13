@@ -108,9 +108,9 @@ func taskWriteTools() []tool {
 			name: "task_add",
 			description: taskBoardIntro +
 				"Adds a task to this profile's Inbox, where the operator reads it and decides whether it is worked: {profile, created, task, note}. " +
-				"You cannot add to Ready, and agents may add 20 tasks an hour to a profile. " +
+				"You cannot add to Ready. " +
 				"title: at most 200 characters; notes: optional, at most 64 KiB (longer is cut). " +
-				"Refusals: limit (20 an hour, or the board is full), invalid_input (no title).",
+				"Refusals: limit (the board is full: 2,000 open tasks), invalid_input (no title).",
 			schema: objSchema(map[string]interface{}{
 				"title": strParam("The task, in one line"),
 				"notes": strParam("More about it (optional)"),

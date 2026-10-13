@@ -19,10 +19,16 @@ type GoogleSheetsNode struct{}
 
 func (n *GoogleSheetsNode) Type() string { return "service.google_sheets" }
 
+// sheetsBaseURL is a var (not const) so tests can point it at an httptest server.
+var sheetsBaseURL = "https://sheets.googleapis.com/v4/spreadsheets"
+
 func (n *GoogleSheetsNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("google_sheets: access_token is required")
+	}
+	if err := credentialScopeCheck(config, "google_sheets"); err != nil {
+		return nil, fmt.Errorf("google_sheets: %w", err)
 	}
 
 	operation := strVal(config, "operation")
@@ -83,7 +89,7 @@ func (n *GoogleSheetsNode) Execute(ctx context.Context, input workflow.NodeInput
 	}
 	useHeaderRow := boolVal(config, "use_header_row")
 
-	baseURL := "https://sheets.googleapis.com/v4/spreadsheets/" + url.PathEscape(spreadsheetID)
+	baseURL := sheetsBaseURL + "/" + url.PathEscape(spreadsheetID)
 
 	var items []workflow.Item
 
@@ -174,7 +180,7 @@ func sheetsCreateSpreadsheet(ctx context.Context, accessToken, title string) (ma
 			"title": title,
 		},
 	}
-	return sheetsRequest(ctx, "POST", "https://sheets.googleapis.com/v4/spreadsheets", accessToken, body)
+	return sheetsRequest(ctx, "POST", sheetsBaseURL, accessToken, body)
 }
 
 // sheetsItemsToRows converts workflow Items to a [][]interface{} suitable for the Sheets API.

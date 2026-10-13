@@ -10,6 +10,7 @@ package main
 // saved_text_test.go in internal/apiconfig), so what it takes the others take too.
 
 import (
+	"database/sql"
 	"strings"
 	"testing"
 
@@ -73,15 +74,14 @@ func init() {
 	}
 }
 
-// parityAPIRuntime is newAPIRuntime over a database and a home of the test's own, with every
-// variable of the API clear except the ones given.
-func parityAPIRuntime(t *testing.T, f apiFlags, env map[string]string) error {
+// parityAPIRuntime is newAPIRuntime over the test's database (nothing saved; newAPIRuntime only
+// reads it, so one serves every row) with every variable of the API clear except the ones given.
+func parityAPIRuntime(t *testing.T, db *sql.DB, f apiFlags, env map[string]string) error {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
 	for _, sp := range apiconfig.Specs() {
 		t.Setenv(sp.Env, env[sp.Env])
 	}
-	_, err := newAPIRuntime(testdb.Open(t).DB, f, func(string, ...any) {})
+	_, err := newAPIRuntime(db, f, func(string, ...any) {})
 	return err
 }
 
@@ -90,6 +90,8 @@ func TestSavedSettingsAreHeldToTheRuleOfTheFlagsAndTheEnvironment(t *testing.T) 
 	for _, sp := range apiconfig.Specs() {
 		specs[sp.Key] = sp
 	}
+	t.Setenv("HOME", t.TempDir())
+	db := testdb.Open(t).DB
 	seen := map[string][2]bool{} // key -> an accepted and a refused row exist
 	for _, r := range parityRows {
 		r := r
@@ -97,7 +99,7 @@ func TestSavedSettingsAreHeldToTheRuleOfTheFlagsAndTheEnvironment(t *testing.T) 
 			sp := specs[r.key]
 
 			// The environment variable.
-			if err := parityAPIRuntime(t, apiFlags{}, map[string]string{sp.Env: r.text}); (err == nil) != r.ok {
+			if err := parityAPIRuntime(t, db, apiFlags{}, map[string]string{sp.Env: r.text}); (err == nil) != r.ok {
 				t.Errorf("the environment variable %s=%q: error %v, accepted should be %v", sp.Env, r.text, err, r.ok)
 			}
 
@@ -118,7 +120,7 @@ func TestSavedSettingsAreHeldToTheRuleOfTheFlagsAndTheEnvironment(t *testing.T) 
 				f.bind(cmd)
 				accepted := cmd.ParseFlags([]string{sp.ServerFlag + "=" + r.text}) == nil
 				if accepted {
-					accepted = parityAPIRuntime(t, f, nil) == nil
+					accepted = parityAPIRuntime(t, db, f, nil) == nil
 				}
 				if accepted != r.ok {
 					t.Errorf("the flag %s=%q: accepted %v, should be %v", sp.ServerFlag, r.text, accepted, r.ok)

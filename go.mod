@@ -15,6 +15,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jlaffaye/ftp v0.2.4
+	github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0
 	github.com/lib/pq v1.12.3
 	github.com/mmcdole/gofeed v1.5.0
 	github.com/olekukonko/tablewriter v1.1.5
@@ -105,7 +106,7 @@ require (
 	github.com/ysmood/got v0.40.0 // indirect
 	github.com/ysmood/leakless v0.9.0 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
-	golang.org/x/image v0.45.0 // indirect
+	golang.org/x/image v0.45.0
 	golang.org/x/sync v0.23.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/libc v1.77.1 // indirect

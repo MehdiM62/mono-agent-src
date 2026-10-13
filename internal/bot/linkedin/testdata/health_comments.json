@@ -1,0 +1,8 @@
+[
+  {"id": "urn:li:comment:(activity:7123456789012345678,1)", "author": "Bo Kim", "authorUrl": "https://www.linkedin.com/in/bo-kim-test/details/",
+   "headline": "Designer", "text": "Congrats!", "timestamp": "1h", "likes": 3, "replies": 1, "parentId": "", "liked": true},
+  {"id": "urn:li:comment:(activity:7123456789012345678,2)", "author": "Ann Lee", "authorUrl": "https://www.linkedin.com/in/ann-lee-test",
+   "headline": "Staff Engineer", "text": "Thanks Bo", "timestamp": "50m", "likes": 0, "replies": 0, "parentId": "urn:li:comment:(activity:7123456789012345678,1)", "liked": false},
+  {"id": "urn:li:comment:(activity:7123456789012345678,3)", "author": "Acme", "authorUrl": "https://www.linkedin.com/company/acme-test/posts/",
+   "headline": "", "text": "Welcome aboard", "timestamp": "30m", "likes": 12, "replies": 0, "parentId": "", "liked": false}
+]

@@ -18,6 +18,7 @@ import (
 	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/openaiapi"
+	"github.com/monoes/mono-agent/internal/orggrant"
 	"github.com/monoes/mono-agent/internal/scheduler"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -235,11 +236,32 @@ func newRuntime(opts Options) (*runtime, error) {
 		fileStore = nil
 	}
 
+	store := workflow.NewHybridWorkflowStore(fileStore, sqlStore)
+	store.SetOnSaved(func(ctx context.Context, id string) { raiseGrantTiers(ctx, db.DB, store.GetWorkflow, id) })
 	return &runtime{
 		db:        db,
 		profileID: profile,
-		store:     workflow.NewHybridWorkflowStore(fileStore, sqlStore),
+		store:     store,
 	}, nil
+}
+
+// raiseGrantTiers re-derives the tiers of the org grants of a workflow this
+// server just saved, as every save through the CLI's store does (#284): a
+// workflow that gained an outbound node makes its grants irreversible. The
+// org's JSON file is brought in line at its next reconcile.
+func raiseGrantTiers(ctx context.Context, db *sql.DB, load orggrant.WorkflowLoader, workflowID string) {
+	store := orggrant.NewStore(db)
+	grants, err := store.GrantsForWorkflow(ctx, workflowID)
+	if err != nil || len(grants) == 0 {
+		return
+	}
+	raised, err := store.RaiseTiers(ctx, grants, load)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mcp: warning: workflow %s: re-deriving grant tiers: %v\n", workflowID, err)
+	}
+	for _, r := range raised {
+		fmt.Fprintf(os.Stderr, "mcp: notice: org %s: %s\n", r.Org, r)
+	}
 }
 
 // resolveProfileID accepts a profile's ID or display name and returns the
