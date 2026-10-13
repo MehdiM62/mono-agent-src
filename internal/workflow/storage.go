@@ -166,6 +166,7 @@ func (s *SQLiteWorkflowStore) CreateWorkflow(ctx context.Context, w *Workflow) e
 	if err != nil {
 		return fmt.Errorf("creating workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, s.db, w)
 	return nil
 }
 
@@ -188,6 +189,7 @@ func (s *SQLiteWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 		return nil, fmt.Errorf("getting workflow %s: %w", id, err)
 	}
 	w.IsActive = isActive != 0
+	loadWorkflowSettings(ctx, s.db, w)
 
 	nodes, err := s.loadWorkflowNodes(ctx, id)
 	if err != nil {
@@ -299,6 +301,7 @@ func (s *SQLiteWorkflowStore) UpdateWorkflow(ctx context.Context, w *Workflow) e
 	if err != nil {
 		return fmt.Errorf("updating workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, s.db, w)
 	return nil
 }
 
@@ -593,11 +596,11 @@ func (s *SQLiteWorkflowStore) GetExecution(ctx context.Context, id string) (*Wor
 	e := &WorkflowExecution{}
 	var createdAt sqliteTime
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), COALESCE(profile_id,'default')
+		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), COALESCE(profile_id,'default'), COALESCE(error_class,'')
 		FROM workflow_executions WHERE id = ?`, id,
 	).Scan(
 		&e.ID, &e.WorkflowID, &e.Status, &e.TriggerType, &e.TriggerDataRaw,
-		newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ResumeState, &e.ProfileID,
+		newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ResumeState, &e.ProfileID, &e.ErrorClass,
 	)
 	e.CreatedAt = createdAt.Time
 	if err == sql.ErrNoRows {
@@ -624,7 +627,7 @@ func (s *SQLiteWorkflowStore) GetExecution(ctx context.Context, id string) (*Wor
 // Pass limit <= 0 to return all executions. Execution nodes are not populated.
 func (s *SQLiteWorkflowStore) ListExecutions(ctx context.Context, workflowID string, limit int) ([]WorkflowExecution, error) {
 	query := `
-		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at
+		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(error_class,'')
 		FROM workflow_executions WHERE workflow_id = ? ORDER BY created_at DESC`
 	var args []interface{}
 	args = append(args, workflowID)
@@ -646,7 +649,7 @@ func (s *SQLiteWorkflowStore) ListExecutions(ctx context.Context, workflowID str
 		var createdAt sqliteTime
 		if err := rows.Scan(
 			&e.ID, &e.WorkflowID, &e.Status, &e.TriggerType, &e.TriggerDataRaw,
-			newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt,
+			newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ErrorClass,
 		); err != nil {
 			return nil, fmt.Errorf("scanning execution row: %w", err)
 		}
@@ -815,7 +818,8 @@ func (s *SQLiteWorkflowStore) SetExecutionNodeFinished(ctx context.Context, id s
 // loadExecutionNodes is an internal helper to fetch execution-node records.
 func (s *SQLiteWorkflowStore) loadExecutionNodes(ctx context.Context, executionID string) ([]WorkflowExecutionNode, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, execution_id, node_id, node_name, status, input_items, output_items, error_message, started_at, finished_at, retry_count
+		SELECT id, execution_id, node_id, node_name, status, input_items, output_items, error_message, started_at, finished_at, retry_count,
+		       COALESCE(error_class,''), COALESCE(error_hint,'')
 		FROM workflow_execution_nodes WHERE execution_id = ? ORDER BY rowid ASC`, executionID)
 	if err != nil {
 		return nil, fmt.Errorf("loading execution nodes for execution %s: %w", executionID, err)
@@ -829,6 +833,7 @@ func (s *SQLiteWorkflowStore) loadExecutionNodes(ctx context.Context, executionI
 			&en.ID, &en.ExecutionID, &en.NodeID, &en.NodeName, &en.Status,
 			&en.InputRaw, &en.OutputRaw, &en.ErrorMessage,
 			newSqliteNullTime(&en.StartedAt), newSqliteNullTime(&en.FinishedAt), &en.RetryCount,
+			&en.ErrorClass, &en.ErrorHint,
 		); err != nil {
 			return nil, fmt.Errorf("scanning execution node row: %w", err)
 		}
