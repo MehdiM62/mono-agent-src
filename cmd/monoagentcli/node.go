@@ -110,7 +110,7 @@ func resolveCredentialData(ctx context.Context, store *connections.Store, creden
 		// connection for this platform happened to be found first,
 		// silently operating on the wrong account when multiple profiles
 		// have a connection for the same platform.
-		conns, lErr := store.ListByPlatform(ctx, credentialOrPlatform, profileID)
+		conns, lErr := store.ListUsableByPlatform(ctx, credentialOrPlatform, profileID)
 		if lErr == nil && len(conns) > 0 {
 			for i := range conns {
 				if conns[i].Status == "active" {
