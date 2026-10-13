@@ -36,10 +36,7 @@
       "method": "GET",
       "path": "/v25.0/me/accounts",
       "query": {
-        "fields": [
-          "id",
-          "name"
-        ],
+        "fields": "id,name",
         "limit": "5"
       },
       "items": 1
@@ -51,7 +48,9 @@
       "edge": "feed",
       "options": {
         "queryParametersJson": "{\"message\":\"Hello\"}"
-      }
+      },
+      "sendBinaryData": true,
+      "binaryPropertyName": "source:pic"
     },
     "response": {
       "id": "12345_1"
@@ -61,7 +60,13 @@
       "path": "/12345/feed",
       "query": {
         "message": "Hello"
+      },
+      "body": {
+        "source": "file:pic:hi"
       }
+    },
+    "input": {
+      "pic": "aGk="
     }
   },
   "DELETE": {

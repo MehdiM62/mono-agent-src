@@ -113,10 +113,7 @@
         }
       ],
       "query": {
-        "fields": {
-          "$map": "{{ p.options.fields.field }}",
-          "$to": "{{ el.name }}"
-        },
+        "fields": "{{ p.options.fields.field | pluck:'name' | csv }}",
         "$merge": [
           "{{ p.options.queryParameters | kv:'name,value' }}",
           "{{ p.options.queryParametersJson | fromjson }}"
@@ -185,24 +182,29 @@
           "label": "Send binary data",
           "type": "boolean",
           "default": false,
-          "help": "Not supported yet: the request is sent without the file"
+          "help": "Upload a file from the input item as multipart form data"
         },
         {
           "key": "binaryPropertyName",
           "label": "Binary property",
           "type": "text",
-          "default": ""
+          "default": "",
+          "help": "The binary property, or formField:property (default form field: file)"
         }
       ],
       "query": {
-        "fields": {
-          "$map": "{{ p.options.fields.field }}",
-          "$to": "{{ el.name }}"
-        },
+        "fields": "{{ p.options.fields.field | pluck:'name' | csv }}",
         "$merge": [
           "{{ p.options.queryParameters | kv:'name,value' }}",
           "{{ p.options.queryParametersJson | fromjson }}"
         ]
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.sendBinaryData | eq:'true' }}",
+        "multipart_field": "{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}",
+        "property": "{{ p.binaryPropertyName | split:':' | get:'-1' }}"
       }
     },
     {
@@ -264,10 +266,7 @@
         }
       ],
       "query": {
-        "fields": {
-          "$map": "{{ p.options.fields.field }}",
-          "$to": "{{ el.name }}"
-        },
+        "fields": "{{ p.options.fields.field | pluck:'name' | csv }}",
         "$merge": [
           "{{ p.options.queryParameters | kv:'name,value' }}",
           "{{ p.options.queryParametersJson | fromjson }}"
