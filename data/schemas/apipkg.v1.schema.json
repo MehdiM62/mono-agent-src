@@ -134,6 +134,7 @@
             "each": { "type": "string" },
             "to": {},
             "to_when": { "type": "string" },
+            "firestore": { "type": "string" },
             "expand": {
           "type": "object",
           "required": ["method", "path"],
@@ -162,7 +163,9 @@
             "property_field": { "type": "string" },
             "multipart_field": { "type": "string" },
             "file_name": { "type": "string" },
-            "mime_type": { "type": "string" }
+            "mime_type": { "type": "string" },
+            "download_when": { "type": "string" },
+            "upload_text": { "type": "string" }
           }
         },
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
@@ -252,6 +255,7 @@
         "offset_param": { "type": "string" },
         "limit_param": { "type": "string" },
         "page_param": { "type": "string" },
+        "next_url_prefix": { "type": "string" },
         "next_url_path": { "type": "string" },
         "results_path": { "type": "string" },
         "return_all_field": { "type": "string" },

@@ -132,7 +132,15 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 			next = resolveNext(resp.url, linkNext(resp.header.Get("Link")))
 			more = next != ""
 		case PageNextURL:
-			next = resolveNext(resp.url, stringify(lookupPath(doc, splitPath(pg.NextURLPath))))
+			rel := stringify(lookupPath(doc, splitPath(pg.NextURLPath)))
+			if pg.NextURLPrefix != "" && strings.HasPrefix(rel, "/") {
+				prefix, err := renderText(pg.NextURLPrefix, r.scope)
+				if err != nil {
+					return nil, false, r.errf("pagination.next_url_prefix: %w", err)
+				}
+				rel = strings.TrimRight(prefix, "/") + rel
+			}
+			next = resolveNext(resp.url, rel)
 			more = next != ""
 		}
 		if !more {

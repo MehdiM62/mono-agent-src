@@ -400,6 +400,20 @@ func renderValue(v any, sc Scope) (any, error) {
 		if parts, ok := t["$concat"]; ok {
 			return renderConcat(parts, sc)
 		}
+		if inner, ok := t["$json"]; ok {
+			r, err := renderValue(inner, sc)
+			if err != nil {
+				return nil, fmt.Errorf("$json: %w", err)
+			}
+			if isEmpty(r) {
+				return nil, nil
+			}
+			b, err := json.Marshal(r)
+			if err != nil {
+				return nil, fmt.Errorf("$json: %w", err)
+			}
+			return string(b), nil
+		}
 		if src, ok := t["$entries"]; ok {
 			return renderEntries(src, t["$key"], t["$value"], sc)
 		}
@@ -470,6 +484,9 @@ func renderObject(m map[string]any, sc Scope) (map[string]any, error) {
 			return nil, fmt.Errorf("%s: %w", strings.TrimPrefix(k, "!"), err)
 		}
 		if strings.HasPrefix(k, "!") {
+			if r == nil && isListBuilder(val) {
+				r = []any{} // a forced list builder sends [] (ClickUp assignees.rem)
+			}
 			out[k[1:]] = r
 			continue
 		}
@@ -665,4 +682,15 @@ func renderEntries(src, key, val any, sc Scope) (any, error) {
 		return nil, nil
 	}
 	return out, nil
+}
+
+// isListBuilder reports whether a template value builds a list.
+func isListBuilder(v any) bool {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	_, isMap := m["$map"]
+	_, isConcat := m["$concat"]
+	return isMap || isConcat
 }

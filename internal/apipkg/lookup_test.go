@@ -2,6 +2,7 @@ package apipkg
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -279,4 +280,107 @@ func TestPathFilterBinRootAndAnyWildcard(t *testing.T) {
 	    {"method":"POST","path":"/v1/v1/spaces/AA%20A/messages/B/files","headers":{"Content-Type":"application/pdf"},"body":"hi"},
 	    {"method":"PATCH","path":"/v1/files/f1","query":{"requestId":"<any>"},"body":{"name":"report.pdf","mimeType":"application/pdf"}}]}`), &c)
 	checkCase(t, p, &p.Operations[0], c)
+}
+
+func TestConfluenceAndClickUpFilters(t *testing.T) {
+	sc := Scope{P: map[string]any{"text": "Hello <b>\r\n\n  a & b  \n", "mins": "2", "est": 3.0, "num": "42", "frac": "1.5", "word": "abc",
+		"adf": `{"content":[{"type":"paragraph"}]}`}}
+	cases := map[string]any{
+		"{{ p.text | lines | escape_html | prefix:'<p>' | suffix:'</p>' | join:'' }}": "<p>Hello &lt;b&gt;</p><p>a &amp; b</p>",
+		"{{ p.mins | mul:60000 }}": int64(120000),
+		"{{ p.est | mul:6000 }}":   int64(18000),
+		"{{ p.num | numeric }}":    int64(42),
+		"{{ p.frac | numeric }}":   1.5,
+		"{{ p.word | numeric }}":   "abc",
+		"{{ p.none | lines }}":     nil,
+	}
+	for in, want := range cases {
+		if got, err := renderString(in, sc); err != nil || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s = %#v, %v; want %#v", in, got, err, want)
+		}
+	}
+	got, err := renderValue(map[string]any{"value": map[string]any{"$json": map[string]any{
+		"type": "doc", "content": map[string]any{"$concat": []any{"{{ p.adf | fromjson | get:'content' }}"}}}}}, sc)
+	if err != nil || got.(map[string]any)["value"] != `{"content":[{"type":"paragraph"}],"type":"doc"}` {
+		t.Errorf("$json = %#v, %v", got, err)
+	}
+}
+
+func TestNextURLPrefix(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"labels","title":"L","method":"GET","path":"/pages/1/labels",
+	  "fields":[{"key":"returnAll","label":"A","type":"boolean","default":true}],
+	  "pagination":{"type":"next_url","next_url_path":"_links.next","results_path":"results",
+	    "next_url_prefix":"https://gw.example.test/ex/confluence/cloud1"}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		if n == 1 {
+			w.Write([]byte(`{"results":[{"id":1}],"_links":{"next":"/wiki/api/v2/pages/1/labels?cursor=c2"}}`))
+			return
+		}
+		w.Write([]byte(`{"results":[{"id":2}],"_links":{}}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "labels", "returnAll": true}, cred, nil)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("items %v %v", items, err)
+	}
+	if r := (*seen)[1]; r.URL.Path != "/ex/confluence/cloud1/wiki/api/v2/pages/1/labels" || r.URL.Query().Get("cursor") != "c2" {
+		t.Errorf("second page = %s", r.URL)
+	}
+}
+
+func TestForcedEmptyListBuilder(t *testing.T) {
+	sc := Scope{P: map[string]any{"add": "1, 2", "rem": ""}}
+	got, err := renderValue(map[string]any{
+		"!add": map[string]any{"$map": "{{ p.add | split }}", "$to": "{{ el | int }}"},
+		"!rem": map[string]any{"$concat": []any{map[string]any{"$map": "{{ p.rem | split }}", "$to": "{{ el | int }}"}}},
+		"!nul": "{{ p.none }}",
+	}, sc)
+	want := map[string]any{"add": []any{int64(1), int64(2)}, "rem": []any{}, "nul": nil}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("got %#v, %v", got, err)
+	}
+}
+
+func TestFirestorePickAndBinaryToggles(t *testing.T) {
+	sc := Scope{P: map[string]any{"cols": "a, n"}, Item: map[string]any{"a": "x", "n": 2.0, "f": 1.5, "b": true, "t": "2026-01-02T03:04:05Z", "l": []any{"y"}, "m": map[string]any{"k": nil}}}
+	got, _ := renderString("{{ item | firestore_fields:p.cols }}", sc)
+	want := map[string]any{"a": map[string]any{"stringValue": "x"}, "n": map[string]any{"integerValue": "2"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("firestore_fields = %#v", got)
+	}
+	all, _ := renderString("{{ item | firestore_fields }}", sc)
+	doc := map[string]any{"name": "projects/p/databases/(default)/documents/c/d1", "createTime": "c", "updateTime": "u", "fields": all}
+	dec := firestoreDoc(doc).(map[string]any)
+	if dec["_id"] != "d1" || dec["n"] != 2.0 || dec["f"] != 1.5 || dec["b"] != true || dec["t"] != "2026-01-02T03:04:05Z" ||
+		!reflect.DeepEqual(dec["l"], []any{"y"}) || !reflect.DeepEqual(dec["m"], map[string]any{"k": nil}) || dec["_createTime"] != "c" {
+		t.Errorf("round trip = %#v", dec)
+	}
+	if p, _ := renderString("{{ item | pick:p.cols }}", sc); !reflect.DeepEqual(p, map[string]any{"a": "x", "n": 2.0}) {
+		t.Errorf("pick = %#v", p)
+	}
+
+	pk := mustParse(t, pkgJSON(`{"resource":"","operation":"get","title":"G","method":"GET","path":"/o",
+	  "fields":[{"key":"alt","label":"A","type":"text"}],"binary":{"download_when":"{{ p.alt | eq:'media' }}"}},
+	  {"resource":"","operation":"create","title":"C","method":"POST","path":"/up","body_type":"raw",
+	  "fields":[{"key":"text","label":"T","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	  "binary":{"upload_field":"binaryPropertyName","upload_text":"{{ p.text }}"}}`))
+	var cts, bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		cts, bodies = append(cts, r.Header.Get("Content-Type")), append(bodies, string(b))
+		w.Write([]byte(`{"kind":"meta"}`))
+	})
+	items, _ := runPackageOp(pk, map[string]any{"operation": "get"}, cred, nil)
+	if items[0].JSON["kind"] != "meta" {
+		t.Errorf("metadata get: %v", items)
+	}
+	items, _ = runPackageOp(pk, map[string]any{"operation": "get", "alt": "media"}, cred, nil)
+	if items[0].JSON["kind"] != nil {
+		t.Errorf("alt=media must download: %v", items[0].JSON)
+	}
+	if _, err := runPackageOp(pk, map[string]any{"operation": "create", "text": "hello"}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	if bodies[len(bodies)-1] != "hello" || cts[len(cts)-1] != "text/plain" {
+		t.Errorf("upload_text: %q %q", bodies[len(bodies)-1], cts[len(cts)-1])
+	}
 }

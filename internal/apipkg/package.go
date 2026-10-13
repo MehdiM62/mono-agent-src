@@ -189,14 +189,17 @@ const (
 
 // Pagination describes how a list operation pages.
 type Pagination struct {
-	Type           string `json:"type"`
-	CursorParam    string `json:"cursor_param,omitempty"`
-	CursorPath     string `json:"cursor_path,omitempty"`
-	HasMorePath    string `json:"has_more_path,omitempty"`
-	OffsetParam    string `json:"offset_param,omitempty"`
-	LimitParam     string `json:"limit_param,omitempty"`
-	PageParam      string `json:"page_param,omitempty"`
-	NextURLPath    string `json:"next_url_path,omitempty"`
+	Type        string `json:"type"`
+	CursorParam string `json:"cursor_param,omitempty"`
+	CursorPath  string `json:"cursor_path,omitempty"`
+	HasMorePath string `json:"has_more_path,omitempty"`
+	OffsetParam string `json:"offset_param,omitempty"`
+	LimitParam  string `json:"limit_param,omitempty"`
+	PageParam   string `json:"page_param,omitempty"`
+	NextURLPath string `json:"next_url_path,omitempty"`
+	// NextURLPrefix (a template) is prepended to a relative next URL whose
+	// base is not the request host (Confluence v2 _links.next).
+	NextURLPrefix  string `json:"next_url_prefix,omitempty"`
 	ResultsPath    string `json:"results_path,omitempty"`
 	ReturnAllField string `json:"return_all_field,omitempty"`
 	LimitField     string `json:"limit_field,omitempty"`
@@ -235,6 +238,10 @@ type Output struct {
 	// template, skips the reshape when it renders empty/false (rawData).
 	To     any    `json:"to,omitempty"`
 	ToWhen string `json:"to_when,omitempty"`
+	// Firestore (a template): when true, decode Firestore documents
+	// ({name, fields{typed values}}) into plain JSON with _name, _id,
+	// _createTime and _updateTime (n8n's "simple" output).
+	Firestore string `json:"firestore,omitempty"`
 }
 
 // OutputMatch filters result elements by condition rows. Rows is a
@@ -265,6 +272,12 @@ type Binary struct {
 	// FileName and MimeType are templates for the uploaded part.
 	FileName string `json:"file_name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`
+	// DownloadWhen (a template) decides per run whether the response is a
+	// file (GCS alt=media, Slides thumbnail download); it overrides Download.
+	DownloadWhen string `json:"download_when,omitempty"`
+	// UploadText (a template): when it renders non-empty, its text is the
+	// upload instead of the input item's binary (GCS create from text).
+	UploadText string `json:"upload_text,omitempty"`
 }
 
 // NodeTypeOf is the node type a package registers ("" for extends).

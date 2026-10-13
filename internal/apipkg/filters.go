@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"math"
 	"net/url"
 	"regexp"
@@ -21,6 +22,8 @@ var knownFilters = map[string]bool{
 	"prefix": true, "suffix": true, "base64": true, "base64url": true, "row": true,
 	"gid": true, "find": true, "find_row": true,
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
+	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
+	"firestore_value": true, "firestore_fields": true, "pick": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -87,16 +90,78 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return fromJSON(v)
 	case "split":
 		return splitString(v, arg)
-	case "prefix":
+	case "prefix", "suffix", "escape_html":
+		// Lists are handled element-wise (lines | escape_html | prefix:'<p>').
+		if l, ok := v.([]any); ok {
+			out := make([]any, 0, len(l))
+			for _, el := range l {
+				r, err := applyFilter(name, el, arg)
+				if err != nil {
+					return nil, err
+				}
+				if !isEmpty(r) {
+					out = append(out, r)
+				}
+			}
+			return out, nil
+		}
 		if isEmpty(v) {
 			return nil, nil
 		}
-		return stringify(arg) + stringify(v), nil
-	case "suffix":
-		if isEmpty(v) {
+		switch name {
+		case "prefix":
+			return stringify(arg) + stringify(v), nil
+		case "suffix":
+			return stringify(v) + stringify(arg), nil
+		}
+		return html.EscapeString(stringify(v)), nil
+	case "firestore_value":
+		return firestoreValue(v), nil
+	case "firestore_fields":
+		obj, ok := v.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("firestore_fields: value is %T, not an object", v)
+		}
+		var cols []string
+		if a := stringify(arg); a != "" {
+			for _, c := range strings.Split(a, ",") {
+				if c = strings.TrimSpace(c); c != "" {
+					cols = append(cols, c)
+				}
+			}
+		}
+		return firestoreFields(obj, cols), nil
+	case "lines":
+		var out []any
+		for _, ln := range strings.Split(strings.ReplaceAll(stringify(v), "\r\n", "\n"), "\n") {
+			if t := strings.TrimSpace(ln); t != "" {
+				out = append(out, t)
+			}
+		}
+		if len(out) == 0 {
 			return nil, nil
 		}
-		return stringify(v) + stringify(arg), nil
+		return out, nil
+	case "join":
+		l, ok := v.([]any)
+		if !ok {
+			return stringify(v), nil
+		}
+		parts := make([]string, len(l))
+		for i, el := range l {
+			parts[i] = stringify(el)
+		}
+		return strings.Join(parts, stringify(arg)), nil
+	case "numeric":
+		if s, ok := v.(string); ok {
+			if f, err := strconv.ParseFloat(strings.TrimSpace(s), 64); err == nil {
+				if f == math.Trunc(f) {
+					return int64(f), nil
+				}
+				return f, nil
+			}
+		}
+		return v, nil
 	case "base64":
 		return base64.StdEncoding.EncodeToString([]byte(stringify(v))), nil
 	case "base64url":
@@ -119,7 +184,7 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return sheetGID(v), nil
 	case "gid":
 		return googleFileID(v), nil
-	case "add", "sub":
+	case "add", "sub", "mul":
 		a, err := toFloat(v)
 		if err != nil || a == nil {
 			return nil, err
@@ -129,13 +194,19 @@ func applyFilter(name string, v, arg any) (any, error) {
 			return nil, fmt.Errorf("%s: argument %v is not a number", name, arg)
 		}
 		x, y := a.(float64), b.(float64)
-		if name == "sub" {
-			y = -y
+		var r float64
+		switch name {
+		case "sub":
+			r = x - y
+		case "mul":
+			r = x * y
+		default:
+			r = x + y
 		}
-		if r := x + y; r == math.Trunc(r) {
+		if r == math.Trunc(r) {
 			return int64(r), nil
 		}
-		return x + y, nil
+		return r, nil
 	case "get":
 		return lookupPath(v, strings.Split(stringify(arg), ".")), nil
 	case "colnum":
@@ -160,6 +231,8 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return toEpoch(v, false)
 	case "omit":
 		return omitKeys(v, arg)
+	case "pick":
+		return pickKeys(v, arg)
 	case "lower":
 		return strings.ToLower(stringify(v)), nil
 	case "upper":
@@ -661,3 +734,31 @@ func toEntries(v, arg any) (any, error) {
 
 // pathValue is text already escaped for a URL path (the path filter).
 type pathValue string
+
+// pickKeys returns a copy of the object v with only the keys named in arg
+// (a comma-separated string or a list); listed keys v lacks are skipped.
+func pickKeys(v, arg any) (any, error) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("pick: value is %T, not an object", v)
+	}
+	var keys []string
+	switch a := arg.(type) {
+	case []any:
+		for _, x := range a {
+			keys = append(keys, strings.TrimSpace(stringify(x)))
+		}
+	default:
+		keys = strings.Split(stringify(a), ",")
+	}
+	out := map[string]any{}
+	for _, k := range keys {
+		if k = strings.TrimSpace(k); k == "" {
+			continue
+		}
+		if val, ok := m[k]; ok {
+			out[k] = val
+		}
+	}
+	return out, nil
+}

@@ -190,7 +190,7 @@ a JSON array. Anything else is string-interpolated: `"Bearer {{ cred.token }}"`;
 **Omit empty.** In `query` and `body` objects a key whose value resolves to
 `nil`, `""`, `[]` or `{}` is left out. `0` and `false` are kept. A nested
 object that ends up empty is left out too. Array elements that resolve
-empty are dropped. Write `"!key"` to send the value even when empty
+empty are dropped. Write `"!key"` to send the value even when empty (a `$map`/`$concat` under `"!key"` sends `[]`)
 (`"!description": "{{ p.description }}"` sends `""`/`null`).
 
 **`$merge`.** `"$merge": "{{ p.additionalFields }}"` spreads an object into
@@ -219,7 +219,11 @@ through, so an unset param stays unset:
 | `find:'path',value` | first list element whose value at `path` equals `value` (text compare), else nil: `{{ pre.sheets \| find:'properties.title',p.sheetName \| get:'properties.sheetId' }}` |
 | `find_row:column,value` | value rows (first row = header) → 1-based row number of the first data row whose `column` cell equals `value` (an object value, e.g. `item`, is read at `column`), else nil: `{{ pre.values \| find_row:p.columnToMatchOn,item }}` |
 | `get:'path'` | walk into the value: `{{ pre.payload.headers \| find:'name','Message-ID' \| get:'value' }}` |
-| `add:n`, `sub:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`); whole results are integers |
+| `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
+| `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
+| `lines` | text → list of its non-empty trimmed lines |
+| `escape_html` | escape `& < > " '`; on a list, each element (also `prefix`/`suffix`) |
+| `join:'sep'` | list → text joined by `sep`: `{{ p.bodyPlainText \| lines \| escape_html \| prefix:'<p>' \| suffix:'</p>' \| join:'' }}` |
 | `colnum`, `colname` | spreadsheet column letter ↔ 1-based number (`"C"` ↔ 3, `"AA"` ↔ 27) |
 | `path` | in a `path` template: escape each segment but keep `/` (Google resource names `spaces/A/messages/B`, `accounts/1/locations/2`) |
 | `entries` / `entries:'column,value'` | object → `[{key, value}, …]` sorted by key (names optional): Coda `"cells": "{{ el \| entries:'column,value' }}"`; `get:p.keyName` picks a key named by a param |
@@ -235,6 +239,9 @@ through, so an unset param stays unset:
 | `split` / `split:';'` | `"a, b,c"` → `["a","b","c"]` (default separator `,`; parts trimmed, empty ones dropped; lists pass) |
 | `date:'YYYY-MM-DD'` | date or epoch-ms → formatted text in UTC; tokens `YYYY`/`yyyy`, `YY`, `MM`, `DD`/`dd`, `HH`, `hh`, `mm`, `ss`, `SSS`, `Z` (`Z` for UTC), `ZZ` (`+00:00`), `A`; other characters are literal |
 | `epoch_ms`, `epoch` | date (RFC 3339, `2006-01-02T15:04:05`, `2006-01-02`, …) → Unix milliseconds / seconds; numbers pass |
+| `pick:'a,b'` | object with only the listed keys (comma string, list or path: `{{ item \| pick:p.columns }}`) |
+| `firestore_value` | a JSON value → a Firestore Value (stringValue, integerValue/doubleValue, booleanValue incl. "true"/"false", timestampValue for RFC 3339 text, nullValue, arrayValue, mapValue) |
+| `firestore_fields` / `firestore_fields:p.columns` | object → Firestore `fields` (all keys, or the listed columns with missing ones as nullValue) |
 | `omit:'a,b'` | object without the listed keys; the argument may be a path to a comma string or list (`omit:p.inputsToIgnore`) |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -245,6 +252,8 @@ through, so an unset param stays unset:
 ] }
 ```
 (`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
+
+**JSON text of a built value (`$json`).** `{"$json": { … }}` renders the inner template (with `$concat`, `$map`, …) and returns it as a JSON string (Confluence ADF bodies).
 
 **Objects with built keys (`$entries`).** `{"$entries": "{{ p.filters.date }}", "$key": "date[{{ el.operation }}]", "$value": "{{ el.value | epoch }}"}` → `{"date[after]": 1704067200}`; empty keys/values are skipped (works inside `query`, `body` and `$merge`).
 
@@ -387,6 +396,8 @@ workflows is the node's normal `on_error`.
   re-added; auth is).
 - Paginated results are always split into one item per element.
 
+`next_url_prefix` (template) is prepended to a next URL that starts with `/` when its base is not the request host (Confluence v2: `"next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl }}"`).
+
 ## 9. Output
 
 `"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)
@@ -415,6 +426,7 @@ Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `
 **Output shaping** (applied in this order, also to paginated results; a single-object response is shaped as a one-element list):
 - `"each": "invoice"` replaces each element by its value at that path (Chargebee `[{"invoice": {…}}]` → the invoices).
 - `"expand": {method, path, query, …}` sends one request per element (`el` = the element) and replaces it with the response (Gmail lists ids, then GETs each message with `format`).
+- `"firestore": "{{ p.simple }}"` decodes Firestore documents into n8n's simple shape `{_name, _id, _createTime, _updateTime, …fields}` (use `"each": "found"` / `"document"` first for batchGet / runQuery).
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
 - `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept.
 
@@ -444,6 +456,8 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
   one part beside the body fields; otherwise (`raw`) it is the whole body.
 - `upload_field`/`property_field` must be declared op fields (n8n uses
   `binaryPropertyName`).
+
+`binary.download_when` (template) decides per run whether the response is a file (GCS `alt=media`, Slides thumbnail download); it overrides `download`. `binary.upload_text` (template): when it renders non-empty, that text (Content-Type text/plain) is uploaded instead of the item's binary (GCS create from text).
 
 ## 11. `extends` (apps with a native Go node)
 
@@ -630,6 +644,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | templates | filters `eq`, `ne`, `kv`, `omit`, `fromjson`, `epoch_ms`, `epoch`; roots `el`, `res`; `$map`/`$to`, `$concat` | §5 |
 | credential | `scope_group` (umbrella scope check) | §7 |
 | operation | `before` (pre-request → `pre`); output `header_row`, `each`, `expand`, `match` | §9 |
+| templates | filters `pick`, `firestore_value`, `firestore_fields`; output `firestore`; binary `download_when`, `upload_text` | §5, §9, §10 |
 | templates | filter `entries`; output `to`/`to_when` | §5, §9 |
 | templates | parenthesised expression arguments; filter `sheetgid`; `row` null mode; `p.*` in `inject`; templated `output.path`/`each` | §5 |
 | templates | multi-argument filters `find`, `find_row`; filters `get`, `add`, `sub`, `colnum`, `colname`; `$entries`/`$key`/`$value` | §5 |
