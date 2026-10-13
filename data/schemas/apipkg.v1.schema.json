@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://monoes.me/schemas/apipkg.v1.schema.json",
+  "title": "API package (apipkg.v1)",
+  "description": "A declarative REST API package run by mono-agent's apipkg engine. Author guide: internal/apipkg/FORMAT.md. Hand-written; keep in step with internal/apipkg/package.go.",
+  "type": "object",
+  "required": ["$schema", "id", "title", "base_url", "operations"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string", "enum": ["apipkg.v1"] },
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "node_type": { "type": "string", "pattern": "^app\\.[a-z0-9_]+$" },
+    "extends": { "type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z0-9_]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "category": { "type": "string" },
+    "docs_url": { "type": "string" },
+    "n8n_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
+    "n8n_trigger_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
+    "base_url": { "type": "string", "minLength": 1 },
+    "headers": { "$ref": "#/$defs/stringMap" },
+    "credentials": { "type": "array", "items": { "$ref": "#/$defs/credential" } },
+    "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } },
+    "operations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/operation" } }
+  },
+  "$defs": {
+    "stringMap": { "type": "object", "additionalProperties": { "type": "string" } },
+    "resource": {
+      "type": "object",
+      "required": ["value", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" }
+      }
+    },
+    "credential": {
+      "type": "object",
+      "required": ["platform", "methods"],
+      "additionalProperties": false,
+      "properties": {
+        "platform": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "name": { "type": "string" },
+        "n8n_credential": { "type": "string" },
+        "n8n_credential_alt": { "type": "array", "items": { "type": "string" } },
+        "n8n_field_map": { "$ref": "#/$defs/stringMap" },
+        "methods": {
+          "type": "array", "minItems": 1,
+          "items": { "type": "string", "enum": ["api_key", "oauth", "basic", "bearer", "none"] }
+        },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/credentialField" } },
+        "oauth": { "$ref": "#/$defs/oauth" },
+        "inject": { "$ref": "#/$defs/inject" },
+        "reuse_platform": { "type": "string" }
+      }
+    },
+    "credentialField": {
+      "type": "object",
+      "required": ["key", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "label": { "type": "string", "minLength": 1 },
+        "secret": { "type": "boolean" },
+        "required": { "type": "boolean" },
+        "help": { "type": "string" }
+      }
+    },
+    "oauth": {
+      "type": "object",
+      "required": ["auth_url", "token_url"],
+      "additionalProperties": false,
+      "properties": {
+        "auth_url": { "type": "string", "minLength": 1 },
+        "token_url": { "type": "string", "minLength": 1 },
+        "scopes": { "type": "array", "items": { "type": "string" } },
+        "pkce": { "type": "boolean" },
+        "extra_params": { "$ref": "#/$defs/stringMap" }
+      }
+    },
+    "inject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "headers": { "$ref": "#/$defs/stringMap" },
+        "query": { "$ref": "#/$defs/stringMap" },
+        "basic": {
+          "type": "object",
+          "required": ["username", "password"],
+          "additionalProperties": false,
+          "properties": { "username": { "type": "string" }, "password": { "type": "string" } }
+        },
+        "aws_sigv4": {
+          "type": "object",
+          "required": ["service", "region"],
+          "additionalProperties": false,
+          "properties": {
+            "service": { "type": "string", "minLength": 1 },
+            "region": { "type": "string", "minLength": 1 },
+            "access_key_id": { "type": "string" },
+            "secret_access_key": { "type": "string" },
+            "session_token": { "type": "string" }
+          }
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "required": ["resource", "operation", "title", "method", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "resource": { "type": "string" },
+        "operation": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+        "path": { "type": "string", "minLength": 1 },
+        "base_url": { "type": "string" },
+        "query": { "type": "object" },
+        "body": {},
+        "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+        "headers": { "$ref": "#/$defs/stringMap" },
+        "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } },
+        "pagination": { "$ref": "#/$defs/pagination" },
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "path": { "type": "string" }, "split": { "type": "boolean" } }
+        },
+        "binary": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "download": { "type": "boolean" },
+            "upload_field": { "type": "string" },
+            "property_field": { "type": "string" },
+            "multipart_field": { "type": "string" },
+            "file_name": { "type": "string" },
+            "mime_type": { "type": "string" }
+          }
+        },
+        "n8n_param_map": { "$ref": "#/$defs/stringMap" }
+      }
+    },
+    "field": {
+      "type": "object",
+      "required": ["key", "label", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" },
+        "label": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["text", "textarea", "number", "boolean", "select", "multiselect", "json", "collection", "datetime", "password", "code", "array"]
+        },
+        "required": { "type": "boolean" },
+        "default": {},
+        "placeholder": { "type": "string" },
+        "examples": { "type": "array", "items": { "type": "string" } },
+        "help": { "type": "string" },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "language": { "type": "string" },
+        "rows": { "type": "integer" },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "item_type": { "type": "string" }
+      }
+    },
+    "pagination": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["cursor", "offset", "page", "link_header", "next_url"] },
+        "cursor_param": { "type": "string" },
+        "cursor_path": { "type": "string" },
+        "has_more_path": { "type": "string" },
+        "offset_param": { "type": "string" },
+        "limit_param": { "type": "string" },
+        "page_param": { "type": "string" },
+        "next_url_path": { "type": "string" },
+        "results_path": { "type": "string" },
+        "return_all_field": { "type": "string" },
+        "limit_field": { "type": "string" },
+        "page_size": { "type": "integer" },
+        "start_page": { "type": "integer" },
+        "max_pages": { "type": "integer" },
+        "param_in": { "type": "string", "enum": ["query", "body"] }
+      }
+    }
+  }
+}
