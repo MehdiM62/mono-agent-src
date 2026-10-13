@@ -172,6 +172,7 @@ Scopes:
 | `item.<path>` | the current input item's JSON |
 | `el.<path>` | the current element inside a `$map` (`el` alone is the element) |
 | `res.<path>` | the main request's decoded response, inside `also` steps |
+| `items` | every input item's JSON as a list, in `batch` operations |
 
 Paths walk objects by key and arrays by index; `-1` is the last element
 (`p.list.-1.id`). A missing path is `nil`. Only `cred.*` is available in
@@ -212,8 +213,10 @@ through, so an unset param stays unset:
 | `then:'x'` | `x` when the value is non-empty, else nil |
 | `rl` | n8n resource locator → its `value`; other values pass |
 | `eq:'x'`, `ne:'x'` | `true` when the value's string equals (`eq`) / differs from (`ne`) the argument, else nil, so they chain into `then`: `"$merge": "{{ p.dataToSend \| eq:'autoMapInputData' \| then:item }}"` |
-| `kv:'keyField,valueField'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}`. A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
+| `kv:'keyField,valueField'` / `kv:'keyField,valueField,prefix'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}` (with a prefix: `kv:'fieldId,fieldValue,field_'` → `{"field_12": …}`). A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
 | `fromjson` | JSON string → value (n8n `jsonParameters` / `*Json` params: `"$merge": "{{ p.additionalFieldsJson \| fromjson }}"`); non-strings pass |
+| `split` / `split:';'` | `"a, b,c"` → `["a","b","c"]` (default separator `,`; parts trimmed, empty ones dropped; lists pass) |
+| `date:'YYYY-MM-DD'` | date or epoch-ms → formatted text in UTC; tokens `YYYY`/`yyyy`, `YY`, `MM`, `DD`/`dd`, `HH`, `hh`, `mm`, `ss`, `SSS`, `Z` (`Z` for UTC), `ZZ` (`+00:00`), `A`; other characters are literal |
 | `epoch_ms`, `epoch` | date (RFC 3339, `2006-01-02T15:04:05`, `2006-01-02`, …) → Unix milliseconds / seconds; numbers pass |
 | `omit:'a,b'` | object without the listed keys; the argument may be a path to a comma string or list (`omit:p.inputsToIgnore`) |
 
@@ -363,6 +366,9 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 ]
 ```
 Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
+
+**Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
+`"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.
 
 ## 10. Binary data
 
@@ -562,5 +568,6 @@ Optional keys the engine added (the design's keys are unchanged):
 | inject.aws_sigv4 | `access_key_id`, `secret_access_key`, `session_token` | key templates |
 | templates | filters `float`, `string`, `upper`, `rl`, `then`; `default:<path>`; `$merge` lists | §5 |
 | templates | filters `eq`, `ne`, `kv`, `omit`, `fromjson`, `epoch_ms`, `epoch`; roots `el`, `res`; `$map`/`$to`, `$concat` | §5 |
-| operation | `also` (follow-up requests) | §9 |
+| operation | `also` (follow-up requests), `batch` (one request for all items) | §9 |
+| templates | filters `split`, `date`; `kv` key prefix; root `items` | §5 |
 | schema output | `visible_for`, `apipkg`, `extended_by` | exact op visibility; package id; extending packages |

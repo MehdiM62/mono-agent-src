@@ -131,11 +131,25 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
+		if op.Batch {
+			all := make([]any, 0, len(items))
+			for _, x := range items {
+				if x.JSON == nil {
+					all = append(all, map[string]any{})
+					continue
+				}
+				all = append(all, x.JSON)
+			}
+			r.scope.Items = all
+		}
 		res, err := r.execute(ctx)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, res...)
+		if op.Batch {
+			break // one request covered every item
+		}
 	}
 	return []workflow.NodeOutput{{Handle: "main", Items: out}}, nil
 }

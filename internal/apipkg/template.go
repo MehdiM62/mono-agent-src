@@ -17,6 +17,8 @@ type Scope struct {
 	Item map[string]any
 	El   any
 	Res  any
+	// Items is every input item's JSON, set for batch operations.
+	Items []any
 }
 
 func (s Scope) root(name string) any {
@@ -31,6 +33,8 @@ func (s Scope) root(name string) any {
 		return s.El
 	case "res":
 		return s.Res
+	case "items":
+		return s.Items
 	}
 	return nil
 }
@@ -161,9 +165,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res":
+	case "p", "cred", "item", "el", "res", "items":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., el. or res.", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el. or res.", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {

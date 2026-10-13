@@ -132,6 +132,10 @@ type Operation struct {
 	// tags). Each may read res (the main response). The node's output is
 	// still the main response.
 	Also []Step `json:"also,omitempty"`
+	// Batch sends ONE request for all input items (n8n batchCreate/
+	// batchUpdate/batchDelete): params come from the first item and the
+	// items root holds every item's JSON.
+	Batch bool `json:"batch,omitempty"`
 }
 
 // Step is one follow-up request of an operation. When is a template; an

@@ -141,6 +141,7 @@
           }
         },
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
+        "batch": { "type": "boolean" },
         "also": {
           "type": "array",
           "items": {

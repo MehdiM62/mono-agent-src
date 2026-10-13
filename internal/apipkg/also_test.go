@@ -1,11 +1,14 @@
 package apipkg
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // An op with $map/$concat/fromjson/epoch_ms in its body and two "also"
@@ -95,5 +98,57 @@ func TestAlsoValidation(t *testing.T) {
 	  "also":[{"method":"GET","path":"/y/{{ p.nope }}"}]}`)), "test")
 	if err == nil || !strings.Contains(err.Error(), "nope") {
 		t.Errorf("also templates must be validated, got %v", err)
+	}
+}
+
+func TestBatchOpSendsOneRequestForAllItems(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"batchCreate","title":"Batch","method":"POST","path":"/rows/batch","batch":true,
+	  "fields":[{"key":"table","label":"Table","type":"text","required":true}],
+	  "body":{"table":"{{ p.table }}","items":"{{ items }}"}}`))
+	var bodies []string
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		w.Write([]byte(`{"items":[{"id":1},{"id":2}]}`))
+	})
+	in := workflow.NodeInput{Items: []workflow.Item{{JSON: map[string]any{"name": "a"}}, {JSON: map[string]any{"name": "b"}}}}
+	out, err := run(context.Background(), p, in, map[string]any{"operation": "batchCreate", "table": "t1", "credential": cred}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := out[0].Items
+	if len(*seen) != 1 || bodies[0] != `{"items":[{"name":"a"},{"name":"b"}],"table":"t1"}` {
+		t.Fatalf("want one request with all items, got %d: %v", len(*seen), bodies)
+	}
+	if len(items) != 1 {
+		t.Errorf("output items = %d", len(items))
+	}
+}
+
+func TestKVPrefixSplitAndDate(t *testing.T) {
+	sc := Scope{P: map[string]any{
+		"rows": []any{map[string]any{"fieldId": 12.0, "fieldValue": "x"}},
+		"csv":  "a, b,,c", "d": "2026-03-04T05:06:07Z", "ms": 1767312000000.0,
+	}}
+	cases := []struct {
+		in   string
+		want any
+	}{
+		{"{{ p.rows | kv:'fieldId,fieldValue,field_' }}", map[string]any{"field_12": "x"}},
+		{"{{ p.csv | split:',' }}", []any{"a", "b", "c"}},
+		{"{{ p.csv | split }}", []any{"a", "b", "c"}},
+		{"{{ p.d | date:'YYYY-MM-DD' }}", "2026-03-04"},
+		{"{{ p.d | date:'yyyy-MM-dd HH:mm:ss' }}", "2026-03-04 05:06:07"},
+		{"{{ p.ms | date:'YYYY-MM-DD' }}", "2026-01-02"},
+		{"{{ p.missing | date:'YYYY' }}", nil},
+	}
+	for _, c := range cases {
+		got, err := renderString(c.in, sc)
+		if err != nil {
+			t.Fatalf("%s: %v", c.in, err)
+		}
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s = %#v, want %#v", c.in, got, c.want)
+		}
 	}
 }
