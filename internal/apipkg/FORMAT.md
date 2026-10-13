@@ -213,7 +213,8 @@ through, so an unset param stays unset:
 | `lower`, `upper` | case |
 | `default:"x"` | `x` when the value is empty; the argument may be a quoted string (`'x'` or `"x"`), a number, `true`/`false`/`null`, or a path (`default:p.other`, `default:cred.region`) |
 | `then:'x'` | `x` when the value is non-empty, else nil |
-| `rl` | n8n resource locator → its `value`; other values pass |
+| `rl` | n8n resource locator → its `value`; a `"mode": "url"` locator holding a Google Docs/Sheets/Slides/Drive URL yields the file id; other values pass |
+| `gid` | Google file id from a URL (`…/d/<id>/edit`, `…/folders/<id>`, `?id=<id>`); bare ids and non-Google values pass (n8n Docs `documentURL`) |
 | `eq:'x'`, `ne:'x'` | `true` when the value's string equals (`eq`) / differs from (`ne`) the argument, else nil, so they chain into `then`: `"$merge": "{{ p.dataToSend \| eq:'autoMapInputData' \| then:item }}"` |
 | `kv:'keyField,valueField'` / `kv:'keyField,valueField,prefix'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}` (with a prefix: `kv:'fieldId,fieldValue,field_'` → `{"field_12": …}`). A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
 | `fromjson` | JSON string → value (n8n `jsonParameters` / `*Json` params: `"$merge": "{{ p.additionalFieldsJson \| fromjson }}"`); non-strings pass |
