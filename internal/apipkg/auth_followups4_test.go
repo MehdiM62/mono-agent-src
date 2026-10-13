@@ -338,3 +338,88 @@ func TestAWSAssumeRole(t *testing.T) {
 		t.Errorf("no region: STS should be signed for the global endpoint, got %q", a)
 	}
 }
+
+func TestWrapAndMimePartsFilters(t *testing.T) {
+	sc := Scope{P: map[string]any{"s": "abcdefgh", "files": []any{
+		map[string]any{"file_name": `a"b.txt`, "mime_type": "text/plain", "base64": "aGVsbG8=", "property": "data"},
+		map[string]any{"base64": "AAEC", "property": "raw"},
+	}}}
+	cases := map[string]any{
+		"{{ p.s | wrap:3 }}":                  "abc\r\ndef\r\ngh",
+		"{{ p.s | wrap:8 }}":                  "abcdefgh",
+		"{{ p.none | mime_parts:'b' }}":       nil,
+		"{{ p.empty | default:'' | wrap:2 }}": "",
+	}
+	for tpl, want := range cases {
+		if got, err := renderString(tpl, sc); err != nil || got != want {
+			t.Errorf("%s = %#v (%v), want %#v", tpl, got, err, want)
+		}
+	}
+	got, err := renderString("{{ p.files | mime_parts:'b' }}", sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "--b\r\nContent-Type: text/plain; name=\"ab.txt\"\r\nContent-Disposition: attachment; filename=\"ab.txt\"\r\nContent-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n" +
+		"--b\r\nContent-Type: application/octet-stream; name=\"raw\"\r\nContent-Disposition: attachment; filename=\"raw\"\r\nContent-Transfer-Encoding: base64\r\n\r\nAAEC\r\n--b--\r\n"
+	if got != want {
+		t.Errorf("mime_parts =\n%q\nwant\n%q", got, want)
+	}
+	for _, tpl := range []string{"{{ p.s | wrap:0 }}", "{{ p.files | mime_parts:'' }}", "{{ p.s | mime_parts:'b' }}"} {
+		if _, err := renderString(tpl, sc); err == nil {
+			t.Errorf("%s: no error", tpl)
+		}
+	}
+	if _, err := renderString("{{ p.files | mime_parts:'b' }}", Scope{P: map[string]any{"files": []any{map[string]any{"property": "gone"}}}}); err == nil || !strings.Contains(err.Error(), "gone") {
+		t.Errorf("missing binary: err = %v", err)
+	}
+}
+
+func TestGmailSendWithAttachments(t *testing.T) {
+	seen := recordServer(t, func(r *http.Request, _ string, w http.ResponseWriter) { fmt.Fprint(w, `{"id":"m1"}`) })
+	p := catalogPkg(t, "gmail_more")
+	long := strings.Repeat("x", 120)
+	pdf := strings.Repeat("A", 100) // base64 text of the second file
+	input := map[string]any{"binary": map[string]any{
+		"data": map[string]any{"data": "aGVsbG8=", "fileName": "hello.txt", "mimeType": "text/plain"},
+		"doc":  map[string]any{"data": pdf, "fileName": "doc.pdf", "mimeType": "application/pdf"},
+	}}
+	params := map[string]any{"resource": "message", "operation": "send", "sendTo": "a@b.c", "subject": "Hi", "emailType": "text", "message": long,
+		"options": map[string]any{"attachmentsUi": map[string]any{"attachmentsBinary": []any{map[string]any{"property": "data,doc"}}}}}
+	if _, err := runPackageOp(p, params, map[string]any{"access_token": "t"}, input); err != nil {
+		t.Fatal(err)
+	}
+	got := seen()[0]
+	if got.r.URL.Path != "/upload/gmail/v1/users/me/messages/send" || got.r.Header.Get("Content-Type") != "message/rfc822" {
+		t.Errorf("request %s %s", got.r.URL, got.r.Header.Get("Content-Type"))
+	}
+	body := got.body
+	for _, want := range []string{
+		"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"monoagent_mixed\"\r\n\r\n--monoagent_mixed\r\nContent-Type: text/plain; charset=UTF-8\r\n",
+		"Content-Type: text/plain; name=\"hello.txt\"\r\nContent-Disposition: attachment; filename=\"hello.txt\"\r\nContent-Transfer-Encoding: base64\r\n\r\naGVsbG8=\r\n",
+		"Content-Type: application/pdf; name=\"doc.pdf\"\r\n",
+		pdf[:76] + "\r\n" + pdf[76:] + "\r\n--monoagent_mixed--\r\n",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body lacks %q:\n%s", want, body)
+		}
+	}
+	for _, line := range strings.Split(body, "\r\n") {
+		if len(line) > 998 || (len(line) > 76 && !strings.HasPrefix(line, "Subject:")) {
+			t.Errorf("line longer than 76 characters: %q", line)
+		}
+	}
+
+	// Without attachments the message stays a single text part.
+	delete(params, "options")
+	if _, err := runPackageOp(p, params, map[string]any{"access_token": "t"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if b := seen()[1].body; strings.Contains(b, "multipart") || !strings.Contains(b, "Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64") {
+		t.Errorf("plain message:\n%s", b)
+	}
+	// A named property the item lacks fails the item.
+	params["options"] = map[string]any{"attachmentsUi": map[string]any{"attachmentsBinary": []any{map[string]any{"property": "nope"}}}}
+	if _, err := runPackageOp(p, params, map[string]any{"access_token": "t"}, input); err == nil || !strings.Contains(err.Error(), "nope") {
+		t.Errorf("missing property: err = %v", err)
+	}
+}

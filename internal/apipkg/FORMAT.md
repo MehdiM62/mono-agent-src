@@ -266,6 +266,8 @@ through, so an unset param stays unset:
 | `mod:n` | remainder with the sign of `n` (`-1` with `mod:7` → `6`; `{{ p.offset \| mod:7 }}`) |
 | `weekday` | date or epoch → ISO weekday in UTC, 1 = Monday … 7 = Sunday. Monday of last week: `{{ (now \| date:'YYYY-MM-DD' \| epoch) \| sub:((now \| weekday \| add:6) \| mul:86400) \| date:'YYYY-MM-DD' }}` (GA4 `lastCalendarWeek`) |
 | `dotnet_date` | .NET JSON date `/Date(1586833770780)/` (optional `+0100` offset) → `2020-04-14T03:09:30.780Z`; objects and lists are converted deeply, other values pass. A whole response: `"output": {"to": "{{ el \| dotnet_date }}"}` (Unleashed) |
+| `wrap:n` | text broken into lines of at most `n` characters joined by CRLF (base64 bodies in MIME messages: `{{ p.message \| base64 \| wrap:76 }}`) |
+| `mime_parts:'boundary'` | `bin.files` → one base64 attachment part per file (Content-Type with the file's MIME type and name, Content-Disposition attachment, lines wrapped at 76) plus the closing `--boundary--`; an empty list is nil, a file without data fails naming its property. The template writes the `multipart/mixed` header and the text part (Gmail send/reply/draft) |
 | `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -607,7 +609,7 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 
 **Large files in chunks (`upload_session`).** `"binary": {"upload_field": "binaryPropertyName", "upload_session": {"create": {"method": "POST", "path": "/items/{{ p.parentId }}:/{{ p.fileName }}:/createUploadSession", "body": {"item": {"@microsoft.graph.conflictBehavior": "replace"}}}}}` — when the upload is larger than `min_size` bytes (default 4 MiB) the engine sends `create` (a step, with auth), reads the upload URL at `url_path` (default `uploadUrl`) of its response, and PUTs the file there in `chunk_size` pieces (default 10 MiB; Graph wants multiples of 320 KiB) with `Content-Range: bytes a-b/total` and no credential (the URL is pre-authorised). The last chunk's response is the op's response. Smaller files go in the op's single request as before (OneDrive / SharePoint upload).
 
-**Several files.** `binary.properties` (a template giving a list or comma text, e.g. n8n's `"attachments": "data,data2"`) uploads each property: in a multipart body one part per file, with `el = {property, index}` in the `multipart_field` template (`"attachment[{{ el.index }}]"`); for JSON bodies `bin.files` is the list of `{property, file_name, mime_type, file_extension, base64, file_size}` (`{"$map": "{{ bin.files }}", "$to": {"name": "{{ el.file_name }}", "content": "{{ el.base64 }}"}}`).
+**Several files.** `binary.properties` (a template giving a list or comma text, e.g. n8n's `"attachments": "data,data2"`) uploads each property: in a multipart body one part per file, with `el = {property, index}` in the `multipart_field` template (`"attachment[{{ el.index }}]"`); for JSON bodies `bin.files` is the list of `{property, file_name, mime_type, file_extension, base64, file_size}` (`{"$map": "{{ bin.files }}", "$to": {"name": "{{ el.file_name }}", "content": "{{ el.base64 }}"}}`). `binary.properties` without `upload_field` only fills `bin.files` (nothing is uploaded), for bodies that embed the files themselves — Gmail builds a MIME message: `"binary": {"properties": "{{ p.options.attachmentsUi.attachmentsBinary | pluck:'property' | join:',' }}"}` with `{{ bin.files | mime_parts:'monoagent_mixed' }}` in its raw body.
 
 ## 11. `extends` (apps with a native Go node)
 
@@ -828,3 +830,4 @@ Optional keys the engine added (the design's keys are unchanged):
 | credential | method `oauth1`, `inject.oauth1`, `oauth.request_token_url`, `oauth.signature_method` | §7 OAuth 1.0a |
 | credential | `oauth.connect_fields` (templated per-tenant OAuth endpoints), `oauth.metadata` | §7 |
 | credential | AWS AssumeRole via connection `role_arn` (`external_id`, `role_session_name`) | §7 |
+| templates, binary | filters `wrap`, `mime_parts`; `binary.properties` without `upload_field` | §5, §10 |
