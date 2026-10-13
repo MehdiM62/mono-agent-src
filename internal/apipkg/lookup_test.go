@@ -1163,3 +1163,56 @@ func TestDottedKeyLookup(t *testing.T) {
 		}
 	}
 }
+
+func TestFlattenNested(t *testing.T) {
+	sc := Scope{P: map[string]any{"docs": []any{
+		map[string]any{"SummaryFields": []any{map[string]any{"a": 1.0}}},
+		map[string]any{"SummaryFields": []any{map[string]any{"b": 2.0}, map[string]any{"c": 3.0}}}}}}
+	got, _ := renderString("{{ p.docs | pluck:'SummaryFields' | flatten }}", sc)
+	if l, ok := got.([]any); !ok || len(l) != 3 || l[2].(map[string]any)["c"] != 3.0 {
+		t.Errorf("nested flatten = %#v", got)
+	}
+}
+
+func TestStepWithoutAuth(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"get","title":"G","method":"GET","path":"/job",
+	  "output":{"expand":{"method":"GET","path":"{{ el.uri }}","auth":false}}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		if n == 1 {
+			w.Write([]byte(`{"uri":"https://bucket.s3.test/t.json?X-Amz-Signature=abc"}`))
+			return
+		}
+		w.Write([]byte(`{"transcript":"hi"}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "get"}, cred, nil)
+	if err != nil || items[0].JSON["transcript"] != "hi" {
+		t.Fatalf("%v %v", items, err)
+	}
+	if (*seen)[0].Header.Get("Authorization") != "Bearer T" || (*seen)[1].Header.Get("Authorization") != "" {
+		t.Errorf("auth headers: %q %q", (*seen)[0].Header.Get("Authorization"), (*seen)[1].Header.Get("Authorization"))
+	}
+}
+
+func TestObjectCursorInBody(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"scan","title":"S","method":"POST","path":"/","body":{"TableName":"t"},
+	  "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	  "pagination":{"type":"cursor","param_in":"body","cursor_param":"ExclusiveStartKey","cursor_path":"LastEvaluatedKey","results_path":"Items"}}`))
+	var bodies []map[string]any
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		var b map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&b)
+		bodies = append(bodies, b)
+		if n == 1 {
+			w.Write([]byte(`{"Items":[{"id":{"S":"1"}}],"LastEvaluatedKey":{"id":{"S":"1"}}}`))
+			return
+		}
+		w.Write([]byte(`{"Items":[{"id":{"S":"2"}}]}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "scan", "returnAll": true}, cred, nil)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("%v %v", items, err)
+	}
+	if !reflect.DeepEqual(bodies[1]["ExclusiveStartKey"], map[string]any{"id": map[string]any{"S": "1"}}) || bodies[0]["ExclusiveStartKey"] != nil {
+		t.Errorf("start keys: %v / %v", bodies[0], bodies[1])
+	}
+}

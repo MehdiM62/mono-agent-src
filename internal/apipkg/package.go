@@ -212,7 +212,10 @@ type Step struct {
 	ForEach string `json:"for_each,omitempty"`
 	// Upload sends the op's binary (binary.upload_field/property) as the
 	// raw body, Content-Type = its MIME type (register-then-upload APIs).
-	Upload   bool              `json:"upload,omitempty"`
+	Upload bool `json:"upload,omitempty"`
+	// Auth false sends the step without the credential (presigned S3/GCS/
+	// Azure SAS URLs reject a second auth mechanism).
+	Auth     *bool             `json:"auth,omitempty"`
 	Method   string            `json:"method"`
 	Path     string            `json:"path"`
 	BaseURL  string            `json:"base_url,omitempty"`
