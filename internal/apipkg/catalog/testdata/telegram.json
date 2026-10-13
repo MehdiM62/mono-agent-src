@@ -1,0 +1,575 @@
+{
+  "message.sendMessage": {
+    "params": {
+      "chatId": "42",
+      "text": "Hi",
+      "replyMarkup": "inlineKeyboard",
+      "inlineKeyboard": {
+        "rows": [
+          {
+            "row": {
+              "buttons": [
+                {
+                  "text": "Open",
+                  "additionalFields": {
+                    "url": "https://x.io"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendMessage",
+      "body": {
+        "chat_id": "42",
+        "text": "Hi",
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": true,
+        "reply_markup": {
+          "inline_keyboard": [
+            [
+              {
+                "text": "Open",
+                "url": "https://x.io"
+              }
+            ]
+          ]
+        }
+      },
+      "items": 1
+    },
+    "response": {
+      "ok": true,
+      "result": {
+        "message_id": 1
+      }
+    }
+  },
+  "message.deleteMessage": {
+    "params": {
+      "chatId": "42",
+      "messageId": "7"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/deleteMessage",
+      "body": {
+        "chat_id": "42",
+        "message_id": "7"
+      }
+    }
+  },
+  "message.editMessageText": {
+    "params": {
+      "chatId": "42",
+      "messageId": "7",
+      "text": "New",
+      "replyMarkup": "replyKeyboardRemove",
+      "replyKeyboardRemove": {
+        "remove_keyboard": true
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/editMessageText",
+      "body": {
+        "chat_id": "42",
+        "message_id": "7",
+        "text": "New",
+        "reply_markup": {
+          "remove_keyboard": true
+        }
+      }
+    }
+  },
+  "message.pinChatMessage": {
+    "params": {
+      "chatId": "42",
+      "messageId": "7",
+      "additionalFields": {
+        "disable_notification": true
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/pinChatMessage",
+      "body": {
+        "chat_id": "42",
+        "message_id": "7",
+        "disable_notification": true
+      }
+    }
+  },
+  "message.unpinChatMessage": {
+    "params": {
+      "chatId": "42",
+      "messageId": "7"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/unpinChatMessage",
+      "body": {
+        "chat_id": "42",
+        "message_id": "7"
+      }
+    }
+  },
+  "message.sendAnimation": {
+    "params": {
+      "chatId": "42",
+      "file": "https://x.io/f",
+      "additionalFields": {
+        "caption": "c"
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendAnimation",
+      "body": {
+        "chat_id": "42",
+        "animation": "https://x.io/f",
+        "caption": "c"
+      }
+    }
+  },
+  "message.sendAudio": {
+    "params": {
+      "chatId": "42",
+      "file": "https://x.io/f",
+      "additionalFields": {
+        "caption": "c"
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendAudio",
+      "body": {
+        "chat_id": "42",
+        "audio": "https://x.io/f",
+        "caption": "c"
+      }
+    }
+  },
+  "message.sendDocument": {
+    "params": {
+      "chatId": "42",
+      "file": "https://x.io/f",
+      "additionalFields": {
+        "caption": "c"
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendDocument",
+      "body": {
+        "chat_id": "42",
+        "document": "https://x.io/f",
+        "caption": "c"
+      }
+    }
+  },
+  "message.sendSticker": {
+    "params": {
+      "chatId": "42",
+      "file": "https://x.io/f",
+      "additionalFields": {
+        "caption": "c"
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendSticker",
+      "body": {
+        "chat_id": "42",
+        "sticker": "https://x.io/f",
+        "caption": "c"
+      }
+    }
+  },
+  "message.sendVideo": {
+    "params": {
+      "chatId": "42",
+      "file": "https://x.io/f",
+      "additionalFields": {
+        "caption": "c"
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendVideo",
+      "body": {
+        "chat_id": "42",
+        "video": "https://x.io/f",
+        "caption": "c"
+      }
+    }
+  },
+  "message.sendPhoto": {
+    "params": {
+      "chatId": "42",
+      "binaryData": true,
+      "additionalFields": {
+        "caption": "c",
+        "fileName": "p.png"
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendPhoto",
+      "body": {
+        "chat_id": "42",
+        "caption": "c",
+        "photo": "file:p.png:hi"
+      }
+    },
+    "input": {
+      "data": "aGk="
+    }
+  },
+  "message.sendChatAction": {
+    "params": {
+      "chatId": "42",
+      "action": "typing"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendChatAction",
+      "body": {
+        "chat_id": "42",
+        "action": "typing"
+      }
+    }
+  },
+  "message.sendLocation": {
+    "params": {
+      "chatId": "42",
+      "latitude": 52.5,
+      "longitude": 13.4
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendLocation",
+      "body": {
+        "chat_id": "42",
+        "latitude": 52.5,
+        "longitude": 13.4
+      }
+    }
+  },
+  "message.sendMediaGroup": {
+    "params": {
+      "chatId": "42",
+      "media": {
+        "media": [
+          {
+            "type": "photo",
+            "media": "https://x.io/a.jpg",
+            "additionalFields": {
+              "caption": "a"
+            }
+          }
+        ]
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendMediaGroup",
+      "body": {
+        "chat_id": "42",
+        "media": [
+          {
+            "type": "photo",
+            "media": "https://x.io/a.jpg",
+            "caption": "a"
+          }
+        ]
+      }
+    }
+  },
+  "message.sendMessageDraft": {
+    "params": {
+      "chatId": "42",
+      "draftId": 3,
+      "text": "typing…"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendMessageDraft",
+      "body": {
+        "chat_id": "42",
+        "draft_id": 3,
+        "text": "typing…"
+      }
+    }
+  },
+  "message.sendRichMessage": {
+    "params": {
+      "chatId": "42",
+      "richMessageText": "<b>x</b>",
+      "additionalFields": {
+        "protect_content": true,
+        "is_rtl": false
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendRichMessage",
+      "body": {
+        "chat_id": "42",
+        "rich_message": {
+          "html": "<b>x</b>",
+          "is_rtl": false
+        },
+        "protect_content": true
+      }
+    }
+  },
+  "message.sendRichMessageDraft": {
+    "params": {
+      "chatId": "42",
+      "draftId": 2,
+      "richFormat": "markdown",
+      "richMessageText": "*x*"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/sendRichMessageDraft",
+      "body": {
+        "chat_id": "42",
+        "draft_id": 2,
+        "rich_message": {
+          "markdown": "*x*"
+        }
+      }
+    }
+  },
+  "chat.get": {
+    "params": {
+      "chatId": "42"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/getChat",
+      "body": {
+        "chat_id": "42"
+      }
+    }
+  },
+  "chat.administrators": {
+    "params": {
+      "chatId": "42"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/getChatAdministrators",
+      "body": {
+        "chat_id": "42"
+      },
+      "items": 2
+    },
+    "response": {
+      "ok": true,
+      "result": [
+        {
+          "user": {
+            "id": 1
+          }
+        },
+        {
+          "user": {
+            "id": 2
+          }
+        }
+      ]
+    }
+  },
+  "chat.member": {
+    "params": {
+      "chatId": "42",
+      "userId": "9"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/getChatMember",
+      "body": {
+        "chat_id": "42",
+        "user_id": "9"
+      }
+    }
+  },
+  "chat.leave": {
+    "params": {
+      "chatId": "42"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/leaveChat",
+      "body": {
+        "chat_id": "42"
+      }
+    }
+  },
+  "chat.setDescription": {
+    "params": {
+      "chatId": "42",
+      "description": "d"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/setChatDescription",
+      "body": {
+        "chat_id": "42",
+        "description": "d"
+      }
+    }
+  },
+  "chat.setTitle": {
+    "params": {
+      "chatId": "42",
+      "title": "t"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/setChatTitle",
+      "body": {
+        "chat_id": "42",
+        "title": "t"
+      }
+    }
+  },
+  "callback.answerQuery": {
+    "params": {
+      "queryId": "q1",
+      "additionalFields": {
+        "text": "Done",
+        "show_alert": true
+      }
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/answerCallbackQuery",
+      "body": {
+        "callback_query_id": "q1",
+        "text": "Done",
+        "show_alert": true
+      }
+    }
+  },
+  "callback.answerInlineQuery": {
+    "params": {
+      "queryId": "q1",
+      "results": "[]"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/bot123:ABC/answerInlineQuery",
+      "body": {
+        "inline_query_id": "q1",
+        "results": "[]"
+      }
+    }
+  },
+  "file.get": {
+    "params": {
+      "fileId": "F1"
+    },
+    "credential": {
+      "bot_token": "123:ABC"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/file/bot123:ABC/documents/file_1.pdf",
+      "items": 1
+    },
+    "responses": [
+      {
+        "ok": true,
+        "result": {
+          "file_path": "documents/file_1.pdf"
+        }
+      },
+      {
+        "x": 1
+      }
+    ]
+  }
+}
