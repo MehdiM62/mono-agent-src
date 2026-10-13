@@ -292,7 +292,7 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		r.scope.Pres = append(r.scope.Pres, v)
 		r.scope.Pre = v
 	}
-	if r.op.Pagination != nil {
+	if r.op.Pagination != nil && r.pagingOn() {
 		results, truncated, err := r.paginate(ctx)
 		if err != nil {
 			return nil, err
@@ -927,4 +927,14 @@ func lessValue(a, b any) bool {
 		return fa.(float64) < fb.(float64)
 	}
 	return stringify(a) < stringify(b)
+}
+
+// pagingOn reports whether pagination applies to this run.
+func (r *opRun) pagingOn() bool {
+	w := r.op.Pagination.When
+	if w == "" {
+		return true
+	}
+	v, err := renderString(w, r.scope)
+	return err == nil && truthy(v)
 }

@@ -245,7 +245,11 @@ type Pagination struct {
 	// Values: the page's results are an object keyed by id (Mautic
 	// {"contacts": {"12": {…}}}); its values are the list (numeric keys in
 	// numeric order, else sorted).
-	Values         bool   `json:"values,omitempty"`
+	Values bool `json:"values,omitempty"`
+	// When (a template) turns paging off when it renders false: one plain
+	// request, no page params (Strapi v3 vs v4 by credential). The param
+	// names (cursor/offset/limit/page_param) may be templates too.
+	When           string `json:"when,omitempty"`
 	ResultsPath    string `json:"results_path,omitempty"`
 	ReturnAllField string `json:"return_all_field,omitempty"`
 	LimitField     string `json:"limit_field,omitempty"`

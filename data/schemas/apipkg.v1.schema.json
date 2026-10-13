@@ -315,6 +315,7 @@
         "page_param": { "type": "string" },
         "next_url_prefix": { "type": "string" },
         "values": { "type": "boolean" },
+        "when": { "type": "string" },
         "next_url_path": { "type": "string" },
         "results_path": { "type": "string" },
         "return_all_field": { "type": "string" },

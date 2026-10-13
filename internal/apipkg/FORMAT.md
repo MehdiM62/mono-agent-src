@@ -432,6 +432,8 @@ With `"param_in": "body"`, the page param names may be dot paths, nested into th
 
 `"values": true` (pagination): the results at `results_path` are an object keyed by id (Mautic `{"contacts": {"12": {…}}}`); its values are the page's list (numeric keys in numeric order, else sorted), and offsets advance by their count. The `values` filter uses the same order.
 
+`pagination.when` (template): when false, the op makes one plain request with no page params (Strapi v3 vs v4: `"when": "{{ cred.api_version | eq:'v4' }}"`). `cursor_param`, `offset_param`, `limit_param` and `page_param` may be templates.
+
 ## 9. Output
 
 `"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)
