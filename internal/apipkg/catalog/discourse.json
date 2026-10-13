@@ -525,10 +525,10 @@
         }
       ],
       "query": {
-        "asc": "{{ p.options.asc | then:true }}",
+        "asc": "{{ p.options.asc | eq:'true' | then:true }}",
         "order": "{{ p.options.order }}",
-        "show_emails": "{{ p.options.showEmails | then:true }}",
-        "stats": "{{ p.options.stats | then:true }}"
+        "show_emails": "{{ p.options.showEmails | eq:'true' | then:true }}",
+        "stats": "{{ p.options.stats | eq:'true' | then:true }}"
       },
       "pagination": {
         "type": "page",

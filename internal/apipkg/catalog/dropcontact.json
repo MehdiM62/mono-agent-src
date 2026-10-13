@@ -46,8 +46,8 @@
     {
       "resource": "contact",
       "operation": "enrich",
-      "title": "Submit a contact for enrichment",
-      "description": "Sends one enrichment request per item and returns its request_id; read the result later with Fetch Request (the delayed second call n8n makes when Simplify is off is not done here).",
+      "title": "Enrich a contact",
+      "description": "Submits the contact; unless Simplify is on, waits for the enriched data (polling every 5 s, up to 10 min). With Simplify on it returns the request_id for Fetch Request.",
       "method": "POST",
       "path": "/batch",
       "fields": [
@@ -62,7 +62,7 @@
           "label": "Simplify output",
           "type": "boolean",
           "default": false,
-          "help": "The request id is always returned; use Fetch Request for the data"
+          "help": "On: return the request id at once; off: wait for the enriched data"
         },
         {
           "key": "additionalFields",
@@ -104,6 +104,16 @@
         ],
         "siren": "{{ p.options.siren | default:false | bool }}",
         "language": "{{ p.options.language | default:'en' }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/batch/{{ res.request_id }}",
+        "until": "{{ p.simplify | eq:'true' | default:(res.data | then:true) }}",
+        "interval_ms": 5000,
+        "max_wait_ms": 600000
+      },
+      "output": {
+        "path": "{{ p.simplify | ne:'true' | then:'data' }}"
       }
     },
     {

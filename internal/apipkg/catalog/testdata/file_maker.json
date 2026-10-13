@@ -15,7 +15,9 @@
     },
     "responses": [
       {
-        "response": {}
+        "response": {
+          "token": "T1"
+        }
       },
       {
         "response": {
@@ -45,8 +47,12 @@
           "script.param": "x"
         },
         "headers": {
-          "Authorization": "Basic dTpwdw=="
+          "Authorization": "Bearer T1"
         }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
       }
     ],
     "expect": {
@@ -110,7 +116,9 @@
     },
     "responses": [
       {
-        "response": {}
+        "response": {
+          "token": "T1"
+        }
       },
       {
         "response": {
@@ -141,8 +149,12 @@
           "portalData": {}
         },
         "headers": {
-          "Authorization": "Basic dTpwdw=="
+          "Authorization": "Bearer T1"
         }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
       }
     ],
     "expect": {
@@ -163,7 +175,9 @@
     },
     "responses": [
       {
-        "response": {}
+        "response": {
+          "token": "T1"
+        }
       },
       {
         "response": {
@@ -188,8 +202,12 @@
         "method": "DELETE",
         "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records/7",
         "headers": {
-          "Authorization": "Basic dTpwdw=="
+          "Authorization": "Bearer T1"
         }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
       }
     ],
     "expect": {
@@ -210,7 +228,9 @@
     },
     "responses": [
       {
-        "response": {}
+        "response": {
+          "token": "T1"
+        }
       },
       {
         "response": {
@@ -238,8 +258,12 @@
           "fieldData": {}
         },
         "headers": {
-          "Authorization": "Basic dTpwdw=="
+          "Authorization": "Bearer T1"
         }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
       }
     ],
     "expect": {
@@ -269,7 +293,9 @@
     },
     "responses": [
       {
-        "response": {}
+        "response": {
+          "token": "T1"
+        }
       },
       {
         "response": {
@@ -301,8 +327,12 @@
           "modId": "3"
         },
         "headers": {
-          "Authorization": "Basic dTpwdw=="
+          "Authorization": "Bearer T1"
         }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
       }
     ],
     "expect": {
@@ -351,7 +381,9 @@
     },
     "responses": [
       {
-        "response": {}
+        "response": {
+          "token": "T1"
+        }
       },
       {
         "response": {
@@ -395,8 +427,12 @@
           ]
         },
         "headers": {
-          "Authorization": "Basic dTpwdw=="
+          "Authorization": "Bearer T1"
         }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
       }
     ],
     "expect": {
@@ -427,7 +463,9 @@
     },
     "responses": [
       {
-        "response": {}
+        "response": {
+          "token": "T1"
+        }
       },
       {
         "response": {
@@ -458,8 +496,12 @@
           "_sort": "[{\"fieldName\":\"Name\",\"sortOrder\":\"ascend\"}]"
         },
         "headers": {
-          "Authorization": "Basic dTpwdw=="
+          "Authorization": "Bearer T1"
         }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
       }
     ],
     "expect": {
@@ -481,7 +523,9 @@
     },
     "responses": [
       {
-        "response": {}
+        "response": {
+          "token": "T1"
+        }
       },
       {
         "response": {
@@ -509,8 +553,12 @@
           "script.param": "all"
         },
         "headers": {
-          "Authorization": "Basic dTpwdw=="
+          "Authorization": "Bearer T1"
         }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
       }
     ],
     "expect": {

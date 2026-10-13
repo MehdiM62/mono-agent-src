@@ -83,7 +83,7 @@
             "status",
             "tagIds"
           ],
-          "help": "birth_date: a date; status: unconfirmed, active, inactive or removed; extraFieldsUi: {\"extraFieldValues\": [{\"field_id\", \"value\"}]}; tagIds: list of tag IDs (up to 10 are attached)"
+          "help": "birth_date: a date; status: unconfirmed, active, inactive or removed; extraFieldsUi: {\"extraFieldValues\": [{\"field_id\", \"value\"}]}; tagIds: list of tag IDs"
         }
       ],
       "body": {
@@ -100,114 +100,15 @@
       },
       "also": [
         {
-          "when": "{{ p.additionalFields.tagIds.0 }}",
           "method": "POST",
           "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
           "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.0 }}",
+            "tag_id": "{{ el }}",
             "contacts": [
               "{{ res.contact_id }}"
             ]
-          }
-        },
-        {
-          "when": "{{ p.additionalFields.tagIds.1 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.1 }}",
-            "contacts": [
-              "{{ res.contact_id }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.additionalFields.tagIds.2 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.2 }}",
-            "contacts": [
-              "{{ res.contact_id }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.additionalFields.tagIds.3 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.3 }}",
-            "contacts": [
-              "{{ res.contact_id }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.additionalFields.tagIds.4 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.4 }}",
-            "contacts": [
-              "{{ res.contact_id }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.additionalFields.tagIds.5 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.5 }}",
-            "contacts": [
-              "{{ res.contact_id }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.additionalFields.tagIds.6 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.6 }}",
-            "contacts": [
-              "{{ res.contact_id }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.additionalFields.tagIds.7 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.7 }}",
-            "contacts": [
-              "{{ res.contact_id }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.additionalFields.tagIds.8 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.8 }}",
-            "contacts": [
-              "{{ res.contact_id }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.additionalFields.tagIds.9 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.additionalFields.tagIds.9 }}",
-            "contacts": [
-              "{{ res.contact_id }}"
-            ]
-          }
+          },
+          "for_each": "{{ p.additionalFields.tagIds }}"
         }
       ],
       "output": {
@@ -391,7 +292,7 @@
             "status",
             "tagIds"
           ],
-          "help": "birth_date: a date; status: unconfirmed, active, inactive or removed; extraFieldsUi: {\"extraFieldValues\": [{\"field_id\", \"value\"}]}; tagIds: list of tag IDs (up to 10 are attached)"
+          "help": "birth_date: a date; status: unconfirmed, active, inactive or removed; extraFieldsUi: {\"extraFieldValues\": [{\"field_id\", \"value\"}]}; tagIds: list of tag IDs"
         }
       ],
       "body": {
@@ -407,114 +308,15 @@
       },
       "also": [
         {
-          "when": "{{ p.updateFields.tagIds.0 }}",
           "method": "POST",
           "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
           "body": {
-            "tag_id": "{{ p.updateFields.tagIds.0 }}",
+            "tag_id": "{{ el }}",
             "contacts": [
               "{{ p.contactId }}"
             ]
-          }
-        },
-        {
-          "when": "{{ p.updateFields.tagIds.1 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.updateFields.tagIds.1 }}",
-            "contacts": [
-              "{{ p.contactId }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.updateFields.tagIds.2 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.updateFields.tagIds.2 }}",
-            "contacts": [
-              "{{ p.contactId }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.updateFields.tagIds.3 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.updateFields.tagIds.3 }}",
-            "contacts": [
-              "{{ p.contactId }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.updateFields.tagIds.4 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.updateFields.tagIds.4 }}",
-            "contacts": [
-              "{{ p.contactId }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.updateFields.tagIds.5 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.updateFields.tagIds.5 }}",
-            "contacts": [
-              "{{ p.contactId }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.updateFields.tagIds.6 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.updateFields.tagIds.6 }}",
-            "contacts": [
-              "{{ p.contactId }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.updateFields.tagIds.7 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.updateFields.tagIds.7 }}",
-            "contacts": [
-              "{{ p.contactId }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.updateFields.tagIds.8 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.updateFields.tagIds.8 }}",
-            "contacts": [
-              "{{ p.contactId }}"
-            ]
-          }
-        },
-        {
-          "when": "{{ p.updateFields.tagIds.9 }}",
-          "method": "POST",
-          "path": "/lists/{{ p.list }}/contacts/actions/attach-tag",
-          "body": {
-            "tag_id": "{{ p.updateFields.tagIds.9 }}",
-            "contacts": [
-              "{{ p.contactId }}"
-            ]
-          }
+          },
+          "for_each": "{{ p.updateFields.tagIds }}"
         }
       ],
       "output": {

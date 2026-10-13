@@ -144,9 +144,6 @@
           "default": ""
         }
       ],
-      "n8n_param_map": {
-        "action": "operation"
-      },
       "before": {
         "method": "POST",
         "path": "/databases/{{ cred.db }}/sessions",
@@ -162,13 +159,13 @@
         }
       ],
       "query": {
-        "portal": "{{ p.getPortals | then:p.portals | json | default:'[]' }}",
-        "script": "{{ p.setScriptAfter | then:p.scriptAfter }}",
-        "script.param": "{{ p.setScriptAfter | then:p.scriptAfterParam }}",
-        "script.prerequest": "{{ p.setScriptBefore | then:p.scriptBefore }}",
-        "script.prerequest.param": "{{ p.setScriptBefore | then:p.scriptBeforeParam }}",
-        "script.presort": "{{ p.setScriptSort | then:p.scriptSort }}",
-        "script.presort.param": "{{ p.setScriptSort | then:p.scriptSortParam }}"
+        "portal": "{{ p.getPortals | eq:'true' | then:p.portals | json | default:'[]' }}",
+        "script": "{{ p.setScriptAfter | eq:'true' | then:p.scriptAfter }}",
+        "script.param": "{{ p.setScriptAfter | eq:'true' | then:p.scriptAfterParam }}",
+        "script.prerequest": "{{ p.setScriptBefore | eq:'true' | then:p.scriptBefore }}",
+        "script.prerequest.param": "{{ p.setScriptBefore | eq:'true' | then:p.scriptBeforeParam }}",
+        "script.presort": "{{ p.setScriptSort | eq:'true' | then:p.scriptSort }}",
+        "script.presort.param": "{{ p.setScriptSort | eq:'true' | then:p.scriptSortParam }}"
       }
     },
     {
@@ -178,9 +175,6 @@
       "method": "POST",
       "path": "/databases/{{ cred.db }}/sessions",
       "fields": [],
-      "n8n_param_map": {
-        "action": "operation"
-      },
       "body": {
         "$when": "{{ cred.db }}"
       },
@@ -199,10 +193,7 @@
           "type": "text",
           "required": true
         }
-      ],
-      "n8n_param_map": {
-        "action": "operation"
-      }
+      ]
     },
     {
       "resource": "",
@@ -228,9 +219,6 @@
           "help": "{\"fields\": [{\"name\", \"value\"}]}"
         }
       ],
-      "n8n_param_map": {
-        "action": "operation"
-      },
       "before": {
         "method": "POST",
         "path": "/databases/{{ cred.db }}/sessions",
@@ -270,9 +258,6 @@
           "required": true
         }
       ],
-      "n8n_param_map": {
-        "action": "operation"
-      },
       "before": {
         "method": "POST",
         "path": "/databases/{{ cred.db }}/sessions",
@@ -308,9 +293,6 @@
           "required": true
         }
       ],
-      "n8n_param_map": {
-        "action": "operation"
-      },
       "before": {
         "method": "POST",
         "path": "/databases/{{ cred.db }}/sessions",
@@ -365,9 +347,6 @@
           "help": "{\"fields\": [{\"name\", \"value\"}]}"
         }
       ],
-      "n8n_param_map": {
-        "action": "operation"
-      },
       "before": {
         "method": "POST",
         "path": "/databases/{{ cred.db }}/sessions",
@@ -516,9 +495,6 @@
           "default": ""
         }
       ],
-      "n8n_param_map": {
-        "action": "operation"
-      },
       "before": {
         "method": "POST",
         "path": "/databases/{{ cred.db }}/sessions",
@@ -544,20 +520,20 @@
         "offset": "{{ p.offset }}",
         "limit": "{{ p.limit }}",
         "layout.response": "{{ p.responseLayout }}",
-        "portal": "{{ p.getPortals | then:p.portals }}",
+        "portal": "{{ p.getPortals | eq:'true' | then:p.portals }}",
         "sort": {
-          "$map": "{{ p.setSort | then:p.sortParametersUi.rules }}",
+          "$map": "{{ p.setSort | eq:'true' | then:p.sortParametersUi.rules }}",
           "$to": {
             "fieldName": "{{ el.name }}",
             "sortOrder": "{{ el.value }}"
           }
         },
-        "script": "{{ p.setScriptAfter | then:p.scriptAfter }}",
-        "script.param": "{{ p.setScriptAfter | then:p.scriptAfterParam }}",
-        "script.prerequest": "{{ p.setScriptBefore | then:p.scriptBefore }}",
-        "script.prerequest.param": "{{ p.setScriptBefore | then:p.scriptBeforeParam }}",
-        "script.presort": "{{ p.setScriptSort | then:p.scriptSort }}",
-        "script.presort.param": "{{ p.setScriptSort | then:p.scriptSortParam }}"
+        "script": "{{ p.setScriptAfter | eq:'true' | then:p.scriptAfter }}",
+        "script.param": "{{ p.setScriptAfter | eq:'true' | then:p.scriptAfterParam }}",
+        "script.prerequest": "{{ p.setScriptBefore | eq:'true' | then:p.scriptBefore }}",
+        "script.prerequest.param": "{{ p.setScriptBefore | eq:'true' | then:p.scriptBeforeParam }}",
+        "script.presort": "{{ p.setScriptSort | eq:'true' | then:p.scriptSort }}",
+        "script.presort.param": "{{ p.setScriptSort | eq:'true' | then:p.scriptSortParam }}"
       }
     },
     {
@@ -672,9 +648,6 @@
           "default": ""
         }
       ],
-      "n8n_param_map": {
-        "action": "operation"
-      },
       "before": {
         "method": "POST",
         "path": "/databases/{{ cred.db }}/sessions",
@@ -692,22 +665,22 @@
       "query": {
         "_offset": "{{ p.offset }}",
         "_limit": "{{ p.limit }}",
-        "portal": "{{ p.getPortals | then:p.portals | json | default:'[]' }}",
+        "portal": "{{ p.getPortals | eq:'true' | then:p.portals | json | default:'[]' }}",
         "_sort": {
           "$json": {
-            "$map": "{{ p.setSort | then:p.sortParametersUi.rules }}",
+            "$map": "{{ p.setSort | eq:'true' | then:p.sortParametersUi.rules }}",
             "$to": {
               "fieldName": "{{ el.name }}",
               "sortOrder": "{{ el.value }}"
             }
           }
         },
-        "script": "{{ p.setScriptAfter | then:p.scriptAfter }}",
-        "script.param": "{{ p.setScriptAfter | then:p.scriptAfterParam }}",
-        "script.prerequest": "{{ p.setScriptBefore | then:p.scriptBefore }}",
-        "script.prerequest.param": "{{ p.setScriptBefore | then:p.scriptBeforeParam }}",
-        "script.presort": "{{ p.setScriptSort | then:p.scriptSort }}",
-        "script.presort.param": "{{ p.setScriptSort | then:p.scriptSortParam }}"
+        "script": "{{ p.setScriptAfter | eq:'true' | then:p.scriptAfter }}",
+        "script.param": "{{ p.setScriptAfter | eq:'true' | then:p.scriptAfterParam }}",
+        "script.prerequest": "{{ p.setScriptBefore | eq:'true' | then:p.scriptBefore }}",
+        "script.prerequest.param": "{{ p.setScriptBefore | eq:'true' | then:p.scriptBeforeParam }}",
+        "script.presort": "{{ p.setScriptSort | eq:'true' | then:p.scriptSort }}",
+        "script.presort.param": "{{ p.setScriptSort | eq:'true' | then:p.scriptSortParam }}"
       }
     },
     {
@@ -736,9 +709,6 @@
           "default": ""
         }
       ],
-      "n8n_param_map": {
-        "action": "operation"
-      },
       "before": {
         "method": "POST",
         "path": "/databases/{{ cred.db }}/sessions",
@@ -757,5 +727,6 @@
         "script.param": "{{ p.scriptParam }}"
       }
     }
-  ]
+  ],
+  "n8n_operation_param": "action"
 }
