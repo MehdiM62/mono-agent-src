@@ -224,6 +224,7 @@ var outboundNodes = setOf(
 	"browser.jev", // goal-driven agent in the user's browser
 	"mcp.call",    // calls any tool of an arbitrary MCP server
 	"http.ftp", "http.ssh", "system.execute_command",
+	"http.graphql",
 	"data.write_binary_file", // writes any local path
 	"vault.secret_save",      // overwrites credentials
 )
