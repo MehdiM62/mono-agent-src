@@ -1,0 +1,970 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mautic",
+  "node_type": "app.mautic",
+  "title": "Mautic",
+  "description": "Contacts, companies, campaigns, segments and emails in Mautic",
+  "category": "app",
+  "docs_url": "https://developer.mautic.org/#rest-api",
+  "n8n_types": [
+    "n8n-nodes-base.mautic"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.mauticTrigger"
+  ],
+  "base_url": "{{ cred.url }}/api",
+  "credentials": [
+    {
+      "platform": "mautic",
+      "name": "Mautic",
+      "n8n_credential": "mauticApi",
+      "n8n_field_map": {
+        "url": "url",
+        "username": "username",
+        "password": "password"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Mautic URL",
+          "required": true,
+          "help": "e.g. https://mautic.example.com (no trailing slash)"
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      }
+    },
+    {
+      "platform": "mautic_oauth",
+      "name": "Mautic (OAuth2 token)",
+      "n8n_credential": "mauticOAuth2Api",
+      "n8n_field_map": {
+        "url": "url"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Mautic URL",
+          "required": true
+        },
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "An OAuth2 access token issued by your Mautic instance"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "campaignContact",
+      "label": "Campaign Contact"
+    },
+    {
+      "value": "company",
+      "label": "Company"
+    },
+    {
+      "value": "companyContact",
+      "label": "Company Contact"
+    },
+    {
+      "value": "contactSegment",
+      "label": "Contact Segment"
+    },
+    {
+      "value": "segmentEmail",
+      "label": "Segment Email"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/contacts/new",
+      "fields": [
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "company",
+          "label": "Company",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "position",
+          "label": "Position",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "bodyJson",
+          "label": "Contact (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "Used when jsonParameters is on"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressUi",
+            "b2bOrb2c",
+            "crmId",
+            "customFieldsUi",
+            "fax",
+            "hasPurchased",
+            "ipAddress",
+            "lastActive",
+            "mobile",
+            "ownerId",
+            "phone",
+            "prospectOrCustomer",
+            "sandbox",
+            "socialMediaUi",
+            "stage",
+            "tags",
+            "website"
+          ],
+          "help": "addressUi.addressValues: {address1, address2, city, state, country, zipCode}; socialMediaUi.socialMediaValues: {facebook, foursquare, instagram, linkedIn, skype, twitter}; customFieldsUi.customFieldValues: [{fieldId, fieldValue}]; b2bOrb2c: B2B or B2C; prospectOrCustomer: Prospect or Customer"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData"
+          ],
+          "help": "rawData: false returns only the contact's field values"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.jsonParameters | eq:'true' | then:(p.bodyJson | fromjson) }}",
+          "{{ p.additionalFields.customFieldsUi.customFieldValues | kv:'fieldId,fieldValue' }}"
+        ],
+        "email": "{{ p.jsonParameters | ne:'true' | then:p.email }}",
+        "firstname": "{{ p.jsonParameters | ne:'true' | then:p.firstName }}",
+        "lastname": "{{ p.jsonParameters | ne:'true' | then:p.lastName }}",
+        "company": "{{ p.jsonParameters | ne:'true' | then:p.company }}",
+        "position": "{{ p.jsonParameters | ne:'true' | then:p.position }}",
+        "title": "{{ p.jsonParameters | ne:'true' | then:p.title }}",
+        "ipAddress": "{{ p.additionalFields.ipAddress }}",
+        "lastActive": "{{ p.additionalFields.lastActive }}",
+        "owner": "{{ p.additionalFields.ownerId }}",
+        "address1": "{{ p.additionalFields.addressUi.addressValues.address1 }}",
+        "address2": "{{ p.additionalFields.addressUi.addressValues.address2 }}",
+        "city": "{{ p.additionalFields.addressUi.addressValues.city }}",
+        "state": "{{ p.additionalFields.addressUi.addressValues.state }}",
+        "country": "{{ p.additionalFields.addressUi.addressValues.country }}",
+        "zipcode": "{{ p.additionalFields.addressUi.addressValues.zipCode }}",
+        "facebook": "{{ p.additionalFields.socialMediaUi.socialMediaValues.facebook }}",
+        "foursquare": "{{ p.additionalFields.socialMediaUi.socialMediaValues.foursquare }}",
+        "instagram": "{{ p.additionalFields.socialMediaUi.socialMediaValues.instagram }}",
+        "linkedin": "{{ p.additionalFields.socialMediaUi.socialMediaValues.linkedIn }}",
+        "skype": "{{ p.additionalFields.socialMediaUi.socialMediaValues.skype }}",
+        "twitter": "{{ p.additionalFields.socialMediaUi.socialMediaValues.twitter }}",
+        "b2b_or_b2c": "{{ p.additionalFields.b2bOrb2c }}",
+        "crm_id": "{{ p.additionalFields.crmId }}",
+        "fax": "{{ p.additionalFields.fax }}",
+        "haspurchased": "{{ p.additionalFields.hasPurchased | eq:'true' | then:true }}",
+        "mobile": "{{ p.additionalFields.mobile }}",
+        "phone": "{{ p.additionalFields.phone }}",
+        "prospect_or_customer": "{{ p.additionalFields.prospectOrCustomer }}",
+        "sandbox": "{{ p.additionalFields.sandbox | eq:'true' | then:true }}",
+        "stage": "{{ p.additionalFields.stage }}",
+        "tags": "{{ p.additionalFields.tags }}",
+        "website": "{{ p.additionalFields.website }}"
+      },
+      "output": {
+        "path": "contact",
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.options.rawData | eq:'false' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId }}/delete",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData"
+          ],
+          "help": "rawData: false returns only the contact's field values"
+        }
+      ],
+      "output": {
+        "path": "contact",
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.options.rawData | eq:'false' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "editContactPoint",
+      "title": "Add or remove contact points",
+      "method": "POST",
+      "path": "/contacts/{{ p.contactId }}/points/{{ p.action | eq:'add' | then:'plus' | default:'minus' }}/{{ p.points }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "action",
+          "label": "Action",
+          "type": "select",
+          "default": "add",
+          "options": [
+            "add",
+            "remove"
+          ]
+        },
+        {
+          "key": "points",
+          "label": "Points",
+          "type": "number",
+          "default": 0
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "editDoNotContactList",
+      "title": "Add or remove a contact from the do-not-contact list",
+      "method": "POST",
+      "path": "/contacts/{{ p.contactId }}/dnc/{{ p.channel }}/{{ p.action }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "action",
+          "label": "Action",
+          "type": "select",
+          "default": "add",
+          "options": [
+            "add",
+            "remove"
+          ]
+        },
+        {
+          "key": "channel",
+          "label": "Channel",
+          "type": "select",
+          "default": "email",
+          "options": [
+            "email",
+            "sms"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "comments",
+            "reason"
+          ],
+          "help": "reason: 1 (contacted), 2 (bounced) or 3 (manual); used when adding"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.action | eq:'add' | then:p.additionalFields }}"
+      },
+      "output": {
+        "path": "contact"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData"
+          ],
+          "help": "rawData: false returns only the contact's field values"
+        }
+      ],
+      "output": {
+        "path": "contact",
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.options.rawData | eq:'false' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetches the server's default page; full paging needs engine support for id-keyed results"
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 30,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "minimal",
+            "orderBy",
+            "orderByDir",
+            "publishedOnly",
+            "rawData",
+            "search"
+          ],
+          "help": "orderByDir: asc or desc"
+        }
+      ],
+      "query": {
+        "search": "{{ p.options.search }}",
+        "orderBy": "{{ p.options.orderBy | replace:'firstName','firstname' | replace:'lastName','lastname' }}",
+        "orderByDir": "{{ p.options.orderByDir }}",
+        "publishedOnly": "{{ p.options.publishedOnly }}",
+        "minimal": "{{ p.options.minimal }}",
+        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}",
+        "start": "{{ p.returnAll | ne:'true' | then:'0' }}"
+      },
+      "output": {
+        "path": "contacts",
+        "to": {
+          "$concat": [
+            {
+              "$map": "{{ el | entries | pluck:'value' }}",
+              "$to": "{{ p.options.rawData | eq:'false' | then:el.fields.all | default:el }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "sendEmail",
+      "title": "Send a campaign email to a contact",
+      "method": "POST",
+      "path": "/emails/{{ p.campaignEmailId }}/contact/{{ p.contactId }}/send",
+      "fields": [
+        {
+          "key": "campaignEmailId",
+          "label": "Campaign email ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PATCH",
+      "path": "/contacts/{{ p.contactId }}/edit",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressUi",
+            "b2bOrb2c",
+            "bodyJson",
+            "company",
+            "crmId",
+            "customFieldsUi",
+            "email",
+            "fax",
+            "firstName",
+            "hasPurchased",
+            "ipAddress",
+            "lastActive",
+            "lastName",
+            "mobile",
+            "ownerId",
+            "phone",
+            "position",
+            "prospectOrCustomer",
+            "sandbox",
+            "socialMediaUi",
+            "stage",
+            "tags",
+            "title",
+            "website"
+          ],
+          "help": "addressUi.addressValues: {address1, address2, city, state, country, zipCode}; socialMediaUi.socialMediaValues: {facebook, foursquare, instagram, linkedIn, skype, twitter}; customFieldsUi.customFieldValues: [{fieldId, fieldValue}]; b2bOrb2c: B2B or B2C; prospectOrCustomer: Prospect or Customer; bodyJson: contact fields as JSON"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData"
+          ],
+          "help": "rawData: false returns only the contact's field values"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.updateFields.bodyJson | fromjson }}",
+          "{{ p.updateFields.customFieldsUi.customFieldValues | kv:'fieldId,fieldValue' }}"
+        ],
+        "email": "{{ p.updateFields.email }}",
+        "firstname": "{{ p.updateFields.firstName }}",
+        "lastname": "{{ p.updateFields.lastName }}",
+        "company": "{{ p.updateFields.company }}",
+        "position": "{{ p.updateFields.position }}",
+        "title": "{{ p.updateFields.title }}",
+        "ipAddress": "{{ p.updateFields.ipAddress }}",
+        "lastActive": "{{ p.updateFields.lastActive }}",
+        "owner": "{{ p.updateFields.ownerId }}",
+        "address1": "{{ p.updateFields.addressUi.addressValues.address1 }}",
+        "address2": "{{ p.updateFields.addressUi.addressValues.address2 }}",
+        "city": "{{ p.updateFields.addressUi.addressValues.city }}",
+        "state": "{{ p.updateFields.addressUi.addressValues.state }}",
+        "country": "{{ p.updateFields.addressUi.addressValues.country }}",
+        "zipcode": "{{ p.updateFields.addressUi.addressValues.zipCode }}",
+        "facebook": "{{ p.updateFields.socialMediaUi.socialMediaValues.facebook }}",
+        "foursquare": "{{ p.updateFields.socialMediaUi.socialMediaValues.foursquare }}",
+        "instagram": "{{ p.updateFields.socialMediaUi.socialMediaValues.instagram }}",
+        "linkedin": "{{ p.updateFields.socialMediaUi.socialMediaValues.linkedIn }}",
+        "skype": "{{ p.updateFields.socialMediaUi.socialMediaValues.skype }}",
+        "twitter": "{{ p.updateFields.socialMediaUi.socialMediaValues.twitter }}",
+        "b2b_or_b2c": "{{ p.updateFields.b2bOrb2c }}",
+        "crm_id": "{{ p.updateFields.crmId }}",
+        "fax": "{{ p.updateFields.fax }}",
+        "haspurchased": "{{ p.updateFields.hasPurchased | eq:'true' | then:true }}",
+        "mobile": "{{ p.updateFields.mobile }}",
+        "phone": "{{ p.updateFields.phone }}",
+        "prospect_or_customer": "{{ p.updateFields.prospectOrCustomer }}",
+        "sandbox": "{{ p.updateFields.sandbox | eq:'true' | then:true }}",
+        "stage": "{{ p.updateFields.stage }}",
+        "tags": "{{ p.updateFields.tags }}",
+        "website": "{{ p.updateFields.website }}"
+      },
+      "output": {
+        "path": "contact",
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.options.rawData | eq:'false' }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "create",
+      "title": "Create a company",
+      "method": "POST",
+      "path": "/companies/new",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the company's field values"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressUi",
+            "annualRevenue",
+            "companyEmail",
+            "customFieldsUi",
+            "description",
+            "fax",
+            "industry",
+            "isPublished",
+            "numberOfEmpoyees",
+            "overwriteWithBlank",
+            "phone",
+            "website"
+          ],
+          "help": "addressUi.addressValues: {address1, address2, city, state, country, zipCode}; customFieldsUi.customFieldValues: [{fieldId, fieldValue}]"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.additionalFields | omit:'addressUi,customFieldsUi,companyEmail,name,fax,industry,numberOfEmpoyees,phone,website,annualRevenue,description' }}",
+          "{{ p.additionalFields.customFieldsUi.customFieldValues | kv:'fieldId,fieldValue' }}"
+        ],
+        "companyname": "{{ p.name }}",
+        "companyaddress1": "{{ p.additionalFields.addressUi.addressValues.address1 }}",
+        "companyaddress2": "{{ p.additionalFields.addressUi.addressValues.address2 }}",
+        "companycity": "{{ p.additionalFields.addressUi.addressValues.city }}",
+        "companystate": "{{ p.additionalFields.addressUi.addressValues.state }}",
+        "companycountry": "{{ p.additionalFields.addressUi.addressValues.country }}",
+        "companyzipcode": "{{ p.additionalFields.addressUi.addressValues.zipCode }}",
+        "companyemail": "{{ p.additionalFields.companyEmail }}",
+        "companyfax": "{{ p.additionalFields.fax }}",
+        "companyindustry": "{{ p.additionalFields.industry }}",
+        "companynumber_of_employees": "{{ p.additionalFields.numberOfEmpoyees | ne:'0' | then:p.additionalFields.numberOfEmpoyees }}",
+        "companyphone": "{{ p.additionalFields.phone }}",
+        "companywebsite": "{{ p.additionalFields.website }}",
+        "companyannual_revenue": "{{ p.additionalFields.annualRevenue | ne:'0' | then:p.additionalFields.annualRevenue }}",
+        "companydescription": "{{ p.additionalFields.description }}"
+      },
+      "output": {
+        "path": "company",
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "delete",
+      "title": "Delete a company",
+      "method": "DELETE",
+      "path": "/companies/{{ p.companyId }}/delete",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the company's field values"
+        }
+      ],
+      "output": {
+        "path": "company",
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "get",
+      "title": "Get a company",
+      "method": "GET",
+      "path": "/companies/{{ p.companyId }}",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the company's field values"
+        }
+      ],
+      "output": {
+        "path": "company",
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getAll",
+      "title": "Get many companies",
+      "method": "GET",
+      "path": "/companies",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetches the server's default page; full paging needs engine support for id-keyed results"
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 30,
+          "min": 1
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the company's field values"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "orderBy",
+            "orderByDir",
+            "search"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.additionalFields }}",
+        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}",
+        "start": "{{ p.returnAll | ne:'true' | then:'0' }}"
+      },
+      "output": {
+        "path": "companies",
+        "to": {
+          "$concat": [
+            {
+              "$map": "{{ el | entries | pluck:'value' }}",
+              "$to": "{{ p.simple | then:el.fields.all | default:el }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "update",
+      "title": "Update a company",
+      "method": "PATCH",
+      "path": "/companies/{{ p.companyId }}/edit",
+      "fields": [
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the company's field values"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressUi",
+            "annualRevenue",
+            "companyEmail",
+            "customFieldsUi",
+            "description",
+            "fax",
+            "industry",
+            "isPublished",
+            "name",
+            "numberOfEmpoyees",
+            "overwriteWithBlank",
+            "phone",
+            "website"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.updateFields | omit:'addressUi,customFieldsUi,companyEmail,name,fax,industry,numberOfEmpoyees,phone,website,annualRevenue,description' }}",
+          "{{ p.updateFields.customFieldsUi.customFieldValues | kv:'fieldId,fieldValue' }}"
+        ],
+        "companyname": "{{ p.updateFields.name }}",
+        "companyaddress1": "{{ p.updateFields.addressUi.addressValues.address1 }}",
+        "companyaddress2": "{{ p.updateFields.addressUi.addressValues.address2 }}",
+        "companycity": "{{ p.updateFields.addressUi.addressValues.city }}",
+        "companystate": "{{ p.updateFields.addressUi.addressValues.state }}",
+        "companycountry": "{{ p.updateFields.addressUi.addressValues.country }}",
+        "companyzipcode": "{{ p.updateFields.addressUi.addressValues.zipCode }}",
+        "companyemail": "{{ p.updateFields.companyEmail }}",
+        "companyfax": "{{ p.updateFields.fax }}",
+        "companyindustry": "{{ p.updateFields.industry }}",
+        "companynumber_of_employees": "{{ p.updateFields.numberOfEmpoyees | ne:'0' | then:p.updateFields.numberOfEmpoyees }}",
+        "companyphone": "{{ p.updateFields.phone }}",
+        "companywebsite": "{{ p.updateFields.website }}",
+        "companyannual_revenue": "{{ p.updateFields.annualRevenue | ne:'0' | then:p.updateFields.annualRevenue }}",
+        "companydescription": "{{ p.updateFields.description }}"
+      },
+      "output": {
+        "path": "company",
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "campaignContact",
+      "operation": "add",
+      "title": "Add a contact to campaign",
+      "method": "POST",
+      "path": "/campaigns/{{ p.campaignId }}/contact/{{ p.contactId }}/add",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "campaignContact",
+      "operation": "remove",
+      "title": "Remove a contact from campaign",
+      "method": "POST",
+      "path": "/campaigns/{{ p.campaignId }}/contact/{{ p.contactId }}/remove",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "companyContact",
+      "operation": "add",
+      "title": "Add a contact to company",
+      "method": "POST",
+      "path": "/companies/{{ p.companyId }}/contact/{{ p.contactId }}/add",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "companyContact",
+      "operation": "remove",
+      "title": "Remove a contact from company",
+      "method": "POST",
+      "path": "/companies/{{ p.companyId }}/contact/{{ p.contactId }}/remove",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "companyId",
+          "label": "Company ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contactSegment",
+      "operation": "add",
+      "title": "Add a contact to segment",
+      "method": "POST",
+      "path": "/segments/{{ p.segmentId }}/contact/{{ p.contactId }}/add",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "segmentId",
+          "label": "Segment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contactSegment",
+      "operation": "remove",
+      "title": "Remove a contact from segment",
+      "method": "POST",
+      "path": "/segments/{{ p.segmentId }}/contact/{{ p.contactId }}/remove",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "segmentId",
+          "label": "Segment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "segmentEmail",
+      "operation": "send",
+      "title": "Send a segment email",
+      "method": "POST",
+      "path": "/emails/{{ p.segmentEmailId }}/send",
+      "fields": [
+        {
+          "key": "segmentEmailId",
+          "label": "Segment email ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}
