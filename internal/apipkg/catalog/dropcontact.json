@@ -1,0 +1,128 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "dropcontact",
+  "node_type": "app.dropcontact",
+  "title": "Dropcontact",
+  "description": "Find and enrich B2B contact data with Dropcontact",
+  "category": "app",
+  "docs_url": "https://developer.dropcontact.com/",
+  "n8n_types": [
+    "n8n-nodes-base.dropcontact"
+  ],
+  "base_url": "https://api.dropcontact.io",
+  "credentials": [
+    {
+      "platform": "dropcontact",
+      "name": "Dropcontact",
+      "n8n_credential": "dropcontactApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Access-Token": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "enrich",
+      "title": "Submit a contact for enrichment",
+      "description": "Sends one enrichment request per item and returns its request_id; read the result later with Fetch Request (the delayed second call n8n makes when Simplify is off is not done here).",
+      "method": "POST",
+      "path": "/batch",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": false,
+          "help": "The request id is always returned; use Fetch Request for the data"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "num_siren",
+            "siret",
+            "company",
+            "country",
+            "first_name",
+            "full_name",
+            "last_name",
+            "linkedin",
+            "phone",
+            "website"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "waitTime",
+            "siren",
+            "language"
+          ],
+          "help": "siren: add French company data; language: en or fr"
+        }
+      ],
+      "body": {
+        "data": [
+          {
+            "email": "{{ p.email }}",
+            "$merge": "{{ p.additionalFields }}"
+          }
+        ],
+        "siren": "{{ p.options.siren | default:false | bool }}",
+        "language": "{{ p.options.language | default:'en' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "fetchRequest",
+      "title": "Fetch an enrichment result",
+      "method": "GET",
+      "path": "/batch/{{ p.requestId }}",
+      "fields": [
+        {
+          "key": "requestId",
+          "label": "Request ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    }
+  ]
+}

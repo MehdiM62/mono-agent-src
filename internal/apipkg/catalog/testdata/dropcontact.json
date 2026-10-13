@@ -1,0 +1,56 @@
+{
+  "contact.enrich": {
+    "params": {
+      "email": "a@b.co",
+      "additionalFields": {
+        "company": "Acme",
+        "first_name": "Ann"
+      },
+      "options": {
+        "language": "fr"
+      }
+    },
+    "response": {
+      "request_id": "r1",
+      "success": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/batch",
+      "body": {
+        "data": [
+          {
+            "email": "a@b.co",
+            "company": "Acme",
+            "first_name": "Ann"
+          }
+        ],
+        "siren": false,
+        "language": "fr"
+      },
+      "items": 1
+    }
+  },
+  "contact.fetchRequest": {
+    "params": {
+      "requestId": "r1"
+    },
+    "response": {
+      "success": true,
+      "data": [
+        {
+          "email": [
+            {
+              "email": "a@b.co"
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/batch/r1",
+      "items": 1
+    }
+  }
+}
