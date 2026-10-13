@@ -1,0 +1,840 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "next_cloud",
+  "title": "Nextcloud",
+  "description": "Files, folders, shares and users on a Nextcloud server (WebDAV and OCS APIs)",
+  "category": "app",
+  "docs_url": "https://docs.nextcloud.com/server/latest/developer_manual/client_apis/",
+  "n8n_types": [
+    "n8n-nodes-base.nextCloud"
+  ],
+  "base_url": "{{ cred.web_dav_url }}",
+  "credentials": [
+    {
+      "platform": "nextcloud",
+      "name": "Nextcloud",
+      "n8n_credential": "nextCloudApi",
+      "n8n_field_map": {
+        "webDavUrl": "web_dav_url",
+        "user": "user",
+        "password": "password"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "web_dav_url",
+          "label": "WebDAV URL",
+          "required": true,
+          "help": "https://cloud.example.com/remote.php/webdav (no trailing slash)"
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "App password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.user }}",
+          "password": "{{ cred.password }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "folder",
+      "label": "Folder"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a file",
+      "method": "PUT",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Destination file path, e.g. /invoices/2024.pdf"
+        },
+        {
+          "key": "binaryDataUpload",
+          "label": "Upload binary data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "fileContent",
+          "label": "File content",
+          "type": "textarea",
+          "default": "",
+          "help": "Text to upload when Upload binary data is off."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_text": "{{ p.binaryDataUpload | ne:'true' | then:p.fileContent }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "copy",
+      "title": "Copy a file",
+      "method": "COPY",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "headers": {
+        "Destination": "{{ cred.web_dav_url }}/{{ p.toPath | re:'^/?(.*)$' }}",
+        "Overwrite": "F"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        },
+        {
+          "key": "toPath",
+          "label": "To path",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file",
+      "method": "DELETE",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "download",
+      "title": "Download a file",
+      "method": "GET",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName",
+        "file_name": "{{ p.path }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "move",
+      "title": "Move a file",
+      "method": "MOVE",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "headers": {
+        "Destination": "{{ cred.web_dav_url }}/{{ p.toPath | re:'^/?(.*)$' }}",
+        "Overwrite": "F"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        },
+        {
+          "key": "toPath",
+          "label": "To path",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "share",
+      "title": "Share a file",
+      "method": "POST",
+      "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
+      "path": "/ocs/v2.php/apps/files_sharing/api/v1/shares",
+      "description": "Share types: 0 user, 1 group, 3 public link, 4 email, 7 circle. The internal-link type (200) is not supported.",
+      "headers": {
+        "OCS-APIRequest": "true"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        },
+        {
+          "key": "shareType",
+          "label": "Share type",
+          "type": "number",
+          "default": 0,
+          "help": "0 user, 1 group, 3 public link, 4 email, 7 circle"
+        },
+        {
+          "key": "circleId",
+          "label": "Circle ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "password",
+            "permissions"
+          ],
+          "help": "permissions: 1 read, 2 update, 4 create, 8 delete, 31 all; password: public links only."
+        }
+      ],
+      "body": {
+        "path": "{{ p.path }}",
+        "shareType": "{{ p.shareType }}",
+        "shareWith": "{{ p.shareType | eq:'0' | then:p.user }}{{ p.shareType | eq:'7' | then:p.circleId }}{{ p.shareType | eq:'4' | then:p.email }}{{ p.shareType | eq:'1' | then:p.groupId }}",
+        "$merge": "{{ p.options }}"
+      },
+      "output": {
+        "path": "ocs.data"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "create",
+      "title": "Create a folder",
+      "method": "MKCOL",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "copy",
+      "title": "Copy a folder",
+      "method": "COPY",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "headers": {
+        "Destination": "{{ cred.web_dav_url }}/{{ p.toPath | re:'^/?(.*)$' }}",
+        "Overwrite": "F"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        },
+        {
+          "key": "toPath",
+          "label": "To path",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "delete",
+      "title": "Delete a folder",
+      "method": "DELETE",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "list",
+      "title": "List a folder's contents",
+      "method": "PROPFIND",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "headers": {
+        "Depth": "1"
+      },
+      "description": "The first entry is the folder itself.",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "output": {
+        "path": "multistatus.response",
+        "to": {
+          "path": "{{ el.href | re:'/remote\\.php/webdav/(.*)$' }}",
+          "lastModified": "{{ el.propstat.prop.getlastmodified }}",
+          "contentLength": "{{ el.propstat.prop.getcontentlength }}",
+          "contentType": "{{ el.propstat.prop.getcontenttype }}",
+          "type": "{{ el.propstat.prop.resourcetype | then:'folder' | default:'file' }}",
+          "eTag": "{{ el.propstat.prop.getetag | replace:'\"','' }}"
+        }
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "move",
+      "title": "Move a folder",
+      "method": "MOVE",
+      "path": "/{{ p.path | re:'^/?(.*)$' | path }}",
+      "headers": {
+        "Destination": "{{ cred.web_dav_url }}/{{ p.toPath | re:'^/?(.*)$' }}",
+        "Overwrite": "F"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        },
+        {
+          "key": "toPath",
+          "label": "To path",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "folder",
+      "operation": "share",
+      "title": "Share a folder",
+      "method": "POST",
+      "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
+      "path": "/ocs/v2.php/apps/files_sharing/api/v1/shares",
+      "description": "Share types: 0 user, 1 group, 3 public link, 4 email, 7 circle. The internal-link type (200) is not supported.",
+      "headers": {
+        "OCS-APIRequest": "true"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": ""
+        },
+        {
+          "key": "shareType",
+          "label": "Share type",
+          "type": "number",
+          "default": 0,
+          "help": "0 user, 1 group, 3 public link, 4 email, 7 circle"
+        },
+        {
+          "key": "circleId",
+          "label": "Circle ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "password",
+            "permissions"
+          ],
+          "help": "permissions: 1 read, 2 update, 4 create, 8 delete, 31 all; password: public links only."
+        }
+      ],
+      "body": {
+        "path": "{{ p.path }}",
+        "shareType": "{{ p.shareType }}",
+        "shareWith": "{{ p.shareType | eq:'0' | then:p.user }}{{ p.shareType | eq:'7' | then:p.circleId }}{{ p.shareType | eq:'4' | then:p.email }}{{ p.shareType | eq:'1' | then:p.groupId }}",
+        "$merge": "{{ p.options }}"
+      },
+      "output": {
+        "path": "ocs.data"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
+      "path": "/ocs/v1.php/cloud/users",
+      "headers": {
+        "OCS-APIRequest": "true"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "userId",
+          "label": "Username",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "displayName"
+          ]
+        }
+      ],
+      "body": {
+        "userid": "{{ p.userId }}",
+        "email": "{{ p.email }}",
+        "displayName": "{{ p.additionalFields.displayName }}"
+      },
+      "output": {
+        "path": "ocs.data"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
+      "path": "/ocs/v1.php/cloud/users/{{ p.userId }}",
+      "headers": {
+        "OCS-APIRequest": "true"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "userId",
+          "label": "Username",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "ocs.meta"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
+      "path": "/ocs/v1.php/cloud/users/{{ p.userId }}",
+      "headers": {
+        "OCS-APIRequest": "true"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "userId",
+          "label": "Username",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "ocs.data"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
+      "path": "/ocs/v1.php/cloud/users",
+      "headers": {
+        "OCS-APIRequest": "true"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "search",
+            "offset"
+          ]
+        }
+      ],
+      "query": {
+        "search": "{{ p.options.search }}",
+        "offset": "{{ p.options.offset }}",
+        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+      },
+      "output": {
+        "from": "{{ res.ocs.data.users.element | split }}",
+        "to": {
+          "id": "{{ el }}"
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "PUT",
+      "base_url": "{{ cred.web_dav_url | replace:'/remote.php/webdav','' }}",
+      "path": "/ocs/v1.php/cloud/users/{{ p.userId }}",
+      "headers": {
+        "OCS-APIRequest": "true"
+      },
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "accessToken",
+          "options": [
+            "accessToken",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "userId",
+          "label": "Username",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "field"
+          ],
+          "help": "{\"field\": {\"key\": \"email\", \"value\": \"a@b.c\"}}; key is address, displayname, email, password, twitter or website."
+        }
+      ],
+      "body": {
+        "key": "{{ p.updateFields.field.key }}",
+        "value": "{{ p.updateFields.field.value }}"
+      },
+      "output": {
+        "path": "ocs.meta"
+      }
+    }
+  ]
+}

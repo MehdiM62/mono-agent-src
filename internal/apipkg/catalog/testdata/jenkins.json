@@ -1,0 +1,199 @@
+{
+  "job.trigger": {
+    "params": {
+      "job": "deploy"
+    },
+    "credential": {
+      "base_url": "https://ci.example.com/",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/job/deploy/build",
+      "items": 1
+    }
+  },
+  "job.triggerParams": {
+    "params": {
+      "job": "deploy",
+      "param": {
+        "params": [
+          {
+            "name": "ENV",
+            "value": "prod"
+          },
+          {
+            "name": "TAG",
+            "value": "v1"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/job/deploy/buildWithParameters",
+      "body": {
+        "ENV": "prod",
+        "TAG": "v1"
+      },
+      "items": 1
+    }
+  },
+  "job.copy": {
+    "params": {
+      "job": "deploy",
+      "newJob": "deploy-2"
+    },
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/createItem",
+      "query": {
+        "name": "deploy-2",
+        "mode": "copy",
+        "from": "deploy"
+      },
+      "items": 1
+    }
+  },
+  "job.create": {
+    "params": {
+      "newJob": "new",
+      "xml": "<project/>"
+    },
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/createItem",
+      "query": {
+        "name": "new"
+      },
+      "body": "<project/>",
+      "headers": {
+        "Content-Type": "application/xml"
+      },
+      "items": 1
+    }
+  },
+  "build.getAll": {
+    "params": {
+      "job": "deploy",
+      "limit": 5
+    },
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "response": {
+      "builds": [
+        {
+          "number": 2
+        },
+        {
+          "number": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/job/deploy/api/json",
+      "query": {
+        "tree": "builds[*]{0,5}"
+      },
+      "items": 2
+    }
+  },
+  "instance.safeRestart": {
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/safeRestart",
+      "items": 1
+    }
+  },
+  "instance.cancelQuietDown": {
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/cancelQuietDown",
+      "items": 1
+    }
+  },
+  "instance.quietDown": {
+    "params": {
+      "reason": "maintenance"
+    },
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/quietDown",
+      "query": {
+        "reason": "maintenance"
+      },
+      "items": 1
+    }
+  },
+  "instance.restart": {
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/restart",
+      "items": 1
+    }
+  },
+  "instance.safeExit": {
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/safeExit",
+      "items": 1
+    }
+  },
+  "instance.exit": {
+    "credential": {
+      "base_url": "https://ci.example.com",
+      "username": "u",
+      "api_token": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/exit",
+      "items": 1
+    }
+  }
+}

@@ -1,0 +1,228 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mailer_lite",
+  "node_type": "app.mailer_lite",
+  "title": "MailerLite",
+  "description": "Create, get, list and update subscribers in MailerLite",
+  "category": "app",
+  "docs_url": "https://developers.mailerlite.com/docs/",
+  "n8n_types": [
+    "n8n-nodes-base.mailerLite"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.mailerLiteTrigger"
+  ],
+  "base_url": "{{ cred.classic_api | eq:'true' | then:'https://api.mailerlite.com/api/v2' | default:'https://connect.mailerlite.com/api' }}",
+  "credentials": [
+    {
+      "platform": "mailerlite",
+      "name": "MailerLite",
+      "n8n_credential": "mailerLiteApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "classicApi": "classic_api"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "classic_api",
+          "label": "Classic API",
+          "help": "true for a MailerLite Classic key (api.mailerlite.com); empty or false for the new connect API"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.classic_api | ne:'true' | then:(cred.api_key | prefix:'Bearer ') }}",
+          "X-MailerLite-ApiKey": "{{ cred.classic_api | eq:'true' | then:cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "subscriber",
+      "label": "Subscriber"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "subscriber",
+      "operation": "create",
+      "title": "Create or update a subscriber",
+      "method": "POST",
+      "path": "/subscribers",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "confirmation_ip",
+            "confirmation_timestamp",
+            "customFieldsUi",
+            "ip_address",
+            "name",
+            "opted_in_at",
+            "optin_ip",
+            "resubscribe",
+            "signup_ip",
+            "signup_timestamp",
+            "status",
+            "subscribed_at",
+            "type",
+            "unsubscribed_at"
+          ],
+          "help": "connect API: status, subscribed_at, ip_address, opted_in_at, optin_ip, unsubscribed_at; classic API: name, type, resubscribe, signup_ip, signup_timestamp, confirmation_ip, confirmation_timestamp; customFieldsUi.customFieldsValues: [{fieldId, value}]"
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "$merge": "{{ p.additionalFields | omit:'customFieldsUi' }}",
+        "fields": "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "subscriber",
+      "operation": "get",
+      "title": "Get a subscriber",
+      "method": "GET",
+      "path": "/subscribers/{{ p.subscriberId }}",
+      "fields": [
+        {
+          "key": "subscriberId",
+          "label": "Subscriber ID or email",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "subscriber",
+      "operation": "getAll",
+      "title": "Get many subscribers",
+      "method": "GET",
+      "path": "/subscribers",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status",
+            "type"
+          ],
+          "help": "status (connect API) or type (classic API): active, unsubscribed, bounced, junk or unconfirmed"
+        }
+      ],
+      "query": {
+        "filter[status]": "{{ p.filters.status }}",
+        "type": "{{ p.filters.type }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "meta.next_cursor",
+        "limit_param": "limit",
+        "page_size": 1000,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "subscriber",
+      "operation": "update",
+      "title": "Update a subscriber",
+      "method": "PUT",
+      "path": "/subscribers/{{ p.subscriberId }}",
+      "fields": [
+        {
+          "key": "subscriberId",
+          "label": "Subscriber ID or email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "confirmation_ip",
+            "confirmation_timestamp",
+            "customFieldsUi",
+            "ip_address",
+            "name",
+            "opted_in_at",
+            "optin_ip",
+            "resubscribe",
+            "signup_ip",
+            "signup_timestamp",
+            "status",
+            "subscribed_at",
+            "type",
+            "unsubscribed_at"
+          ],
+          "help": "connect API: status, subscribed_at, ip_address, opted_in_at, optin_ip, unsubscribed_at; classic API: name, type, resubscribe, signup_ip, signup_timestamp, confirmation_ip, confirmation_timestamp; customFieldsUi.customFieldsValues: [{fieldId, value}]"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields (classic API)",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "name",
+            "resend_autoresponders",
+            "type"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.additionalFields | omit:'customFieldsUi' }}",
+          "{{ p.updateFields | omit:'customFieldsUi' }}"
+        ],
+        "fields": {
+          "$merge": [
+            "{{ p.additionalFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}",
+            "{{ p.updateFields.customFieldsUi.customFieldsValues | kv:'fieldId,value' }}"
+          ]
+        }
+      }
+    }
+  ]
+}

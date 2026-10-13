@@ -1,0 +1,838 @@
+{
+  "account.create": {
+    "params": {
+      "name": "Acme",
+      "additionalFields": {
+        "city": "X"
+      }
+    },
+    "response": {
+      "sales_account": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/sales/api/sales_accounts",
+      "body": {
+        "name": "Acme",
+        "city": "X"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "account.delete": {
+    "params": {
+      "accountId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/sales/api/sales_accounts/5"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "account.get": {
+    "params": {
+      "accountId": "5"
+    },
+    "response": {
+      "sales_account": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/sales_accounts/5",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "account.update": {
+    "params": {
+      "accountId": "5",
+      "updateFields": {
+        "phone": "1"
+      }
+    },
+    "response": {
+      "sales_account": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/sales/api/sales_accounts/5",
+      "body": {
+        "phone": "1"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "account.getAll": {
+    "params": {
+      "view": "9",
+      "limit": 3
+    },
+    "response": {
+      "sales_accounts": [
+        {
+          "id": 1
+        }
+      ],
+      "meta": {
+        "total_pages": 1
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/sales_accounts/view/9",
+      "query": {
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "appointment.create": {
+    "params": {
+      "title": "M",
+      "fromDate": "2024-05-01T10:00:00Z",
+      "endDate": "2024-05-01T11:00:00Z",
+      "attendees": {
+        "attendee": [
+          {
+            "type": "contact",
+            "contactId": 7
+          },
+          {
+            "type": "user",
+            "userId": 8
+          }
+        ]
+      }
+    },
+    "response": {
+      "appointment": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/sales/api/appointments",
+      "body": {
+        "title": "M",
+        "from_date": "2024-05-01T10:00:00Z",
+        "end_date": "2024-05-01T11:00:00Z",
+        "appointment_attendees_attributes": [
+          {
+            "attendee_type": "Contact",
+            "attendee_id": "7"
+          },
+          {
+            "attendee_type": "FdMultitenant::User",
+            "attendee_id": "8"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "appointment.delete": {
+    "params": {
+      "appointmentId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/sales/api/appointments/5"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "appointment.get": {
+    "params": {
+      "appointmentId": "5"
+    },
+    "response": {
+      "appointment": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/appointments/5",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "appointment.update": {
+    "params": {
+      "appointmentId": "5",
+      "updateFields": {
+        "fromDate": "2024-05-02T10:00:00Z",
+        "location": "Room"
+      }
+    },
+    "response": {
+      "appointment": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/sales/api/appointments/5",
+      "body": {
+        "from_date": "2024-05-02T10:00:00Z",
+        "location": "Room"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "appointment.getAll": {
+    "params": {
+      "returnAll": true,
+      "filters": {
+        "filter": "past",
+        "include": [
+          "creater"
+        ]
+      }
+    },
+    "response": {
+      "appointments": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/appointments",
+      "query": {
+        "filter": "past",
+        "include": "creater",
+        "page": "1",
+        "per_page": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "contact.create": {
+    "params": {
+      "firstName": "A",
+      "lastName": "B",
+      "emails": "a@x",
+      "additionalFields": {
+        "sales_accounts": [
+          "11",
+          "12"
+        ]
+      }
+    },
+    "response": {
+      "contact": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/sales/api/contacts",
+      "body": {
+        "first_name": "A",
+        "last_name": "B",
+        "emails": "a@x",
+        "sales_accounts": [
+          {
+            "id": "11",
+            "is_primary": true
+          },
+          {
+            "id": "12",
+            "is_primary": false
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/sales/api/contacts/5"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "5"
+    },
+    "response": {
+      "contact": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/contacts/5",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "5",
+      "updateFields": {
+        "job_title": "E"
+      }
+    },
+    "response": {
+      "contact": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/sales/api/contacts/5",
+      "body": {
+        "job_title": "E"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "view": "3"
+    },
+    "response": {
+      "contacts": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/contacts/view/3",
+      "query": {
+        "page": "1",
+        "per_page": "50"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "deal.create": {
+    "params": {
+      "name": "D",
+      "amount": 100
+    },
+    "response": {
+      "deal": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/sales/api/deals",
+      "body": {
+        "name": "D",
+        "amount": 100
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "deal.delete": {
+    "params": {
+      "dealId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/sales/api/deals/5"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "deal.get": {
+    "params": {
+      "dealId": "5"
+    },
+    "response": {
+      "deal": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/deals/5",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "deal.update": {
+    "params": {
+      "dealId": "5",
+      "updateFields": {
+        "probability": 50
+      }
+    },
+    "response": {
+      "deal": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/sales/api/deals/5",
+      "body": {
+        "probability": 50
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "deal.getAll": {
+    "params": {
+      "view": "3"
+    },
+    "response": {
+      "deals": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/deals/view/3",
+      "query": {
+        "page": "1",
+        "per_page": "50"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "note.create": {
+    "params": {
+      "description": "hi",
+      "targetable_id": "4"
+    },
+    "response": {
+      "note": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/sales/api/notes",
+      "body": {
+        "description": "hi",
+        "targetable_id": "4",
+        "targetable_type": "Contact"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "note.delete": {
+    "params": {
+      "noteId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/sales/api/notes/5"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "note.update": {
+    "params": {
+      "noteId": "5",
+      "updateFields": {
+        "description": "x"
+      }
+    },
+    "response": {
+      "note": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/sales/api/notes/5",
+      "body": {
+        "description": "x"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "salesActivity.create": {
+    "params": {
+      "sales_activity_type_id": "1",
+      "title": "T",
+      "ownerId": "2",
+      "from_date": "2024-05-01T10:00:00Z",
+      "end_date": "2024-05-01T11:00:00Z",
+      "targetableType": "Deal",
+      "targetable_id": "3"
+    },
+    "response": {
+      "sales_activity": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/sales/api/sales_activities",
+      "body": {
+        "sales_activity": {
+          "sales_activity_type_id": "1",
+          "title": "T",
+          "owner_id": "2",
+          "start_date": "2024-05-01T10:00:00Z",
+          "end_date": "2024-05-01T11:00:00Z",
+          "targetable_type": "Deal",
+          "targetable_id": "3"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "salesActivity.delete": {
+    "params": {
+      "salesActivityId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/sales/api/sales_activities/5"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "salesActivity.get": {
+    "params": {
+      "salesActivityId": "5"
+    },
+    "response": {
+      "sales_activity": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/sales_activities/5",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "salesActivity.update": {
+    "params": {
+      "salesActivityId": "5",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "sales_activity": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/sales/api/sales_activities/5",
+      "body": {
+        "notes": "n"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "salesActivity.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "response": {
+      "sales_activities": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/sales_activities",
+      "query": {
+        "page": "1",
+        "per_page": "2"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "search.query": {
+    "params": {
+      "query": "ada",
+      "entities": [
+        "contact",
+        "deal"
+      ],
+      "limit": 1
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/search",
+      "query": {
+        "q": "ada",
+        "include": "contact,deal",
+        "per_page": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "search.lookup": {
+    "params": {
+      "searchField": "customField",
+      "customFieldName": "cf_x",
+      "customFieldValue": "v",
+      "options": {
+        "entities": [
+          "contact"
+        ]
+      }
+    },
+    "response": {
+      "contacts": {}
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/lookup",
+      "query": {
+        "q": "v",
+        "f": "cf_x",
+        "entities": "contact"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "task.create": {
+    "params": {
+      "title": "T",
+      "dueDate": "2024-05-01T10:00:00Z",
+      "ownerId": "2",
+      "targetable_id": "3"
+    },
+    "response": {
+      "task": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/sales/api/tasks",
+      "body": {
+        "title": "T",
+        "owner_id": "2",
+        "due_date": "2024-05-01T10:00:00Z",
+        "targetable_type": "Contact",
+        "targetable_id": "3"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "task.delete": {
+    "params": {
+      "taskId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/sales/api/tasks/5"
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "task.get": {
+    "params": {
+      "taskId": "5"
+    },
+    "response": {
+      "task": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/tasks/5",
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "task.update": {
+    "params": {
+      "taskId": "5",
+      "updateFields": {
+        "dueDate": "2024-06-01T00:00:00Z"
+      }
+    },
+    "response": {
+      "task": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/sales/api/tasks/5",
+      "body": {
+        "due_date": "2024-06-01T00:00:00Z"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "tasks": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/sales/api/tasks",
+      "query": {
+        "filter": "open",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "domain": "acme",
+      "api_key": "k"
+    }
+  }
+}

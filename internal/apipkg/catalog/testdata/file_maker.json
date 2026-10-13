@@ -1,0 +1,569 @@
+{
+  "record": {
+    "params": {
+      "layout": "Contacts",
+      "recid": 7,
+      "setScriptAfter": true,
+      "scriptAfter": "Log",
+      "scriptAfterParam": "x"
+    },
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "response": {
+          "token": "T1"
+        }
+      },
+      {
+        "response": {
+          "data": [
+            {
+              "recordId": "1"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/sessions",
+        "body": {},
+        "headers": {
+          "Authorization": "Basic dTpwdw=="
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records/7",
+        "query": {
+          "portal": "[]",
+          "script": "Log",
+          "script.param": "x"
+        },
+        "headers": {
+          "Authorization": "Bearer T1"
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records/7"
+    }
+  },
+  "login": {
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "response": {
+      "response": {
+        "token": "T1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/fmi/data/v1/databases/db1/sessions",
+      "body": {},
+      "headers": {
+        "Authorization": "Basic dTpwdw=="
+      }
+    }
+  },
+  "logout": {
+    "params": {
+      "token": "T1"
+    },
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/fmi/data/v1/databases/db1/sessions/T1"
+    }
+  },
+  "create": {
+    "params": {
+      "layout": "Contacts",
+      "fieldsParametersUi": {
+        "fields": [
+          {
+            "name": "Name",
+            "value": "Ann"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "response": {
+          "token": "T1"
+        }
+      },
+      {
+        "response": {
+          "data": [
+            {
+              "recordId": "1"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/sessions",
+        "body": {},
+        "headers": {
+          "Authorization": "Basic dTpwdw=="
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records",
+        "body": {
+          "fieldData": {
+            "Name": "Ann"
+          },
+          "portalData": {}
+        },
+        "headers": {
+          "Authorization": "Bearer T1"
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records"
+    }
+  },
+  "delete": {
+    "params": {
+      "layout": "Contacts",
+      "recid": 7
+    },
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "response": {
+          "token": "T1"
+        }
+      },
+      {
+        "response": {
+          "data": [
+            {
+              "recordId": "1"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/sessions",
+        "body": {},
+        "headers": {
+          "Authorization": "Basic dTpwdw=="
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records/7",
+        "headers": {
+          "Authorization": "Bearer T1"
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records/7"
+    }
+  },
+  "duplicate": {
+    "params": {
+      "layout": "Contacts",
+      "recid": 7
+    },
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "response": {
+          "token": "T1"
+        }
+      },
+      {
+        "response": {
+          "data": [
+            {
+              "recordId": "1"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/sessions",
+        "body": {},
+        "headers": {
+          "Authorization": "Basic dTpwdw=="
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records/7",
+        "body": {
+          "fieldData": {}
+        },
+        "headers": {
+          "Authorization": "Bearer T1"
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records/7"
+    }
+  },
+  "edit": {
+    "params": {
+      "layout": "Contacts",
+      "recid": 7,
+      "modId": 3,
+      "fieldsParametersUi": {
+        "fields": [
+          {
+            "name": "Name",
+            "value": "Bo"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "response": {
+          "token": "T1"
+        }
+      },
+      {
+        "response": {
+          "data": [
+            {
+              "recordId": "1"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/sessions",
+        "body": {},
+        "headers": {
+          "Authorization": "Basic dTpwdw=="
+        }
+      },
+      {
+        "method": "PATCH",
+        "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records/7",
+        "body": {
+          "fieldData": {
+            "Name": "Bo"
+          },
+          "portalData": {},
+          "modId": "3"
+        },
+        "headers": {
+          "Authorization": "Bearer T1"
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
+      }
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records/7"
+    }
+  },
+  "find": {
+    "params": {
+      "layout": "Contacts",
+      "limit": 10,
+      "getPortals": true,
+      "portals": [
+        "Orders"
+      ],
+      "setSort": true,
+      "sortParametersUi": {
+        "rules": [
+          {
+            "name": "Name",
+            "value": "descend"
+          }
+        ]
+      },
+      "queries": {
+        "query": [
+          {
+            "fields": {
+              "field": [
+                {
+                  "name": "City",
+                  "value": "Oslo"
+                }
+              ]
+            },
+            "omit": false
+          }
+        ]
+      }
+    },
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "response": {
+          "token": "T1"
+        }
+      },
+      {
+        "response": {
+          "data": [
+            {
+              "recordId": "1"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/sessions",
+        "body": {},
+        "headers": {
+          "Authorization": "Basic dTpwdw=="
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/layouts/Contacts/_find",
+        "body": {
+          "query": [
+            {
+              "City": "Oslo",
+              "omit": "false"
+            }
+          ],
+          "offset": 1,
+          "limit": 10,
+          "portal": [
+            "Orders"
+          ],
+          "sort": [
+            {
+              "fieldName": "Name",
+              "sortOrder": "descend"
+            }
+          ]
+        },
+        "headers": {
+          "Authorization": "Bearer T1"
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/fmi/data/v1/databases/db1/layouts/Contacts/_find"
+    }
+  },
+  "records": {
+    "params": {
+      "layout": "Contacts",
+      "offset": 1,
+      "limit": 20,
+      "setSort": true,
+      "sortParametersUi": {
+        "rules": [
+          {
+            "name": "Name",
+            "value": "ascend"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "response": {
+          "token": "T1"
+        }
+      },
+      {
+        "response": {
+          "data": [
+            {
+              "recordId": "1"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/sessions",
+        "body": {},
+        "headers": {
+          "Authorization": "Basic dTpwdw=="
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records",
+        "query": {
+          "_offset": "1",
+          "_limit": "20",
+          "portal": "[]",
+          "_sort": "[{\"fieldName\":\"Name\",\"sortOrder\":\"ascend\"}]"
+        },
+        "headers": {
+          "Authorization": "Bearer T1"
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/fmi/data/v1/databases/db1/layouts/Contacts/records"
+    }
+  },
+  "performscript": {
+    "params": {
+      "layout": "Contacts",
+      "script": "Cleanup",
+      "scriptParam": "all"
+    },
+    "credential": {
+      "host": "fm.example.com",
+      "db": "db1",
+      "login": "u",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "response": {
+          "token": "T1"
+        }
+      },
+      {
+        "response": {
+          "data": [
+            {
+              "recordId": "1"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/fmi/data/v1/databases/db1/sessions",
+        "body": {},
+        "headers": {
+          "Authorization": "Basic dTpwdw=="
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/fmi/data/v1/databases/db1/layouts/Contacts/script/Cleanup",
+        "query": {
+          "script.param": "all"
+        },
+        "headers": {
+          "Authorization": "Bearer T1"
+        }
+      },
+      {
+        "method": "DELETE",
+        "path": "/fmi/data/v1/databases/db1/sessions/T1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/fmi/data/v1/databases/db1/layouts/Contacts/script/Cleanup"
+    }
+  }
+}

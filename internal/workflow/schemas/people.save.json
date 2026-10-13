@@ -25,5 +25,37 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the resolved username",
+      "key": "platform_username",
+      "type": "string"
+    },
+    {
+      "description": "platform (upper case)",
+      "key": "platform",
+      "type": "string"
+    },
+    {
+      "description": "profile URL, when known",
+      "key": "profile_url",
+      "type": "string"
+    },
+    {
+      "description": "review state, when set",
+      "key": "category",
+      "type": "string"
+    },
+    {
+      "description": "DM draft, when set",
+      "key": "introduction",
+      "type": "string"
+    }
   ]
 }

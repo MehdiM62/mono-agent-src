@@ -1,0 +1,913 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "currents",
+  "node_type": "app.currents",
+  "title": "Currents",
+  "description": "Runs, actions, projects and test analytics on Currents",
+  "category": "app",
+  "docs_url": "https://docs.currents.dev/resources/api",
+  "n8n_types": [
+    "n8n-nodes-base.currents"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.currentsTrigger"
+  ],
+  "base_url": "https://api.currents.dev/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "currents",
+      "name": "Currents",
+      "n8n_credential": "currentsApi",
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Currents dashboard: Organization settings → API keys"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "run",
+      "label": "Run"
+    },
+    {
+      "value": "action",
+      "label": "Action"
+    },
+    {
+      "value": "instance",
+      "label": "Instance"
+    },
+    {
+      "value": "project",
+      "label": "Project"
+    },
+    {
+      "value": "signature",
+      "label": "Signature"
+    },
+    {
+      "value": "specFile",
+      "label": "Spec File"
+    },
+    {
+      "value": "test",
+      "label": "Test"
+    },
+    {
+      "value": "testResult",
+      "label": "Test Result"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "run",
+      "operation": "getAll",
+      "title": "Get many runs",
+      "method": "GET",
+      "path": "/projects/{{ p.projectId | rl }}/runs",
+      "query": {
+        "projectId": "{{ p.projectId | rl }}",
+        "limit": "{{ p.limit }}",
+        "completion_state[]": "{{ p.filters.completionState }}",
+        "date_end": "{{ p.filters.dateEnd }}",
+        "date_start": "{{ p.filters.dateStart }}",
+        "search": "{{ p.filters.search }}",
+        "status[]": "{{ p.filters.status }}",
+        "tag_operator": "{{ p.filters.tagOperator }}",
+        "starting_after": "{{ p.options.startingAfter }}",
+        "ending_before": "{{ p.options.endingBefore }}",
+        "authors[]": "{{ p.filters.authors | split }}",
+        "branches[]": "{{ p.filters.branches | split }}",
+        "tags[]": "{{ p.filters.tags | split }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 50
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authors",
+            "branches",
+            "completionState",
+            "dateEnd",
+            "dateStart",
+            "search",
+            "status",
+            "tagOperator",
+            "tags"
+          ],
+          "help": "authors, branches, groups, tags: comma-separated lists"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "startingAfter",
+            "endingBefore"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "run",
+      "operation": "cancel",
+      "title": "Cancel a run",
+      "method": "PUT",
+      "path": "/runs/{{ p.runId }}/cancel",
+      "fields": [
+        {
+          "key": "runId",
+          "label": "Run ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "run",
+      "operation": "cancelGithub",
+      "title": "Cancel a run by GitHub CI",
+      "method": "PUT",
+      "path": "/runs/cancel-ci/github",
+      "body": {
+        "githubRunId": "{{ p.githubRunId }}",
+        "githubRunAttempt": "{{ p.githubRunAttempt }}",
+        "$merge": "{{ p.cancelGithubOptions }}"
+      },
+      "fields": [
+        {
+          "key": "githubRunId",
+          "label": "GitHub run ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "githubRunAttempt",
+          "label": "GitHub run attempt",
+          "type": "number",
+          "required": true,
+          "default": 1
+        },
+        {
+          "key": "cancelGithubOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "projectId",
+            "ciBuildId"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "run",
+      "operation": "delete",
+      "title": "Delete a run",
+      "method": "DELETE",
+      "path": "/runs/{{ p.runId }}",
+      "fields": [
+        {
+          "key": "runId",
+          "label": "Run ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "run",
+      "operation": "find",
+      "title": "Find a run",
+      "method": "GET",
+      "path": "/runs/find",
+      "query": {
+        "projectId": "{{ p.projectId | rl }}",
+        "branch": "{{ p.filters.branch }}",
+        "ciBuildId": "{{ p.filters.ciBuildId }}",
+        "tags[]": "{{ p.filters.tags | split }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "branch",
+            "ciBuildId",
+            "tags"
+          ],
+          "help": "authors, branches, groups, tags: comma-separated lists"
+        }
+      ]
+    },
+    {
+      "resource": "run",
+      "operation": "get",
+      "title": "Get a run",
+      "method": "GET",
+      "path": "/runs/{{ p.runId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "runId",
+          "label": "Run ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "run",
+      "operation": "reset",
+      "title": "Reset a run",
+      "method": "PUT",
+      "path": "/runs/{{ p.runId }}/reset",
+      "body": {
+        "machineId": "{{ p.machineIds | split }}",
+        "isBatchedOr8n": "{{ p.resetOptions.isBatchedOr8n }}"
+      },
+      "fields": [
+        {
+          "key": "runId",
+          "label": "Run ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "machineIds",
+          "label": "Machine IDs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "resetOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "isBatchedOr8n"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "action",
+      "operation": "getAll",
+      "title": "Get many actions",
+      "method": "GET",
+      "path": "/actions",
+      "query": {
+        "projectId": "{{ p.projectId | rl }}",
+        "search": "{{ p.filters.search }}",
+        "status[]": "{{ p.filters.status }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "search",
+            "status"
+          ],
+          "help": "status: list of active, archived, disabled, expired"
+        }
+      ]
+    },
+    {
+      "resource": "action",
+      "operation": "create",
+      "title": "Create an action",
+      "method": "POST",
+      "path": "/actions",
+      "query": {
+        "projectId": "{{ p.projectId | rl }}"
+      },
+      "body": {
+        "name": "{{ p.name }}",
+        "action": [
+          {
+            "op": "{{ p.actionType }}",
+            "details": {
+              "tags": "{{ p.actionType | eq:'tag' | then:p.actionTags | split }}"
+            }
+          }
+        ],
+        "matcher": {
+          "op": "AND",
+          "cond": [
+            {
+              "type": "{{ p.matcherType | eq:'signature' | then:'testId' }}{{ p.matcherType | eq:'titleContains' | then:'title' }}{{ p.matcherType | eq:'titleEquals' | then:'title' }}{{ p.matcherType | eq:'specContains' | then:'file' }}{{ p.matcherType | eq:'specEquals' | then:'file' }}",
+              "op": "{{ p.matcherType | eq:'signature' | then:'eq' }}{{ p.matcherType | eq:'titleContains' | then:'inc' }}{{ p.matcherType | eq:'titleEquals' | then:'eq' }}{{ p.matcherType | eq:'specContains' | then:'inc' }}{{ p.matcherType | eq:'specEquals' | then:'eq' }}",
+              "value": "{{ p.matcherValue }}"
+            }
+          ]
+        },
+        "description": "{{ p.createOptions.description }}",
+        "expiresAfter": "{{ p.createOptions.expiresAfter }}"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "actionType",
+          "label": "Action",
+          "type": "select",
+          "required": true,
+          "options": [
+            "quarantine",
+            "skip",
+            "tag"
+          ],
+          "default": "quarantine"
+        },
+        {
+          "key": "actionTags",
+          "label": "Tags",
+          "type": "text",
+          "help": "Comma-separated, with Action = tag"
+        },
+        {
+          "key": "matcherType",
+          "label": "Match on",
+          "type": "select",
+          "required": true,
+          "options": [
+            "specContains",
+            "specEquals",
+            "signature",
+            "titleContains",
+            "titleEquals"
+          ],
+          "default": "titleContains"
+        },
+        {
+          "key": "matcherValue",
+          "label": "Match value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "createOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "expiresAfter"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "action",
+      "operation": "delete",
+      "title": "Delete an action",
+      "method": "DELETE",
+      "path": "/actions/{{ p.actionId }}",
+      "fields": [
+        {
+          "key": "actionId",
+          "label": "Action ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "action",
+      "operation": "disable",
+      "title": "Disable an action",
+      "method": "PUT",
+      "path": "/actions/{{ p.actionId }}/disable",
+      "fields": [
+        {
+          "key": "actionId",
+          "label": "Action ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "action",
+      "operation": "enable",
+      "title": "Enable an action",
+      "method": "PUT",
+      "path": "/actions/{{ p.actionId }}/enable",
+      "fields": [
+        {
+          "key": "actionId",
+          "label": "Action ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "action",
+      "operation": "get",
+      "title": "Get an action",
+      "method": "GET",
+      "path": "/actions/{{ p.actionId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "actionId",
+          "label": "Action ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "action",
+      "operation": "update",
+      "title": "Update an action",
+      "method": "PUT",
+      "path": "/actions/{{ p.actionId }}",
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "actionId",
+          "label": "Action ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "description",
+            "expiresAfter"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "instance",
+      "operation": "get",
+      "title": "Get an instance",
+      "method": "GET",
+      "path": "/instances/{{ p.instanceId }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "instanceId",
+          "label": "Instance ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "getAll",
+      "title": "Get many projects",
+      "method": "GET",
+      "path": "/projects",
+      "query": {
+        "limit": "{{ p.limit }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 100
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "get",
+      "title": "Get a project",
+      "method": "GET",
+      "path": "/projects/{{ p.projectId | rl }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "getInsights",
+      "title": "Get project insights",
+      "method": "GET",
+      "path": "/projects/{{ p.projectId | rl }}/insights",
+      "query": {
+        "date_start": "{{ p.dateStart }}",
+        "date_end": "{{ p.dateEnd }}",
+        "resolution": "{{ p.options.resolution }}",
+        "authors[]": "{{ p.filters.authors | split }}",
+        "branches[]": "{{ p.filters.branches | split }}",
+        "groups[]": "{{ p.filters.groups | split }}",
+        "tags[]": "{{ p.filters.tags | split }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dateStart",
+          "label": "Date start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "dateEnd",
+          "label": "Date end",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authors",
+            "branches",
+            "groups",
+            "tags"
+          ],
+          "help": "authors, branches, groups, tags: comma-separated lists"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resolution"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "signature",
+      "operation": "generate",
+      "title": "Generate a test signature",
+      "method": "POST",
+      "path": "/signature/test",
+      "body": {
+        "projectId": "{{ p.projectId | rl }}",
+        "specFilePath": "{{ p.specFilePath }}",
+        "testTitle": "{{ p.testTitle }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "specFilePath",
+          "label": "Spec file path",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "testTitle",
+          "label": "Test title",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "specFile",
+      "operation": "getAll",
+      "title": "Get spec file metrics",
+      "method": "GET",
+      "path": "/spec-files/{{ p.projectId | rl }}",
+      "query": {
+        "date_start": "{{ p.dateStart }}",
+        "date_end": "{{ p.dateEnd }}",
+        "limit": "{{ p.limit }}",
+        "specNameFilter": "{{ p.filters.specNameFilter }}",
+        "includeFailedInDuration": "{{ p.options.includeFailedInDuration }}",
+        "order": "{{ p.options.order }}",
+        "dir": "{{ p.options.dir }}",
+        "page": "{{ p.options.page }}",
+        "authors[]": "{{ p.filters.authors | split }}",
+        "branches[]": "{{ p.filters.branches | split }}",
+        "groups[]": "{{ p.filters.groups | split }}",
+        "tags[]": "{{ p.filters.tags | split }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dateStart",
+          "label": "Date start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "dateEnd",
+          "label": "Date end",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authors",
+            "branches",
+            "groups",
+            "specNameFilter",
+            "tags"
+          ],
+          "help": "authors, branches, groups, tags: comma-separated lists"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeFailedInDuration",
+            "order",
+            "dir",
+            "page"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "test",
+      "operation": "getAll",
+      "title": "Get test metrics",
+      "method": "GET",
+      "path": "/tests/{{ p.projectId | rl }}",
+      "query": {
+        "date_start": "{{ p.dateStart }}",
+        "date_end": "{{ p.dateEnd }}",
+        "limit": "{{ p.limit }}",
+        "min_executions": "{{ p.filters.minExecutions }}",
+        "spec": "{{ p.filters.spec }}",
+        "test_state[]": "{{ p.filters.testState }}",
+        "title": "{{ p.filters.title }}",
+        "order": "{{ p.options.order }}",
+        "dir": "{{ p.options.dir }}",
+        "page": "{{ p.options.page }}",
+        "metric_settings": "{{ p.options.metric_settings }}",
+        "authors[]": "{{ p.filters.authors | split }}",
+        "branches[]": "{{ p.filters.branches | split }}",
+        "groups[]": "{{ p.filters.groups | split }}",
+        "tags[]": "{{ p.filters.tags | split }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dateStart",
+          "label": "Date start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "dateEnd",
+          "label": "Date end",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authors",
+            "branches",
+            "groups",
+            "minExecutions",
+            "spec",
+            "tags",
+            "testState",
+            "title"
+          ],
+          "help": "authors, branches, groups, tags: comma-separated lists"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "order",
+            "dir",
+            "page",
+            "metric_settings"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "testResult",
+      "operation": "getAll",
+      "title": "Get test results",
+      "method": "GET",
+      "path": "/test-results/{{ p.signature }}",
+      "query": {
+        "date_start": "{{ p.dateStart }}",
+        "date_end": "{{ p.dateEnd }}",
+        "limit": "{{ p.limit }}",
+        "status[]": "{{ p.filters.status }}",
+        "starting_after": "{{ p.options.startingAfter }}",
+        "ending_before": "{{ p.options.endingBefore }}",
+        "authors[]": "{{ p.filters.authors | split }}",
+        "branches[]": "{{ p.filters.branches | split }}",
+        "groups[]": "{{ p.filters.groups | split }}",
+        "tags[]": "{{ p.filters.tags | split }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "signature",
+          "label": "Test signature",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dateStart",
+          "label": "Date start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "dateEnd",
+          "label": "Date end",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "authors",
+            "branches",
+            "groups",
+            "status",
+            "tags"
+          ],
+          "help": "authors, branches, groups, tags: comma-separated lists"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "startingAfter",
+            "endingBefore"
+          ]
+        }
+      ]
+    }
+  ]
+}

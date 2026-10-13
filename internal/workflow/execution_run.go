@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/logging"
+
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -110,6 +112,10 @@ func RunExecution(
 
 	// Enrich context with workflow and execution IDs for vault registration.
 	ctx = vault.ContextWithExecIDs(ctx, wf.ID, exec.ID)
+	// The execution id is the run_id of every log line of this run, here and
+	// in the child processes its nodes start (logging.ChildEnv).
+	ctx = logging.WithRunID(ctx, exec.ID)
+	r.logger = r.logger.With().Str(logging.KeyRunID, exec.ID).Logger()
 	// C-46: a run an org role started through a grant carries the role's
 	// workdir as org.workdir; file-touching nodes confine their paths to it.
 	ctx = fsconfine.FromTriggerData(ctx, exec.TriggerData)

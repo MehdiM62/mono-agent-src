@@ -1,0 +1,314 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_books",
+  "node_type": "app.google_books",
+  "title": "Google Books",
+  "description": "Volumes and bookshelves in Google Books",
+  "category": "app",
+  "docs_url": "https://developers.google.com/books/docs/v1/reference",
+  "n8n_types": [
+    "n8n-nodes-base.googleBooks"
+  ],
+  "base_url": "https://www.googleapis.com/books/v1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Books)",
+      "n8n_credential": "googleBooksOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "bookshelf",
+      "label": "Bookshelf"
+    },
+    {
+      "value": "bookshelfVolume",
+      "label": "Bookshelf volume"
+    },
+    {
+      "value": "volume",
+      "label": "Volume"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "bookshelf",
+      "operation": "get",
+      "title": "Get a bookshelf",
+      "method": "GET",
+      "path": "/{{ p.myLibrary | eq:'true' | then:'mylibrary' }}{{ p.myLibrary | ne:'true' | then:'users/' }}{{ p.myLibrary | ne:'true' | then:p.userId }}/bookshelves/{{ p.shelfId }}",
+      "fields": [
+        {
+          "key": "myLibrary",
+          "label": "My library",
+          "type": "boolean",
+          "default": false,
+          "help": "On: your own library (OAuth). Off: a user's public shelves by user ID."
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "help": "Needed when My library is off."
+        },
+        {
+          "key": "shelfId",
+          "label": "Shelf ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "bookshelf",
+      "operation": "getAll",
+      "title": "Get many bookshelves",
+      "method": "GET",
+      "path": "/{{ p.myLibrary | eq:'true' | then:'mylibrary' }}{{ p.myLibrary | ne:'true' | then:'users/' }}{{ p.myLibrary | ne:'true' | then:p.userId }}/bookshelves",
+      "fields": [
+        {
+          "key": "myLibrary",
+          "label": "My library",
+          "type": "boolean",
+          "default": false,
+          "help": "On: your own library (OAuth). Off: a user's public shelves by user ID."
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "help": "Needed when My library is off."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 40,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "bookshelfVolume",
+      "operation": "getAll",
+      "title": "Get the volumes of a bookshelf",
+      "method": "GET",
+      "path": "/{{ p.myLibrary | eq:'true' | then:'mylibrary' }}{{ p.myLibrary | ne:'true' | then:'users/' }}{{ p.myLibrary | ne:'true' | then:p.userId }}/bookshelves/{{ p.shelfId }}/volumes",
+      "fields": [
+        {
+          "key": "myLibrary",
+          "label": "My library",
+          "type": "boolean",
+          "default": false,
+          "help": "On: your own library (OAuth). Off: a user's public shelves by user ID."
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "help": "Needed when My library is off."
+        },
+        {
+          "key": "shelfId",
+          "label": "Shelf ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 40,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "offset",
+        "offset_param": "startIndex",
+        "limit_param": "maxResults",
+        "page_size": 40,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "bookshelfVolume",
+      "operation": "add",
+      "title": "Add a volume to a bookshelf",
+      "method": "POST",
+      "path": "/mylibrary/bookshelves/{{ p.shelfId }}/addVolume",
+      "fields": [
+        {
+          "key": "shelfId",
+          "label": "Shelf ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "volumeId",
+          "label": "Volume ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "volumeId": "{{ p.volumeId }}"
+      }
+    },
+    {
+      "resource": "bookshelfVolume",
+      "operation": "clear",
+      "title": "Clear a bookshelf",
+      "method": "POST",
+      "path": "/mylibrary/bookshelves/{{ p.shelfId }}/clearVolumes",
+      "fields": [
+        {
+          "key": "shelfId",
+          "label": "Shelf ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "bookshelfVolume",
+      "operation": "move",
+      "title": "Move a volume",
+      "method": "POST",
+      "path": "/mylibrary/bookshelves/{{ p.shelfId }}/moveVolume",
+      "fields": [
+        {
+          "key": "shelfId",
+          "label": "Shelf ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "volumeId",
+          "label": "Volume ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "volumePosition",
+          "label": "Position",
+          "type": "text",
+          "required": true,
+          "help": "0-based position in the shelf."
+        }
+      ],
+      "query": {
+        "volumeId": "{{ p.volumeId }}",
+        "volumePosition": "{{ p.volumePosition }}"
+      }
+    },
+    {
+      "resource": "bookshelfVolume",
+      "operation": "remove",
+      "title": "Remove a volume",
+      "method": "POST",
+      "path": "/mylibrary/bookshelves/{{ p.shelfId }}/removeVolume",
+      "fields": [
+        {
+          "key": "shelfId",
+          "label": "Shelf ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "volumeId",
+          "label": "Volume ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "volumeId": "{{ p.volumeId }}"
+      }
+    },
+    {
+      "resource": "volume",
+      "operation": "get",
+      "title": "Get a volume",
+      "method": "GET",
+      "path": "/volumes/{{ p.volumeId }}",
+      "fields": [
+        {
+          "key": "volumeId",
+          "label": "Volume ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "volume",
+      "operation": "getAll",
+      "title": "Search volumes",
+      "method": "GET",
+      "path": "/volumes",
+      "fields": [
+        {
+          "key": "searchQuery",
+          "label": "Search query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 40,
+          "min": 1
+        }
+      ],
+      "query": {
+        "q": "{{ p.searchQuery }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "startIndex",
+        "limit_param": "maxResults",
+        "page_size": 40,
+        "results_path": "items"
+      }
+    }
+  ]
+}

@@ -1,0 +1,755 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "monday_com",
+  "node_type": "app.monday_com",
+  "title": "Monday.com",
+  "description": "Boards, columns, groups and items in monday.com (GraphQL API)",
+  "category": "app",
+  "docs_url": "https://developer.monday.com/api-reference/",
+  "n8n_types": [
+    "n8n-nodes-base.mondayCom"
+  ],
+  "base_url": "https://api.monday.com",
+  "headers": {
+    "API-Version": "2026-07"
+  },
+  "credentials": [
+    {
+      "platform": "monday",
+      "name": "monday.com",
+      "n8n_credential": "mondayComApi",
+      "n8n_credential_alt": [
+        "mondayComOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "apiToken": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://auth.monday.com/oauth2/authorize",
+        "token_url": "https://auth.monday.com/oauth2/token",
+        "scopes": [
+          "boards:write",
+          "boards:read"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "board",
+      "label": "Board"
+    },
+    {
+      "value": "boardColumn",
+      "label": "Board Column"
+    },
+    {
+      "value": "boardGroup",
+      "label": "Board Group"
+    },
+    {
+      "value": "boardItem",
+      "label": "Board Item"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "board",
+      "operation": "create",
+      "title": "Create a board",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "kind",
+          "label": "Kind",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "share",
+            "public",
+            "private"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "templateId"
+          ]
+        }
+      ],
+      "body": {
+        "query": "mutation ($name: String!, $kind: BoardKind!, $templateId: ID) { create_board (board_name: $name, board_kind: $kind, template_id: $templateId) { id } }",
+        "variables": {
+          "name": "{{ p.name }}",
+          "kind": "{{ p.kind }}",
+          "templateId": "{{ p.additionalFields.templateId | ne:'0' | then:p.additionalFields.templateId }}"
+        }
+      },
+      "output": {
+        "path": "data.create_board"
+      }
+    },
+    {
+      "resource": "board",
+      "operation": "archive",
+      "title": "Archive a board",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation ($id: ID!) { archive_board (board_id: $id) { id } }",
+        "variables": {
+          "id": "{{ p.boardId }}"
+        }
+      },
+      "output": {
+        "path": "data.archive_board"
+      }
+    },
+    {
+      "resource": "board",
+      "operation": "get",
+      "title": "Get a board",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "query ($id: [ID!]) { boards (ids: $id) { id name description state board_folder_id board_kind owners { id } } }",
+        "variables": {
+          "id": "{{ p.boardId }}"
+        }
+      },
+      "output": {
+        "path": "data.boards"
+      }
+    },
+    {
+      "resource": "board",
+      "operation": "getAll",
+      "title": "Get many boards",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "body": {
+        "query": "query ($page: Int, $limit: Int) { boards (page: $page, limit: $limit) { id name description state board_folder_id board_kind owners { id } } }",
+        "variables": {
+          "page": 1
+        }
+      },
+      "output": {
+        "path": "data.boards"
+      },
+      "pagination": {
+        "type": "page",
+        "param_in": "body",
+        "page_param": "variables.page",
+        "start_page": 1,
+        "limit_param": "variables.limit",
+        "page_size": 50,
+        "results_path": "data.boards"
+      }
+    },
+    {
+      "resource": "boardColumn",
+      "operation": "create",
+      "title": "Create a column",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columnType",
+          "label": "Column type",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "checkbox",
+            "country",
+            "date",
+            "dropdown",
+            "email",
+            "hour",
+            "Link",
+            "longText",
+            "numbers",
+            "people",
+            "person",
+            "phone",
+            "rating",
+            "status",
+            "tags",
+            "team",
+            "text",
+            "timeline",
+            "timezone",
+            "week",
+            "worldClock"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "defaults"
+          ],
+          "help": "defaults: column settings as JSON"
+        }
+      ],
+      "body": {
+        "query": "mutation ($boardId: ID!, $title: String!, $columnType: ColumnType!, $defaults: JSON) { create_column (board_id: $boardId, title: $title, column_type: $columnType, defaults: $defaults) { id } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}",
+          "title": "{{ p.title }}",
+          "columnType": "{{ p.columnType | replace:'longText','long_text' | replace:'worldClock','world_clock' | lower }}",
+          "defaults": "{{ p.additionalFields.defaults | fromjson | json }}"
+        }
+      },
+      "output": {
+        "path": "data.create_column"
+      }
+    },
+    {
+      "resource": "boardColumn",
+      "operation": "getAll",
+      "title": "Get the columns of a board",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "query ($boardId: [ID!]) { boards (ids: $boardId) { columns { id title type settings_str archived } } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}"
+        }
+      },
+      "output": {
+        "path": "data.boards.0.columns"
+      }
+    },
+    {
+      "resource": "boardGroup",
+      "operation": "create",
+      "title": "Create a group",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation ($boardId: ID!, $groupName: String!) { create_group (board_id: $boardId, group_name: $groupName) { id } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}",
+          "groupName": "{{ p.name }}"
+        }
+      },
+      "output": {
+        "path": "data.create_group"
+      }
+    },
+    {
+      "resource": "boardGroup",
+      "operation": "delete",
+      "title": "Delete a group",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation ($boardId: ID!, $groupId: String!) { delete_group (board_id: $boardId, group_id: $groupId) { id } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}",
+          "groupId": "{{ p.groupId }}"
+        }
+      },
+      "output": {
+        "path": "data.delete_group"
+      }
+    },
+    {
+      "resource": "boardGroup",
+      "operation": "getAll",
+      "title": "Get the groups of a board",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "query ($boardId: [ID!]) { boards (ids: $boardId) { id groups { id title color position archived } } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}"
+        }
+      },
+      "output": {
+        "path": "data.boards.0.groups"
+      }
+    },
+    {
+      "resource": "boardItem",
+      "operation": "create",
+      "title": "Create an item",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "columnValues"
+          ],
+          "help": "columnValues: JSON object of column id → value"
+        }
+      ],
+      "body": {
+        "query": "mutation ($boardId: ID!, $groupId: String!, $itemName: String!, $columnValues: JSON) { create_item (board_id: $boardId, group_id: $groupId, item_name: $itemName, column_values: $columnValues) { id } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}",
+          "groupId": "{{ p.groupId }}",
+          "itemName": "{{ p.name }}",
+          "columnValues": "{{ p.additionalFields.columnValues | fromjson | json }}"
+        }
+      },
+      "output": {
+        "path": "data.create_item"
+      }
+    },
+    {
+      "resource": "boardItem",
+      "operation": "addUpdate",
+      "title": "Add an update to an item",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "value",
+          "label": "Update text",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation ($itemId: ID!, $value: String!) { create_update (item_id: $itemId, body: $value) { id } }",
+        "variables": {
+          "itemId": "{{ p.itemId }}",
+          "value": "{{ p.value }}"
+        }
+      },
+      "output": {
+        "path": "data.create_update"
+      }
+    },
+    {
+      "resource": "boardItem",
+      "operation": "changeColumnValue",
+      "title": "Change a column value",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columnId",
+          "label": "Column ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "value",
+          "label": "Value (JSON)",
+          "type": "json",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation ($boardId: ID!, $itemId: ID!, $columnId: String!, $value: JSON!) { change_column_value (board_id: $boardId, item_id: $itemId, column_id: $columnId, value: $value) { id } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}",
+          "itemId": "{{ p.itemId }}",
+          "columnId": "{{ p.columnId }}",
+          "value": "{{ p.value | fromjson | json }}"
+        }
+      },
+      "output": {
+        "path": "data.change_column_value"
+      }
+    },
+    {
+      "resource": "boardItem",
+      "operation": "changeMultipleColumnValues",
+      "title": "Change several column values",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columnValues",
+          "label": "Column values (JSON)",
+          "type": "json",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation ($boardId: ID!, $itemId: ID!, $columnValues: JSON!) { change_multiple_column_values (board_id: $boardId, item_id: $itemId, column_values: $columnValues) { id } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}",
+          "itemId": "{{ p.itemId }}",
+          "columnValues": "{{ p.columnValues | fromjson | json }}"
+        }
+      },
+      "output": {
+        "path": "data.change_multiple_column_values"
+      }
+    },
+    {
+      "resource": "boardItem",
+      "operation": "delete",
+      "title": "Delete an item",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation ($itemId: ID!) { delete_item (item_id: $itemId) { id } }",
+        "variables": {
+          "itemId": "{{ p.itemId }}"
+        }
+      },
+      "output": {
+        "path": "data.delete_item"
+      }
+    },
+    {
+      "resource": "boardItem",
+      "operation": "get",
+      "title": "Get items",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "itemId",
+          "label": "Item IDs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        }
+      ],
+      "body": {
+        "query": "query ($itemId: [ID!]) { items (ids: $itemId) { id name created_at state column_values { id text type value ... on BoardRelationValue { display_value linked_item_ids } ... on DependencyValue { display_value linked_item_ids } ... on MirrorValue { display_value } ... on SubtasksValue { display_value subitems { id name } } column { title archived description settings_str } } } }",
+        "variables": {
+          "itemId": "{{ p.itemId | split }}"
+        }
+      },
+      "output": {
+        "path": "data.items"
+      }
+    },
+    {
+      "resource": "boardItem",
+      "operation": "getAll",
+      "title": "Get the items of a group",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "body": {
+        "query": "query ($boardId: [ID!], $groupId: [String], $limit: Int, $cursor: String) { boards (ids: $boardId) { groups (ids: $groupId) { id items_page (limit: $limit, cursor: $cursor) { cursor items { id name created_at state column_values { id text type value ... on BoardRelationValue { display_value linked_item_ids } ... on DependencyValue { display_value linked_item_ids } ... on MirrorValue { display_value } ... on SubtasksValue { display_value subitems { id name } } column { title archived description settings_str } } } } } } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}",
+          "groupId": "{{ p.groupId }}"
+        }
+      },
+      "output": {
+        "path": "data.boards.0.groups.0.items_page.items"
+      },
+      "pagination": {
+        "type": "cursor",
+        "param_in": "body",
+        "cursor_param": "variables.cursor",
+        "cursor_path": "data.boards.0.groups.0.items_page.cursor",
+        "limit_param": "variables.limit",
+        "page_size": 100,
+        "results_path": "data.boards.0.groups.0.items_page.items"
+      }
+    },
+    {
+      "resource": "boardItem",
+      "operation": "getByColumnValue",
+      "title": "Get items by column value",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columnId",
+          "label": "Column ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columnValue",
+          "label": "Column value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "body": {
+        "query": "query ($boardId: ID!, $columnId: String!, $columnValue: String!, $limit: Int, $cursor: String) { items_page_by_column_values (limit: $limit, cursor: $cursor, board_id: $boardId, columns: [{column_id: $columnId, column_values: [$columnValue]}]) { cursor items { id name created_at state board { id } column_values { id text type value ... on BoardRelationValue { display_value linked_item_ids } ... on DependencyValue { display_value linked_item_ids } ... on MirrorValue { display_value } ... on SubtasksValue { display_value subitems { id name } } column { title archived description settings_str } } } } }",
+        "variables": {
+          "boardId": "{{ p.boardId }}",
+          "columnId": "{{ p.columnId }}",
+          "columnValue": "{{ p.columnValue }}"
+        }
+      },
+      "output": {
+        "path": "data.items_page_by_column_values.items"
+      },
+      "pagination": {
+        "type": "cursor",
+        "param_in": "body",
+        "cursor_param": "variables.cursor",
+        "cursor_path": "data.items_page_by_column_values.cursor",
+        "limit_param": "variables.limit",
+        "page_size": 100,
+        "results_path": "data.items_page_by_column_values.items"
+      }
+    },
+    {
+      "resource": "boardItem",
+      "operation": "move",
+      "title": "Move an item to a group",
+      "method": "POST",
+      "path": "/v2/",
+      "fields": [
+        {
+          "key": "boardId",
+          "label": "Board ID",
+          "type": "text",
+          "default": "",
+          "help": "Only used to pick the group in the editor"
+        },
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "query": "mutation ($groupId: String!, $itemId: ID!) { move_item_to_group (group_id: $groupId, item_id: $itemId) { id } }",
+        "variables": {
+          "groupId": "{{ p.groupId }}",
+          "itemId": "{{ p.itemId }}"
+        }
+      },
+      "output": {
+        "path": "data.move_item_to_group"
+      }
+    }
+  ]
+}

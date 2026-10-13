@@ -1,0 +1,434 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "tapfiliate",
+  "title": "Tapfiliate",
+  "description": "Affiliates, affiliate metadata and program affiliates in Tapfiliate",
+  "category": "app",
+  "docs_url": "https://tapfiliate.com/docs/rest/",
+  "n8n_types": [
+    "n8n-nodes-base.tapfiliate"
+  ],
+  "base_url": "https://api.tapfiliate.com/1.6",
+  "credentials": [
+    {
+      "platform": "tapfiliate",
+      "name": "Tapfiliate",
+      "n8n_credential": "tapfiliateApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Profile settings → API key"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Api-Key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "affiliate",
+      "label": "Affiliate"
+    },
+    {
+      "value": "affiliateMetadata",
+      "label": "Affiliate Metadata"
+    },
+    {
+      "value": "programAffiliate",
+      "label": "Program Affiliate"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "affiliate",
+      "operation": "create",
+      "title": "Create an affiliate",
+      "method": "POST",
+      "path": "/affiliates/",
+      "fields": [
+        {
+          "key": "firstname",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastname",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressUi",
+            "companyName"
+          ],
+          "help": "addressUi: {\"addressValues\": {\"address\", \"address_two\", \"postal_code\", \"city\", \"state\", \"country\"}} (country = ISO code)"
+        }
+      ],
+      "body": {
+        "firstname": "{{ p.firstname }}",
+        "lastname": "{{ p.lastname }}",
+        "email": "{{ p.email }}",
+        "address": {
+          "$merge": "{{ p.additionalFields.addressUi.addressValues | omit:'country' }}",
+          "country": {
+            "code": "{{ p.additionalFields.addressUi.addressValues.country }}"
+          }
+        },
+        "company": {
+          "name": "{{ p.additionalFields.companyName }}"
+        }
+      }
+    },
+    {
+      "resource": "affiliate",
+      "operation": "delete",
+      "title": "Delete an affiliate",
+      "method": "DELETE",
+      "path": "/affiliates/{{ p.affiliateId }}/",
+      "fields": [
+        {
+          "key": "affiliateId",
+          "label": "Affiliate ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "affiliate",
+      "operation": "get",
+      "title": "Get an affiliate",
+      "method": "GET",
+      "path": "/affiliates/{{ p.affiliateId }}/",
+      "fields": [
+        {
+          "key": "affiliateId",
+          "label": "Affiliate ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "affiliate",
+      "operation": "getAll",
+      "title": "Get many affiliates",
+      "method": "GET",
+      "path": "/affiliates/",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "affiliate_group_id",
+            "click_id",
+            "email",
+            "parentId",
+            "referral_code",
+            "source_id"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'parentId' }}",
+        "parent_id": "{{ p.filters.parentId }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "affiliateMetadata",
+      "operation": "add",
+      "title": "Add metadata to an affiliate",
+      "method": "GET",
+      "path": "/affiliates/{{ p.affiliateId }}/meta-data/",
+      "description": "Sets each key/value row (one request per key)",
+      "fields": [
+        {
+          "key": "affiliateId",
+          "label": "Affiliate ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "metadataUi",
+          "label": "Metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "metadataValues"
+          ],
+          "required": true,
+          "help": "{\"metadataValues\": [{\"key\": \"tier\", \"value\": \"gold\"}]}"
+        }
+      ],
+      "also": [
+        {
+          "for_each": "{{ p.metadataUi.metadataValues }}",
+          "method": "PUT",
+          "path": "/affiliates/{{ p.affiliateId }}/meta-data/{{ el.key }}/",
+          "body": {
+            "value": "{{ el.value }}"
+          }
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "affiliateMetadata",
+      "operation": "remove",
+      "title": "Remove a metadata key",
+      "method": "DELETE",
+      "path": "/affiliates/{{ p.affiliateId }}/meta-data/{{ p.key }}/",
+      "fields": [
+        {
+          "key": "affiliateId",
+          "label": "Affiliate ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "key",
+          "label": "Key",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "affiliateMetadata",
+      "operation": "update",
+      "title": "Update a metadata key",
+      "method": "PUT",
+      "path": "/affiliates/{{ p.affiliateId }}/meta-data/",
+      "fields": [
+        {
+          "key": "affiliateId",
+          "label": "Affiliate ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "key",
+          "label": "Key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "$entries": "{{ p.key | split:'\n' }}",
+        "$key": "{{ el }}",
+        "$value": "{{ p.value }}"
+      }
+    },
+    {
+      "resource": "programAffiliate",
+      "operation": "add",
+      "title": "Add an affiliate to a program",
+      "method": "POST",
+      "path": "/programs/{{ p.programId }}/affiliates/",
+      "fields": [
+        {
+          "key": "programId",
+          "label": "Program ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "affiliateId",
+          "label": "Affiliate ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "approved",
+            "coupon"
+          ]
+        }
+      ],
+      "body": {
+        "affiliate": {
+          "id": "{{ p.affiliateId }}"
+        },
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "programAffiliate",
+      "operation": "approve",
+      "title": "Approve an affiliate in a program",
+      "method": "PUT",
+      "path": "/programs/{{ p.programId }}/affiliates/{{ p.affiliateId }}/approved/",
+      "fields": [
+        {
+          "key": "programId",
+          "label": "Program ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "affiliateId",
+          "label": "Affiliate ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "programAffiliate",
+      "operation": "disapprove",
+      "title": "Disapprove an affiliate in a program",
+      "method": "DELETE",
+      "path": "/programs/{{ p.programId }}/affiliates/{{ p.affiliateId }}/approved/",
+      "fields": [
+        {
+          "key": "programId",
+          "label": "Program ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "affiliateId",
+          "label": "Affiliate ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "programAffiliate",
+      "operation": "get",
+      "title": "Get an affiliate in a program",
+      "method": "GET",
+      "path": "/programs/{{ p.programId }}/affiliates/{{ p.affiliateId }}/",
+      "fields": [
+        {
+          "key": "programId",
+          "label": "Program ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "affiliateId",
+          "label": "Affiliate ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "programAffiliate",
+      "operation": "getAll",
+      "title": "Get many affiliates in a program",
+      "method": "GET",
+      "path": "/programs/{{ p.programId }}/affiliates/",
+      "fields": [
+        {
+          "key": "programId",
+          "label": "Program ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "affiliate_group_id",
+            "email",
+            "parentId",
+            "source_id"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'parentId' }}",
+        "parent_id": "{{ p.filters.parentId }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "results_path": ""
+      }
+    }
+  ]
+}

@@ -245,15 +245,24 @@ func (m *Manager) ListUsable(ctx context.Context, platform, profileID string) ([
 }
 
 // ScopeGroupsHelp is a one-line summary of the umbrella scope groups, for
-// CLI flag help.
+// CLI flag help. Opt-in groups are listed after "opt-in:"; a plain connect
+// grants the others.
 func ScopeGroupsHelp() string {
 	var parts []string
 	for _, id := range umbrellaOrder {
-		var names []string
+		var names, optIn []string
 		for _, g := range umbrellas[id].Groups {
-			names = append(names, g.Name)
+			if g.OptIn {
+				optIn = append(optIn, g.Name)
+			} else {
+				names = append(names, g.Name)
+			}
 		}
-		parts = append(parts, id+": "+strings.Join(names, ","))
+		part := id + ": " + strings.Join(names, ",")
+		if len(optIn) > 0 {
+			part += " (opt-in, granted only when named or with all: " + strings.Join(optIn, ",") + ")"
+		}
+		parts = append(parts, part)
 	}
 	return strings.Join(parts, "; ")
 }

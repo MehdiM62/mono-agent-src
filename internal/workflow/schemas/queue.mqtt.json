@@ -1,0 +1,49 @@
+{
+  "credential_platform": "mqtt",
+  "fields": [
+    {
+      "key": "topic",
+      "label": "Topic",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "default": true,
+      "key": "send_input_data",
+      "label": "Send Input Data",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "send_input_data",
+        "values": [
+          "false"
+        ]
+      },
+      "key": "message",
+      "label": "Message",
+      "required": false,
+      "rows": 3,
+      "type": "textarea"
+    },
+    {
+      "default": "0",
+      "key": "qos",
+      "label": "QoS",
+      "options": [
+        "0",
+        "1",
+        "2"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "key": "retain",
+      "label": "Retain",
+      "required": false,
+      "type": "boolean"
+    }
+  ]
+}

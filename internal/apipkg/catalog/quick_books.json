@@ -1,0 +1,1885 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "quick_books",
+  "node_type": "app.quick_books",
+  "title": "QuickBooks Online",
+  "description": "Bills, customers, employees, estimates, invoices, items, payments, purchases, transactions and vendors in QuickBooks Online",
+  "category": "app",
+  "docs_url": "https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/account",
+  "n8n_types": [
+    "n8n-nodes-base.quickbooks"
+  ],
+  "base_url": "{{ cred.environment | eq:'sandbox' | then:'https://sandbox-quickbooks.api.intuit.com' | default:'https://quickbooks.api.intuit.com' }}/v3/company/{{ cred.realm_id }}",
+  "credentials": [
+    {
+      "platform": "quickbooks",
+      "name": "QuickBooks Online",
+      "n8n_credential": "quickBooksOAuth2Api",
+      "n8n_field_map": {
+        "environment": "environment"
+      },
+      "methods": [
+        "oauth",
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "realm_id",
+          "label": "Company ID (realm ID)",
+          "required": true,
+          "help": "Shown in QuickBooks under Settings → Account and settings → Billing & subscription"
+        },
+        {
+          "key": "environment",
+          "label": "Environment",
+          "help": "production (default) or sandbox"
+        },
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://appcenter.intuit.com/connect/oauth2",
+        "token_url": "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer",
+        "scopes": [
+          "com.intuit.quickbooks.accounting"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "customer",
+      "label": "Customer"
+    },
+    {
+      "value": "bill",
+      "label": "Bill"
+    },
+    {
+      "value": "employee",
+      "label": "Employee"
+    },
+    {
+      "value": "estimate",
+      "label": "Estimate"
+    },
+    {
+      "value": "invoice",
+      "label": "Invoice"
+    },
+    {
+      "value": "item",
+      "label": "Item"
+    },
+    {
+      "value": "payment",
+      "label": "Payment"
+    },
+    {
+      "value": "purchase",
+      "label": "Purchase"
+    },
+    {
+      "value": "transaction",
+      "label": "Transaction"
+    },
+    {
+      "value": "vendor",
+      "label": "Vendor"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "customer",
+      "operation": "get",
+      "title": "Get a customer",
+      "method": "GET",
+      "path": "/customer/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Customer"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "create",
+      "title": "Create a customer",
+      "method": "POST",
+      "path": "/customer",
+      "fields": [
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Active",
+            "Balance",
+            "BalanceWithJobs",
+            "BillAddr",
+            "BillWithParent",
+            "CompanyName",
+            "FamilyName",
+            "FullyQualifiedName",
+            "GivenName",
+            "PreferredDeliveryMethod",
+            "PrimaryEmailAddr",
+            "PrimaryPhone",
+            "PrintOnCheckName",
+            "Taxable"
+          ]
+        }
+      ],
+      "body": {
+        "DisplayName": "{{ p.displayName }}",
+        "$merge": "{{ p.additionalFields | omit:'BillAddr,PrimaryEmailAddr,PrimaryPhone' }}",
+        "BillAddr": {
+          "$merge": "{{ p.additionalFields.BillAddr.details }}"
+        },
+        "PrimaryEmailAddr": {
+          "Address": "{{ p.additionalFields.PrimaryEmailAddr }}"
+        },
+        "PrimaryPhone": {
+          "FreeFormNumber": "{{ p.additionalFields.PrimaryPhone }}"
+        }
+      },
+      "output": {
+        "path": "Customer"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "getAll",
+      "title": "Get many customers",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: e.g. WHERE Metadata.LastUpdatedTime > '2024-01-01'"
+        }
+      ],
+      "query": {
+        "query": "SELECT * FROM Customer{{ p.filters.query | prefix:' ' }} MAXRESULTS {{ p.returnAll | bool | eq:'true' | then:1000 | default:p.limit }}"
+      },
+      "output": {
+        "path": "QueryResponse.Customer"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "update",
+      "title": "Update a customer",
+      "method": "POST",
+      "path": "/customer",
+      "before": {
+        "method": "GET",
+        "path": "/customer/{{ p.customerId }}"
+      },
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Active",
+            "Balance",
+            "BalanceWithJobs",
+            "BillAddr",
+            "BillWithParent",
+            "CompanyName",
+            "FamilyName",
+            "FullyQualifiedName",
+            "GivenName",
+            "PreferredDeliveryMethod",
+            "PrimaryEmailAddr",
+            "PrimaryPhone",
+            "PrintOnCheckName",
+            "Taxable"
+          ]
+        }
+      ],
+      "body": {
+        "Id": "{{ p.customerId }}",
+        "SyncToken": "{{ pre.Customer.SyncToken }}",
+        "sparse": true,
+        "$merge": "{{ p.updateFields | omit:'BillAddr,PrimaryEmailAddr,PrimaryPhone' }}",
+        "BillAddr": {
+          "$merge": "{{ p.updateFields.BillAddr.details }}"
+        },
+        "PrimaryEmailAddr": {
+          "Address": "{{ p.updateFields.PrimaryEmailAddr }}"
+        },
+        "PrimaryPhone": {
+          "FreeFormNumber": "{{ p.updateFields.PrimaryPhone }}"
+        }
+      },
+      "output": {
+        "path": "Customer"
+      }
+    },
+    {
+      "resource": "bill",
+      "operation": "get",
+      "title": "Get a bill",
+      "method": "GET",
+      "path": "/bill/{{ p.billId }}",
+      "fields": [
+        {
+          "key": "billId",
+          "label": "Bill ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Bill"
+      }
+    },
+    {
+      "resource": "bill",
+      "operation": "create",
+      "title": "Create a bill",
+      "method": "POST",
+      "path": "/bill",
+      "fields": [
+        {
+          "key": "VendorRef",
+          "label": "Vendor ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Line",
+          "label": "Lines",
+          "type": "json",
+          "required": true,
+          "help": "List of {DetailType, Amount, Description, LineNum, accountId | itemId}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "APAccountRef",
+            "Balance",
+            "DueDate",
+            "SalesTermRef",
+            "TotalAmt",
+            "TxnDate"
+          ]
+        }
+      ],
+      "body": {
+        "VendorRef": {
+          "value": "{{ p.VendorRef }}"
+        },
+        "$merge": "{{ p.additionalFields | omit:'APAccountRef,SalesTermRef' }}",
+        "APAccountRef": "{{ p.additionalFields.APAccountRef.details }}",
+        "SalesTermRef": "{{ p.additionalFields.SalesTermRef.details }}",
+        "Line": {
+          "$map": "{{ p.Line }}",
+          "$to": {
+            "DetailType": "{{ el.DetailType }}",
+            "Amount": "{{ el.Amount }}",
+            "Description": "{{ el.Description }}",
+            "LineNum": "{{ el.LineNum }}",
+            "AccountBasedExpenseLineDetail": {
+              "$when": "{{ el.DetailType | eq:'AccountBasedExpenseLineDetail' }}",
+              "AccountRef": {
+                "value": "{{ el.accountId }}"
+              }
+            },
+            "ItemBasedExpenseLineDetail": {
+              "$when": "{{ el.DetailType | eq:'ItemBasedExpenseLineDetail' }}",
+              "ItemRef": {
+                "value": "{{ el.itemId }}"
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "path": "Bill"
+      }
+    },
+    {
+      "resource": "bill",
+      "operation": "delete",
+      "title": "Delete a bill",
+      "method": "POST",
+      "path": "/bill",
+      "before": {
+        "method": "GET",
+        "path": "/bill/{{ p.billId }}"
+      },
+      "query": {
+        "operation": "delete"
+      },
+      "fields": [
+        {
+          "key": "billId",
+          "label": "Bill ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "Id": "{{ p.billId }}",
+        "SyncToken": "{{ pre.Bill.SyncToken }}"
+      },
+      "output": {
+        "path": "Bill"
+      }
+    },
+    {
+      "resource": "bill",
+      "operation": "getAll",
+      "title": "Get many bills",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: e.g. WHERE Metadata.LastUpdatedTime > '2024-01-01'"
+        }
+      ],
+      "query": {
+        "query": "SELECT * FROM Bill{{ p.filters.query | prefix:' ' }} MAXRESULTS {{ p.returnAll | bool | eq:'true' | then:1000 | default:p.limit }}"
+      },
+      "output": {
+        "path": "QueryResponse.Bill"
+      }
+    },
+    {
+      "resource": "bill",
+      "operation": "update",
+      "title": "Update a bill",
+      "method": "POST",
+      "path": "/bill",
+      "before": {
+        "method": "GET",
+        "path": "/bill/{{ p.billId }}"
+      },
+      "fields": [
+        {
+          "key": "billId",
+          "label": "Bill ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "APAccountRef",
+            "Balance",
+            "DueDate",
+            "SalesTermRef",
+            "TotalAmt",
+            "TxnDate"
+          ]
+        }
+      ],
+      "body": {
+        "Id": "{{ p.billId }}",
+        "SyncToken": "{{ pre.Bill.SyncToken }}",
+        "sparse": true,
+        "VendorRef": {
+          "name": "{{ pre.Bill.VendorRef.name }}",
+          "value": "{{ pre.Bill.VendorRef.value }}"
+        },
+        "$merge": "{{ p.updateFields | omit:'APAccountRef,SalesTermRef' }}",
+        "APAccountRef": "{{ p.updateFields.APAccountRef.details }}",
+        "SalesTermRef": "{{ p.updateFields.SalesTermRef.details }}"
+      },
+      "output": {
+        "path": "Bill"
+      }
+    },
+    {
+      "resource": "employee",
+      "operation": "get",
+      "title": "Get a employee",
+      "method": "GET",
+      "path": "/employee/{{ p.employeeId }}",
+      "fields": [
+        {
+          "key": "employeeId",
+          "label": "Employee ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Employee"
+      }
+    },
+    {
+      "resource": "employee",
+      "operation": "create",
+      "title": "Create a employee",
+      "method": "POST",
+      "path": "/employee",
+      "fields": [
+        {
+          "key": "FamilyName",
+          "label": "Family name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "GivenName",
+          "label": "Given name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Active",
+            "BillableTime",
+            "DisplayName",
+            "BillAddr",
+            "PrimaryPhone",
+            "PrintOnCheckName",
+            "SSN"
+          ]
+        }
+      ],
+      "body": {
+        "FamilyName": "{{ p.FamilyName }}",
+        "GivenName": "{{ p.GivenName }}",
+        "$merge": "{{ p.additionalFields | omit:'BillAddr,PrimaryEmailAddr,PrimaryPhone' }}",
+        "BillAddr": {
+          "$merge": "{{ p.additionalFields.BillAddr.details }}"
+        },
+        "PrimaryEmailAddr": {
+          "Address": "{{ p.additionalFields.PrimaryEmailAddr }}"
+        },
+        "PrimaryPhone": {
+          "FreeFormNumber": "{{ p.additionalFields.PrimaryPhone }}"
+        }
+      },
+      "output": {
+        "path": "Employee"
+      }
+    },
+    {
+      "resource": "employee",
+      "operation": "getAll",
+      "title": "Get many employees",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: e.g. WHERE Metadata.LastUpdatedTime > '2024-01-01'"
+        }
+      ],
+      "query": {
+        "query": "SELECT * FROM Employee{{ p.filters.query | prefix:' ' }} MAXRESULTS {{ p.returnAll | bool | eq:'true' | then:1000 | default:p.limit }}"
+      },
+      "output": {
+        "path": "QueryResponse.Employee"
+      }
+    },
+    {
+      "resource": "employee",
+      "operation": "update",
+      "title": "Update a employee",
+      "method": "POST",
+      "path": "/employee",
+      "before": {
+        "method": "GET",
+        "path": "/employee/{{ p.employeeId }}"
+      },
+      "fields": [
+        {
+          "key": "employeeId",
+          "label": "Employee ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Active",
+            "BillableTime",
+            "DisplayName",
+            "BillAddr",
+            "PrimaryPhone",
+            "PrintOnCheckName",
+            "SSN"
+          ]
+        }
+      ],
+      "body": {
+        "Id": "{{ p.employeeId }}",
+        "SyncToken": "{{ pre.Employee.SyncToken }}",
+        "sparse": true,
+        "$merge": "{{ p.updateFields | omit:'BillAddr,PrimaryEmailAddr,PrimaryPhone' }}",
+        "BillAddr": {
+          "$merge": "{{ p.updateFields.BillAddr.details }}"
+        },
+        "PrimaryEmailAddr": {
+          "Address": "{{ p.updateFields.PrimaryEmailAddr }}"
+        },
+        "PrimaryPhone": {
+          "FreeFormNumber": "{{ p.updateFields.PrimaryPhone }}"
+        }
+      },
+      "output": {
+        "path": "Employee"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "get",
+      "title": "Get a estimate",
+      "method": "GET",
+      "path": "/estimate/{{ p.estimateId }}{{ p.download | bool | eq:'true' | then:'/pdf' }}",
+      "fields": [
+        {
+          "key": "estimateId",
+          "label": "Estimate ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "download",
+          "label": "Download PDF",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "output": {
+        "path": "{{ p.download | bool | ne:'true' | then:'Estimate' }}"
+      },
+      "headers": {
+        "Accept": "{{ p.download | bool | eq:'true' | then:'application/pdf' }}"
+      },
+      "binary": {
+        "download_when": "{{ p.download | bool }}",
+        "property_field": "binaryProperty",
+        "file_name": "{{ p.fileName | default:'estimate.pdf' }}",
+        "mime_type": "application/pdf"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "create",
+      "title": "Create a estimate",
+      "method": "POST",
+      "path": "/estimate",
+      "fields": [
+        {
+          "key": "CustomerRef",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Line",
+          "label": "Lines",
+          "type": "json",
+          "required": true,
+          "help": "List of {DetailType, Amount, Description, LineNum, itemId, TaxCodeRef}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ApplyTaxAfterDiscount",
+            "BillAddr",
+            "BillEmail",
+            "CustomFields",
+            "CustomerMemo",
+            "DocNumber",
+            "EmailStatus",
+            "PrintStatus",
+            "ShipAddr",
+            "TotalAmt",
+            "TxnDate",
+            "TotalTax"
+          ]
+        }
+      ],
+      "body": {
+        "CustomerRef": {
+          "value": "{{ p.CustomerRef }}"
+        },
+        "$merge": "{{ p.additionalFields | omit:'BillAddr,ShipAddr,BillEmail,CustomFields,CustomerMemo,TotalTax' }}",
+        "BillAddr": {
+          "$merge": "{{ p.additionalFields.BillAddr.details }}"
+        },
+        "ShipAddr": {
+          "$merge": "{{ p.additionalFields.ShipAddr.details }}"
+        },
+        "BillEmail": {
+          "Address": "{{ p.additionalFields.BillEmail }}"
+        },
+        "CustomField": {
+          "$map": "{{ p.additionalFields.CustomFields.Field }}",
+          "$to": {
+            "DefinitionId": "{{ el.DefinitionId }}",
+            "StringValue": "{{ el.StringValue }}",
+            "Type": "StringType"
+          }
+        },
+        "CustomerMemo": {
+          "value": "{{ p.additionalFields.CustomerMemo }}"
+        },
+        "TxnTaxDetail": {
+          "TotalTax": "{{ p.additionalFields.TotalTax }}"
+        },
+        "Line": {
+          "$map": "{{ p.Line }}",
+          "$to": {
+            "DetailType": "{{ el.DetailType }}",
+            "Amount": "{{ el.Amount }}",
+            "Description": "{{ el.Description }}",
+            "LineNum": "{{ el.LineNum }}",
+            "SalesItemLineDetail": {
+              "$when": "{{ el.DetailType | eq:'SalesItemLineDetail' }}",
+              "ItemRef": {
+                "value": "{{ el.itemId }}"
+              },
+              "TaxCodeRef": {
+                "value": "{{ el.TaxCodeRef }}"
+              }
+            }
+          }
+        }
+      },
+      "output": {
+        "path": "Estimate"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "delete",
+      "title": "Delete a estimate",
+      "method": "POST",
+      "path": "/estimate",
+      "before": {
+        "method": "GET",
+        "path": "/estimate/{{ p.estimateId }}"
+      },
+      "query": {
+        "operation": "delete"
+      },
+      "fields": [
+        {
+          "key": "estimateId",
+          "label": "Estimate ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "Id": "{{ p.estimateId }}",
+        "SyncToken": "{{ pre.Estimate.SyncToken }}"
+      },
+      "output": {
+        "path": "Estimate"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "getAll",
+      "title": "Get many estimates",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: e.g. WHERE Metadata.LastUpdatedTime > '2024-01-01'"
+        }
+      ],
+      "query": {
+        "query": "SELECT * FROM Estimate{{ p.filters.query | prefix:' ' }} MAXRESULTS {{ p.returnAll | bool | eq:'true' | then:1000 | default:p.limit }}"
+      },
+      "output": {
+        "path": "QueryResponse.Estimate"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "send",
+      "title": "Email a estimate",
+      "method": "POST",
+      "path": "/estimate/{{ p.estimateId }}/send",
+      "fields": [
+        {
+          "key": "estimateId",
+          "label": "Estimate ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "sendTo": "{{ p.email }}"
+      },
+      "output": {
+        "path": "Estimate"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "update",
+      "title": "Update a estimate",
+      "method": "POST",
+      "path": "/estimate",
+      "before": {
+        "method": "GET",
+        "path": "/estimate/{{ p.estimateId }}"
+      },
+      "fields": [
+        {
+          "key": "estimateId",
+          "label": "Estimate ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ApplyTaxAfterDiscount",
+            "BillAddr",
+            "BillEmail",
+            "CustomFields",
+            "CustomerMemo",
+            "DocNumber",
+            "EmailStatus",
+            "PrintStatus",
+            "ShipAddr",
+            "TotalAmt",
+            "TxnDate",
+            "TotalTax"
+          ]
+        }
+      ],
+      "body": {
+        "Id": "{{ p.estimateId }}",
+        "SyncToken": "{{ pre.Estimate.SyncToken }}",
+        "sparse": true,
+        "CustomerRef": {
+          "name": "{{ pre.Estimate.CustomerRef.name }}",
+          "value": "{{ pre.Estimate.CustomerRef.value }}"
+        },
+        "$merge": "{{ p.updateFields | omit:'BillAddr,ShipAddr,BillEmail,CustomFields,CustomerMemo,TotalTax' }}",
+        "BillAddr": {
+          "$merge": "{{ p.updateFields.BillAddr.details }}"
+        },
+        "ShipAddr": {
+          "$merge": "{{ p.updateFields.ShipAddr.details }}"
+        },
+        "BillEmail": {
+          "Address": "{{ p.updateFields.BillEmail }}"
+        },
+        "CustomField": {
+          "$map": "{{ p.updateFields.CustomFields.Field }}",
+          "$to": {
+            "DefinitionId": "{{ el.DefinitionId }}",
+            "StringValue": "{{ el.StringValue }}",
+            "Type": "StringType"
+          }
+        },
+        "CustomerMemo": {
+          "value": "{{ p.updateFields.CustomerMemo }}"
+        },
+        "TxnTaxDetail": {
+          "TotalTax": "{{ p.updateFields.TotalTax }}"
+        }
+      },
+      "output": {
+        "path": "Estimate"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "get",
+      "title": "Get a invoice",
+      "method": "GET",
+      "path": "/invoice/{{ p.invoiceId }}{{ p.download | bool | eq:'true' | then:'/pdf' }}",
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "download",
+          "label": "Download PDF",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "output": {
+        "path": "{{ p.download | bool | ne:'true' | then:'Invoice' }}"
+      },
+      "headers": {
+        "Accept": "{{ p.download | bool | eq:'true' | then:'application/pdf' }}"
+      },
+      "binary": {
+        "download_when": "{{ p.download | bool }}",
+        "property_field": "binaryProperty",
+        "file_name": "{{ p.fileName | default:'invoice.pdf' }}",
+        "mime_type": "application/pdf"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "create",
+      "title": "Create a invoice",
+      "method": "POST",
+      "path": "/invoice",
+      "fields": [
+        {
+          "key": "CustomerRef",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "Line",
+          "label": "Lines",
+          "type": "json",
+          "required": true,
+          "help": "List of {DetailType, Amount, Description, LineNum, itemId, TaxCodeRef, Qty}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Balance",
+            "BillAddr",
+            "BillEmail",
+            "CustomerMemo",
+            "CustomFields",
+            "DocNumber",
+            "DueDate",
+            "EmailStatus",
+            "PrintStatus",
+            "ShipAddr",
+            "TotalAmt",
+            "TxnDate"
+          ]
+        }
+      ],
+      "body": {
+        "CustomerRef": {
+          "value": "{{ p.CustomerRef }}"
+        },
+        "$merge": "{{ p.additionalFields | omit:'BillAddr,ShipAddr,BillEmail,CustomFields,CustomerMemo,TotalTax' }}",
+        "BillAddr": {
+          "$merge": "{{ p.additionalFields.BillAddr.details }}"
+        },
+        "ShipAddr": {
+          "$merge": "{{ p.additionalFields.ShipAddr.details }}"
+        },
+        "BillEmail": {
+          "Address": "{{ p.additionalFields.BillEmail }}"
+        },
+        "CustomField": {
+          "$map": "{{ p.additionalFields.CustomFields.Field }}",
+          "$to": {
+            "DefinitionId": "{{ el.DefinitionId }}",
+            "StringValue": "{{ el.StringValue }}",
+            "Type": "StringType"
+          }
+        },
+        "CustomerMemo": {
+          "value": "{{ p.additionalFields.CustomerMemo }}"
+        },
+        "TxnTaxDetail": {
+          "TotalTax": "{{ p.additionalFields.TotalTax }}"
+        },
+        "Line": {
+          "$map": "{{ p.Line }}",
+          "$to": {
+            "DetailType": "{{ el.DetailType }}",
+            "Amount": "{{ el.Amount }}",
+            "Description": "{{ el.Description }}",
+            "LineNum": "{{ el.LineNum }}",
+            "SalesItemLineDetail": {
+              "$when": "{{ el.DetailType | eq:'SalesItemLineDetail' }}",
+              "ItemRef": {
+                "value": "{{ el.itemId }}"
+              },
+              "TaxCodeRef": {
+                "value": "{{ el.TaxCodeRef }}"
+              },
+              "Qty": "{{ el.Qty }}"
+            }
+          }
+        }
+      },
+      "output": {
+        "path": "Invoice"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "delete",
+      "title": "Delete a invoice",
+      "method": "POST",
+      "path": "/invoice",
+      "before": {
+        "method": "GET",
+        "path": "/invoice/{{ p.invoiceId }}"
+      },
+      "query": {
+        "operation": "delete"
+      },
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "Id": "{{ p.invoiceId }}",
+        "SyncToken": "{{ pre.Invoice.SyncToken }}"
+      },
+      "output": {
+        "path": "Invoice"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "getAll",
+      "title": "Get many invoices",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: e.g. WHERE Metadata.LastUpdatedTime > '2024-01-01'"
+        }
+      ],
+      "query": {
+        "query": "SELECT * FROM Invoice{{ p.filters.query | prefix:' ' }} MAXRESULTS {{ p.returnAll | bool | eq:'true' | then:1000 | default:p.limit }}"
+      },
+      "output": {
+        "path": "QueryResponse.Invoice"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "send",
+      "title": "Email a invoice",
+      "method": "POST",
+      "path": "/invoice/{{ p.invoiceId }}/send",
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "sendTo": "{{ p.email }}"
+      },
+      "output": {
+        "path": "Invoice"
+      },
+      "headers": {
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "update",
+      "title": "Update a invoice",
+      "method": "POST",
+      "path": "/invoice",
+      "before": {
+        "method": "GET",
+        "path": "/invoice/{{ p.invoiceId }}"
+      },
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Balance",
+            "BillAddr",
+            "BillEmail",
+            "CustomerMemo",
+            "CustomFields",
+            "DocNumber",
+            "DueDate",
+            "EmailStatus",
+            "PrintStatus",
+            "ShipAddr",
+            "TotalAmt",
+            "TxnDate"
+          ]
+        }
+      ],
+      "body": {
+        "Id": "{{ p.invoiceId }}",
+        "SyncToken": "{{ pre.Invoice.SyncToken }}",
+        "sparse": true,
+        "CustomerRef": {
+          "name": "{{ pre.Invoice.CustomerRef.name }}",
+          "value": "{{ pre.Invoice.CustomerRef.value }}"
+        },
+        "$merge": "{{ p.updateFields | omit:'BillAddr,ShipAddr,BillEmail,CustomFields,CustomerMemo,TotalTax' }}",
+        "BillAddr": {
+          "$merge": "{{ p.updateFields.BillAddr.details }}"
+        },
+        "ShipAddr": {
+          "$merge": "{{ p.updateFields.ShipAddr.details }}"
+        },
+        "BillEmail": {
+          "Address": "{{ p.updateFields.BillEmail }}"
+        },
+        "CustomField": {
+          "$map": "{{ p.updateFields.CustomFields.Field }}",
+          "$to": {
+            "DefinitionId": "{{ el.DefinitionId }}",
+            "StringValue": "{{ el.StringValue }}",
+            "Type": "StringType"
+          }
+        },
+        "CustomerMemo": {
+          "value": "{{ p.updateFields.CustomerMemo }}"
+        },
+        "TxnTaxDetail": {
+          "TotalTax": "{{ p.updateFields.TotalTax }}"
+        }
+      },
+      "output": {
+        "path": "Invoice"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "void",
+      "title": "Void a invoice",
+      "method": "POST",
+      "path": "/invoice",
+      "before": {
+        "method": "GET",
+        "path": "/invoice/{{ p.invoiceId }}"
+      },
+      "query": {
+        "operation": "void"
+      },
+      "fields": [
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "Id": "{{ p.invoiceId }}",
+        "SyncToken": "{{ pre.Invoice.SyncToken }}"
+      },
+      "output": {
+        "path": "Invoice"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "get",
+      "title": "Get a item",
+      "method": "GET",
+      "path": "/item/{{ p.itemId }}",
+      "fields": [
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Item"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "getAll",
+      "title": "Get many items",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: e.g. WHERE Metadata.LastUpdatedTime > '2024-01-01'"
+        }
+      ],
+      "query": {
+        "query": "SELECT * FROM Item{{ p.filters.query | prefix:' ' }} MAXRESULTS {{ p.returnAll | bool | eq:'true' | then:1000 | default:p.limit }}"
+      },
+      "output": {
+        "path": "QueryResponse.Item"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "get",
+      "title": "Get a payment",
+      "method": "GET",
+      "path": "/payment/{{ p.paymentId }}{{ p.download | bool | eq:'true' | then:'/pdf' }}",
+      "fields": [
+        {
+          "key": "paymentId",
+          "label": "Payment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "download",
+          "label": "Download PDF",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "output": {
+        "path": "{{ p.download | bool | ne:'true' | then:'Payment' }}"
+      },
+      "headers": {
+        "Accept": "{{ p.download | bool | eq:'true' | then:'application/pdf' }}"
+      },
+      "binary": {
+        "download_when": "{{ p.download | bool }}",
+        "property_field": "binaryProperty",
+        "file_name": "{{ p.fileName | default:'payment.pdf' }}",
+        "mime_type": "application/pdf"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "create",
+      "title": "Create a payment",
+      "method": "POST",
+      "path": "/payment",
+      "fields": [
+        {
+          "key": "CustomerRef",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "TotalAmt",
+          "label": "Total amount",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "TxnDate"
+          ]
+        }
+      ],
+      "body": {
+        "CustomerRef": {
+          "value": "{{ p.CustomerRef }}"
+        },
+        "TotalAmt": "{{ p.TotalAmt }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "Payment"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "delete",
+      "title": "Delete a payment",
+      "method": "POST",
+      "path": "/payment",
+      "before": {
+        "method": "GET",
+        "path": "/payment/{{ p.paymentId }}"
+      },
+      "query": {
+        "operation": "delete"
+      },
+      "fields": [
+        {
+          "key": "paymentId",
+          "label": "Payment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "Id": "{{ p.paymentId }}",
+        "SyncToken": "{{ pre.Payment.SyncToken }}"
+      },
+      "output": {
+        "path": "Payment"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "getAll",
+      "title": "Get many payments",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: e.g. WHERE Metadata.LastUpdatedTime > '2024-01-01'"
+        }
+      ],
+      "query": {
+        "query": "SELECT * FROM Payment{{ p.filters.query | prefix:' ' }} MAXRESULTS {{ p.returnAll | bool | eq:'true' | then:1000 | default:p.limit }}"
+      },
+      "output": {
+        "path": "QueryResponse.Payment"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "send",
+      "title": "Email a payment",
+      "method": "POST",
+      "path": "/payment/{{ p.paymentId }}/send",
+      "fields": [
+        {
+          "key": "paymentId",
+          "label": "Payment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "sendTo": "{{ p.email }}"
+      },
+      "output": {
+        "path": "Payment"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "update",
+      "title": "Update a payment",
+      "method": "POST",
+      "path": "/payment",
+      "before": {
+        "method": "GET",
+        "path": "/payment/{{ p.paymentId }}"
+      },
+      "fields": [
+        {
+          "key": "paymentId",
+          "label": "Payment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "TxnDate"
+          ]
+        }
+      ],
+      "body": {
+        "Id": "{{ p.paymentId }}",
+        "SyncToken": "{{ pre.Payment.SyncToken }}",
+        "sparse": true,
+        "CustomerRef": {
+          "name": "{{ pre.Payment.CustomerRef.name }}",
+          "value": "{{ pre.Payment.CustomerRef.value }}"
+        },
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "Payment"
+      }
+    },
+    {
+      "resource": "payment",
+      "operation": "void",
+      "title": "Void a payment",
+      "method": "POST",
+      "path": "/payment",
+      "before": {
+        "method": "GET",
+        "path": "/payment/{{ p.paymentId }}"
+      },
+      "query": {
+        "operation": "void"
+      },
+      "fields": [
+        {
+          "key": "paymentId",
+          "label": "Payment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "Id": "{{ p.paymentId }}",
+        "SyncToken": "{{ pre.Payment.SyncToken }}"
+      },
+      "output": {
+        "path": "Payment"
+      }
+    },
+    {
+      "resource": "purchase",
+      "operation": "get",
+      "title": "Get a purchase",
+      "method": "GET",
+      "path": "/purchase/{{ p.purchaseId }}",
+      "fields": [
+        {
+          "key": "purchaseId",
+          "label": "Purchase ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Purchase"
+      }
+    },
+    {
+      "resource": "purchase",
+      "operation": "getAll",
+      "title": "Get many purchases",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: e.g. WHERE Metadata.LastUpdatedTime > '2024-01-01'"
+        }
+      ],
+      "query": {
+        "query": "SELECT * FROM Purchase{{ p.filters.query | prefix:' ' }} MAXRESULTS {{ p.returnAll | bool | eq:'true' | then:1000 | default:p.limit }}"
+      },
+      "output": {
+        "path": "QueryResponse.Purchase"
+      }
+    },
+    {
+      "resource": "transaction",
+      "operation": "getReport",
+      "title": "Get a transaction report",
+      "method": "GET",
+      "path": "/reports/TransactionList",
+      "fields": [
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "One object per row keyed by column type"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "appaid",
+            "arpaid",
+            "cleared",
+            "columns",
+            "customer",
+            "dateRangeCustom",
+            "date_macro",
+            "dateRangeCreationCustom",
+            "createdate_macro",
+            "dateRangeDueCustom",
+            "duedate_macro",
+            "dateRangeModificationCustom",
+            "moddate_macro",
+            "department",
+            "docnum",
+            "group_by",
+            "memo",
+            "payment_Method",
+            "printed",
+            "qzurl",
+            "sort_by",
+            "sort_order",
+            "source_account_type",
+            "term",
+            "bothamount",
+            "transaction_type",
+            "vendor"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'columns,memo,term,customer,vendor,department,dateRangeCustom,dateRangeDueCustom,dateRangeModificationCustom,dateRangeCreationCustom' }}",
+        "columns": "{{ p.filters.columns | csv }}",
+        "memo": "{{ p.filters.memo | csv }}",
+        "term": "{{ p.filters.term | csv }}",
+        "customer": "{{ p.filters.customer | csv }}",
+        "vendor": "{{ p.filters.vendor | csv }}",
+        "department": "{{ p.filters.department | csv }}",
+        "start_date": "{{ p.filters.dateRangeCustom.dateRangeCustomProperties.start_date | date:'YYYY-MM-DD' }}",
+        "end_date": "{{ p.filters.dateRangeCustom.dateRangeCustomProperties.end_date | date:'YYYY-MM-DD' }}",
+        "start_createdate": "{{ p.filters.dateRangeCreationCustom.dateRangeCreationCustomProperties.start_createdate | date:'YYYY-MM-DD' }}",
+        "end_createdate": "{{ p.filters.dateRangeCreationCustom.dateRangeCreationCustomProperties.end_createdate | date:'YYYY-MM-DD' }}",
+        "start_duedate": "{{ p.filters.dateRangeDueCustom.dateRangeDueCustomProperties.start_duedate | date:'YYYY-MM-DD' }}",
+        "end_duedate": "{{ p.filters.dateRangeDueCustom.dateRangeDueCustomProperties.end_duedate | date:'YYYY-MM-DD' }}",
+        "start_moddate": "{{ p.filters.dateRangeModificationCustom.dateRangeModificationCustomProperties.start_moddate | date:'YYYY-MM-DD' }}",
+        "end_moddate": "{{ p.filters.dateRangeModificationCustom.dateRangeModificationCustomProperties.end_moddate | date:'YYYY-MM-DD' }}"
+      },
+      "output": {
+        "path": "{{ p.simple | bool | eq:'true' | then:'Rows.Row' }}",
+        "to_when": "{{ p.simple | bool }}",
+        "to": {
+          "$merge": "{{ el.ColData | zip:res.Columns.Column,'ColType','value' }}"
+        }
+      }
+    },
+    {
+      "resource": "vendor",
+      "operation": "get",
+      "title": "Get a vendor",
+      "method": "GET",
+      "path": "/vendor/{{ p.vendorId }}",
+      "fields": [
+        {
+          "key": "vendorId",
+          "label": "Vendor ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Vendor"
+      }
+    },
+    {
+      "resource": "vendor",
+      "operation": "create",
+      "title": "Create a vendor",
+      "method": "POST",
+      "path": "/vendor",
+      "fields": [
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "AcctNum",
+            "Active",
+            "Balance",
+            "BillAddr",
+            "CompanyName",
+            "FamilyName",
+            "GivenName",
+            "PrimaryEmailAddr",
+            "PrimaryPhone",
+            "PrintOnCheckName",
+            "Vendor1099"
+          ]
+        }
+      ],
+      "body": {
+        "DisplayName": "{{ p.displayName }}",
+        "$merge": "{{ p.additionalFields | omit:'BillAddr,PrimaryEmailAddr,PrimaryPhone' }}",
+        "BillAddr": {
+          "$merge": "{{ p.additionalFields.BillAddr.details }}"
+        },
+        "PrimaryEmailAddr": {
+          "Address": "{{ p.additionalFields.PrimaryEmailAddr }}"
+        },
+        "PrimaryPhone": {
+          "FreeFormNumber": "{{ p.additionalFields.PrimaryPhone }}"
+        }
+      },
+      "output": {
+        "path": "Vendor"
+      }
+    },
+    {
+      "resource": "vendor",
+      "operation": "getAll",
+      "title": "Get many vendors",
+      "method": "GET",
+      "path": "/query",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "query: e.g. WHERE Metadata.LastUpdatedTime > '2024-01-01'"
+        }
+      ],
+      "query": {
+        "query": "SELECT * FROM Vendor{{ p.filters.query | prefix:' ' }} MAXRESULTS {{ p.returnAll | bool | eq:'true' | then:1000 | default:p.limit }}"
+      },
+      "output": {
+        "path": "QueryResponse.Vendor"
+      }
+    },
+    {
+      "resource": "vendor",
+      "operation": "update",
+      "title": "Update a vendor",
+      "method": "POST",
+      "path": "/vendor",
+      "before": {
+        "method": "GET",
+        "path": "/vendor/{{ p.vendorId }}"
+      },
+      "fields": [
+        {
+          "key": "vendorId",
+          "label": "Vendor ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "AcctNum",
+            "Active",
+            "Balance",
+            "BillAddr",
+            "CompanyName",
+            "FamilyName",
+            "GivenName",
+            "PrimaryEmailAddr",
+            "PrimaryPhone",
+            "PrintOnCheckName",
+            "Vendor1099"
+          ]
+        }
+      ],
+      "body": {
+        "Id": "{{ p.vendorId }}",
+        "SyncToken": "{{ pre.Vendor.SyncToken }}",
+        "sparse": true,
+        "$merge": "{{ p.updateFields | omit:'BillAddr,PrimaryEmailAddr,PrimaryPhone' }}",
+        "BillAddr": {
+          "$merge": "{{ p.updateFields.BillAddr.details }}"
+        },
+        "PrimaryEmailAddr": {
+          "Address": "{{ p.updateFields.PrimaryEmailAddr }}"
+        },
+        "PrimaryPhone": {
+          "FreeFormNumber": "{{ p.updateFields.PrimaryPhone }}"
+        }
+      },
+      "output": {
+        "path": "Vendor"
+      }
+    }
+  ]
+}

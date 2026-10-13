@@ -17,16 +17,12 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/capturedocs"
-	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/docscan"
 	"github.com/monoes/mono-agent/internal/imagescan"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/profiledir"
-	"github.com/monoes/mono-agent/internal/secrets"
-	"github.com/monoes/mono-agent/internal/storage"
-	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	_ "modernc.org/sqlite"
 )
@@ -64,6 +60,8 @@ type App struct {
 	taskWatchMu      sync.Mutex
 	taskWatchStop    func() // stops the active profile's task board watcher; see restartTaskWatcher
 	taskWatchProfile string // the profile that watcher watches
+
+	dbMigratePending atomic.Bool // `db migrate` was refused for sign-in; AccountStatus retries it (app_db_prepare.go)
 }
 
 // NewApp creates the App instance.
@@ -106,33 +104,16 @@ func (a *App) startup(ctx context.Context) {
 	if err := os.MkdirAll(filepath.Dir(a.dbPath), 0o700); err != nil {
 		runtime.LogErrorf(ctx, "data folder error: %v", err)
 	}
-	sdb, err := storage.NewDatabase(a.dbPath)
+	db, err := openReadOnlyDB(a.dbPath)
 	if err != nil {
 		runtime.LogErrorf(ctx, "DB open error: %v", err)
 		return
 	}
-	if err := sdb.ApplyMigrations(); err != nil {
-		runtime.LogErrorf(ctx, "DB migration error: %v", err)
-	}
-	db := sdb.DB
 	a.db = db
-
-	// Automatic, idempotent check-and-migrate: encrypt any connections rows
-	// left over from before the secrets vault shipped. Cheap (a single COUNT
-	// query) once everything is already encrypted, and self-healing if a
-	// plaintext row is ever reintroduced.
-	if _, _, err := connections.MigrateConnectionsToVault(ctx, db); err != nil {
-		runtime.LogErrorf(ctx, "connections migration error: %v", err)
-	}
-	if _, _, err := secrets.MigrateFieldsToKV(ctx, db); err != nil {
-		runtime.LogErrorf(ctx, "vault key-value migration error: %v", err)
-	}
-	if _, _, err := secrets.MigrateSessionsToVault(ctx, db); err != nil {
-		runtime.LogErrorf(ctx, "sessions migration error: %v", err)
-	}
-	if _, err := secrets.RetireAIProviderEntries(ctx, db, filepath.Join(filepath.Dir(a.dbPath), "backups")); err != nil {
-		runtime.LogErrorf(ctx, "retiring AI provider keys: %v", err)
-	}
+	// The CLI owns the schema: `db migrate` applies pending migrations and
+	// the per-profile folder and vault migrations (app_db_prepare.go); this
+	// read-only handle only serves what the app still reads itself.
+	a.prepareDatabase()
 
 	// os.UserHomeDir (not $HOME) so vault/workflow dirs resolve on Windows too.
 	home, _ := os.UserHomeDir()
@@ -154,8 +135,6 @@ func (a *App) startup(ctx context.Context) {
 		activeProfileID = "default"
 	}
 	a.setActiveProfileID(activeProfileID)
-
-	a.migrateProfilesToPerProfileLayout(ctx, db)
 
 	a.restartOrgWatcher()
 	a.restartDocumentWatcher()
@@ -181,90 +160,6 @@ func (a *App) startup(ctx context.Context) {
 // with a fixed delay.
 func (a *App) IsReady() bool {
 	return a.ready.Load()
-}
-
-// migrateProfilesToPerProfileLayout brings every existing profile up to the
-// per-profile architecture: a dedicated folder, its files moved out of the
-// old shared vault directory and then out of that per-profile folder's own
-// legacy vault/ into .monoagent/vault/ (so everything monoagent owns is a
-// single unit, distinct from .monomind/ and the user-visible taxonomy
-// folders), its secrets re-encrypted under its own key (instead of the one
-// every profile used to share), and an empty monomind project bootstrapped
-// for its knowledge graph. Runs once per app startup, for every profile —
-// each underlying step is already cheap and idempotent once a profile is
-// fully migrated (a handful of COUNT-first queries or a no-op MoveFiles),
-// the same "run it every startup, no-op once done" pattern the migrations
-// right above this call already use (MigrateConnectionsToVault et al.). A
-// failure on one profile is logged and does not block the others or app
-// startup.
-func (a *App) migrateProfilesToPerProfileLayout(ctx context.Context, db *sql.DB) {
-	rows, err := db.QueryContext(ctx, `SELECT id FROM profiles`)
-	if err != nil {
-		a.emitLog("SYSTEM", "WARN", fmt.Sprintf("per-profile layout migration: listing profiles: %v", err))
-		return
-	}
-	var profileIDs []string
-	for rows.Next() {
-		var id string
-		if rows.Scan(&id) == nil {
-			profileIDs = append(profileIDs, id)
-		}
-	}
-	rows.Close()
-
-	for _, profileID := range profileIDs {
-		if err := profiledir.EnsureLayout(db, profileID); err != nil {
-			a.emitLog("SYSTEM", "WARN", fmt.Sprintf("profile %s: creating folder layout: %v", profileID, err))
-			continue
-		}
-
-		if moved, errs := vault.MigrateVaultFiles(ctx, db, profileID); moved > 0 || len(errs) > 0 {
-			for _, e := range errs {
-				a.emitLog("SYSTEM", "WARN", fmt.Sprintf("profile %s: vault file migration: %v", profileID, e))
-			}
-			if moved > 0 {
-				a.emitLog("SYSTEM", "INFO", fmt.Sprintf("profile %s: moved %d vault file(s) into its own folder", profileID, moved))
-			}
-		}
-
-		if moved, errs := vault.MigrateVaultDirIntoMonoagent(ctx, db, profileID); moved > 0 || len(errs) > 0 {
-			for _, e := range errs {
-				a.emitLog("SYSTEM", "WARN", fmt.Sprintf("profile %s: .monoagent vault migration: %v", profileID, e))
-			}
-			if moved > 0 {
-				a.emitLog("SYSTEM", "INFO", fmt.Sprintf("profile %s: moved %d vault file(s) into its own .monoagent folder", profileID, moved))
-			}
-		}
-
-		if migrated, errs := secrets.MigrateProfileVaultKeys(ctx, db, profileID); migrated > 0 || len(errs) > 0 {
-			for _, e := range errs {
-				a.emitLog("SYSTEM", "WARN", fmt.Sprintf("profile %s: vault key migration: %v", profileID, e))
-			}
-			if migrated > 0 {
-				a.emitLog("SYSTEM", "INFO", fmt.Sprintf("profile %s: re-encrypted %d secret(s) under its own key", profileID, migrated))
-			}
-		}
-
-		// connections.data and platform_oauth_credentials.client_secret use
-		// the same DEK/KEK scheme as vault_secrets but live in a different
-		// table, so they need their own migration pass — see
-		// connections.MigrateProfileBlobs for why skipping this broke every
-		// existing OAuth connection (decrypt failures read as "connection
-		// not found," which sends callers into a fresh login flow instead).
-		if migrated, errs := connections.MigrateProfileBlobs(ctx, db, profileID); migrated > 0 || len(errs) > 0 {
-			for _, e := range errs {
-				a.emitLog("SYSTEM", "WARN", fmt.Sprintf("profile %s: connection data migration: %v", profileID, e))
-			}
-			if migrated > 0 {
-				a.emitLog("SYSTEM", "INFO", fmt.Sprintf("profile %s: re-encrypted %d connection(s) under its own key", profileID, migrated))
-			}
-		}
-
-		// Best-effort, fire-and-forget — bootstrapProfileMonograph already
-		// handles a not-yet-existing monomind binary or a slow first build
-		// without blocking startup.
-		a.bootstrapProfileMonograph(profileID)
-	}
 }
 
 func (a *App) shutdown(_ context.Context) {

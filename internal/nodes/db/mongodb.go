@@ -17,6 +17,9 @@ type MongoDBNode struct{}
 
 func (n *MongoDBNode) Type() string { return "db.mongodb" }
 
+// PerItemConfigFields declares mongoPerItemFields (see its doc comment).
+func (n *MongoDBNode) PerItemConfigFields() []string { return mongoPerItemFields }
+
 func (n *MongoDBNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	operation, _ := config["operation"].(string)
 	if operation == "" {
@@ -31,6 +34,14 @@ func (n *MongoDBNode) Execute(ctx context.Context, input workflow.NodeInput, con
 	database, _ := config["database"].(string)
 	if database == "" {
 		return nil, fmt.Errorf("db.mongodb: 'database' is required")
+	}
+
+	if isN8nMongoConfig(config) {
+		return executeMongoN8n(ctx, operation, connStr, database, input, config)
+	}
+	config, err := resolveForItem(ctx, config, mongoPerItemFields, firstItem(input), input)
+	if err != nil {
+		return nil, fmt.Errorf("db.mongodb: %w", err)
 	}
 
 	collection, _ := config["collection"].(string)

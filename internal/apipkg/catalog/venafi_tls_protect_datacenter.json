@@ -1,0 +1,395 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "venafi_tls_protect_datacenter",
+  "node_type": "app.venafi_tls_protect_datacenter",
+  "title": "Venafi TLS Protect Datacenter",
+  "description": "Request, renew, download and inspect certificates in Venafi TLS Protect Datacenter (TPP)",
+  "category": "app",
+  "docs_url": "https://docs.venafi.com/Docs/current/TopNav/Content/SDK/WebSDK/c-sdk-Overview.php",
+  "n8n_types": [
+    "n8n-nodes-base.venafiTlsProtectDatacenter"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.venafiTlsProtectDatacenterTrigger"
+  ],
+  "base_url": "{{ cred.domain }}",
+  "credentials": [
+    {
+      "platform": "venafi_tls_protect_datacenter",
+      "name": "Venafi TLS Protect Datacenter",
+      "n8n_credential": "venafiTlsProtectDatacenterApi",
+      "n8n_field_map": {
+        "domain": "domain",
+        "clientId": "client_id",
+        "username": "username",
+        "password": "password"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Server URL",
+          "required": true,
+          "help": "e.g. https://tpp.example.com"
+        },
+        {
+          "key": "client_id",
+          "label": "API integration client ID",
+          "required": true
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ pre.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "certificate",
+      "label": "Certificate"
+    },
+    {
+      "value": "policy",
+      "label": "Policy"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "certificate",
+      "operation": "create",
+      "title": "Request a certificate",
+      "method": "POST",
+      "path": "/vedsdk/Certificates/Request",
+      "body": {
+        "PolicyDN": "{{ p.PolicyDN }}",
+        "Subject": "{{ p.Subject }}",
+        "$merge": "{{ p.additionalFields | omit:'SubjectAltNamesUi,customFieldsUi' }}",
+        "SubjectAltNames": "{{ p.additionalFields.SubjectAltNamesUi.SubjectAltNamesValues }}",
+        "CustomFields": {
+          "$map": "{{ p.additionalFields.customFieldsUi.customFielsValues }}",
+          "$to": {
+            "Name": "{{ el.Name }}",
+            "Values": "{{ el.Values | split }}"
+          }
+        }
+      },
+      "before": {
+        "method": "POST",
+        "path": "/vedauth/authorize/oauth",
+        "body": {
+          "client_id": "{{ cred.client_id }}",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}",
+          "scope": "certificate:manage"
+        }
+      },
+      "fields": [
+        {
+          "key": "PolicyDN",
+          "label": "Policy DN",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "Subject",
+          "label": "Subject (common name)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "Approvers",
+            "CADN",
+            "CertificateType",
+            "City",
+            "Contacts",
+            "Country",
+            "customFieldsUi",
+            "CreatedBy",
+            "Devices",
+            "DisableAutomaticRenewal",
+            "EllipticCurve",
+            "KeyAlgorithm",
+            "KeyBitSize",
+            "ManagementType",
+            "origin",
+            "Organization",
+            "OrganizationalUnit",
+            "PKCS10",
+            "Reenable",
+            "SetWorkToDo",
+            "State",
+            "SubjectAltNamesUi"
+          ],
+          "help": "SubjectAltNamesUi.SubjectAltNamesValues: [{Typename, name}]; customFieldsUi.customFielsValues: [{Name, Values}]"
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "delete",
+      "title": "Delete a certificate",
+      "method": "DELETE",
+      "path": "/vedsdk/Certificates/{{ p.certificateId }}",
+      "before": {
+        "method": "POST",
+        "path": "/vedauth/authorize/oauth",
+        "body": {
+          "client_id": "{{ cred.client_id }}",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}",
+          "scope": "certificate:manage"
+        }
+      },
+      "fields": [
+        {
+          "key": "certificateId",
+          "label": "Certificate GUID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "download",
+      "title": "Download a certificate",
+      "method": "POST",
+      "path": "/vedsdk/Certificates/Retrieve",
+      "body": {
+        "CertificateDN": "{{ p.certificateDn }}",
+        "Format": "Base64",
+        "IncludeChain": true,
+        "IncludePrivateKey": "{{ p.includePrivateKey | eq:'true' }}",
+        "Password": "{{ p.includePrivateKey | eq:'true' | then:p.password }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "binary": {
+        "download_base64": "{{ res.CertificateData }}",
+        "property_field": "binaryProperty",
+        "file_name": "{{ res.Filename }}"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/vedauth/authorize/oauth",
+        "body": {
+          "client_id": "{{ cred.client_id }}",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}",
+          "scope": "certificate:manage"
+        }
+      },
+      "fields": [
+        {
+          "key": "certificateDn",
+          "label": "Certificate DN",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "includePrivateKey",
+          "label": "Include private key",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "password",
+          "label": "Private key password",
+          "type": "password",
+          "default": ""
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Output binary property",
+          "type": "text",
+          "required": true,
+          "default": "data"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "IncludeChain",
+            "RootFirstOrder",
+            "KeystorePassword"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "get",
+      "title": "Get a certificate",
+      "method": "GET",
+      "path": "/vedsdk/Certificates/{{ p.certificateId }}",
+      "before": {
+        "method": "POST",
+        "path": "/vedauth/authorize/oauth",
+        "body": {
+          "client_id": "{{ cred.client_id }}",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}",
+          "scope": "certificate:manage"
+        }
+      },
+      "fields": [
+        {
+          "key": "certificateId",
+          "label": "Certificate GUID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "getMany",
+      "title": "Get many certificates",
+      "method": "GET",
+      "path": "/vedsdk/Certificates",
+      "query": {
+        "OptionalFields": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.0.Next",
+        "limit_param": "Limit",
+        "page_size": 100,
+        "results_path": "Certificates"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/vedauth/authorize/oauth",
+        "body": {
+          "client_id": "{{ cred.client_id }}",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}",
+          "scope": "certificate:manage"
+        }
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: Issuer, KeyAlgorithm, KeySize, Subject"
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "renew",
+      "title": "Renew a certificate",
+      "method": "POST",
+      "path": "/vedsdk/Certificates/Renew",
+      "body": {
+        "CertificateDN": "{{ p.certificateDN }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/vedauth/authorize/oauth",
+        "body": {
+          "client_id": "{{ cred.client_id }}",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}",
+          "scope": "certificate:manage"
+        }
+      },
+      "fields": [
+        {
+          "key": "certificateDN",
+          "label": "Certificate DN",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "PKCS10",
+            "Reenable"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "policy",
+      "operation": "get",
+      "title": "Check a policy",
+      "method": "POST",
+      "path": "/vedsdk/Certificates/CheckPolicy",
+      "body": {
+        "PolicyDN": "{{ p.policyDn }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/vedauth/authorize/oauth",
+        "body": {
+          "client_id": "{{ cred.client_id }}",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}",
+          "scope": "certificate:manage"
+        }
+      },
+      "fields": [
+        {
+          "key": "policyDn",
+          "label": "Policy DN",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "PKCS10"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -228,6 +228,7 @@ func (ae *ActionExecutor) stepForEach(ctx context.Context, step StepDef) (*StepR
 	restore := ae.bindVars(map[string]interface{}{as: nil, as + "_index": 0, "loopIndex": 0})
 	defer restore()
 
+	targets := ae.iteratesTargets(step.Items)
 	done := 0
 	for i, it := range items {
 		if err := ctx.Err(); err != nil {
@@ -236,7 +237,7 @@ func (ae *ActionExecutor) stepForEach(ctx context.Context, step StepDef) (*StepR
 		ae.execCtx.SetVariable(as, it)
 		ae.execCtx.SetVariable(as+"_index", i)
 		ae.execCtx.SetVariable("loopIndex", i)
-		if err := ae.executeSteps(ctx, step.Steps); err != nil || ae.safeStop != nil {
+		if err := ae.runTarget(targets, i, func() error { return ae.executeSteps(ctx, step.Steps) }); err != nil || ae.safeStop != nil {
 			return ae.bodyResult(step, err, done)
 		}
 		done++

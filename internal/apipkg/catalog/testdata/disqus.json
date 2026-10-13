@@ -1,0 +1,159 @@
+{
+  "forum.get": {
+    "params": {
+      "id": "myforum",
+      "additionalFields": {
+        "attach": [
+          "counters",
+          "forumFeatures"
+        ]
+      }
+    },
+    "response": {
+      "response": {
+        "id": "myforum"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/3.0/forums/details.json",
+      "query": {
+        "forum": "myforum",
+        "attach": [
+          "counters",
+          "forumFeatures"
+        ]
+      },
+      "items": 1
+    }
+  },
+  "forum.getCategories": {
+    "params": {
+      "id": "myforum",
+      "limit": 5,
+      "additionalFields": {
+        "order": "desc"
+      }
+    },
+    "response": {
+      "cursor": {
+        "hasNext": false
+      },
+      "response": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/3.0/forums/listCategories.json",
+      "query": {
+        "forum": "myforum",
+        "order": "desc",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "forum.getThreads": {
+    "params": {
+      "id": "myforum",
+      "returnAll": true,
+      "additionalFields": {
+        "include": [
+          "open"
+        ]
+      }
+    },
+    "responses": [
+      {
+        "cursor": {
+          "hasNext": true,
+          "next": "c2"
+        },
+        "response": [
+          {
+            "id": 1
+          }
+        ]
+      },
+      {
+        "cursor": {
+          "hasNext": false
+        },
+        "response": [
+          {
+            "id": 2
+          }
+        ]
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/3.0/forums/listThreads.json",
+        "query": {
+          "forum": "myforum",
+          "include": "open",
+          "limit": "100"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/3.0/forums/listThreads.json",
+        "query": {
+          "forum": "myforum",
+          "include": "open",
+          "limit": "100",
+          "cursor": "c2"
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/3.0/forums/listThreads.json",
+      "items": 2
+    }
+  },
+  "forum.getPosts": {
+    "params": {
+      "id": "myforum",
+      "limit": 10,
+      "additionalFields": {
+        "filters": [
+          "Has_Link",
+          "Is_Flagged"
+        ],
+        "query": "hi"
+      }
+    },
+    "response": {
+      "cursor": {
+        "hasNext": false
+      },
+      "response": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/3.0/forums/listPosts.json",
+      "query": {
+        "forum": "myforum",
+        "filters": [
+          "Has_Link",
+          "Is_Flagged"
+        ],
+        "query": "hi",
+        "limit": "10"
+      },
+      "items": 2
+    }
+  }
+}

@@ -1,0 +1,978 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "clockify",
+  "node_type": "app.clockify",
+  "title": "Clockify",
+  "description": "Clients, projects, tags, tasks, time entries, users and workspaces in Clockify",
+  "category": "app",
+  "docs_url": "https://docs.clockify.me/",
+  "n8n_types": [
+    "n8n-nodes-base.clockify"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.clockifyTrigger"
+  ],
+  "base_url": "https://api.clockify.me/api/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "clockify",
+      "name": "Clockify",
+      "n8n_credential": "clockifyApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Clockify: Profile settings → API"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Api-Key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "project",
+      "label": "Project"
+    },
+    {
+      "value": "client",
+      "label": "Client"
+    },
+    {
+      "value": "tag",
+      "label": "Tag"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "timeEntry",
+      "label": "Time Entry"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "workspace",
+      "label": "Workspace"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "project",
+      "operation": "create",
+      "title": "Create a project",
+      "method": "POST",
+      "path": "/workspaces/{{ p.workspaceId }}/projects",
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields | omit:'estimateUi' }}",
+        "estimate": "{{ p.additionalFields.estimateUi.estimateValues }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billable",
+            "color",
+            "clientId",
+            "estimateUi",
+            "isPublic",
+            "note"
+          ],
+          "help": "estimateUi: {\"estimateValues\": {\"estimate\": 0, \"type\": \"AUTO\"}}"
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "delete",
+      "title": "Delete a project",
+      "method": "DELETE",
+      "path": "/workspaces/{{ p.workspaceId }}/projects/{{ p.projectId }}",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "get",
+      "title": "Get a project",
+      "method": "GET",
+      "path": "/workspaces/{{ p.workspaceId }}/projects/{{ p.projectId }}",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "getAll",
+      "title": "Get many projects",
+      "method": "GET",
+      "path": "/workspaces/{{ p.workspaceId }}/projects",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "page-size",
+        "page_size": 50,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "archived",
+            "billable",
+            "clients",
+            "contains-client",
+            "client-status",
+            "contains-user",
+            "is-template",
+            "name",
+            "sort-column",
+            "sort-order",
+            "users",
+            "user-status"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "update",
+      "title": "Update a project",
+      "method": "PUT",
+      "path": "/workspaces/{{ p.workspaceId }}/projects/{{ p.projectId }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'estimateUi' }}",
+        "estimate": "{{ p.updateFields.estimateUi.estimateValues }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billable",
+            "color",
+            "clientId",
+            "estimateUi",
+            "isPublic",
+            "name",
+            "note"
+          ],
+          "help": "estimateUi: {\"estimateValues\": {\"estimate\": 0, \"type\": \"AUTO\"}}"
+        }
+      ]
+    },
+    {
+      "resource": "client",
+      "operation": "create",
+      "title": "Create a client",
+      "method": "POST",
+      "path": "/workspaces/{{ p.workspaceId }}/clients",
+      "body": {
+        "name": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "client",
+      "operation": "delete",
+      "title": "Delete a client",
+      "method": "DELETE",
+      "path": "/workspaces/{{ p.workspaceId }}/clients/{{ p.clientId }}",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "client",
+      "operation": "get",
+      "title": "Get a client",
+      "method": "GET",
+      "path": "/workspaces/{{ p.workspaceId }}/clients/{{ p.clientId }}",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "client",
+      "operation": "getAll",
+      "title": "Get many clients",
+      "method": "GET",
+      "path": "/workspaces/{{ p.workspaceId }}/clients",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "page-size",
+        "page_size": 50,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "archived",
+            "name",
+            "sort-order"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "client",
+      "operation": "update",
+      "title": "Update a client",
+      "method": "PUT",
+      "path": "/workspaces/{{ p.workspaceId }}/clients/{{ p.clientId }}",
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "archived"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "tag",
+      "operation": "create",
+      "title": "Create a tag",
+      "method": "POST",
+      "path": "/workspaces/{{ p.workspaceId }}/tags",
+      "body": {
+        "name": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "tag",
+      "operation": "delete",
+      "title": "Delete a tag",
+      "method": "DELETE",
+      "path": "/workspaces/{{ p.workspaceId }}/tags/{{ p.tagId }}",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "tag",
+      "operation": "getAll",
+      "title": "Get many tags",
+      "method": "GET",
+      "path": "/workspaces/{{ p.workspaceId }}/tags",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "page-size",
+        "page_size": 50,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "archived",
+            "name",
+            "sort-column",
+            "sort-order"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "tag",
+      "operation": "update",
+      "title": "Update a tag",
+      "method": "PUT",
+      "path": "/workspaces/{{ p.workspaceId }}/tags/{{ p.tagId }}",
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "archived",
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/workspaces/{{ p.workspaceId }}/projects/{{ p.projectId }}/tasks",
+      "body": {
+        "name": "{{ p.name }}",
+        "assigneeIds": "{{ p.additionalFields.assigneeIds }}",
+        "estimate": "{{ p.additionalFields.estimate | split:':' | get:'0' | prefix:'PT' | suffix:'H' }}{{ p.additionalFields.estimate | split:':' | get:'1' | suffix:'M' }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigneeIds",
+            "estimate"
+          ],
+          "help": "estimate: HH:MM"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/workspaces/{{ p.workspaceId }}/projects/{{ p.projectId }}/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/workspaces/{{ p.workspaceId }}/projects/{{ p.projectId }}/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/workspaces/{{ p.workspaceId }}/projects/{{ p.projectId }}/tasks",
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "page-size",
+        "page_size": 50,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "is-active",
+            "name",
+            "sort-column",
+            "sort-order"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PUT",
+      "path": "/workspaces/{{ p.workspaceId }}/projects/{{ p.projectId }}/tasks/{{ p.taskId }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'estimate' }}",
+        "estimate": "{{ p.updateFields.estimate | split:':' | get:'0' | prefix:'PT' | suffix:'H' }}{{ p.updateFields.estimate | split:':' | get:'1' | suffix:'M' }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigneeIds",
+            "estimate",
+            "name",
+            "status"
+          ],
+          "help": "estimate: HH:MM"
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "create",
+      "title": "Create a time entry",
+      "method": "POST",
+      "path": "/workspaces/{{ p.workspaceId }}/time-entries",
+      "body": {
+        "start": "{{ p.start }}",
+        "$merge": "{{ p.additionalFields | omit:'customFieldsUi' }}",
+        "customFields": "{{ p.additionalFields.customFieldsUi.customFieldsValues }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "start",
+          "label": "Start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billable",
+            "customFieldsUi",
+            "description",
+            "end",
+            "projectId",
+            "tagIds",
+            "taskId"
+          ],
+          "help": "customFieldsUi: {\"customFieldsValues\": [{\"customFieldId\": \"x\", \"value\": \"y\"}]}; times are ISO 8601 in UTC"
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "delete",
+      "title": "Delete a time entry",
+      "method": "DELETE",
+      "path": "/workspaces/{{ p.workspaceId }}/time-entries/{{ p.timeEntryId }}",
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "timeEntryId",
+          "label": "Time entry ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "get",
+      "title": "Get a time entry",
+      "method": "GET",
+      "path": "/workspaces/{{ p.workspaceId }}/time-entries/{{ p.timeEntryId }}",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "timeEntryId",
+          "label": "Time entry ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "consider-duration-format",
+            "hydrated"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "update",
+      "title": "Update a time entry",
+      "method": "PUT",
+      "path": "/workspaces/{{ p.workspaceId }}/time-entries/{{ p.timeEntryId }}",
+      "before": {
+        "when": "{{ p.updateFields.start | default:'keep' | eq:'keep' }}",
+        "method": "GET",
+        "path": "/workspaces/{{ p.workspaceId }}/time-entries/{{ p.timeEntryId }}"
+      },
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFieldsUi' }}",
+        "customFields": "{{ p.updateFields.customFieldsUi.customFieldsValues }}",
+        "start": "{{ p.updateFields.start | default:pre.timeInterval.start }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "timeEntryId",
+          "label": "Time entry ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billable",
+            "customFieldsUi",
+            "description",
+            "end",
+            "projectId",
+            "start",
+            "tagIds",
+            "taskId"
+          ],
+          "help": "customFieldsUi: {\"customFieldsValues\": [{\"customFieldId\": \"x\", \"value\": \"y\"}]}; times are ISO 8601 in UTC. Without start, the current start is kept."
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/workspaces/{{ p.workspaceId }}/users",
+      "query": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "page-size",
+        "page_size": 50,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "name",
+            "status",
+            "sort-column",
+            "sort-order"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "workspace",
+      "operation": "getAll",
+      "title": "Get many workspaces",
+      "method": "GET",
+      "path": "/workspaces",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "__no_next_page",
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "zoneCertificate.upload": {
+    "params": {
+      "zoneId": "z1",
+      "certificate": "CERT",
+      "privateKey": "KEY"
+    },
+    "response": {
+      "result": {
+        "id": "c1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/client/v4/zones/z1/origin_tls_client_auth",
+      "query": {},
+      "body": {
+        "certificate": "CERT",
+        "private_key": "KEY"
+      },
+      "items": 1
+    }
+  },
+  "zoneCertificate.delete": {
+    "params": {
+      "zoneId": "z1",
+      "certificateId": "c1"
+    },
+    "response": {
+      "result": {
+        "id": "c1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/client/v4/zones/z1/origin_tls_client_auth/c1",
+      "query": {},
+      "items": 1
+    }
+  },
+  "zoneCertificate.get": {
+    "params": {
+      "zoneId": "z1",
+      "certificateId": "c1"
+    },
+    "response": {
+      "result": {
+        "id": "c1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/client/v4/zones/z1/origin_tls_client_auth/c1",
+      "query": {},
+      "items": 1
+    }
+  },
+  "zoneCertificate.getMany": {
+    "params": {
+      "zoneId": "z1",
+      "limit": 10,
+      "filters": {
+        "status": "active"
+      }
+    },
+    "response": {
+      "result": [
+        {
+          "id": "a"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/client/v4/zones/z1/origin_tls_client_auth",
+      "query": {
+        "status": "active",
+        "page": "1",
+        "per_page": "10"
+      },
+      "items": 1
+    }
+  }
+}

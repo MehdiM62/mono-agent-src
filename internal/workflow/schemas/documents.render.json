@@ -37,5 +37,22 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the HTML document",
+      "key": "html_document_id",
+      "type": "string"
+    },
+    {
+      "description": "the PDF document",
+      "key": "pdf_document_id",
+      "type": "string"
+    },
+    {
+      "description": "document type",
+      "key": "doc_type",
+      "type": "string"
+    }
   ]
 }

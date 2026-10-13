@@ -44,5 +44,17 @@
       "required": false,
       "type": "boolean"
     }
+  ],
+  "outputs": [
+    {
+      "description": "read: one item per row, keyed by column header (or index)",
+      "key": "<columns>",
+      "type": "any"
+    },
+    {
+      "description": "write: number of rows written",
+      "key": "rows_written",
+      "type": "number"
+    }
   ]
 }

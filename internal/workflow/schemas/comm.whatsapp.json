@@ -83,5 +83,17 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "message id",
+      "key": "message_id",
+      "type": "string"
+    },
+    {
+      "description": "delivery status",
+      "key": "status",
+      "type": "string"
+    }
   ]
 }

@@ -33,5 +33,12 @@
       "required": false,
       "type": "select"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    }
   ]
 }

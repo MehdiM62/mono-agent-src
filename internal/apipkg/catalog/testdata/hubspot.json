@@ -1,0 +1,992 @@
+{
+  "contact.upsert": {
+    "params": {
+      "email": "a@b.test",
+      "additionalFields": {
+        "firstName": "Ada",
+        "annualRevenue": 5,
+        "closeDate": "2024-01-01T00:00:00Z",
+        "buyingRole": [
+          "A",
+          "B"
+        ],
+        "associatedCompanyId": 9,
+        "customPropertiesUi": {
+          "customPropertiesValues": [
+            {
+              "property": "tier",
+              "value": "gold"
+            }
+          ]
+        }
+      }
+    },
+    "responses": [
+      {
+        "vid": 42,
+        "isNew": true
+      },
+      {},
+      {
+        "vid": 42,
+        "properties": {}
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/contacts/v1/contact/createOrUpdate/email/a@b.test",
+        "body": {
+          "properties": [
+            {
+              "property": "hs_buying_role",
+              "value": "A;B"
+            },
+            {
+              "property": "annualrevenue",
+              "value": "5"
+            },
+            {
+              "property": "closedate",
+              "value": 1704067200000
+            },
+            {
+              "property": "firstname",
+              "value": "Ada"
+            },
+            {
+              "property": "tier",
+              "value": "gold"
+            }
+          ]
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/crm-associations/v1/associations/create-batch",
+        "body": [
+          {
+            "fromObjectId": 42,
+            "toObjectId": 9,
+            "category": "HUBSPOT_DEFINED",
+            "definitionId": 1
+          }
+        ]
+      },
+      {
+        "method": "GET",
+        "path": "/contacts/v1/contact/vid/42/profile"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/contacts/v1/contact/createOrUpdate/email/a@b.test",
+      "body": {
+        "properties": [
+          {
+            "property": "hs_buying_role",
+            "value": "A;B"
+          },
+          {
+            "property": "annualrevenue",
+            "value": "5"
+          },
+          {
+            "property": "closedate",
+            "value": 1704067200000
+          },
+          {
+            "property": "firstname",
+            "value": "Ada"
+          },
+          {
+            "property": "tier",
+            "value": "gold"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "42"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/contacts/v1/contact/vid/42",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "42",
+      "additionalFields": {
+        "propertiesCollection": {
+          "propertiesValues": {
+            "properties": "email,firstname",
+            "propertyMode": "valueOnly"
+          }
+        }
+      }
+    },
+    "response": {
+      "vid": 42
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts/v1/contact/vid/42/profile",
+      "query": {
+        "properties": [
+          "email",
+          "firstname"
+        ],
+        "propertyMode": "value_only"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "contacts": [
+        {
+          "vid": 1
+        }
+      ],
+      "has-more": false
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts/v1/lists/all/contacts/all",
+      "query": {
+        "count": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.getRecentlyCreatedUpdated": {
+    "params": {
+      "limit": 5,
+      "additionalFields": {
+        "listMemberships": true
+      }
+    },
+    "response": {
+      "contacts": [
+        {
+          "vid": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts/v1/lists/recently_updated/contacts/recent",
+      "query": {
+        "showListMemberships": "true",
+        "count": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.search": {
+    "params": {
+      "limit": 10,
+      "filterGroupsUi": {
+        "filterGroupsValues": [
+          {
+            "filtersUi": {
+              "filterValues": [
+                {
+                  "propertyName": "email|string",
+                  "type": "string",
+                  "operator": "EQ",
+                  "value": "a@b"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "additionalFields": {
+        "properties": [
+          "email"
+        ]
+      }
+    },
+    "response": {
+      "results": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v3/objects/contacts/search",
+      "body": {
+        "sorts": [
+          {
+            "propertyName": "createdate",
+            "direction": "DESCENDING"
+          }
+        ],
+        "filterGroups": [
+          {
+            "filters": [
+              {
+                "propertyName": "email",
+                "operator": "EQ",
+                "value": "a@b"
+              }
+            ]
+          }
+        ],
+        "properties": [
+          "email"
+        ],
+        "limit": 10
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contactList.add": {
+    "params": {
+      "listId": 7,
+      "by": "email",
+      "email": "a@b"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/contacts/v1/lists/7/add",
+      "body": {
+        "emails": [
+          "a@b"
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contactList.remove": {
+    "params": {
+      "listId": 7,
+      "id": "42"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/contacts/v1/lists/7/remove",
+      "body": {
+        "vids": [
+          42
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "company.create": {
+    "params": {
+      "name": "Acme",
+      "additionalFields": {
+        "city": "Oslo",
+        "companyDomainName": "acme.test"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/companies/v2/companies",
+      "body": {
+        "properties": [
+          {
+            "name": "name",
+            "value": "Acme"
+          },
+          {
+            "name": "city",
+            "value": "Oslo"
+          },
+          {
+            "name": "domain",
+            "value": "acme.test"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "company.delete": {
+    "params": {
+      "companyId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v3/objects/companies/5"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "company.get": {
+    "params": {
+      "companyId": "5",
+      "additionalFields": {
+        "includeMergeAudits": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/v2/companies/5",
+      "query": {
+        "includeMergeAudits": "true"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "company.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "companies": [
+        {
+          "companyId": 1
+        }
+      ],
+      "has-more": false
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/v2/companies/paged",
+      "query": {
+        "limit": "3"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "company.getRecentlyCreatedUpdated": {
+    "params": {
+      "limit": 3,
+      "additionalFields": {
+        "since": "2024-01-01T00:00:00Z"
+      }
+    },
+    "response": {
+      "results": [
+        {
+          "companyId": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/companies/v2/companies/recent/modified",
+      "query": {
+        "since": "1704067200000",
+        "count": "3"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "company.searchByDomain": {
+    "params": {
+      "domain": "https://acme.test",
+      "limit": 2,
+      "options": {
+        "properties": [
+          "domain"
+        ]
+      }
+    },
+    "response": {
+      "results": [
+        {
+          "a": 1
+        },
+        {
+          "a": 2
+        },
+        {
+          "a": 3
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/companies/v2/domains/acme.test/companies",
+      "body": {
+        "requestOptions": {
+          "properties": [
+            "domain"
+          ]
+        },
+        "limit": 2
+      },
+      "items": 2
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "company.update": {
+    "params": {
+      "companyId": "5",
+      "updateFields": {
+        "name": "New"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/companies/v2/companies/5",
+      "body": {
+        "properties": [
+          {
+            "name": "name",
+            "value": "New"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "deal.create": {
+    "params": {
+      "stage": "appointmentscheduled",
+      "additionalFields": {
+        "dealName": "D",
+        "dealOwner": {
+          "__rl": true,
+          "mode": "id",
+          "value": "77"
+        },
+        "associatedVids": [
+          1
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/deals/v1/deal",
+      "body": {
+        "properties": [
+          {
+            "name": "dealstage",
+            "value": "appointmentscheduled"
+          },
+          {
+            "name": "dealname",
+            "value": "D"
+          },
+          {
+            "name": "hubspot_owner_id",
+            "value": "77"
+          }
+        ],
+        "associations": {
+          "associatedVids": [
+            1
+          ]
+        }
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "deal.delete": {
+    "params": {
+      "dealId": "8"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/deals/v1/deal/8"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "deal.get": {
+    "params": {
+      "dealId": "8",
+      "filters": {
+        "includePropertyVersions": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/deals/v1/deal/8",
+      "query": {
+        "includePropertyVersions": "true"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "deal.getAll": {
+    "params": {
+      "limit": 4,
+      "filters": {
+        "properties": "dealname,amount"
+      }
+    },
+    "response": {
+      "deals": [
+        {
+          "dealId": 1
+        }
+      ],
+      "hasMore": false
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/deals/v1/deal/paged",
+      "query": {
+        "properties": [
+          "dealname",
+          "amount"
+        ],
+        "limit": "4"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "deal.getRecentlyCreatedUpdated": {
+    "params": {
+      "limit": 4
+    },
+    "response": {
+      "results": [
+        {
+          "dealId": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/deals/v1/deal/recent/created",
+      "query": {
+        "count": "4"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "deal.search": {
+    "params": {
+      "returnAll": true,
+      "additionalFields": {
+        "sortBy": "amount",
+        "direction": "ASCENDING"
+      }
+    },
+    "response": {
+      "results": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v3/objects/deals/search",
+      "body": {
+        "sorts": [
+          {
+            "propertyName": "amount",
+            "direction": "ASCENDING"
+          }
+        ],
+        "limit": 100
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "deal.update": {
+    "params": {
+      "dealId": "8",
+      "updateFields": {
+        "amount": "10",
+        "closeDate": "2024-01-01T00:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/deals/v1/deal/8",
+      "body": {
+        "properties": [
+          {
+            "name": "closedate",
+            "value": 1704067200000
+          },
+          {
+            "name": "amount",
+            "value": "10"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "engagement.create": {
+    "params": {
+      "type": "email",
+      "metadata": {
+        "fromEmail": "me@x",
+        "subject": "Hi",
+        "cc": [
+          "a@x,b@x"
+        ],
+        "html": "<p>x</p>"
+      },
+      "additionalFields": {
+        "associations": {
+          "contactIds": "1,2"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/engagements/v1/engagements",
+      "body": {
+        "engagement": {
+          "type": "EMAIL"
+        },
+        "metadata": {
+          "from": {
+            "email": "me@x"
+          },
+          "cc": [
+            {
+              "email": "a@x"
+            },
+            {
+              "email": "b@x"
+            }
+          ],
+          "subject": "Hi",
+          "html": "<p>x</p>"
+        },
+        "associations": {
+          "contactIds": [
+            "1",
+            "2"
+          ]
+        }
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "engagement.delete": {
+    "params": {
+      "engagementId": "3"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/engagements/v1/engagements/3"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "engagement.get": {
+    "params": {
+      "engagementId": "3"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/engagements/v1/engagements/3"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "engagement.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "response": {
+      "results": [
+        {
+          "a": 1
+        }
+      ],
+      "hasMore": false
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/engagements/v1/engagements/paged",
+      "query": {
+        "limit": "2"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "form.getFields": {
+    "params": {
+      "formId": "f1"
+    },
+    "response": [
+      {
+        "name": "email"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/forms/v2/fields/f1",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "form.submit": {
+    "params": {
+      "formId": "f1",
+      "contextUi": {
+        "contextValue": {
+          "pageName": "Home"
+        }
+      }
+    },
+    "input": {
+      "email": "a@b"
+    },
+    "responses": [
+      {
+        "portalId": 123
+      },
+      {}
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/submissions/v3/integration/submit/123/f1",
+      "body": {
+        "formId": "f1",
+        "portalId": 123,
+        "fields": [
+          {
+            "name": "email",
+            "value": "a@b"
+          }
+        ],
+        "context": {
+          "pageName": "Home"
+        }
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "ticket.create": {
+    "params": {
+      "pipelineId": "0",
+      "stageId": "1",
+      "ticketName": "Help",
+      "additionalFields": {
+        "priority": "HIGH",
+        "associatedContactIds": [
+          5
+        ]
+      }
+    },
+    "responses": [
+      {
+        "objectId": 99
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/crm-objects/v1/objects/tickets",
+        "body": [
+          {
+            "name": "hs_pipeline",
+            "value": "0"
+          },
+          {
+            "name": "hs_pipeline_stage",
+            "value": "1"
+          },
+          {
+            "name": "subject",
+            "value": "Help"
+          },
+          {
+            "name": "hs_ticket_priority",
+            "value": "HIGH"
+          }
+        ]
+      },
+      {
+        "method": "PUT",
+        "path": "/crm-associations/v1/associations/create-batch",
+        "body": [
+          {
+            "fromObjectId": 99,
+            "toObjectId": 5,
+            "category": "HUBSPOT_DEFINED",
+            "definitionId": 16
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/crm-objects/v1/objects/tickets",
+      "body": [
+        {
+          "name": "hs_pipeline",
+          "value": "0"
+        },
+        {
+          "name": "hs_pipeline_stage",
+          "value": "1"
+        },
+        {
+          "name": "subject",
+          "value": "Help"
+        },
+        {
+          "name": "hs_ticket_priority",
+          "value": "HIGH"
+        }
+      ]
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "ticket.delete": {
+    "params": {
+      "ticketId": "9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm-objects/v1/objects/tickets/9"
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "ticket.get": {
+    "params": {
+      "ticketId": "9",
+      "additionalFields": {
+        "properties": [
+          "subject"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm-objects/v1/objects/tickets/9",
+      "query": {
+        "properties": "subject"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "ticket.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "response": {
+      "objects": [
+        {
+          "objectId": 1
+        }
+      ],
+      "hasMore": false
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm-objects/v1/objects/tickets/paged",
+      "query": {
+        "limit": "2"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "ticket.update": {
+    "params": {
+      "ticketId": "9",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm-objects/v1/objects/tickets/9",
+      "body": [
+        {
+          "name": "content",
+          "value": "d"
+        }
+      ]
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  }
+}

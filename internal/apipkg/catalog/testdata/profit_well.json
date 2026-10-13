@@ -1,0 +1,52 @@
+{
+  "metric.get": {
+    "params": {
+      "type": "monthly",
+      "options": {
+        "monthlyMetrics": [
+          "recurring_revenue",
+          "active_customers"
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "recurring_revenue": [
+          {
+            "date": "2024-01",
+            "value": 10
+          },
+          {
+            "date": "2024-02",
+            "value": 12
+          }
+        ],
+        "active_customers": [
+          {
+            "date": "2024-01",
+            "value": 3
+          },
+          {
+            "date": "2024-02",
+            "value": 4
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/metrics/monthly",
+      "query": {
+        "metrics": "recurring_revenue,active_customers"
+      },
+      "items": 1
+    }
+  },
+  "company.getSetting": {
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/v2/company/settings/"
+    }
+  }
+}

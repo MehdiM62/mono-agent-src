@@ -86,3 +86,97 @@ export function isMediaField(field) {
   // file_path / local_path / file: a local file to upload.
   return (tokens.includes('file') && (last === 'path' || last === 'file')) || tokens.join('_') === 'local_path'
 }
+
+// credentialPickerMode says how the inspector's connection picker lists
+// connections: 'platform' for the derived platform's connections, 'any'
+// when the schema has a credential_picker field but names no platform
+// (http.request and http.graphql take a connection of any platform), null
+// when the node takes no connection.
+export function credentialPickerMode(platformId, schema) {
+  if (platformId) return 'platform'
+  return (schema?.fields || []).some(f => f?.type === 'credential_picker') ? 'any' : null
+}
+
+// connectionLabel is the name the picker shows for a saved connection.
+export function connectionLabel(c) {
+  return c?.label || c?.Label || c?.AccountID || c?.account_id || c?.platform || c?.id || c?.ID || ''
+}
+
+// groupConnectionsByPlatform groups connections under their platform for
+// the any-platform picker: platforms in name order, labels sorted in each.
+export function groupConnectionsByPlatform(conns) {
+  const groups = new Map()
+  for (const c of Array.isArray(conns) ? conns : []) {
+    const p = c?.platform || c?.Platform || 'other'
+    if (!groups.has(p)) groups.set(p, [])
+    groups.get(p).push(c)
+  }
+  return [...groups.keys()].sort().map(platform => ({
+    platform,
+    connections: groups.get(platform).slice().sort((a, b) => connectionLabel(a).localeCompare(connectionLabel(b))),
+  }))
+}
+
+// fieldIsVisible applies a field's visibility rule to the node config.
+// visible_for (API package operation fields) is a list of conditions such
+// as {resource, operation}: the field shows when every key of one of them
+// matches. Otherwise depends_on {key, values} shows it when that one key
+// has one of the values. A key the config doesn't set yet counts as its
+// field's default.
+export function fieldIsVisible(field, config, fields) {
+  const valueOf = key => {
+    let v = config?.[key]
+    if (v === undefined) v = (fields || []).find(f => f?.key === key)?.default
+    return String(v ?? '')
+  }
+  if (Array.isArray(field?.visible_for) && field.visible_for.length > 0) {
+    return field.visible_for.some(cond => cond && typeof cond === 'object' &&
+      Object.entries(cond).every(([k, v]) => valueOf(k) === String(v ?? '')))
+  }
+  const dep = field?.depends_on
+  if (!dep) return true
+  return (dep.values || []).map(String).includes(valueOf(dep.key ?? dep.field))
+}
+
+// A collection field (n8n "additional fields") holds an object of optional
+// settings; the inspector edits it as JSON text.
+export function collectionText(value) {
+  if (value == null || value === '') return ''
+  return typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
+}
+
+// jsonTextError is why text is not valid JSON, '' when it is, is empty, or
+// carries a {{ template }} (resolved at run time, so not checked here).
+export function jsonTextError(text) {
+  const s = String(text ?? '').trim()
+  if (!s || s.includes('{{')) return ''
+  try { JSON.parse(s); return '' } catch (e) { return 'Not valid JSON: ' + e.message }
+}
+
+// commitCollection turns edited collection text into the value to save.
+// Invalid text is not saved (error set). A field that held an object keeps
+// an object; one that held text (or nothing) keeps the text as typed. A
+// {{ template }} is saved as text.
+export function commitCollection(text, asObject) {
+  const s = String(text ?? '').trim()
+  if (!s) return { value: asObject ? {} : '', error: '' }
+  if (s.includes('{{')) return { value: String(text), error: '' }
+  let parsed
+  try { parsed = JSON.parse(s) } catch (e) { return { value: undefined, error: 'Not valid JSON: ' + e.message } }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { value: undefined, error: 'Must be a JSON object, e.g. { "key": "value" }' }
+  }
+  return { value: asObject ? parsed : String(text), error: '' }
+}
+
+// curlImportConfig is the config an imported curl command leaves on a
+// node: every schema field back to its default (the command describes the
+// whole request), the saved connection kept, then the imported keys.
+export function curlImportConfig(fields, current, imported) {
+  const next = {}
+  for (const f of fields || []) {
+    if (f?.key && !(f.key in next)) next[f.key] = f.default ?? ''
+  }
+  if (current?.credential_id) next.credential_id = current.credential_id
+  return { ...next, ...(imported || {}) }
+}

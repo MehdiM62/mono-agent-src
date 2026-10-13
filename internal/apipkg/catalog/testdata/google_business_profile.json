@@ -1,0 +1,251 @@
+{
+  "post.create": {
+    "params": {
+      "account": {
+        "__rl": true,
+        "mode": "list",
+        "value": "accounts/1"
+      },
+      "location": {
+        "__rl": true,
+        "mode": "list",
+        "value": "locations/2"
+      },
+      "postType": "EVENT",
+      "summary": "Open day",
+      "title": "Open day",
+      "startDateTime": "2026-11-01T10:30:00Z",
+      "endDateTime": "2026-11-01T12:00:00Z",
+      "additionalOptions": {
+        "callToActionType": "LEARN_MORE",
+        "url": "https://ex.com"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v4/accounts/1/locations/2/localPosts",
+      "body": {
+        "topicType": "EVENT",
+        "summary": "Open day",
+        "callToAction": {
+          "actionType": "LEARN_MORE",
+          "url": "https://ex.com"
+        },
+        "event": {
+          "title": "Open day",
+          "schedule": {
+            "startDate": {
+              "year": 2026,
+              "month": 11,
+              "day": 1
+            },
+            "startTime": {
+              "hours": 10,
+              "minutes": 30,
+              "seconds": 0,
+              "nanos": 0
+            },
+            "endDate": {
+              "year": 2026,
+              "month": 11,
+              "day": 1
+            },
+            "endTime": {
+              "hours": 12,
+              "minutes": 0,
+              "seconds": 0,
+              "nanos": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "post.delete": {
+    "params": {
+      "account": {
+        "__rl": true,
+        "mode": "list",
+        "value": "accounts/1"
+      },
+      "location": {
+        "__rl": true,
+        "mode": "list",
+        "value": "locations/2"
+      },
+      "post": "accounts/1/locations/2/localPosts/3"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v4/accounts/1/locations/2/localPosts/3"
+    }
+  },
+  "post.get": {
+    "params": {
+      "account": {
+        "__rl": true,
+        "mode": "list",
+        "value": "accounts/1"
+      },
+      "location": {
+        "__rl": true,
+        "mode": "list",
+        "value": "locations/2"
+      },
+      "post": "accounts/1/locations/2/localPosts/3"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v4/accounts/1/locations/2/localPosts/3"
+    }
+  },
+  "post.getAll": {
+    "params": {
+      "account": {
+        "__rl": true,
+        "mode": "list",
+        "value": "accounts/1"
+      },
+      "location": {
+        "__rl": true,
+        "mode": "list",
+        "value": "locations/2"
+      },
+      "limit": 5
+    },
+    "response": {
+      "localPosts": [
+        {
+          "name": "x"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v4/accounts/1/locations/2/localPosts",
+      "query": {
+        "pageSize": "5"
+      },
+      "items": 1
+    }
+  },
+  "post.update": {
+    "params": {
+      "account": {
+        "__rl": true,
+        "mode": "list",
+        "value": "accounts/1"
+      },
+      "location": {
+        "__rl": true,
+        "mode": "list",
+        "value": "locations/2"
+      },
+      "post": "accounts/1/locations/2/localPosts/3",
+      "additionalOptions": {
+        "summary": "New"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v4/accounts/1/locations/2/localPosts/3",
+      "query": {
+        "updateMask": "summary,name"
+      },
+      "body": {
+        "summary": "New"
+      }
+    }
+  },
+  "review.get": {
+    "params": {
+      "account": {
+        "__rl": true,
+        "mode": "list",
+        "value": "accounts/1"
+      },
+      "location": {
+        "__rl": true,
+        "mode": "list",
+        "value": "locations/2"
+      },
+      "review": "accounts/1/locations/2/reviews/R9/reply"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v4/accounts/1/locations/2/reviews/R9"
+    }
+  },
+  "review.delete": {
+    "params": {
+      "account": {
+        "__rl": true,
+        "mode": "list",
+        "value": "accounts/1"
+      },
+      "location": {
+        "__rl": true,
+        "mode": "list",
+        "value": "locations/2"
+      },
+      "review": "R9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v4/accounts/1/locations/2/reviews/R9/reply"
+    }
+  },
+  "review.getAll": {
+    "params": {
+      "account": {
+        "__rl": true,
+        "mode": "list",
+        "value": "accounts/1"
+      },
+      "location": {
+        "__rl": true,
+        "mode": "list",
+        "value": "locations/2"
+      },
+      "limit": 5
+    },
+    "response": {
+      "reviews": [
+        {
+          "name": "r"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v4/accounts/1/locations/2/reviews",
+      "query": {
+        "pageSize": "5"
+      },
+      "items": 1
+    }
+  },
+  "review.reply": {
+    "params": {
+      "account": {
+        "__rl": true,
+        "mode": "list",
+        "value": "accounts/1"
+      },
+      "location": {
+        "__rl": true,
+        "mode": "list",
+        "value": "locations/2"
+      },
+      "review": "R9",
+      "reply": "Thanks!"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v4/accounts/1/locations/2/reviews/R9/reply",
+      "body": {
+        "comment": "Thanks!"
+      }
+    }
+  }
+}

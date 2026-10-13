@@ -1,0 +1,273 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "phantombuster",
+  "title": "Phantombuster",
+  "description": "Launch Phantombuster agents and read their output",
+  "category": "app",
+  "docs_url": "https://hub.phantombuster.com/reference",
+  "n8n_types": [
+    "n8n-nodes-base.phantombuster"
+  ],
+  "base_url": "https://api.phantombuster.com/api/v2",
+  "credentials": [
+    {
+      "platform": "phantombuster",
+      "name": "Phantombuster",
+      "n8n_credential": "phantombusterApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Phantombuster-Key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "agent",
+      "label": "Agent"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "agent",
+      "operation": "launch",
+      "title": "Launch an agent",
+      "method": "POST",
+      "path": "/agents/launch",
+      "fields": [
+        {
+          "key": "agentId",
+          "label": "Agent ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "resolveData",
+          "label": "Resolve data",
+          "type": "boolean",
+          "default": true,
+          "help": "Return the started container instead of only its ID."
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "argumentsJson",
+            "argumentsUi",
+            "bonusArgumentUi",
+            "bonusArgumentJson",
+            "manualLaunch",
+            "maxInstanceCount",
+            "saveArgument"
+          ],
+          "help": "argumentsUi: {\"argumentValues\": [{\"key\": \"k\", \"value\": \"v\"}]}; bonusArgumentUi: {\"bonusArgumentValue\": [...]}; *Json variants with JSON parameters on."
+        }
+      ],
+      "body": {
+        "id": "{{ p.agentId }}",
+        "arguments": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFields.argumentsJson | fromjson) | default:(p.additionalFields.argumentsUi | kv:'key,value') }}",
+        "bonusArgument": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFields.bonusArgumentJson | fromjson) | default:(p.additionalFields.bonusArgumentUi | kv:'key,value') }}",
+        "$merge": "{{ p.additionalFields | omit:'argumentsJson,argumentsUi,bonusArgumentUi,bonusArgumentJson' }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/containers/fetch",
+        "query": {
+          "id": "{{ main.containerId }}"
+        },
+        "until": "{{ p.resolveData | ne:'true' | default:(res.status | then:true) }}"
+      }
+    },
+    {
+      "resource": "agent",
+      "operation": "delete",
+      "title": "Delete an agent",
+      "method": "POST",
+      "path": "/agents/delete",
+      "fields": [
+        {
+          "key": "agentId",
+          "label": "Agent ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "body": {
+        "id": "{{ p.agentId }}"
+      }
+    },
+    {
+      "resource": "agent",
+      "operation": "get",
+      "title": "Get an agent",
+      "method": "GET",
+      "path": "/agents/fetch",
+      "fields": [
+        {
+          "key": "agentId",
+          "label": "Agent ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "query": {
+        "id": "{{ p.agentId }}"
+      }
+    },
+    {
+      "resource": "agent",
+      "operation": "getAll",
+      "title": "Get many agents",
+      "method": "GET",
+      "path": "/agents/fetch-all",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "agent",
+      "operation": "getOutput",
+      "title": "Get an agent's output",
+      "method": "GET",
+      "path": "{{ p.resolveData | eq:'true' | then:'/containers/fetch-result-object' | default:'/agents/fetch-output' }}",
+      "before": {
+        "when": "{{ p.resolveData }}",
+        "method": "GET",
+        "path": "/agents/fetch-output",
+        "query": {
+          "id": "{{ p.agentId }}",
+          "$merge": "{{ p.additionalFields }}"
+        }
+      },
+      "query": {
+        "id": "{{ p.resolveData | eq:'true' | then:pre.containerId | default:p.agentId }}",
+        "$merge": "{{ p.resolveData | ne:'true' | then:p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "agentId",
+          "label": "Agent ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "resolveData",
+          "label": "Resolve data",
+          "type": "boolean",
+          "default": true,
+          "help": "Return the parsed result object of the latest container."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "prevContainerId",
+            "prevStatus",
+            "prevRuntimeEventIndex"
+          ]
+        }
+      ],
+      "output": {
+        "from": "{{ p.resolveData | eq:'true' | then:(res.resultObject | fromjson | default:'{}' | fromjson) | default:res }}"
+      }
+    },
+    {
+      "resource": "agent",
+      "operation": "launchSync",
+      "title": "Launch an agent and wait for it to finish",
+      "method": "POST",
+      "path": "/agents/launch",
+      "description": "Launches the agent, then polls its container until it has finished.",
+      "fields": [
+        {
+          "key": "agentId",
+          "label": "Agent ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "argumentsJson",
+            "argumentsUi",
+            "bonusArgumentUi",
+            "bonusArgumentJson",
+            "manualLaunch",
+            "maxInstanceCount",
+            "saveArgument"
+          ],
+          "help": "argumentsUi: {\"argumentValues\": [{\"key\": \"k\", \"value\": \"v\"}]}; bonusArgumentUi: {\"bonusArgumentValue\": [...]}; *Json variants with JSON parameters on."
+        }
+      ],
+      "body": {
+        "id": "{{ p.agentId }}",
+        "arguments": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFields.argumentsJson | fromjson) | default:(p.additionalFields.argumentsUi | kv:'key,value') }}",
+        "bonusArgument": "{{ p.jsonParameters | eq:'true' | then:(p.additionalFields.bonusArgumentJson | fromjson) | default:(p.additionalFields.bonusArgumentUi | kv:'key,value') }}",
+        "$merge": "{{ p.additionalFields | omit:'argumentsJson,argumentsUi,bonusArgumentUi,bonusArgumentJson' }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/containers/fetch",
+        "query": {
+          "id": "{{ main.containerId }}"
+        },
+        "until": "{{ res.status | eq:'finished' }}",
+        "interval_ms": 2000,
+        "max_wait_ms": 1800000
+      }
+    }
+  ]
+}

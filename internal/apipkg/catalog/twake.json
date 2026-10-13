@@ -1,0 +1,96 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "twake",
+  "node_type": "app.twake",
+  "title": "Twake",
+  "description": "Send messages to Twake channels",
+  "category": "app",
+  "docs_url": "https://doc.twake.app/",
+  "n8n_types": [
+    "n8n-nodes-base.twake"
+  ],
+  "base_url": "https://plugins.twake.app/plugins/n8n",
+  "credentials": [
+    {
+      "platform": "twake",
+      "name": "Twake Cloud",
+      "n8n_credential": "twakeCloudApi",
+      "n8n_field_map": {
+        "workspaceKey": "workspace_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "workspace_key",
+          "label": "Workspace key",
+          "secret": true,
+          "required": true,
+          "help": "Twake: workspace settings → Integrations → n8n connector key"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.workspace_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "send",
+      "title": "Send a message",
+      "method": "POST",
+      "path": "/actions/message/save",
+      "body": {
+        "object": {
+          "channel_id": "{{ p.channelId }}",
+          "content": {
+            "formatted": "{{ p.content }}"
+          },
+          "hidden_data": {
+            "allow_delete": "everyone",
+            "custom_title": "{{ p.additionalFields.senderName }}",
+            "custom_icon": "{{ p.additionalFields.senderIcon }}"
+          }
+        }
+      },
+      "output": {
+        "path": "object"
+      },
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "senderIcon",
+            "senderName"
+          ],
+          "help": "senderName and senderIcon (image URL) override how the sender is shown"
+        }
+      ]
+    }
+  ]
+}

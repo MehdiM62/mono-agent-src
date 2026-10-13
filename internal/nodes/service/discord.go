@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -50,6 +51,9 @@ func (n *DiscordNode) Type() string { return "service.discord" }
 var discordBaseURL = "https://discord.com/api/v10"
 
 func (n *DiscordNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.discord", config) {
+		return apipkg.ExecuteExtension(ctx, "service.discord", input, config)
+	}
 	config = withFallback(config, "text", "content")
 	operation := strVal(config, "operation")
 	if operation == "" {

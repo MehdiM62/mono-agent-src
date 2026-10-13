@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -31,5 +32,8 @@ type EmailReadNode struct{}
 func (n *EmailReadNode) Type() string { return "comm.email_read" }
 
 func (n *EmailReadNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.email_read", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.email_read", input, config)
+	}
 	return nil, fmt.Errorf("comm.email_read: go-imap dependency not installed; run go get github.com/emersion/go-imap/v2")
 }

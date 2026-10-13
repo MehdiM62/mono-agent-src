@@ -1,0 +1,472 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "whats_app",
+  "extends": "comm.whatsapp",
+  "title": "WhatsApp Business Cloud",
+  "description": "Messages (text, media, location, contacts, templates) and media in the WhatsApp Business Cloud API (n8n operations)",
+  "category": "app",
+  "docs_url": "https://developers.facebook.com/docs/whatsapp/cloud-api/reference",
+  "n8n_types": [
+    "n8n-nodes-base.whatsApp"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.whatsAppTrigger"
+  ],
+  "base_url": "https://graph.facebook.com/v19.0",
+  "credentials": [
+    {
+      "platform": "whatsapp",
+      "reuse_platform": "whatsapp",
+      "name": "WhatsApp Business Cloud",
+      "n8n_credential": "whatsAppApi",
+      "n8n_field_map": {
+        "accessToken": "access_token",
+        "businessAccountId": "business_account_id"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "business_account_id",
+          "label": "Business account ID"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "media",
+      "label": "Media"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "sendTemplate",
+      "title": "Send a template message",
+      "method": "POST",
+      "path": "/{{ p.phoneNumberId }}/messages",
+      "body": {
+        "messaging_product": "whatsapp",
+        "to": "{{ p.recipientPhoneNumber | replace:'-','' | replace:'(','' | replace:')','' | replace:'+','' }}",
+        "type": "template",
+        "template": {
+          "name": "{{ p.template | split:'|' | get:'0' }}",
+          "language": {
+            "code": "{{ p.template | split:'|' | get:'1' }}"
+          },
+          "components": {
+            "$map": "{{ p.components.component }}",
+            "$to": {
+              "type": "{{ el.type }}",
+              "sub_type": "{{ el.type | eq:'button' | then:el.sub_type }}",
+              "index": "{{ el.type | eq:'button' | then:(el.index | default:0 | string) }}",
+              "parameters": {
+                "$concat": [
+                  {
+                    "$map": "{{ el.bodyParameters.parameter }}",
+                    "$to": {
+                      "type": "{{ el.type }}",
+                      "text": "{{ el.text }}",
+                      "payload": "{{ el.payload }}",
+                      "currency": {
+                        "$when": "{{ el.type | eq:'currency' }}",
+                        "code": "{{ el.code }}",
+                        "fallback_value": "{{ el.fallback_value }}",
+                        "amount_1000": "{{ el.amount_1000 | mul:1000 }}"
+                      },
+                      "date_time": {
+                        "$when": "{{ el.type | eq:'date_time' }}",
+                        "fallback_value": "{{ el.date_time }}"
+                      },
+                      "image": {
+                        "$when": "{{ el.type | eq:'image' }}",
+                        "link": "{{ el.imageLink }}"
+                      }
+                    }
+                  },
+                  "{{ el.type | eq:'button' | then:el.buttonParameters.parameter }}",
+                  {
+                    "$map": "{{ el.headerParameters.parameter }}",
+                    "$to": {
+                      "type": "{{ el.type }}",
+                      "text": "{{ el.text }}",
+                      "payload": "{{ el.payload }}",
+                      "currency": {
+                        "$when": "{{ el.type | eq:'currency' }}",
+                        "code": "{{ el.code }}",
+                        "fallback_value": "{{ el.fallback_value }}",
+                        "amount_1000": "{{ el.amount_1000 | mul:1000 }}"
+                      },
+                      "date_time": {
+                        "$when": "{{ el.type | eq:'date_time' }}",
+                        "fallback_value": "{{ el.date_time }}"
+                      },
+                      "image": {
+                        "$when": "{{ el.type | eq:'image' }}",
+                        "link": "{{ el.imageLink }}"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "phoneNumberId",
+          "label": "Sender phone number ID",
+          "type": "text",
+          "required": true,
+          "help": "ID of the business phone number that sends"
+        },
+        {
+          "key": "recipientPhoneNumber",
+          "label": "Recipient's phone number",
+          "type": "text",
+          "required": true,
+          "help": "With country code"
+        },
+        {
+          "key": "template",
+          "label": "Template",
+          "type": "text",
+          "required": true,
+          "help": "\"name|language\", e.g. hello_world|en_US"
+        },
+        {
+          "key": "components",
+          "label": "Components",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "component"
+          ],
+          "help": "{\"component\": [{\"type\": \"body|button|header\", \"bodyParameters\": {\"parameter\": [...]}, \"sub_type\", \"index\", \"buttonParameters\": {\"parameter\": {...}}, \"headerParameters\": {\"parameter\": [...]}}]}"
+        }
+      ]
+    },
+    {
+      "resource": "message",
+      "operation": "send",
+      "title": "Send a message",
+      "method": "POST",
+      "path": "/{{ p.phoneNumberId }}/messages",
+      "body": {
+        "messaging_product": "whatsapp",
+        "to": "{{ p.recipientPhoneNumber | replace:'-','' | replace:'(','' | replace:')','' | replace:'+','' }}",
+        "type": "{{ p.messageType }}",
+        "text": {
+          "$when": "{{ p.messageType | eq:'text' }}",
+          "body": "{{ p.textBody }}",
+          "preview_url": "{{ p.additionalFields.previewUrl }}"
+        },
+        "location": {
+          "$when": "{{ p.messageType | eq:'location' }}",
+          "longitude": "{{ p.longitude }}",
+          "latitude": "{{ p.latitude }}",
+          "name": "{{ p.additionalFields.nameAndAddress.name }}",
+          "address": "{{ p.additionalFields.nameAndAddress.address }}"
+        },
+        "contacts": [
+          {
+            "$when": "{{ p.messageType | eq:'contacts' }}",
+            "name": {
+              "formatted_name": "{{ p.name.data.formatted_name }}",
+              "first_name": "{{ p.name.data.first_name }}",
+              "last_name": "{{ p.name.data.last_name }}",
+              "middle_name": "{{ p.name.data.middle_name }}",
+              "suffix": "{{ p.name.data.suffix }}",
+              "prefix": "{{ p.name.data.prefix }}"
+            },
+            "addresses": {
+              "$map": "{{ p.additionalFields.addresses.address }}",
+              "$to": {
+                "type": "{{ el.type | default:'HOME' }}",
+                "street": "{{ el.street }}",
+                "city": "{{ el.city }}",
+                "state": "{{ el.state }}",
+                "zip": "{{ el.zip }}",
+                "country": "{{ el.country }}",
+                "country_code": "{{ el.country_code }}"
+              }
+            },
+            "birthday": "{{ p.additionalFields.birthday }}",
+            "emails": {
+              "$map": "{{ p.additionalFields.emails.data }}",
+              "$to": {
+                "type": "{{ el.type | default:'HOME' }}",
+                "email": "{{ el.email }}"
+              }
+            },
+            "org": {
+              "company": "{{ p.additionalFields.organization.data.company }}",
+              "department": "{{ p.additionalFields.organization.data.department }}",
+              "title": "{{ p.additionalFields.organization.data.title }}"
+            },
+            "phones": {
+              "$map": "{{ p.additionalFields.phones.data }}",
+              "$to": {
+                "type": "{{ el.type | default:'CELL' }}",
+                "phone": "{{ el.phone }}",
+                "wa_id": "{{ el.whatsapp_user_id }}"
+              }
+            },
+            "urls": {
+              "$map": "{{ p.additionalFields.urls.url }}",
+              "$to": {
+                "type": "{{ el.type | default:'HOME' }}",
+                "url": "{{ el.url }}"
+              }
+            }
+          }
+        ],
+        "image": {
+          "$when": "{{ p.messageType | eq:'image' }}",
+          "link": "{{ p.mediaPath | eq:'useMediaLink' | then:p.mediaLink }}",
+          "id": "{{ p.mediaPath | eq:'useMediaId' | then:p.mediaId | default:pre.id }}",
+          "caption": "{{ p.additionalFields.mediaCaption }}"
+        },
+        "video": {
+          "$when": "{{ p.messageType | eq:'video' }}",
+          "link": "{{ p.mediaPath | eq:'useMediaLink' | then:p.mediaLink }}",
+          "id": "{{ p.mediaPath | eq:'useMediaId' | then:p.mediaId | default:pre.id }}",
+          "caption": "{{ p.additionalFields.mediaCaption }}"
+        },
+        "audio": {
+          "$when": "{{ p.messageType | eq:'audio' }}",
+          "link": "{{ p.mediaPath | eq:'useMediaLink' | then:p.mediaLink }}",
+          "id": "{{ p.mediaPath | eq:'useMediaId' | then:p.mediaId | default:pre.id }}",
+          "caption": "{{ p.additionalFields.mediaCaption }}"
+        },
+        "sticker": {
+          "$when": "{{ p.messageType | eq:'sticker' }}",
+          "link": "{{ p.mediaPath | eq:'useMediaLink' | then:p.mediaLink }}",
+          "id": "{{ p.mediaPath | eq:'useMediaId' | then:p.mediaId | default:pre.id }}",
+          "caption": "{{ p.additionalFields.mediaCaption }}"
+        },
+        "document": {
+          "$when": "{{ p.messageType | eq:'document' }}",
+          "link": "{{ p.mediaPath | eq:'useMediaLink' | then:p.mediaLink }}",
+          "id": "{{ p.mediaPath | eq:'useMediaId' | then:p.mediaId | default:pre.id }}",
+          "caption": "{{ p.additionalFields.mediaCaption }}",
+          "filename": "{{ p.mediaFilename | default:p.additionalFields.mediaFilename | default:(p.mediaPath | eq:'useMedian8n' | then:bin.file_name) }}"
+        }
+      },
+      "before": {
+        "when": "{{ p.mediaPath | eq:'useMedian8n' | then:(p.messageType | in:'image,video,audio,sticker,document') }}",
+        "upload": true,
+        "body_type": "multipart",
+        "method": "POST",
+        "path": "/{{ p.phoneNumberId }}/media",
+        "body": {
+          "messaging_product": "whatsapp"
+        }
+      },
+      "binary": {
+        "upload_field": "mediaPropertyName",
+        "upload_when": "false",
+        "multipart_field": "file"
+      },
+      "fields": [
+        {
+          "key": "phoneNumberId",
+          "label": "Sender phone number ID",
+          "type": "text",
+          "required": true,
+          "help": "ID of the business phone number that sends"
+        },
+        {
+          "key": "recipientPhoneNumber",
+          "label": "Recipient's phone number",
+          "type": "text",
+          "required": true,
+          "help": "With country code"
+        },
+        {
+          "key": "messageType",
+          "label": "Message type",
+          "type": "select",
+          "default": "text",
+          "options": [
+            "audio",
+            "contacts",
+            "document",
+            "image",
+            "location",
+            "text",
+            "video",
+            "sticker"
+          ]
+        },
+        {
+          "key": "textBody",
+          "label": "Text body",
+          "type": "textarea",
+          "help": "For text messages"
+        },
+        {
+          "key": "longitude",
+          "label": "Longitude",
+          "type": "number"
+        },
+        {
+          "key": "latitude",
+          "label": "Latitude",
+          "type": "number"
+        },
+        {
+          "key": "name",
+          "label": "Contact name",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "data"
+          ],
+          "help": "{\"data\": {\"formatted_name\", \"first_name\", \"last_name\", \"middle_name\", \"suffix\", \"prefix\"}} for contacts messages"
+        },
+        {
+          "key": "mediaPath",
+          "label": "Media source",
+          "type": "select",
+          "default": "useMediaLink",
+          "options": [
+            "useMediaLink",
+            "useMediaId",
+            "useMedian8n"
+          ]
+        },
+        {
+          "key": "mediaLink",
+          "label": "Media link",
+          "type": "text"
+        },
+        {
+          "key": "mediaId",
+          "label": "Media ID",
+          "type": "text"
+        },
+        {
+          "key": "mediaPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data",
+          "help": "Input binary to upload when the source is useMedian8n"
+        },
+        {
+          "key": "mediaFilename",
+          "label": "Document file name",
+          "type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "previewUrl",
+            "nameAndAddress",
+            "addresses",
+            "birthday",
+            "emails",
+            "organization",
+            "phones",
+            "urls",
+            "mediaFilename",
+            "mediaCaption"
+          ],
+          "help": "Depends on the message type: text previewUrl; location nameAndAddress {name, address}; contacts addresses/emails/organization/phones/urls/birthday; media mediaCaption, mediaFilename"
+        }
+      ]
+    },
+    {
+      "resource": "media",
+      "operation": "mediaUpload",
+      "title": "Upload media",
+      "method": "POST",
+      "path": "/{{ p.phoneNumberId }}/media",
+      "body": {
+        "messaging_product": "whatsapp"
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "mediaPropertyName",
+        "multipart_field": "file",
+        "file_name": "{{ p.additionalFields.mediaFileName | default:bin.file_name }}"
+      },
+      "fields": [
+        {
+          "key": "phoneNumberId",
+          "label": "Sender phone number ID",
+          "type": "text",
+          "required": true,
+          "help": "ID of the business phone number that sends"
+        },
+        {
+          "key": "mediaPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "required": true,
+          "default": "data"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "mediaFileName"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "media",
+      "operation": "mediaUrlGet",
+      "title": "Get a media URL",
+      "method": "GET",
+      "path": "/{{ p.mediaGetId }}",
+      "fields": [
+        {
+          "key": "mediaGetId",
+          "label": "Media ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "media",
+      "operation": "mediaDelete",
+      "title": "Delete media",
+      "method": "DELETE",
+      "path": "/{{ p.mediaDeleteId }}",
+      "fields": [
+        {
+          "key": "mediaDeleteId",
+          "label": "Media ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

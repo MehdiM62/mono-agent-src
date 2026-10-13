@@ -30,5 +30,22 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the person saved",
+      "key": "person_id",
+      "type": "string"
+    },
+    {
+      "description": "their address",
+      "key": "email",
+      "type": "string"
+    },
+    {
+      "description": "the message synced",
+      "key": "message_id",
+      "type": "string"
+    }
   ]
 }

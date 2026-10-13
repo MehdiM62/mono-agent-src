@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -39,6 +40,9 @@ func (n *MastodonNode) Type() string { return "service.mastodon" }
 var mastodonDefaultInstance = "https://mastodon.social"
 
 func (n *MastodonNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.mastodon", config) {
+		return apipkg.ExecuteExtension(ctx, "service.mastodon", input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("service.mastodon: 'access_token' is required")

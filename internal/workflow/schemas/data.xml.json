@@ -256,5 +256,17 @@
       "required": false,
       "type": "boolean"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the parsed object (to JSON) or rendered XML string",
+      "key": "<output_field|field>",
+      "type": "any"
+    }
   ]
 }

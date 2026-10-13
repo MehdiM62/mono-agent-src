@@ -1,0 +1,89 @@
+{
+  "analyzer.execute": {
+    "credential": {
+      "host": "https://cortex.test",
+      "access_token": "k"
+    },
+    "params": {
+      "analyzer": "Abuse_1_0::AbuseIPDB",
+      "observableType": "ip",
+      "observableValue": "1.2.3.4",
+      "tlp": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/analyzer/Abuse_1_0/run",
+      "query": {
+        "force": "false"
+      },
+      "body": {
+        "dataType": "ip",
+        "tlp": 1,
+        "data": "1.2.3.4"
+      }
+    }
+  },
+  "job.get": {
+    "credential": {
+      "host": "https://cortex.test",
+      "access_token": "k"
+    },
+    "params": {
+      "jobId": "j1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/job/j1",
+      "query": {}
+    }
+  },
+  "job.report": {
+    "credential": {
+      "host": "https://cortex.test",
+      "access_token": "k"
+    },
+    "params": {
+      "jobId": "j1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/job/j1/report",
+      "query": {}
+    }
+  },
+  "responder.execute": {
+    "credential": {
+      "host": "https://cortex.test",
+      "access_token": "k"
+    },
+    "params": {
+      "responder": "Mailer_1::Mailer",
+      "entityType": "case",
+      "parameters": {
+        "values": {
+          "title": "Phish",
+          "tags": "a, b",
+          "startDate": "2024-01-01T00:00:00Z"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/responder/Mailer_1/run",
+      "query": {},
+      "body": {
+        "responderId": "Mailer_1",
+        "dataType": "thehive:case",
+        "data": {
+          "_type": "case",
+          "title": "Phish",
+          "tags": [
+            "a",
+            "b"
+          ],
+          "startDate": 1704067200000
+        }
+      }
+    }
+  }
+}

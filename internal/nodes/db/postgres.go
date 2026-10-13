@@ -42,26 +42,59 @@ type PostgresNode struct{}
 
 func (n *PostgresNode) Type() string { return "db.postgres" }
 
+// PerItemConfigFields declares sqlPerItemFields (see its doc comment).
+func (n *PostgresNode) PerItemConfigFields() []string { return sqlPerItemFields }
+
+// openSQL opens a database/sql handle; tests swap it for sqlmock.
+var openSQL = sql.Open
+
+// openPingedSQL opens driver/dsn and checks the server answers.
+func openPingedSQL(ctx context.Context, nodeType, driver, dsn string) (*sql.DB, error) {
+	db, err := openSQL(driver, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("%s: open failed: %w", nodeType, err)
+	}
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("%s: ping failed: %w", nodeType, err)
+	}
+	return db, nil
+}
+
 func (n *PostgresNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	return executePostgresFamily(ctx, "db.postgres", postgresDialect, input, config)
+}
+
+// executePostgresFamily runs db.postgres and the Postgres-wire nodes
+// (TimescaleDB, CrateDB, QuestDB) that share its driver.
+func executePostgresFamily(ctx context.Context, nodeType string, d *sqlDialect, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	dsn, _ := config["connection_string"].(string)
+	if dsn == "" {
+		return nil, fmt.Errorf("%s: 'connection_string' is required", nodeType)
+	}
+	if nodeType != "db.postgres" || isN8nSQLConfig(config) {
+		db, err := openPingedSQL(ctx, nodeType, "postgres", dsn)
+		if err != nil {
+			return nil, err
+		}
+		defer db.Close()
+		return runSQLOps(ctx, nodeType, d, dbRunner{db}, input, config)
+	}
+
+	config, err := resolveForItem(ctx, config, sqlPerItemFields, firstItem(input), input)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", nodeType, err)
+	}
 	operation, _ := config["operation"].(string)
 	if operation == "" {
 		operation = "select"
 	}
 
-	dsn, _ := config["connection_string"].(string)
-	if dsn == "" {
-		return nil, fmt.Errorf("db.postgres: 'connection_string' is required")
-	}
-
-	db, err := sql.Open("postgres", dsn)
+	db, err := openPingedSQL(ctx, nodeType, "postgres", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("db.postgres: open failed: %w", err)
+		return nil, err
 	}
 	defer db.Close()
-
-	if err := db.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("db.postgres: ping failed: %w", err)
-	}
 
 	query, _ := config["query"].(string)
 	var params []interface{}

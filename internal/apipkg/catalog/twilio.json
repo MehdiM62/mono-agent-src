@@ -1,0 +1,183 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "twilio",
+  "extends": "comm.twilio",
+  "title": "Twilio",
+  "description": "Send SMS/WhatsApp messages and place calls with Twilio (n8n operations)",
+  "category": "app",
+  "docs_url": "https://www.twilio.com/docs/usage/api",
+  "n8n_types": [
+    "n8n-nodes-base.twilio"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.twilioTrigger"
+  ],
+  "base_url": "https://api.twilio.com/2010-04-01/Accounts/{{ cred.account_sid }}",
+  "credentials": [
+    {
+      "platform": "twilio",
+      "reuse_platform": "twilio",
+      "name": "Twilio",
+      "n8n_credential": "twilioApi",
+      "n8n_field_map": {
+        "accountSid": "account_sid",
+        "authToken": "auth_token",
+        "apiKeySid": "api_key_sid",
+        "apiKeySecret": "api_key_secret"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "account_sid",
+          "label": "Account SID",
+          "required": true
+        },
+        {
+          "key": "auth_token",
+          "label": "Auth token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "api_key_sid",
+          "label": "API key SID",
+          "help": "Optional: sign requests with an API key instead of the auth token"
+        },
+        {
+          "key": "api_key_secret",
+          "label": "API key secret",
+          "secret": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.api_key_sid | default:cred.account_sid }}",
+          "password": "{{ cred.api_key_sid | then:cred.api_key_secret | default:cred.auth_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "sms",
+      "label": "SMS"
+    },
+    {
+      "value": "call",
+      "label": "Call"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "sms",
+      "operation": "send",
+      "title": "Send an SMS or WhatsApp message",
+      "method": "POST",
+      "path": "/Messages.json",
+      "body_type": "form",
+      "body": {
+        "From": "{{ p.toWhatsapp | eq:'true' | then:'whatsapp:' }}{{ p.from }}",
+        "To": "{{ p.toWhatsapp | eq:'true' | then:'whatsapp:' }}{{ p.to }}",
+        "Body": "{{ p.message }}",
+        "StatusCallback": "{{ p.options.statusCallback }}"
+      },
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "required": true,
+          "placeholder": "+14155238886"
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true,
+          "placeholder": "+14155238886"
+        },
+        {
+          "key": "toWhatsapp",
+          "label": "Send via WhatsApp",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "statusCallback"
+          ],
+          "help": "statusCallback: URL Twilio calls with delivery status updates"
+        }
+      ]
+    },
+    {
+      "resource": "call",
+      "operation": "make",
+      "title": "Make a call",
+      "method": "POST",
+      "path": "/Calls.json",
+      "body_type": "form",
+      "body": {
+        "From": "{{ p.from }}",
+        "To": "{{ p.to }}",
+        "Twiml": {
+          "$join": [
+            "{{ p.twiml | ne:'true' | then:'<Response><Say>' }}",
+            "{{ p.twiml | eq:'true' | then:p.message | default:(p.message | escape_html) }}",
+            "{{ p.twiml | ne:'true' | then:'</Say></Response>' }}"
+          ],
+          "$sep": ""
+        },
+        "StatusCallback": "{{ p.options.statusCallback }}"
+      },
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "twiml",
+          "label": "Message is TwiML",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: the message is read out with text-to-speech"
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "statusCallback"
+          ]
+        }
+      ]
+    }
+  ]
+}

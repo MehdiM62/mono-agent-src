@@ -1,0 +1,213 @@
+{
+  "certificate.create": {
+    "params": {
+      "PolicyDN": "\\VED\\Policy\\x",
+      "Subject": "a.example.com",
+      "additionalFields": {
+        "City": "Oslo",
+        "SubjectAltNamesUi": {
+          "SubjectAltNamesValues": [
+            {
+              "Typename": "2",
+              "name": "b.example.com"
+            }
+          ]
+        }
+      }
+    },
+    "responses": [
+      {
+        "access_token": "tok"
+      },
+      {
+        "CertificateDN": "x"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/vedsdk/Certificates/Request",
+      "body": {
+        "PolicyDN": "\\VED\\Policy\\x",
+        "Subject": "a.example.com",
+        "City": "Oslo",
+        "SubjectAltNames": [
+          {
+            "Typename": "2",
+            "name": "b.example.com"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "domain": "https://tpp.example.com",
+      "client_id": "cid",
+      "username": "u",
+      "password": "p"
+    }
+  },
+  "certificate.delete": {
+    "params": {
+      "certificateId": "g1"
+    },
+    "responses": [
+      {
+        "access_token": "tok"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/vedsdk/Certificates/g1"
+    },
+    "credential": {
+      "domain": "https://tpp.example.com",
+      "client_id": "cid",
+      "username": "u",
+      "password": "p"
+    }
+  },
+  "certificate.download": {
+    "params": {
+      "certificateDn": "\\VED\\x",
+      "binaryProperty": "data"
+    },
+    "responses": [
+      {
+        "access_token": "tok"
+      },
+      {
+        "CertificateData": "aGVsbG8=",
+        "Filename": "x.pem"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/vedsdk/Certificates/Retrieve",
+      "body": {
+        "CertificateDN": "\\VED\\x",
+        "Format": "Base64",
+        "IncludeChain": true
+      }
+    },
+    "credential": {
+      "domain": "https://tpp.example.com",
+      "client_id": "cid",
+      "username": "u",
+      "password": "p"
+    }
+  },
+  "certificate.get": {
+    "params": {
+      "certificateId": "g1"
+    },
+    "responses": [
+      {
+        "access_token": "tok"
+      },
+      {
+        "Name": "x"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/vedsdk/Certificates/g1"
+    },
+    "credential": {
+      "domain": "https://tpp.example.com",
+      "client_id": "cid",
+      "username": "u",
+      "password": "p"
+    }
+  },
+  "certificate.getMany": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "fields": [
+          "Issuer",
+          "KeySize"
+        ]
+      }
+    },
+    "responses": [
+      {
+        "access_token": "tok"
+      },
+      {
+        "Certificates": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/vedsdk/Certificates",
+      "query": {
+        "OptionalFields": "Issuer,KeySize",
+        "Limit": "5"
+      },
+      "items": 2
+    },
+    "credential": {
+      "domain": "https://tpp.example.com",
+      "client_id": "cid",
+      "username": "u",
+      "password": "p"
+    }
+  },
+  "certificate.renew": {
+    "params": {
+      "certificateDN": "\\VED\\x"
+    },
+    "responses": [
+      {
+        "access_token": "tok"
+      },
+      {
+        "Success": true
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/vedsdk/Certificates/Renew",
+      "body": {
+        "CertificateDN": "\\VED\\x"
+      }
+    },
+    "credential": {
+      "domain": "https://tpp.example.com",
+      "client_id": "cid",
+      "username": "u",
+      "password": "p"
+    }
+  },
+  "policy.get": {
+    "params": {
+      "policyDn": "\\VED\\Policy"
+    },
+    "responses": [
+      {
+        "access_token": "tok"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/vedsdk/Certificates/CheckPolicy",
+      "body": {
+        "PolicyDN": "\\VED\\Policy"
+      }
+    },
+    "credential": {
+      "domain": "https://tpp.example.com",
+      "client_id": "cid",
+      "username": "u",
+      "password": "p"
+    }
+  }
+}

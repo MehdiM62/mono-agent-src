@@ -1,0 +1,97 @@
+{
+  "task.create": {
+    "params": {
+      "task": "@default",
+      "title": "Buy milk",
+      "additionalFields": {
+        "notes": "2l",
+        "dueDate": "2026-10-20T00:00:00Z",
+        "parent": "t0"
+      }
+    },
+    "response": {
+      "id": "t1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/tasks/v1/lists/@default/tasks",
+      "query": {
+        "parent": "t0"
+      },
+      "body": {
+        "title": "Buy milk",
+        "notes": "2l",
+        "due": "2026-10-20T00:00:00Z"
+      },
+      "items": 1
+    }
+  },
+  "task.delete": {
+    "params": {
+      "task": "L1",
+      "taskId": "t1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/tasks/v1/lists/L1/tasks/t1"
+    }
+  },
+  "task.get": {
+    "params": {
+      "task": "L1",
+      "taskId": "t1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/tasks/v1/lists/L1/tasks/t1"
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "task": "L1",
+      "limit": 5,
+      "additionalFields": {
+        "showHidden": true
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/tasks/v1/lists/L1/tasks",
+      "query": {
+        "showCompleted": "true",
+        "showDeleted": "false",
+        "showHidden": "true",
+        "maxResults": "5"
+      },
+      "items": 2
+    }
+  },
+  "task.update": {
+    "params": {
+      "task": "L1",
+      "taskId": "t1",
+      "updateFields": {
+        "status": "completed",
+        "title": "Done"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/tasks/v1/lists/L1/tasks/t1",
+      "body": {
+        "status": "completed",
+        "title": "Done"
+      }
+    }
+  }
+}

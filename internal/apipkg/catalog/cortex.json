@@ -1,0 +1,231 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "cortex",
+  "node_type": "app.cortex",
+  "title": "Cortex",
+  "description": "Run analyzers and responders and read jobs on a Cortex server",
+  "category": "app",
+  "docs_url": "https://github.com/TheHive-Project/CortexDocs/blob/master/api/api-guide.md",
+  "n8n_types": [
+    "n8n-nodes-base.cortex"
+  ],
+  "base_url": "{{ cred.host }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "cortex",
+      "name": "Cortex",
+      "n8n_credential": "cortexApi",
+      "n8n_field_map": {
+        "host": "host",
+        "cortexApiKey": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "host",
+          "label": "Host",
+          "required": true,
+          "help": "e.g. https://cortex.example.com:9001, without a trailing slash"
+        },
+        {
+          "key": "access_token",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "analyzer",
+      "label": "Analyzer"
+    },
+    {
+      "value": "job",
+      "label": "Job"
+    },
+    {
+      "value": "responder",
+      "label": "Responder"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "analyzer",
+      "operation": "execute",
+      "title": "Run an analyzer",
+      "method": "POST",
+      "path": "/api/analyzer/{{ p.analyzer | split:'::' | get:'0' }}/run",
+      "query": {
+        "force": "{{ p.additionalFields.force | eq:'true' | default:false }}"
+      },
+      "body": {
+        "dataType": "{{ p.observableType }}",
+        "tlp": "{{ p.tlp | int }}",
+        "data": "{{ p.observableValue }}"
+      },
+      "fields": [
+        {
+          "key": "analyzer",
+          "label": "Analyzer ID",
+          "type": "text",
+          "required": true,
+          "help": "An analyzer ID; n8n's 'id::name' form is accepted."
+        },
+        {
+          "key": "observableType",
+          "label": "Observable type",
+          "type": "text",
+          "required": true,
+          "help": "e.g. ip, domain, url, hash, mail. File observables are not supported yet."
+        },
+        {
+          "key": "observableValue",
+          "label": "Observable value",
+          "type": "text"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data",
+          "help": "Kept for n8n imports; file observables are not supported yet."
+        },
+        {
+          "key": "tlp",
+          "label": "TLP",
+          "type": "number",
+          "min": 0,
+          "max": 3,
+          "default": 2,
+          "help": "0 white, 1 green, 2 amber, 3 red"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "force",
+            "timeout"
+          ],
+          "help": "timeout is not applied yet: the item is the created job."
+        }
+      ]
+    },
+    {
+      "resource": "job",
+      "operation": "get",
+      "title": "Get a job",
+      "method": "GET",
+      "path": "/api/job/{{ p.jobId }}",
+      "fields": [
+        {
+          "key": "jobId",
+          "label": "Job ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "job",
+      "operation": "report",
+      "title": "Get a job report",
+      "method": "GET",
+      "path": "/api/job/{{ p.jobId }}/report",
+      "fields": [
+        {
+          "key": "jobId",
+          "label": "Job ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "responder",
+      "operation": "execute",
+      "title": "Run a responder",
+      "method": "POST",
+      "path": "/api/responder/{{ p.responder | split:'::' | get:'0' }}/run",
+      "body": {
+        "responderId": "{{ p.responder | split:'::' | get:'0' }}",
+        "dataType": "thehive:{{ p.entityType }}",
+        "tlp": "{{ p.jsonObject | eq:'true' | then:p.objectData | fromjson | get:'tlp' }}",
+        "pap": "{{ p.jsonObject | eq:'true' | then:p.objectData | fromjson | get:'pap' }}",
+        "message": "{{ p.jsonObject | eq:'true' | then:p.objectData | fromjson | get:'message' }}",
+        "data": {
+          "$merge": [
+            "{{ p.jsonObject | eq:'true' | then:p.objectData | fromjson }}",
+            "{{ p.parameters.values | omit:'tags,startDate,date,artifacts' }}"
+          ],
+          "_type": "{{ p.jsonObject | ne:'true' | then:p.entityType }}",
+          "tags": "{{ p.parameters.values.tags | split }}",
+          "startDate": "{{ p.parameters.values.startDate | epoch_ms }}",
+          "date": "{{ p.parameters.values.date | epoch_ms }}",
+          "artifacts": {
+            "$map": "{{ p.parameters.values.artifacts.artifactValues }}",
+            "$to": {
+              "message": "{{ el.message }}",
+              "tags": "{{ el.tags | split }}",
+              "dataType": "{{ el.dataType }}",
+              "data": "{{ el.data }}"
+            }
+          }
+        }
+      },
+      "description": "The entity label TheHive shows is not computed.",
+      "fields": [
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true,
+          "help": "A responder ID; n8n's 'id::name' form is accepted."
+        },
+        {
+          "key": "entityType",
+          "label": "Entity type",
+          "type": "text",
+          "required": true,
+          "help": "alert, case, case_artifact, case_task or case_task_log"
+        },
+        {
+          "key": "jsonObject",
+          "label": "Entity as JSON",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "objectData",
+          "label": "Entity (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "With Entity as JSON on: TheHive entity object."
+        },
+        {
+          "key": "parameters",
+          "label": "Entity fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{\"values\": {\"title\": \"x\", \"description\": \"y\", \"tags\": \"a,b\", \"startDate\": \"2024-01-01T00:00:00Z\", \"artifacts\": {\"artifactValues\": [{\"dataType\": \"ip\", \"data\": \"1.2.3.4\", \"message\": \"\", \"tags\": \"\"}]}}}. File artifacts are not supported yet."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "bin.create": {
+    "params": {},
+    "response": {
+      "binId": "1700000000000-1700000000001",
+      "now": 1700000000000,
+      "expires": 1700001800000
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/bin",
+      "items": 1
+    }
+  },
+  "bin.get": {
+    "params": {
+      "binId": "https://www.postb.in/b/1700000000000-1700000000001"
+    },
+    "response": {
+      "binId": "1700000000000-1700000000001",
+      "now": 1700000000000,
+      "expires": 1700001800000
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/bin/1700000000000-1700000000001",
+      "items": 1
+    }
+  },
+  "bin.delete": {
+    "params": {
+      "binId": "1700000000000-1700000000001"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/bin/1700000000000-1700000000001"
+    }
+  },
+  "request.get": {
+    "params": {
+      "binId": "1700000000000-1700000000001",
+      "requestId": "abc"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/bin/1700000000000-1700000000001/req/abc"
+    }
+  },
+  "request.removeFirst": {
+    "params": {
+      "binId": "1700000000000-1700000000001"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/bin/1700000000000-1700000000001/req/shift"
+    }
+  },
+  "request.send": {
+    "params": {
+      "binId": "1700000000000-1700000000001",
+      "binContent": "hello"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/1700000000000-1700000000001",
+      "body": {
+        "content": "hello"
+      },
+      "items": 1
+    }
+  }
+}

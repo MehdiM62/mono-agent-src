@@ -1,0 +1,82 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "msg91",
+  "node_type": "app.msg91",
+  "title": "MSG91",
+  "description": "Send SMS through MSG91",
+  "category": "app",
+  "docs_url": "https://docs.msg91.com/",
+  "n8n_types": [
+    "n8n-nodes-base.msg91"
+  ],
+  "base_url": "https://api.msg91.com/api",
+  "credentials": [
+    {
+      "platform": "msg91",
+      "name": "MSG91",
+      "n8n_credential": "msg91Api",
+      "n8n_field_map": {
+        "authkey": "auth_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "auth_key",
+          "label": "Auth key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "query": {
+          "authkey": "{{ cred.auth_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "sms",
+      "label": "SMS"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "sms",
+      "operation": "send",
+      "title": "Send an SMS",
+      "method": "GET",
+      "path": "/sendhttp.php",
+      "fields": [
+        {
+          "key": "from",
+          "label": "Sender ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true,
+          "help": "Mobile number with country code"
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "query": {
+        "route": "4",
+        "country": "0",
+        "sender": "{{ p.from }}",
+        "mobiles": "{{ p.to }}",
+        "message": "{{ p.message }}"
+      }
+    }
+  ]
+}

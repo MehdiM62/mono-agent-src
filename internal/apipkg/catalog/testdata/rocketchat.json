@@ -1,0 +1,123 @@
+{
+  "chat.postMessage": {
+    "credential": {
+      "domain": "https://chat.test",
+      "user_id": "u",
+      "auth_key": "k"
+    },
+    "params": {
+      "channel": "#general",
+      "text": "hi",
+      "options": {
+        "emoji": ":smile:"
+      },
+      "attachments": [
+        {
+          "color": "#ff0000",
+          "title": "T",
+          "fields": {
+            "fieldsValues": [
+              {
+                "short": true,
+                "title": "a",
+                "value": "b"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/chat.postMessage",
+      "body": {
+        "channel": "#general",
+        "text": "hi",
+        "emoji": ":smile:",
+        "attachments": [
+          {
+            "color": "#ff0000",
+            "title": "T",
+            "fields": [
+              {
+                "short": true,
+                "title": "a",
+                "value": "b"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "subscriptions.get": {
+    "credential": {
+      "domain": "https://chat.test",
+      "user_id": "u",
+      "auth_key": "k"
+    },
+    "params": {},
+    "response": {
+      "update": [
+        {
+          "a": 1
+        },
+        {
+          "a": 2
+        }
+      ],
+      "remove": []
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/subscriptions.get",
+      "items": 2
+    }
+  },
+  "subscriptions.read": {
+    "credential": {
+      "domain": "https://chat.test",
+      "user_id": "u",
+      "auth_key": "k"
+    },
+    "params": {
+      "roomId": "r1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/subscriptions.read",
+      "body": {
+        "rid": "r1"
+      }
+    }
+  },
+  "dm.messages": {
+    "credential": {
+      "domain": "https://chat.test",
+      "user_id": "u",
+      "auth_key": "k"
+    },
+    "params": {
+      "roomId": "r1",
+      "limit": 10
+    },
+    "response": {
+      "messages": [
+        {
+          "_id": "m"
+        }
+      ],
+      "total": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/im.messages",
+      "query": {
+        "roomId": "r1",
+        "offset": "0",
+        "count": "10"
+      },
+      "items": 1
+    }
+  }
+}

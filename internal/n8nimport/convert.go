@@ -14,6 +14,7 @@ import (
 // was not carried over. Only unreadable input is an error: nodes without a
 // mono equivalent become failing placeholders listed in the report.
 func Convert(raw []byte) (*workflow.WorkflowFile, *Report, error) {
+	refreshAppSources()
 	src, err := parseN8n(raw)
 	if err != nil {
 		return nil, nil, err
@@ -102,7 +103,26 @@ func (b *builder) subNodes() (map[string][]SubNode, map[string]string) {
 			}
 		}
 	}
+	for name := range subs {
+		for i := range subs[name] {
+			subs[name][i].Children = subTree(subs, subs[name][i].Name, 8)
+		}
+	}
 	return subs, parent
+}
+
+// subTree copies the sub-nodes attached to name, with theirs, down to
+// depth levels (n8n sub-node trees are shallow; the limit guards cycles).
+func subTree(subs map[string][]SubNode, name string, depth int) []SubNode {
+	if depth == 0 || len(subs[name]) == 0 {
+		return nil
+	}
+	out := make([]SubNode, len(subs[name]))
+	copy(out, subs[name])
+	for i := range out {
+		out[i].Children = subTree(subs, out[i].Name, depth-1)
+	}
+	return out
 }
 
 func (b *builder) mapNodes() {

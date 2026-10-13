@@ -1,0 +1,364 @@
+{
+  "post.create": {
+    "params": {
+      "title": "Hi",
+      "additionalFields": {
+        "content": "Body",
+        "status": "publish",
+        "categories": [
+          3
+        ],
+        "sticky": true,
+        "postTemplate": {
+          "values": {
+            "elementor": true,
+            "template": "elementor_canvas"
+          }
+        }
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/wp-json/wp/v2/posts",
+      "body": {
+        "title": "Hi",
+        "content": "Body",
+        "status": "publish",
+        "categories": [
+          3
+        ],
+        "sticky": true,
+        "template": "elementor_canvas"
+      },
+      "items": 1
+    }
+  },
+  "post.get": {
+    "params": {
+      "postId": "1",
+      "options": {
+        "context": "edit"
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wp/v2/posts/1",
+      "query": {
+        "context": "edit"
+      }
+    }
+  },
+  "post.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "author": [
+          1,
+          2
+        ],
+        "excludedTags": [
+          9
+        ],
+        "orderBy": "date"
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wp/v2/posts",
+      "query": {
+        "author": "1,2",
+        "tags_exclude": "9",
+        "orderby": "date",
+        "per_page": "3"
+      },
+      "items": 1
+    }
+  },
+  "post.update": {
+    "params": {
+      "postId": "1",
+      "updateFields": {
+        "title": "New",
+        "authorId": 2
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/wp-json/wp/v2/posts/1",
+      "body": {
+        "id": 1,
+        "title": "New",
+        "author": 2
+      }
+    }
+  },
+  "post.delete": {
+    "params": {
+      "postId": "1",
+      "options": {
+        "force": true
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/wp-json/wp/v2/posts/1",
+      "query": {
+        "force": "true"
+      }
+    }
+  },
+  "page.create": {
+    "params": {
+      "title": "About",
+      "additionalFields": {
+        "parent": 4,
+        "menuOrder": 2,
+        "featuredMediaId": 7
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/wp-json/wp/v2/pages",
+      "body": {
+        "title": "About",
+        "parent": 4,
+        "menu_order": 2,
+        "featured_media": 7
+      }
+    }
+  },
+  "page.get": {
+    "params": {
+      "pageId": "1",
+      "options": {
+        "password": "x"
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wp/v2/pages/1",
+      "query": {
+        "password": "x"
+      }
+    }
+  },
+  "page.getAll": {
+    "params": {
+      "returnAll": true,
+      "options": {
+        "parent": 4
+      }
+    },
+    "credential": {
+      "wordpress_site": "https://example.wordpress.com/",
+      "access_token": "tok"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/wp/v2/sites/example.wordpress.com/pages",
+      "query": {
+        "parent": "4",
+        "per_page": "100"
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "page.update": {
+    "params": {
+      "pageId": "1",
+      "updateFields": {
+        "slug": "about-us"
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/wp-json/wp/v2/pages/1",
+      "body": {
+        "id": 1,
+        "slug": "about-us"
+      }
+    }
+  },
+  "page.delete": {
+    "params": {
+      "pageId": "1"
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/wp-json/wp/v2/pages/1",
+      "query": {}
+    }
+  },
+  "user.create": {
+    "params": {
+      "username": "ada",
+      "name": "Ada",
+      "firstName": "Ada",
+      "lastName": "L",
+      "email": "a@x.io",
+      "password": "pw",
+      "additionalFields": {
+        "nickname": "al"
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/wp-json/wp/v2/users",
+      "body": {
+        "name": "Ada",
+        "username": "ada",
+        "first_name": "Ada",
+        "last_name": "L",
+        "email": "a@x.io",
+        "password": "pw",
+        "nickname": "al"
+      }
+    }
+  },
+  "user.get": {
+    "params": {
+      "userId": "1"
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wp/v2/users/1",
+      "query": {}
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "options": {
+        "who": "authors"
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/wp-json/wp/v2/users",
+      "query": {
+        "who": "authors",
+        "per_page": "5"
+      },
+      "items": 1
+    }
+  },
+  "user.update": {
+    "params": {
+      "userId": "1",
+      "updateFields": {
+        "email": "b@x.io"
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/wp-json/wp/v2/users/1",
+      "body": {
+        "id": 1,
+        "email": "b@x.io"
+      }
+    }
+  },
+  "user.delete": {
+    "params": {
+      "reassign": "2"
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "username": "ada",
+      "password": "pw"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/wp-json/wp/v2/users/me",
+      "query": {
+        "reassign": "2",
+        "force": "true"
+      }
+    }
+  }
+}

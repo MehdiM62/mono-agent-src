@@ -1,0 +1,364 @@
+{
+  "account.get": {
+    "response": {
+      "account": {
+        "email": "a"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/getAccountDetails",
+      "body": {
+        "api_key": "test-api_key"
+      },
+      "items": 1
+    }
+  },
+  "alertContact.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "alert_contacts": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/getAlertContacts",
+      "body": {
+        "limit": "5",
+        "api_key": "test-api_key"
+      },
+      "items": 1
+    }
+  },
+  "alertContact.create": {
+    "params": {
+      "friendlyName": "Ops",
+      "type": 2,
+      "value": "a@b.c"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/newAlertContact",
+      "body": {
+        "friendly_name": "Ops",
+        "value": "a@b.c",
+        "type": "2",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "alertContact.delete": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/deleteAlertContact",
+      "body": {
+        "id": "7",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "alertContact.get": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/getAlertContacts",
+      "body": {
+        "alert_contacts": "7",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "alertContact.update": {
+    "params": {
+      "id": "7",
+      "updateFields": {
+        "friendly_name": "X"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/editAlertContact",
+      "body": {
+        "id": "7",
+        "friendly_name": "X",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "maintenanceWindow.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "mwindows": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/getMWindows",
+      "body": {
+        "api_key": "test-api_key"
+      },
+      "items": 1
+    }
+  },
+  "maintenanceWindow.create": {
+    "params": {
+      "duration": 30,
+      "friendlyName": "W",
+      "type": 3,
+      "weekDay": 2,
+      "start_time": "2024-01-01T10:30:00Z"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/newMWindow",
+      "body": {
+        "duration": "30",
+        "friendly_name": "W",
+        "type": "3",
+        "start_time": "10:30",
+        "value": "2",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "maintenanceWindow.delete": {
+    "params": {
+      "id": "7"
+    },
+    "response": {
+      "message": "ok"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/deleteMWindow",
+      "body": {
+        "id": "7",
+        "api_key": "test-api_key"
+      },
+      "items": 1
+    }
+  },
+  "maintenanceWindow.get": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/getMWindows",
+      "body": {
+        "mwindows": "7",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "maintenanceWindow.update": {
+    "params": {
+      "id": "7",
+      "duration": 10,
+      "updateFields": {
+        "type": 1,
+        "start_time": "2024-01-01T00:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/editMWindow",
+      "body": {
+        "id": "7",
+        "duration": "10",
+        "type": "1",
+        "start_time": "1704067200",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "monitor.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "statuses": [
+          2,
+          9
+        ],
+        "logs": true,
+        "search": "x"
+      }
+    },
+    "response": {
+      "monitors": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/getMonitors",
+      "body": {
+        "search": "x",
+        "statuses": "2-9",
+        "logs": "1",
+        "limit": "5",
+        "api_key": "test-api_key"
+      },
+      "items": 2
+    }
+  },
+  "monitor.create": {
+    "params": {
+      "friendlyName": "Site",
+      "type": 1,
+      "url": "https://x"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/newMonitor",
+      "body": {
+        "friendly_name": "Site",
+        "url": "https://x",
+        "type": "1",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "monitor.delete": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/deleteMonitor",
+      "body": {
+        "id": "7",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "monitor.get": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/getMonitors",
+      "body": {
+        "monitors": "7",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "monitor.reset": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/resetMonitor",
+      "body": {
+        "id": "7",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "monitor.update": {
+    "params": {
+      "id": "7",
+      "updateFields": {
+        "interval": 300
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/editMonitor",
+      "body": {
+        "id": "7",
+        "interval": "300",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "publicStatusPage.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "psps": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/getPSPs",
+      "body": {
+        "limit": "5",
+        "api_key": "test-api_key"
+      },
+      "items": 1
+    }
+  },
+  "publicStatusPage.create": {
+    "params": {
+      "friendlyName": "P",
+      "monitors": "0",
+      "additionalFields": {
+        "sort": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/newPSP",
+      "body": {
+        "friendly_name": "P",
+        "monitors": "0",
+        "sort": "1",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "publicStatusPage.delete": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/deletePSP",
+      "body": {
+        "id": "7",
+        "api_key": "test-api_key"
+      }
+    }
+  },
+  "publicStatusPage.get": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/getPSPs",
+      "body": {
+        "psps": "7",
+        "api_key": "test-api_key"
+      }
+    }
+  }
+}

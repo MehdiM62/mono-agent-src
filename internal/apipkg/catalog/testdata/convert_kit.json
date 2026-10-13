@@ -1,0 +1,299 @@
+{
+  "form.addSubscriber": {
+    "params": {
+      "id": "11",
+      "email": "a@b.c",
+      "additionalFields": {
+        "firstName": "Ada",
+        "fieldsUi": {
+          "fieldsValues": [
+            {
+              "key": "last_name",
+              "value": "L"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "subscription": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/forms/11/subscribe",
+      "query": {},
+      "body": {
+        "email": "a@b.c",
+        "first_name": "Ada",
+        "fields": {
+          "last_name": "L"
+        }
+      },
+      "items": 1
+    }
+  },
+  "form.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "response": {
+      "forms": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/forms",
+      "query": {},
+      "items": 1
+    }
+  },
+  "form.getSubscriptions": {
+    "params": {
+      "id": "11",
+      "limit": 5,
+      "additionalFields": {
+        "subscriberState": "active"
+      }
+    },
+    "response": {
+      "subscriptions": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/forms/11/subscriptions",
+      "query": {
+        "subscriber_state": "active",
+        "page": "1"
+      },
+      "items": 1
+    }
+  },
+  "sequence.addSubscriber": {
+    "params": {
+      "id": "3",
+      "email": "a@b.c",
+      "additionalFields": {
+        "tags": [
+          5,
+          6
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/sequences/3/subscribe",
+      "query": {},
+      "body": {
+        "email": "a@b.c",
+        "tags": [
+          5,
+          6
+        ]
+      }
+    }
+  },
+  "sequence.getAll": {
+    "params": {},
+    "response": {
+      "courses": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/sequences",
+      "query": {},
+      "items": 1
+    }
+  },
+  "sequence.getSubscriptions": {
+    "params": {
+      "id": "3"
+    },
+    "response": {
+      "subscriptions": []
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/sequences/3/subscriptions",
+      "query": {
+        "page": "1"
+      },
+      "items": 0
+    }
+  },
+  "customField.update": {
+    "params": {
+      "id": "9",
+      "label": "Plan"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v3/custom_fields/9",
+      "query": {},
+      "body": {
+        "label": "Plan"
+      }
+    }
+  },
+  "customField.create": {
+    "params": {
+      "label": "Plan"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/custom_fields",
+      "query": {},
+      "body": {
+        "label": "Plan"
+      }
+    }
+  },
+  "customField.delete": {
+    "params": {
+      "id": "9"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v3/custom_fields/9",
+      "query": {}
+    }
+  },
+  "customField.get": {
+    "params": {
+      "id": "9"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/custom_fields/9",
+      "query": {}
+    }
+  },
+  "customField.getAll": {
+    "params": {},
+    "response": {
+      "custom_fields": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/custom_fields",
+      "query": {},
+      "items": 1
+    }
+  },
+  "tag.create": {
+    "params": {
+      "name": "vip, beta"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/tags",
+      "query": {},
+      "body": {
+        "tag": [
+          {
+            "name": "vip"
+          },
+          {
+            "name": "beta"
+          }
+        ]
+      }
+    }
+  },
+  "tag.getAll": {
+    "params": {},
+    "response": {
+      "tags": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/tags",
+      "query": {},
+      "items": 1
+    }
+  },
+  "tagSubscriber.add": {
+    "params": {
+      "tagId": "4",
+      "email": "a@b.c",
+      "additionalFields": {
+        "fields": {
+          "field": [
+            {
+              "key": "city",
+              "value": "Oslo"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/tags/4/subscribe",
+      "query": {},
+      "body": {
+        "email": "a@b.c",
+        "fields": {
+          "city": "Oslo"
+        }
+      }
+    }
+  },
+  "tagSubscriber.getAll": {
+    "params": {
+      "tagId": "4"
+    },
+    "response": {
+      "subscriptions": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v3/tags/4/subscriptions",
+      "query": {
+        "page": "1"
+      },
+      "items": 1
+    }
+  },
+  "tagSubscriber.delete": {
+    "params": {
+      "tagId": "4",
+      "email": "a@b.c"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v3/tags/4/unsubscribe",
+      "query": {},
+      "body": {
+        "email": "a@b.c"
+      }
+    }
+  }
+}

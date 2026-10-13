@@ -1,0 +1,888 @@
+{
+  "page.create": {
+    "params": {
+      "pageId": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5"
+      },
+      "title": "Child",
+      "blockUi": {
+        "blockValues": [
+          {
+            "type": "paragraph",
+            "textContent": "Hi"
+          },
+          {
+            "type": "to_do",
+            "textContent": "Task",
+            "checked": true
+          },
+          {
+            "type": "image",
+            "url": "https://x/i.png"
+          }
+        ]
+      },
+      "options": {
+        "icon": "🚀"
+      }
+    },
+    "response": {
+      "object": "page",
+      "id": "59833787-2cf9-4fdf-8782-e53db20768a5",
+      "url": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5",
+      "properties": {
+        "Name": {
+          "type": "title",
+          "title": [
+            {
+              "plain_text": "Hello"
+            }
+          ]
+        },
+        "Due Date": {
+          "type": "date",
+          "date": {
+            "start": "2024-01-01"
+          }
+        },
+        "Tags": {
+          "type": "multi_select",
+          "multi_select": [
+            {
+              "name": "a"
+            }
+          ]
+        },
+        "Done": {
+          "type": "checkbox",
+          "checkbox": false
+        }
+      },
+      "parent": {
+        "type": "page_id"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/pages",
+      "headers": {
+        "Notion-Version": "2026-03-11"
+      },
+      "body": {
+        "parent": {
+          "page_id": "598337872cf94fdf8782e53db20768a5"
+        },
+        "properties": {
+          "title": [
+            {
+              "text": {
+                "content": "Child"
+              }
+            }
+          ]
+        },
+        "children": [
+          {
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {
+              "rich_text": [
+                {
+                  "text": {
+                    "content": "Hi"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "object": "block",
+            "type": "to_do",
+            "to_do": {
+              "rich_text": [
+                {
+                  "text": {
+                    "content": "Task"
+                  }
+                }
+              ],
+              "checked": true
+            }
+          },
+          {
+            "object": "block",
+            "type": "image",
+            "image": {
+              "type": "external",
+              "external": {
+                "url": "https://x/i.png"
+              }
+            }
+          }
+        ],
+        "icon": {
+          "type": "emoji",
+          "emoji": "🚀"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "page.archive": {
+    "params": {
+      "pageId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "59833787-2cf9-4fdf-8782-e53db20768a5"
+      },
+      "simple": false
+    },
+    "response": {
+      "object": "page",
+      "id": "59833787-2cf9-4fdf-8782-e53db20768a5",
+      "url": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5",
+      "properties": {
+        "Name": {
+          "type": "title",
+          "title": [
+            {
+              "plain_text": "Hello"
+            }
+          ]
+        },
+        "Due Date": {
+          "type": "date",
+          "date": {
+            "start": "2024-01-01"
+          }
+        },
+        "Tags": {
+          "type": "multi_select",
+          "multi_select": [
+            {
+              "name": "a"
+            }
+          ]
+        },
+        "Done": {
+          "type": "checkbox",
+          "checkbox": false
+        }
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v1/pages/59833787-2cf9-4fdf-8782-e53db20768a5",
+      "body": {
+        "in_trash": true
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "page.getMarkdown": {
+    "params": {
+      "pageId": "59833787-2cf9-4fdf-8782-e53db20768a5",
+      "includeTranscript": true
+    },
+    "response": {
+      "markdown": "# Hi"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/pages/59833787-2cf9-4fdf-8782-e53db20768a5/markdown",
+      "query": {
+        "include_transcript": "true"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "page.search": {
+    "params": {
+      "text": "roadmap",
+      "limit": 5,
+      "options": {
+        "sort": {
+          "sortValue": {
+            "direction": "ascending",
+            "timestamp": "last_edited_time"
+          }
+        }
+      }
+    },
+    "response": {
+      "results": [
+        {
+          "object": "page",
+          "id": "59833787-2cf9-4fdf-8782-e53db20768a5",
+          "url": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5",
+          "properties": {
+            "Name": {
+              "type": "title",
+              "title": [
+                {
+                  "plain_text": "Hello"
+                }
+              ]
+            },
+            "Due Date": {
+              "type": "date",
+              "date": {
+                "start": "2024-01-01"
+              }
+            },
+            "Tags": {
+              "type": "multi_select",
+              "multi_select": [
+                {
+                  "name": "a"
+                }
+              ]
+            },
+            "Done": {
+              "type": "checkbox",
+              "checkbox": false
+            }
+          }
+        }
+      ],
+      "has_more": false
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/search",
+      "body": {
+        "filter": {
+          "property": "object",
+          "value": "page"
+        },
+        "query": "roadmap",
+        "sort": {
+          "direction": "ascending",
+          "timestamp": "last_edited_time"
+        },
+        "page_size": 5
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "page.updateMarkdown": {
+    "params": {
+      "pageId": "59833787-2cf9-4fdf-8782-e53db20768a5",
+      "markdownUpdateType": "update_content",
+      "contentUpdates": {
+        "updates": [
+          {
+            "oldString": "a",
+            "newString": "b",
+            "replaceAllMatches": true
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v1/pages/59833787-2cf9-4fdf-8782-e53db20768a5/markdown",
+      "body": {
+        "type": "update_content",
+        "update_content": {
+          "content_updates": [
+            {
+              "old_str": "a",
+              "new_str": "b",
+              "replace_all_matches": true
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "databasePage.create": {
+    "params": {
+      "dataSourceId": "aaaaaaaabbbbccccddddeeeeeeeeeeee",
+      "title": "Row",
+      "propertiesUi": {
+        "propertyValues": [
+          {
+            "key": "Status|select",
+            "selectValue": "Done"
+          },
+          {
+            "key": "Tags|multi_select",
+            "multiSelectValue": "a, b"
+          },
+          {
+            "key": "Score|number",
+            "numberValue": 0
+          },
+          {
+            "key": "Done|checkbox",
+            "checkboxValue": false
+          }
+        ]
+      }
+    },
+    "responses": [
+      {
+        "properties": {
+          "Task name": {
+            "type": "title",
+            "name": "Task name"
+          },
+          "Status": {
+            "type": "select",
+            "name": "Status"
+          }
+        }
+      },
+      {
+        "object": "page",
+        "id": "59833787-2cf9-4fdf-8782-e53db20768a5",
+        "url": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5",
+        "properties": {
+          "Name": {
+            "type": "title",
+            "title": [
+              {
+                "plain_text": "Hello"
+              }
+            ]
+          },
+          "Due Date": {
+            "type": "date",
+            "date": {
+              "start": "2024-01-01"
+            }
+          },
+          "Tags": {
+            "type": "multi_select",
+            "multi_select": [
+              {
+                "name": "a"
+              }
+            ]
+          },
+          "Done": {
+            "type": "checkbox",
+            "checkbox": false
+          }
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1/pages",
+      "body": {
+        "parent": {
+          "type": "data_source_id",
+          "data_source_id": "aaaaaaaabbbbccccddddeeeeeeeeeeee"
+        },
+        "properties": {
+          "Task name": {
+            "title": [
+              {
+                "text": {
+                  "content": "Row"
+                }
+              }
+            ]
+          },
+          "Status": {
+            "select": {
+              "name": "Done"
+            }
+          },
+          "Tags": {
+            "multi_select": [
+              {
+                "name": "a"
+              },
+              {
+                "name": "b"
+              }
+            ]
+          },
+          "Score": {
+            "number": 0
+          },
+          "Done": {
+            "checkbox": false
+          }
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "databasePage.get": {
+    "params": {
+      "pageId": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5"
+    },
+    "response": {
+      "object": "page",
+      "id": "59833787-2cf9-4fdf-8782-e53db20768a5",
+      "url": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5",
+      "properties": {
+        "Name": {
+          "type": "title",
+          "title": [
+            {
+              "plain_text": "Hello"
+            }
+          ]
+        },
+        "Due Date": {
+          "type": "date",
+          "date": {
+            "start": "2024-01-01"
+          }
+        },
+        "Tags": {
+          "type": "multi_select",
+          "multi_select": [
+            {
+              "name": "a"
+            }
+          ]
+        },
+        "Done": {
+          "type": "checkbox",
+          "checkbox": false
+        }
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/pages/598337872cf94fdf8782e53db20768a5",
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "databasePage.getAll": {
+    "params": {
+      "databaseId": "11111111222233334444555555555555",
+      "limit": 10,
+      "filterType": "manual",
+      "matchType": "allFilters",
+      "filters": {
+        "conditions": [
+          {
+            "key": "Status|status",
+            "condition": "equals",
+            "optionValue": "Done"
+          },
+          {
+            "key": "Name|title",
+            "condition": "is_not_empty"
+          }
+        ]
+      },
+      "options": {
+        "sort": {
+          "sortValue": [
+            {
+              "key": "Due Date|date",
+              "direction": "ascending"
+            }
+          ]
+        }
+      }
+    },
+    "responses": [
+      {
+        "data_sources": [
+          {
+            "id": "ds1"
+          }
+        ]
+      },
+      {
+        "results": [
+          {
+            "object": "page",
+            "id": "59833787-2cf9-4fdf-8782-e53db20768a5",
+            "url": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5",
+            "properties": {
+              "Name": {
+                "type": "title",
+                "title": [
+                  {
+                    "plain_text": "Hello"
+                  }
+                ]
+              },
+              "Due Date": {
+                "type": "date",
+                "date": {
+                  "start": "2024-01-01"
+                }
+              },
+              "Tags": {
+                "type": "multi_select",
+                "multi_select": [
+                  {
+                    "name": "a"
+                  }
+                ]
+              },
+              "Done": {
+                "type": "checkbox",
+                "checkbox": false
+              }
+            }
+          }
+        ],
+        "has_more": false
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1/data_sources/ds1/query",
+      "body": {
+        "filter": {
+          "and": [
+            {
+              "property": "Status",
+              "status": {
+                "equals": "Done"
+              }
+            },
+            {
+              "property": "Name",
+              "rich_text": {
+                "is_not_empty": true
+              }
+            }
+          ]
+        },
+        "sorts": [
+          {
+            "direction": "ascending",
+            "property": "Due Date"
+          }
+        ],
+        "page_size": 10
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "databasePage.update": {
+    "params": {
+      "pageId": "59833787-2cf9-4fdf-8782-e53db20768a5",
+      "propertiesUi": {
+        "propertyValues": [
+          {
+            "key": "Due|date",
+            "date": "2024-02-01"
+          },
+          {
+            "key": "Link|url",
+            "urlValue": "https://x.io"
+          }
+        ]
+      }
+    },
+    "response": {
+      "object": "page",
+      "id": "59833787-2cf9-4fdf-8782-e53db20768a5",
+      "url": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5",
+      "properties": {
+        "Name": {
+          "type": "title",
+          "title": [
+            {
+              "plain_text": "Hello"
+            }
+          ]
+        },
+        "Due Date": {
+          "type": "date",
+          "date": {
+            "start": "2024-01-01"
+          }
+        },
+        "Tags": {
+          "type": "multi_select",
+          "multi_select": [
+            {
+              "name": "a"
+            }
+          ]
+        },
+        "Done": {
+          "type": "checkbox",
+          "checkbox": false
+        }
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v1/pages/59833787-2cf9-4fdf-8782-e53db20768a5",
+      "body": {
+        "properties": {
+          "Due": {
+            "date": {
+              "start": "2024-02-01"
+            }
+          },
+          "Link": {
+            "url": "https://x.io"
+          }
+        }
+      }
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "block.append": {
+    "params": {
+      "blockId": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://www.notion.so/Page-598337872cf94fdf8782e53db20768a5?pvs=4#c44444444444bbbbb4d32fdfdd84e123"
+      },
+      "afterBlockId": "b1",
+      "blockUi": {
+        "blockValues": [
+          {
+            "type": "heading_1",
+            "richText": true,
+            "text": {
+              "text": [
+                {
+                  "textType": "text",
+                  "text": "Big",
+                  "isLink": true,
+                  "textLink": "https://x.io",
+                  "annotationUi": {
+                    "bold": true
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v1/blocks/c44444444444bbbbb4d32fdfdd84e123/children",
+      "body": {
+        "children": [
+          {
+            "object": "block",
+            "type": "heading_1",
+            "heading_1": {
+              "rich_text": [
+                {
+                  "type": "text",
+                  "text": {
+                    "content": "Big",
+                    "link": {
+                      "url": "https://x.io"
+                    }
+                  },
+                  "annotations": {
+                    "bold": true
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "position": {
+          "type": "after_block",
+          "after_block": {
+            "id": "b1"
+          }
+        }
+      }
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "block.getMarkdown": {
+    "params": {
+      "blockId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "59833787-2cf9-4fdf-8782-e53db20768a5"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/pages/59833787-2cf9-4fdf-8782-e53db20768a5/markdown"
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "block.getAll": {
+    "params": {
+      "blockId": "59833787-2cf9-4fdf-8782-e53db20768a5",
+      "limit": 2
+    },
+    "response": {
+      "results": [
+        {
+          "id": "b",
+          "type": "paragraph",
+          "created_time": "t",
+          "paragraph": {
+            "text": [
+              {
+                "plain_text": "x"
+              }
+            ]
+          }
+        }
+      ],
+      "has_more": false
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/blocks/59833787-2cf9-4fdf-8782-e53db20768a5/children",
+      "query": {
+        "page_size": "2"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "dataSource.get": {
+    "params": {
+      "dataSourceId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "aaaaaaaabbbbccccddddeeeeeeeeeeee"
+      }
+    },
+    "response": {
+      "object": "data_source",
+      "id": "d",
+      "name": "Tasks"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/data_sources/aaaaaaaabbbbccccddddeeeeeeeeeeee",
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "dataSource.search": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "results": [
+        {
+          "object": "data_source",
+          "id": "d"
+        }
+      ],
+      "has_more": false
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/search",
+      "body": {
+        "filter": {
+          "property": "object",
+          "value": "data_source"
+        },
+        "page_size": 100
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "database.get": {
+    "params": {
+      "databaseId": "https://www.notion.so/0fe2f7de558b471eab07e9d871cdf4a9?v=f2d424ba0c404733a3f500c78c881610"
+    },
+    "response": {
+      "object": "database",
+      "id": "x",
+      "title": [
+        {
+          "plain_text": "DB"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/databases/0fe2f7de558b471eab07e9d871cdf4a9",
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "user.get": {
+    "params": {
+      "userId": "u1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/users/u1"
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "response": {
+      "results": [
+        {
+          "id": "u"
+        }
+      ],
+      "has_more": false
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/users",
+      "query": {
+        "page_size": "3"
+      },
+      "items": 1
+    },
+    "credential": {
+      "token": "secret_x"
+    }
+  }
+}

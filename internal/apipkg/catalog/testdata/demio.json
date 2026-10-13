@@ -1,0 +1,100 @@
+{
+  "event.get": {
+    "params": {
+      "eventId": "12",
+      "additionalFields": {
+        "active": true
+      }
+    },
+    "response": {
+      "id": 12
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/event/12",
+      "query": {
+        "active": "true"
+      },
+      "items": 1
+    }
+  },
+  "event.getAll": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "type": "upcoming"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      },
+      {
+        "id": 3
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/events",
+      "query": {
+        "type": "upcoming"
+      },
+      "items": 2
+    }
+  },
+  "event.register": {
+    "params": {
+      "eventId": "12",
+      "firstName": "Ann",
+      "email": "a@b.co",
+      "additionalFields": {
+        "company": "Acme",
+        "customFieldsUi": {
+          "customFieldsValues": [
+            {
+              "fieldId": "77",
+              "value": "x"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/event/register",
+      "body": {
+        "name": "Ann",
+        "email": "a@b.co",
+        "id": "12",
+        "company": "Acme",
+        "77": "x"
+      }
+    }
+  },
+  "report.get": {
+    "params": {
+      "dateId": "99",
+      "filters": {
+        "status": "attended"
+      }
+    },
+    "response": {
+      "participants": [
+        {
+          "name": "A"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/report/99/participants",
+      "query": {
+        "status": "attended"
+      },
+      "items": 1
+    }
+  }
+}

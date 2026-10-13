@@ -1,0 +1,747 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_sheets_more",
+  "extends": "service.google_sheets",
+  "title": "Google Sheets (n8n operations)",
+  "description": "n8n Google Sheets operations on the native Google Sheets node",
+  "category": "app",
+  "docs_url": "https://developers.google.com/sheets/api/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleSheets"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.googleSheetsTrigger"
+  ],
+  "base_url": "https://sheets.googleapis.com",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Sheets scope group)",
+      "n8n_credential": "googleSheetsOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google",
+      "scope_group": "sheets"
+    }
+  ],
+  "resources": [
+    {
+      "value": "sheet",
+      "label": "Sheet within document"
+    },
+    {
+      "value": "spreadsheet",
+      "label": "Document"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "sheet",
+      "operation": "read",
+      "title": "Get rows",
+      "method": "GET",
+      "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' | default:p.sheetName.cachedResultName | default:p.sheetName.value | default:p.sheetName }}{{ p.options.dataLocationOnSheet.values.rangeDefinition | eq:'specifyRangeA1' | then:p.options.dataLocationOnSheet.values.range | prefix:'!' }}",
+      "fields": [
+        {
+          "key": "documentId",
+          "label": "Document",
+          "type": "text",
+          "required": true,
+          "help": "Spreadsheet ID or URL (an n8n resource locator is accepted)."
+        },
+        {
+          "key": "sheetName",
+          "label": "Sheet",
+          "type": "text",
+          "required": true,
+          "help": "Sheet title, or its numeric gid (n8n list/id locator)."
+        },
+        {
+          "key": "filtersUI",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: list of {lookupColumn, lookupValue}; rows whose column equals the value are kept."
+        },
+        {
+          "key": "combineFilters",
+          "label": "Combine filters",
+          "type": "select",
+          "options": [
+            "AND",
+            "OR"
+          ],
+          "default": "AND"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dataLocationOnSheet",
+            "outputFormatting",
+            "returnFirstMatch",
+            "returnAllMatches"
+          ],
+          "help": "dataLocationOnSheet.values: {rangeDefinition: detectAutomatically|specifyRangeA1, range}; outputFormatting.values: {general: UNFORMATTED_VALUE|FORMATTED_VALUE|FORMULA, date: FORMATTED_STRING|SERIAL_NUMBER}."
+        }
+      ],
+      "before": [
+        {
+          "method": "GET",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}",
+          "query": {
+            "fields": "sheets.properties"
+          }
+        }
+      ],
+      "query": {
+        "valueRenderOption": "{{ p.options.outputFormatting.values.general | default:'UNFORMATTED_VALUE' }}",
+        "dateTimeRenderOption": "{{ p.options.outputFormatting.values.date | default:'FORMATTED_STRING' }}"
+      },
+      "output": {
+        "path": "values",
+        "header_row": true,
+        "match": {
+          "rows": "{{ p.filtersUI.values }}",
+          "column": "lookupColumn",
+          "value": "lookupValue",
+          "combine": "{{ p.combineFilters }}",
+          "first": "{{ p.options.returnFirstMatch | eq:'true' }}{{ p.options.returnAllMatches | eq:'returnFirstMatch' }}"
+        }
+      }
+    },
+    {
+      "resource": "sheet",
+      "operation": "append",
+      "title": "Append a row",
+      "method": "POST",
+      "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' | default:p.sheetName.cachedResultName | default:p.sheetName.value | default:p.sheetName }}!A{{ p.options.locationDefine.values.headerRow | default:1 }}:append",
+      "fields": [
+        {
+          "key": "documentId",
+          "label": "Document",
+          "type": "text",
+          "required": true,
+          "help": "Spreadsheet ID or URL (an n8n resource locator is accepted)."
+        },
+        {
+          "key": "sheetName",
+          "label": "Sheet",
+          "type": "text",
+          "required": true,
+          "help": "Sheet title, or its numeric gid (n8n list/id locator)."
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": {}
+          },
+          "help": "n8n resource mapper: {mappingMode: autoMapInputData|defineBelow, value: {column: value}, matchingColumns: [column]}. autoMapInputData sends the input item; defineBelow sends value."
+        },
+        {
+          "key": "dataMode",
+          "label": "Data mode (v3)",
+          "type": "select",
+          "options": [
+            "autoMapInputData",
+            "defineBelow",
+            "nothing"
+          ],
+          "help": "Node version 3 only (newer versions use columns)."
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Values to send (v3)",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues",
+            "values"
+          ],
+          "help": "Node version 3: append uses fieldValues [{fieldId, fieldValue}], update uses values [{column, fieldValue}]."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "cellFormat",
+            "locationDefine",
+            "handlingExtraData",
+            "useAppend"
+          ],
+          "help": "cellFormat: USER_ENTERED (default) or RAW; locationDefine.values.headerRow: row holding the column names (default 1). handlingExtraData is accepted; keys without a matching column are left out."
+        }
+      ],
+      "description": "Reads the header row, then appends the item's values in header order.",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}",
+          "query": {
+            "fields": "sheets.properties"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' | default:p.sheetName.cachedResultName | default:p.sheetName.value | default:p.sheetName }}!{{ p.options.locationDefine.values.headerRow | default:1 }}:{{ p.options.locationDefine.values.headerRow | default:1 }}"
+        }
+      ],
+      "query": {
+        "valueInputOption": "{{ p.options.cellFormat | default:'USER_ENTERED' }}",
+        "insertDataOption": "INSERT_ROWS"
+      },
+      "body": {
+        "values": [
+          "{{ p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value | row:pre.values }}"
+        ]
+      }
+    },
+    {
+      "resource": "sheet",
+      "operation": "update",
+      "title": "Update a row",
+      "method": "PUT",
+      "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' | default:p.sheetName.cachedResultName | default:p.sheetName.value | default:p.sheetName }}!{{ pre.values | find_row:(p.columns.matchingColumns.0 | default:p.columnToMatchOn),(p.valueToMatchOn | default:(p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value)) }}:{{ pre.values | find_row:(p.columns.matchingColumns.0 | default:p.columnToMatchOn),(p.valueToMatchOn | default:(p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value)) }}",
+      "fields": [
+        {
+          "key": "documentId",
+          "label": "Document",
+          "type": "text",
+          "required": true,
+          "help": "Spreadsheet ID or URL (an n8n resource locator is accepted)."
+        },
+        {
+          "key": "sheetName",
+          "label": "Sheet",
+          "type": "text",
+          "required": true,
+          "help": "Sheet title, or its numeric gid (n8n list/id locator)."
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": {}
+          },
+          "help": "n8n resource mapper: {mappingMode: autoMapInputData|defineBelow, value: {column: value}, matchingColumns: [column]}. autoMapInputData sends the input item; defineBelow sends value."
+        },
+        {
+          "key": "dataMode",
+          "label": "Data mode (v3)",
+          "type": "select",
+          "options": [
+            "autoMapInputData",
+            "defineBelow",
+            "nothing"
+          ],
+          "help": "Node version 3 only (newer versions use columns)."
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Values to send (v3)",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues",
+            "values"
+          ],
+          "help": "Node version 3: append uses fieldValues [{fieldId, fieldValue}], update uses values [{column, fieldValue}]."
+        },
+        {
+          "key": "columnToMatchOn",
+          "label": "Column to match on (v3)",
+          "type": "text"
+        },
+        {
+          "key": "valueToMatchOn",
+          "label": "Value to match on (v3)",
+          "type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "cellFormat",
+            "locationDefine",
+            "handlingExtraData",
+            "useAppend"
+          ],
+          "help": "cellFormat: USER_ENTERED (default) or RAW; locationDefine.values.headerRow: row holding the column names (default 1). handlingExtraData is accepted; keys without a matching column are left out."
+        }
+      ],
+      "description": "Finds the first row whose match column equals the value and overwrites it; fails when no row matches.",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}",
+          "query": {
+            "fields": "sheets.properties"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' | default:p.sheetName.cachedResultName | default:p.sheetName.value | default:p.sheetName }}"
+        }
+      ],
+      "query": {
+        "valueInputOption": "{{ p.options.cellFormat | default:'USER_ENTERED' }}"
+      },
+      "body": {
+        "values": [
+          "{{ p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value | row:pre.values,'null' }}"
+        ]
+      }
+    },
+    {
+      "resource": "sheet",
+      "operation": "appendOrUpdate",
+      "title": "Append or update a row",
+      "method": "GET",
+      "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' | default:p.sheetName.cachedResultName | default:p.sheetName.value | default:p.sheetName }}",
+      "fields": [
+        {
+          "key": "documentId",
+          "label": "Document",
+          "type": "text",
+          "required": true,
+          "help": "Spreadsheet ID or URL (an n8n resource locator is accepted)."
+        },
+        {
+          "key": "sheetName",
+          "label": "Sheet",
+          "type": "text",
+          "required": true,
+          "help": "Sheet title, or its numeric gid (n8n list/id locator)."
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": {}
+          },
+          "help": "n8n resource mapper: {mappingMode: autoMapInputData|defineBelow, value: {column: value}, matchingColumns: [column]}. autoMapInputData sends the input item; defineBelow sends value."
+        },
+        {
+          "key": "dataMode",
+          "label": "Data mode (v3)",
+          "type": "select",
+          "options": [
+            "autoMapInputData",
+            "defineBelow",
+            "nothing"
+          ],
+          "help": "Node version 3 only (newer versions use columns)."
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Values to send (v3)",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues",
+            "values"
+          ],
+          "help": "Node version 3: append uses fieldValues [{fieldId, fieldValue}], update uses values [{column, fieldValue}]."
+        },
+        {
+          "key": "columnToMatchOn",
+          "label": "Column to match on (v3)",
+          "type": "text"
+        },
+        {
+          "key": "valueToMatchOn",
+          "label": "Value to match on (v3)",
+          "type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "cellFormat",
+            "locationDefine",
+            "handlingExtraData",
+            "useAppend"
+          ],
+          "help": "cellFormat: USER_ENTERED (default) or RAW; locationDefine.values.headerRow: row holding the column names (default 1). handlingExtraData is accepted; keys without a matching column are left out."
+        }
+      ],
+      "description": "Reads the sheet, then updates the matching row or appends a new one. Outputs the sheet values read first.",
+      "before": [
+        {
+          "method": "GET",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}",
+          "query": {
+            "fields": "sheets.properties"
+          }
+        }
+      ],
+      "also": [
+        {
+          "when": "{{ res.values | find_row:(p.columns.matchingColumns.0 | default:p.columnToMatchOn),(p.valueToMatchOn | default:(p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value)) }}",
+          "method": "PUT",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' | default:p.sheetName.cachedResultName | default:p.sheetName.value | default:p.sheetName }}!{{ res.values | find_row:(p.columns.matchingColumns.0 | default:p.columnToMatchOn),(p.valueToMatchOn | default:(p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value)) }}:{{ res.values | find_row:(p.columns.matchingColumns.0 | default:p.columnToMatchOn),(p.valueToMatchOn | default:(p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value)) }}",
+          "query": {
+            "valueInputOption": "{{ p.options.cellFormat | default:'USER_ENTERED' }}"
+          },
+          "body": {
+            "values": [
+              "{{ p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value | row:res.values,'null' }}"
+            ]
+          }
+        },
+        {
+          "when": "{{ res.values | find_row:(p.columns.matchingColumns.0 | default:p.columnToMatchOn),(p.valueToMatchOn | default:(p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value)) | then:false | default:true }}",
+          "method": "POST",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' | default:p.sheetName.cachedResultName | default:p.sheetName.value | default:p.sheetName }}!A{{ p.options.locationDefine.values.headerRow | default:1 }}:append",
+          "query": {
+            "valueInputOption": "{{ p.options.cellFormat | default:'USER_ENTERED' }}",
+            "insertDataOption": "INSERT_ROWS"
+          },
+          "body": {
+            "values": [
+              "{{ p.dataMode | default:p.columns.mappingMode | eq:'autoMapInputData' | then:item | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') | default:(p.fieldsUi.values | kv:'column,fieldValue') | default:p.columns.value | row:res.values }}"
+            ]
+          }
+        }
+      ],
+      "output": {
+        "path": "values",
+        "header_row": true
+      }
+    },
+    {
+      "resource": "sheet",
+      "operation": "clear",
+      "title": "Clear",
+      "method": "POST",
+      "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' | default:p.sheetName.cachedResultName | default:p.sheetName.value | default:p.sheetName }}{{ p.clear | eq:'specificRows' | then:p.startIndex | prefix:'!' }}{{ p.clear | eq:'specificRows' | then:p.startIndex | add:p.rowsToDelete | sub:1 | prefix:':' }}{{ p.clear | eq:'specificColumns' | then:p.startIndex | prefix:'!' }}{{ p.clear | eq:'specificColumns' | then:p.startIndex | colnum | add:p.columnsToDelete | sub:1 | colname | prefix:':' }}{{ p.clear | eq:'specificRange' | then:p.range | prefix:'!' }}{{ p.clear | default:'wholeSheet' | eq:'wholeSheet' | then:p.keepFirstRow | eq:'true' | then:'!2:1048576' }}:clear",
+      "fields": [
+        {
+          "key": "documentId",
+          "label": "Document",
+          "type": "text",
+          "required": true,
+          "help": "Spreadsheet ID or URL (an n8n resource locator is accepted)."
+        },
+        {
+          "key": "sheetName",
+          "label": "Sheet",
+          "type": "text",
+          "required": true,
+          "help": "Sheet title, or its numeric gid (n8n list/id locator)."
+        },
+        {
+          "key": "clear",
+          "label": "Clear",
+          "type": "select",
+          "options": [
+            "wholeSheet",
+            "specificRows",
+            "specificColumns",
+            "specificRange"
+          ],
+          "default": "wholeSheet"
+        },
+        {
+          "key": "keepFirstRow",
+          "label": "Keep first row",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "startIndex",
+          "label": "Start row or column",
+          "type": "text",
+          "default": "1",
+          "help": "Row number (specificRows) or column letter (specificColumns)."
+        },
+        {
+          "key": "rowsToDelete",
+          "label": "Number of rows",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "columnsToDelete",
+          "label": "Number of columns",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "range",
+          "label": "Range",
+          "type": "text",
+          "default": "A:F",
+          "help": "A1 range within the sheet (specificRange)."
+        }
+      ],
+      "before": [
+        {
+          "method": "GET",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}",
+          "query": {
+            "fields": "sheets.properties"
+          }
+        }
+      ],
+      "body": {}
+    },
+    {
+      "resource": "sheet",
+      "operation": "create",
+      "title": "Create a sheet",
+      "method": "POST",
+      "path": "/v4/spreadsheets/{{ p.documentId | rl }}:batchUpdate",
+      "fields": [
+        {
+          "key": "documentId",
+          "label": "Document",
+          "type": "text",
+          "required": true,
+          "help": "Spreadsheet ID or URL (an n8n resource locator is accepted)."
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true,
+          "default": "n8n-sheet"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "hidden",
+            "rightToLeft",
+            "sheetId",
+            "index",
+            "tabColor"
+          ],
+          "help": "tabColor is accepted but not applied yet."
+        }
+      ],
+      "body": {
+        "requests": [
+          {
+            "addSheet": {
+              "properties": {
+                "title": "{{ p.title }}",
+                "hidden": "{{ p.options.hidden }}",
+                "rightToLeft": "{{ p.options.rightToLeft }}",
+                "sheetId": "{{ p.options.sheetId }}",
+                "index": "{{ p.options.index }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "replies.0.addSheet.properties"
+      }
+    },
+    {
+      "resource": "sheet",
+      "operation": "remove",
+      "title": "Delete a sheet",
+      "method": "POST",
+      "path": "/v4/spreadsheets/{{ p.documentId | rl }}:batchUpdate",
+      "fields": [
+        {
+          "key": "documentId",
+          "label": "Document",
+          "type": "text",
+          "required": true,
+          "help": "Spreadsheet ID or URL (an n8n resource locator is accepted)."
+        },
+        {
+          "key": "sheetName",
+          "label": "Sheet",
+          "type": "text",
+          "required": true,
+          "help": "Sheet title, or its numeric gid (n8n list/id locator)."
+        }
+      ],
+      "before": [
+        {
+          "method": "GET",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}",
+          "query": {
+            "fields": "sheets.properties"
+          }
+        }
+      ],
+      "body": {
+        "requests": [
+          {
+            "deleteSheet": {
+              "sheetId": "{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | default:(pres.0.sheets | find:'properties.title',(p.sheetName | rl)) | get:'properties.sheetId' }}"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": "sheet",
+      "operation": "delete",
+      "title": "Delete rows or columns",
+      "method": "POST",
+      "path": "/v4/spreadsheets/{{ p.documentId | rl }}:batchUpdate",
+      "fields": [
+        {
+          "key": "documentId",
+          "label": "Document",
+          "type": "text",
+          "required": true,
+          "help": "Spreadsheet ID or URL (an n8n resource locator is accepted)."
+        },
+        {
+          "key": "sheetName",
+          "label": "Sheet",
+          "type": "text",
+          "required": true,
+          "help": "Sheet title, or its numeric gid (n8n list/id locator)."
+        },
+        {
+          "key": "toDelete",
+          "label": "To delete",
+          "type": "select",
+          "options": [
+            "rows",
+            "columns"
+          ],
+          "default": "rows"
+        },
+        {
+          "key": "startIndex",
+          "label": "Start row or column",
+          "type": "text",
+          "default": "2",
+          "help": "1-based row number, or a column letter for columns."
+        },
+        {
+          "key": "numberToDelete",
+          "label": "Number to delete",
+          "type": "number",
+          "default": 1
+        }
+      ],
+      "before": [
+        {
+          "method": "GET",
+          "path": "/v4/spreadsheets/{{ p.documentId | rl }}",
+          "query": {
+            "fields": "sheets.properties"
+          }
+        }
+      ],
+      "body": {
+        "requests": [
+          {
+            "deleteDimension": {
+              "range": {
+                "sheetId": "{{ pres.0.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | default:(pres.0.sheets | find:'properties.title',(p.sheetName | rl)) | get:'properties.sheetId' }}",
+                "dimension": "{{ p.toDelete | default:'rows' | upper }}",
+                "startIndex": "{{ p.toDelete | eq:'columns' | then:p.startIndex | colnum | default:p.startIndex | int | sub:1 }}",
+                "endIndex": "{{ p.toDelete | eq:'columns' | then:p.startIndex | colnum | default:p.startIndex | int | sub:1 | add:p.numberToDelete }}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": "spreadsheet",
+      "operation": "create",
+      "title": "Create a spreadsheet",
+      "method": "POST",
+      "path": "/v4/spreadsheets",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text"
+        },
+        {
+          "key": "sheetsUi",
+          "label": "Sheets",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sheetValues"
+          ],
+          "help": "sheetValues: list of {title, hidden}."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "locale",
+            "autoRecalc"
+          ]
+        }
+      ],
+      "body": {
+        "properties": {
+          "title": "{{ p.title }}",
+          "locale": "{{ p.options.locale }}",
+          "autoRecalc": "{{ p.options.autoRecalc }}"
+        },
+        "sheets": {
+          "$map": "{{ p.sheetsUi.sheetValues }}",
+          "$to": {
+            "properties": "{{ el }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "spreadsheet",
+      "operation": "deleteSpreadsheet",
+      "title": "Delete a spreadsheet",
+      "method": "DELETE",
+      "base_url": "https://www.googleapis.com/drive/v3",
+      "path": "/files/{{ p.documentId | rl }}",
+      "fields": [
+        {
+          "key": "documentId",
+          "label": "Document",
+          "type": "text",
+          "required": true,
+          "help": "Spreadsheet ID or URL (an n8n resource locator is accepted)."
+        }
+      ]
+    }
+  ]
+}

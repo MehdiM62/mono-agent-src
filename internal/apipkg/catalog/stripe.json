@@ -1,0 +1,743 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "stripe",
+  "extends": "service.stripe",
+  "title": "Stripe",
+  "description": "Balance, charges, coupons, customers, cards, sources, tokens and meter events on Stripe (n8n operations)",
+  "category": "app",
+  "docs_url": "https://docs.stripe.com/api",
+  "n8n_types": [
+    "n8n-nodes-base.stripe"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.stripeTrigger"
+  ],
+  "base_url": "https://api.stripe.com/v1",
+  "query_style": "brackets",
+  "credentials": [
+    {
+      "platform": "stripe",
+      "reuse_platform": "stripe",
+      "name": "Stripe",
+      "n8n_credential": "stripeApi",
+      "n8n_field_map": {
+        "secretKey": "secret_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "secret_key",
+          "label": "Secret key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.secret_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "balance",
+      "label": "Balance"
+    },
+    {
+      "value": "charge",
+      "label": "Charge"
+    },
+    {
+      "value": "coupon",
+      "label": "Coupon"
+    },
+    {
+      "value": "customer",
+      "label": "Customer"
+    },
+    {
+      "value": "customerCard",
+      "label": "Customer Card"
+    },
+    {
+      "value": "meterEvent",
+      "label": "Meter Event"
+    },
+    {
+      "value": "source",
+      "label": "Source"
+    },
+    {
+      "value": "token",
+      "label": "Token"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "balance",
+      "operation": "get",
+      "title": "Get the account balance",
+      "method": "GET",
+      "path": "/balance",
+      "fields": []
+    },
+    {
+      "resource": "charge",
+      "operation": "get",
+      "title": "Get a charge",
+      "method": "GET",
+      "path": "/charges/{{ p.chargeId }}",
+      "fields": [
+        {
+          "key": "chargeId",
+          "label": "Charge ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "charge",
+      "operation": "create",
+      "title": "Create a charge",
+      "method": "POST",
+      "path": "/charges",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "amount",
+          "label": "Amount (smallest currency unit)",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "source",
+          "label": "Source ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "metadata",
+            "receipt_email",
+            "shipping"
+          ],
+          "help": "metadata: {\"metadataProperties\": [{\"key\", \"value\"}]}; shipping: {\"shippingProperties\": [{\"name\", \"phone\", \"address\": {\"details\": {\"line1\", \"city\", \"postal_code\", \"country\", ...}}}]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'metadata,shipping' }}",
+        "metadata": "{{ p.additionalFields.metadata.metadataProperties | kv:'key,value' }}",
+        "shipping": {
+          "name": "{{ p.additionalFields.shipping.shippingProperties.0.name }}",
+          "phone": "{{ p.additionalFields.shipping.shippingProperties.0.phone }}",
+          "address": "{{ p.additionalFields.shipping.shippingProperties.0.address.details }}"
+        },
+        "customer": "{{ p.customerId }}",
+        "currency": "{{ p.currency | lower }}",
+        "amount": "{{ p.amount }}",
+        "source": "{{ p.source }}"
+      }
+    },
+    {
+      "resource": "charge",
+      "operation": "getAll",
+      "title": "Get many charges",
+      "method": "GET",
+      "path": "/charges",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "starting_after",
+        "cursor_path": "data.-1.id",
+        "has_more_path": "has_more",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "charge",
+      "operation": "update",
+      "title": "Update a charge",
+      "method": "POST",
+      "path": "/charges/{{ p.chargeId }}",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "chargeId",
+          "label": "Charge ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "metadata",
+            "receipt_email",
+            "shipping"
+          ],
+          "help": "metadata: {\"metadataProperties\": [{\"key\", \"value\"}]}; shipping: {\"shippingProperties\": [{\"name\", \"phone\", \"address\": {\"details\": {\"line1\", \"city\", \"postal_code\", \"country\", ...}}}]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'metadata,shipping' }}",
+        "metadata": "{{ p.updateFields.metadata.metadataProperties | kv:'key,value' }}",
+        "shipping": {
+          "name": "{{ p.updateFields.shipping.shippingProperties.0.name }}",
+          "phone": "{{ p.updateFields.shipping.shippingProperties.0.phone }}",
+          "address": "{{ p.updateFields.shipping.shippingProperties.0.address.details }}"
+        }
+      }
+    },
+    {
+      "resource": "coupon",
+      "operation": "create",
+      "title": "Create a coupon",
+      "method": "POST",
+      "path": "/coupons",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "duration",
+          "label": "Duration",
+          "type": "select",
+          "options": [
+            "once",
+            "forever"
+          ],
+          "default": "once"
+        },
+        {
+          "key": "type",
+          "label": "Discount type",
+          "type": "select",
+          "options": [
+            "percent",
+            "fixedAmount"
+          ],
+          "default": "percent"
+        },
+        {
+          "key": "amountOff",
+          "label": "Amount off (smallest unit)",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "type": "text"
+        },
+        {
+          "key": "percentOff",
+          "label": "Percent off",
+          "type": "number",
+          "default": 1
+        }
+      ],
+      "body": {
+        "duration": "{{ p.duration }}",
+        "amount_off": "{{ p.type | eq:'fixedAmount' | then:p.amountOff }}",
+        "currency": "{{ p.type | eq:'fixedAmount' | then:p.currency }}",
+        "percent_off": "{{ p.type | ne:'fixedAmount' | then:p.percentOff }}"
+      }
+    },
+    {
+      "resource": "coupon",
+      "operation": "getAll",
+      "title": "Get many coupons",
+      "method": "GET",
+      "path": "/coupons",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "starting_after",
+        "cursor_path": "data.-1.id",
+        "has_more_path": "has_more",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "get",
+      "title": "Get a customer",
+      "method": "GET",
+      "path": "/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "create",
+      "title": "Create a customer",
+      "method": "POST",
+      "path": "/customers",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "description",
+            "email",
+            "metadata",
+            "phone",
+            "shipping"
+          ],
+          "help": "address: {\"details\": {\"line1\", \"line2\", \"city\", \"state\", \"country\", \"postal_code\"}}; metadata: {\"metadataProperties\": [{\"key\", \"value\"}]}; shipping: {\"shippingProperties\": [{\"name\", \"phone\", \"address\": {\"details\": {\"line1\", \"city\", \"postal_code\", \"country\", ...}}}]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'metadata,shipping,address' }}",
+        "metadata": "{{ p.additionalFields.metadata.metadataProperties | kv:'key,value' }}",
+        "shipping": {
+          "name": "{{ p.additionalFields.shipping.shippingProperties.0.name }}",
+          "phone": "{{ p.additionalFields.shipping.shippingProperties.0.phone }}",
+          "address": "{{ p.additionalFields.shipping.shippingProperties.0.address.details }}"
+        },
+        "address": "{{ p.additionalFields.address.details }}",
+        "name": "{{ p.name }}"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "delete",
+      "title": "Delete a customer",
+      "method": "DELETE",
+      "path": "/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "getAll",
+      "title": "Get many customers",
+      "method": "GET",
+      "path": "/customers",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email"
+          ]
+        }
+      ],
+      "query": {
+        "email": "{{ p.filters.email }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "starting_after",
+        "cursor_path": "data.-1.id",
+        "has_more_path": "has_more",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "update",
+      "title": "Update a customer",
+      "method": "POST",
+      "path": "/customers/{{ p.customerId }}",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "description",
+            "email",
+            "metadata",
+            "name",
+            "phone",
+            "shipping"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'metadata,shipping,address' }}",
+        "metadata": "{{ p.updateFields.metadata.metadataProperties | kv:'key,value' }}",
+        "shipping": {
+          "name": "{{ p.updateFields.shipping.shippingProperties.0.name }}",
+          "phone": "{{ p.updateFields.shipping.shippingProperties.0.phone }}",
+          "address": "{{ p.updateFields.shipping.shippingProperties.0.address.details }}"
+        },
+        "address": "{{ p.updateFields.address.details }}"
+      }
+    },
+    {
+      "resource": "customerCard",
+      "operation": "get",
+      "title": "Get a customer card",
+      "method": "GET",
+      "path": "/customers/{{ p.customerId }}/sources/{{ p.sourceId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sourceId",
+          "label": "Source ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customerCard",
+      "operation": "add",
+      "title": "Add a card to a customer",
+      "method": "POST",
+      "path": "/customers/{{ p.customerId }}/sources",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "token",
+          "label": "Card token",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "source": "{{ p.token }}"
+      }
+    },
+    {
+      "resource": "customerCard",
+      "operation": "remove",
+      "title": "Remove a card from a customer",
+      "method": "DELETE",
+      "path": "/customers/{{ p.customerId }}/sources/{{ p.cardId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cardId",
+          "label": "Card ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "meterEvent",
+      "operation": "create",
+      "title": "Report a billing meter event",
+      "method": "POST",
+      "path": "/billing/meter_events",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "eventName",
+          "label": "Event name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "identifier",
+            "timestamp",
+            "customPayload"
+          ],
+          "help": "customPayload: {\"properties\": [{\"key\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "event_name": "{{ p.eventName }}",
+        "identifier": "{{ p.additionalFields.identifier }}",
+        "timestamp": "{{ p.additionalFields.timestamp | epoch }}",
+        "payload": {
+          "$merge": "{{ p.additionalFields.customPayload.properties | kv:'key,value' | omit:'stripe_customer_id,value' }}",
+          "stripe_customer_id": "{{ p.customerId }}",
+          "value": "{{ p.value }}"
+        }
+      }
+    },
+    {
+      "resource": "source",
+      "operation": "get",
+      "title": "Get a source",
+      "method": "GET",
+      "path": "/sources/{{ p.sourceId }}",
+      "fields": [
+        {
+          "key": "sourceId",
+          "label": "Source ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "source",
+      "operation": "create",
+      "title": "Create a source and attach it to a customer",
+      "method": "POST",
+      "path": "/sources",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Source type",
+          "type": "select",
+          "options": [
+            "wechat"
+          ],
+          "default": "wechat"
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "metadata",
+            "statement_descriptor"
+          ]
+        }
+      ],
+      "body": {
+        "type": "{{ p.type }}",
+        "amount": "{{ p.amount }}",
+        "currency": "{{ p.currency }}",
+        "statement_descriptor": "{{ p.additionalFields.statement_descriptor }}",
+        "metadata": "{{ p.additionalFields.metadata.metadataProperties | kv:'key,value' }}"
+      },
+      "also": [
+        {
+          "method": "POST",
+          "path": "/customers/{{ p.customerId }}/sources",
+          "body_type": "form",
+          "body": {
+            "source": "{{ res.id }}"
+          }
+        }
+      ]
+    },
+    {
+      "resource": "source",
+      "operation": "delete",
+      "title": "Detach a source from a customer",
+      "method": "DELETE",
+      "path": "/customers/{{ p.customerId }}/sources/{{ p.sourceId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sourceId",
+          "label": "Source ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "token",
+      "operation": "create",
+      "title": "Create a card token",
+      "method": "POST",
+      "path": "/tokens",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "options": [
+            "cardToken"
+          ],
+          "default": "cardToken"
+        },
+        {
+          "key": "number",
+          "label": "Card number",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "cvc",
+          "label": "CVC",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "expirationMonth",
+          "label": "Expiration month",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "expirationYear",
+          "label": "Expiration year",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "card": {
+          "number": "{{ p.number }}",
+          "exp_month": "{{ p.expirationMonth }}",
+          "exp_year": "{{ p.expirationYear }}",
+          "cvc": "{{ p.cvc }}"
+        }
+      }
+    }
+  ]
+}

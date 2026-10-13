@@ -1,0 +1,193 @@
+{
+  "customer.upsert": {
+    "params": {
+      "id": "c1",
+      "additionalFields": {
+        "email": "a@b.co",
+        "createdAt": "2024-01-01T00:00:00Z",
+        "customProperties": {
+          "customProperty": [
+            {
+              "key": "plan",
+              "value": "pro"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/customers/c1",
+      "body": {
+        "email": "a@b.co",
+        "created_at": 1704067200,
+        "data": {
+          "plan": "pro"
+        }
+      }
+    }
+  },
+  "customer.delete": {
+    "params": {
+      "id": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/customers/c1",
+      "body": {
+        "id": "c1"
+      },
+      "items": 1
+    }
+  },
+  "event.track": {
+    "params": {
+      "customerId": "c1",
+      "eventName": "purchased",
+      "additionalFields": {
+        "type": "page",
+        "customAttributes": {
+          "customAttribute": [
+            {
+              "key": "amount",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/customers/c1/events",
+      "body": {
+        "name": "purchased",
+        "data": {
+          "amount": "10",
+          "type": "page"
+        }
+      }
+    }
+  },
+  "event.trackAnonymous": {
+    "params": {
+      "eventName": "visited",
+      "jsonParameters": true,
+      "additionalFieldsJson": "{\"data\": {\"x\": 1}}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/events",
+      "body": {
+        "name": "visited",
+        "data": {
+          "x": 1
+        }
+      }
+    }
+  },
+  "campaign.get": {
+    "params": {
+      "campaignId": 5
+    },
+    "credential": {
+      "app_api_key": "app-key",
+      "tracking_api_key": "t",
+      "region": "track-eu.customer.io"
+    },
+    "response": {
+      "campaign": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/campaigns/5",
+      "headers": {
+        "Authorization": "Bearer app-key"
+      },
+      "items": 1
+    }
+  },
+  "campaign.getAll": {
+    "response": {
+      "campaigns": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/campaigns",
+      "items": 2
+    }
+  },
+  "campaign.getMetrics": {
+    "params": {
+      "campaignId": 5,
+      "period": "weeks",
+      "additionalFields": {
+        "steps": 4,
+        "type": "urbanAirship"
+      }
+    },
+    "response": {
+      "metric": {
+        "series": {}
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/campaigns/5/metrics",
+      "query": {
+        "period": "weeks",
+        "steps": "4",
+        "type": "urban_airship"
+      },
+      "items": 1
+    }
+  },
+  "segment.add": {
+    "params": {
+      "segmentId": 7,
+      "customerIds": "a, b"
+    },
+    "credential": {
+      "tracking_site_id": "site",
+      "tracking_api_key": "key"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/segments/7/add_customers",
+      "headers": {
+        "Authorization": "Basic c2l0ZTprZXk="
+      },
+      "body": {
+        "id": 7,
+        "ids": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  },
+  "segment.remove": {
+    "params": {
+      "segmentId": 7,
+      "customerIds": "a"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/segments/7/remove_customers",
+      "body": {
+        "id": 7,
+        "ids": [
+          "a"
+        ]
+      }
+    }
+  }
+}

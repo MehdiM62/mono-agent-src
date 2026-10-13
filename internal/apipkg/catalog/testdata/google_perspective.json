@@ -1,0 +1,37 @@
+{
+  "analyzeComment": {
+    "params": {
+      "text": "you are nice",
+      "requestedAttributesUi": {
+        "requestedAttributesValues": [
+          {
+            "attributeName": "toxicity",
+            "scoreThreshold": 0.5
+          }
+        ]
+      },
+      "options": {
+        "languages": "en"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1alpha1/comments:analyze",
+      "body": {
+        "comment": {
+          "type": "PLAIN_TEXT",
+          "text": "you are nice"
+        },
+        "requestedAttributes": {
+          "TOXICITY": {
+            "scoreType": "probability",
+            "scoreThreshold": 0.5
+          }
+        },
+        "languages": [
+          "en"
+        ]
+      }
+    }
+  }
+}

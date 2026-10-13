@@ -1,0 +1,272 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "post_hog",
+  "node_type": "app.post_hog",
+  "title": "PostHog",
+  "description": "Capture events, aliases, identities and page/screen views in PostHog",
+  "category": "app",
+  "docs_url": "https://posthog.com/docs/api/capture",
+  "n8n_types": [
+    "n8n-nodes-base.postHog"
+  ],
+  "base_url": "{{ cred.url | default:'https://app.posthog.com' }}",
+  "credentials": [
+    {
+      "platform": "posthog",
+      "name": "PostHog",
+      "n8n_credential": "postHogApi",
+      "n8n_field_map": {
+        "url": "url",
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "PostHog URL",
+          "required": true,
+          "help": "e.g. https://app.posthog.com or https://eu.posthog.com, or your self-hosted URL"
+        },
+        {
+          "key": "api_key",
+          "label": "Project API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "body": {
+          "api_key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "event",
+      "label": "Event"
+    },
+    {
+      "value": "alias",
+      "label": "Alias"
+    },
+    {
+      "value": "identity",
+      "label": "Identity"
+    },
+    {
+      "value": "track",
+      "label": "Track"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "event",
+      "operation": "create",
+      "title": "Capture an event",
+      "method": "POST",
+      "path": "/capture/",
+      "fields": [
+        {
+          "key": "eventName",
+          "label": "Event",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "distinctId",
+          "label": "Distinct ID",
+          "type": "text",
+          "required": true,
+          "help": "The user's unique id"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "propertiesUi",
+            "timestamp"
+          ],
+          "help": "propertiesUi: {propertyValues: [{key, value}]}"
+        }
+      ],
+      "body": {
+        "event": "{{ p.eventName }}",
+        "properties": {
+          "distinct_id": "{{ p.distinctId }}",
+          "$merge": "{{ p.additionalFields.propertiesUi | kv:'key,value' }}"
+        },
+        "timestamp": "{{ p.additionalFields.timestamp | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}"
+      }
+    },
+    {
+      "resource": "alias",
+      "operation": "create",
+      "title": "Create an alias",
+      "method": "POST",
+      "path": "/batch",
+      "fields": [
+        {
+          "key": "alias",
+          "label": "Alias",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "distinctId",
+          "label": "Distinct ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contextUi",
+            "timestamp"
+          ],
+          "help": "contextUi: {contextValues: [{key, value}]}"
+        }
+      ],
+      "body": {
+        "type": "alias",
+        "event": "$create_alias",
+        "context": "{{ p.additionalFields.contextUi | kv:'key,value' }}",
+        "properties": {
+          "distinct_id": "{{ p.distinctId }}",
+          "alias": "{{ p.alias }}"
+        },
+        "timestamp": "{{ p.additionalFields.timestamp | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}"
+      }
+    },
+    {
+      "resource": "identity",
+      "operation": "create",
+      "title": "Identify a user",
+      "method": "POST",
+      "path": "/batch",
+      "fields": [
+        {
+          "key": "distinctId",
+          "label": "Distinct ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "propertiesUi",
+            "messageId",
+            "timestamp"
+          ]
+        }
+      ],
+      "body": {
+        "event": "$identify",
+        "distinct_id": "{{ p.distinctId }}",
+        "properties": "{{ p.additionalFields.propertiesUi | kv:'key,value' }}",
+        "messageId": "{{ p.additionalFields.messageId }}",
+        "timestamp": "{{ p.additionalFields.timestamp | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}"
+      }
+    },
+    {
+      "resource": "track",
+      "operation": "page",
+      "title": "Track a page view",
+      "method": "POST",
+      "path": "/batch",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "distinctId",
+          "label": "Distinct ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "category",
+            "contextUi",
+            "messageId",
+            "propertiesUi",
+            "timestamp"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "type": "page",
+        "event": "$page",
+        "distinct_id": "{{ p.distinctId }}",
+        "context": "{{ p.additionalFields.contextUi | kv:'key,value' }}",
+        "properties": "{{ p.additionalFields.propertiesUi | kv:'key,value' }}",
+        "category": "{{ p.additionalFields.category }}",
+        "messageId": "{{ p.additionalFields.messageId }}",
+        "timestamp": "{{ p.additionalFields.timestamp | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}"
+      }
+    },
+    {
+      "resource": "track",
+      "operation": "screen",
+      "title": "Track a screen view",
+      "method": "POST",
+      "path": "/batch",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "distinctId",
+          "label": "Distinct ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "category",
+            "contextUi",
+            "messageId",
+            "propertiesUi",
+            "timestamp"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "type": "screen",
+        "event": "$screen",
+        "distinct_id": "{{ p.distinctId }}",
+        "context": "{{ p.additionalFields.contextUi | kv:'key,value' }}",
+        "properties": "{{ p.additionalFields.propertiesUi | kv:'key,value' }}",
+        "category": "{{ p.additionalFields.category }}",
+        "messageId": "{{ p.additionalFields.messageId }}",
+        "timestamp": "{{ p.additionalFields.timestamp | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}"
+      }
+    }
+  ]
+}

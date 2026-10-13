@@ -1,0 +1,656 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "help_scout",
+  "node_type": "app.help_scout",
+  "title": "Help Scout",
+  "description": "Conversations, customers, mailboxes and threads in Help Scout",
+  "category": "app",
+  "docs_url": "https://developer.helpscout.com/mailbox-api/",
+  "n8n_types": [
+    "n8n-nodes-base.helpScout"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.helpScoutTrigger"
+  ],
+  "base_url": "https://api.helpscout.net",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "helpscout",
+      "name": "Help Scout",
+      "n8n_credential": "helpScoutOAuth2Api",
+      "methods": [
+        "oauth"
+      ],
+      "fields": [],
+      "oauth": {
+        "auth_url": "https://secure.helpscout.net/authentication/authorizeClientApplication",
+        "token_url": "https://api.helpscout.net/v2/oauth2/token",
+        "scopes": []
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "conversation",
+      "label": "Conversation"
+    },
+    {
+      "value": "customer",
+      "label": "Customer"
+    },
+    {
+      "value": "mailbox",
+      "label": "Mailbox"
+    },
+    {
+      "value": "thread",
+      "label": "Thread"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "conversation",
+      "operation": "create",
+      "title": "Create a conversation",
+      "method": "POST",
+      "path": "/v2/conversations",
+      "fields": [
+        {
+          "key": "mailboxId",
+          "label": "Mailbox ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "active",
+            "closed",
+            "pending"
+          ]
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "chat",
+            "email",
+            "phone"
+          ]
+        },
+        {
+          "key": "resolveData",
+          "label": "Resolve data",
+          "type": "boolean",
+          "default": true,
+          "help": "Fetch the created record (else return its id and URI)"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignTo",
+            "autoReply",
+            "closedAt",
+            "createdAt",
+            "customerEmail",
+            "customerId",
+            "imported",
+            "tags",
+            "user"
+          ],
+          "help": "customerEmail or customerId is required"
+        },
+        {
+          "key": "threadsUi",
+          "label": "Threads",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "threadsValues"
+          ],
+          "help": "{\"threadsValues\": [{\"type\": chat|customer|note|phone|reply, \"text\", \"bcc\", \"cc\", \"draft\"}]}"
+        }
+      ],
+      "body": {
+        "mailboxId": "{{ p.mailboxId | numeric }}",
+        "status": "{{ p.status }}",
+        "subject": "{{ p.subject }}",
+        "type": "{{ p.type }}",
+        "$merge": "{{ p.additionalFields | omit:'customerEmail,customerId' }}",
+        "customer": {
+          "email": "{{ p.additionalFields.customerEmail }}",
+          "id": "{{ p.additionalFields.customerEmail | default:'' | eq:'' | then:p.additionalFields.customerId }}"
+        },
+        "threads": {
+          "$map": "{{ p.threadsUi.threadsValues }}",
+          "$to": {
+            "$merge": "{{ el }}",
+            "customer": {
+              "$when": "{{ el.type | ne:'note' }}",
+              "email": "{{ p.additionalFields.customerEmail }}",
+              "id": "{{ p.additionalFields.customerEmail | default:'' | eq:'' | then:p.additionalFields.customerId }}"
+            }
+          }
+        }
+      },
+      "output": {
+        "expand": {
+          "when": "{{ p.resolveData }}",
+          "method": "GET",
+          "path": "{{ hdr.Location }}"
+        },
+        "to": {
+          "id": "{{ hdr.Resource-ID }}",
+          "uri": "{{ hdr.Location }}"
+        },
+        "to_when": "{{ p.resolveData | ne:'true' }}"
+      }
+    },
+    {
+      "resource": "conversation",
+      "operation": "delete",
+      "title": "Delete a conversation",
+      "method": "DELETE",
+      "path": "/v2/conversations/{{ p.conversationId }}",
+      "fields": [
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "conversation",
+      "operation": "get",
+      "title": "Get a conversation",
+      "method": "GET",
+      "path": "/v2/conversations/{{ p.conversationId }}",
+      "fields": [
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "conversation",
+      "operation": "getAll",
+      "title": "Get many conversations",
+      "method": "GET",
+      "path": "/v2/conversations",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignTo",
+            "embed",
+            "folder",
+            "mailbox",
+            "modifiedSince",
+            "number",
+            "query",
+            "sortField",
+            "sortOrder",
+            "status",
+            "tags"
+          ],
+          "help": "tags: list of tag names"
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.options | omit:'tags' }}",
+        "tag": "{{ p.options.tags | csv }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next.href",
+        "results_path": "_embedded.conversations"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "create",
+      "title": "Create a customer",
+      "method": "POST",
+      "path": "/v2/customers",
+      "fields": [
+        {
+          "key": "resolveData",
+          "label": "Resolve data",
+          "type": "boolean",
+          "default": true,
+          "help": "Fetch the created record (else return its id and URI)"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "age",
+            "firstName",
+            "gender",
+            "jobTitle",
+            "lastName",
+            "location",
+            "background",
+            "organization",
+            "photoUrl"
+          ]
+        },
+        {
+          "key": "addressUi",
+          "label": "Address",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressValue"
+          ],
+          "help": "{\"addressValue\": {line1, line2, city, state, country, postalCode}}"
+        },
+        {
+          "key": "chatsUi",
+          "label": "Chats",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "chatsValues"
+          ],
+          "help": "{\"chatsValues\": [{type, value}]}"
+        },
+        {
+          "key": "emailsUi",
+          "label": "Emails",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailsValues"
+          ],
+          "help": "{\"emailsValues\": [{type, value}]}"
+        },
+        {
+          "key": "phonesUi",
+          "label": "Phones",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "phonesValues"
+          ],
+          "help": "{\"phonesValues\": [{type, value}]}"
+        },
+        {
+          "key": "socialProfilesUi",
+          "label": "Social profiles",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "socialProfilesValues"
+          ],
+          "help": "{\"socialProfilesValues\": [{type, value}]}"
+        },
+        {
+          "key": "websitesUi",
+          "label": "Websites",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "websitesValues"
+          ],
+          "help": "{\"websitesValues\": [{value}]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields | omit:'age' }}",
+        "age": "{{ p.additionalFields.age | string }}",
+        "address": {
+          "$merge": "{{ p.addressUi.addressValue | omit:'line1,line2' }}",
+          "lines": [
+            "{{ p.addressUi.addressValue.line1 }}",
+            "{{ p.addressUi.addressValue.line2 }}"
+          ]
+        },
+        "chats": "{{ p.chatsUi.chatsValues }}",
+        "emails": "{{ p.emailsUi.emailsValues }}",
+        "phones": "{{ p.phonesUi.phonesValues }}",
+        "socialProfiles": "{{ p.socialProfilesUi.socialProfilesValues }}",
+        "websites": "{{ p.websitesUi.websitesValues }}"
+      },
+      "output": {
+        "expand": {
+          "when": "{{ p.resolveData }}",
+          "method": "GET",
+          "path": "{{ hdr.Location }}"
+        },
+        "to": {
+          "id": "{{ hdr.Resource-ID }}",
+          "uri": "{{ hdr.Location }}"
+        },
+        "to_when": "{{ p.resolveData | ne:'true' }}"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "get",
+      "title": "Get a customer",
+      "method": "GET",
+      "path": "/v2/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "getAll",
+      "title": "Get many customers",
+      "method": "GET",
+      "path": "/v2/customers",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "firstName",
+            "lastName",
+            "mailbox",
+            "modifiedSince",
+            "sortField",
+            "sortOrder",
+            "query"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.options }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next.href",
+        "results_path": "_embedded.customers"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "properties",
+      "title": "List customer properties",
+      "method": "GET",
+      "path": "/v2/customer-properties",
+      "fields": [],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next.href",
+        "results_path": "_embedded.customer-properties"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "update",
+      "title": "Update a customer",
+      "method": "PUT",
+      "path": "/v2/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "age",
+            "firstName",
+            "gender",
+            "jobTitle",
+            "lastName",
+            "location",
+            "background",
+            "organization",
+            "photoUrl"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'age' }}",
+        "age": "{{ p.updateFields.age | string }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "mailbox",
+      "operation": "get",
+      "title": "Get a mailbox",
+      "method": "GET",
+      "path": "/v2/mailboxes/{{ p.mailboxId }}",
+      "fields": [
+        {
+          "key": "mailboxId",
+          "label": "Mailbox ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "mailbox",
+      "operation": "getAll",
+      "title": "Get many mailboxes",
+      "method": "GET",
+      "path": "/v2/mailboxes",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next.href",
+        "results_path": "_embedded.mailboxes"
+      }
+    },
+    {
+      "resource": "thread",
+      "operation": "create",
+      "title": "Create a thread",
+      "method": "POST",
+      "path": "/v2/conversations/{{ p.conversationId }}/{{ p.type | replace:'chat','chats' | replace:'note','notes' | replace:'phone','phones' }}",
+      "fields": [
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "chat",
+            "customer",
+            "note",
+            "phone",
+            "reply"
+          ]
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "createdAt",
+            "customerEmail",
+            "customerId",
+            "draft",
+            "imported"
+          ],
+          "help": "customerEmail or customerId is required"
+        },
+        {
+          "key": "attachmentsUi",
+          "label": "Attachments",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsValues",
+            "attachmentsBinary"
+          ],
+          "help": "attachmentsValues: [{fileName, mimeType, data (base64)}]; attachmentsBinary: [{property}] (the first binary property is attached)"
+        }
+      ],
+      "binary": {
+        "upload_field": "attachmentsUi",
+        "property": "{{ p.attachmentsUi.attachmentsBinary.0.property }}",
+        "upload_when": "{{ p.attachmentsUi.attachmentsBinary.0.property }}"
+      },
+      "body": {
+        "text": "{{ p.text }}",
+        "$merge": "{{ p.additionalFields | omit:'customerEmail,customerId' }}",
+        "customer": {
+          "email": "{{ p.additionalFields.customerEmail }}",
+          "id": "{{ p.additionalFields.customerEmail | default:'' | eq:'' | then:p.additionalFields.customerId }}"
+        },
+        "!attachments": {
+          "$concat": [
+            "{{ p.attachmentsUi.attachmentsValues }}",
+            [
+              {
+                "$when": "{{ bin.base64 }}",
+                "fileName": "{{ bin.file_name | default:'unknown' }}",
+                "mimeType": "{{ bin.mime_type }}",
+                "data": "{{ bin.base64 }}"
+              }
+            ]
+          ]
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "thread",
+      "operation": "getAll",
+      "title": "Get many threads",
+      "method": "GET",
+      "path": "/v2/conversations/{{ p.conversationId }}/threads",
+      "fields": [
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next.href",
+        "results_path": "_embedded.threads"
+      }
+    }
+  ]
+}

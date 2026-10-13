@@ -73,5 +73,72 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "page URL",
+      "key": "url",
+      "type": "string"
+    },
+    {
+      "description": "page title",
+      "key": "title",
+      "type": "string"
+    },
+    {
+      "description": "meta description",
+      "key": "description",
+      "type": "string"
+    },
+    {
+      "description": "author",
+      "key": "author",
+      "type": "string"
+    },
+    {
+      "description": "publication date",
+      "key": "published_at",
+      "type": "string"
+    },
+    {
+      "description": "main content as Markdown",
+      "key": "markdown",
+      "type": "string"
+    },
+    {
+      "description": "main content as text",
+      "key": "main_text",
+      "type": "string"
+    },
+    {
+      "description": "page headings",
+      "key": "headings",
+      "type": "array"
+    },
+    {
+      "description": "approximate tokens of the content",
+      "key": "token_count",
+      "type": "number"
+    },
+    {
+      "description": "how the page was fetched",
+      "key": "render_mode_used",
+      "type": "string"
+    },
+    {
+      "description": "fetch time in ms",
+      "key": "fetch_time_ms",
+      "type": "number"
+    },
+    {
+      "description": "page links, when include_links",
+      "key": "links",
+      "type": "array"
+    },
+    {
+      "description": "page images, when include_images",
+      "key": "images",
+      "type": "array"
+    }
   ]
 }

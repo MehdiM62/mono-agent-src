@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -21,6 +22,9 @@ type JiraNode struct{}
 func (n *JiraNode) Type() string { return "service.jira" }
 
 func (n *JiraNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.jira", config) {
+		return apipkg.ExecuteExtension(ctx, "service.jira", input, config)
+	}
 	baseURL := strVal(config, "base_url")
 	if baseURL == "" {
 		if domain := strVal(config, "domain"); domain != "" {
