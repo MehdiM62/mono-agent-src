@@ -6,7 +6,8 @@ import (
 )
 
 // ResolveScopes turns scope-group names into the OAuth scopes an umbrella
-// platform requests. No groups selects every group (the default union). The
+// platform requests. No groups selects every group that is not opt-in (the
+// default set); "all" selects every group, opt-in ones included. The
 // platform's always-on scopes are included, duplicates dropped, order kept.
 // An unknown group name is an error that lists the valid ones.
 func ResolveScopes(platform string, groups []string) ([]string, error) {
@@ -47,7 +48,7 @@ func mustResolveScopes(platform string, groups []string) []string {
 
 // normalizeGroupNames validates group names (case-insensitive, trimmed,
 // empty entries ignored) and returns the selected set; an empty selection
-// means every group.
+// means every group that is not opt-in.
 func normalizeGroupNames(platform string, groups []string) (map[string]bool, error) {
 	u := umbrellas[platform]
 	valid := map[string]bool{}
@@ -74,8 +75,10 @@ func normalizeGroupNames(platform string, groups []string) (map[string]bool, err
 		selected[g] = true
 	}
 	if len(selected) == 0 {
-		for n := range valid {
-			selected[n] = true
+		for _, g := range u.Groups {
+			if !g.OptIn {
+				selected[g.Name] = true
+			}
 		}
 	}
 	return selected, nil
