@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"database/sql"
@@ -52,13 +52,13 @@ type doctorAutomationJSON struct {
 // newAutomationDoctorCmd builds `automation doctor [id]`: registry issues,
 // availability (policy, missing native bot, engine), login state and
 // selector health for each installed automation.
-func newAutomationDoctorCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAutomationDoctorCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "doctor [id]",
 		Short: "Check installed automations: issues, login state and selector health",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
@@ -72,21 +72,21 @@ func newAutomationDoctorCmd(cfg *globalConfig) *cobra.Command {
 			} else if infos, err = reg.List(false); err != nil {
 				return err
 			}
-			sessions, health, repairs := loadDoctorState(cfg)
+			sessions, health, repairs := d.loadDoctorState()
 			rows := make([]doctorAutomationJSON, 0, len(infos))
 			for _, info := range infos {
 				rows = append(rows, doctorAutomation(reg, info, sessions.lookupInfo(info), health[info.ID], repairs[info.ID]))
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJSONTo(out, map[string]any{"automations": rows})
 			}
-			printAutomationDoctor(out, rows)
+			d.printAutomationDoctor(out, rows)
 			return nil
 		},
 	}
-	accept := newAutomationAcceptRepairCmd(cfg)
-	withJSONErrors(cfg, accept)
+	accept := d.newAutomationAcceptRepairCmd()
+	d.WithJSONErrors(accept)
 	cmd.AddCommand(accept)
 	return cmd
 }
@@ -94,17 +94,17 @@ func newAutomationDoctorCmd(cfg *globalConfig) *cobra.Command {
 // newAutomationAcceptRepairCmd builds `automation doctor accept-repair <id>
 // <key>`: replace the selector with the candidates Jev fallback picks
 // proposed (automation.AcceptRepair), as `automation rerecord` would.
-func newAutomationAcceptRepairCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAutomationAcceptRepairCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "accept-repair <id> <selectorKey>",
 		Short: "Replace a selector with the repair Jev fallback picks proposed",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return err
 			}
@@ -117,7 +117,7 @@ func newAutomationAcceptRepairCmd(cfg *globalConfig) *cobra.Command {
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: %v\n", err)
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJSONTo(out, res)
 			}
 			fmt.Fprintf(out, "Repaired %s selector %s (%d candidate(s) from %d Jev pick(s), saved in the %s)\n",
@@ -129,13 +129,13 @@ func newAutomationAcceptRepairCmd(cfg *globalConfig) *cobra.Command {
 
 // loadDoctorState reads sessions and selector health. Like `automation
 // list`, it never creates a database: no DB yet means no logins and no runs.
-func loadDoctorState(cfg *globalConfig) (sessionIndex, map[string][]automation.SelectorHealth, map[string][]automation.RepairProposal) {
+func (d Deps) loadDoctorState() (sessionIndex, map[string][]automation.SelectorHealth, map[string][]automation.RepairProposal) {
 	health := map[string][]automation.SelectorHealth{}
 	repairs := map[string][]automation.RepairProposal{}
-	if _, err := os.Stat(expandPath(cfg.DBPath)); err != nil {
+	if _, err := os.Stat(d.DBPath()); err != nil {
 		return sessionIndex{}, health, repairs
 	}
-	db, err := initDB(cfg)
+	db, err := d.OpenDB()
 	if err != nil {
 		stderrf("warning: login state and selector health unavailable: %v\n", err)
 		return sessionIndex{}, health, repairs
@@ -148,7 +148,7 @@ func loadDoctorState(cfg *globalConfig) (sessionIndex, map[string][]automation.S
 			repairs[p.AutomationID] = append(repairs[p.AutomationID], p)
 		}
 	}
-	return querySessionIndex(db.DB, cfg.ProfileID, time.Now()), groupSelectorHealth(db.DB), repairs
+	return querySessionIndex(db.DB, d.ProfileID(), time.Now()), groupSelectorHealth(db.DB), repairs
 }
 
 func groupSelectorHealth(db *sql.DB) map[string][]automation.SelectorHealth {
@@ -243,12 +243,12 @@ func rfc3339OrEmpty(t *time.Time) string {
 
 // printAutomationDoctor prints one table row per automation, then the
 // issues and the selectors that need attention.
-func printAutomationDoctor(out io.Writer, rows []doctorAutomationJSON) {
+func (d Deps) printAutomationDoctor(out io.Writer, rows []doctorAutomationJSON) {
 	if len(rows) == 0 {
 		fmt.Fprintln(out, "No automations installed.")
 		return
 	}
-	table := newPlainTable(out, []string{"ID", "Version", "Status", "Login", "Issues", "Selectors ok/decaying/broken"},
+	table := d.NewTable(out, []string{"ID", "Version", "Status", "Login", "Issues", "Selectors ok/decaying/broken"},
 		[]tw.Align{tw.AlignLeft, tw.AlignLeft, tw.AlignLeft, tw.AlignLeft, tw.AlignRight, tw.AlignLeft})
 	for _, r := range rows {
 		status := "ok"

@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"context"
@@ -35,16 +35,19 @@ type selectorReplacer interface {
 	ReplaceSelector(id, key string, e action.SelectorEntry) (string, error)
 }
 
-// rerecordOpenPicker opens a tab at url through the same connect path
-// `node run` uses. Tests replace it.
-var rerecordOpenPicker = func(ctx context.Context, url string, verbose bool) (elementPicker, error) {
+// pickerOpener opens a tab at url that can run the extension's picker.
+type pickerOpener func(ctx context.Context, url string, verbose bool) (elementPicker, error)
+
+// openPicker opens a tab at url through the same connect path
+// `node run` uses. Tests pass their own pickerOpener instead.
+func (d Deps) openPicker(ctx context.Context, url string, verbose bool) (elementPicker, error) {
 	logger := logging.Zerolog().With().Str("component", "extension").Logger()
 	if verbose {
 		logger = logger.Level(zerolog.TraceLevel)
 	}
-	bridge := setupProfileBridge(vault.ProfileIDFromContext(ctx), logger, 3*time.Second)
+	bridge := d.SetupBridge(vault.ProfileIDFromContext(ctx), logger, 3*time.Second)
 	if !bridge.IsConnected() {
-		if err := ensureExtensionConnected(bridge, 30*time.Second); err != nil {
+		if err := d.EnsureConnected(bridge, 30*time.Second); err != nil {
 			return nil, fmt.Errorf("browser bridge not connected: %w", err)
 		}
 	}
@@ -110,7 +113,7 @@ type rerecordResult struct {
 	URL        string                     `json:"url"`
 }
 
-func newAutomationRerecordCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAutomationRerecordCmd() *cobra.Command {
 	var url string
 	var timeout time.Duration
 	cmd := &cobra.Command{
@@ -118,19 +121,19 @@ func newAutomationRerecordCmd(cfg *globalConfig) *cobra.Command {
 		Short: "Re-record one selector by clicking the element in your browser",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
-			res, err := rerecordSelector(vault.ContextWithProfileID(cmd.Context(), browserProfile(cfg)), reg, reg, args[0], args[1], url, timeout, cfg.Verbose)
+			res, err := rerecordSelector(vault.ContextWithProfileID(cmd.Context(), d.browserProfile()), d.openPicker, reg, reg, args[0], args[1], url, timeout, d.Verbose())
 			if err != nil {
 				return err
 			}
-			if err := resetRerecordedHealth(cfg, res.Automation, res.Key); err != nil {
+			if err := d.resetRerecordedHealth(res.Automation, res.Key); err != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: selector saved, but its health history was not reset: %v\n", err)
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJSONTo(out, res)
 			}
 			fmt.Fprintf(out, "Re-recorded %s selector %s (%d candidate(s), saved in the %s) from %s\n",
@@ -146,11 +149,11 @@ func newAutomationRerecordCmd(cfg *globalConfig) *cobra.Command {
 // resetRerecordedHealth starts the selector's health over so doctor and
 // the Health tab stop reporting the old selector's failures. No database
 // yet means no history to reset; none is created.
-func resetRerecordedHealth(cfg *globalConfig, id, key string) error {
-	if _, err := os.Stat(expandPath(cfg.DBPath)); err != nil {
+func (d Deps) resetRerecordedHealth(id, key string) error {
+	if _, err := os.Stat(d.DBPath()); err != nil {
 		return nil
 	}
-	db, err := initDB(cfg)
+	db, err := d.OpenDB()
 	if err != nil {
 		return err
 	}
@@ -163,7 +166,7 @@ type packageGetter interface {
 	Get(id string) (*automation.Package, error)
 }
 
-func rerecordSelector(ctx context.Context, reg packageGetter, rep selectorReplacer, id, key, url string,
+func rerecordSelector(ctx context.Context, open pickerOpener, reg packageGetter, rep selectorReplacer, id, key, url string,
 	timeout time.Duration, verbose bool) (*rerecordResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -188,7 +191,7 @@ func rerecordSelector(ctx context.Context, reg packageGetter, rep selectorReplac
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout+30*time.Second)
 	defer cancel()
-	picker, err := rerecordOpenPicker(ctx, url, verbose)
+	picker, err := open(ctx, url, verbose)
 	if err != nil {
 		return nil, err
 	}

@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"bytes"
@@ -62,7 +62,7 @@ func writeTestAutomationID(t *testing.T, id string) string {
 // installTestAutomation installs acme-test into the registry under $HOME.
 func installTestAutomation(t *testing.T) {
 	t.Helper()
-	reg, err := openAutomationRegistry()
+	reg, err := openTestRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,8 +75,8 @@ func TestAutomationDoctorJSON(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	installTestAutomation(t)
 
-	cfg := &globalConfig{DBPath: filepath.Join(t.TempDir(), "doctor.db"), JSONOutput: true, ProfileID: "default"}
-	db, err := initDB(cfg)
+	cfg := &testConfig{DBPath: filepath.Join(t.TempDir(), "doctor.db"), JSONOutput: true, ProfileID: "default"}
+	db, err := testDeps(cfg).OpenDB()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestAutomationDoctorJSON(t *testing.T) {
 	db.Close()
 
 	var out bytes.Buffer
-	cmd := newAutomationDoctorCmd(cfg)
+	cmd := testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"acme-test"})
 	if err := cmd.Execute(); err != nil {
@@ -144,7 +144,7 @@ func TestAutomationDoctorJSON(t *testing.T) {
 	// Human output: a table row plus the selectors that need attention.
 	var human bytes.Buffer
 	cfg.JSONOutput = false
-	cmd = newAutomationDoctorCmd(cfg)
+	cmd = testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&human)
 	cmd.SetArgs([]string{"acme-test"})
 	if err := cmd.Execute(); err != nil {
@@ -161,9 +161,9 @@ func TestAutomationDoctorWithoutDatabase(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	installTestAutomation(t)
 	dbPath := filepath.Join(t.TempDir(), "never.db")
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}
+	cfg := &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}
 	var out bytes.Buffer
-	cmd := newAutomationDoctorCmd(cfg)
+	cmd := testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"acme-test"})
 	if err := cmd.Execute(); err != nil {
@@ -182,8 +182,8 @@ func TestAutomationDoctorWithoutDatabase(t *testing.T) {
 func TestAutomationDoctorStaleSelector(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	installTestAutomation(t)
-	cfg := &globalConfig{DBPath: filepath.Join(t.TempDir(), "doctor.db"), JSONOutput: true, ProfileID: "default"}
-	db, err := initDB(cfg)
+	cfg := &testConfig{DBPath: filepath.Join(t.TempDir(), "doctor.db"), JSONOutput: true, ProfileID: "default"}
+	db, err := testDeps(cfg).OpenDB()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestAutomationDoctorStaleSelector(t *testing.T) {
 	db.Close()
 
 	var out bytes.Buffer
-	cmd := newAutomationDoctorCmd(cfg)
+	cmd := testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"acme-test"})
 	if err := cmd.Execute(); err != nil {
@@ -231,7 +231,7 @@ func TestAutomationDoctorStaleSelector(t *testing.T) {
 
 	var human bytes.Buffer
 	cfg.JSONOutput = false
-	cmd = newAutomationDoctorCmd(cfg)
+	cmd = testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&human)
 	cmd.SetArgs([]string{"acme-test"})
 	if err := cmd.Execute(); err != nil {
@@ -248,8 +248,8 @@ func TestAutomationDoctorStaleSelector(t *testing.T) {
 func TestAutomationDoctorAfterRerecordReset(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	installTestAutomation(t)
-	cfg := &globalConfig{DBPath: filepath.Join(t.TempDir(), "doctor.db"), JSONOutput: true, ProfileID: "default"}
-	db, err := initDB(cfg)
+	cfg := &testConfig{DBPath: filepath.Join(t.TempDir(), "doctor.db"), JSONOutput: true, ProfileID: "default"}
+	db, err := testDeps(cfg).OpenDB()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestAutomationDoctorAfterRerecordReset(t *testing.T) {
 	db.Close()
 
 	var out bytes.Buffer
-	cmd := newAutomationDoctorCmd(cfg)
+	cmd := testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"acme-test"})
 	if err := cmd.Execute(); err != nil {

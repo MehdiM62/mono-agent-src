@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"errors"
@@ -11,7 +11,7 @@ import (
 // §8). --scripts lets an imported/recorded package run page_script and
 // http_fetch_in_page; --live confirms real runs of an imported package's
 // write-level actions. With no flag it only shows the current state.
-func newAutomationTrustCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAutomationTrustCmd() *cobra.Command {
 	var scripts, noScripts, live, noLive bool
 	cmd := &cobra.Command{
 		Use:   "trust <id>",
@@ -24,7 +24,7 @@ func newAutomationTrustCmd(cfg *globalConfig) *cobra.Command {
 			if live && noLive {
 				return errors.New("--live and --no-live are mutually exclusive")
 			}
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
@@ -40,7 +40,7 @@ func newAutomationTrustCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJSONTo(out, map[string]any{"ok": true, "info": info})
 			}
 			fmt.Fprintf(out, "%s (trust %s)\n  scripts allowed:    %v\n  live run confirmed: %v\n",

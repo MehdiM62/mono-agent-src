@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"context"
@@ -64,6 +64,7 @@ func rerecordFixturePackage(t *testing.T) string {
 }
 
 func TestAutomationRerecordBuildsEntry(t *testing.T) {
+	t.Parallel()
 	dir := rerecordFixturePackage(t)
 	picker := &fakePicker{url: "https://acme.test/edit", fp: &recording.Fingerprint{Candidates: []recording.Candidate{
 		{Kind: "css", Value: ".btn", Unique: false, Score: 0.9},
@@ -73,15 +74,13 @@ func TestAutomationRerecordBuildsEntry(t *testing.T) {
 		{Kind: "bogus", Value: "x", Unique: true, Score: 1},
 	}}}
 	var openedURL string
-	orig := rerecordOpenPicker
-	rerecordOpenPicker = func(_ context.Context, url string, _ bool) (elementPicker, error) {
+	open := func(_ context.Context, url string, _ bool) (elementPicker, error) {
 		openedURL = url
 		return picker, nil
 	}
-	t.Cleanup(func() { rerecordOpenPicker = orig })
 
 	rep := &fakeReplacer{}
-	res, err := rerecordSelector(context.Background(), dirGetter{dir}, rep, "acme", "save.button", "", time.Minute, false)
+	res, err := rerecordSelector(context.Background(), open, dirGetter{dir}, rep, "acme", "save.button", "", time.Minute, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,9 +100,8 @@ func TestAutomationRerecordBuildsEntry(t *testing.T) {
 }
 
 func TestAutomationRerecordErrors(t *testing.T) {
+	t.Parallel()
 	dir := rerecordFixturePackage(t)
-	orig := rerecordOpenPicker
-	t.Cleanup(func() { rerecordOpenPicker = orig })
 	for _, tc := range []struct {
 		key, want string
 		pickErr   error
@@ -116,9 +114,9 @@ func TestAutomationRerecordErrors(t *testing.T) {
 		{"save.button", "browser bridge not connected", extension.ErrBridgeNotConnected},
 	} {
 		picker := &fakePicker{err: tc.pickErr}
-		rerecordOpenPicker = func(context.Context, string, bool) (elementPicker, error) { return picker, nil }
+		open := func(context.Context, string, bool) (elementPicker, error) { return picker, nil }
 		rep := &fakeReplacer{}
-		_, err := rerecordSelector(context.Background(), dirGetter{dir}, rep, "acme", tc.key, "", time.Minute, false)
+		_, err := rerecordSelector(context.Background(), open, dirGetter{dir}, rep, "acme", tc.key, "", time.Minute, false)
 		if err == nil || err.Error() != tc.want {
 			t.Errorf("%s: err = %v, want %q", tc.key, err, tc.want)
 		}
@@ -129,6 +127,7 @@ func TestAutomationRerecordErrors(t *testing.T) {
 }
 
 func TestAutomationRerecordDropsSensitiveText(t *testing.T) {
+	t.Parallel()
 	fp := &recording.Fingerprint{Sensitive: true, Candidates: []recording.Candidate{
 		{Kind: "text", Value: "hunter2", Unique: true, Score: 0.9},
 		{Kind: "css", Value: "#pw", Unique: true, Score: 0.8},
@@ -140,6 +139,7 @@ func TestAutomationRerecordDropsSensitiveText(t *testing.T) {
 }
 
 func TestAutomationDoctorSuggestsRerecord(t *testing.T) {
+	t.Parallel()
 	if got := rerecordSuggestion("acme", "save.button"); got != "run: monoagentcli automation rerecord acme save.button" {
 		t.Fatalf("suggestion = %q", got)
 	}
@@ -148,9 +148,9 @@ func TestAutomationDoctorSuggestsRerecord(t *testing.T) {
 func TestAutomationRerecordResetsHealth(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	cfg := &globalConfig{DBPath: filepath.Join(home, ".monoagent", "monoagent.db")}
+	cfg := &testConfig{DBPath: filepath.Join(home, ".monoagent", "monoagent.db")}
 	// No database: nothing to reset, and none is created.
-	if err := resetRerecordedHealth(cfg, "acme", "save.button"); err != nil {
+	if err := testDeps(cfg).resetRerecordedHealth("acme", "save.button"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(cfg.DBPath); !os.IsNotExist(err) {
@@ -168,7 +168,7 @@ func TestAutomationRerecordResetsHealth(t *testing.T) {
 		VALUES ('acme','save.button',1,9,0,0,'','2026-01-01T00:00:00Z')`)
 	db.Close()
 
-	if err := resetRerecordedHealth(cfg, "acme", "save.button"); err != nil {
+	if err := testDeps(cfg).resetRerecordedHealth("acme", "save.button"); err != nil {
 		t.Fatal(err)
 	}
 	db, err = storage.NewDatabase(cfg.DBPath)
@@ -189,6 +189,7 @@ func TestAutomationRerecordResetsHealth(t *testing.T) {
 
 // TestAutomationSessionLookupLocalWrap (D7): local-<p> uses <p>'s session.
 func TestAutomationSessionLookupLocalWrap(t *testing.T) {
+	t.Parallel()
 	idx := sessionIndex{"instagram": {LoggedIn: true, Username: "me", Status: "active"}}
 	if got := idx.lookup("local-instagram"); !got.LoggedIn || got.Username != "me" {
 		t.Fatalf("local-instagram = %+v", got)
@@ -210,6 +211,7 @@ func TestAutomationSessionLookupLocalWrap(t *testing.T) {
 // platform name has an underscore (id local-google-maps) finds the session
 // saved under "google_maps" through InstalledInfo.LegacyPlatform.
 func TestAutomationSessionLookupLegacyPlatform(t *testing.T) {
+	t.Parallel()
 	idx := sessionIndex{"google_maps": {LoggedIn: true, Username: "maps-user", Status: "active"}}
 	info := automation.InstalledInfo{ID: "local-google-maps", LegacyPlatform: "google_maps"}
 	if got := idx.lookupInfo(info); !got.LoggedIn || got.Username != "maps-user" {
