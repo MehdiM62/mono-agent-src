@@ -113,7 +113,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 			return nil, r.errf("method: %w", err)
 		}
 		if method = strings.ToUpper(strings.TrimSpace(m)); !validMethods[method] {
-			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE or HEAD", m)
+			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE, HEAD or a WebDAV method", m)
 		}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), rd)
@@ -157,6 +157,20 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 			obj = m
 		} else if v != nil && bt != BodyJSON {
 			return nil, "", r.errf("body: a %s body must be an object", bt)
+		}
+		if c := r.credDef; c != nil && len(c.Inject.Body) > 0 {
+			if obj == nil {
+				obj = map[string]any{}
+			}
+			for k, tv := range c.Inject.Body {
+				v, err := renderText(tv, sc)
+				if err != nil {
+					return nil, "", r.errf("credential %s: inject.body.%s: %w", c.Platform, k, err)
+				}
+				if v != "" {
+					obj[k] = v
+				}
+			}
 		}
 		if pp.inBody && len(pp.values) > 0 {
 			if obj == nil {
