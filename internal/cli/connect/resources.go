@@ -1,4 +1,4 @@
-package main
+package connect
 
 import (
 	"context"
@@ -12,13 +12,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newResourcesClient builds the provider client `connect resources` uses;
-// tests swap it for one pointed at local servers.
-var newResourcesClient = resources.New
-
 // newConnectResourcesCmd returns `connect resources`, which lists (and, via
 // `create`, makes) the external resources a node's resource picker offers.
-func newConnectResourcesCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConnectResourcesCmd() *cobra.Command {
 	var platform, resourceType, query string
 	cmd := &cobra.Command{
 		Use:   "resources <credential-id>",
@@ -33,15 +29,15 @@ func newConnectResourcesCmd(cfg *globalConfig) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var result resources.ListResult
-			err := withResourceCredential(cmd, cfg, args[0], func(ctx context.Context, creds map[string]interface{}) (err error) {
-				result, err = newResourcesClient().List(ctx, platform, resourceType, query, creds)
+			err := d.withResourceCredential(cmd, args[0], func(ctx context.Context, creds map[string]interface{}) (err error) {
+				result, err = d.ResourcesClient().List(ctx, platform, resourceType, query, creds)
 				return err
 			})
 			if err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), result)
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), result)
 			}
 			if len(result.Items) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "No resources found.")
@@ -60,11 +56,11 @@ func newConnectResourcesCmd(cfg *globalConfig) *cobra.Command {
 	cmd.Flags().StringVar(&query, "query", "", "Filter by name (Drive/Sheets)")
 	_ = cmd.MarkFlagRequired("platform")
 	_ = cmd.MarkFlagRequired("type")
-	cmd.AddCommand(newConnectResourcesCreateCmd(cfg))
+	cmd.AddCommand(d.newConnectResourcesCreateCmd())
 	return cmd
 }
 
-func newConnectResourcesCreateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConnectResourcesCreateCmd() *cobra.Command {
 	var platform, resourceType, name string
 	cmd := &cobra.Command{
 		Use:   "create <credential-id>",
@@ -76,18 +72,18 @@ func newConnectResourcesCreateCmd(cfg *globalConfig) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if name == "" {
-				return errInvalidInput("--name is required")
+				return d.InvalidInput("--name is required")
 			}
 			var item resources.Item
-			err := withResourceCredential(cmd, cfg, args[0], func(ctx context.Context, creds map[string]interface{}) (err error) {
-				item, err = newResourcesClient().Create(ctx, platform, resourceType, name, creds)
+			err := d.withResourceCredential(cmd, args[0], func(ctx context.Context, creds map[string]interface{}) (err error) {
+				item, err = d.ResourcesClient().Create(ctx, platform, resourceType, name, creds)
 				return err
 			})
 			if err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), map[string]resources.Item{"item": item})
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), map[string]resources.Item{"item": item})
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Created %s (%s)\n", item.Name, item.ID)
 			return nil
@@ -105,8 +101,8 @@ func newConnectResourcesCreateCmd(cfg *globalConfig) *cobra.Command {
 // and runs fn with the credential data. Every error fn returns — and the
 // refresh warning — has the connection's secret values scrubbed out, so a
 // provider echoing a token back can't leak it to stdout or stderr.
-func withResourceCredential(cmd *cobra.Command, cfg *globalConfig, credentialID string, fn func(context.Context, map[string]interface{}) error) error {
-	db, err := initDB(cfg)
+func (d Deps) withResourceCredential(cmd *cobra.Command, credentialID string, fn func(context.Context, map[string]interface{}) error) error {
+	db, err := d.OpenDB()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
@@ -114,24 +110,24 @@ func withResourceCredential(cmd *cobra.Command, cfg *globalConfig, credentialID 
 	if _, err := connections.NewManager(db.DB); err != nil { // ensures the connections table
 		return err
 	}
-	conn, err := getScopedConnection(cmd, cfg, db.DB, credentialID)
+	conn, err := d.getScopedConnection(cmd, db.DB, credentialID)
 	if err != nil {
-		return errNotFound("credential lookup: %s", err)
+		return d.NotFound("credential lookup: %s", err)
 	}
-	secrets := connectionSecrets(conn)
+	secrets := d.ConnectionSecrets(conn)
 	if tokenExpiresSoon(conn) {
 		if rErr := connections.NewStore(db.DB).RefreshToken(cmd.Context(), conn); rErr != nil {
 			// Same as before the CLI owned this: try the existing token.
-			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: token refresh failed, using existing token: %v\n", scrubSecrets(rErr, secrets...))
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: token refresh failed, using existing token: %v\n", d.ScrubSecrets(rErr, secrets...))
 		}
-		secrets = append(secrets, connectionSecrets(conn)...)
+		secrets = append(secrets, d.ConnectionSecrets(conn)...)
 	}
 	if err := fn(cmd.Context(), conn.Data); err != nil {
-		scrubbed := scrubSecrets(err, secrets...)
+		scrubbed := d.ScrubSecrets(err, secrets...)
 		if errors.Is(err, resources.ErrUnsupported) {
-			return errInvalidInput("%s", scrubbed)
+			return d.InvalidInput("%s", scrubbed)
 		}
-		return errAuthConnection("%s", scrubbed)
+		return d.AuthFailed("%s", scrubbed)
 	}
 	return nil
 }
