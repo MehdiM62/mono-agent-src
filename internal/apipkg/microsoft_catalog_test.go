@@ -189,3 +189,35 @@ func TestOneDriveLargeUploadUsesSession(t *testing.T) {
 		t.Errorf("requests: %v", paths)
 	}
 }
+
+// Teams online meetings accept n8n's url-mode locator: the join URL is
+// looked up first (quotes doubled for OData), then the meeting is used by id.
+func TestTeamsMeetingByJoinURL(t *testing.T) {
+	p := catalogPkg(t, "microsoft_teams")
+	join := "https://teams.microsoft.com/l/meetup-join/19%3ameeting_x'y"
+	for _, op := range []string{"get", "deleteMeeting", "update"} {
+		seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+			if n == 1 {
+				fmt.Fprint(w, `{"value":[{"id":"MSo1"}]}`)
+				return
+			}
+			fmt.Fprint(w, `{"id":"MSo1"}`)
+		})
+		params := map[string]any{"resource": "onlineMeeting", "operation": op,
+			"meetingId": map[string]any{"__rl": true, "mode": "url", "value": join},
+			"updateFields": map[string]any{"subject": "s"}}
+		if _, err := runPackageOp(p, params, graphCred, nil); err != nil {
+			t.Fatalf("%s: %v", op, err)
+		}
+		reqs := *seen
+		if len(reqs) != 2 || reqs[0].URL.Path != "/v1.0/me/onlineMeetings" ||
+			reqs[0].URL.Query().Get("$filter") != "JoinWebUrl eq '"+strings.ReplaceAll(join, "'", "''")+"'" ||
+			reqs[1].URL.Path != "/v1.0/me/onlineMeetings/MSo1" {
+			var got []string
+			for _, r := range reqs {
+				got = append(got, r.URL.String())
+			}
+			t.Errorf("%s: requests %v", op, got)
+		}
+	}
+}
