@@ -50,5 +50,17 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the group key, when grouping",
+      "key": "<group_by>",
+      "type": "any"
+    },
+    {
+      "description": "each operation's result",
+      "key": "<operations[].output_field>",
+      "type": "any"
+    }
   ]
 }

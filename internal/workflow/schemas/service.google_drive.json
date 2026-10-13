@@ -9,5 +9,12 @@
     { "key": "file_path", "label": "Local File Path", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["upload_file", "download_file"] } },
     { "key": "file_name", "label": "File / Folder Name", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["upload_file", "create_folder"] } },
     { "key": "mime_type", "label": "MIME Type", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["upload_file"] } }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
+    }
   ]
 }

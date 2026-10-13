@@ -92,5 +92,17 @@
       "required": false,
       "type": "number"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the hash, HMAC, encoding or generated value",
+      "key": "<output_field|field>",
+      "type": "string"
+    }
   ]
 }

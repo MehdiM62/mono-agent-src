@@ -42,5 +42,27 @@
       "rows": 3,
       "type": "textarea"
     }
+  ],
+  "outputs": [
+    {
+      "description": "standard output",
+      "key": "stdout",
+      "type": "string"
+    },
+    {
+      "description": "standard error",
+      "key": "stderr",
+      "type": "string"
+    },
+    {
+      "description": "process exit code (-1 when it could not start)",
+      "key": "exit_code",
+      "type": "number"
+    },
+    {
+      "description": "true when stdout or stderr was cut at the output cap",
+      "key": "truncated",
+      "type": "boolean"
+    }
   ]
 }

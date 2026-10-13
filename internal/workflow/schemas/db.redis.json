@@ -103,5 +103,52 @@
       "required": false,
       "type": "number"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the key",
+      "key": "key",
+      "type": "string"
+    },
+    {
+      "description": "get/hget value",
+      "key": "value",
+      "type": "any"
+    },
+    {
+      "description": "whether the key (or field) exists",
+      "key": "exists",
+      "type": "boolean"
+    },
+    {
+      "description": "set/expire/hset result",
+      "key": "success",
+      "type": "boolean"
+    },
+    {
+      "description": "del",
+      "key": "deleted_count",
+      "type": "number"
+    },
+    {
+      "description": "list length",
+      "key": "length",
+      "type": "number"
+    },
+    {
+      "description": "list range",
+      "key": "values",
+      "type": "array"
+    },
+    {
+      "description": "hash field",
+      "key": "field",
+      "type": "string"
+    },
+    {
+      "description": "hgetall: the hash's fields",
+      "key": "<hash fields>",
+      "type": "any"
+    }
   ]
 }

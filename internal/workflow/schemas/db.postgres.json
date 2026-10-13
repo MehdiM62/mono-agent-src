@@ -80,5 +80,12 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "one item per result row, keyed by column",
+      "key": "<columns>",
+      "type": "any"
+    }
   ]
 }

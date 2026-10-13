@@ -91,34 +91,62 @@ func (g *outputGraph) resolveOutputs(n WorkflowNode) map[string]bool {
 				keys[k] = true
 			}
 		case strings.HasPrefix(o.Key, "<") && strings.HasSuffix(o.Key, ">"):
-			// Named by a config field (its value, else its default);
-			// anything else is a data-named, open key set.
-			name := o.Key[1 : len(o.Key)-1]
+			// Named by config fields ("<a|b>": a's value, else b's,
+			// else their defaults); any other name is a data-named,
+			// open key set.
 			if schema == nil {
 				schema, _ = LoadDefaultSchema(n.Type)
 			}
-			var field *NodeSchemaField
-			if schema != nil {
-				for i := range schema.Fields {
-					if schema.Fields[i].Key == name {
-						field = &schema.Fields[i]
-					}
-				}
-			}
-			if field == nil {
+			name, ok := configNamedKey(n, schema, o.Key[1:len(o.Key)-1])
+			if !ok {
 				return nil
 			}
-			v, ok := effectiveValue(n, field)
-			s, isStr := v.(string)
-			if !ok || !isStr || strings.Contains(s, "{{") || s == "" {
-				return nil
-			}
-			keys[s] = true
+			keys[name] = true
 		default:
 			keys[o.Key] = true
 		}
 	}
 	return keys
+}
+
+// configNamedKey resolves an output key named by the config fields in
+// alts ("a|b"): the first one set in the config, else the first default.
+// ok is false for a name that is no config field, or a value that is an
+// expression or empty.
+func configNamedKey(n WorkflowNode, schema *NodeSchema, alts string) (string, bool) {
+	var fields []*NodeSchemaField
+	for _, name := range strings.Split(alts, "|") {
+		var field *NodeSchemaField
+		if schema != nil {
+			for i := range schema.Fields {
+				if schema.Fields[i].Key == name {
+					field = &schema.Fields[i]
+				}
+			}
+		}
+		if field == nil {
+			return "", false
+		}
+		fields = append(fields, field)
+	}
+	pick := func(v interface{}) (string, bool) {
+		s, isStr := v.(string)
+		if !isStr || strings.TrimSpace(s) == "" || strings.Contains(s, "{{") {
+			return "", false
+		}
+		return s, true
+	}
+	for _, f := range fields {
+		if v, set := n.Config[f.Key]; set && !isEmptyValue(v) {
+			return pick(v)
+		}
+	}
+	for _, f := range fields {
+		if f.Default != nil {
+			return pick(f.Default)
+		}
+	}
+	return "", false
 }
 
 // inputKeys is the union of the output keys of every node wired into id

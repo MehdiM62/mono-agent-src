@@ -80,5 +80,17 @@
       "rows": 5,
       "type": "textarea"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the extracted text, attribute(s) or generated HTML",
+      "key": "<output_field|field>",
+      "type": "any"
+    }
   ]
 }

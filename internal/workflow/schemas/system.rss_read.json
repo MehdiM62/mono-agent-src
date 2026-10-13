@@ -16,5 +16,37 @@
       "required": false,
       "type": "number"
     }
+  ],
+  "outputs": [
+    {
+      "description": "entry title",
+      "key": "title",
+      "type": "string"
+    },
+    {
+      "description": "entry URL",
+      "key": "link",
+      "type": "string"
+    },
+    {
+      "description": "entry summary",
+      "key": "description",
+      "type": "string"
+    },
+    {
+      "description": "publication date",
+      "key": "published",
+      "type": "string"
+    },
+    {
+      "description": "author name (\"\" when none)",
+      "key": "author",
+      "type": "string"
+    },
+    {
+      "description": "entry categories",
+      "key": "categories",
+      "type": "array"
+    }
   ]
 }

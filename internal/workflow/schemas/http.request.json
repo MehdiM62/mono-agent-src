@@ -70,5 +70,22 @@
       "required": false,
       "type": "number"
     }
+  ],
+  "outputs": [
+    {
+      "description": "HTTP status code",
+      "key": "status",
+      "type": "number"
+    },
+    {
+      "description": "response headers",
+      "key": "headers",
+      "type": "object"
+    },
+    {
+      "description": "response body (parsed JSON when response_format is json; base64 for binary)",
+      "key": "body",
+      "type": "any"
+    }
   ]
 }

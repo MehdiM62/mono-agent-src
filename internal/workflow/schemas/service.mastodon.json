@@ -121,5 +121,12 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
+    }
   ]
 }

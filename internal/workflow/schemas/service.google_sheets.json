@@ -9,5 +9,12 @@
     { "key": "values", "label": "Rows (JSON array)", "type": "textarea", "required": false, "rows": 5, "help": "e.g. [[\"a\", \"b\"], [\"c\", \"d\"]]. Defaults to the incoming items.", "depends_on": { "key": "operation", "values": ["append_rows", "update_rows"] } },
     { "key": "use_header_row", "label": "First Row is Header", "type": "boolean", "required": false, "help": "Map the first row to field names when reading; prepend a header row when appending.", "depends_on": { "key": "operation", "values": ["read_rows", "append_rows"] } },
     { "key": "value_input_option", "label": "Input Option", "type": "select", "required": false, "options": ["RAW", "USER_ENTERED"], "default": "RAW", "depends_on": { "key": "operation", "values": ["append_rows", "update_rows"] } }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
+    }
   ]
 }

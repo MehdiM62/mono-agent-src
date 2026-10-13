@@ -232,5 +232,12 @@
       "required": false,
       "type": "boolean"
     }
+  ],
+  "outputs": [
+    {
+      "description": "list/get: Microsoft Graph message fields; send/draft/delete: {status, ...}; whoami: {address, source}",
+      "key": "<message fields>",
+      "type": "any"
+    }
   ]
 }
