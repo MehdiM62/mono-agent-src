@@ -128,6 +128,10 @@ type Inject struct {
 	// message)); message is a template over req (method, path, query,
 	// body) — Unleashed signs the encoded query string.
 	HMAC *HMACInject `json:"hmac,omitempty"`
+	// AzureSharedKey signs Azure Storage requests (SharedKey).
+	AzureSharedKey *AzureSharedKeyInject `json:"azure_shared_key,omitempty"`
+	// AzureCosmos signs Cosmos DB requests with the master key.
+	AzureCosmos *AzureCosmosInject `json:"azure_cosmos,omitempty"`
 }
 
 // JWTInject signs a short-lived JWT per request (Ghost Admin API, Zoom
@@ -208,7 +212,10 @@ type Step struct {
 	ForEach string `json:"for_each,omitempty"`
 	// Upload sends the op's binary (binary.upload_field/property) as the
 	// raw body, Content-Type = its MIME type (register-then-upload APIs).
-	Upload   bool              `json:"upload,omitempty"`
+	Upload bool `json:"upload,omitempty"`
+	// Auth false sends the step without the credential (presigned S3/GCS/
+	// Azure SAS URLs reject a second auth mechanism).
+	Auth     *bool             `json:"auth,omitempty"`
 	Method   string            `json:"method"`
 	Path     string            `json:"path"`
 	BaseURL  string            `json:"base_url,omitempty"`
@@ -229,11 +236,15 @@ func (o *Operation) Key() string {
 
 // Pagination types.
 const (
-	PageCursor     = "cursor"
-	PageOffset     = "offset"
-	PagePage       = "page"
-	PageLinkHeader = "link_header"
-	PageNextURL    = "next_url"
+	PageCursor = "cursor"
+	// PageHeaderCursor: the cursor comes from a response header
+	// (cursor_path = header name) and goes back as a request header
+	// (cursor_param = header name): Cosmos DB x-ms-continuation.
+	PageHeaderCursor = "header_cursor"
+	PageOffset       = "offset"
+	PagePage         = "page"
+	PageLinkHeader   = "link_header"
+	PageNextURL      = "next_url"
 )
 
 // Pagination describes how a list operation pages.
@@ -494,4 +505,15 @@ type HMACInject struct {
 	Alg      string `json:"alg,omitempty"`      // SHA256 (default), SHA1, SHA512
 	Encoding string `json:"encoding,omitempty"` // base64 (default) or hex
 	Prefix   string `json:"prefix,omitempty"`
+}
+
+// AzureSharedKeyInject: Account and Key (base64) are templates.
+type AzureSharedKeyInject struct {
+	Account string `json:"account"`
+	Key     string `json:"key"`
+}
+
+// AzureCosmosInject: Key (base64 master key) is a template.
+type AzureCosmosInject struct {
+	Key string `json:"key"`
 }

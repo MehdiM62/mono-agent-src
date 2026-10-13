@@ -184,7 +184,7 @@ Scopes:
 | `idx` | the element's position inside `$map`/`$entries` (pivot parallel lists: `{{ p.mrr \| get:(idx \| string) }}`) |
 | `uuid` | a new random UUID each time (e.g. a Calendar conference `requestId`) |
 
-Paths walk objects by key and arrays by index; `-1` is the last element
+Paths walk objects by key (a key that itself contains dots, like `@odata.nextLink`, is found too) and arrays by index; `-1` is the last element
 (`p.list.-1.id`). A missing path is `nil`. Only `cred.*` is available in
 `inject` and the package `base_url`/`headers`.
 
@@ -384,6 +384,8 @@ WebDAV methods MKCOL, MOVE, COPY, PROPFIND and PROPPATCH are allowed (NextCloud)
 
 `inject.body: {"key": "{{ cred.api_key }}"}` merges credential values (typed: a single expression keeps booleans/numbers) into JSON/form/multipart bodies (Mandrill sends its key in every body).
 
+**Azure signers.** `inject.azure_shared_key: {"account": "{{ cred.account }}", "key": "{{ cred.key }}"}` signs Azure Storage requests (SharedKey; sets `x-ms-date`; send `x-ms-version` as an op header). `inject.azure_cosmos: {"key": "{{ cred.key }}"}` signs Cosmos DB requests with the master key (resource type and link derived from the path). Keys are base64.
+
 **HMAC request signature (`inject.hmac`).** `{"header": "api-auth-signature", "secret": "{{ cred.api_key }}", "message": "{{ req.query }}", "alg": "SHA256", "encoding": "base64", "prefix": ""}` — `req.method`, `req.path`, `req.query` (the encoded query string) and `req.body` describe the built request (Unleashed).
 
 **Self-signed certificates.** A connection field `allow_unauthorized_certs` that is true skips TLS verification for that connection's requests (n8n's credential option; self-hosted Venafi, TheHive).
@@ -445,6 +447,10 @@ With `"param_in": "body"`, the page param names may be dot paths, nested into th
 
 `"param_in": "path"` puts the page params into the path template as `page.<param>` instead of the query (`"path": "/SalesOrders/{{ page.pageNumber }}"`). `param_in: "body"` works with json, form and multipart bodies.
 
+`"type": "header_cursor"`: the cursor comes from the response header named by `cursor_path` and is sent back as the request header named by `cursor_param` (Cosmos DB `x-ms-continuation`).
+
+With `param_in: "body"`, a cursor that is an object or list goes back unchanged (DynamoDB `LastEvaluatedKey` → `ExclusiveStartKey`).
+
 ## 9. Output
 
 `"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)
@@ -460,7 +466,7 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
   { "when": "{{ p.updateFields.starValue }}", "method": "PUT", "path": "/contacts/{{ res.id }}/star", "body": { "star_value": "{{ p.updateFields.starValue | int }}" } }
 ]
 ```
-`"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). A step with `"upload": true` and `"body_type": "multipart"` sends its `body` fields plus the file part (S3-style presigned POST: request a slot with `{{ bin.file_name }}`/`{{ bin.mime_type }}` — `bin` is filled for every step when the op declares `binary.upload_field` — then upload, then create; set `binary.upload_when: "false"` so only the step uploads). A step with `"upload": true` sends the op's binary (`binary.upload_field`/`property`) as its raw body with the binary's Content-Type (LinkedIn: register an upload, PUT the bytes to `{{ pre.value.uploadUrl }}`, then create the post). Step keys: `when`, `for_each`, `upload`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
+`"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). A step with `"upload": true` and `"body_type": "multipart"` sends its `body` fields plus the file part (S3-style presigned POST: request a slot with `{{ bin.file_name }}`/`{{ bin.mime_type }}` — `bin` is filled for every step when the op declares `binary.upload_field` — then upload, then create; set `binary.upload_when: "false"` so only the step uploads). A step with `"upload": true` sends the op's binary (`binary.upload_field`/`property`) as its raw body with the binary's Content-Type (LinkedIn: register an upload, PUT the bytes to `{{ pre.value.uploadUrl }}`, then create the post). A step with `"auth": false` is sent without the credential (presigned S3/GCS/Azure SAS URLs, e.g. a Transcribe transcript file). Step keys: `when`, `for_each`, `upload`, `auth`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
 
 **Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
 `"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.

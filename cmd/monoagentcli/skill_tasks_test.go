@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -170,5 +171,27 @@ func TestTheTaskSkillIsInstalledCreateOnly(t *testing.T) {
 	}
 	if _, _, stale := claudeSkillsState(); len(stale) != 1 || stale[0] != taskSkill {
 		t.Errorf("stale = %v, want the edited skill", stale)
+	}
+}
+
+// The first-run check creates ~/.monoagent when it is missing; the folder
+// holds private state, so it must be created 0700 with a 0600 marker.
+func TestFirstRunCheckCreatesPrivateStateDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix modes do not apply on Windows")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
+	runClaudeFirstRunCheck()
+	dir := filepath.Join(home, ".monoagent")
+	if info, err := os.Stat(dir); err != nil || info.Mode().Perm() != 0o700 {
+		t.Fatalf("%s: %v %v, want 0700", dir, info, err)
+	}
+	marker := filepath.Join(dir, claudeInitMarker)
+	if info, err := os.Stat(marker); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("%s: %v %v, want 0600", marker, info, err)
 	}
 }

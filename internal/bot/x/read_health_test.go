@@ -444,7 +444,6 @@ func TestHealthSearchPostsEmptyAndErrors(t *testing.T) {
 	})
 
 	t.Run("scroll fails keeps the rows read so far", func(t *testing.T) {
-		t.Skip("bug: SearchPosts drops the rows searchOne read before a scroll/read error (it returns the outer out, not searchOne's rows) — see PR")
 		p := newHealthPage("about:blank")
 		p.on("tweets", tweetsJS, healthConst(healthFixture(t, "health_search.json", "page1")))
 		rows, err := New().SearchPosts(ctx, p, "synthkeyword", 10)
@@ -455,7 +454,6 @@ func TestHealthSearchPostsEmptyAndErrors(t *testing.T) {
 	})
 
 	t.Run("re-read fails", func(t *testing.T) {
-		t.Skip("bug: SearchPosts drops the rows searchOne read before a scroll/read error — see PR")
 		p := healthSearchPage(t, "page1")
 		p.rules[0].reply = func(n int, _ []interface{}) (interface{}, error) {
 			if n == 1 {

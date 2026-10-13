@@ -21,6 +21,7 @@ const TriggerNodeTypeError = "trigger.error"
 func (e *WorkflowEngine) afterExecutionFinished(log zerolog.Logger, executionID, status, errMsg string) {
 	ctx := context.WithoutCancel(context.Background())
 	db := e.store.RawDB()
+	defer notifyExecutionFinished(db, executionID, status)
 	switch status {
 	case StatusRejected:
 		setExecutionErrorClass(ctx, db, executionID, ClassRejected, true)

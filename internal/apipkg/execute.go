@@ -589,6 +589,9 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 	}
 	step := *r
 	step.op, step.scope = &op, sc
+	if st.Auth != nil && !*st.Auth {
+		step.credDef = nil
+	}
 	return step.send(ctx, pageParams{})
 }
 
