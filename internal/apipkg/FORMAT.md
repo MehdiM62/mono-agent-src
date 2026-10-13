@@ -209,6 +209,18 @@ through, so an unset param stays unset:
 | `default:"x"` | `x` when the value is empty; the argument may be a quoted string (`'x'` or `"x"`), a number, `true`/`false`/`null`, or a path (`default:p.other`, `default:cred.region`) |
 | `then:'x'` | `x` when the value is non-empty, else nil |
 | `rl` | n8n resource locator → its `value`; other values pass |
+| `eq:'x'`, `ne:'x'` | `true` when the value's string equals (`eq`) / differs from (`ne`) the argument, else nil, so they chain into `then`: `"$merge": "{{ p.dataToSend \| eq:'autoMapInputData' \| then:item }}"` |
+| `kv:'keyField,valueField'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}`. A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
+| `omit:'a,b'` | object without the listed keys; the argument may be a path to a comma string or list (`omit:p.inputsToIgnore`) |
+
+**n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
+```json
+"body": { "$merge": [
+  "{{ p.dataToSend | eq:'autoMapInputData' | then:item }}",
+  "{{ p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
+] }
+```
+(`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
 
 **Paths are escaped.** In `path`, each expression's value is URL-escaped
 (`a b/c` → `a%20b%2Fc`). Literals the author wrote as a `then`/`default`

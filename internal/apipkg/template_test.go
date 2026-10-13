@@ -203,3 +203,55 @@ func TestStringify(t *testing.T) {
 		t.Error("stringify object/nil")
 	}
 }
+
+func TestFiltersKVEqOmit(t *testing.T) {
+	sc := Scope{
+		P: map[string]any{
+			"mode":   "autoMapInputData",
+			"rows":   []any{map[string]any{"fieldId": "a", "fieldValue": 1.0}, map[string]any{"fieldId": "", "fieldValue": 2.0}, map[string]any{"fieldId": "b", "fieldValue": "x"}},
+			"wrap":   map[string]any{"fieldValues": []any{map[string]any{"fieldId": "c", "fieldValue": true}}},
+			"ignore": "secret, internal",
+		},
+		Item: map[string]any{"name": "n", "secret": "s", "internal": 1.0},
+	}
+	cases := []struct {
+		in   string
+		want any
+	}{
+		{"{{ p.rows | kv:'fieldId,fieldValue' }}", map[string]any{"a": 1.0, "b": "x"}},
+		{"{{ p.wrap | kv:'fieldId,fieldValue' }}", map[string]any{"c": true}},
+		{"{{ p.missing | kv:'fieldId,fieldValue' }}", nil},
+		{"{{ p.mode | eq:'autoMapInputData' }}", true},
+		{"{{ p.mode | eq:'defineBelow' }}", nil},
+		{"{{ p.mode | ne:'defineBelow' }}", true},
+		{"{{ p.mode | eq:'autoMapInputData' | then:item }}", sc.Item},
+		{"{{ p.mode | eq:'defineBelow' | then:item }}", nil},
+		{"{{ item | omit:p.ignore }}", map[string]any{"name": "n"}},
+		{"{{ item | omit:'secret' }}", map[string]any{"name": "n", "internal": 1.0}},
+	}
+	for _, c := range cases {
+		got, err := renderString(c.in, sc)
+		if err != nil {
+			t.Fatalf("%s: %v", c.in, err)
+		}
+		if !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s = %#v, want %#v", c.in, got, c.want)
+		}
+	}
+	body, err := renderValue(map[string]any{"$merge": []any{
+		"{{ p.mode | eq:'autoMapInputData' | then:item }}",
+		"{{ p.rows | kv:'fieldId,fieldValue' }}",
+	}}, sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"name": "n", "secret": "s", "internal": 1.0, "a": 1.0, "b": "x"}
+	if !reflect.DeepEqual(body, want) {
+		t.Errorf("dataToSend merge = %#v, want %#v", body, want)
+	}
+	for _, bad := range []string{"{{ p.rows | kv:'fieldId' }}", "{{ p.mode | kv:'a,b' }}", "{{ p.mode | omit:'a' }}"} {
+		if _, err := renderString(bad, sc); err == nil {
+			t.Errorf("%s: want error", bad)
+		}
+	}
+}

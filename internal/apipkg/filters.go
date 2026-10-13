@@ -11,7 +11,7 @@ import (
 var knownFilters = map[string]bool{
 	"json": true, "csv": true, "int": true, "float": true, "bool": true,
 	"string": true, "lower": true, "upper": true, "default": true, "rl": true,
-	"then": true,
+	"then": true, "eq": true, "ne": true, "kv": true, "omit": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -28,6 +28,16 @@ func applyFilter(name string, v, arg any) (any, error) {
 			return nil, nil
 		}
 		return arg, nil
+	case "eq":
+		if stringify(v) == stringify(arg) {
+			return true, nil
+		}
+		return nil, nil
+	case "ne":
+		if stringify(v) != stringify(arg) {
+			return true, nil
+		}
+		return nil, nil
 	case "rl":
 		// n8n resource locator: {"__rl": true, "mode": "id", "value": "x"}.
 		if m, ok := v.(map[string]any); ok {
@@ -57,6 +67,10 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return toBool(v)
 	case "string":
 		return stringify(v), nil
+	case "kv":
+		return toKV(v, arg)
+	case "omit":
+		return omitKeys(v, arg)
 	case "lower":
 		return strings.ToLower(stringify(v)), nil
 	case "upper":
@@ -153,4 +167,65 @@ func toBool(v any) (any, error) {
 		return nil, fmt.Errorf("bool: %q is not a boolean", t)
 	}
 	return nil, fmt.Errorf("bool: cannot convert %T", v)
+}
+
+// toKV turns a list of {<key>: k, <value>: v} rows (n8n's fixedCollection
+// key/value lists) into the object {k: v}. arg is "keyField,valueField".
+// A single-key object wrapping the list (e.g. {"fieldValues": [...]}) is
+// unwrapped first.
+func toKV(v, arg any) (any, error) {
+	names := strings.SplitN(stringify(arg), ",", 2)
+	if len(names) != 2 || strings.TrimSpace(names[0]) == "" || strings.TrimSpace(names[1]) == "" {
+		return nil, fmt.Errorf(`kv: argument must be "keyField,valueField", got %q`, stringify(arg))
+	}
+	kf, vf := strings.TrimSpace(names[0]), strings.TrimSpace(names[1])
+	if m, ok := v.(map[string]any); ok && len(m) == 1 {
+		for _, inner := range m {
+			v = inner
+		}
+	}
+	rows, ok := v.([]any)
+	if !ok {
+		return nil, fmt.Errorf("kv: value is %T, not a list of rows", v)
+	}
+	out := map[string]any{}
+	for i, r := range rows {
+		row, ok := r.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("kv: row %d is %T, not an object", i, r)
+		}
+		k := stringify(row[kf])
+		if k == "" {
+			continue
+		}
+		out[k] = row[vf]
+	}
+	return out, nil
+}
+
+// omitKeys returns a copy of the object v without the keys named in arg
+// (a comma-separated string or a list).
+func omitKeys(v, arg any) (any, error) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("omit: value is %T, not an object", v)
+	}
+	drop := map[string]bool{}
+	switch a := arg.(type) {
+	case []any:
+		for _, x := range a {
+			drop[strings.TrimSpace(stringify(x))] = true
+		}
+	default:
+		for _, x := range strings.Split(stringify(a), ",") {
+			drop[strings.TrimSpace(x)] = true
+		}
+	}
+	out := make(map[string]any, len(m))
+	for k, val := range m {
+		if !drop[k] {
+			out[k] = val
+		}
+	}
+	return out, nil
 }
