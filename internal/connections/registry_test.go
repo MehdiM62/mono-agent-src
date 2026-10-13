@@ -33,8 +33,8 @@ func TestRegistryHasAllExpectedPlatforms(t *testing.T) {
 			t.Errorf("Registry missing platform %q", id)
 		}
 	}
-	if got := len(Registry); got != 43 {
-		t.Errorf("Registry has %d platforms, want 43", got)
+	if got, want := len(Registry), 43+len(ragPlatformIDs); got != want {
+		t.Errorf("Registry has %d platforms, want %d", got, want)
 	}
 }
 
