@@ -1,4 +1,4 @@
-package main
+package workflowmanage
 
 import (
 	"context"
@@ -14,8 +14,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// versionRow is one line of `workflow versions <id>`.
-type versionRow struct {
+// VersionRow is one line of `workflow versions <id>`.
+type VersionRow struct {
 	Version     int       `json:"version"`
 	Current     bool      `json:"current"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -27,7 +27,7 @@ type versionRow struct {
 
 // newWorkflowVersionsCmd lists a workflow's definition history and holds the
 // show/restore/prune subcommands.
-func newWorkflowVersionsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newVersionsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "versions <workflow-id>",
 		Short: "List a workflow's saved versions (show, restore and prune them with the subcommands)",
@@ -37,7 +37,7 @@ func newWorkflowVersionsCmd(cfg *globalConfig) *cobra.Command {
 			"kept until pruned with `workflow versions prune`.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return withOwnedWorkflow(cfg, args[0], func(ctx context.Context, store *workflow.HybridWorkflowStore, wf *workflow.Workflow) error {
+			return d.withOwnedWorkflow(args[0], func(ctx context.Context, store *workflow.HybridWorkflowStore, wf *workflow.Workflow) error {
 				// Record the current definition first, so a workflow saved
 				// before versions existed (or edited by hand) lists it.
 				current, err := store.CaptureWorkflowVersion(ctx, wf.ID)
@@ -48,15 +48,15 @@ func newWorkflowVersionsCmd(cfg *globalConfig) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("list versions: %w", err)
 				}
-				rows := make([]versionRow, 0, len(versions))
+				rows := make([]VersionRow, 0, len(versions))
 				for _, v := range versions {
-					rows = append(rows, versionRow{
+					rows = append(rows, VersionRow{
 						Version: v.Version, Current: v.Version == current, CreatedAt: v.CreatedAt,
 						Nodes: len(v.Snapshot.Nodes), Connections: len(v.Snapshot.Connections),
 						Note: v.Note, Hash: v.Hash,
 					})
 				}
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return json.NewEncoder(os.Stdout).Encode(rows)
 				}
 				w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -74,29 +74,29 @@ func newWorkflowVersionsCmd(cfg *globalConfig) *cobra.Command {
 		},
 	}
 	cmd.AddCommand(
-		newWorkflowVersionsShowCmd(cfg),
-		newWorkflowVersionsRestoreCmd(cfg),
-		newWorkflowVersionsPruneCmd(cfg),
+		d.newVersionsShowCmd(),
+		d.newVersionsRestoreCmd(),
+		d.newVersionsPruneCmd(),
 	)
 	return cmd
 }
 
-func newWorkflowVersionsShowCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newVersionsShowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <workflow-id> <version>",
 		Short: "Print one saved version of a workflow (its name, description, nodes and connections)",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			n, err := parseVersionArg(args[1])
+			n, err := d.parseVersionArg(args[1])
 			if err != nil {
 				return err
 			}
-			return withOwnedWorkflow(cfg, args[0], func(ctx context.Context, store *workflow.HybridWorkflowStore, wf *workflow.Workflow) error {
-				v, err := lookupVersion(ctx, store, wf.ID, n)
+			return d.withOwnedWorkflow(args[0], func(ctx context.Context, store *workflow.HybridWorkflowStore, wf *workflow.Workflow) error {
+				v, err := d.lookupVersion(ctx, store, wf.ID, n)
 				if err != nil {
 					return err
 				}
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return json.NewEncoder(os.Stdout).Encode(v)
 				}
 				enc := json.NewEncoder(os.Stdout)
@@ -107,7 +107,7 @@ func newWorkflowVersionsShowCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newWorkflowVersionsRestoreCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newVersionsRestoreCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "restore <workflow-id> <version>",
 		Short: "Make a saved version the workflow's definition again (recorded as a new version)",
@@ -115,12 +115,12 @@ func newWorkflowVersionsRestoreCmd(cfg *globalConfig) *cobra.Command {
 			"the restore is recorded as a new version. Whether the workflow is active is unchanged.",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			n, err := parseVersionArg(args[1])
+			n, err := d.parseVersionArg(args[1])
 			if err != nil {
 				return err
 			}
-			return withOwnedWorkflow(cfg, args[0], func(ctx context.Context, store *workflow.HybridWorkflowStore, wf *workflow.Workflow) error {
-				v, err := lookupVersion(ctx, store, wf.ID, n)
+			return d.withOwnedWorkflow(args[0], func(ctx context.Context, store *workflow.HybridWorkflowStore, wf *workflow.Workflow) error {
+				v, err := d.lookupVersion(ctx, store, wf.ID, n)
 				if err != nil {
 					return err
 				}
@@ -128,7 +128,7 @@ func newWorkflowVersionsRestoreCmd(cfg *globalConfig) *cobra.Command {
 				if err := store.SaveWorkflowWithNote(ctx, restored, fmt.Sprintf("restored from version %d", n)); err != nil {
 					return fmt.Errorf("restore version %d: %w", n, err)
 				}
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return json.NewEncoder(os.Stdout).Encode(map[string]any{
 						"workflow_id": wf.ID, "restored_from": n, "version": restored.Version,
 					})
@@ -140,7 +140,7 @@ func newWorkflowVersionsRestoreCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newWorkflowVersionsPruneCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newVersionsPruneCmd() *cobra.Command {
 	var keep int
 	var all bool
 	cmd := &cobra.Command{
@@ -151,27 +151,27 @@ func newWorkflowVersionsPruneCmd(cfg *globalConfig) *cobra.Command {
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if all == (len(args) == 1) {
-				return errInvalidInput("pass either a workflow id or --all")
+				return d.InvalidInput("pass either a workflow id or --all")
 			}
 			if keep < 1 {
-				return errInvalidInput("--keep must be at least 1")
+				return d.InvalidInput("--keep must be at least 1")
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			var ids []string
 			if all {
-				if ids, err = profileWorkflowIDs(ctx, db, cfg.ProfileID); err != nil {
+				if ids, err = profileWorkflowIDs(ctx, db, d.ProfileID()); err != nil {
 					return err
 				}
 			} else {
-				if ownedWorkflow(ctx, store, db.DB, cfg.ProfileID, args[0]) == nil {
-					return errNotFound("workflow %q not found", args[0])
+				if d.OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), args[0]) == nil {
+					return d.NotFound("workflow %q not found", args[0])
 				}
 				ids = []string{args[0]}
 			}
@@ -187,7 +187,7 @@ func newWorkflowVersionsPruneCmd(cfg *globalConfig) *cobra.Command {
 				}
 				total += n
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(map[string]any{"deleted": total, "by_workflow": deleted})
 			}
 			fmt.Fprintf(os.Stdout, "Deleted %d version(s)\n", total)
@@ -202,36 +202,36 @@ func newWorkflowVersionsPruneCmd(cfg *globalConfig) *cobra.Command {
 
 // withOwnedWorkflow opens the store and runs fn on workflow id when the
 // active profile owns it; otherwise it reports not found.
-func withOwnedWorkflow(cfg *globalConfig, id string, fn func(context.Context, *workflow.HybridWorkflowStore, *workflow.Workflow) error) error {
-	db, err := initDB(cfg)
+func (d Deps) withOwnedWorkflow(id string, fn func(context.Context, *workflow.HybridWorkflowStore, *workflow.Workflow) error) error {
+	db, err := d.OpenDB()
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
 	defer db.Close()
-	store := openWorkflowStore(db)
+	store := d.WorkflowStore(db)
 	ctx := context.Background()
-	wf := ownedWorkflow(ctx, store, db.DB, cfg.ProfileID, id)
+	wf := d.OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), id)
 	if wf == nil {
-		return errNotFound("workflow %q not found", id)
+		return d.NotFound("workflow %q not found", id)
 	}
 	return fn(ctx, store, wf)
 }
 
-func parseVersionArg(s string) (int, error) {
+func (d Deps) parseVersionArg(s string) (int, error) {
 	n, err := strconv.Atoi(s)
 	if err != nil || n < 1 {
-		return 0, errInvalidInput("version must be a positive number, got %q", s)
+		return 0, d.InvalidInput("version must be a positive number, got %q", s)
 	}
 	return n, nil
 }
 
-func lookupVersion(ctx context.Context, store *workflow.HybridWorkflowStore, id string, n int) (*workflow.WorkflowVersion, error) {
+func (d Deps) lookupVersion(ctx context.Context, store *workflow.HybridWorkflowStore, id string, n int) (*workflow.WorkflowVersion, error) {
 	v, err := store.GetWorkflowVersion(ctx, id, n)
 	if err != nil {
 		return nil, fmt.Errorf("get version: %w", err)
 	}
 	if v == nil {
-		return nil, errNotFound("workflow %q has no version %d", id, n)
+		return nil, d.NotFound("workflow %q has no version %d", id, n)
 	}
 	return v, nil
 }

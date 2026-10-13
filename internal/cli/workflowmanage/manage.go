@@ -1,4 +1,4 @@
-package main
+package workflowmanage
 
 import (
 	"bufio"
@@ -19,7 +19,7 @@ import (
 )
 
 // newWorkflowListCmd lists all workflows.
-func newWorkflowListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newListCmd() *cobra.Command {
 	var jsonOut bool
 	var allProfiles bool
 
@@ -27,27 +27,27 @@ func newWorkflowListCmd(cfg *globalConfig) *cobra.Command {
 		Use:   "list",
 		Short: "List all workflows",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			if allProfiles {
-				return printAllProfilesWorkflows(ctx, db, store, jsonOut || cfg.JSONOutput)
+				return printAllProfilesWorkflows(ctx, db, store, jsonOut || d.JSONOutput())
 			}
-			workflows, err := profileWorkflows(ctx, store, cfg.ProfileID)
+			workflows, err := profileWorkflows(ctx, store, d.ProfileID())
 			if err != nil {
 				return fmt.Errorf("list workflows: %w", err)
 			}
 
-			if jsonOut || cfg.JSONOutput {
+			if jsonOut || d.JSONOutput() {
 				// One grouped count for every row; a failure costs the
 				// counts, not the list.
-				counts, err := store.NodeCounts(ctx, cfg.ProfileID)
+				counts, err := store.NodeCounts(ctx, d.ProfileID())
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warning: could not count workflow nodes: %v\n", err)
 				}
@@ -84,27 +84,27 @@ func newWorkflowListCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowGetCmd prints a single workflow as JSON.
-func newWorkflowGetCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newGetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <id>",
 		Short: "Print a workflow as JSON",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			wf, err := store.GetWorkflow(ctx, args[0])
 			if err != nil {
 				return fmt.Errorf("get workflow: %w", err)
 			}
-			if wf == nil || ownedWorkflow(ctx, store, db.DB, cfg.ProfileID, args[0]) == nil {
-				return errNotFound("workflow %q not found", args[0])
+			if wf == nil || d.OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), args[0]) == nil {
+				return d.NotFound("workflow %q not found", args[0])
 			}
 
 			enc := json.NewEncoder(os.Stdout)
@@ -115,7 +115,7 @@ func newWorkflowGetCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowActivateCmd enables a workflow and registers its triggers.
-func newWorkflowActivateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newActivateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "activate <id>",
 		Short: "Activate a workflow and start its triggers",
@@ -125,7 +125,7 @@ func newWorkflowActivateCmd(cfg *globalConfig) *cobra.Command {
 			"edits, deactivation and deletion. Without a daemon running, nothing fires until one starts.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			engine, closeBrowsers, err := buildEngine(cfg, false)
+			engine, closeBrowsers, err := d.BuildEngine(false)
 			if err != nil {
 				return fmt.Errorf("build engine: %w", err)
 			}
@@ -140,7 +140,7 @@ func newWorkflowActivateCmd(cfg *globalConfig) *cobra.Command {
 			if err := engine.ActivateWorkflow(ctx, args[0]); err != nil {
 				return fmt.Errorf("activate workflow: %w", err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{"id": args[0], "is_active": true})
 			}
 
@@ -156,7 +156,7 @@ func newWorkflowActivateCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowDeactivateCmd disables a workflow and unregisters its triggers.
-func newWorkflowDeactivateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newDeactivateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "deactivate <id>",
 		Short: "Deactivate a workflow and stop its triggers",
@@ -164,7 +164,7 @@ func newWorkflowDeactivateCmd(cfg *globalConfig) *cobra.Command {
 			"stops firing them within a few seconds — no restart needed.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			engine, closeBrowsers, err := buildEngine(cfg, false)
+			engine, closeBrowsers, err := d.BuildEngine(false)
 			if err != nil {
 				return fmt.Errorf("build engine: %w", err)
 			}
@@ -179,7 +179,7 @@ func newWorkflowDeactivateCmd(cfg *globalConfig) *cobra.Command {
 			if err := engine.DeactivateWorkflow(ctx, args[0]); err != nil {
 				return fmt.Errorf("deactivate workflow: %w", err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{"id": args[0], "is_active": false})
 			}
 
@@ -190,7 +190,7 @@ func newWorkflowDeactivateCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowDeleteCmd deletes a workflow (with confirmation unless --force).
-func newWorkflowDeleteCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newDeleteCmd() *cobra.Command {
 	var force, yes bool
 
 	cmd := &cobra.Command{
@@ -203,13 +203,13 @@ func newWorkflowDeleteCmd(cfg *globalConfig) *cobra.Command {
 			// Fail fast for unknown ids with the standard not-found sentinel
 			// (exit 2), before the confirmation prompt or the engine (with
 			// its browser/trigger machinery) spins up.
-			preDB, err := initDB(cfg)
+			preDB, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			store := openWorkflowStore(preDB)
+			store := d.WorkflowStore(preDB)
 			existing, gerr := store.GetWorkflow(context.Background(), workflowID)
-			if existing != nil && ownedWorkflow(context.Background(), store, preDB.DB, cfg.ProfileID, workflowID) == nil {
+			if existing != nil && d.OwnedWorkflow(context.Background(), store, preDB.DB, d.ProfileID(), workflowID) == nil {
 				existing = nil // another profile's: not found here, and its grants untouched
 			}
 			closeErr := preDB.Close()
@@ -217,12 +217,12 @@ func newWorkflowDeleteCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("get workflow: %w", gerr)
 			}
 			if existing == nil {
-				return errNotFound("workflow %q not found", workflowID)
+				return d.NotFound("workflow %q not found", workflowID)
 			}
 			if closeErr != nil {
 				return fmt.Errorf("close database: %w", closeErr)
 			}
-			if err := checkWorkflowOrgReferences(cmd.Context(), cfg, workflowID, force); err != nil {
+			if err := d.CheckOrgReferences(cmd.Context(), workflowID, force); err != nil {
 				return err
 			}
 
@@ -237,7 +237,7 @@ func newWorkflowDeleteCmd(cfg *globalConfig) *cobra.Command {
 				}
 			}
 
-			engine, closeBrowsers, err := buildEngine(cfg, false)
+			engine, closeBrowsers, err := d.BuildEngine(false)
 			if err != nil {
 				return fmt.Errorf("build engine: %w", err)
 			}
@@ -252,7 +252,7 @@ func newWorkflowDeleteCmd(cfg *globalConfig) *cobra.Command {
 			if err := engine.DeleteWorkflow(ctx, workflowID); err != nil {
 				return fmt.Errorf("delete workflow: %w", err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{"id": workflowID, "deleted": true})
 			}
 
@@ -267,7 +267,7 @@ func newWorkflowDeleteCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowExecutionsCmd lists recent executions for a workflow.
-func newWorkflowExecutionsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newExecutionsCmd() *cobra.Command {
 	var limit int
 	var jsonOut bool
 	var all bool
@@ -279,12 +279,12 @@ func newWorkflowExecutionsCmd(cfg *globalConfig) *cobra.Command {
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if all == (len(args) == 1) {
-				return errInvalidInput("pass either a workflow id or --all")
+				return d.InvalidInput("pass either a workflow id or --all")
 			}
 			if allProfiles && !all {
-				return errInvalidInput("--all-profiles goes with --all")
+				return d.InvalidInput("--all-profiles goes with --all")
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -299,12 +299,12 @@ func newWorkflowExecutionsCmd(cfg *globalConfig) *cobra.Command {
 				if allProfiles {
 					rows, err = allProfilesRecentExecutions(cmd.Context(), db.DB, n)
 				} else {
-					rows, err = summary.RecentExecutions(cmd.Context(), db.DB, cfg.ProfileID, n)
+					rows, err = summary.RecentExecutions(cmd.Context(), db.DB, d.ProfileID(), n)
 				}
 				if err != nil {
 					return fmt.Errorf("list executions: %w", err)
 				}
-				if jsonOut || cfg.JSONOutput {
+				if jsonOut || d.JSONOutput() {
 					return json.NewEncoder(os.Stdout).Encode(rows)
 				}
 				w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -315,7 +315,7 @@ func newWorkflowExecutionsCmd(cfg *globalConfig) *cobra.Command {
 				return w.Flush()
 			}
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			// Load the workflow and enforce the profile boundary before
@@ -326,10 +326,10 @@ func newWorkflowExecutionsCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("get workflow: %w", err)
 			}
 			if wf == nil {
-				return errNotFound("workflow %q not found", args[0])
+				return d.NotFound("workflow %q not found", args[0])
 			}
-			if wf.ProfileID != "" && wf.ProfileID != cfg.ProfileID {
-				return errNotFound("workflow %q not found", args[0])
+			if wf.ProfileID != "" && wf.ProfileID != d.ProfileID() {
+				return d.NotFound("workflow %q not found", args[0])
 			}
 
 			executions, err := store.ListExecutions(ctx, args[0], limit)
@@ -340,7 +340,7 @@ func newWorkflowExecutionsCmd(cfg *globalConfig) *cobra.Command {
 				executions = []workflow.WorkflowExecution{}
 			}
 
-			if jsonOut || cfg.JSONOutput {
+			if jsonOut || d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(executions)
 			}
 
@@ -373,7 +373,7 @@ func newWorkflowExecutionsCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowCreateCmd creates a blank workflow and prints its ID.
-func newWorkflowCreateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newCreateCmd() *cobra.Command {
 	var description string
 	var active bool
 
@@ -382,7 +382,7 @@ func newWorkflowCreateCmd(cfg *globalConfig) *cobra.Command {
 		Short: "Create a new blank workflow",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -395,20 +395,20 @@ func newWorkflowCreateCmd(cfg *globalConfig) *cobra.Command {
 				Description: description,
 				IsActive:    active,
 				Version:     1,
-				ProfileID:   cfg.ProfileID,
+				ProfileID:   d.ProfileID(),
 				CreatedAt:   now,
 				UpdatedAt:   now,
 			}
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 			// Same persistence as import: file store plus the SQLite rows
 			// that `workflow run --json` and executions read.
-			if err := createOrOverwriteWorkflowAtomically(ctx, store, wf, false); err != nil {
+			if err := d.CreateWorkflow(ctx, store, wf, false); err != nil {
 				return fmt.Errorf("create workflow: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(wf)
 			}
 			fmt.Fprintf(os.Stdout, "Created workflow: %s  (id: %s)\n", wf.Name, wf.ID)
