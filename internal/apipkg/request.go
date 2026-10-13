@@ -45,6 +45,7 @@ func (o *Operation) effectiveBodyType() string {
 type pageParams struct {
 	values map[string]any
 	inBody bool
+	inPath bool   // values go to the path template as page.<param>
 	url    string // absolute next-page URL (link_header, next_url)
 }
 
@@ -56,6 +57,9 @@ type built struct {
 
 // buildRequest builds op's request for one item.
 func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error) {
+	if pp.inPath {
+		r.scope.Page = pp.values
+	}
 	sc := r.scope
 	rawURL := pp.url
 	if rawURL == "" {
@@ -90,7 +94,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 		r.addValues(q, qv)
 		u.RawQuery = q.Encode()
 	}
-	if len(pp.values) > 0 && !pp.inBody {
+	if len(pp.values) > 0 && !pp.inBody && !pp.inPath {
 		q := u.Query()
 		for k, v := range pp.values {
 			q.Set(k, stringify(v))
@@ -446,6 +450,9 @@ func (r *opRun) bodyType() string {
 	}
 	if fb := r.op.Binary.FallbackBodyType; fb != "" {
 		return fb
+	}
+	if bt == BodyForm || bt == BodyJSON {
+		return bt // an explicit json/form body stays that type
 	}
 	if r.op.Body != nil {
 		return BodyJSON
