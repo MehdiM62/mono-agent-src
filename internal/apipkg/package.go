@@ -50,6 +50,11 @@ type Package struct {
 	// QueryStyle "brackets" encodes nested query/form values PHP-style
 	// (a[b][0][c]=v); an op's own query_style overrides it.
 	QueryStyle string `json:"query_style,omitempty"`
+	// ErrorWhen (template over res, hdr, cred) fails a 2xx response
+	// that carries an error (JSON-RPC "error", ok:false); ErrorMessage
+	// is the error's text. An operation's own pair replaces these.
+	ErrorWhen    string `json:"error_when,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
 
 	// Source is where the package was loaded from ("catalog" or a file
 	// path). Not part of the file.
@@ -205,6 +210,9 @@ type Operation struct {
 	// the last decoded response and pres.<i> each step's; later steps see
 	// earlier ones (e.g. resolve a sheet title, then read its header row).
 	Before Steps `json:"before,omitempty"`
+	// ErrorWhen / ErrorMessage replace the package's for this op.
+	ErrorWhen    string `json:"error_when,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
 }
 
 // Step is one follow-up request of an operation. When is a template; an
@@ -214,6 +222,9 @@ type Step struct {
 	// ForEach (also steps): a template resolving to a list; the step is
 	// sent once per element with el bound (Egoi: one call per tag id).
 	ForEach string `json:"for_each,omitempty"`
+	// download marks an output.download request: the response is a file
+	// (no Accept: application/json).
+	download bool
 	// Upload sends the op's binary (binary.upload_field/property) as the
 	// raw body, Content-Type = its MIME type (register-then-upload APIs).
 	Upload bool `json:"upload,omitempty"`
@@ -336,6 +347,8 @@ type Output struct {
 	// ({name, fields{typed values}}) into plain JSON with _name, _id,
 	// _createTime and _updateTime (n8n's "simple" output).
 	Firestore string `json:"firestore,omitempty"`
+	// Download fetches files per element onto the item's binary data.
+	Download *DownloadStep `json:"download,omitempty"`
 	// SchemaRows is a path (in the whole response) to a BigQuery-style
 	// schema ([{name, type, mode, fields}]); the rows at output.path
 	// ({f: [{v}]}) become objects keyed by field name. Numbers (a

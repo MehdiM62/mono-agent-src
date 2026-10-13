@@ -20,6 +20,8 @@
     "n8n_resource_param": { "type": "string" },
     "n8n_version_defaults": { "type": "object" },
     "query_style": { "type": "string", "enum": ["", "brackets"] },
+    "error_when": { "type": "string" },
+    "error_message": { "type": "string" },
     "n8n_trigger_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
     "base_url": { "type": "string", "minLength": 1 },
     "headers": { "$ref": "#/$defs/stringMap" },
@@ -168,6 +170,26 @@
             "firestore": { "type": "string" },
             "schema_rows": { "type": "string" },
             "numbers": { "type": "string" },
+            "download": {
+              "type": "object",
+              "required": ["method", "path"],
+              "additionalProperties": false,
+              "properties": {
+                "when": { "type": "string" },
+                "files": {},
+                "auth": { "type": "boolean" },
+                "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
+                "path": { "type": "string", "minLength": 1 },
+                "base_url": { "type": "string" },
+                "query": { "type": "object" },
+                "body": {},
+                "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+                "headers": { "$ref": "#/$defs/stringMap" },
+                "property": { "type": "string" },
+                "file_name": { "type": "string" },
+                "mime_type": { "type": "string" }
+              }
+            },
             "expand": {
           "type": "object",
           "required": ["method", "path"],
@@ -237,6 +259,8 @@
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
         "batch": { "type": "boolean" },
         "scope_group": { "type": "string" },
+        "error_when": { "type": "string" },
+        "error_message": { "type": "string" },
         "query_style": { "type": "string", "enum": ["", "brackets"] },
         "poll": {
           "type": "object",
