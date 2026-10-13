@@ -1,0 +1,798 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "magento2",
+  "node_type": "app.magento2",
+  "title": "Magento 2",
+  "description": "Customers, orders, invoices and products in Magento 2 / Adobe Commerce",
+  "category": "app",
+  "docs_url": "https://developer.adobe.com/commerce/webapi/rest/",
+  "n8n_types": [
+    "n8n-nodes-base.magento2"
+  ],
+  "base_url": "{{ cred.host | re:'^(.*?)/*$' }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "magento2",
+      "name": "Magento 2",
+      "n8n_credential": "magento2Api",
+      "n8n_field_map": {
+        "host": "host",
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "host",
+          "label": "Store URL",
+          "required": true,
+          "help": "e.g. https://shop.example.com"
+        },
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "System → Integrations → access token"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "customer",
+      "label": "Customer"
+    },
+    {
+      "value": "invoice",
+      "label": "Invoice"
+    },
+    {
+      "value": "order",
+      "label": "Order"
+    },
+    {
+      "value": "product",
+      "label": "Product"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "customer",
+      "operation": "create",
+      "title": "Create a customer",
+      "method": "POST",
+      "path": "/rest/V1/customers",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "firstname",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastname",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addresses",
+            "amazon_id",
+            "confirmation",
+            "customAttributes",
+            "dob",
+            "default_billing",
+            "default_shipping",
+            "gender",
+            "group_id",
+            "is_subscribed",
+            "middlename",
+            "password",
+            "prefix",
+            "store_id",
+            "suffix",
+            "vertex_customer_code",
+            "vertex_customer_country",
+            "website_id"
+          ],
+          "help": "addresses.address: list of {street, city, region, postcode, country_id, company, fax, firstname, lastname, middlename, prefix, suffix, telephone, default_billing, default_shipping}; customAttributes.customAttribute: list of {attribute_code, value}"
+        }
+      ],
+      "body": {
+        "customer": {
+          "$merge": "{{ p.additionalFields | omit:'addresses,customAttributes,password,amazon_id,is_subscribed,vertex_customer_code,vertex_customer_country' }}",
+          "addresses": {
+            "$map": "{{ p.additionalFields.addresses.address }}",
+            "$to": {
+              "$merge": "{{ el }}",
+              "street": [
+                "{{ el.street }}"
+              ]
+            }
+          },
+          "custom_attributes": "{{ p.additionalFields.customAttributes.customAttribute }}",
+          "extension_attributes": {
+            "amazon_id": "{{ p.additionalFields.amazon_id }}",
+            "is_subscribed": "{{ p.additionalFields.is_subscribed }}",
+            "vertex_customer_code": "{{ p.additionalFields.vertex_customer_code }}",
+            "vertex_customer_country": "{{ p.additionalFields.vertex_customer_country }}"
+          },
+          "email": "{{ p.email }}",
+          "firstname": "{{ p.firstname }}",
+          "lastname": "{{ p.lastname }}"
+        },
+        "password": "{{ p.additionalFields.password }}"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "delete",
+      "title": "Delete a customer",
+      "method": "DELETE",
+      "path": "/rest/default/V1/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "get",
+      "title": "Get a customer",
+      "method": "GET",
+      "path": "/rest/default/V1/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "getAll",
+      "title": "Get many customers",
+      "method": "GET",
+      "path": "/rest/default/V1/customers/search",
+      "query_style": "brackets",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "filterType",
+          "label": "Filter",
+          "type": "select",
+          "options": [
+            "none",
+            "manual",
+            "json"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "matchType",
+          "label": "Must match",
+          "type": "select",
+          "options": [
+            "anyFilter",
+            "allFilters"
+          ],
+          "default": "anyFilter"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditions"
+          ],
+          "help": "conditions: list of {field, condition_type (eq, neq, gt, gteq, lt, lte, like, in, nin, moreq, notnull, null), value}"
+        },
+        {
+          "key": "filterJson",
+          "label": "Filter (JSON)",
+          "type": "code",
+          "language": "json",
+          "default": "",
+          "help": "A full Magento search query, e.g. {\"search_criteria\": {\"filter_groups\": [...]}}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort.sort: list of {field, direction (ASC or DESC)}"
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filterType | eq:'json' | then:(p.filterJson | fromjson) }}",
+        "search_criteria": {
+          "filter_groups": {
+            "$concat": [
+              {
+                "$when": "{{ p.filterType | eq:'manual' | then:(p.matchType | ne:'allFilters') }}",
+                "filters": "{{ p.filters.conditions }}"
+              },
+              {
+                "$map": "{{ p.filterType | eq:'manual' | then:(p.matchType | eq:'allFilters' | then:p.filters.conditions) }}",
+                "$to": {
+                  "filters": [
+                    "{{ el }}"
+                  ]
+                }
+              }
+            ]
+          },
+          "sort_orders": "{{ p.filterType | ne:'json' | then:p.options.sort.sort }}"
+        }
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "search_criteria[current_page]",
+        "limit_param": "search_criteria[page_size]",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "update",
+      "title": "Update a customer",
+      "method": "PUT",
+      "path": "/rest/V1/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "website_id",
+          "label": "Website ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addresses",
+            "amazon_id",
+            "confirmation",
+            "customAttributes",
+            "dob",
+            "default_billing",
+            "default_shipping",
+            "gender",
+            "group_id",
+            "is_subscribed",
+            "middlename",
+            "password",
+            "prefix",
+            "store_id",
+            "suffix",
+            "vertex_customer_code",
+            "vertex_customer_country",
+            "website_id"
+          ],
+          "help": "addresses.address: list of {street, city, region, postcode, country_id, company, fax, firstname, lastname, middlename, prefix, suffix, telephone, default_billing, default_shipping}; customAttributes.customAttribute: list of {attribute_code, value}"
+        }
+      ],
+      "body": {
+        "customer": {
+          "$merge": "{{ p.updateFields | omit:'addresses,customAttributes,password,amazon_id,is_subscribed,vertex_customer_code,vertex_customer_country' }}",
+          "addresses": {
+            "$map": "{{ p.updateFields.addresses.address }}",
+            "$to": {
+              "$merge": "{{ el }}",
+              "street": [
+                "{{ el.street }}"
+              ]
+            }
+          },
+          "custom_attributes": "{{ p.updateFields.customAttributes.customAttribute }}",
+          "extension_attributes": {
+            "amazon_id": "{{ p.updateFields.amazon_id }}",
+            "is_subscribed": "{{ p.updateFields.is_subscribed }}",
+            "vertex_customer_code": "{{ p.updateFields.vertex_customer_code }}",
+            "vertex_customer_country": "{{ p.updateFields.vertex_customer_country }}"
+          },
+          "email": "{{ p.email }}",
+          "firstname": "{{ p.firstName }}",
+          "lastname": "{{ p.lastName }}",
+          "id": "{{ p.customerId | int }}",
+          "!website_id": "{{ p.updateFields.website_id | default:0 | int }}"
+        },
+        "password": "{{ p.updateFields.password }}"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "create",
+      "title": "Create an invoice for an order",
+      "method": "POST",
+      "path": "/rest/default/V1/order/{{ p.orderId }}/invoice",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "order",
+      "operation": "cancel",
+      "title": "Cancel an order",
+      "method": "POST",
+      "path": "/rest/default/V1/orders/{{ p.orderId }}/cancel",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "order",
+      "operation": "get",
+      "title": "Get an order",
+      "method": "GET",
+      "path": "/rest/default/V1/orders/{{ p.orderId }}",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "order",
+      "operation": "getAll",
+      "title": "Get many orders",
+      "method": "GET",
+      "path": "/rest/default/V1/orders",
+      "query_style": "brackets",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "filterType",
+          "label": "Filter",
+          "type": "select",
+          "options": [
+            "none",
+            "manual",
+            "json"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "matchType",
+          "label": "Must match",
+          "type": "select",
+          "options": [
+            "anyFilter",
+            "allFilters"
+          ],
+          "default": "anyFilter"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditions"
+          ],
+          "help": "conditions: list of {field, condition_type (eq, neq, gt, gteq, lt, lte, like, in, nin, moreq, notnull, null), value}"
+        },
+        {
+          "key": "filterJson",
+          "label": "Filter (JSON)",
+          "type": "code",
+          "language": "json",
+          "default": "",
+          "help": "A full Magento search query, e.g. {\"search_criteria\": {\"filter_groups\": [...]}}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort.sort: list of {field, direction (ASC or DESC)}"
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filterType | eq:'json' | then:(p.filterJson | fromjson) }}",
+        "search_criteria": {
+          "filter_groups": {
+            "$concat": [
+              {
+                "$when": "{{ p.filterType | eq:'manual' | then:(p.matchType | ne:'allFilters') }}",
+                "filters": "{{ p.filters.conditions }}"
+              },
+              {
+                "$map": "{{ p.filterType | eq:'manual' | then:(p.matchType | eq:'allFilters' | then:p.filters.conditions) }}",
+                "$to": {
+                  "filters": [
+                    "{{ el }}"
+                  ]
+                }
+              }
+            ]
+          },
+          "sort_orders": "{{ p.filterType | ne:'json' | then:p.options.sort.sort }}"
+        }
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "search_criteria[current_page]",
+        "limit_param": "search_criteria[page_size]",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items"
+      }
+    },
+    {
+      "resource": "order",
+      "operation": "ship",
+      "title": "Ship an order",
+      "method": "POST",
+      "path": "/rest/default/V1/order/{{ p.orderId }}/ship",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "create",
+      "title": "Create a product",
+      "method": "POST",
+      "path": "/rest/default/V1/products",
+      "fields": [
+        {
+          "key": "sku",
+          "label": "SKU",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attributeSetId",
+          "label": "Attribute set ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "price",
+          "label": "Price",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attribute_set_id",
+            "customAttributes",
+            "name",
+            "price",
+            "status",
+            "type_id",
+            "visibility",
+            "weight"
+          ],
+          "help": "customAttributes.customAttribute: list of {attribute_code, value}"
+        }
+      ],
+      "body": {
+        "product": {
+          "$merge": "{{ p.additionalFields | omit:'customAttributes,category' }}",
+          "sku": "{{ p.sku }}",
+          "name": "{{ p.name }}",
+          "attribute_set_id": "{{ p.attributeSetId | int }}",
+          "price": "{{ p.price }}",
+          "custom_attributes": "{{ p.additionalFields.customAttributes.customAttribute }}"
+        }
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "delete",
+      "title": "Delete a product",
+      "method": "DELETE",
+      "path": "/rest/default/V1/products/{{ p.sku }}",
+      "fields": [
+        {
+          "key": "sku",
+          "label": "SKU",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "get",
+      "title": "Get a product",
+      "method": "GET",
+      "path": "/rest/default/V1/products/{{ p.sku }}",
+      "fields": [
+        {
+          "key": "sku",
+          "label": "SKU",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "product",
+      "operation": "getAll",
+      "title": "Get many products",
+      "method": "GET",
+      "path": "/rest/default/V1/products",
+      "query_style": "brackets",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 5,
+          "min": 1
+        },
+        {
+          "key": "filterType",
+          "label": "Filter",
+          "type": "select",
+          "options": [
+            "none",
+            "manual",
+            "json"
+          ],
+          "default": "none"
+        },
+        {
+          "key": "matchType",
+          "label": "Must match",
+          "type": "select",
+          "options": [
+            "anyFilter",
+            "allFilters"
+          ],
+          "default": "anyFilter"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditions"
+          ],
+          "help": "conditions: list of {field, condition_type (eq, neq, gt, gteq, lt, lte, like, in, nin, moreq, notnull, null), value}"
+        },
+        {
+          "key": "filterJson",
+          "label": "Filter (JSON)",
+          "type": "code",
+          "language": "json",
+          "default": "",
+          "help": "A full Magento search query, e.g. {\"search_criteria\": {\"filter_groups\": [...]}}"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort.sort: list of {field, direction (ASC or DESC)}"
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filterType | eq:'json' | then:(p.filterJson | fromjson) }}",
+        "search_criteria": {
+          "filter_groups": {
+            "$concat": [
+              {
+                "$when": "{{ p.filterType | eq:'manual' | then:(p.matchType | ne:'allFilters') }}",
+                "filters": "{{ p.filters.conditions }}"
+              },
+              {
+                "$map": "{{ p.filterType | eq:'manual' | then:(p.matchType | eq:'allFilters' | then:p.filters.conditions) }}",
+                "$to": {
+                  "filters": [
+                    "{{ el }}"
+                  ]
+                }
+              }
+            ]
+          },
+          "sort_orders": "{{ p.filterType | ne:'json' | then:p.options.sort.sort }}"
+        }
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "search_criteria[current_page]",
+        "limit_param": "search_criteria[page_size]",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "update",
+      "title": "Update a product",
+      "method": "PUT",
+      "path": "/rest/default/V1/products/{{ p.sku }}",
+      "fields": [
+        {
+          "key": "sku",
+          "label": "SKU",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attribute_set_id",
+            "customAttributes",
+            "name",
+            "price",
+            "status",
+            "type_id",
+            "visibility",
+            "weight"
+          ],
+          "help": "customAttributes.customAttribute: list of {attribute_code, value}"
+        }
+      ],
+      "body": {
+        "product": {
+          "$merge": "{{ p.updateFields | omit:'customAttributes' }}",
+          "sku": "{{ p.sku }}",
+          "custom_attributes": "{{ p.updateFields.customAttributes.customAttribute }}"
+        }
+      }
+    }
+  ]
+}
