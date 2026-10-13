@@ -1,0 +1,38 @@
+{
+  "id": "schedule-only",
+  "mode": "both",
+  "workflow_name": "eval-schedule-only",
+  "prompt": "Create a workflow named \"eval-schedule-only\" that consists of a single schedule\ntrigger firing at 07:30 on weekdays (Monday to Friday) in the Europe/Berlin\ntime zone. Save and validate it; do not activate it.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "mcp_validate_ok"
+    },
+    {
+      "type": "node_config",
+      "node_type": "trigger.schedule",
+      "key": "cron",
+      "in": [
+        "0 30 7 * * 1-5",
+        "0 30 7 * * MON-FRI",
+        "0 30 7 ? * MON-FRI",
+        "0 30 7 ? * 1-5"
+      ]
+    },
+    {
+      "type": "node_config",
+      "node_type": "trigger.schedule",
+      "key": "timezone",
+      "equals": "Europe/Berlin"
+    },
+    {
+      "type": "inactive"
+    }
+  ]
+}

@@ -144,6 +144,7 @@ func newHealthEnv(cfg *globalConfig) (*health.Env, func()) {
 			env.DB = db.DB
 			env.PendingMigrations = db.PendingMigrations
 			env.QuickCheck = db.QuickCheck
+			addDBSchemaHook(env, db)
 			env.VaultState = func(ctx context.Context, id string) (string, error) {
 				st, err := secrets.CheckVault(ctx, db.DB, id)
 				return string(st), err

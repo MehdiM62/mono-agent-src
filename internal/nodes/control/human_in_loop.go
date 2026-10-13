@@ -27,6 +27,10 @@ import (
 //	"timeout_minutes"  (float64, optional): max wait time, default 0 = unlimited
 //	"auto_decide"      (object, optional): {policy, approve_above, reject_above} —
 //	                   TypeSafe Jev settles confident items (surface "hil" only)
+//
+// Outputs: "main" carries approved items. Rejected items go to the opt-in
+// "rejected" output when an edge is wired from it; otherwise a rejection
+// fails the node with workflow.ErrRejected and the run ends REJECTED.
 type HumanInLoopNode struct{}
 
 func (n *HumanInLoopNode) Type() string { return "core.human_in_loop" }
@@ -98,26 +102,22 @@ func (n *HumanInLoopNode) Execute(ctx context.Context, input workflow.NodeInput,
 			anyRejected = true
 		}
 	}
-	if anyRejected {
-		return nil, fmt.Errorf("human_in_loop: item rejected by human reviewer")
+	// A rejection fails the node at once unless a `rejected` edge is wired;
+	// then the node waits for every decision and routes rejected items there.
+	if anyRejected && !rejectedEdgeWired(ctx, db, input) {
+		return nil, fmt.Errorf("human_in_loop: %w", workflow.ErrRejected)
 	}
 	if anyPending {
 		return nil, workflow.ErrNodePaused // still awaiting approval
 	}
 
-	// All approved — emit each input item with its row's edited_data applied.
-	// Rows are ordered by insertion, matching the input item order.
-	var approvedItems []workflow.Item
-	for i, item := range input.Items {
-		out := copyMap(item.JSON)
-		if i < len(existing) {
-			for k, v := range existing[i].edited {
-				out[k] = v
-			}
-		}
-		approvedItems = append(approvedItems, workflow.NewItem(out))
+	// Approved items go to main with their row's edited_data applied.
+	approvedItems, rejectedItems := splitDecided(input.Items, existing)
+	outputs := []workflow.NodeOutput{{Handle: "main", Items: approvedItems}}
+	if len(rejectedItems) > 0 {
+		outputs = append(outputs, workflow.NodeOutput{Handle: RejectedHandle, Items: rejectedItems})
 	}
-	return []workflow.NodeOutput{{Handle: "main", Items: approvedItems}}, nil
+	return outputs, nil
 }
 
 type hilRow struct {

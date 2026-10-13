@@ -1,6 +1,7 @@
 // Thin wrapper around Wails Go bindings with error handling.
 import * as GoApp from '../wailsjs/go/main/App'
 import { EventsOn } from '../wailsjs/runtime/runtime'
+import { isInactiveRunError } from '../lib/runFailure.js'
 
 // Global error bus. Read methods degrade to safe defaults ([]/null/0) so pages
 // keep rendering, but every failure is also broadcast on `api:error` so a toast
@@ -25,6 +26,21 @@ function reportError(op, e) {
 // answers with a link to the AI agents page).
 export function notify(op, message, code = '') {
   errorBus.dispatchEvent(new CustomEvent('api:error', { detail: { op, message: String(message), code: code || message?.code || '' } }))
+}
+
+// startedRun turns a run binding's promise into { ok } / { ok: false, error }.
+const startedRun = (p) => Promise.resolve(p).then(
+  () => ({ ok: true }),
+  (e) => ({ ok: false, error: e?.message || String(e) }),
+)
+
+// reportRunFailure toasts a refused run. A workflow that is switched off gets
+// an "Activate & run" button: activating stays the user's click, never ours.
+export function reportRunFailure(error, { activateAndRun } = {}) {
+  const action = activateAndRun && isInactiveRunError(error)
+    ? { label: 'Activate & run', run: activateAndRun }
+    : null
+  errorBus.dispatchEvent(new CustomEvent('api:error', { detail: { op: 'run workflow', message: String(error), code: '', action } }))
 }
 
 // Wrap a binding call so failures are reported and fall back to `fallback`.
@@ -69,6 +85,9 @@ export const api = {
   getDashboardStats:    () => GoApp.GetDashboardStats().catch(guard('dashboard stats', null)),
   getSummary:           () => GoApp.GetSummary().then(parseCLIJSON('summary')).catch(guard('summary', null)),
   getSummarySections:   (csv) => GoApp.GetSummarySections(csv).then(parseCLIJSON('summary')).catch(guard('summary', null)),
+  // `extension status --json`: is a bridge running, and does it accept this
+  // client's pairing token. Polled by the dashboard, so failures stay quiet.
+  getExtensionStatus:   () => Promise.resolve(GoApp.GetExtensionStatus?.()).then(raw => (raw ? parseCLIJSON('extension status')(raw) : null)).catch(() => null),
   getOrgSummary:        (fast = true) => GoApp.GetOrgSummary(fast).then(parseCLIJSON('org summary')).catch(guard('org summary', null)),
   // The dashboard's All profiles view: the same reads across every profile,
   // each row tagged with profile_id/profile_name.
@@ -77,8 +96,12 @@ export const api = {
   listAllWorkflows:       () => GoApp.ListAllProfilesWorkflows().catch(guard('list workflows', [])),
   getAllRecentExecutions: (limit = 20) => GoApp.GetAllProfilesRecentExecutions(limit).catch(guard('recent executions', [])),
   listWorkflows:        () => GoApp.ListWorkflows().catch(guard('list workflows', [])),
-  runWorkflow:          (id) => GoApp.RunWorkflow(id).catch(e => { reportError('run workflow', e); return `error: ${e}` }),
-  runWorkflowWithInput: (id, input) => GoApp.RunWorkflowWithInput(id, input || '').catch(e => { reportError('run workflow', e); return `error: ${e}` }),
+  // Starting a run resolves { ok: true } or { ok: false, error } at once — the
+  // caller decides how to report it (an inactive workflow gets an "Activate &
+  // run" toast, see reportRunFailure), and never waits on a run that was
+  // refused before it started.
+  runWorkflow:          (id) => startedRun(GoApp.RunWorkflow(id)),
+  runWorkflowWithInput: (id, input) => startedRun(GoApp.RunWorkflowWithInput(id, input || '')),
   // `workflow inputs --json`: which trigger fields a workflow reads, plus a
   // skeleton payload. Returns null rather than throwing — a run must not be
   // blocked because the question could not be asked.

@@ -100,7 +100,7 @@ func newPeopleReviewListCmd(cfg *globalConfig) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&suggest, "suggest", false, "Add TypeSafe Jev's suggestion per person (cached; needs `jev enable people_review`)")
+	cmd.Flags().BoolVar(&suggest, "suggest", false, "Add TypeSafe Jev's suggestion per person (cached; needs 'jev enable people_review')")
 	cmd.Flags().BoolVar(&resuggest, "resuggest", false, "Recompute every suggestion (implies --suggest)")
 	return cmd
 }

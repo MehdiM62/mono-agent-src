@@ -38,6 +38,7 @@ function useInterval(fn, ms) {
 
 export function useDashboardData({ active = true, scope = 'profile' } = {}) {
   const [summary, setSummary] = useState(null)
+  const [extension, setExtension] = useState(null) // `extension status --json`, null until known
   const [summaryFailed, setSummaryFailed] = useState(false)
   const [orgs, setOrgs] = useState(null)
   const [workflows, setWorkflows] = useState([])
@@ -60,10 +61,13 @@ export function useDashboardData({ active = true, scope = 'profile' } = {}) {
   const loadSummary = useCallback(async () => {
     const n = ++seq.current.summary
     const g = globalRef.current
-    const s = await (g ? api.getGlobalSummary() : api.getSummary())
+    // The bridge's pairing is not in `summary` (it only probes the port),
+    // so ask `extension status` alongside it.
+    const [s, ext] = await Promise.all([g ? api.getGlobalSummary() : api.getSummary(), api.getExtensionStatus()])
     if (n !== seq.current.summary || g !== globalRef.current) return
     if (s) setSummary(s)
     setSummaryFailed(!s)
+    setExtension(ext)
   }, [])
   const loadOrgs = useCallback(async (fast = true) => {
     const n = ++seq.current.orgs
@@ -127,5 +131,5 @@ export function useDashboardData({ active = true, scope = 'profile' } = {}) {
   const live = executions.some(e => LIVE_STATUSES.has((e.status || '').toUpperCase()))
   useInterval(() => { if (visible.current) loadLists() }, live ? FAST_POLL_MS : BASE_POLL_MS)
 
-  return { summary, summaryFailed, orgs, workflows, executions, loading, refresh, setExecutions, reloadLists: loadLists }
+  return { summary, summaryFailed, extension, orgs, workflows, executions, loading, refresh, setExecutions, reloadLists: loadLists }
 }

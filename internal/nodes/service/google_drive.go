@@ -22,7 +22,9 @@ type GoogleDriveNode struct{}
 
 func (n *GoogleDriveNode) Type() string { return "service.google_drive" }
 
-const (
+// driveBaseURL and driveUploadURL are vars (not consts) so tests can point
+// them at an httptest server.
+var (
 	driveBaseURL   = "https://www.googleapis.com/drive/v3"
 	driveUploadURL = "https://www.googleapis.com/upload/drive/v3"
 )
@@ -31,6 +33,9 @@ func (n *GoogleDriveNode) Execute(ctx context.Context, input workflow.NodeInput,
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("google_drive: access_token is required")
+	}
+	if err := credentialScopeCheck(config, "google_drive"); err != nil {
+		return nil, fmt.Errorf("google_drive: %w", err)
 	}
 	operation := strVal(config, "operation")
 	pageSize := intVal(config, "page_size")
@@ -191,12 +196,12 @@ func driveRequest(ctx context.Context, method, url, accessToken string, body int
 		return nil, fmt.Errorf("google_drive %s %s: %w", method, url, err)
 	}
 	defer resp.Body.Close()
-	respBytes, err := io.ReadAll(resp.Body)
+	respBytes, err := readBodyCapped(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("google_drive: reading response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("google_drive HTTP %d: %s", resp.StatusCode, string(respBytes))
+		return nil, fmt.Errorf("google_drive HTTP %d: %s", resp.StatusCode, errorBodyEcho(respBytes))
 	}
 	if len(respBytes) == 0 {
 		return map[string]interface{}{}, nil
@@ -221,8 +226,8 @@ func driveDownload(ctx context.Context, url, accessToken string) ([]byte, error)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("google_drive HTTP %d: %s", resp.StatusCode, string(body))
+		body, _ := readBodyCapped(resp.Body)
+		return nil, fmt.Errorf("google_drive HTTP %d: %s", resp.StatusCode, errorBodyEcho(body))
 	}
 	return io.ReadAll(resp.Body)
 }
@@ -287,12 +292,12 @@ func driveUploadFile(ctx context.Context, accessToken, filePath, fileName, mimeT
 		return nil, fmt.Errorf("uploading file: %w", err)
 	}
 	defer resp.Body.Close()
-	respBytes, err := io.ReadAll(resp.Body)
+	respBytes, err := readBodyCapped(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("reading upload response: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("drive upload HTTP %d: %s", resp.StatusCode, string(respBytes))
+		return nil, fmt.Errorf("drive upload HTTP %d: %s", resp.StatusCode, errorBodyEcho(respBytes))
 	}
 	var result map[string]interface{}
 	if err := json.Unmarshal(respBytes, &result); err != nil {

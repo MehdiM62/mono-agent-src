@@ -1,0 +1,34 @@
+{
+  "id": "read-page-markdown",
+  "mode": "both",
+  "workflow_name": "eval-read-page-markdown",
+  "prompt": "Create a workflow named \"eval-read-page-markdown\", run manually, that reads the\npage {{FIXTURE_URL}}/page.html as clean markdown with the read-page node, using\nthe static render mode (no browser). Save, validate and dry-run it; do not run\nit.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "ai.read_page"
+      ]
+    },
+    {
+      "type": "node_config",
+      "node_type": "ai.read_page",
+      "key": "url",
+      "equals": "{{FIXTURE_URL}}/page.html"
+    },
+    {
+      "type": "node_config",
+      "node_type": "ai.read_page",
+      "key": "render_mode",
+      "equals": "static"
+    }
+  ],
+  "notes": "Not run: ai.read_page refuses loopback and private addresses (SSRF guard, no override), so an offline fixture cannot be fetched. html-extract covers fetching a page."
+}

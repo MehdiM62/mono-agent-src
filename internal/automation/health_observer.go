@@ -34,6 +34,12 @@ type HealthOptions struct {
 	Promoter SelectorPromoter
 	// SelectorKeys enables pruning of stale rows (health_prune.go); nil = never prune.
 	SelectorKeys SelectorKeysFunc
+	// Repairer applies ready Jev repair proposals when AutoRepair says so
+	// (health_repair.go); nil = never auto-apply.
+	Repairer SelectorReplacer
+	// AutoRepair reports whether ready proposals are applied without
+	// asking; nil = the automation.autoRepair config (AutoRepairEnabled).
+	AutoRepair func(*sql.DB) bool
 }
 
 // HealthRecorder is the concrete selector observer behind HealthObserver.
@@ -61,6 +67,7 @@ type healthObservation struct {
 	cand       *action.SelectorCandidate // the matched candidate, when the executor reports it
 	ok, healed bool
 	at         time.Time
+	jev        *jevEvent // a Jev pick or hint save instead of a lookup (health_repair.go)
 }
 
 // healthDelta aggregates one batch of observations for one selector.
@@ -87,7 +94,7 @@ var _ action.SelectorCandidateObserver = (*HealthRecorder)(nil)
 // interface{ Close() error } and close it on shutdown so the last batch is
 // written.
 func HealthObserver(db *sql.DB) action.SelectorObserver {
-	return NewHealthRecorder(db, HealthOptions{Promoter: bootedPromoter{}, SelectorKeys: bootedKeys})
+	return NewHealthRecorder(db, HealthOptions{Promoter: bootedPromoter{}, SelectorKeys: bootedKeys, Repairer: bootedReplacer{}})
 }
 
 // NewHealthRecorder starts a recorder writing to db.
@@ -178,9 +185,14 @@ func (r *HealthRecorder) loop() {
 	ticker := time.NewTicker(r.opts.Interval)
 	defer ticker.Stop()
 	pending := map[healthKey]*healthDelta{}
+	var jevPending []*jevEvent
 	n := 0
 	add := func(o healthObservation) {
-		addObservation(pending, o)
+		if o.jev != nil {
+			jevPending = append(jevPending, o.jev)
+		} else {
+			addObservation(pending, o)
+		}
 		n++
 	}
 	drain := func() {
@@ -194,19 +206,22 @@ func (r *HealthRecorder) loop() {
 		}
 	}
 	flush := func() error {
-		if len(pending) == 0 {
+		if len(pending) == 0 && len(jevPending) == 0 {
 			return nil
 		}
-		batch := pending
-		pending, n = map[healthKey]*healthDelta{}, 0
+		batch, jevBatch := pending, jevPending
+		pending, jevPending, n = map[healthKey]*healthDelta{}, nil, 0
 		if r.testHookWrite != nil {
 			r.testHookWrite()
 		}
-		err := writeHealthBatch(r.db, batch, r.now())
-		if err != nil {
-			log.Printf("automation: selector health: write batch: %v", err)
+		var err error
+		if len(batch) > 0 {
+			if err = writeHealthBatch(r.db, batch, r.now()); err != nil {
+				log.Printf("automation: selector health: write batch: %v", err)
+			}
 		}
 		r.promote(batch)
+		r.applyJevEvents(jevBatch)
 		r.maybePrune()
 		return err
 	}

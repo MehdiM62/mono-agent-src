@@ -1,0 +1,171 @@
+{
+  "credential_platform": null,
+  "fields": [
+    {
+      "key": "credential_id",
+      "label": "Saved connection",
+      "type": "credential_picker",
+      "required": false,
+      "help": "Use a saved connection's token or login, as in HTTP Request: an access_token or API key is sent as a Bearer token and a username and password as Basic auth unless Connection auth says otherwise."
+    },
+    {
+      "key": "endpoint",
+      "label": "Endpoint",
+      "type": "text",
+      "required": true,
+      "placeholder": "https://api.example.com/graphql"
+    },
+    {
+      "key": "query",
+      "label": "Query",
+      "type": "code",
+      "language": "graphql",
+      "required": true,
+      "rows": 8,
+      "placeholder": "query ($login: String!) { user(login: $login) { name } }"
+    },
+    {
+      "key": "variables",
+      "label": "Variables (JSON)",
+      "type": "textarea",
+      "required": false,
+      "rows": 3,
+      "placeholder": "{ \"login\": \"{{ $json.login }}\" }",
+      "help": "A JSON object. Not sent with request format graphql."
+    },
+    {
+      "key": "operation_name",
+      "label": "Operation name",
+      "type": "text",
+      "required": false,
+      "help": "Which operation to run when the query document has several."
+    },
+    {
+      "key": "request_method",
+      "label": "Request method",
+      "type": "select",
+      "required": false,
+      "default": "POST",
+      "options": ["POST", "GET"],
+      "help": "GET sends query, variables and operationName in the query string."
+    },
+    {
+      "key": "request_format",
+      "label": "Request format",
+      "type": "select",
+      "required": false,
+      "default": "json",
+      "options": ["json", "graphql"],
+      "depends_on": { "key": "request_method", "values": ["POST"] },
+      "help": "json sends {query, variables, operationName}; graphql sends the bare query as application/graphql."
+    },
+    {
+      "key": "headers",
+      "label": "Headers (JSON)",
+      "type": "textarea",
+      "required": false,
+      "rows": 3,
+      "help": "An object or a list of {name, value}."
+    },
+    {
+      "key": "auth_type",
+      "label": "Authentication",
+      "type": "select",
+      "required": false,
+      "default": "none",
+      "options": ["none", "credential", "basic", "digest", "bearer", "api_key"]
+    },
+    {
+      "key": "credential_auth",
+      "label": "Connection auth",
+      "type": "text",
+      "required": false,
+      "placeholder": "bearer",
+      "depends_on": { "key": "auth_type", "values": ["none", "credential"] },
+      "help": "bearer, basic, header:X-API-Key or query:api_key. Leave empty to decide from the connection."
+    },
+    {
+      "key": "auth_username",
+      "label": "Username",
+      "type": "text",
+      "required": false,
+      "depends_on": { "key": "auth_type", "values": ["basic", "digest"] }
+    },
+    {
+      "key": "auth_password",
+      "label": "Password",
+      "type": "password",
+      "required": false,
+      "depends_on": { "key": "auth_type", "values": ["basic", "digest"] }
+    },
+    {
+      "key": "auth_token",
+      "label": "Bearer token",
+      "type": "password",
+      "required": false,
+      "depends_on": { "key": "auth_type", "values": ["bearer"] }
+    },
+    {
+      "key": "auth_api_key_in",
+      "label": "API key location",
+      "type": "select",
+      "required": false,
+      "default": "header",
+      "options": ["header", "query"],
+      "depends_on": { "key": "auth_type", "values": ["api_key"] }
+    },
+    {
+      "key": "auth_api_key_name",
+      "label": "API key name",
+      "type": "text",
+      "required": false,
+      "placeholder": "X-API-Key",
+      "depends_on": { "key": "auth_type", "values": ["api_key"] }
+    },
+    {
+      "key": "auth_api_key_value",
+      "label": "API key value",
+      "type": "password",
+      "required": false,
+      "depends_on": { "key": "auth_type", "values": ["api_key"] }
+    },
+    {
+      "key": "response_format",
+      "label": "Response format",
+      "type": "select",
+      "required": false,
+      "default": "json",
+      "options": ["json", "text"],
+      "help": "json: the response document is the item ($json.data...). text: the raw body under Data property."
+    },
+    {
+      "key": "data_property_name",
+      "label": "Data property",
+      "type": "text",
+      "required": false,
+      "default": "data",
+      "depends_on": { "key": "response_format", "values": ["text"] }
+    },
+    {
+      "key": "allow_unauthorized_certs",
+      "label": "Ignore TLS certificate errors",
+      "type": "boolean",
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "timeout",
+      "label": "Timeout (seconds)",
+      "type": "number",
+      "required": false,
+      "default": 30
+    },
+    {
+      "key": "max_body_mb",
+      "label": "Max Response Body (MB)",
+      "type": "number",
+      "required": false,
+      "default": 64
+    }
+  ]
+}

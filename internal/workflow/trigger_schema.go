@@ -25,6 +25,12 @@ type ScheduleTriggerSchema struct {
 	Cron string `json:"cron" schema:"label=Cron Expression,type=text,required,placeholder=e.g. 0 0 9 * * 1-5,help=6-field cron: seconds minutes hours day month weekday. e.g. '0 0 9 * * 1-5' = weekdays at 9am."`
 
 	Timezone string `json:"timezone" schema:"label=Timezone,type=text,default=UTC,help=IANA timezone name， e.g. America/New_York"`
+
+	Overlap string `json:"overlap" schema:"label=When a run is still going,type=select,options=allow|skip|queue_one,default=allow,help=allow: every tick starts a run. skip: drop the tick while a run of this workflow is queued， running or waiting. queue_one: keep at most one tick waiting for the current run to end."`
+
+	CatchUp string `json:"catch_up" schema:"label=Missed runs,type=select,options=none|one|all,default=none,help=What the daemon does on startup with ticks missed while it was not running (counted from the last scheduled run). none: skip them. one: a single run. all: one run per missed tick (at most 100)."`
+
+	CatchUpWindow string `json:"catch_up_window" schema:"label=Catch-up window,type=text,placeholder=e.g. 6h,help=Only catch up ticks missed within this long before startup (a duration such as 30m or 6h). Empty: no limit."`
 }
 
 // The run's trigger item for a webhook is built by buildWebhookItem

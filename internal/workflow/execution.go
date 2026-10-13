@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"os"
-	"runtime/debug"
 	"strings"
 	"time"
 
@@ -352,7 +350,7 @@ func RunExecution(
 		if len(inputItems) > 0 {
 			currentItemJSON = inputItems[0].JSON
 		}
-		exprCtx := buildExpressionContext(currentItemJSON, nodeOutputs, wf.ID, exec.ID)
+		exprCtx := buildExpressionContext(currentItemJSON, nodeOutputs, wf, exec)
 
 		// Resolve config templates — but hold back any fields the node
 		// declares via PerItemConfigResolver (e.g. a filter condition, or
@@ -470,7 +468,7 @@ func RunExecution(
 
 			// Persist failure.
 			dbCtx2, dbCancel2 := dbCtx()
-			if storeErr := store.SetExecutionNodeFinished(dbCtx2, execNode.ID, "FAILED", nil, execErr.Error()); storeErr != nil {
+			if storeErr := recordNodeFailure(dbCtx2, store, execNode, execErr); storeErr != nil {
 				logger.Error().Err(storeErr).
 					Str("node_id", node.ID).
 					Msg("failed to persist node failure")
@@ -569,7 +567,7 @@ func RunExecution(
 				Str("node_name", node.Name).
 				Msg("node emitted error output with no edge wired from the 'error' handle — failing node (wire an error edge or set on_error=continue/skip to tolerate)")
 			fctx, fcancel := dbCtx()
-			if storeErr := store.SetExecutionNodeFinished(fctx, execNode.ID, "FAILED", nil, nodeErr.Error()); storeErr != nil {
+			if storeErr := recordNodeFailure(fctx, store, execNode, nodeErr); storeErr != nil {
 				logger.Error().Err(storeErr).
 					Str("node_id", node.ID).
 					Msg("failed to persist node failure")
@@ -644,117 +642,14 @@ func dbCtx() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 10*time.Second)
 }
 
-// executeWithRetry executes a node, retrying on failure according to the
-// supplied RetryPolicy.  Panics from the executor are caught and returned
-// as errors so that DB persistence in the caller is not bypassed.
-//
-// Errors a retry cannot fix (isNonRetryable) are returned after one attempt.
-// Other errors are retried per policy, consulting RetryClassifier (when
-// installed) before each retry: it may stop retrying or override the delay.
-func executeWithRetry(
-	ctx context.Context,
-	executor NodeExecutor,
-	input NodeInput,
-	config map[string]interface{},
-	policy RetryPolicy,
-	observers ...func([]NodeOutput),
-) (outputs []NodeOutput, err error) {
-	maxRetries := policy.MaxRetries
-	if maxRetries < 0 {
-		maxRetries = 0
-	}
-	if maxRetries > 10 {
-		maxRetries = 10
-	}
-
-	var lastErr error
-	var override time.Duration // classifier-chosen delay for the next retry
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if attempt > 0 {
-			delay := computeDelay(attempt, policy)
-			if override > 0 {
-				delay = override
-			}
-			if retrySleep(ctx, delay) != nil || ctx.Err() != nil {
-				return nil, ErrExecutionCancelled
-			}
-		}
-
-		outputs, err = func() (out []NodeOutput, execErr error) {
-			defer func() {
-				if r := recover(); r != nil {
-					execErr = fmt.Errorf("node executor panicked: %v\n%s", r, debug.Stack())
-				}
-			}()
-			if out, handled, gerr := RunExecGuard(ctx, executor.Type(), input, config); handled {
-				return out, gerr
-			}
-			return executor.Execute(ctx, input, config)
-		}()
-		for _, observer := range observers {
-			observer(outputs)
-		}
-		if err == nil {
-			return outputs, nil
-		}
-		lastErr = err
-
-		// Do not retry if the context is done.
-		select {
-		case <-ctx.Done():
-			return nil, ErrExecutionCancelled
-		default:
-		}
-
-		// A pause, invalid config, cancellation or Permanent error cannot be
-		// fixed by running the node again: return it as-is (the caller relies
-		// on errors.Is(err, ErrNodePaused) to suspend the run).
-		if isNonRetryable(err) {
-			return nil, err
-		}
-		if attempt == maxRetries {
-			break // no retry left: never consult the classifier for nothing
-		}
-		retry, delay := classifyRetry(ctx, executor.Type(), err, attempt+1, config)
-		if !retry {
-			return nil, err
-		}
-		override = delay
-	}
-	return nil, lastErr
-}
-
-// computeDelay returns the sleep duration before the given retry attempt
-// (attempt is 1-based: first retry is attempt=1).
-func computeDelay(attempt int, p RetryPolicy) time.Duration {
-	const maxDelaySeconds = 3600.0
-
-	var seconds float64
-	switch strings.ToLower(p.BackoffType) {
-	case "exponential":
-		// p.InitialDelay * 2^(attempt-1)
-		seconds = p.InitialDelay * math.Pow(2, float64(attempt-1))
-	default: // "fixed" or anything else
-		seconds = p.InitialDelay
-	}
-
-	if seconds > maxDelaySeconds {
-		seconds = maxDelaySeconds
-	}
-	if seconds < 0 {
-		seconds = 0
-	}
-
-	return time.Duration(seconds * float64(time.Second))
-}
-
 // buildExpressionContext constructs an ExpressionContext from the current
-// item's JSON map and the accumulated nodeOutputs map.
+// item's JSON map and the accumulated nodeOutputs map. $trigger is the
+// execution's trigger data and $vars the workflow's settings.variables map.
 func buildExpressionContext(
 	currentJSON map[string]interface{},
 	nodeOutputs map[string][]Item,
-	workflowID string,
-	executionID string,
+	wf *Workflow,
+	exec *WorkflowExecution,
 ) ExpressionContext {
 	if currentJSON == nil {
 		currentJSON = make(map[string]interface{})
@@ -764,58 +659,30 @@ func buildExpressionContext(
 	for k, v := range nodeOutputs {
 		nodeCopy[k] = v
 	}
+	vars, _ := wf.Settings["variables"].(map[string]interface{})
 	return ExpressionContext{
 		JSON:        currentJSON,
 		Node:        nodeCopy,
-		WorkflowID:  workflowID,
-		ExecutionID: executionID,
+		WorkflowID:  wf.ID,
+		ExecutionID: exec.ID,
 		Env:         nil, // populated from ctx.Env; OS env only merged when MONOAGENT_ALLOW_ENV_TEMPLATES=1
+		Trigger:     exec.TriggerData,
+		Vars:        vars,
 	}
 }
 
-// buildTriggerItems wraps trigger data as a single Item.
+// buildTriggerItems wraps trigger data as a single Item, or expands a
+// sub-workflow call's SubWorkflowItemsKey into its items.
 // If triggerData is nil or empty, a single empty Item is returned so
 // trigger nodes always receive at least one item to process.
 func buildTriggerItems(triggerData map[string]interface{}) []Item {
 	if triggerData == nil {
 		triggerData = make(map[string]interface{})
 	}
+	if items, ok := subWorkflowTriggerItems(triggerData); ok {
+		return items
+	}
 	return []Item{NewItem(triggerData)}
-}
-
-// extractRetryPolicy reads RetryPolicy fields from the resolved config map.
-// Defaults: MaxRetries=0, BackoffType="fixed", InitialDelay=1.
-func extractRetryPolicy(config map[string]interface{}) RetryPolicy {
-	p := RetryPolicy{
-		MaxRetries:   0,
-		BackoffType:  "fixed",
-		InitialDelay: 1,
-	}
-
-	rpRaw, ok := config["retry_policy"]
-	if !ok {
-		return p
-	}
-
-	// Try to round-trip through JSON to get a clean RetryPolicy struct.
-	b, err := json.Marshal(rpRaw)
-	if err != nil {
-		return p
-	}
-	var parsed RetryPolicy
-	if err := json.Unmarshal(b, &parsed); err != nil {
-		return p
-	}
-	if parsed.MaxRetries > 0 {
-		p.MaxRetries = parsed.MaxRetries
-	}
-	if parsed.BackoffType != "" {
-		p.BackoffType = parsed.BackoffType
-	}
-	if parsed.InitialDelay > 0 {
-		p.InitialDelay = parsed.InitialDelay
-	}
-	return p
 }
 
 // extractOnError reads the on_error string from the resolved config map.

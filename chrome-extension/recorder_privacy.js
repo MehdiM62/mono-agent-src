@@ -189,7 +189,132 @@
     return relative ? u.pathname + u.search + u.hash : u.toString();
   }
 
+  // --- network calls (recorder_network.js) ---------------------------------
+  //
+  // A captured API call keeps header NAMES; a credential header (Authorization,
+  // API keys, CSRF / session tokens, or any value that is a JWT or "Bearer x")
+  // loses its value and is marked `credential` (Authorization keeps its scheme
+  // word). Cookies are never seen by page code and are dropped by name anyway.
+  // Bodies are JSON or forms with every secret-named key REDACTED, JWTs and card
+  // numbers removed; anything else is dropped. internal/recording/netprivacy.go
+  // applies the same rules again.
+
+  const NET_BODY_MAX = 8192;
+  const CREDENTIAL_HEADERS = new Set([
+    "authorization", "proxy-authorization", "cookie", "x-api-key", "api-key", "apikey", "x-auth-token",
+    "x-csrf-token", "x-xsrf-token", "csrf-token", "x-access-token",
+  ]);
+  const credentialHeader = (name) => {
+    const n = String(name || "").trim().toLowerCase();
+    return CREDENTIAL_HEADERS.has(n) || /token|secret|auth|api-?key|session|csrf|xsrf|signature|password|credential/.test(n);
+  };
+  const JWT = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/;
+  const credentialValue = (v) => JWT.test(String(v || "")) || /^(bearer|basic|token|digest)\s/i.test(String(v || "").trim());
+  const BODY_SECRET =
+    /pass|pwd|token|secret|signature|session|cookie|credential|private|auth($|[^o])|api_?key|(^|[^a-z])(pin|cvv|cvc|csc|otp|ssn|2fa|mfa|key|code)([^a-z]|$)/i;
+
+  const redactString = (s) => (credentialValue(s) ? "REDACTED" : scrubCards(s));
+
+  function redactJson(v, key) {
+    if (key && BODY_SECRET.test(key) && (v === null || typeof v !== "object")) return "REDACTED";
+    if (Array.isArray(v)) return v.map((x) => redactJson(x, key));
+    if (v && typeof v === "object") {
+      const out = {};
+      for (const k of Object.keys(v)) out[k] = redactJson(v[k], k);
+      return out;
+    }
+    return typeof v === "string" ? redactString(v) : v;
+  }
+
+  /** redactBody returns a JSON or form body with its secrets REDACTED, else "". */
+  function redactBody(body, contentType) {
+    const b = String(body || "").trim();
+    if (!b) return "";
+    let out = "";
+    let parsed;
+    let isJson = false;
+    try {
+      parsed = JSON.parse(b);
+      isJson = true;
+    } catch {
+      // not JSON
+    }
+    if (isJson) {
+      out = JSON.stringify(redactJson(parsed, ""));
+    } else if (/x-www-form-urlencoded/i.test(contentType || "")) {
+      out = b
+        .split("&")
+        .map((pair) => {
+          const i = pair.indexOf("=");
+          const k = i < 0 ? pair : pair.slice(0, i);
+          const v = i < 0 ? "" : pair.slice(i + 1);
+          let key = k;
+          let val = v;
+          try {
+            key = decodeURIComponent(k.replace(/\+/g, " "));
+            val = decodeURIComponent(v.replace(/\+/g, " "));
+          } catch {
+            // keep raw
+          }
+          if (BODY_SECRET.test(key) || sensitiveParam(key) || credentialValue(val)) return `${k}=REDACTED`;
+          const r = redactString(val);
+          return r === val ? pair : `${k}=${encodeURIComponent(r)}`;
+        })
+        .join("&");
+    } else {
+      return "";
+    }
+    return out.length > NET_BODY_MAX ? "" : out;
+  }
+
+  /**
+   * redactNet turns what the page hook saw into a NetEntry
+   * (internal/recording/types.go) that is safe to queue.
+   */
+  function redactNet(raw) {
+    const r = raw || {};
+    const headers = [];
+    for (const h of Array.isArray(r.requestHeaders) ? r.requestHeaders : []) {
+      const name = String((h && h.name) || "").trim();
+      const lower = name.toLowerCase();
+      if (!name || name.length > 100 || lower === "cookie" || lower === "set-cookie") continue;
+      if (headers.length >= 40) break;
+      const value = String((h && h.value) || "");
+      if (credentialHeader(name) || credentialValue(value)) {
+        const out = { name, credential: true };
+        const scheme = value.trim().split(/\s+/)[0];
+        if (/^(proxy-)?authorization$/.test(lower) && /^[A-Za-z][A-Za-z0-9-]{0,19}$/.test(scheme) && value.trim().indexOf(" ") > 0) {
+          out.scheme = scheme;
+        }
+        headers.push(out);
+      } else {
+        headers.push({ name, value: value.slice(0, 200) });
+      }
+    }
+    const entry = {
+      t: Number(r.t) || 0,
+      method: /^[A-Za-z]{1,16}$/.test(String(r.method || "")) ? String(r.method).toUpperCase() : "GET",
+      url: sanitizeUrl(String(r.url || "")),
+      status: Number(r.status) || 0,
+    };
+    if (r.contentType) entry.contentType = String(r.contentType).slice(0, 200);
+    if (r.initiator === "fetch" || r.initiator === "xhr") entry.initiator = r.initiator;
+    if (headers.length) entry.requestHeaders = headers;
+    if (r.requestType) entry.requestType = String(r.requestType).slice(0, 200);
+    const body = redactBody(r.requestBody, r.requestType);
+    if (body) entry.requestBody = body;
+    let sample = redactBody(r.responseSample, "application/json");
+    try {
+      JSON.parse(sample);
+    } catch {
+      sample = "";
+    }
+    if (sample) entry.responseSample = sample;
+    return entry;
+  }
+
   root.MonoRecorderPrivacy = {
     luhn, maskReason, sensitiveField, markPassword, secretName, scrubCards, looksSecret, tokens, slug, sanitizeUrl,
+    credentialHeader, redactBody, redactNet,
   };
 })(globalThis);

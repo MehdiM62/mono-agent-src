@@ -80,7 +80,7 @@ var readOnlyNodes = setOf(
 	"image.remove_background", "image.resize", "image.thumbnail",
 	"image.vault_get", "vault.secret_get",
 	// Reads over the network.
-	"comm.email_read", "comm.outlook_read", "system.rss_read",
+	"comm.email_read", "system.rss_read",
 	"ai.read_page", // static GET, SSRF-guarded, no browser
 	// AI with no tools: ai.choose is a TypeSafe Jev classification (its
 	// input goes to TypeSafe's API). The other ai.* are deprecated stubs
@@ -199,6 +199,11 @@ var readOnlyByConfig = map[string]func(map[string]interface{}) bool{
 	"http_request":     httpReadOnly,
 	"data.spreadsheet": spreadsheetReadOnly,
 	"spreadsheet":      spreadsheetReadOnly,
+	// comm.outlook_read / comm.outlook_send are aliases of
+	// service.outlook_mail, which runs both config shapes.
+	"comm.outlook_read":    outlookLegacyReadOnly,
+	"comm.outlook_send":    outlookLegacyReadOnly,
+	"service.outlook_mail": outlookLegacyReadOnly,
 }
 
 // httpReadOnly: GET (the node's default) and HEAD. A templated method is
@@ -208,6 +213,22 @@ var readOnlyByConfig = map[string]func(map[string]interface{}) bool{
 func httpReadOnly(cfg map[string]interface{}) bool {
 	method, _ := cfg["method"].(string)
 	return method == "" || strings.EqualFold(method, "GET") || strings.EqualFold(method, "HEAD")
+}
+
+// outlookLegacyReadOnly: only the legacy comm.outlook_read shape — no
+// operation and none of the send keys — reads (service.outlook_mail runs it
+// as an IMAP list_messages). Every config with an operation stays outbound,
+// as service.outlook_mail always was.
+func outlookLegacyReadOnly(cfg map[string]interface{}) bool {
+	if op, _ := cfg["operation"].(string); op != "" {
+		return false
+	}
+	for _, k := range []string{"to", "subject", "body"} {
+		if _, ok := cfg[k]; ok {
+			return false
+		}
+	}
+	return true
 }
 
 func spreadsheetReadOnly(cfg map[string]interface{}) bool {
@@ -225,7 +246,9 @@ var outboundNodes = setOf(
 	// node keeps the runtime from using its tools.
 	"ai.extract_page", "applications.evaluate",
 	"browser.jev", // goal-driven agent in the user's browser
+	"mcp.call",    // calls any tool of an arbitrary MCP server
 	"http.ftp", "http.ssh", "system.execute_command",
+	"http.graphql",
 	"data.write_binary_file", // writes any local path
 	"vault.secret_save",      // overwrites credentials
 )

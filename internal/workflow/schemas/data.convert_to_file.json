@@ -1,0 +1,427 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "csv",
+      "help": "csv/html/ods/rtf/xlsx and json (mode once) write all items to one file; text, to_binary, ics and json (mode each) write one file per item.",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "csv",
+        "html",
+        "ics",
+        "json",
+        "ods",
+        "rtf",
+        "text",
+        "xlsx",
+        "to_binary"
+      ],
+      "required": true,
+      "type": "select"
+    },
+    {
+      "default": "data",
+      "key": "binary_property_name",
+      "label": "Put Output File in Field",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "text",
+          "to_binary"
+        ]
+      },
+      "help": "Field holding the text (text) or the base64 string (to_binary). Dot paths reach nested fields.",
+      "key": "source_property",
+      "label": "Source Field",
+      "placeholder": "content",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "once",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json"
+        ]
+      },
+      "help": "once: all items to one JSON array file. each: one file per item.",
+      "key": "mode",
+      "label": "Mode",
+      "options": [
+        "once",
+        "each"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json"
+        ]
+      },
+      "key": "format",
+      "label": "Pretty-print JSON",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv",
+          "html",
+          "ods",
+          "rtf",
+          "xlsx"
+        ]
+      },
+      "help": "Write the column names as the first row.",
+      "key": "header_row",
+      "label": "Header Row",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": ",",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv"
+        ]
+      },
+      "help": "One character; \\t for a tab.",
+      "key": "delimiter",
+      "label": "Delimiter",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "Sheet",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ods",
+          "xlsx"
+        ]
+      },
+      "key": "sheet_name",
+      "label": "Sheet Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ods",
+          "xlsx"
+        ]
+      },
+      "help": "Deflate the parts of the file (smaller file).",
+      "key": "compression",
+      "label": "Compress",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": "utf8",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json",
+          "text",
+          "to_binary"
+        ]
+      },
+      "help": "utf8, utf16le (ucs2), utf16be, latin1, ascii, or any WHATWG label such as windows-1252.",
+      "key": "encoding",
+      "label": "Encoding",
+      "placeholder": "utf8",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json",
+          "text",
+          "to_binary"
+        ]
+      },
+      "help": "Only for UTF-8 and UTF-16.",
+      "key": "add_bom",
+      "label": "Add Byte Order Mark",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "to_binary"
+        ]
+      },
+      "help": "Off: the field holds text, written in the chosen encoding.",
+      "key": "data_is_base64",
+      "label": "Data Is Base64",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "to_binary",
+          "text"
+        ]
+      },
+      "help": "Detected from the content when empty.",
+      "key": "mime_type",
+      "label": "MIME Type",
+      "placeholder": "application/pdf",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Defaults to File.<ext> for tables, file.json / file.txt, event.ics.",
+      "key": "file_name",
+      "label": "File Name",
+      "placeholder": "report.csv",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "title",
+      "label": "Event Title",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "help": "RFC 3339 date-time, a date, or a Unix epoch.",
+      "key": "start",
+      "label": "Start",
+      "placeholder": "2026-10-13T09:30:00Z",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "end",
+      "label": "End",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "all_day",
+      "label": "All Day",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "help": "List of {name, email, rsvp}.",
+      "key": "attendees",
+      "label": "Attendees (JSON)",
+      "language": "json",
+      "required": false,
+      "rows": 3,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "busy_status",
+      "label": "Busy Status",
+      "options": [
+        "",
+        "BUSY",
+        "TENTATIVE",
+        "FREE",
+        "OOF"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "cal_name",
+      "label": "Calendar Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "description",
+      "label": "Description",
+      "required": false,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "geolocation",
+      "label": "Geolocation (JSON)",
+      "language": "json",
+      "placeholder": "{\"lat\": 52.52, \"lon\": 13.405}",
+      "required": false,
+      "rows": 2,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "location",
+      "label": "Location",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "recurrence_rule",
+      "label": "Recurrence Rule",
+      "placeholder": "FREQ=WEEKLY;COUNT=10",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "organizer",
+      "label": "Organizer (JSON)",
+      "language": "json",
+      "placeholder": "{\"name\": \"Ada\", \"email\": \"ada@example.com\"}",
+      "required": false,
+      "rows": 2,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "sequence",
+      "label": "Sequence",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "status",
+      "label": "Status",
+      "options": [
+        "",
+        "CONFIRMED",
+        "CANCELLED",
+        "TENTATIVE"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "uid",
+      "label": "UID",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ics"
+        ]
+      },
+      "key": "url",
+      "label": "URL",
+      "required": false,
+      "type": "text"
+    }
+  ]
+}
