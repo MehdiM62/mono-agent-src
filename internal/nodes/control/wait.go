@@ -58,18 +58,29 @@ func (n *WaitNode) Execute(ctx context.Context, input workflow.NodeInput, config
 			return nil, workflow.PauseFor(remaining, "waiting until "+until.UTC().Format(time.RFC3339))
 		}
 	}
-	if remaining > 0 {
-		select {
-		case <-ctx.Done():
-			return nil, workflow.ErrExecutionCancelled
-		case <-time.After(remaining):
-		}
+	if err := sleepFor(ctx, remaining); err != nil {
+		return nil, err
 	}
 	_ = workflow.SetNodeState(ctx, nil)
 
 	return []workflow.NodeOutput{
 		{Handle: "main", Items: input.Items},
 	}, nil
+}
+
+// sleepFor holds a short wait in memory, honouring cancellation.
+// TODO(merge rw/engine/retry): wrap in workflow.YieldSlotWhile so the queue
+// slot is free while sleeping.
+func sleepFor(ctx context.Context, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return workflow.ErrExecutionCancelled
+	case <-time.After(d):
+		return nil
+	}
 }
 
 // waitTarget computes when the wait ends from the node's config.

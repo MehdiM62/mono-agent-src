@@ -190,6 +190,10 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 	if len(inputItems) > 0 {
 		currentItemJSON = inputItems[0].JSON
 	}
+	// TODO(merge eng-expr): pass r.exec as the 4th argument, and set
+	// exprCtx.RunIndex = r.runIndex(node.ID) once ExpressionContext has it.
+	// PrevNode is not tracked by the runner (inputs may come from several
+	// predecessors).
 	exprCtx := buildExpressionContext(currentItemJSON, r.nodeOutputs, r.wf.ID, r.exec.ID)
 
 	// Resolve config templates — but hold back any fields the node
@@ -305,6 +309,17 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 	}
 
 	if execErr != nil {
+		// TODO(merge rw/engine/retry): route a PartialItemsError's
+		// successful outputs before the on_error handling below:
+		//   var pie *PartialItemsError
+		//   if errors.As(execErr, &pie) && len(pie.Succeeded) > 0 {
+		//     for _, out := range pie.Succeeded {
+		//       h := out.Handle; if h == "" { h = "main" }
+		//       for _, s := range dag.SuccessorsOnHandle(node.ID, h) {
+		//         r.pendingInputs[s.ID] = append(r.pendingInputs[s.ID], out.Items...)
+		//       }
+		//     }
+		//   }
 		logger.Error().Err(execErr).
 			Str("node_id", node.ID).
 			Str("node_name", node.Name).

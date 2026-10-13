@@ -151,3 +151,15 @@ func (r *runner) resetMergeCounter(nodeID, loopID string, body map[string]bool) 
 	}
 	r.mergeWaiting[nodeID] = inside
 }
+
+// runIndex is the 0-based iteration of the innermost active loop whose body
+// contains nodeID (0 outside loops), for $runIndex in expressions.
+func (r *runner) runIndex(nodeID string) int {
+	best, idx := -1, 0
+	for id, ls := range r.loops {
+		if r.dag.loopBody(id)[nodeID] && r.index[id] > best {
+			best, idx = r.index[id], ls.Iterations
+		}
+	}
+	return idx
+}
