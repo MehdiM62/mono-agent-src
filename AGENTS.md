@@ -1417,7 +1417,7 @@ letters, digits and `._#@:-`, the same name for a whole task; `you`,
 `agent`, `capture`, `chrome` and `os` are reserved; a name is a label,
 not a credential), use `list`, `show`, `next`, `claim`, `comment` (on a
 task they hold), `finish`, `release` and `digest`, and may `add` to the
-Inbox (20 tasks an hour). `digest` has no gate: it runs the same in any
+Inbox. `digest` has no gate: it runs the same in any
 context, so a session-start hook can call it. A `comment` run under an
 agent context is an agent's comment: it needs a name.
 
@@ -1457,8 +1457,7 @@ A claim that has run out may be taken over by another agent, and a task
 another agent holds answers `claimed`.
 
 Limits: 2,000 open tasks per profile (every task that is not archived,
-Done ones included: archive some to make room) and 20 tasks an hour
-created by agents per profile; a task with 500 events takes no more
+Done ones included: archive some to make room); a task with 500 events takes no more
 comments, and one with 2,000 events no more claims. Passing a limit
 answers `limit`: finish or release a task you hold, otherwise leave it
 to the user.
