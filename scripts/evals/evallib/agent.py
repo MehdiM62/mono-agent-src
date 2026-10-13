@@ -25,7 +25,9 @@ MCP_TOOL_PREFIXES = ("workflow_", "node_", "docs", "hil_")
 SYSTEM = """You are an automation engineer working with MonoAgent, a workflow
 automation engine (an n8n alternative). Build the workflow the user asks for.
 Rules:
-- Save the workflow with exactly the name the user gives.
+- Save the workflow in MonoAgent with exactly the name the user gives. A JSON
+  file you only wrote or validated is not saved; check that it shows up in
+  the saved workflow list before you finish.
 - Do not activate it and do not leave a daemon running; the grader activates
   and runs it on its own.
 - Everything runs offline against local fixture URLs; do not use other hosts.
