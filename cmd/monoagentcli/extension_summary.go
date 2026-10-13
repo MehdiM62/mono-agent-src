@@ -13,6 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/capture"
 	"github.com/monoes/mono-agent/internal/captureindex"
 	"github.com/monoes/mono-agent/internal/capturesummary"
+	"github.com/monoes/mono-agent/internal/cli/bridge"
 	"github.com/monoes/mono-agent/internal/extension"
 )
 
@@ -96,9 +97,9 @@ func installCaptureSummaries(srv *extension.Server, logf func(string, ...any)) *
 	return &captureHooks{summaries: sum, index: index}
 }
 
-// loggerLogf adapts a zerolog logger for installCaptureSummaries.
+// loggerLogf adapts a zerolog logger for installCaptureSummaries (bridge.LoggerLogf).
 func loggerLogf(logger zerolog.Logger) func(string, ...any) {
-	return func(format string, args ...any) { logger.Info().Msgf(format, args...) }
+	return bridge.LoggerLogf(logger)
 }
 
 // narrateLogf writes summary outcomes into `extension serve`'s own

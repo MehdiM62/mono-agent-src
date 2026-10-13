@@ -14,8 +14,8 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/bridge"
 	"github.com/monoes/mono-agent/internal/extension"
-	"github.com/monoes/mono-agent/internal/logging"
 )
 
 // The long-lived bridge.
@@ -57,31 +57,18 @@ func bridgeLifetimeHint(bridge connChecker) string {
 }
 
 // newExtensionServer builds an extension server wired up the way every
-// process that owns one needs it: answering the popup's profile picker,
-// and reporting this build in its status. One place, so a bridge started
-// by `extension serve` and one started by a workflow run are the same
-// bridge with the same abilities.
+// process that owns one needs it (bridge.NewServer): answering the popup's
+// profile picker and its task entries, and reporting this build in its status.
 func newExtensionServer(logger zerolog.Logger) *extension.Server {
-	srv := extension.NewServer(extensionListenAddr(), logger)
-	// The extension's profile picker asks this process which profiles
-	// exist (profile.list). With no source installed the method is not
-	// advertised at all, and the popup quietly saves into the default
-	// profile — see internal/extension/profile_list.go.
-	srv.SetProfileSource(extensionProfileSource(defaultDBPath))
-	// task.add: the extension's task entries file into the board of the
-	// profile they name (extension_tasks.go). Advertised in ping, so a newer
-	// extension knows this bridge takes tasks.
-	srv.SetTaskSink(extensionTaskSink(defaultDBPath))
-	// chat.send / chat.stop / chat.events: the side panel's chat, run as the
-	// same `chat --conversation --turn` child the desktop app runs
-	// (internal/extension/chat.go). Read-mostly tools only, never runs.
-	srv.SetChatBackend(extension.NewCLIChatBackend())
-	srv.SetVersion(getVersion())
-	// Every bridge that owns the connection writes the summaries its
-	// captures ask for. `extension serve` re-installs this with its own
-	// narration (runExtensionServe).
-	installCaptureSummaries(srv, loggerLogf(logger))
-	return srv
+	return bridge.NewServer(logger, bridge.Options{
+		ListenAddr: extensionListenAddr(),
+		Profiles:   extensionProfileSource(defaultDBPath),
+		Tasks:      extensionTaskSink(defaultDBPath),
+		Version:    getVersion(),
+		InstallCaptureSummaries: func(srv *extension.Server, logf func(string, ...any)) {
+			installCaptureSummaries(srv, logf)
+		},
+	})
 }
 
 // findRunningBridge returns the status of an already-running bridge and
@@ -93,18 +80,9 @@ func findRunningBridge() (extension.Status, string, bool) {
 }
 
 // findRunningBridgeCtx is findRunningBridge that stops probing once ctx is
-// done, so a caller polling under a deadline cannot outlast it by more than
-// one probe (each is bounded by the status probe timeout).
+// done (bridge.FindRunning).
 func findRunningBridgeCtx(ctx context.Context) (extension.Status, string, bool) {
-	for _, addr := range extensionProbeAddrs() {
-		if ctx.Err() != nil {
-			break
-		}
-		if st, err := extension.FetchStatus(addr); err == nil {
-			return st, addr, true
-		}
-	}
-	return extension.Status{}, "", false
+	return bridge.FindRunning(ctx, extensionProbeAddrs())
 }
 
 func newExtensionServeCmd() *cobra.Command {
@@ -201,37 +179,10 @@ func runExtensionServe(ctx context.Context, out io.Writer) error {
 	return nil
 }
 
-// bridgeBindTimeout bounds how long runExtensionServe waits for the server
-// to report a bound address. Binding a loopback port is immediate; this
-// only exists so a pathological start reports something rather than
-// hanging with no output at all.
-const bridgeBindTimeout = 10 * time.Second
-
-// waitForBridgeBind blocks until the server reports the address it bound,
-// or until Start fails, ctx is cancelled, or the timeout expires. Callers
-// check ctx themselves: a cancellation here is a shutdown, not a failure.
+// waitForBridgeBind blocks until the server reports the address it bound
+// (bridge.WaitForBind).
 func waitForBridgeBind(ctx context.Context, srv *extension.Server, errCh <-chan error) (string, error) {
-	deadline := time.Now().Add(bridgeBindTimeout)
-	for {
-		if addr, ok := srv.Addr(); ok {
-			return addr, nil
-		}
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case err, open := <-errCh:
-			if err != nil {
-				return "", err
-			}
-			if !open {
-				return "", fmt.Errorf("the bridge stopped before it bound a port")
-			}
-		case <-time.After(20 * time.Millisecond):
-		}
-		if time.Now().After(deadline) {
-			return "", fmt.Errorf("the bridge did not bind a port within %s", bridgeBindTimeout)
-		}
-	}
+	return bridge.WaitForBind(ctx, srv, errCh)
 }
 
 // bridgeWatchInterval is how often the serve loop re-reads the connection
@@ -321,11 +272,9 @@ func browserName(b extension.ConnInfo) string {
 }
 
 // newBridgeServeLogger keeps the server's own logging out of the command's
-// narration: `extension serve` prints the lifecycle itself, on stdout, in
-// sentences. The server's warn-level events (a rejected handshake, a
-// fallback port) still reach stderr, where they matter.
+// narration (bridge.NewServeLogger).
 func newBridgeServeLogger() zerolog.Logger {
-	return logging.Zerolog().With().Str("component", "extension").Logger()
+	return bridge.NewServeLogger()
 }
 
 // bridgeStatusReport is `extension status --json`. Running is separate from
@@ -412,13 +361,9 @@ func writeBridgeJSON(out io.Writer, report bridgeStatusReport) error {
 }
 
 // bridgeAddr prefers the address the bridge says it bound, falling back to
-// the URL it answered on — they differ only if a status document ever
-// arrives without one, and a blank address is the least useful answer.
+// the URL it answered on (bridge.Addr).
 func bridgeAddr(st extension.Status, base string) string {
-	if st.Addr != "" {
-		return st.Addr
-	}
-	return strings.TrimPrefix(base, "http://")
+	return bridge.Addr(st, base)
 }
 
 // bridgeExtensionLine renders the three states as the sentence each one
