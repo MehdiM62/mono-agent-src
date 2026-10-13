@@ -1,0 +1,139 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "sms77",
+  "title": "seven (sms77)",
+  "description": "Send SMS and text-to-speech voice calls through seven.io (formerly sms77)",
+  "category": "app",
+  "docs_url": "https://docs.seven.io/en/rest-api",
+  "n8n_types": [
+    "n8n-nodes-base.sms77"
+  ],
+  "base_url": "https://gateway.seven.io/api",
+  "headers": {
+    "SentWith": "mono-agent"
+  },
+  "credentials": [
+    {
+      "platform": "sms77",
+      "name": "seven (sms77)",
+      "n8n_credential": "sms77Api",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Developer → API keys in the seven dashboard"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Api-Key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "sms",
+      "label": "SMS"
+    },
+    {
+      "value": "voice",
+      "label": "Voice Call"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "sms",
+      "operation": "send",
+      "title": "Send an SMS",
+      "method": "POST",
+      "path": "/sms",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "text",
+          "help": "Sender number or name"
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true,
+          "help": "Recipient number(s), comma separated"
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "delay",
+            "foreign_id",
+            "flash",
+            "label",
+            "performance_tracking",
+            "ttl"
+          ]
+        }
+      ],
+      "body": {
+        "from": "{{ p.from }}",
+        "to": "{{ p.to }}",
+        "text": "{{ p.message }}",
+        "$merge": "{{ p.options }}"
+      }
+    },
+    {
+      "resource": "voice",
+      "operation": "send",
+      "title": "Call a number and read a text",
+      "method": "POST",
+      "path": "/voice",
+      "body_type": "form",
+      "fields": [
+        {
+          "key": "to",
+          "label": "To",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "from"
+          ]
+        }
+      ],
+      "body": {
+        "to": "{{ p.to }}",
+        "text": "{{ p.message }}",
+        "$merge": "{{ p.options }}"
+      }
+    }
+  ]
+}
