@@ -292,7 +292,7 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		r.scope.Pres = append(r.scope.Pres, v)
 		r.scope.Pre = v
 	}
-	if r.op.Pagination != nil {
+	if r.op.Pagination != nil && r.pagingOn() {
 		results, truncated, err := r.paginate(ctx)
 		if err != nil {
 			return nil, err
@@ -654,6 +654,24 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			}
 		}
 	}
+	if o.Skip > 0 {
+		if o.Skip >= len(list) {
+			list = nil
+		} else {
+			list = list[o.Skip:]
+		}
+	}
+	if o.Sort != "" {
+		path := strings.Split(o.Sort, ".")
+		sort.SliceStable(list, func(i, j int) bool {
+			a, b := lookupPath(list[i], path), lookupPath(list[j], path)
+			less := lessValue(a, b)
+			if o.SortDesc {
+				return lessValue(b, a)
+			}
+			return less
+		})
+	}
 	if o.Limit {
 		list = r.clientLimit(list)
 	}
@@ -899,4 +917,24 @@ func (r *opRun) clientLimit(list []any) []any {
 		return list[:l]
 	}
 	return list
+}
+
+// lessValue orders numbers numerically and anything else as text.
+func lessValue(a, b any) bool {
+	fa, ea := toFloat(a)
+	fb, eb := toFloat(b)
+	if ea == nil && eb == nil && fa != nil && fb != nil {
+		return fa.(float64) < fb.(float64)
+	}
+	return stringify(a) < stringify(b)
+}
+
+// pagingOn reports whether pagination applies to this run.
+func (r *opRun) pagingOn() bool {
+	w := r.op.Pagination.When
+	if w == "" {
+		return true
+	}
+	v, err := renderString(w, r.scope)
+	return err == nil && truthy(v)
 }

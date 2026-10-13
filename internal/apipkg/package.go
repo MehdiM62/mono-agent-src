@@ -245,7 +245,11 @@ type Pagination struct {
 	// Values: the page's results are an object keyed by id (Mautic
 	// {"contacts": {"12": {…}}}); its values are the list (numeric keys in
 	// numeric order, else sorted).
-	Values         bool   `json:"values,omitempty"`
+	Values bool `json:"values,omitempty"`
+	// When (a template) turns paging off when it renders false: one plain
+	// request, no page params (Strapi v3 vs v4 by credential). The param
+	// names (cursor/offset/limit/page_param) may be templates too.
+	When           string `json:"when,omitempty"`
 	ResultsPath    string `json:"results_path,omitempty"`
 	ReturnAllField string `json:"return_all_field,omitempty"`
 	LimitField     string `json:"limit_field,omitempty"`
@@ -289,6 +293,11 @@ type Output struct {
 	From string `json:"from,omitempty"`
 	// Merge folds a list of objects into one object (Hue update results).
 	Merge bool `json:"merge,omitempty"`
+	// Skip drops the first n elements (NextCloud lists the folder itself
+	// first); Sort orders elements by a dot path (SortDesc: descending).
+	Skip     int    `json:"skip,omitempty"`
+	Sort     string `json:"sort,omitempty"`
+	SortDesc bool   `json:"sort_desc,omitempty"`
 	// Limit applies n8n's returnAll/limit fields to a list that isn't
 	// paginated (client-side slicing).
 	Limit bool `json:"limit,omitempty"`
