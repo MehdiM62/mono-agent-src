@@ -45,6 +45,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 		"file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)&_pragma=synchronous(NORMAL)",
 		absPath,
 	)
+	created := isNewFile(absPath)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
@@ -55,6 +56,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 		db.Close()
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
+	privatizeNewDB(created, absPath)
 
 	return &Database{DB: db, dbPath: absPath}, nil
 }
