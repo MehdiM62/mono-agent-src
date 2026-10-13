@@ -39,7 +39,7 @@ func nodeByName(t *testing.T, wf *workflow.WorkflowFile, name string) workflow.W
 	return workflow.WorkflowFileNode{}
 }
 
-func hasEdge(wf *workflow.WorkflowFile, from, to string) bool {
+func sendWaitEdge(wf *workflow.WorkflowFile, from, to string) bool {
 	for _, e := range wf.Connections {
 		if e.Source == from && e.Target == to {
 			return true
@@ -97,7 +97,7 @@ func TestSendAndWaitBecomesSendPlusReview(t *testing.T) {
 		if review.Type != "core.human_in_loop" || review.Config["timeout_minutes"] != c.timeout {
 			t.Errorf("%s: review %s %v", c.name, review.Type, review.Config)
 		}
-		if !hasEdge(wf, send.ID, review.ID) {
+		if !sendWaitEdge(wf, send.ID, review.ID) {
 			t.Errorf("%s: send is not wired to the review step", c.name)
 		}
 		got := issuesOf(rep, c.name)
@@ -114,7 +114,7 @@ func TestSendAndWaitBecomesSendPlusReview(t *testing.T) {
 	if gm.Config["to"] != "boss@example.com" || gm.Config["body"] != "Please approve" || gm.Config["body_type"] != "text" {
 		t.Errorf("gmail send config %v", gm.Config)
 	}
-	if !hasEdge(wf, nodeByName(t, wf, "Ask Slack").ID, gm.ID) || !hasEdge(wf, nodeByName(t, wf, "Ask Teams").ID, nodeByName(t, wf, "After").ID) {
+	if !sendWaitEdge(wf, nodeByName(t, wf, "Ask Slack").ID, gm.ID) || !sendWaitEdge(wf, nodeByName(t, wf, "Ask Teams").ID, nodeByName(t, wf, "After").ID) {
 		t.Errorf("chain is not wired in order: %+v", wf.Connections)
 	}
 }
