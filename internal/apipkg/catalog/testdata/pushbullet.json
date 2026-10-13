@@ -1,0 +1,79 @@
+{
+  "push.create": {
+    "params": {
+      "type": "link",
+      "title": "T",
+      "body": "B",
+      "url": "https://x.test",
+      "target": "email",
+      "value": "a@b.c"
+    },
+    "response": {
+      "iden": "p1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/pushes",
+      "body": {
+        "type": "link",
+        "body": "B",
+        "title": "T",
+        "url": "https://x.test",
+        "email": "a@b.c"
+      },
+      "items": 1
+    }
+  },
+  "push.delete": {
+    "params": {
+      "pushId": "p1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/pushes/p1",
+      "items": 1
+    }
+  },
+  "push.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "active": true,
+        "modified_after": "2024-01-01T00:00:00Z"
+      }
+    },
+    "response": {
+      "pushes": [
+        {
+          "iden": "a"
+        },
+        {
+          "iden": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/pushes",
+      "query": {
+        "active": "true",
+        "modified_after": "1704067200",
+        "limit": "5"
+      },
+      "items": 2
+    }
+  },
+  "push.update": {
+    "params": {
+      "pushId": "p1",
+      "dismissed": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/pushes/p1",
+      "body": {
+        "dismissed": true
+      }
+    }
+  }
+}

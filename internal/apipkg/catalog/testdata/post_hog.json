@@ -1,0 +1,155 @@
+{
+  "event.create": {
+    "params": {
+      "eventName": "signup",
+      "distinctId": "u1",
+      "additionalFields": {
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "plan",
+              "value": "pro"
+            }
+          ]
+        },
+        "timestamp": "2024-01-02T03:04:05Z"
+      }
+    },
+    "response": {
+      "status": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/capture/",
+      "body": {
+        "api_key": "test-api_key",
+        "event": "signup",
+        "properties": {
+          "distinct_id": "u1",
+          "plan": "pro"
+        },
+        "timestamp": "2024-01-02T03:04:05.000Z"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://app.posthog.com",
+      "api_key": "test-api_key"
+    }
+  },
+  "alias.create": {
+    "params": {
+      "alias": "a1",
+      "distinctId": "u1",
+      "additionalFields": {
+        "contextUi": {
+          "contextValues": [
+            {
+              "key": "ip",
+              "value": "1.2.3.4"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/batch",
+      "body": {
+        "api_key": "test-api_key",
+        "type": "alias",
+        "event": "$create_alias",
+        "context": {
+          "ip": "1.2.3.4"
+        },
+        "properties": {
+          "distinct_id": "u1",
+          "alias": "a1"
+        }
+      }
+    },
+    "credential": {
+      "url": "https://app.posthog.com",
+      "api_key": "test-api_key"
+    }
+  },
+  "identity.create": {
+    "params": {
+      "distinctId": "u1",
+      "additionalFields": {
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "email",
+              "value": "a@b.c"
+            }
+          ]
+        },
+        "messageId": "m1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/batch",
+      "body": {
+        "api_key": "test-api_key",
+        "event": "$identify",
+        "distinct_id": "u1",
+        "properties": {
+          "email": "a@b.c"
+        },
+        "messageId": "m1"
+      }
+    },
+    "credential": {
+      "url": "https://app.posthog.com",
+      "api_key": "test-api_key"
+    }
+  },
+  "track.page": {
+    "params": {
+      "name": "Home",
+      "distinctId": "u1",
+      "additionalFields": {
+        "category": "web"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/batch",
+      "body": {
+        "api_key": "test-api_key",
+        "name": "Home",
+        "type": "page",
+        "event": "$page",
+        "distinct_id": "u1",
+        "category": "web"
+      }
+    },
+    "credential": {
+      "url": "https://app.posthog.com",
+      "api_key": "test-api_key"
+    }
+  },
+  "track.screen": {
+    "params": {
+      "name": "Main",
+      "distinctId": "u1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/batch",
+      "body": {
+        "api_key": "test-api_key",
+        "name": "Main",
+        "type": "screen",
+        "event": "$screen",
+        "distinct_id": "u1"
+      }
+    },
+    "credential": {
+      "url": "https://app.posthog.com",
+      "api_key": "test-api_key"
+    }
+  }
+}

@@ -1,0 +1,139 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "pushover",
+  "node_type": "app.pushover",
+  "title": "Pushover",
+  "description": "Push notifications to phones and desktops with Pushover",
+  "category": "app",
+  "docs_url": "https://pushover.net/api",
+  "n8n_types": [
+    "n8n-nodes-base.pushover"
+  ],
+  "base_url": "https://api.pushover.net/1",
+  "credentials": [
+    {
+      "platform": "pushover",
+      "name": "Pushover",
+      "n8n_credential": "pushoverApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "Application API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "body": {
+          "token": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "push",
+      "title": "Push a message",
+      "method": "POST",
+      "path": "/messages.json",
+      "fields": [
+        {
+          "key": "userKey",
+          "label": "User key",
+          "type": "text",
+          "required": true,
+          "help": "The user or group key (not an email address)"
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "priority",
+          "label": "Priority",
+          "type": "number",
+          "default": -2,
+          "help": "-2 lowest \u2026 2 emergency (needs retry and expire)",
+          "min": -2,
+          "max": 2
+        },
+        {
+          "key": "retryInterval",
+          "label": "Retry (s)",
+          "type": "number",
+          "default": 30,
+          "min": 0,
+          "help": "Emergency priority: seconds between retries (at least 30)"
+        },
+        {
+          "key": "expire",
+          "label": "Expire (s)",
+          "type": "number",
+          "default": 30,
+          "min": 0,
+          "max": 10800,
+          "help": "Emergency priority: how long to keep retrying"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsUi",
+            "device",
+            "html",
+            "sound",
+            "timestamp",
+            "title",
+            "ttl",
+            "url",
+            "url_title"
+          ],
+          "help": "attachmentsUi: {attachmentsValues: {binaryPropertyName}}"
+        }
+      ],
+      "body": {
+        "user": "{{ p.userKey }}",
+        "message": "{{ p.message }}",
+        "priority": "{{ p.priority }}",
+        "retry": "{{ p.priority | eq:'2' | then:p.retryInterval }}",
+        "expire": "{{ p.priority | eq:'2' | then:p.expire }}",
+        "device": "{{ p.additionalFields.device }}",
+        "html": "{{ p.additionalFields.html | bool | then:'1' }}",
+        "sound": "{{ p.additionalFields.sound }}",
+        "timestamp": "{{ p.additionalFields.timestamp | epoch }}",
+        "title": "{{ p.additionalFields.title }}",
+        "ttl": "{{ p.additionalFields.ttl }}",
+        "url": "{{ p.additionalFields.url }}",
+        "url_title": "{{ p.additionalFields.url_title }}"
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "additionalFields",
+        "property": "{{ p.additionalFields.attachmentsUi.attachmentsValues.binaryPropertyName }}",
+        "upload_when": "{{ p.additionalFields.attachmentsUi.attachmentsValues.binaryPropertyName }}",
+        "multipart_field": "attachment",
+        "fallback_body_type": "form"
+      },
+      "n8n_param_map": {
+        "retry": "retryInterval"
+      }
+    }
+  ]
+}
