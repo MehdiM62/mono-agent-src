@@ -829,3 +829,113 @@ func TestValuesFromMergeAndWebDAV(t *testing.T) {
 		t.Errorf("webdav: %v %v %v", items, err, methods)
 	}
 }
+
+func TestPagedValuesInjectBodyAndPathWildcard(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"mt","title":"M","base_url":"https://m.test",
+	  "credentials":[{"platform":"mt","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true}],
+	    "inject":{"body":{"key":"{{ cred.api_key }}"}}}],
+	  "operations":[{"resource":"","operation":"contacts","title":"C","method":"GET","path":"/contacts",
+	    "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	    "pagination":{"type":"offset","offset_param":"start","limit_param":"limit","page_size":2,"results_path":"contacts","values":true}},
+	   {"resource":"","operation":"send","title":"S","method":"POST","path":"/send/{{ uuid }}","body":{"text":"hi"}}]}`)
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		switch r.URL.Query().Get("start") {
+		case "0":
+			w.Write([]byte(`{"total":3,"contacts":{"12":{"id":12},"9":{"id":9}}}`))
+		case "2":
+			w.Write([]byte(`{"total":3,"contacts":{"100":{"id":100}}}`))
+		default:
+			w.Write([]byte(`{"ok":true}`))
+		}
+	})
+	c := map[string]any{"api_key": "K1"}
+	items, err := runPackageOp(p, map[string]any{"operation": "contacts", "returnAll": true}, c, nil)
+	if err != nil || len(items) != 3 || items[0].JSON["id"] != 9.0 || items[2].JSON["id"] != 100.0 {
+		t.Errorf("paged values: %v %v", items, err)
+	}
+	bodies = nil
+	if _, err := runPackageOp(p, map[string]any{"operation": "send"}, c, nil); err != nil {
+		t.Fatal(err)
+	}
+	if bodies[0] != `{"key":"K1","text":"hi"}` {
+		t.Errorf("inject.body: %s", bodies[0])
+	}
+	if !pathMatches("/send/abc-123", "/send/<any>") || pathMatches("/send/", "/send/<any>") || pathMatches("/x/a", "/send/<any>") {
+		t.Error("pathMatches")
+	}
+}
+
+func TestMultiFileUploadsAndTypedInjectBody(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"mg","title":"MG","base_url":"https://mg.test",
+	  "credentials":[{"platform":"mg","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true},{"key":"sandbox","label":"S"}],
+	    "inject":{"body":{"key":"{{ cred.api_key }}","SandboxMode":"{{ cred.sandbox | bool }}"}}}],
+	  "operations":[{"resource":"","operation":"send","title":"S","method":"POST","path":"/messages","body_type":"multipart",
+	    "fields":[{"key":"attachments","label":"A","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	    "body":{"to":"a@b"},
+	    "binary":{"upload_field":"binaryPropertyName","properties":"{{ p.attachments }}","multipart_field":"attachment[{{ el.index }}]"}},
+	   {"resource":"","operation":"json","title":"J","method":"POST","path":"/json",
+	    "fields":[{"key":"attachments","label":"A","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	    "body":{"attachments":{"$map":"{{ bin.files }}","$to":{"name":"{{ el.file_name }}","content":"{{ el.base64 }}"}}},
+	    "binary":{"upload_field":"binaryPropertyName","properties":"{{ p.attachments }}"}}]}`)
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		w.Write([]byte(`{}`))
+	})
+	in := map[string]any{"a": "aGk=", "b": "eW8=", "file_name": "f.txt"}
+	c := map[string]any{"api_key": "K", "sandbox": "true"}
+	if _, err := runPackageOp(p, map[string]any{"operation": "send", "attachments": "a, b"}, c, in); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(bodies[0], `name="attachment[0]"`) || !strings.Contains(bodies[0], `name="attachment[1]"`) ||
+		!strings.Contains(bodies[0], "\r\nhi\r\n") || !strings.Contains(bodies[0], "\r\nyo\r\n") {
+		t.Errorf("multipart: %s", bodies[0])
+	}
+	if _, err := runPackageOp(p, map[string]any{"operation": "json", "attachments": "a,b"}, c, in); err != nil {
+		t.Fatal(err)
+	}
+	var j map[string]any
+	_ = json.Unmarshal([]byte(bodies[1]), &j)
+	at, _ := j["attachments"].([]any)
+	if len(at) != 2 || at[1].(map[string]any)["content"] != "eW8=" || j["SandboxMode"] != true || j["key"] != "K" {
+		t.Errorf("json files / typed inject: %s", bodies[1])
+	}
+}
+
+// Pushbullet file push: request an upload slot (needs the file name and
+// type), POST the file as multipart to the presigned URL, then create the
+// push. upload_when "false" (a literal) keeps the main request plain.
+func TestPresignedMultipartUploadStep(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"push","title":"P","method":"POST","path":"/pushes",
+	  "fields":[{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	  "before":[{"method":"POST","path":"/upload-request","body":{"file_name":"{{ bin.file_name }}","file_type":"{{ bin.mime_type }}"}},
+	    {"upload":true,"method":"POST","path":"{{ pre.upload_url }}","body_type":"multipart","body":{"awsaccesskeyid":"{{ pre.data.awsaccesskeyid }}"}}],
+	  "body":{"type":"file","file_url":"{{ pres.0.file_url }}"},
+	  "binary":{"upload_field":"binaryPropertyName","upload_when":"false","multipart_field":"file"}}`))
+	var cts, bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		cts, bodies = append(cts, r.Header.Get("Content-Type")), append(bodies, string(b))
+		if n == 1 {
+			w.Write([]byte(`{"upload_url":"https://s3.test/up","file_url":"https://dl.test/f.png","data":{"awsaccesskeyid":"AK"}}`))
+			return
+		}
+		w.Write([]byte(`{}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "push"}, cred, map[string]any{"data": "aGk=", "file_name": "f.png"}); err != nil {
+		t.Fatal(err)
+	}
+	if bodies[0] != `{"file_name":"f.png","file_type":"image/png"}` {
+		t.Errorf("upload request: %s", bodies[0])
+	}
+	if !strings.HasPrefix(cts[1], "multipart/form-data") || !strings.Contains(bodies[1], `name="awsaccesskeyid"`) || !strings.Contains(bodies[1], `name="file"; filename="f.png"`) {
+		t.Errorf("presigned post: %s %s", cts[1], bodies[1])
+	}
+	if cts[2] != "application/json" || bodies[2] != `{"file_url":"https://dl.test/f.png","type":"file"}` {
+		t.Errorf("push: %s %s", cts[2], bodies[2])
+	}
+}

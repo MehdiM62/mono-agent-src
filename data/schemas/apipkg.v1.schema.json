@@ -93,6 +93,7 @@
       "properties": {
         "headers": { "$ref": "#/$defs/stringMap" },
         "query": { "$ref": "#/$defs/stringMap" },
+        "body": { "$ref": "#/$defs/stringMap" },
         "jwt": {
           "type": "object", "required": ["alg", "secret"], "additionalProperties": false,
           "properties": {
@@ -191,6 +192,7 @@
             "fallback_body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
             "download_base64": { "type": "string" },
             "property": { "type": "string" },
+            "properties": { "type": "string" },
             "upload_text": { "type": "string" }
           }
         },
@@ -309,6 +311,7 @@
         "limit_param": { "type": "string" },
         "page_param": { "type": "string" },
         "next_url_prefix": { "type": "string" },
+        "values": { "type": "boolean" },
         "next_url_path": { "type": "string" },
         "results_path": { "type": "string" },
         "return_all_field": { "type": "string" },

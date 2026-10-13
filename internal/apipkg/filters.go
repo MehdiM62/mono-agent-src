@@ -138,16 +138,7 @@ func applyFilter(name string, v, arg any) (any, error) {
 		if !ok {
 			return v, nil
 		}
-		keys := make([]string, 0, len(m))
-		for k := range m {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		out := make([]any, 0, len(keys))
-		for _, k := range keys {
-			out = append(out, m[k])
-		}
-		return out, nil
+		return objectValues(m), nil
 	case "hex":
 		h := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(stringify(v)), "#"), "0x")
 		if h == "" {
@@ -884,4 +875,17 @@ func epochTime(n int64) time.Time {
 		return time.UnixMilli(n)
 	}
 	return time.Unix(n, 0)
+}
+
+// truthy is how *_when, until and $when conditions read a rendered value:
+// empty, false, 0 and "false"/"0"/"no"/"off" are false; any other
+// non-empty value (an id, a mode name) is true.
+func truthy(v any) bool {
+	if isEmpty(v) {
+		return false
+	}
+	if b, err := toBool(v); err == nil && b != nil {
+		return b == true
+	}
+	return true
 }

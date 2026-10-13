@@ -3,6 +3,8 @@ package apipkg
 import (
 	"context"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -109,6 +111,11 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 			r.scope.Res = doc // output shaping reads headers etc. from the first page
 		}
 		results := pageResults(doc, resultsPath)
+		if pg.Values && len(results) == 1 {
+			if m, ok := results[0].(map[string]any); ok {
+				results = objectValues(m)
+			}
+		}
 		all = append(all, results...)
 		if !returnAll && len(all) >= limit {
 			return all[:limit], false, nil
@@ -208,4 +215,26 @@ func resolveNext(current, next string) string {
 		return ""
 	}
 	return base.ResolveReference(ref).String()
+}
+
+// objectValues lists an object's values: numeric keys in numeric order,
+// other keys sorted.
+func objectValues(m map[string]any) []any {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		a, ea := strconv.ParseFloat(keys[i], 64)
+		b, eb := strconv.ParseFloat(keys[j], 64)
+		if ea == nil && eb == nil {
+			return a < b
+		}
+		return keys[i] < keys[j]
+	})
+	out := make([]any, len(keys))
+	for i, k := range keys {
+		out[i] = m[k]
+	}
+	return out
 }

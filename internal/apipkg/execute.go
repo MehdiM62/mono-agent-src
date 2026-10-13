@@ -92,6 +92,8 @@ type opRun struct {
 	item    workflow.Item
 	credDef *Credential
 	scope   Scope
+	// prop overrides the upload property (one of binary.properties).
+	prop string
 }
 
 func (r *opRun) errf(format string, a ...any) error {
@@ -152,7 +154,9 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
-		if r.uploads() {
+		if op.Binary != nil && op.Binary.UploadField != "" {
+			// Filled for every step: a before step that requests an upload
+			// slot needs the file's name and type (Pushbullet, S3 presigned).
 			r.scope.Bin = r.binMeta()
 		}
 		if op.Batch {
@@ -523,7 +527,7 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 		if err != nil {
 			return nil, r.errf("when: %w", err)
 		}
-		if isEmpty(w) || w == false {
+		if !truthy(w) {
 			return nil, nil
 		}
 	}
@@ -534,7 +538,13 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 	if st.Upload && r.op.Binary != nil && r.op.Binary.UploadField != "" {
 		b := *r.op.Binary
 		b.UploadWhen, b.DownloadWhen, b.Download, b.DownloadBase64 = "", "", false, ""
-		op.Binary, op.Body, op.BodyType = &b, nil, BodyRaw
+		op.Binary = &b
+		if st.BodyType == BodyMultipart {
+			// S3-style presigned POST: the step's form fields plus the file.
+			op.BodyType = BodyMultipart
+		} else {
+			op.Body, op.BodyType = nil, BodyRaw
+		}
 	} else {
 		op.Binary = nil
 	}
@@ -665,7 +675,7 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			if err != nil {
 				return nil, r.errf("output.to_when: %w", err)
 			}
-			apply = !isEmpty(w) && w != false
+			apply = truthy(w)
 		}
 		if apply {
 			for i, el := range list {
@@ -730,7 +740,7 @@ func (r *opRun) downloads() bool {
 		return b.Download
 	}
 	w, err := renderString(b.DownloadWhen, r.scope)
-	return err == nil && !isEmpty(w) && w != false
+	return err == nil && truthy(w)
 }
 
 // poll repeats op.Poll after the main response until its until template
