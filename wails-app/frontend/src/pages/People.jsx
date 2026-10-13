@@ -1030,7 +1030,7 @@ export default function People({ onProfile, isActive = true, onNavigate }) {
                                 type="button"
                                 data-testid="people-comms-link"
                                 onClick={() => onNavigate('communications', { person: p.id })}
-                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', fontSize: 10, color: 'var(--cyan)', textDecoration: 'underline' }}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', fontSize: 10, color: 'var(--cyan)', textDecoration: 'underline', whiteSpace: 'nowrap' }}
                               >
                                 {t('comms.commsCount', { count: comms[p.id].total })}
                                 {comms[p.id].pending > 0 && ` \u00B7 ${t('comms.commsPending', { count: comms[p.id].pending })}`}
