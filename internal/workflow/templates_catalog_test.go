@@ -140,9 +140,16 @@ func checkTemplateNode(t *testing.T, n WorkflowFileNode) {
 	if err != nil {
 		t.Fatalf("node %s: %v", n.ID, err)
 	}
+	// A key may appear several times with different depends_on (API
+	// package selects per resource); use the field that applies to this
+	// config: one whose dependency matches, else the first one.
 	fields := map[string]NodeSchemaField{}
 	for _, f := range schema.Fields {
-		fields[f.Key] = f
+		prev, seen := fields[f.Key]
+		applies := f.DependsOn == nil || containsString(f.DependsOn.Values, fmt.Sprint(n.Config[f.DependsOn.Key]))
+		if !seen || (applies && prev.DependsOn != nil && !containsString(prev.DependsOn.Values, fmt.Sprint(n.Config[prev.DependsOn.Key]))) {
+			fields[f.Key] = f
+		}
 	}
 	for key, val := range n.Config {
 		f, known := fields[key]
