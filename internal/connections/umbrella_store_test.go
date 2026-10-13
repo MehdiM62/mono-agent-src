@@ -283,3 +283,30 @@ func TestRecordUmbrellaGrant(t *testing.T) {
 		t.Errorf("legacy connection marked: %v", c.Data)
 	}
 }
+
+// An API package credential with "reuse_platform": "google" / "microsoft"
+// names the umbrella as its platform: the umbrella is built in (so apipkg
+// validation accepts it and RegisterPlatform cannot shadow it), and
+// resolving the platform name returns the umbrella connection.
+func TestReusePlatformResolvesUmbrellaConnection(t *testing.T) {
+	ctx := context.Background()
+	for _, umbrella := range UmbrellaPlatforms() {
+		t.Run(umbrella, func(t *testing.T) {
+			if !IsBuiltin(umbrella) {
+				t.Fatalf("%s must be a built-in platform for reuse_platform", umbrella)
+			}
+			if err := RegisterPlatform(PlatformDef{ID: umbrella, Methods: []AuthMethod{MethodAPIKey}}); err == nil {
+				t.Fatalf("RegisterPlatform must refuse the built-in %s", umbrella)
+			}
+			if p, ok := Get(umbrella); !ok || p.OAuth == nil || !IsUmbrella(p.ID) {
+				t.Fatalf("Get(%s) = %+v, %v", umbrella, p, ok)
+			}
+			s := NewStore(newTestDB(t))
+			want := saveTestConn(t, s, umbrella, "me@example.com", map[string]interface{}{"access_token": "u", "oauth_platform": umbrella})
+			got, err := s.GetOrResolve(ctx, umbrella, "")
+			if err != nil || got.ID != want.ID || got.Data["access_token"] != "u" {
+				t.Fatalf("GetOrResolve(%s) = %+v, %v", umbrella, got, err)
+			}
+		})
+	}
+}
