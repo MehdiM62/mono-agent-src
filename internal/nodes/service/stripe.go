@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -153,6 +154,9 @@ func stripeGetList(ctx context.Context, endpoint, apiKey string, params map[stri
 }
 
 func (n *StripeNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.stripe", config) {
+		return apipkg.ExecuteExtension(ctx, "service.stripe", input, config)
+	}
 	// Registry connections store the key as secret_key (the field
 	// internal/connections/registry.go defines for stripe); api_key is the
 	// legacy key older hand-written workflows used — accepted as fallback.

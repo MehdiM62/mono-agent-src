@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -30,6 +31,9 @@ func (n *OutlookMailNode) Type() string { return "service.outlook_mail" }
 const outlookGraphBaseURL = "https://graph.microsoft.com/v1.0/me"
 
 func (n *OutlookMailNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.outlook_mail", config) {
+		return apipkg.ExecuteExtension(ctx, "service.outlook_mail", input, config)
+	}
 	if mode, err := outlookAuthMode(config); err != nil {
 		return nil, err
 	} else if mode == outlookAuthAppPassword {

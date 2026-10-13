@@ -138,8 +138,13 @@ func TestRuntimeTransforms(t *testing.T) {
 		t.Errorf("sort by total desc: first = %v", sorted[0])
 	}
 	split := runNode(t, wf, "Split lines", orders)
-	expectJSON(t, "split out", split, `[{"order":1,"customer":"ada","sku":"A","qty":2},{"order":1,"customer":"ada","sku":"B","qty":1},{"order":2,"customer":"bob","sku":"A","qty":1}]`)
-	renamed := runNode(t, wf, "Rename", split)
+	// As n8n: with selected other fields an object element stays under the
+	// split field's name (only "no other fields" merges it into the item).
+	expectJSON(t, "split out", split, `[{"order":1,"customer":"ada","lines":{"sku":"A","qty":2}},{"order":1,"customer":"ada","lines":{"sku":"B","qty":1}},{"order":2,"customer":"bob","lines":{"sku":"A","qty":1}}]`)
+	lines := []map[string]interface{}{
+		{"order": 1.0, "sku": "A", "qty": 2.0}, {"order": 1.0, "sku": "B", "qty": 1.0}, {"order": 2.0, "sku": "A", "qty": 1.0},
+	}
+	renamed := runNode(t, wf, "Rename", lines)
 	sum := runNode(t, wf, "Summarize", renamed)
 	expectJSON(t, "summarize", sum, `[{"sku":"A","sum_quantity":3,"unique_count_order":2},{"sku":"B","sum_quantity":1,"unique_count_order":1}]`)
 	expectJSON(t, "limit last", runNode(t, wf, "Last", sum), `[{"sku":"B","sum_quantity":1,"unique_count_order":1}]`)

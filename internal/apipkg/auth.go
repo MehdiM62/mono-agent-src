@@ -1,8 +1,16 @@
 package apipkg
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
+	"hash"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -102,6 +110,48 @@ func injectAuth(req *http.Request, c *Credential, sc Scope, body []byte) error {
 		if u != "" || pw != "" {
 			req.SetBasicAuth(u, pw)
 		}
+	}
+	if h := in.HMAC; h != nil {
+		hsc := sc
+		hsc.Req = map[string]any{"method": req.Method, "path": req.URL.EscapedPath(), "query": req.URL.RawQuery, "body": string(body)}
+		secret, err := renderText(h.Secret, hsc)
+		if err != nil {
+			return fmt.Errorf("credential %s: hmac secret: %w", c.Platform, err)
+		}
+		msg, err := renderText(h.Message, hsc)
+		if err != nil {
+			return fmt.Errorf("credential %s: hmac message: %w", c.Platform, err)
+		}
+		var hf func() hash.Hash
+		switch strings.ToUpper(h.Alg) {
+		case "SHA1":
+			hf = sha1.New
+		case "SHA512":
+			hf = sha512.New
+		default:
+			hf = sha256.New
+		}
+		m := hmac.New(hf, []byte(secret))
+		m.Write([]byte(msg))
+		sig := base64.StdEncoding.EncodeToString(m.Sum(nil))
+		if h.Encoding == "hex" {
+			sig = hex.EncodeToString(m.Sum(nil))
+		}
+		req.Header.Set(h.Header, h.Prefix+sig)
+	}
+	if j := in.JWT; j != nil {
+		tok, err := signJWT(j, sc)
+		if err != nil {
+			return fmt.Errorf("credential %s: jwt: %w", c.Platform, err)
+		}
+		h, prefix := j.Header, j.Prefix
+		if h == "" {
+			h = "Authorization"
+		}
+		if prefix == "" && h == "Authorization" {
+			prefix = "Bearer "
+		}
+		req.Header.Set(h, prefix+tok)
 	}
 	if s := in.AWSSigV4; s != nil {
 		var p sigV4Params

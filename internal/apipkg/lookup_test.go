@@ -1,8 +1,17 @@
 package apipkg
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"io"
+	"math/big"
 	"net/http"
 	"reflect"
 	"strings"
@@ -549,5 +558,533 @@ func TestDiscordHelpers(t *testing.T) {
 	}
 	if op, err := p.resolveOp(map[string]any{"operation": "create"}); err != nil || op.Path != "/c" {
 		t.Errorf("default resource still wins: %v %v", op, err)
+	}
+}
+
+func TestTriggerOnlyPackage(t *testing.T) {
+	p, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"eventbrite","title":"Eventbrite","base_url":"https://www.eventbriteapi.com/v3",
+	  "n8n_trigger_types":["n8n-nodes-base.eventbriteTrigger"],"operations":[]}`), "test")
+	if err != nil {
+		t.Fatalf("trigger-only package must validate: %v", err)
+	}
+	if len(p.Operations) != 0 || len(p.N8nTriggerTypes) != 1 {
+		t.Errorf("parsed: %+v", p)
+	}
+	if _, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"empty","title":"E","base_url":"https://e.test","operations":[]}`), "test"); err == nil ||
+		!strings.Contains(err.Error(), "n8n_trigger_types") {
+		t.Errorf("no ops and no triggers must fail: %v", err)
+	}
+}
+
+func TestJWTInjectGhost(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"ghost","title":"Ghost","base_url":"https://blog.test/ghost/api/admin",
+	  "credentials":[{"platform":"ghost","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true}],
+	    "inject":{"jwt":{"prefix":"Ghost ","alg":"HS256","secret":"{{ cred.api_key | split:':' | get:'1' }}","secret_encoding":"hex",
+	      "kid":"{{ cred.api_key | split:':' | get:'0' }}","claims":{"aud":"/admin/"}}}}],
+	  "operations":[{"resource":"","operation":"get","title":"G","method":"GET","path":"/posts/"}]}`)
+	var auth string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		auth = r.Header.Get("Authorization")
+		w.Write([]byte(`{"posts":[]}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "get"}, map[string]any{"api_key": "kid1:00ff"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	tok := strings.TrimPrefix(auth, "Ghost ")
+	parts := strings.Split(tok, ".")
+	if !strings.HasPrefix(auth, "Ghost ") || len(parts) != 3 {
+		t.Fatalf("auth = %q", auth)
+	}
+	hb, _ := base64.RawURLEncoding.DecodeString(parts[0])
+	cb, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	var h, c map[string]any
+	_ = json.Unmarshal(hb, &h)
+	_ = json.Unmarshal(cb, &c)
+	if h["kid"] != "kid1" || h["alg"] != "HS256" || c["aud"] != "/admin/" || c["exp"].(float64)-c["iat"].(float64) != 300 {
+		t.Errorf("header %v claims %v", h, c)
+	}
+	m := hmac.New(sha256.New, []byte{0x00, 0xff})
+	m.Write([]byte(parts[0] + "." + parts[1]))
+	if base64.RawURLEncoding.EncodeToString(m.Sum(nil)) != parts[2] {
+		t.Error("signature mismatch")
+	}
+}
+
+func TestJWTES256(t *testing.T) {
+	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	der, _ := x509.MarshalPKCS8PrivateKey(k)
+	pemKey := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	tok, err := signJWT(&JWTInject{Alg: "ES256", Secret: "{{ cred.key }}", Claims: map[string]any{"aud": "appstoreconnect-v1"}}, Scope{Cred: map[string]any{"key": pemKey}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(tok, ".")
+	sig, _ := base64.RawURLEncoding.DecodeString(parts[2])
+	sum := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
+	r, s := new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])
+	if len(sig) != 64 || !ecdsa.Verify(&k.PublicKey, sum[:], r, s) {
+		t.Error("ES256 signature does not verify")
+	}
+}
+
+func TestExtendsCannotShadowNativeOps(t *testing.T) {
+	_, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"gh","title":"GH","base_url":"https://api.github.test","extends":"service.github",
+	  "operations":[{"resource":"","operation":"create_issue","title":"X","method":"POST","path":"/x"}]}`), "test")
+	if err == nil || !strings.Contains(err.Error(), "would replace the native one") {
+		t.Errorf("want shadowing error, got %v", err)
+	}
+	if _, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"gh","title":"GH","base_url":"https://api.github.test","extends":"service.github",
+	  "operations":[{"resource":"","operation":"get_user_n8n","title":"X","method":"GET","path":"/x"}]}`), "test"); err != nil {
+		t.Errorf("a new resourceless op is fine: %v", err)
+	}
+}
+
+func TestBase64InJSONUploadAndDownload(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"put","title":"P","method":"PUT","path":"/contents/{{ p.path }}",
+	  "fields":[{"key":"path","label":"P","type":"text"},{"key":"binaryData","label":"B","type":"boolean"},{"key":"fileContent","label":"C","type":"text"},
+	    {"key":"binaryPropertyName","label":"N","type":"text","default":"data"}],
+	  "body":{"content":"{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"},
+	  "binary":{"upload_field":"binaryPropertyName","upload_when":"{{ p.binaryData }}"}},
+	  {"resource":"","operation":"get","title":"G","method":"GET","path":"/contents/{{ p.path }}",
+	  "fields":[{"key":"path","label":"P","type":"text"},{"key":"asBinaryProperty","label":"A","type":"boolean"}],
+	  "binary":{"download_when":"{{ p.asBinaryProperty }}","download_base64":"{{ res.content }}","file_name":"{{ res.name }}"}}`))
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		w.Write([]byte(`{"name":"a.txt","sha":"s1","content":"aGVs\nbG8="}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "put", "path": "a.txt", "binaryData": true}, cred, map[string]any{"data": "aGk="}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runPackageOp(p, map[string]any{"operation": "put", "path": "a.txt", "fileContent": "yo"}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	if bodies[0] != `{"content":"aGk="}` || bodies[1] != `{"content":"eW8="}` {
+		t.Errorf("bodies = %v", bodies)
+	}
+	items, err := runPackageOp(p, map[string]any{"operation": "get", "path": "a.txt", "asBinaryProperty": true}, cred, nil)
+	if err != nil || string(items[0].Binary["data"]) != "hello" || items[0].JSON["sha"] != "s1" || items[0].JSON["file_name"] != "a.txt" || items[0].JSON["mime_type"] != "text/plain; charset=utf-8" {
+		t.Errorf("download: %v %v", items, err)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "get", "path": "a.txt"}, cred, nil)
+	if items[0].Binary != nil || items[0].JSON["content"] == nil {
+		t.Errorf("no download: %v", items)
+	}
+}
+
+func TestRoundHelpScoutLinkedInHumantic(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"create","title":"C","method":"POST","path":"/conversations",
+	  "fields":[{"key":"resolveData","label":"R","type":"boolean","default":true}],"body":{"x":1},
+	  "output":{"to":{"id":"{{ hdr.Resource-ID }}","uri":"{{ hdr.location }}"}}},
+	  {"resource":"","operation":"post","title":"P","method":"POST","path":"/rest/posts",
+	   "fields":[{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	   "before":[{"method":"POST","path":"/rest/images","query":{"action":"initializeUpload"}},
+	             {"upload":true,"method":"PUT","path":"{{ pre.value.uploadUrl }}"}],
+	   "body":{"media":"{{ pres.0.value.image }}"},"binary":{"upload_field":"binaryPropertyName","upload_when":"false"}},
+	  {"resource":"","operation":"profile","title":"H","method":"{{ p.resume | then:'post' | default:'GET' }}","path":"/user-profile/create",
+	   "fields":[{"key":"resume","label":"R","type":"text"}]},
+	  {"resource":"","operation":"list","title":"L","method":"GET","path":"/list",
+	   "fields":[{"key":"returnAll","label":"A","type":"boolean"},{"key":"limit","label":"L","type":"number"}],"output":{"limit":true}}`))
+	var reqs []*http.Request
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		reqs, bodies = append(reqs, r), append(bodies, string(b))
+		switch r.URL.Path {
+		case "/v1/conversations":
+			w.Header().Set("Resource-ID", "77")
+			w.Header().Set("Location", "https://api.test/conversations/77")
+			w.WriteHeader(201)
+		case "/v1/rest/images":
+			w.Write([]byte(`{"value":{"uploadUrl":"https://up.test/u1","image":"urn:li:image:1"}}`))
+		case "/v1/list":
+			w.Write([]byte(`[1,2,3,4]`))
+		default:
+			w.Write([]byte(`{}`))
+		}
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "create"}, cred, nil)
+	if err != nil || items[0].JSON["id"] != "77" || items[0].JSON["uri"] != "https://api.test/conversations/77" {
+		t.Errorf("hdr: %v %v", items, err)
+	}
+	reqs, bodies = nil, nil
+	if _, err := runPackageOp(p, map[string]any{"operation": "post"}, cred, map[string]any{"data": "aGk=", "file_name": "a.png"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 3 || reqs[1].Method != "PUT" || reqs[1].URL.Path != "/u1" || bodies[1] != "hi" || reqs[1].Header.Get("Content-Type") != "image/png" ||
+		bodies[2] != `{"media":"urn:li:image:1"}` {
+		t.Errorf("linkedin upload chain: %d reqs, bodies %q, step %s %s ct=%q", len(reqs), bodies, reqs[1].Method, reqs[1].URL.Path, reqs[1].Header.Get("Content-Type"))
+	}
+	reqs = nil
+	runPackageOp(p, map[string]any{"operation": "profile", "resume": "x"}, cred, nil)
+	runPackageOp(p, map[string]any{"operation": "profile"}, cred, nil)
+	if reqs[0].Method != "POST" || reqs[1].Method != "GET" {
+		t.Errorf("templated method: %s %s", reqs[0].Method, reqs[1].Method)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "list", "limit": 2}, cred, nil)
+	all, _ := runPackageOp(p, map[string]any{"operation": "list", "returnAll": true, "limit": 2}, cred, nil)
+	if len(items) != 2 || len(all) != 4 {
+		t.Errorf("output.limit: %d / %d", len(items), len(all))
+	}
+}
+
+func TestBracketQueryStyle(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"list","title":"L","method":"GET","path":"/products","query_style":"brackets",
+	  "fields":[{"key":"filters","label":"F","type":"json"},{"key":"returnAll","label":"A","type":"boolean"},{"key":"limit","label":"L","type":"number","default":5}],
+	  "query":{"search_criteria":{"filter_groups":[{"filters":"{{ p.filters }}"}]}},
+	  "pagination":{"type":"page","page_param":"search_criteria[current_page]","limit_param":"search_criteria[page_size]","page_size":5,"start_page":1,"results_path":"items"}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"items":[{"sku":"a"}]}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "list", "filters": []any{map[string]any{"field": "sku", "value": "x", "condition_type": "eq"}}}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	q := (*seen)[0].URL.Query()
+	if q.Get("search_criteria[filter_groups][0][filters][0][field]") != "sku" || q.Get("search_criteria[filter_groups][0][filters][0][condition_type]") != "eq" ||
+		q.Get("search_criteria[current_page]") != "1" || q.Get("search_criteria[page_size]") != "5" {
+		t.Errorf("query = %v", q)
+	}
+}
+
+func TestJoinBuilder(t *testing.T) {
+	sc := Scope{P: map[string]any{"name": "Ada", "dep": 5.0, "none": "",
+		"sort": []any{map[string]any{"field": "a", "direction": "desc"}, map[string]any{"field": "b"}}}}
+	join := map[string]any{"$join": []any{"{{ p.name | prefix:\"name:'\" | suffix:\"'\" }}", "{{ p.none | prefix:'x:' }}", "{{ p.dep | prefix:'department_id:' }}"},
+		"$sep": " AND ", "$prefix": "\"", "$suffix": "\""}
+	if got, err := renderValue(join, sc); err != nil || got != `"name:'Ada' AND department_id:5"` {
+		t.Errorf("join = %#v, %v", got, err)
+	}
+	empty := map[string]any{"$join": []any{"{{ p.none }}"}, "$sep": ",", "$prefix": "\""}
+	if got, _ := renderValue(empty, sc); got != nil {
+		t.Errorf("empty join = %#v", got)
+	}
+	grist := map[string]any{"$join": map[string]any{"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}
+	if got, _ := renderValue(grist, sc); got != "-a,b" {
+		t.Errorf("grist = %#v", got)
+	}
+}
+
+func TestGraphQLBodyPagination(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"issues","title":"I","method":"POST","path":"/graphql",
+	  "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	  "body":{"query":"query($first:Int,$after:String){issues(first:$first,after:$after){nodes{id} pageInfo{hasNextPage endCursor}}}","variables":{"x":1}},
+	  "pagination":{"type":"cursor","param_in":"body","cursor_param":"variables.after","limit_param":"variables.first","page_size":2,
+	    "cursor_path":"data.issues.pageInfo.endCursor","has_more_path":"data.issues.pageInfo.hasNextPage","results_path":"data.issues.nodes"}}`))
+	var bodies []map[string]any
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		var b map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&b)
+		bodies = append(bodies, b)
+		if n == 1 {
+			w.Write([]byte(`{"data":{"issues":{"nodes":[{"id":1},{"id":2}],"pageInfo":{"hasNextPage":true,"endCursor":"c1"}}}}`))
+			return
+		}
+		w.Write([]byte(`{"data":{"issues":{"nodes":[{"id":3}],"pageInfo":{"hasNextPage":false}}}}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "issues", "returnAll": true}, cred, nil)
+	if err != nil || len(items) != 3 {
+		t.Fatalf("items %v %v", items, err)
+	}
+	v2 := bodies[1]["variables"].(map[string]any)
+	if v2["after"] != "c1" || v2["first"] != 2.0 || v2["x"] != 1.0 || bodies[1]["after"] != nil {
+		t.Errorf("second page body = %v", bodies[1])
+	}
+}
+
+func TestValuesFromMergeAndWebDAV(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"lights","title":"L","method":"GET","path":"/lights","output":{"from":"{{ res | values }}"}},
+	  {"resource":"","operation":"update","title":"U","method":"PUT","path":"/lights/1/state","output":{"each":"success","merge":true}},
+	  {"resource":"","operation":"versions","title":"V","method":"GET","path":"/pkg","output":{"from":"{{ res.time | entries:'version,published_at' }}"}},
+	  {"resource":"","operation":"list","title":"F","method":"PROPFIND","path":"/dav/files/a/","headers":{"Depth":"1"},
+	   "output":{"path":"multistatus.response"}}`))
+	var methods []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		methods = append(methods, r.Method)
+		switch r.URL.Path {
+		case "/v1/lights":
+			w.Write([]byte(`{"2":{"name":"b"},"1":{"name":"a"}}`))
+		case "/v1/lights/1/state":
+			w.Write([]byte(`[{"success":{"/lights/1/state/on":true}},{"success":{"/lights/1/state/bri":200}}]`))
+		case "/v1/pkg":
+			w.Write([]byte(`{"time":{"1.0.0":"2020","1.1.0":"2021"}}`))
+		default:
+			w.Write([]byte(`<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"><d:response><d:href>/a/x.txt</d:href></d:response><d:response><d:href>/a/y</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response></d:multistatus>`))
+		}
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "lights"}, cred, nil)
+	if err != nil || len(items) != 2 || items[0].JSON["name"] != "a" {
+		t.Errorf("values: %v %v", items, err)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "update"}, cred, nil)
+	if len(items) != 1 || items[0].JSON["/lights/1/state/bri"] != 200.0 || items[0].JSON["/lights/1/state/on"] != true {
+		t.Errorf("merge: %v", items)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "versions"}, cred, nil)
+	if len(items) != 2 || items[1].JSON["version"] != "1.1.0" {
+		t.Errorf("entries from: %v", items)
+	}
+	items, err = runPackageOp(p, map[string]any{"operation": "list"}, cred, nil)
+	if err != nil || len(items) != 2 || items[0].JSON["href"] != "/a/x.txt" || methods[len(methods)-1] != "PROPFIND" {
+		t.Errorf("webdav: %v %v %v", items, err, methods)
+	}
+}
+
+func TestPagedValuesInjectBodyAndPathWildcard(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"mt","title":"M","base_url":"https://m.test",
+	  "credentials":[{"platform":"mt","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true}],
+	    "inject":{"body":{"key":"{{ cred.api_key }}"}}}],
+	  "operations":[{"resource":"","operation":"contacts","title":"C","method":"GET","path":"/contacts",
+	    "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	    "pagination":{"type":"offset","offset_param":"start","limit_param":"limit","page_size":2,"results_path":"contacts","values":true}},
+	   {"resource":"","operation":"send","title":"S","method":"POST","path":"/send/{{ uuid }}","body":{"text":"hi"}}]}`)
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		switch r.URL.Query().Get("start") {
+		case "0":
+			w.Write([]byte(`{"total":3,"contacts":{"12":{"id":12},"9":{"id":9}}}`))
+		case "2":
+			w.Write([]byte(`{"total":3,"contacts":{"100":{"id":100}}}`))
+		default:
+			w.Write([]byte(`{"ok":true}`))
+		}
+	})
+	c := map[string]any{"api_key": "K1"}
+	items, err := runPackageOp(p, map[string]any{"operation": "contacts", "returnAll": true}, c, nil)
+	if err != nil || len(items) != 3 || items[0].JSON["id"] != 9.0 || items[2].JSON["id"] != 100.0 {
+		t.Errorf("paged values: %v %v", items, err)
+	}
+	bodies = nil
+	if _, err := runPackageOp(p, map[string]any{"operation": "send"}, c, nil); err != nil {
+		t.Fatal(err)
+	}
+	if bodies[0] != `{"key":"K1","text":"hi"}` {
+		t.Errorf("inject.body: %s", bodies[0])
+	}
+	if !pathMatches("/send/abc-123", "/send/<any>") || pathMatches("/send/", "/send/<any>") || pathMatches("/x/a", "/send/<any>") {
+		t.Error("pathMatches")
+	}
+}
+
+func TestMultiFileUploadsAndTypedInjectBody(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"mg","title":"MG","base_url":"https://mg.test",
+	  "credentials":[{"platform":"mg","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true},{"key":"sandbox","label":"S"}],
+	    "inject":{"body":{"key":"{{ cred.api_key }}","SandboxMode":"{{ cred.sandbox | bool }}"}}}],
+	  "operations":[{"resource":"","operation":"send","title":"S","method":"POST","path":"/messages","body_type":"multipart",
+	    "fields":[{"key":"attachments","label":"A","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	    "body":{"to":"a@b"},
+	    "binary":{"upload_field":"binaryPropertyName","properties":"{{ p.attachments }}","multipart_field":"attachment[{{ el.index }}]"}},
+	   {"resource":"","operation":"json","title":"J","method":"POST","path":"/json",
+	    "fields":[{"key":"attachments","label":"A","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	    "body":{"attachments":{"$map":"{{ bin.files }}","$to":{"name":"{{ el.file_name }}","content":"{{ el.base64 }}"}}},
+	    "binary":{"upload_field":"binaryPropertyName","properties":"{{ p.attachments }}"}}]}`)
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		w.Write([]byte(`{}`))
+	})
+	in := map[string]any{"a": "aGk=", "b": "eW8=", "file_name": "f.txt"}
+	c := map[string]any{"api_key": "K", "sandbox": "true"}
+	if _, err := runPackageOp(p, map[string]any{"operation": "send", "attachments": "a, b"}, c, in); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(bodies[0], `name="attachment[0]"`) || !strings.Contains(bodies[0], `name="attachment[1]"`) ||
+		!strings.Contains(bodies[0], "\r\nhi\r\n") || !strings.Contains(bodies[0], "\r\nyo\r\n") {
+		t.Errorf("multipart: %s", bodies[0])
+	}
+	if _, err := runPackageOp(p, map[string]any{"operation": "json", "attachments": "a,b"}, c, in); err != nil {
+		t.Fatal(err)
+	}
+	var j map[string]any
+	_ = json.Unmarshal([]byte(bodies[1]), &j)
+	at, _ := j["attachments"].([]any)
+	if len(at) != 2 || at[1].(map[string]any)["content"] != "eW8=" || j["SandboxMode"] != true || j["key"] != "K" {
+		t.Errorf("json files / typed inject: %s", bodies[1])
+	}
+}
+
+// Pushbullet file push: request an upload slot (needs the file name and
+// type), POST the file as multipart to the presigned URL, then create the
+// push. upload_when "false" (a literal) keeps the main request plain.
+func TestPresignedMultipartUploadStep(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"push","title":"P","method":"POST","path":"/pushes",
+	  "fields":[{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	  "before":[{"method":"POST","path":"/upload-request","body":{"file_name":"{{ bin.file_name }}","file_type":"{{ bin.mime_type }}"}},
+	    {"upload":true,"method":"POST","path":"{{ pre.upload_url }}","body_type":"multipart","body":{"awsaccesskeyid":"{{ pre.data.awsaccesskeyid }}"}}],
+	  "body":{"type":"file","file_url":"{{ pres.0.file_url }}"},
+	  "binary":{"upload_field":"binaryPropertyName","upload_when":"false","multipart_field":"file"}}`))
+	var cts, bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		cts, bodies = append(cts, r.Header.Get("Content-Type")), append(bodies, string(b))
+		if n == 1 {
+			w.Write([]byte(`{"upload_url":"https://s3.test/up","file_url":"https://dl.test/f.png","data":{"awsaccesskeyid":"AK"}}`))
+			return
+		}
+		w.Write([]byte(`{}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "push"}, cred, map[string]any{"data": "aGk=", "file_name": "f.png"}); err != nil {
+		t.Fatal(err)
+	}
+	if bodies[0] != `{"file_name":"f.png","file_type":"image/png"}` {
+		t.Errorf("upload request: %s", bodies[0])
+	}
+	if !strings.HasPrefix(cts[1], "multipart/form-data") || !strings.Contains(bodies[1], `name="awsaccesskeyid"`) || !strings.Contains(bodies[1], `name="file"; filename="f.png"`) {
+		t.Errorf("presigned post: %s %s", cts[1], bodies[1])
+	}
+	if cts[2] != "application/json" || bodies[2] != `{"file_url":"https://dl.test/f.png","type":"file"}` {
+		t.Errorf("push: %s %s", cts[2], bodies[2])
+	}
+}
+
+func TestListSnakeSkipSortAndParenHead(t *testing.T) {
+	sc := Scope{P: map[string]any{"db": "odoo", "uid": 2.0, "name": "Ada"}}
+	got, err := renderValue(map[string]any{"$list": []any{"{{ p.db }}", "{{ p.uid }}", "", map[string]any{}, []any{}, "{{ p.none }}"}}, sc)
+	if err != nil || !reflect.DeepEqual(got, []any{"odoo", 2.0, "", map[string]any{}, []any{}, nil}) {
+		t.Errorf("$list = %#v, %v", got, err)
+	}
+	for in, want := range map[string]string{"Due Date": "due_date", "DueDate": "due_date", "due-date": "due_date", "HTTPServer2": "http_server_2", "already_snake": "already_snake"} {
+		if g := snakeCase(in); g != want {
+			t.Errorf("snake(%q) = %q, want %q", in, g, want)
+		}
+	}
+	if got, err := renderString("{{ (p.name | lower) | prefix:'x-' }}", sc); err != nil || got != "x-ada" {
+		t.Errorf("paren head = %#v, %v", got, err)
+	}
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"ls","title":"L","method":"GET","path":"/ls","output":{"skip":1,"sort":"v","sort_desc":true}}`))
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`[{"v":0},{"v":2},{"v":10},{"v":1}]`))
+	})
+	items, _ := runPackageOp(p, map[string]any{"operation": "ls"}, cred, nil)
+	if len(items) != 3 || items[0].JSON["v"] != 10.0 || items[2].JSON["v"] != 1.0 {
+		t.Errorf("skip+sort: %v", items)
+	}
+}
+
+func TestPaginationWhenAndTemplatedParams(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"st","title":"S","base_url":"https://s.test",
+	  "credentials":[{"platform":"st","methods":["api_key"],"fields":[{"key":"api_key","label":"K","required":true},{"key":"api_version","label":"V"}],
+	    "inject":{"headers":{"Authorization":"Bearer {{ cred.api_key }}"}}}],
+	  "operations":[{"resource":"","operation":"list","title":"L","method":"GET","path":"/entries",
+	    "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	    "output":{"path":"{{ cred.api_version | eq:'v4' | then:'data' }}"},
+	    "pagination":{"type":"page","when":"{{ cred.api_version | eq:'v4' }}","page_param":"{{ cred.api_version | eq:'v4' | then:'pagination[page]' }}",
+	      "limit_param":"pagination[pageSize]","page_size":2,"start_page":1,"results_path":"data"}}]}`)
+	var qs []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		qs = append(qs, r.URL.RawQuery)
+		if r.URL.Query().Get("pagination[page]") == "" {
+			w.Write([]byte(`[{"id":1},{"id":2},{"id":3}]`))
+			return
+		}
+		if r.URL.Query().Get("pagination[page]") == "1" {
+			w.Write([]byte(`{"data":[{"id":1},{"id":2}]}`))
+			return
+		}
+		w.Write([]byte(`{"data":[{"id":3}]}`))
+	})
+	v4, err := runPackageOp(p, map[string]any{"operation": "list", "returnAll": true}, map[string]any{"api_key": "k", "api_version": "v4"}, nil)
+	if err != nil || len(v4) != 3 || len(qs) != 2 {
+		t.Fatalf("v4 paging: %d items, %v, %v", len(v4), qs, err)
+	}
+	qs = nil
+	v3, err := runPackageOp(p, map[string]any{"operation": "list", "returnAll": true}, map[string]any{"api_key": "k", "api_version": "v3"}, nil)
+	if err != nil || len(v3) != 3 || len(qs) != 1 || qs[0] != "" {
+		t.Errorf("v3 no paging: %d items, %v, %v", len(v3), qs, err)
+	}
+}
+
+func TestIdxMatchesInFlatten(t *testing.T) {
+	sc := Scope{P: map[string]any{"dates": []any{"d1", "d2"}, "mrr": []any{10.0, 20.0}, "v": "TODAY", "lists": map[string]any{"update": []any{1.0}, "remove": []any{2.0, 3.0}}}}
+	got, err := renderValue(map[string]any{"$map": "{{ p.dates }}", "$to": map[string]any{"date": "{{ el }}", "mrr": "{{ p.mrr | get:(idx | string) }}"}}, sc)
+	want := []any{map[string]any{"date": "d1", "mrr": 10.0}, map[string]any{"date": "d2", "mrr": 20.0}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("idx pivot = %#v, %v", got, err)
+	}
+	for in, w := range map[string]any{
+		"{{ p.v | matches:'^(TODAY|YESTERDAY|LAST_N_DAYS:[0-9]+)$' }}": true,
+		"{{ p.v | in:'TODAY,TOMORROW' }}":                              true,
+		"{{ p.v | in:'NOW' }}":                                         nil,
+	} {
+		if g, _ := renderString(in, sc); g != w {
+			t.Errorf("%s = %#v", in, g)
+		}
+	}
+	if g, _ := renderString("{{ p.lists | flatten }}", sc); !reflect.DeepEqual(g, []any{2.0, 3.0, 1.0}) {
+		t.Errorf("flatten = %#v", g)
+	}
+}
+
+func TestUnleashedTwistUprocTheHiveRound(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"ul","title":"U","base_url":"https://u.test","n8n_resource_param":"group",
+	  "resources":[{"value":"sales","label":"S"},{"value":"tools","label":"T"}],
+	  "credentials":[{"platform":"ul","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true}],
+	    "inject":{"hmac":{"header":"api-auth-signature","secret":"{{ cred.api_key }}","message":"{{ req.query }}"}}}],
+	  "operations":[{"resource":"sales","operation":"getAll","title":"G","method":"GET","path":"/SalesOrders/{{ page.pageNumber }}",
+	    "fields":[{"key":"returnAll","label":"A","type":"boolean"}],"query":{"orderStatus":"Placed"},
+	    "pagination":{"type":"page","param_in":"path","page_param":"pageNumber","start_page":1,"page_size":2,"results_path":"Items"}},
+	   {"resource":"tools","operation":"post","title":"P","method":"POST","path":"/msg","body_type":"form",
+	    "fields":[{"key":"files","label":"F","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"},{"key":"cf","label":"C","type":"json"}],
+	    "before":[{"for_each":"{{ p.files | split }}","upload":true,"method":"POST","path":"/attachments/upload"}],
+	    "body":{"attachments":"{{ pre | json }}","$merge":"{{ p.cf | unflatten }}"},
+	    "binary":{"upload_field":"binaryPropertyName","upload_when":"false"},
+	    "pagination":{"type":"offset","param_in":"body","offset_param":"offset","limit_param":"limit","page_size":5,"results_path":"x"}}]}`)
+	var reqs []*http.Request
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		reqs, bodies = append(reqs, r), append(bodies, string(b))
+		switch {
+		case r.URL.Path == "/SalesOrders/1":
+			w.Write([]byte(`{"Items":[{"id":1},{"id":2}]}`))
+		case r.URL.Path == "/SalesOrders/2":
+			w.Write([]byte(`{"Items":[{"id":3}]}`))
+		case r.URL.Path == "/attachments/upload":
+			w.Write([]byte(`{"name":"` + string(b) + `"}`))
+		default:
+			w.Write([]byte(`{"x":[]}`))
+		}
+	})
+	c := map[string]any{"api_key": "S3CR"}
+	items, err := runPackageOp(p, map[string]any{"group": "sales", "operation": "getAll", "returnAll": true}, c, nil)
+	if err != nil || len(items) != 3 {
+		t.Fatalf("unleashed: %v %v", items, err)
+	}
+	m := hmac.New(sha256.New, []byte("S3CR"))
+	m.Write([]byte("orderStatus=Placed"))
+	if reqs[0].Header.Get("api-auth-signature") != base64.StdEncoding.EncodeToString(m.Sum(nil)) || reqs[0].URL.Query().Get("pageNumber") != "" {
+		t.Errorf("hmac/page path: %q %s", reqs[0].Header.Get("api-auth-signature"), reqs[0].URL)
+	}
+	reqs, bodies = nil, nil
+	if _, err := runPackageOp(p, map[string]any{"group": "tools", "operation": "post", "files": "a,b", "cf": map[string]any{"customFields.x": 1.0}}, c,
+		map[string]any{"a": "aGk=", "b": "eW8="}); err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 3 || bodies[0] != "hi" || bodies[1] != "yo" {
+		t.Fatalf("twist uploads: %d reqs %q", len(reqs), bodies)
+	}
+	if got := reqs[2].Header.Get("Content-Type"); got != "application/x-www-form-urlencoded" ||
+		!strings.Contains(bodies[2], "offset=0") || !strings.Contains(bodies[2], "attachments=") || !strings.Contains(bodies[2], "customFields=") {
+		t.Errorf("form paging / collected pres / unflatten: %s %s", got, bodies[2])
+	}
+	if g, _ := renderString("{{ p.cf | unflatten }}", Scope{P: map[string]any{"cf": map[string]any{"a.b": 1.0, "c": 2.0}}}); !reflect.DeepEqual(g, map[string]any{"a": map[string]any{"b": 1.0}, "c": 2.0}) {
+		t.Errorf("unflatten = %#v", g)
+	}
+}
+
+func TestInsecureClientOptIn(t *testing.T) {
+	old := httpClient
+	httpClient = &http.Client{}
+	t.Cleanup(func() { httpClient = old })
+	r := &opRun{scope: Scope{Cred: map[string]any{"allow_unauthorized_certs": true}}}
+	tr, ok := r.client().Transport.(*http.Transport)
+	if !ok || tr.TLSClientConfig == nil || !tr.TLSClientConfig.InsecureSkipVerify {
+		t.Error("allow_unauthorized_certs must skip TLS verification")
+	}
+	if (&opRun{scope: Scope{Cred: map[string]any{}}}).client() != httpClient {
+		t.Error("default client must verify TLS")
 	}
 }

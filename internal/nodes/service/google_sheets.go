@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -23,6 +24,9 @@ func (n *GoogleSheetsNode) Type() string { return "service.google_sheets" }
 var sheetsBaseURL = "https://sheets.googleapis.com/v4/spreadsheets"
 
 func (n *GoogleSheetsNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.google_sheets", config) {
+		return apipkg.ExecuteExtension(ctx, "service.google_sheets", input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("google_sheets: access_token is required")

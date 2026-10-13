@@ -13,6 +13,11 @@ type ScopeGroup struct {
 	Name        string
 	Description string
 	Scopes      []string
+	// OptIn leaves the group out of a plain `connect` (no --scopes): it is
+	// granted only when named, or with "all". Rarely used APIs whose scopes
+	// Google treats as sensitive are opt-in, so a default connect does not
+	// ask for them.
+	OptIn bool
 }
 
 // umbrellaDef describes one umbrella platform's scope catalogue.
@@ -66,7 +71,19 @@ var umbrellas = map[string]umbrellaDef{
 			{Name: "docs", Description: "Google Docs", Scopes: gScopes("documents")},
 			{Name: "forms", Description: "Google Forms (read forms and responses)", Scopes: gScopes("forms.body.readonly", "forms.responses.readonly")},
 			{Name: "tasks", Description: "Google Tasks", Scopes: gScopes("tasks")},
-			{Name: "contacts", Description: "Google Contacts (read)", Scopes: gScopes("contacts.readonly")},
+			{Name: "contacts", Description: "Google Contacts (read/write)", Scopes: gScopes("contacts")},
+			// Opt-in: requested only when named in --scopes (or "all").
+			{Name: "translate", Description: "Cloud Translation", Scopes: gScopes("cloud-translation"), OptIn: true},
+			{Name: "naturallanguage", Description: "Cloud Natural Language", Scopes: gScopes("cloud-language"), OptIn: true},
+			{Name: "chat", Description: "Google Chat (spaces and messages)", Scopes: gScopes("chat.messages", "chat.spaces"), OptIn: true},
+			{Name: "bigquery", Description: "BigQuery", Scopes: gScopes("bigquery"), OptIn: true},
+			{Name: "cloudstorage", Description: "Cloud Storage (read/write buckets and objects)", Scopes: gScopes("devstorage.read_write"), OptIn: true},
+			{Name: "firebase", Description: "Firebase (Cloud Firestore and Realtime Database)", Scopes: gScopes("datastore", "firebase.database", "userinfo.email"), OptIn: true},
+			{Name: "ads", Description: "Google Ads", Scopes: gScopes("adwords"), OptIn: true},
+			{Name: "analytics", Description: "Google Analytics (read reports)", Scopes: gScopes("analytics.readonly"), OptIn: true},
+			{Name: "books", Description: "Google Books (bookshelves)", Scopes: gScopes("books"), OptIn: true},
+			{Name: "businessprofile", Description: "Google Business Profile (locations, posts, reviews)", Scopes: gScopes("business.manage"), OptIn: true},
+			{Name: "admin", Description: "Workspace Admin directory (users, groups, ChromeOS devices)", Scopes: gScopes("admin.directory.user", "admin.directory.group", "admin.directory.device.chromeos"), OptIn: true},
 		},
 		Members: []umbrellaMember{
 			{Platform: "google_sheets", Group: "sheets"},

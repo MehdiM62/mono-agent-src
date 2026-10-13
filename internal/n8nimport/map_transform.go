@@ -10,9 +10,6 @@ func init() {
 	Register("n8n-nodes-base.sort", mapSort)
 	Register("n8n-nodes-base.limit", mapLimit)
 	Register("n8n-nodes-base.removeDuplicates", mapRemoveDuplicates)
-	Register("n8n-nodes-base.splitOut", mapSplitOut)
-	Register("n8n-nodes-base.renameKeys", mapRenameKeys)
-	Register("n8n-nodes-base.summarize", mapSummarize)
 	Register("n8n-nodes-base.itemLists", mapItemLists)
 }
 
@@ -162,122 +159,6 @@ items.forEach(function (it) {
 });
 return out;
 `, jsQuote(compare), jsValue(fields), jsValue(removeOther)))
-}
-
-func mapSplitOut(c *MapContext) Mapping {
-	c.Ignore("options.disableDotNotation", "options.includeBinary")
-	fields := commaList(c.Literal("fieldToSplitOut", ""))
-	include := c.Literal("include", "noOtherFields")
-	keep := commaList(c.Literal("fieldsToInclude", ""))
-	dest := c.Literal("options.destinationFieldName", "")
-	return jsCode(fmt.Sprintf(`var fields = %s, include = %s, keep = %s, dest = %s, out = [];
-items.forEach(function (it) {
-  var j = it.json;
-  fields.forEach(function (f) {
-    var v = __n8nGet(j, f);
-    var list = Array.isArray(v) ? v : (v && typeof v === "object" ? Object.values(v) : (v === undefined ? [] : [v]));
-    list.forEach(function (x) {
-      var o = {};
-      if (include === "allOtherFields") { o = Object.assign({}, j); delete o[f]; }
-      if (include === "selectedOtherFields") { keep.forEach(function (k) { o[k] = __n8nGet(j, k); }); }
-      if (x !== null && typeof x === "object" && !Array.isArray(x) && !dest) { Object.assign(o, x); } else { o[dest || f] = x; }
-      out.push(o);
-    });
-  });
-});
-return out;
-`, jsValue(fields), jsQuote(include), jsValue(keep), jsQuote(dest)))
-}
-
-func mapRenameKeys(c *MapContext) Mapping {
-	type pair struct {
-		From string `json:"from"`
-		To   string `json:"to"`
-	}
-	pairs := []pair{}
-	for _, k := range c.paramList("keys.key") {
-		pairs = append(pairs, pair{From: fmt.Sprint(k["currentKey"]), To: fmt.Sprint(k["newKey"])})
-	}
-	type rx struct {
-		Search  string `json:"search"`
-		Replace string `json:"replace"`
-		CI      bool   `json:"ci"`
-	}
-	rxs := []rx{}
-	for _, r := range c.paramList("additionalOptions.regexReplacement.replacements") {
-		opts, _ := r["options"].(map[string]interface{})
-		ci, _ := opts["caseInsensitive"].(bool)
-		if d, ok := opts["depth"].(float64); ok && d != -1 && d != 0 {
-			c.Note("regex key renaming applies to top-level keys only")
-		}
-		rxs = append(rxs, rx{Search: fmt.Sprint(r["searchRegex"]), Replace: fmt.Sprint(r["replaceRegex"]), CI: ci})
-	}
-	c.Ignore("additionalOptions.regexReplacement")
-	return jsCode(fmt.Sprintf(`var pairs = %s, rxs = %s;
-return items.map(function (it) {
-  var o = JSON.parse(JSON.stringify(it.json));
-  pairs.forEach(function (p) { var v = __n8nGet(o, p.from); if (v === undefined) { return; } var ks = p.from.split("."), cur = o; for (var i = 0; i < ks.length - 1; i++) { cur = cur[ks[i]]; } delete cur[ks[ks.length - 1]]; __n8nSet(o, p.to, v); });
-  rxs.forEach(function (r) { var re = new RegExp(r.search, r.ci ? "gi" : "g"); Object.keys(o).forEach(function (k) { var nk = k.replace(re, r.replace); if (nk !== k) { o[nk] = o[k]; delete o[k]; } }); });
-  return o;
-});
-`, jsValue(pairs), jsValue(rxs)))
-}
-
-func mapSummarize(c *MapContext) Mapping {
-	c.Ignore("options.disableDotNotation", "options.continueIfFieldNotFound", "options.skipEmptySplitFields")
-	type agg struct {
-		Agg   string `json:"agg"`
-		Field string `json:"field"`
-		Sep   string `json:"sep"`
-		Empty bool   `json:"empty"`
-	}
-	list := []agg{}
-	for _, v := range c.paramList("fieldsToSummarize.values") {
-		a := agg{Agg: "count", Field: fmt.Sprint(v["field"]), Sep: ","}
-		if s, ok := v["aggregation"].(string); ok {
-			a.Agg = s
-		}
-		if s, ok := v["separateBy"].(string); ok {
-			a.Sep = s
-			if s == "other" {
-				a.Sep = fmt.Sprint(v["customSeparator"])
-			}
-		}
-		a.Empty, _ = v["includeEmpty"].(bool)
-		list = append(list, a)
-	}
-	split := commaList(c.Literal("fieldsToSplitBy", ""))
-	single := c.Literal("options.outputFormat", "separateItems") == "singleItem"
-	return jsCode(fmt.Sprintf(`var aggs = %s, split = %s, single = %s, groups = {}, order = [];
-var prefix = { append: "appended_", average: "average_", concatenate: "concatenated_", count: "count_", countUnique: "unique_count_", max: "max_", min: "min_", sum: "sum_" };
-items.forEach(function (it) {
-  var key = JSON.stringify(split.map(function (f) { return __n8nGet(it.json, f); }));
-  if (!(key in groups)) { groups[key] = []; order.push(key); }
-  groups[key].push(it.json);
-});
-var out = order.map(function (key) {
-  var o = {}, ks = JSON.parse(key);
-  split.forEach(function (f, i) { o[f] = ks[i]; });
-  aggs.forEach(function (a) {
-    var vals = groups[key].map(function (j) { return __n8nGet(j, a.field); });
-    if (!a.empty) { vals = vals.filter(function (v) { return v !== undefined && v !== null && v !== ""; }); }
-    var nums = vals.map(Number).filter(function (n) { return !isNaN(n); }), r;
-    switch (a.agg) {
-      case "append": r = vals; break;
-      case "concatenate": r = vals.join(a.sep); break;
-      case "countUnique": r = Object.keys(vals.reduce(function (m, v) { m[JSON.stringify(v)] = 1; return m; }, {})).length; break;
-      case "sum": r = nums.reduce(function (s, n) { return s + n; }, 0); break;
-      case "average": r = nums.length ? nums.reduce(function (s, n) { return s + n; }, 0) / nums.length : null; break;
-      case "max": r = nums.length ? Math.max.apply(null, nums) : null; break;
-      case "min": r = nums.length ? Math.min.apply(null, nums) : null; break;
-      default: r = vals.length;
-    }
-    o[prefix[a.agg] + a.field] = r;
-  });
-  return o;
-});
-return single && split.length ? [{ data: out }] : out;
-`, jsValue(list), jsValue(split), jsValue(single)))
 }
 
 // mapItemLists dispatches the legacy Item Lists node to the standalone

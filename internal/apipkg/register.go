@@ -17,8 +17,8 @@ func init() {
 func Register(r *workflow.NodeTypeRegistry) {
 	for _, p := range packages() {
 		t := p.NodeTypeOf()
-		if t == "" || r.Has(t) {
-			continue
+		if t == "" || r.Has(t) || len(p.Operations) == 0 {
+			continue // trigger-only packages register no action node
 		}
 		pkg := p
 		r.Register(t, func() workflow.NodeExecutor { return &Node{pkg: pkg} })
@@ -86,6 +86,7 @@ func platformDef(p *Package, c *Credential) (connections.PlatformDef, bool) {
 				def.OAuth = &connections.OAuthConfig{
 					AuthURL: c.OAuth.AuthURL, TokenURL: c.OAuth.TokenURL,
 					Scopes: c.OAuth.Scopes, ExtraParams: c.OAuth.ExtraParams,
+					TokenFields: c.OAuth.TokenFields,
 				}
 			}
 		}

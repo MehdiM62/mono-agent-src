@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -43,6 +44,9 @@ func (n *RedditNode) Type() string { return "service.reddit" }
 var redditBaseURL = "https://oauth.reddit.com"
 
 func (n *RedditNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.reddit", config) {
+		return apipkg.ExecuteExtension(ctx, "service.reddit", input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("service.reddit: 'access_token' is required")

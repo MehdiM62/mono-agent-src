@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -34,6 +35,9 @@ func (n *BlueskyNode) Type() string { return "service.bluesky" }
 var blueskyBaseURL = "https://bsky.social/xrpc"
 
 func (n *BlueskyNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.bluesky", config) {
+		return apipkg.ExecuteExtension(ctx, "service.bluesky", input, config)
+	}
 	identifier := strVal(config, "identifier")
 	appPassword := strVal(config, "app_password")
 	if identifier == "" || appPassword == "" {

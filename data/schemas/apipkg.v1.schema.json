@@ -17,12 +17,15 @@
     "docs_url": { "type": "string" },
     "n8n_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
     "n8n_operation_param": { "type": "string" },
+    "n8n_resource_param": { "type": "string" },
+    "n8n_version_defaults": { "type": "object" },
+    "query_style": { "type": "string", "enum": ["", "brackets"] },
     "n8n_trigger_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
     "base_url": { "type": "string", "minLength": 1 },
     "headers": { "$ref": "#/$defs/stringMap" },
     "credentials": { "type": "array", "items": { "$ref": "#/$defs/credential" } },
     "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } },
-    "operations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/operation" } }
+    "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } }
   },
   "$defs": {
     "stringMap": { "type": "object", "additionalProperties": { "type": "string" } },
@@ -76,6 +79,7 @@
       "properties": {
         "auth_url": { "type": "string", "minLength": 1 },
         "client_id_field": { "type": "string" },
+        "token_fields": { "type": "array", "items": { "type": "string" } },
         "client_secret_field": { "type": "string" },
         "client_auth": { "type": "string", "enum": ["body", "basic"] },
         "token_url": { "type": "string", "minLength": 1 },
@@ -90,6 +94,19 @@
       "properties": {
         "headers": { "$ref": "#/$defs/stringMap" },
         "query": { "$ref": "#/$defs/stringMap" },
+        "body": { "$ref": "#/$defs/stringMap" },
+        "hmac": { "type": "object", "required": ["header", "secret", "message"], "additionalProperties": false,
+          "properties": { "header": { "type": "string" }, "secret": { "type": "string" }, "message": { "type": "string" },
+            "alg": { "type": "string", "enum": ["SHA256", "SHA1", "SHA512"] }, "encoding": { "type": "string", "enum": ["base64", "hex"] }, "prefix": { "type": "string" } } },
+        "jwt": {
+          "type": "object", "required": ["alg", "secret"], "additionalProperties": false,
+          "properties": {
+            "header": { "type": "string" }, "prefix": { "type": "string" },
+            "alg": { "type": "string", "enum": ["HS256", "HS384", "HS512", "RS256", "ES256"] },
+            "secret": { "type": "string" }, "secret_encoding": { "type": "string", "enum": ["text", "hex", "base64"] },
+            "kid": { "type": "string" }, "claims": { "type": "object" }, "ttl_s": { "type": "integer" }
+          }
+        },
         "basic": {
           "type": "object",
           "required": ["username", "password"],
@@ -119,7 +136,7 @@
         "operation": { "type": "string", "minLength": 1 },
         "title": { "type": "string", "minLength": 1 },
         "description": { "type": "string" },
-        "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+        "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
         "path": { "type": "string", "minLength": 1 },
         "base_url": { "type": "string" },
         "query": { "type": "object" },
@@ -133,6 +150,14 @@
           "additionalProperties": false,
           "properties": { "path": { "type": "string" }, "split": { "type": "boolean" }, "header_row": { "type": "boolean" },
             "each": { "type": "string" },
+            "limit": { "type": "boolean" },
+            "from": { "type": "string" },
+            "merge": { "type": "boolean" },
+            "skip": { "type": "integer" },
+            "sort": { "type": "string" },
+            "sort_desc": { "type": "boolean" },
+            "expand_merge_key": { "type": "string" },
+            "expand_merge_path": { "type": "string" },
             "to": {},
             "to_when": { "type": "string" },
             "firestore": { "type": "string" },
@@ -145,7 +170,8 @@
           "properties": {
             "when": { "type": "string" },
               "for_each": { "type": "string" },
-            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+              "upload": { "type": "boolean" },
+            "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
             "path": { "type": "string", "minLength": 1 },
             "base_url": { "type": "string" },
             "query": { "type": "object" },
@@ -170,12 +196,16 @@
             "mime_type": { "type": "string" },
             "download_when": { "type": "string" },
             "upload_when": { "type": "string" },
+            "fallback_body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "download_base64": { "type": "string" },
             "property": { "type": "string" },
+            "properties": { "type": "string" },
             "upload_text": { "type": "string" }
           }
         },
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
         "batch": { "type": "boolean" },
+        "query_style": { "type": "string", "enum": ["", "brackets"] },
         "poll": {
           "type": "object",
           "required": ["method", "path", "until"],
@@ -183,10 +213,11 @@
           "properties": {
             "when": { "type": "string" },
               "for_each": { "type": "string" },
+              "upload": { "type": "boolean" },
               "until": { "type": "string" },
               "interval_ms": { "type": "integer" },
               "max_wait_ms": { "type": "integer" },
-            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+            "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
             "path": { "type": "string", "minLength": 1 },
             "base_url": { "type": "string" },
             "query": { "type": "object" },
@@ -202,7 +233,8 @@
           "properties": {
             "when": { "type": "string" },
               "for_each": { "type": "string" },
-            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+              "upload": { "type": "boolean" },
+            "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
             "path": { "type": "string", "minLength": 1 },
             "base_url": { "type": "string" },
             "query": { "type": "object" },
@@ -217,7 +249,8 @@
           "properties": {
             "when": { "type": "string" },
               "for_each": { "type": "string" },
-            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+              "upload": { "type": "boolean" },
+            "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
             "path": { "type": "string", "minLength": 1 },
             "base_url": { "type": "string" },
             "query": { "type": "object" },
@@ -235,7 +268,8 @@
             "properties": {
               "when": { "type": "string" },
               "for_each": { "type": "string" },
-              "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+              "upload": { "type": "boolean" },
+              "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
               "path": { "type": "string", "minLength": 1 },
               "base_url": { "type": "string" },
               "query": { "type": "object" },
@@ -284,6 +318,8 @@
         "limit_param": { "type": "string" },
         "page_param": { "type": "string" },
         "next_url_prefix": { "type": "string" },
+        "values": { "type": "boolean" },
+        "when": { "type": "string" },
         "next_url_path": { "type": "string" },
         "results_path": { "type": "string" },
         "return_all_field": { "type": "string" },
@@ -291,7 +327,7 @@
         "page_size": { "type": "integer" },
         "start_page": { "type": "integer" },
         "max_pages": { "type": "integer" },
-        "param_in": { "type": "string", "enum": ["query", "body"] }
+        "param_in": { "type": "string", "enum": ["query", "body", "path"] }
       }
     }
   }

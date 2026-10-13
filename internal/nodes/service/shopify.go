@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -103,6 +104,9 @@ func shopifyRequest(ctx context.Context, method, shop, apiVersion, accessToken, 
 }
 
 func (n *ShopifyNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.shopify", config) {
+		return apipkg.ExecuteExtension(ctx, "service.shopify", input, config)
+	}
 	shop := strVal(config, "shop_domain")
 	if shop == "" {
 		return nil, fmt.Errorf("shopify: shop_domain is required")

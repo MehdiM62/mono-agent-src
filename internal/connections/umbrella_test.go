@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestResolveScopesDefaultIsUnionOfEveryGroup(t *testing.T) {
+func TestResolveScopesDefaultIsUnionOfDefaultGroups(t *testing.T) {
 	for _, platform := range UmbrellaPlatforms() {
 		got, err := ResolveScopes(platform, nil)
 		if err != nil {
@@ -31,8 +31,11 @@ func TestResolveScopesDefaultIsUnionOfEveryGroup(t *testing.T) {
 		}
 		for _, g := range ScopeGroups(platform) {
 			for _, s := range g.Scopes {
-				if have[s] == 0 {
+				if !g.OptIn && have[s] == 0 {
 					t.Errorf("%s: default scopes miss group %s scope %q", platform, g.Name, s)
+				}
+				if g.OptIn && have[s] > 0 && !inList(umbrellas[platform].Always, s) {
+					t.Errorf("%s: default scopes include opt-in group %s scope %q", platform, g.Name, s)
 				}
 			}
 		}
@@ -49,7 +52,7 @@ func TestGoogleDefaultCoversEveryLegacyProductScope(t *testing.T) {
 			t.Errorf("google default lacks %s scopes %v", legacy, missing)
 		}
 	}
-	for _, want := range []string{"calendar.events", "documents", "forms.body.readonly", "forms.responses.readonly", "tasks", "contacts.readonly"} {
+	for _, want := range []string{"calendar.events", "documents", "forms.body.readonly", "forms.responses.readonly", "tasks", "contacts"} {
 		if missing := missingScopes("google", scopes, []string{googleScopePrefix + want}); len(missing) > 0 {
 			t.Errorf("google default lacks %s", want)
 		}

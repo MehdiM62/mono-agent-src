@@ -3,6 +3,7 @@ package apipkg
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/monoes/mono-agent/internal/workflow"
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/connections"
@@ -74,12 +75,28 @@ func (p *Package) check() []string {
 		for _, f := range p.Credentials[i].Fields {
 			credKeys[f.Key] = true
 		}
+		if o := p.Credentials[i].OAuth; o != nil {
+			for _, k := range o.TokenFields {
+				credKeys[k] = true
+			}
+		}
 	}
 	probs = append(probs, checkTemplates("base_url", p.BaseURL, nil, credKeys)...)
 	for k, v := range p.Headers {
 		probs = append(probs, checkTemplates("headers."+k, v, nil, credKeys)...)
 	}
 
+	if p.Extends != "" {
+		native := nativeOperations(p.Extends)
+		for _, o := range p.Operations {
+			if o.Resource == "" && native[o.Operation] {
+				add("operation %q has no resource and %s already has an operation with that name: give it a resource (or another name), or it would replace the native one", o.Operation, p.Extends)
+			}
+		}
+	}
+	if len(p.Operations) == 0 && len(p.N8nTriggerTypes) == 0 {
+		add("operations: a package needs operations (or, for a trigger-only app, n8n_trigger_types)")
+	}
 	seen := map[string]bool{}
 	used := map[string]bool{}
 	for i := range p.Operations {
@@ -155,14 +172,19 @@ func (c *Credential) check(i int) []string {
 	for _, k := range oauthTokenKeys {
 		keys[k] = true
 	}
+	if c.OAuth != nil {
+		for _, k := range c.OAuth.TokenFields {
+			keys[k] = true
+		}
+	}
 	for _, f := range c.Fields {
-		if keys[f.Key] && f.Key != "access_token" {
+		if keys[f.Key] && f.Key != "access_token" && !(c.OAuth != nil && contains(c.OAuth.TokenFields, f.Key)) {
 			add("field %q clashes with an OAuth token key", f.Key)
 		}
 		keys[f.Key] = true
 	}
 	in := c.Inject
-	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil {
+	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 && in.HMAC == nil {
 		add("inject is empty: say how the credential authenticates (headers, query, basic or aws_sigv4)")
 	}
 	for k, v := range in.Headers {
@@ -178,6 +200,24 @@ func (c *Credential) check(i int) []string {
 		probs = append(probs, checkTemplates(where+" inject.aws_sigv4",
 			[]any{s.Service, s.Region, s.AccessKeyID, s.SecretAccessKey, s.SessionToken}, anyField, keys)...)
 	}
+	for k, v := range in.Body {
+		probs = append(probs, checkTemplates(where+" inject.body."+k, v, anyField, keys)...)
+	}
+	if jw := in.JWT; jw != nil {
+		switch jw.Alg {
+		case "HS256", "HS384", "HS512", "RS256", "ES256":
+		default:
+			add("inject.jwt.alg %q: use HS256, HS384, HS512, RS256 or ES256", jw.Alg)
+		}
+		if jw.Secret == "" {
+			add("inject.jwt needs a secret template")
+		}
+		claims := []any{jw.Secret, jw.Kid}
+		for _, v := range jw.Claims {
+			claims = append(claims, v)
+		}
+		probs = append(probs, checkTemplates(where+" inject.jwt", claims, anyField, keys)...)
+	}
 	return probs
 }
 
@@ -190,6 +230,9 @@ var allowedFieldTypes = map[string]bool{
 func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	var probs []string
 	add := func(format string, a ...any) { probs = append(probs, where+": "+fmt.Sprintf(format, a...)) }
+	if !validMethods[strings.ToUpper(o.Method)] && !hasTemplate(o.Method) {
+		add("method %q must be an HTTP/WebDAV method or a template", o.Method)
+	}
 	fields := map[string]bool{"resource": true, "operation": true}
 	for _, f := range o.Fields {
 		if reservedFieldKeys[f.Key] {
@@ -231,7 +274,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		}
 	}
 	for i, st := range o.Before {
-		if !validMethods[st.Method] || st.Path == "" {
+		if (!validMethods[strings.ToUpper(st.Method)] && !hasTemplate(st.Method)) || st.Path == "" {
 			add("before[%d]: needs a method (GET, POST, …) and a path", i)
 		}
 		for _, v := range []any{st.When, st.BaseURL, st.Path, st.Query, st.Body} {
@@ -240,8 +283,8 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	}
 	for i, st := range o.Also {
 		sw := fmt.Sprintf("%s also[%d]", where, i)
-		if !validMethods[st.Method] {
-			add("also[%d]: method %q must be GET, POST, PUT, PATCH, DELETE or HEAD", i, st.Method)
+		if !validMethods[strings.ToUpper(st.Method)] && !hasTemplate(st.Method) {
+			add("also[%d]: method %q must be an HTTP/WebDAV method or a template", i, st.Method)
 		}
 		if st.Path == "" {
 			add("also[%d]: path is required", i)
@@ -272,8 +315,8 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		if n, ok := need[pg.Type]; ok && (n[0] == "" || strings.HasPrefix(n[0], "|") || strings.HasSuffix(n[0], "|")) {
 			add("pagination %q needs %s", pg.Type, n[1])
 		}
-		if pg.ParamIn == "body" && bt != BodyJSON {
-			add(`pagination param_in "body" needs a json body`)
+		if pg.ParamIn == "body" && bt != BodyJSON && bt != BodyForm && bt != BodyMultipart {
+			add(`pagination param_in "body" needs a json, form or multipart body`)
 		}
 	}
 	if b := o.Binary; b != nil {
@@ -294,7 +337,9 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 
 // checkTemplates parses every template string in v and checks that p.X
 // names a field (when fields is set) and cred.X a credential key.
-var validMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true}
+var validMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true,
+	// WebDAV (NextCloud, ownCloud)
+	"MKCOL": true, "MOVE": true, "COPY": true, "PROPFIND": true, "PROPPATCH": true}
 
 func checkTemplates(where string, v any, fields, credKeys map[string]bool) []string {
 	var probs []string
@@ -315,6 +360,9 @@ func checkTemplates(where string, v any, fields, credKeys map[string]bool) []str
 					continue
 				}
 				exprs := []*expr{part.expr}
+				for h := part.expr.head; h != nil; h = h.head {
+					exprs = append(exprs, h)
+				}
 				for _, f := range part.expr.filters {
 					for _, a := range f.args {
 						if a != f.arg && a.path != nil {
@@ -366,14 +414,43 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !fields[e.path[0]] && !fields["*"] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not one of the op's fields", where, e.src, e.path[0])}
 		}
+	case "req":
+		return nil
 	case "cred":
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item", "el", "res", "items", "pre", "pres", "bin", "main":
+	case "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "idx", "page":
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}
 	}
 	return nil
+}
+
+// nativeOperations lists the "operation" select options of a native node's
+// own schema file (without any extension merged in).
+func nativeOperations(nodeType string) map[string]bool {
+	out := map[string]bool{}
+	b, ok := workflow.ReadSchemaFile(nodeType)
+	if !ok {
+		return out
+	}
+	var doc struct {
+		Fields []struct {
+			Key     string   `json:"key"`
+			Options []string `json:"options"`
+		} `json:"fields"`
+	}
+	if json.Unmarshal(b, &doc) != nil {
+		return out
+	}
+	for _, f := range doc.Fields {
+		if f.Key == "operation" {
+			for _, o := range f.Options {
+				out[o] = true
+			}
+		}
+	}
+	return out
 }

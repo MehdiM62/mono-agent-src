@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -38,6 +39,9 @@ func (n *GmailNode) Type() string { return "service.gmail" }
 var gmailBaseURL = "https://gmail.googleapis.com/gmail/v1/users/me"
 
 func (n *GmailNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.gmail", config) {
+		return apipkg.ExecuteExtension(ctx, "service.gmail", input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("gmail: access_token is required")
