@@ -113,7 +113,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 			return nil, r.errf("method: %w", err)
 		}
 		if method = strings.ToUpper(strings.TrimSpace(m)); !validMethods[method] {
-			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE or HEAD", m)
+			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE, HEAD or a WebDAV method", m)
 		}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), rd)

@@ -1,6 +1,7 @@
 package apipkg
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -339,6 +340,15 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		return []workflow.Item{{JSON: map[string]any{"success": true}}}, nil
 	}
 	v := decodeBody(resp.body)
+	if o := r.op.Output; o != nil && o.From != "" {
+		sc := r.scope
+		sc.Res = v
+		fv, err := renderString(o.From, sc)
+		if err != nil {
+			return nil, r.errf("output.from: %w", err)
+		}
+		v = fv
+	}
 	doc := v
 	if path := r.outputPath(); path != "" {
 		v = lookupPath(v, strings.Split(path, "."))
@@ -431,6 +441,11 @@ func (r *opRun) downloadItem(resp *response) workflow.Item {
 func decodeBody(b []byte) any {
 	var v any
 	if err := json.Unmarshal(b, &v); err != nil {
+		if t := bytes.TrimSpace(b); len(t) > 0 && t[0] == '<' {
+			if x, err := decodeXML(t); err == nil {
+				return x // WebDAV multistatus, SOAP-ish APIs
+			}
+		}
 		return string(b)
 	}
 	return v
@@ -631,6 +646,17 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 	}
 	if o.Limit {
 		list = r.clientLimit(list)
+	}
+	if o.Merge {
+		merged := map[string]any{}
+		for _, el := range list {
+			if m, ok := el.(map[string]any); ok {
+				for k, x := range m {
+					merged[k] = x
+				}
+			}
+		}
+		list = []any{merged}
 	}
 	if o.To != nil {
 		apply := true

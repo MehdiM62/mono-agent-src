@@ -40,6 +40,10 @@ type Package struct {
 	// when it isn't "operation" (FileMaker: "action"). A config without
 	// "operation" uses that param's value, so imported nodes run as is.
 	N8nOperationParam string `json:"n8n_operation_param,omitempty"`
+	// N8nVersionDefaults: per n8n node typeVersion, param defaults the
+	// importer fills in when an exported node omits them (n8n leaves
+	// defaults out; Invoice Ninja v1 meant apiVersion v4).
+	N8nVersionDefaults map[string]map[string]any `json:"n8n_version_defaults,omitempty"`
 	// QueryStyle "brackets" encodes nested query/form values PHP-style
 	// (a[b][0][c]=v); an op's own query_style overrides it.
 	QueryStyle string `json:"query_style,omitempty"`
@@ -274,6 +278,11 @@ type Output struct {
 	// (Gong call transcripts).
 	ExpandMergeKey  string `json:"expand_merge_key,omitempty"`
 	ExpandMergePath string `json:"expand_merge_path,omitempty"`
+	// From (a template over res) replaces the decoded response before
+	// path/split: "{{ res | values }}" for maps keyed by id.
+	From string `json:"from,omitempty"`
+	// Merge folds a list of objects into one object (Hue update results).
+	Merge bool `json:"merge,omitempty"`
 	// Limit applies n8n's returnAll/limit fields to a list that isn't
 	// paginated (client-side slicing).
 	Limit bool `json:"limit,omitempty"`

@@ -791,3 +791,41 @@ func TestGraphQLBodyPagination(t *testing.T) {
 		t.Errorf("second page body = %v", bodies[1])
 	}
 }
+
+func TestValuesFromMergeAndWebDAV(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"lights","title":"L","method":"GET","path":"/lights","output":{"from":"{{ res | values }}"}},
+	  {"resource":"","operation":"update","title":"U","method":"PUT","path":"/lights/1/state","output":{"each":"success","merge":true}},
+	  {"resource":"","operation":"versions","title":"V","method":"GET","path":"/pkg","output":{"from":"{{ res.time | entries:'version,published_at' }}"}},
+	  {"resource":"","operation":"list","title":"F","method":"PROPFIND","path":"/dav/files/a/","headers":{"Depth":"1"},
+	   "output":{"path":"multistatus.response"}}`))
+	var methods []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		methods = append(methods, r.Method)
+		switch r.URL.Path {
+		case "/v1/lights":
+			w.Write([]byte(`{"2":{"name":"b"},"1":{"name":"a"}}`))
+		case "/v1/lights/1/state":
+			w.Write([]byte(`[{"success":{"/lights/1/state/on":true}},{"success":{"/lights/1/state/bri":200}}]`))
+		case "/v1/pkg":
+			w.Write([]byte(`{"time":{"1.0.0":"2020","1.1.0":"2021"}}`))
+		default:
+			w.Write([]byte(`<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"><d:response><d:href>/a/x.txt</d:href></d:response><d:response><d:href>/a/y</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response></d:multistatus>`))
+		}
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "lights"}, cred, nil)
+	if err != nil || len(items) != 2 || items[0].JSON["name"] != "a" {
+		t.Errorf("values: %v %v", items, err)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "update"}, cred, nil)
+	if len(items) != 1 || items[0].JSON["/lights/1/state/bri"] != 200.0 || items[0].JSON["/lights/1/state/on"] != true {
+		t.Errorf("merge: %v", items)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "versions"}, cred, nil)
+	if len(items) != 2 || items[1].JSON["version"] != "1.1.0" {
+		t.Errorf("entries from: %v", items)
+	}
+	items, err = runPackageOp(p, map[string]any{"operation": "list"}, cred, nil)
+	if err != nil || len(items) != 2 || items[0].JSON["href"] != "/a/x.txt" || methods[len(methods)-1] != "PROPFIND" {
+		t.Errorf("webdav: %v %v %v", items, err, methods)
+	}
+}

@@ -225,6 +225,7 @@ through, so an unset param stays unset:
 | `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
 | `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
 | `lines` | text → list of its non-empty trimmed lines |
+| `values` | object → list of its values, by sorted key (maps keyed by id: Philips Hue lights) |
 | `hex` | hex text → integer (`#ff0000` → 16711680; `#`/`0x` stripped) |
 | `pluck:'path'` | list of objects → list of their values at `path` (empties dropped): `{{ p.options.fields.field \| pluck:'name' \| csv }}` |
 | `zip:headers[,'hkey'[,'vkey']]` | pair a header list with the value list into an object: GA4 `{{ el.dimensionValues \| zip:res.dimensionHeaders,'name','value' }}` |
@@ -313,6 +314,8 @@ status is an error carrying up to 64 KiB of the body:
 workflows is the node's normal `on_error`.
 
 `method` may be a template (`"{{ p.sendResume | then:'POST' | default:'GET' }}"`), upper-cased and checked at run time. A `path` that is a single expression yielding an absolute `http(s)://` URL is used unescaped.
+
+WebDAV methods MKCOL, MOVE, COPY, PROPFIND and PROPPATCH are allowed (NextCloud). XML responses decode to JSON: elements by local name (repeats become lists), attributes as `@name`, text as `#text` or the plain string — a PROPFIND reads as `res.multistatus.response`.
 
 ## 7. Credentials and auth injection
 
@@ -449,6 +452,8 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - In `to`, `match` and `expand` templates `res` is the whole decoded response (the first page for paginated ops), so per-row shaping can read response-level headers.
 - `"schema_rows": "schema.fields"` (a path in the WHOLE response) turns BigQuery rows `{f: [{v}]}` at `output.path` into objects keyed by the schema's field names (RECORD recurses, REPEATED → list, BOOLEAN → bool); `"numbers": "{{ p.options.returnAsNumbers }}"` casts INTEGER/NUMERIC/FLOAT.
 - `"firestore": "{{ p.simple }}"` decodes Firestore documents into n8n's simple shape `{_name, _id, _createTime, _updateTime, …fields}` (use `"each": "found"` / `"document"` first for batchGet / runQuery).
+- `"from": "{{ res | values }}"` (template over `res`) replaces the decoded response before `path`/`split` (npm versions: `"{{ res.time | entries:'version,published_at' }}"`).
+- `"merge": true` folds a list of objects into one object (Hue update: `"each": "success", "merge": true`).
 - `"limit": true` applies n8n's `returnAll`/`limit` params to a list the API returns whole (client-side slicing; replaces the `__no_next_page__` pagination trick).
 - `expand` with `"expand_merge_key": "transcript", "expand_merge_path": "callTranscripts.0.transcript"` sets that key on the element instead of replacing it.
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
@@ -524,6 +529,8 @@ Harness: requests after `before` steps are checked with `inject` rendered agains
 When a config has no `resource` and the default resource lacks the operation, an operation name that exactly one resource has is used (n8n hides `resource` in some modes, e.g. Discord webhook `sendLegacy`).
 
 **Trigger-only apps** (n8n has only a `…Trigger` node, e.g. Eventbrite, Figma): write a package with `"operations": []` and the app's `n8n_trigger_types` (plus its credentials). It registers no action node; it records the triggers for the importer and the trigger work.
+
+`n8n_version_defaults` (package): `{"1": {"apiVersion": "v4"}}` — per n8n node `typeVersion`, defaults the importer fills in for params an exported node omits (n8n doesn't export defaults, and some changed between node versions).
 
 ## 13. Testing a package
 
