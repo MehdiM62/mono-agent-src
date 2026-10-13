@@ -27,7 +27,7 @@
           "label": "API key",
           "secret": true,
           "required": true,
-          "help": "UptimeRobot: My Settings \u2192 API settings (main API key)"
+          "help": "UptimeRobot: My Settings → API settings (main API key)"
         }
       ],
       "inject": {
@@ -320,7 +320,7 @@
           "key": "weekDay",
           "label": "Week day",
           "type": "number",
-          "help": "Weekly windows: 1 Monday \u2026 7 Sunday"
+          "help": "Weekly windows: 1 Monday … 7 Sunday"
         },
         {
           "key": "monthDay",

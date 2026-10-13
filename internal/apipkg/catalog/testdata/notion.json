@@ -25,7 +25,7 @@
         ]
       },
       "options": {
-        "icon": "\ud83d\ude80"
+        "icon": "🚀"
       }
     },
     "response": {
@@ -124,7 +124,7 @@
         ],
         "icon": {
           "type": "emoji",
-          "emoji": "\ud83d\ude80"
+          "emoji": "🚀"
         }
       },
       "items": 1

@@ -35,7 +35,7 @@
           "label": "API key",
           "secret": true,
           "required": true,
-          "help": "uProc: Settings \u2192 Integration"
+          "help": "uProc: Settings → Integration"
         }
       ],
       "inject": {

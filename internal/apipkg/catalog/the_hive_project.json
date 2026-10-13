@@ -617,7 +617,7 @@
           "options": [
             "values"
           ],
-          "help": "values: [{field}] \u2014 names of the input binary properties to attach"
+          "help": "values: [{field}] — names of the input binary properties to attach"
         },
         {
           "key": "options",
@@ -1289,7 +1289,7 @@
           "options": [
             "values"
           ],
-          "help": "values: [{field}] \u2014 names of the input binary properties to attach"
+          "help": "values: [{field}] — names of the input binary properties to attach"
         }
       ]
     },
@@ -1320,7 +1320,7 @@
           "options": [
             "values"
           ],
-          "help": "values: [{field}] \u2014 names of the input binary properties to attach"
+          "help": "values: [{field}] — names of the input binary properties to attach"
         }
       ]
     },
@@ -1678,7 +1678,7 @@
           "options": [
             "values"
           ],
-          "help": "values: [{field}] \u2014 names of the input binary properties to attach"
+          "help": "values: [{field}] — names of the input binary properties to attach"
         }
       ]
     },

@@ -226,7 +226,7 @@
       },
       "channelId": "c1",
       "messageId": "m1",
-      "emoji": "\ud83d\udc4d"
+      "emoji": "👍"
     },
     "expect": {
       "method": "PUT",
