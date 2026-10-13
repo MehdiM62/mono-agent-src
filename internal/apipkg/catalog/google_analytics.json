@@ -474,7 +474,14 @@
         "param_in": "body"
       },
       "output": {
-        "path": "rows"
+        "path": "rows",
+        "to": {
+          "$merge": [
+            "{{ el.dimensionValues | zip:res.dimensionHeaders,'name','value' }}",
+            "{{ el.metricValues | zip:res.metricHeaders,'name','value' }}"
+          ]
+        },
+        "to_when": "{{ p.simple }}"
       }
     }
   ]
