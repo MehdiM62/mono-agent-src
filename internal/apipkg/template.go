@@ -21,8 +21,10 @@ type Scope struct {
 	Res  any
 	// Items is every input item's JSON, set for batch operations.
 	Items []any
-	// Pre is the decoded response of the op's "before" request.
-	Pre any
+	// Pre is the decoded response of the op's (last) "before" request;
+	// Pres holds every before step's response in order.
+	Pre  any
+	Pres []any
 }
 
 func (s Scope) root(name string) any {
@@ -41,6 +43,8 @@ func (s Scope) root(name string) any {
 		return s.Items
 	case "pre":
 		return s.Pre
+	case "pres":
+		return s.Pres
 	case "uuid":
 		return uuid.NewString()
 	}
@@ -193,9 +197,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "uuid":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "uuid":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., pre. or be uuid", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., pre., pres. or be uuid", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {

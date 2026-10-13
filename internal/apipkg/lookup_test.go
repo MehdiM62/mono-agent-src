@@ -106,3 +106,33 @@ func TestOutputEachMatchExpand(t *testing.T) {
 		t.Errorf("expand: %v %v (%d requests)", items, err, len(*seen))
 	}
 }
+
+// Sheets append with a gid locator: resolve the title, then read its
+// header, then append the item ordered by the header.
+func TestBeforeStepsList(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"append","title":"A","method":"POST",
+	  "path":"/s/values/{{ pres.0.sheets | find:'properties.sheetId',p.gid | get:'properties.title' }}:append",
+	  "fields":[{"key":"gid","label":"G","type":"number","required":true}],
+	  "before":[{"method":"GET","path":"/s","query":{"fields":"sheets.properties"}},
+	            {"method":"GET","path":"/s/values/{{ pre.sheets | find:'properties.sheetId',p.gid | get:'properties.title' }}!1:1"}],
+	  "body":{"values":["{{ item | row:pre.values }}"]}}`))
+	var paths []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		paths = append(paths, r.URL.Path)
+		switch n {
+		case 1:
+			w.Write([]byte(`{"sheets":[{"properties":{"sheetId":0,"title":"Main"}},{"properties":{"sheetId":42,"title":"Leads"}}]}`))
+		case 2:
+			w.Write([]byte(`{"values":[["email","name"]]}`))
+		default:
+			w.Write([]byte(`{}`))
+		}
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "append", "gid": 42.0}, cred, map[string]any{"name": "ada", "email": "a@b"}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/v1/s", "/v1/s/values/Leads!1:1", "/v1/s/values/Leads:append"}
+	if !reflect.DeepEqual(paths, want) {
+		t.Errorf("paths = %v, want %v", paths, want)
+	}
+}

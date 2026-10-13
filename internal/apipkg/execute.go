@@ -251,14 +251,17 @@ func checkRequired(pkg *Package, op *Operation, params map[string]any) error {
 
 // execute sends the request (all pages) and turns the response into items.
 func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
-	if st := r.op.Before; st != nil {
-		resp, err := r.sendStep(ctx, *st, r.scope)
+	for i, st := range r.op.Before {
+		resp, err := r.sendStep(ctx, st, r.scope)
 		if err != nil {
-			return nil, fmt.Errorf("before: %w", err)
+			return nil, fmt.Errorf("before[%d]: %w", i, err)
 		}
+		var v any
 		if resp != nil && len(strings.TrimSpace(string(resp.body))) > 0 {
-			r.scope.Pre = decodeBody(resp.body)
+			v = decodeBody(resp.body)
 		}
+		r.scope.Pres = append(r.scope.Pres, v)
+		r.scope.Pre = v
 	}
 	if r.op.Pagination != nil {
 		results, truncated, err := r.paginate(ctx)
