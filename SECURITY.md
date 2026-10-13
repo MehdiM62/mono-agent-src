@@ -706,8 +706,8 @@ that works a task acts on them. The defences:
   environment, as with org signing. Its cost: nothing can be approved
   from inside an agent's own shell, so the user approves in a terminal
   of their own.
-- **Limits that stop a loop from flooding the board:** 20 tasks an hour
-  created by agents per profile, 2,000 open tasks per profile (every
+- **Limits that stop a loop from flooding the board:** 2,000 open
+  tasks per profile (every
   task that is not archived, Done ones included; a task that comes back
   from the archive counts), and caps on the size of titles (200
   characters), notes (64 KiB) and comments (8 KiB) and on a task's
