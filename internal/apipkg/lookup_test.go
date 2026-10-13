@@ -468,3 +468,24 @@ func TestOperationParamForEachAndSessionAuthHarness(t *testing.T) {
 		t.Errorf("action param: %v %v", op, err)
 	}
 }
+
+func TestPollMainRoot(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"enrich","title":"E","method":"POST","path":"/batch",
+	  "poll":{"method":"GET","path":"/batch/{{ main.request_id }}","until":"{{ res.success }}","interval_ms":1}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		switch n {
+		case 1:
+			w.Write([]byte(`{"request_id":"r9"}`))
+		case 2:
+			w.Write([]byte(`{"success":false}`))
+		default:
+			w.Write([]byte(`{"success":true,"data":[1]}`))
+		}
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "enrich"}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(*seen) != 3 || (*seen)[2].URL.Path != "/v1/batch/r9" {
+		t.Errorf("polls: %d, last %s", len(*seen), (*seen)[len(*seen)-1].URL.Path)
+	}
+}

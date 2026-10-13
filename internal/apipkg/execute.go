@@ -437,7 +437,7 @@ func (r *opRun) runAlso(ctx context.Context, main *response) error {
 	}
 	for i, st := range r.op.Also {
 		sc := r.scope
-		sc.Res = res
+		sc.Res, sc.Main = res, res
 		if st.ForEach != "" {
 			lv, err := renderString(st.ForEach, sc)
 			if err != nil {
@@ -668,8 +668,10 @@ func (r *opRun) poll(ctx context.Context, resp *response) (*response, error) {
 		maxWait = 5 * time.Minute
 	}
 	deadline := time.Now().Add(maxWait)
+	first := decodeBody(resp.body)
 	for {
 		sc := r.scope
+		sc.Main = first
 		sc.Res = decodeBody(resp.body)
 		done, err := renderString(pl.Until, sc)
 		if err != nil {

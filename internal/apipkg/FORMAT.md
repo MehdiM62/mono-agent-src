@@ -175,6 +175,7 @@ Scopes:
 | `items` | every input item's JSON as a list, in `batch` operations |
 | `pre.<path>` | the decoded response of the op's (last) `before` request |
 | `bin.file_name`, `bin.mime_type`, `bin.file_extension` | the uploaded binary's name and type (ops with `binary.upload_field`); raw/multipart uploads default their Content-Type to it |
+| `main.<path>` | the main request's response, unchanged while `poll` repeats rebind `res` (also set in `also` steps) |
 | `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
 | `uuid` | a new random UUID each time (e.g. a Calendar conference `requestId`) |
 

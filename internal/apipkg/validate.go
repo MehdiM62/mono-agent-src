@@ -370,7 +370,7 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item", "el", "res", "items", "pre", "pres", "bin":
+	case "item", "el", "res", "items", "pre", "pres", "bin", "main":
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}
