@@ -308,8 +308,11 @@
         "cursor_param": "pageToken",
         "cursor_path": "nextPageToken",
         "limit_param": "pageSize",
-        "page_size": 100,
-        "results_path": "connections"
+        "page_size": 100
+      },
+      "output": {
+        "path": "{{ p.useQuery | eq:'true' | then:'results' | default:'connections' }}",
+        "each": "{{ p.useQuery | eq:'true' | then:'person' }}"
       }
     },
     {

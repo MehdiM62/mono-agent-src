@@ -93,25 +93,26 @@
     "params": {
       "limit": 10,
       "fields": [
-        "*"
+        "names"
       ],
-      "options": {
-        "sortOrder": "LAST_MODIFIED_ASCENDING"
-      }
+      "useQuery": true,
+      "query": "ada"
     },
     "response": {
-      "connections": [
+      "results": [
         {
-          "resourceName": "people/1"
+          "person": {
+            "resourceName": "people/1"
+          }
         }
       ]
     },
     "expect": {
       "method": "GET",
-      "path": "/v1/people/me/connections",
+      "path": "/v1/people:searchContacts",
       "query": {
-        "personFields": "addresses,biographies,birthdays,coverPhotos,emailAddresses,events,genders,imClients,interests,locales,memberships,metadata,names,nicknames,occupations,organizations,phoneNumbers,photos,relations,residences,sipAddresses,skills,urls,userDefined",
-        "sortOrder": "LAST_MODIFIED_ASCENDING",
+        "readMask": "names",
+        "query": "ada",
         "pageSize": "10"
       },
       "items": 1
