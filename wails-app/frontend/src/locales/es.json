@@ -1212,7 +1212,8 @@
       "approved": "aprobada",
       "denied": "denegada",
       "rejected": "rechazada",
-      "dismissed": "descartada"
+      "dismissed": "descartada",
+      "sent": "enviado"
     },
     "dismiss": "Descartar",
     "dismissHint": "Cierra esta pregunta sin responder; se avisa al rol",
@@ -1240,7 +1241,23 @@
     "sent": "enviado",
     "couldNotSend": "No se pudo enviar: {{error}}",
     "openAsBubble": "Abrir como burbuja",
-    "openAsBubbleNamed": "Abrir {{name}} como burbuja de chat"
+    "openAsBubbleNamed": "Abrir {{name}} como burbuja de chat",
+    "threadBoss": "Jefe",
+    "threadTeam": "Equipo",
+    "threadsLabel": "Vista de la conversación",
+    "threadRoleLabel": "Hilo de {{name}}",
+    "teamEmpty": "Aún no hay mensajes entre roles.",
+    "roleEmpty": "{{name}} todavía no ha dicho ni hecho nada.",
+    "waitingElsewhere_one": "{{count}} esperando por ti en otra vista. Ver el hilo del jefe",
+    "waitingElsewhere_other": "{{count}} esperando por ti en otra vista. Ver el hilo del jefe",
+    "tool": {
+      "running": "en curso",
+      "ok": "hecho",
+      "failed": "falló",
+      "denied": "denegado"
+    },
+    "answerInBubble": "Responder en la burbuja",
+    "answerInBubbleNamed": "Abre {{name}} como burbuja para responder lo que espera por ti"
   },
   "account": {
     "checking": "Comprobando tu cuenta de monoes.me…",
@@ -1348,10 +1365,28 @@
     "left": "quedan {{time}}",
     "ended": "terminó hace {{time}}",
     "leaseEnded": "El reclamo terminó: otro agente puede tomarla, o puede volver a Listo.",
-    "tag": { "question": "Pregunta", "result": "Resultado" },
-    "age": { "now": "ahora", "m": "{{n}} min", "h": "{{n}} h", "d": "{{n}} d", "w": "{{n}} sem" },
-    "span": { "m": "{{m}} min", "hm": "{{h}} h {{m}} min" },
-    "source": { "chrome": "Chrome", "os": "App", "agent": "Agente", "app": "MonoAgent", "cli": "Terminal" },
+    "tag": {
+      "question": "Pregunta",
+      "result": "Resultado"
+    },
+    "age": {
+      "now": "ahora",
+      "m": "{{n}} min",
+      "h": "{{n}} h",
+      "d": "{{n}} d",
+      "w": "{{n}} sem"
+    },
+    "span": {
+      "m": "{{m}} min",
+      "hm": "{{h}} h {{m}} min"
+    },
+    "source": {
+      "chrome": "Chrome",
+      "os": "App",
+      "agent": "Agente",
+      "app": "MonoAgent",
+      "cli": "Terminal"
+    },
     "archiveFailed": "No se pudo archivar",
     "archiving": "Archivando…",
     "close": "Cerrar",
@@ -1435,5 +1470,36 @@
       "org_id": "ID de organización",
       "role_id": "ID del rol"
     }
+  },
+  "ask": {
+    "regionLabel": "Esperando tu aprobación",
+    "hilTitle": "El flujo {{workflow}} pregunta: {{node}}",
+    "sendTitle": "Aprobar el envío ({{channel}})",
+    "sendLabel": "Aprobar el envío de {{channel}} a {{name}}",
+    "channel": {
+      "email": "correo",
+      "dm": "mensaje directo",
+      "comment": "comentario",
+      "post": "publicación",
+      "connection": "solicitud de conexión"
+    },
+    "to": "Para",
+    "from": "De",
+    "subject": "Asunto",
+    "profile": "perfil",
+    "person": "abrir persona",
+    "unknownRecipient": "Destinatario desconocido",
+    "textLabel": "Texto exacto que se enviará",
+    "edited": "Editado: al aprobar se envía este texto.",
+    "preparedBy": "Preparado por {{name}}. No se envía nada hasta que apruebes.",
+    "edit": "Editar",
+    "doneEditing": "Terminar edición",
+    "attachments_one": "{{count}} adjunto",
+    "attachments_other": "{{count}} adjuntos",
+    "imageAlt": "Imagen adjunta",
+    "previewFailed": "Vista previa no disponible",
+    "previewLoading": "Cargando vista previa…",
+    "open": "Abrir",
+    "openNamed": "Abrir {{name}}"
   }
 }

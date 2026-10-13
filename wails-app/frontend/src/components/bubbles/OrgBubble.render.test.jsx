@@ -14,7 +14,7 @@ import history from './__fixtures__/acme-history.json'
 import BUS from './__fixtures__/acme-bus.json'
 
 const { api, listeners, confirmMock } = vi.hoisted(() => ({
-  listeners: { org: new Set() },
+  listeners: { org: new Set(), run: new Set() },
   confirmMock: vi.fn(),
   api: {
     getOrgChatHistory: vi.fn(),
@@ -36,6 +36,7 @@ vi.mock('../../services/api.js', () => ({
   notify: vi.fn(),
   onChatEvent: () => () => {},
   onOrgEvent: cb => { listeners.org.add(cb); return () => listeners.org.delete(cb) },
+  onOrgRunStatus: cb => { listeners.run.add(cb); return () => listeners.run.delete(cb) },
   newOrgEventsStreamId: (() => { let n = 0; return () => `s${++n}` })(),
 }))
 vi.mock('../ConfirmDialog.jsx', () => ({ confirm: confirmMock }))

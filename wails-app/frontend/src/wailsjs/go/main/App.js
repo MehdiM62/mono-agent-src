@@ -686,6 +686,18 @@ export function GetWorkflowTriggerInputs(arg1) {
   return window['go']['main']['App']['GetWorkflowTriggerInputs'](arg1);
 }
 
+export function HILAttachment(arg1, arg2) {
+  return window['go']['main']['App']['HILAttachment'](arg1, arg2);
+}
+
+export function HILList() {
+  return window['go']['main']['App']['HILList']();
+}
+
+export function HILResolve(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['HILResolve'](arg1, arg2, arg3, arg4);
+}
+
 export function HasGeneratedDocuments(arg1) {
   return window['go']['main']['App']['HasGeneratedDocuments'](arg1);
 }

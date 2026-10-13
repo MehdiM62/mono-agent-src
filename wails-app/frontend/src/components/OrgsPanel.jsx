@@ -992,7 +992,16 @@ export default function OrgsPanel({ embedded = false, isOpen = true, onClose, pa
                 )}
 
                 {tab === 'needs' && (
-                  <NeedsYouPanel orgName={selected} onCountChange={handleNeedsYouCount} />
+                  <>
+                    {(needsYouCounts[selected] || 0) > 0 && (
+                      <button type="button" className="btn btn-primary btn-sm" data-testid="org-answer-in-bubble"
+                        onClick={() => emitOpenOrgBubble(selected)} aria-label={t('orgBubble.answerInBubbleNamed', { name: selected })}
+                        style={{ gap: 4, fontSize: 10, marginBottom: 8 }}>
+                        <MessageCircle size={12} /> {t('orgBubble.answerInBubble')}
+                      </button>
+                    )}
+                    <NeedsYouPanel orgName={selected} onCountChange={handleNeedsYouCount} />
+                  </>
                 )}
 
                 {tab === 'queued' && (

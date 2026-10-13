@@ -272,6 +272,10 @@ export const api = {
   dismissOrgChat:     (org, questionID, reason = '') => GoApp.DismissOrgChat(org, questionID, reason).then(s => JSON.parse(s)).catch(asError),
   resolveOrgChat:     (org, ref, approve, note = '') => GoApp.ResolveOrgChat(org, ref, approve, note).then(s => JSON.parse(s)).catch(asError),
   controlOrg:         (org, verb) => GoApp.ControlOrg(org, verb).then(s => JSON.parse(s)).catch(asError),
+  // Bubble asks (`monoagentcli hil …`, app_hil_ui.go): only services/hilApi.js calls these.
+  hilList:            () => GoApp.HILList().then(s => JSON.parse(s)).catch(asError),
+  hilResolve:         (id, { approve, editText = '', data } = {}) => GoApp.HILResolve(id, !!approve, editText || '', data ? JSON.stringify(data) : '').then(s => JSON.parse(s)).catch(asError),
+  hilAttachment:      (id, n) => GoApp.HILAttachment(id, n).then(s => JSON.parse(s)).catch(asError),
   // Org Designer — direct config-file read/write, distinct from the org
   // observe/action surface above (which proxies `monoagentcli org <sub>`,
   // read-only + question/gate actions). See wails-app/app_orgs_design.go.

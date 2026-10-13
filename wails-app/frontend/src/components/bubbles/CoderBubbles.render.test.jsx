@@ -27,6 +27,7 @@ vi.mock('../../services/api.js', () => ({
   notify: vi.fn(),
   onChatEvent: cb => { listeners.chat.add(cb); return () => listeners.chat.delete(cb) },
   onOrgEvent: () => () => {},
+  onOrgRunStatus: () => () => {},
   newOrgEventsStreamId: () => 'stream',
 }))
 vi.mock('../ConfirmDialog.jsx', () => ({ confirm: (...a) => mockConfirm(...a) }))
