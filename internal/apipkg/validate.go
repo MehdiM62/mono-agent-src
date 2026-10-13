@@ -166,17 +166,17 @@ func (c *Credential) check(i int) []string {
 		add("inject is empty: say how the credential authenticates (headers, query, basic or aws_sigv4)")
 	}
 	for k, v := range in.Headers {
-		probs = append(probs, checkTemplates(where+" inject.headers."+k, v, nil, keys)...)
+		probs = append(probs, checkTemplates(where+" inject.headers."+k, v, anyField, keys)...)
 	}
 	for k, v := range in.Query {
-		probs = append(probs, checkTemplates(where+" inject.query."+k, v, nil, keys)...)
+		probs = append(probs, checkTemplates(where+" inject.query."+k, v, anyField, keys)...)
 	}
 	if b := in.Basic; b != nil {
-		probs = append(probs, checkTemplates(where+" inject.basic", []any{b.Username, b.Password}, nil, keys)...)
+		probs = append(probs, checkTemplates(where+" inject.basic", []any{b.Username, b.Password}, anyField, keys)...)
 	}
 	if s := in.AWSSigV4; s != nil {
 		probs = append(probs, checkTemplates(where+" inject.aws_sigv4",
-			[]any{s.Service, s.Region, s.AccessKeyID, s.SecretAccessKey, s.SessionToken}, nil, keys)...)
+			[]any{s.Service, s.Region, s.AccessKeyID, s.SecretAccessKey, s.SessionToken}, anyField, keys)...)
 	}
 	return probs
 }
@@ -312,6 +312,12 @@ func checkTemplates(where string, v any, fields, credKeys map[string]bool) []str
 						if a != f.arg && a.path != nil {
 							exprs = append(exprs, a.path)
 						}
+						if a.sub != nil {
+							exprs = append(exprs, a.sub)
+						}
+					}
+					if f.arg != nil && f.arg.sub != nil && len(f.args) == 0 {
+						exprs = append(exprs, f.arg.sub)
 					}
 					if f.arg != nil && f.arg.path != nil {
 						exprs = append(exprs, f.arg.path)
@@ -336,6 +342,10 @@ func checkTemplates(where string, v any, fields, credKeys map[string]bool) []str
 	return probs
 }
 
+// anyField marks templates (credential inject) that may read any op
+// param: they are shared by every op, so p.* can't be checked per op.
+var anyField = map[string]bool{"*": true}
+
 func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string {
 	if len(e.path) == 0 {
 		return nil
@@ -345,7 +355,7 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: p.* is not available here (only cred.*)", where, e.src)}
 		}
-		if !fields[e.path[0]] {
+		if !fields[e.path[0]] && !fields["*"] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not one of the op's fields", where, e.src, e.path[0])}
 		}
 	case "cred":

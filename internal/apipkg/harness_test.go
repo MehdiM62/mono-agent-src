@@ -176,7 +176,7 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 			t.Errorf("%s: header %s: got %q, want %q", where, k, g, want)
 		}
 	}
-	checkAuth(t, where, got, credDef, cred)
+	checkAuth(t, where, got, credDef, cred, params, c.Input)
 	if e.Items != nil && len(items) != *e.Items {
 		t.Errorf("%s: items: got %d, want %d", where, len(items), *e.Items)
 	}
@@ -278,12 +278,14 @@ func normalize(v any) any {
 	return out
 }
 
-func checkAuth(t *testing.T, where string, got captured, c *Credential, cred map[string]any) {
+func checkAuth(t *testing.T, where string, got captured, c *Credential, cred, params, item map[string]any) {
 	t.Helper()
 	if c == nil {
 		return
 	}
-	sc := Scope{Cred: cred}
+	// inject may read op params (Contentful's token choice), so render it
+	// with the case's params and input item like the engine does.
+	sc := Scope{Cred: cred, P: params, Item: item}
 	for k, tv := range c.Inject.Headers {
 		want, _ := renderText(tv, sc)
 		if g := got.header.Get(k); g != want {
