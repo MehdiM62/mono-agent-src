@@ -21,9 +21,8 @@ import AccountsCard from './dashboard/AccountsCard.jsx'
 import { loadScope, saveScope, currentProfileId } from './dashboard/scope.js'
 import ProfilesCard from './dashboard/ProfilesCard.jsx'
 import GetStartedCard from './dashboard/GetStartedCard.jsx'
-import { bridgeState, getStartedSteps, getStartedComplete, loadDismissed, saveDismissed } from './dashboard/getStarted.js'
+import { bridgeState, getStartedSteps, getStartedComplete, loadDismissed, okRunCount, saveDismissed } from './dashboard/getStarted.js'
 import { AccountContext } from '../lib/accountContext.js'
-import { execStatus } from '../lib/execStatus.js'
 
 const noGate = { subscribe: () => () => {}, getSnapshot: () => null }
 
@@ -38,7 +37,7 @@ export default function Dashboard({ isActive = true, onRefresh, onNavigate, onOp
   const [getStartedHidden, setGetStartedHidden] = useState(loadDismissed)
   const steps = getStartedSteps({
     signedIn: !!accountSnap?.status?.user,
-    okRuns: executions.filter(e => execStatus(e.status).key === 'success').length,
+    okRuns: okRunCount(executions),
     bridge,
     daemonRunning: summary?.services?.daemon?.running,
   })

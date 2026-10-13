@@ -2,6 +2,8 @@
 // only, from data the dashboard already reads: the account gate, `workflow
 // list`, `workflow executions`, `summary` and `extension status --json`.
 
+import { execStatus } from '../../lib/execStatus.js'
+
 // bridgeState is what the "Browser bridge" row says: connected, waiting (for
 // a browser), unpaired (this client's pairing token is turned away) or off
 // (no bridge). `summary` only probes the port, so `extension status`, when it
@@ -26,6 +28,12 @@ export function getStartedSteps({ signedIn, okRuns, bridge, daemonRunning }) {
     { id: 'extension', done: bridge === 'connected' },
     { id: 'daemon', done: !!daemonRunning, optional: true },
   ]
+}
+
+// okRunCount: how many of the recent executions succeeded — a failed or
+// partly failed run does not tick "Run your first workflow".
+export function okRunCount(executions) {
+  return (executions || []).filter(e => execStatus(e.status).key === 'success').length
 }
 
 export const getStartedComplete = (steps) => steps.every(s => s.done || s.optional)

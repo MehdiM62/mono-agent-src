@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bridgeState, getStartedSteps, getStartedComplete, loadDismissed, saveDismissed } from './getStarted.js'
+import { bridgeState, getStartedSteps, getStartedComplete, loadDismissed, okRunCount, saveDismissed } from './getStarted.js'
 
 describe('bridgeState', () => {
   const portOpen = { status: 'connected', addr: '127.0.0.1:9222' }
@@ -40,5 +40,22 @@ describe('dismissal', () => {
     const broken = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') } }
     expect(loadDismissed(broken)).toBe(false)
     expect(() => saveDismissed(broken)).not.toThrow()
+  })
+})
+
+describe('first run step', () => {
+  const step = (executions) => getStartedSteps({ signedIn: true, okRuns: okRunCount(executions), bridge: 'connected' }).find(s => s.id === 'firstRun')
+  it('is not done when every run failed', () => {
+    const failedOnly = [
+      { id: 'e1', status: 'FAILED' }, { id: 'e2', status: 'FAILED' }, { id: 'e3', status: 'failed' },
+      { id: 'e4', status: 'SUCCESS_WITH_ERRORS' }, { id: 'e5', status: 'CANCELLED' }, { id: 'e6', status: 'RUNNING' },
+    ]
+    expect(okRunCount(failedOnly)).toBe(0)
+    expect(step(failedOnly).done).toBe(false)
+    expect(step([]).done).toBe(false)
+  })
+  it('is done once a run succeeded', () => {
+    expect(step([{ status: 'FAILED' }, { status: 'SUCCESS' }]).done).toBe(true)
+    expect(step([{ status: 'COMPLETED' }]).done).toBe(true)
   })
 })
