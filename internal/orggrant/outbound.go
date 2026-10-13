@@ -223,6 +223,7 @@ var outboundNodes = setOf(
 	"ai.extract_page", "applications.evaluate",
 	"browser.jev", // goal-driven agent in the user's browser
 	"http.ftp", "http.ssh", "system.execute_command",
+	"http.graphql",
 	"data.write_binary_file", // writes any local path
 	"vault.secret_save",      // overwrites credentials
 )
