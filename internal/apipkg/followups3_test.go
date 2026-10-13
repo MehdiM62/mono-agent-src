@@ -1,7 +1,7 @@
 package apipkg
 
 import (
-	"crypto/md5" //nolint:gosec // test vector
+	"crypto/md5"  //nolint:gosec // test vector
 	"crypto/sha1" //nolint:gosec // test vector
 	"crypto/sha256"
 	"encoding/hex"
