@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/secrets"
@@ -252,6 +251,13 @@ func (s *Store) GetOrResolve(ctx context.Context, idOrPlatform, profileID string
 	// the previous all-profiles fallback was cross-profile credential
 	// injection (RA4).
 	conns, err := s.ListByPlatform(ctx, idOrPlatform, profileID)
+	if err == nil && len(conns) == 0 {
+		// A per-product platform (gmail, outlook, …) with no connection of
+		// its own is served by its umbrella's (google, microsoft).
+		if u := s.resolveViaUmbrella(ctx, idOrPlatform, profileID); u != nil {
+			return s.ensureFreshToken(ctx, u)
+		}
+	}
 	if err != nil || len(conns) == 0 {
 		return nil, fmt.Errorf("no connection found for %q under profile %q", idOrPlatform, profileID)
 	}
@@ -340,18 +346,11 @@ func (s *Store) RefreshToken(ctx context.Context, conn *Connection) error {
 	if credProfileID == "" {
 		credProfileID = "default"
 	}
-	if dbClientID, dbClientSecret := s.GetOAuthClient(ctx, conn.Platform, credProfileID); dbClientID != "" {
-		cfg.ClientID = dbClientID
-		cfg.ClientSecret = dbClientSecret
+	// Umbrella platforms also fall back to their per-product clients.
+	if id, sec := s.lookupOAuthClient(ctx, p.ID, credProfileID); id != "" {
+		cfg.ClientID, cfg.ClientSecret = id, sec
 	}
-	// Allow env var overrides.
-	envPrefix := "MONOAGENT_" + strings.ToUpper(strings.ReplaceAll(p.ID, "-", "_")) + "_"
-	if cfg.ClientID == "" {
-		cfg.ClientID = os.Getenv(envPrefix + "CLIENT_ID")
-	}
-	if cfg.ClientSecret == "" {
-		cfg.ClientSecret = os.Getenv(envPrefix + "CLIENT_SECRET")
-	}
+	envPrefix := oauthEnvPrefix(p.ID)
 	if cfg.ClientID == "" {
 		return fmt.Errorf("missing OAuth client credentials for %q profile %q — run `monoagentcli connect set-oauth-client %s --client-id <id> [--client-secret <secret>]` or set %sCLIENT_ID", p.ID, credProfileID, p.ID, envPrefix)
 	}
@@ -386,6 +385,9 @@ func (s *Store) RefreshToken(ctx context.Context, conn *Connection) error {
 	}
 	if result.ExpiresIn > 0 {
 		conn.Data["expires_at"] = time.Now().UTC().Add(time.Duration(result.ExpiresIn) * time.Second).Format(time.RFC3339)
+	}
+	if IsUmbrella(getStr(conn.Data, "oauth_platform")) && result.Scope != "" {
+		conn.Data["scope"] = result.Scope
 	}
 	conn.Status = "active"
 

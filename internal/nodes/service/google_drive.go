@@ -34,6 +34,9 @@ func (n *GoogleDriveNode) Execute(ctx context.Context, input workflow.NodeInput,
 	if accessToken == "" {
 		return nil, fmt.Errorf("google_drive: access_token is required")
 	}
+	if err := credentialScopeCheck(config, "google_drive"); err != nil {
+		return nil, fmt.Errorf("google_drive: %w", err)
+	}
 	operation := strVal(config, "operation")
 	pageSize := intVal(config, "page_size")
 	if pageSize == 0 {

@@ -42,6 +42,9 @@ func (n *GmailNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 	if accessToken == "" {
 		return nil, fmt.Errorf("gmail: access_token is required")
 	}
+	if err := credentialScopeCheck(config, "gmail"); err != nil {
+		return nil, fmt.Errorf("gmail: %w", err)
+	}
 	operation := strVal(config, "operation")
 	maxResults := intVal(config, "max_results")
 	if maxResults == 0 {

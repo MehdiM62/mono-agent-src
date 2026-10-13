@@ -39,6 +39,9 @@ func (n *OutlookMailNode) Execute(ctx context.Context, input workflow.NodeInput,
 	if accessToken == "" {
 		return nil, fmt.Errorf("outlook_mail: access_token is required")
 	}
+	if err := credentialScopeCheck(config, "outlook"); err != nil {
+		return nil, fmt.Errorf("outlook_mail: %w", err)
+	}
 	operation := strVal(config, "operation")
 	maxResults := intVal(config, "max_results")
 	if maxResults == 0 {
