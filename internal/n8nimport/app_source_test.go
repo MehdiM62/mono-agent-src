@@ -65,3 +65,27 @@ func TestCredentialPlatformFor(t *testing.T) {
 		}
 	}
 }
+
+func TestAppVersionDefaults(t *testing.T) {
+	RegisterAppSource(func() []AppMapper {
+		return []AppMapper{{N8nTypes: []string{"n8n-nodes-base.testNinja"}, NodeType: "app.ninja", PackageID: "ninja",
+			DefaultResource: "invoice", DefaultOperations: map[string]string{"invoice": "get"},
+			VersionDefaults: map[string]map[string]any{"1": {"apiVersion": "v4"}}}}
+	})
+	wf, _ := convertString(t, `{"name":"t","nodes":[
+	 {"name":"M","type":"n8n-nodes-base.manualTrigger","typeVersion":1,"position":[0,0],"parameters":{}},
+	 {"name":"V1","type":"n8n-nodes-base.testNinja","typeVersion":1,"position":[200,0],"parameters":{}},
+	 {"name":"V2","type":"n8n-nodes-base.testNinja","typeVersion":2,"position":[400,0],"parameters":{}},
+	 {"name":"Set","type":"n8n-nodes-base.testNinja","typeVersion":1,"position":[600,0],"parameters":{"apiVersion":"v5"}}],
+	 "connections":{"M":{"main":[[{"node":"V1","type":"main","index":0}]]},
+	  "V1":{"main":[[{"node":"V2","type":"main","index":0}]]},"V2":{"main":[[{"node":"Set","type":"main","index":0}]]}}}`)
+	if v := nodeByName(wf, "V1").Config["apiVersion"]; v != "v4" {
+		t.Errorf("typeVersion 1 default: %v", v)
+	}
+	if v := nodeByName(wf, "V2").Config["apiVersion"]; v != nil {
+		t.Errorf("typeVersion 2 has no default: %v", v)
+	}
+	if v := nodeByName(wf, "Set").Config["apiVersion"]; v != "v5" {
+		t.Errorf("an exported value wins: %v", v)
+	}
+}
