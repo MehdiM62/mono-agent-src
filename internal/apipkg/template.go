@@ -354,6 +354,18 @@ func renderValue(v any, sc Scope) (any, error) {
 // renderObject renders an object template. $merge spreads object values
 // into the parent first; explicit keys then override.
 func renderObject(m map[string]any, sc Scope) (map[string]any, error) {
+	// $when gates the whole object: empty/false → nil (omitted); otherwise
+	// the object is kept even when every other key is empty, so marker
+	// objects like Google Docs' "endOfSegmentLocation": {} survive.
+	if wv, ok := m["$when"]; ok {
+		w, err := renderValue(wv, sc)
+		if err != nil {
+			return nil, fmt.Errorf("$when: %w", err)
+		}
+		if isEmpty(w) || w == false {
+			return nil, nil
+		}
+	}
 	out := map[string]any{}
 	if mv, ok := m["$merge"]; ok {
 		srcs := []any{mv}
@@ -380,7 +392,7 @@ func renderObject(m map[string]any, sc Scope) (map[string]any, error) {
 		}
 	}
 	for k, val := range m {
-		if k == "$merge" {
+		if k == "$merge" || k == "$when" {
 			continue
 		}
 		r, err := renderValue(val, sc)
@@ -390,6 +402,14 @@ func renderObject(m map[string]any, sc Scope) (map[string]any, error) {
 		if strings.HasPrefix(k, "!") {
 			out[k[1:]] = r
 			continue
+		}
+		if gated, ok := val.(map[string]any); ok {
+			if _, has := gated["$when"]; has {
+				if m, ok := r.(map[string]any); ok && m != nil {
+					out[k] = m // a $when object that passed is kept even when empty
+				}
+				continue
+			}
 		}
 		if isEmpty(r) {
 			continue // an empty explicit key leaves a merged value in place
