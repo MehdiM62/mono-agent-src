@@ -1,6 +1,7 @@
 package apipkg
 
 import (
+	"encoding/json"
 	"net/http"
 	"reflect"
 	"strings"
@@ -221,5 +222,35 @@ func TestEntriesFilterAndOutputTo(t *testing.T) {
 	items, _ = runPackageOp(p, map[string]any{"operation": "rows", "rawData": true}, cred, nil)
 	if items[0].JSON["values"] == nil {
 		t.Errorf("to_when false keeps raw: %v", items)
+	}
+}
+
+// The harness itself: responses answer in order and expect_requests /
+// the default main-request check see past before steps.
+func TestHarnessMultiRequestCases(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"append","title":"A","method":"POST","path":"/s/v/Main:append",
+	  "before":[{"method":"GET","path":"/s/v/Main!1:1"}],
+	  "body":{"values":["{{ item | row:pre.values }}"]}}`))
+	op := &p.Operations[0]
+	var c opCase
+	if err := json.Unmarshal([]byte(`{"input":{"name":"ada"},
+	  "responses":[{"values":[["name","email"]]},{"updates":{}}],
+	  "expect":{"method":"POST","path":"/v1/s/v/Main:append","body":{"values":[["ada",""]]}}}`), &c); err != nil {
+		t.Fatal(err)
+	}
+	checkCase(t, p, op, c)
+	c.ExpectRequests = []expectReq{{Method: "GET", Path: "/v1/s/v/Main!1:1"}, c.Expect}
+	checkCase(t, p, op, c)
+}
+
+func TestOutputToOnSingleObject(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"get","title":"G","method":"GET","path":"/row",
+	  "output":{"to":{"id":"{{ el.id }}","$merge":"{{ el.values }}"}}}`))
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"id":"r1","values":{"Name":"ada"}}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "get"}, cred, nil)
+	if err != nil || len(items) != 1 || items[0].JSON["Name"] != "ada" || items[0].JSON["values"] != nil {
+		t.Errorf("single object to: %v %v", items, err)
 	}
 }

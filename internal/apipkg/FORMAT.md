@@ -410,7 +410,7 @@ Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `
 "before": { "method": "GET", "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ p.sheetName | rl }}!1:1" },
 "body": { "values": [ "{{ item | row:pre.values }}" ] }
 ```
-**Output shaping** (applied in this order, also to paginated results):
+**Output shaping** (applied in this order, also to paginated results; a single-object response is shaped as a one-element list):
 - `"each": "invoice"` replaces each element by its value at that path (Chargebee `[{"invoice": {…}}]` → the invoices).
 - `"expand": {method, path, query, …}` sends one request per element (`el` = the element) and replaces it with the response (Gmail lists ids, then GETs each message with `format`).
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
@@ -510,6 +510,16 @@ leaves the machine. The server answers the first request with `response`
 and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
+
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one after any `before` steps. To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
+```json
+"values.append": {
+  "params": { "documentId": "abc", "sheetName": "Main" },
+  "input": { "name": "ada" },
+  "responses": [ { "values": [["name", "email"]] }, { "updates": {} } ],
+  "expect": { "method": "POST", "path": "/v4/spreadsheets/abc/values/Main:append", "body": { "values": [["ada", ""]] } }
+}
+```
 
 ## 14. Worked example
 
