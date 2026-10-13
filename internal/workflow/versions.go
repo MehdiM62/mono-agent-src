@@ -12,13 +12,15 @@ import (
 )
 
 // WorkflowSnapshot is the part of a workflow a version records: what the
-// workflow does, not whether it is active or when it was touched. Node
-// schemas are left out — they are derived from the node type.
+// workflow does (settings included), not whether it is active or when it
+// was touched. Node schemas are left out — they are derived from the node
+// type.
 type WorkflowSnapshot struct {
-	Name        string               `json:"name"`
-	Description string               `json:"description"`
-	Nodes       []SnapshotNode       `json:"nodes"`
-	Connections []SnapshotConnection `json:"connections"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Settings    map[string]interface{} `json:"settings,omitempty"`
+	Nodes       []SnapshotNode         `json:"nodes"`
+	Connections []SnapshotConnection   `json:"connections"`
 }
 
 // SnapshotNode is one node of a WorkflowSnapshot.
@@ -58,6 +60,7 @@ func snapshotOf(w *Workflow) *WorkflowSnapshot {
 	s := &WorkflowSnapshot{
 		Name:        w.Name,
 		Description: w.Description,
+		Settings:    w.Settings,
 		Nodes:       make([]SnapshotNode, 0, len(w.Nodes)),
 		Connections: make([]SnapshotConnection, 0, len(w.Connections)),
 	}
@@ -87,7 +90,7 @@ func snapshotOf(w *Workflow) *WorkflowSnapshot {
 // connection positions dropped (the file store does not keep them), so the
 // same definition read back from either store hashes the same.
 func (s *WorkflowSnapshot) hash() (string, error) {
-	c := WorkflowSnapshot{Name: s.Name, Description: s.Description}
+	c := WorkflowSnapshot{Name: s.Name, Description: s.Description, Settings: s.Settings}
 	c.Nodes = append([]SnapshotNode(nil), s.Nodes...)
 	c.Connections = append([]SnapshotConnection(nil), s.Connections...)
 	sort.SliceStable(c.Nodes, func(i, j int) bool { return c.Nodes[i].ID < c.Nodes[j].ID })
@@ -127,11 +130,12 @@ func sameDefinition(a, b *Workflow) bool {
 	return errA == nil && errB == nil && ha == hb
 }
 
-// Apply returns a copy of base whose definition (name, description, nodes,
-// connections) is s. Identity, profile and activation stay base's.
+// Apply returns a copy of base whose definition (name, description,
+// settings, nodes, connections) is s. Identity, profile and activation stay
+// base's.
 func (s *WorkflowSnapshot) Apply(base *Workflow) *Workflow {
 	out := *base
-	out.Name, out.Description = s.Name, s.Description
+	out.Name, out.Description, out.Settings = s.Name, s.Description, s.Settings
 	out.Nodes = make([]WorkflowNode, 0, len(s.Nodes))
 	for _, n := range s.Nodes {
 		wn := WorkflowNode{

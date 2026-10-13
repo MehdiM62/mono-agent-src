@@ -266,3 +266,76 @@ func assertOldDefinition(t *testing.T, h *HybridWorkflowStore, s *SQLiteWorkflow
 		t.Errorf("versions %v, want only [1]", got)
 	}
 }
+
+func errorWorkflowSettingOf(wf *Workflow) string {
+	s, _ := wf.Settings[ErrorWorkflowSetting].(string)
+	return s
+}
+
+// Settings are part of the definition: a settings-only change is a new
+// version, and restoring an older version brings its settings back in both
+// stores.
+func TestVersions_SettingsVersionedAndRestored(t *testing.T) {
+	ctx := context.Background()
+	h, s := newHybridForTest(t)
+	w := versionWF("wf-s", "one")
+	w.Settings = map[string]interface{}{ErrorWorkflowSetting: "on-error-a"}
+	if err := h.CreateWorkflow(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	next := versionWF("wf-s", "one")
+	next.Settings = map[string]interface{}{ErrorWorkflowSetting: "on-error-b"}
+	if err := h.SaveWorkflow(ctx, next); err != nil {
+		t.Fatal(err)
+	}
+	if got := versionNumbers(t, h, "wf-s"); len(got) != 2 || got[0] != 2 {
+		t.Fatalf("versions %v, want [2 1]", got)
+	}
+	fromSQL, _ := s.GetWorkflow(ctx, "wf-s")
+	if got := errorWorkflowSettingOf(fromSQL); got != "on-error-b" {
+		t.Fatalf("SQLite settings %q after save, want on-error-b", got)
+	}
+
+	v1, err := h.GetWorkflowVersion(ctx, "wf-s", 1)
+	if err != nil || v1 == nil {
+		t.Fatalf("version 1: %v, %v", v1, err)
+	}
+	current, _ := h.GetWorkflow(ctx, "wf-s")
+	if err := h.SaveWorkflowWithNote(ctx, v1.Snapshot.Apply(current), "restored from version 1"); err != nil {
+		t.Fatal(err)
+	}
+	fromFile, _ := h.GetWorkflow(ctx, "wf-s")
+	fromSQL, _ = s.GetWorkflow(ctx, "wf-s")
+	for name, wf := range map[string]*Workflow{"file": fromFile, "sqlite": fromSQL} {
+		if got := errorWorkflowSettingOf(wf); got != "on-error-a" || wf.Version != 3 {
+			t.Errorf("%s: settings %q version %d after restore, want on-error-a, 3", name, got, wf.Version)
+		}
+	}
+}
+
+// A failed save keeps the previous settings as well as the graph.
+func TestVersions_FailedSaveKeepsSettings(t *testing.T) {
+	ctx := context.Background()
+	h, s := newHybridForTest(t)
+	w := versionWF("wf-fs", "old")
+	w.Settings = map[string]interface{}{ErrorWorkflowSetting: "keep-me"}
+	if err := h.CreateWorkflow(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	bad := versionWF("wf-fs", "old")
+	bad.Settings = map[string]interface{}{ErrorWorkflowSetting: "lost"}
+	bad.Connections[0].TargetNodeID = "nope"
+	if err := h.SaveWorkflow(ctx, bad); err == nil {
+		t.Fatal("save with a dangling connection succeeded")
+	}
+	fromFile, _ := h.GetWorkflow(ctx, "wf-fs")
+	fromSQL, _ := s.GetWorkflow(ctx, "wf-fs")
+	for name, wf := range map[string]*Workflow{"file": fromFile, "sqlite": fromSQL} {
+		if got := errorWorkflowSettingOf(wf); got != "keep-me" {
+			t.Errorf("%s: settings %q after failed save, want keep-me", name, got)
+		}
+	}
+	if got := versionNumbers(t, h, "wf-fs"); len(got) != 1 {
+		t.Errorf("versions %v, want only [1]", got)
+	}
+}

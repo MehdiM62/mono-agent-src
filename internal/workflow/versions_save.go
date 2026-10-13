@@ -51,6 +51,7 @@ func (s *SQLiteWorkflowStore) saveDefinition(ctx context.Context, w *Workflow, m
 		w.ID, w.Name, w.Description, boolToInt(w.IsActive), profileID, created, now); err != nil {
 		return fmt.Errorf("saving workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, tx, w)
 	var rowVersion int
 	if err := tx.QueryRowContext(ctx, `SELECT version FROM workflows WHERE id = ?`, w.ID).Scan(&rowVersion); err != nil {
 		return fmt.Errorf("reading version of workflow %s: %w", w.ID, err)

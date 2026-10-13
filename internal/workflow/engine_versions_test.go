@@ -154,3 +154,31 @@ func TestLoadExecutionWorkflow_UsesPinnedVersion(t *testing.T) {
 		t.Errorf("unpinned run sees value %q; want new", setValue(t, got))
 	}
 }
+
+// A resumed run sees the settings of its pinned version (e.g. which error
+// workflow to start), not the edited ones.
+func TestLoadExecutionWorkflow_PinnedSettings(t *testing.T) {
+	eng, h, _ := newVersionsEngine(t)
+	ctx := context.Background()
+	w := versionWF("wf-ps", "same")
+	w.Settings = map[string]interface{}{ErrorWorkflowSetting: "old-handler"}
+	if err := eng.CreateWorkflow(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	waiting := &WorkflowExecution{WorkflowID: "wf-ps", TriggerType: "manual", ProfileID: "default"}
+	if err := h.CreateExecution(ctx, waiting); err != nil {
+		t.Fatal(err)
+	}
+	edited := versionWF("wf-ps", "same")
+	edited.Settings = map[string]interface{}{ErrorWorkflowSetting: "new-handler"}
+	if err := eng.SaveWorkflow(ctx, edited); err != nil {
+		t.Fatal(err)
+	}
+	got, err := eng.loadExecutionWorkflow(ctx, zerolog.Nop(), ExecutionRequest{WorkflowID: "wf-ps", ExecutionID: waiting.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s := errorWorkflowSettingOf(got); s != "old-handler" {
+		t.Errorf("pinned run sees error workflow %q, want old-handler", s)
+	}
+}
