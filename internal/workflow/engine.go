@@ -37,6 +37,7 @@ type WorkflowEngine struct {
 	profileID        string
 	allowAllProfiles bool
 	drops            dropNotes // triggers dropped while the account is locked
+	reconciler       triggerReconciler
 }
 
 // EngineConfig holds WorkflowEngine configuration.
@@ -878,6 +879,10 @@ func (e *WorkflowEngine) checkWorkflowProfile(wf *Workflow) error {
 // engine. Intended to be called once after Start() by a long-running daemon
 // process, so scheduled/webhook triggers survive process restarts. Requires
 // AllowAllProfiles (set via EngineConfig) since it spans every profile.
+//
+// It then fires the schedule ticks missed while no daemon ran, for schedule
+// nodes that opted into catch_up, and starts the trigger reconcile loop that
+// keeps the registrations in step with changes other processes make.
 func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 	if !e.allowAllProfiles {
 		return fmt.Errorf("engine: RestoreActiveWorkflows requires AllowAllProfiles")
@@ -886,7 +891,7 @@ func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("engine: restore active workflows: list: %w", err)
 	}
-	var restored, failed int
+	var restored, failed, caughtUp int
 	for _, wf := range workflows {
 		if !wf.IsActive {
 			continue
@@ -903,8 +908,14 @@ func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 			continue
 		}
 		restored++
+		caughtUp += e.triggerMgr.CatchUp(ctx, full, time.Now())
 	}
-	e.logger.Info().Int("restored", restored).Int("failed", failed).Msg("engine: restored active workflows")
+	e.logger.Info().Int("restored", restored).Int("failed", failed).Int("catch_up_runs", caughtUp).Msg("engine: restored active workflows")
+	loopCtx := e.ctx // the engine's lifetime; ctx when Start was never called
+	if loopCtx == nil {
+		loopCtx = ctx
+	}
+	e.startTriggerReconcile(loopCtx)
 	return nil
 }
 
