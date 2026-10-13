@@ -265,3 +265,18 @@ func TestHarnessSkippedBeforeStep(t *testing.T) {
 	c.Params = map[string]any{"senderName": "Ada"}
 	checkCase(t, p, &p.Operations[0], c) // before ran: main is request #1
 }
+
+func TestPathFilterBinRootAndAnyWildcard(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"upload","title":"U","method":"POST","path":"/v1/{{ p.name | path }}/files",
+	  "fields":[{"key":"name","label":"N","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	  "body_type":"raw","binary":{"upload_field":"binaryPropertyName"},
+	  "also":[{"method":"PATCH","path":"/files/{{ res.id }}","query":{"requestId":"{{ uuid }}"},"body":{"name":"{{ bin.file_name }}","mimeType":"{{ bin.mime_type }}"}}]}`))
+	var c opCase
+	_ = json.Unmarshal([]byte(`{"params":{"name":"spaces/AA A/messages/B"},
+	  "input":{"data":"aGk=","file_name":"report.pdf"},
+	  "responses":[{"id":"f1"},{}],
+	  "expect_requests":[
+	    {"method":"POST","path":"/v1/v1/spaces/AA%20A/messages/B/files","headers":{"Content-Type":"application/pdf"},"body":"hi"},
+	    {"method":"PATCH","path":"/v1/files/f1","query":{"requestId":"<any>"},"body":{"name":"report.pdf","mimeType":"application/pdf"}}]}`), &c)
+	checkCase(t, p, &p.Operations[0], c)
+}

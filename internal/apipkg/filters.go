@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -19,7 +20,7 @@ var knownFilters = map[string]bool{
 	"fromjson": true, "epoch_ms": true, "epoch": true, "split": true, "date": true,
 	"prefix": true, "suffix": true, "base64": true, "base64url": true, "row": true,
 	"gid": true, "find": true, "find_row": true,
-	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true,
+	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -104,6 +105,14 @@ func applyFilter(name string, v, arg any) (any, error) {
 		args := arg.([]any)
 		nullMissing := len(args) > 1 && (args[1] == nil || stringify(args[1]) == "null")
 		return toRow(v, args[0], nullMissing)
+	case "path":
+		// Escape each segment but keep the slashes of resource names
+		// (spaces/AAA/messages/BBB) in a path template.
+		segs := strings.Split(stringify(v), "/")
+		for i, sg := range segs {
+			segs[i] = url.PathEscape(sg)
+		}
+		return pathValue(strings.Join(segs, "/")), nil
 	case "entries":
 		return toEntries(v, arg)
 	case "sheetgid":
@@ -649,3 +658,6 @@ func toEntries(v, arg any) (any, error) {
 	}
 	return out, nil
 }
+
+// pathValue is text already escaped for a URL path (the path filter).
+type pathValue string

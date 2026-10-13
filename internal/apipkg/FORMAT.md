@@ -174,6 +174,7 @@ Scopes:
 | `res.<path>` | the main request's decoded response, inside `also` steps |
 | `items` | every input item's JSON as a list, in `batch` operations |
 | `pre.<path>` | the decoded response of the op's (last) `before` request |
+| `bin.file_name`, `bin.mime_type`, `bin.file_extension` | the uploaded binary's name and type (ops with `binary.upload_field`); raw/multipart uploads default their Content-Type to it |
 | `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
 | `uuid` | a new random UUID each time (e.g. a Calendar conference `requestId`) |
 
@@ -220,6 +221,7 @@ through, so an unset param stays unset:
 | `get:'path'` | walk into the value: `{{ pre.payload.headers \| find:'name','Message-ID' \| get:'value' }}` |
 | `add:n`, `sub:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`); whole results are integers |
 | `colnum`, `colname` | spreadsheet column letter ↔ 1-based number (`"C"` ↔ 3, `"AA"` ↔ 27) |
+| `path` | in a `path` template: escape each segment but keep `/` (Google resource names `spaces/A/messages/B`, `accounts/1/locations/2`) |
 | `entries` / `entries:'column,value'` | object → `[{key, value}, …]` sorted by key (names optional): Coda `"cells": "{{ el \| entries:'column,value' }}"`; `get:p.keyName` picks a key named by a param |
 | `sheetgid` | n8n sheet locator → sheet id text: `"gid=0"` (list mode), `…#gid=123` (url mode), `123` (id mode/expression), or the locator object itself |
 | `gid` | Google file id from a URL (`…/d/<id>/edit`, `…/folders/<id>`, `?id=<id>`); bare ids and non-Google values pass (n8n Docs `documentURL`) |
@@ -511,7 +513,7 @@ and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
 
-**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
 ```json
 "values.append": {
   "params": { "documentId": "abc", "sheetName": "Main" },
