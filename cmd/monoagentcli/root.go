@@ -114,6 +114,7 @@ func newRootCmd() *cobra.Command {
 		newLibraryCmd(cfg),
 		newAccountCmd(cfg),
 		newIntegrationCmd(cfg),
+		newDBCmd(cfg),
 	)
 
 	// `workflow run --full-outputs`: skip credential-key redaction of
@@ -257,8 +258,8 @@ func initDB(cfg *globalConfig) (*storage.Database, error) {
 	return db, nil
 }
 
-// migrateProfilesToPerProfileKeys mirrors the wails app's per-profile vault
-// migration (wails-app/app.go migrateProfilesToPerProfileLayout): every
+// migrateProfilesToPerProfileKeys is the key half of the per-profile
+// migration (`db migrate` adds the folder and vault-file half): every
 // profile's secrets and connection blobs are re-encrypted off the shared
 // legacy key onto the profile's own key. Each pass is idempotent and
 // settles into a cheap no-op once a profile is fully migrated, so running
