@@ -123,6 +123,9 @@
         "limit_param": "pageSize",
         "page_size": 1000,
         "results_path": "Items"
+      },
+      "output": {
+        "to": "{{ el | dotnet_date }}"
       }
     },
     {
@@ -182,6 +185,9 @@
         "limit_param": "pageSize",
         "page_size": 1000,
         "results_path": "Items"
+      },
+      "output": {
+        "to": "{{ el | dotnet_date }}"
       }
     },
     {
@@ -198,7 +204,10 @@
           "required": true,
           "help": "Product GUID"
         }
-      ]
+      ],
+      "output": {
+        "to": "{{ el | dotnet_date }}"
+      }
     }
   ]
 }

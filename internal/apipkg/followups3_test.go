@@ -225,3 +225,16 @@ func TestOdooJSONRPCErrorFails(t *testing.T) {
 		t.Fatalf("an HTTP 200 JSON-RPC error must fail the item, got %v after %d requests", err, len(m.requests()))
 	}
 }
+
+func TestUnleashedDotnetDates(t *testing.T) {
+	p := catalogPkg(t, "unleashed_software")
+	newMockServer(t, map[string]any{"ProductCode": "P1", "LastModifiedOn": "/Date(1586833770780)/"}, 200)
+	items, err := runPackageOp(p, map[string]any{"resource": "stockOnHand", "operation": "get", "productId": "P1"},
+		map[string]any{"api_id": "i", "api_key": "k"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].JSON["LastModifiedOn"] != "2020-04-14T03:09:30.780Z" || items[0].JSON["ProductCode"] != "P1" {
+		t.Errorf("items = %v", items)
+	}
+}
