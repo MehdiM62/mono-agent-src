@@ -1,0 +1,353 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "twitter",
+  "node_type": "app.twitter",
+  "title": "X (Twitter)",
+  "description": "Post, delete, like, retweet and search tweets, look up users, manage lists and send DMs on X",
+  "category": "app",
+  "docs_url": "https://docs.x.com/x-api/introduction",
+  "n8n_types": [
+    "n8n-nodes-base.twitter"
+  ],
+  "base_url": "https://api.x.com/2",
+  "credentials": [
+    {
+      "platform": "twitter",
+      "name": "X (Twitter) API",
+      "n8n_credential": "twitterOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://x.com/i/oauth2/authorize",
+        "token_url": "https://api.x.com/2/oauth2/token",
+        "pkce": true,
+        "scopes": [
+          "tweet.read",
+          "users.read",
+          "tweet.write",
+          "tweet.moderate.write",
+          "follows.read",
+          "follows.write",
+          "offline.access",
+          "like.read",
+          "like.write",
+          "dm.write",
+          "dm.read",
+          "list.read",
+          "list.write"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "tweet",
+      "label": "Tweet"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "list",
+      "label": "List"
+    },
+    {
+      "value": "directMessage",
+      "label": "Direct message"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "tweet",
+      "operation": "create",
+      "title": "Post a tweet",
+      "method": "POST",
+      "path": "/tweets",
+      "body": {
+        "text": "{{ p.text }}",
+        "geo": {
+          "place_id": "{{ p.additionalFields.location }}"
+        },
+        "media": {
+          "media_ids": [
+            "{{ p.additionalFields.attachments }}"
+          ]
+        },
+        "quote_tweet_id": "{{ p.additionalFields.inQuoteToStatusId | rl | re:'status/([0-9]+)' }}",
+        "reply": {
+          "in_reply_to_tweet_id": "{{ p.additionalFields.inReplyToStatusId | rl | re:'status/([0-9]+)' }}"
+        }
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachments",
+            "inQuoteToStatusId",
+            "inReplyToStatusId",
+            "location"
+          ],
+          "help": "attachments: a media ID; location: a place ID; quote/reply IDs accept a tweet URL"
+        }
+      ]
+    },
+    {
+      "resource": "tweet",
+      "operation": "delete",
+      "title": "Delete a tweet",
+      "method": "DELETE",
+      "path": "/tweets/{{ p.tweetDeleteId | rl | re:'status/([0-9]+)' }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "tweetDeleteId",
+          "label": "Tweet ID or URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "tweet",
+      "operation": "like",
+      "title": "Like a tweet",
+      "method": "POST",
+      "path": "/users/{{ pre.data.id }}/likes",
+      "before": {
+        "method": "GET",
+        "path": "/users/me"
+      },
+      "body": {
+        "tweet_id": "{{ p.tweetId | rl | re:'status/([0-9]+)' }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "tweetId",
+          "label": "Tweet ID or URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "tweet",
+      "operation": "retweet",
+      "title": "Retweet a tweet",
+      "method": "POST",
+      "path": "/users/{{ pre.data.id }}/retweets",
+      "before": {
+        "method": "GET",
+        "path": "/users/me"
+      },
+      "body": {
+        "tweet_id": "{{ p.tweetId | rl | re:'status/([0-9]+)' }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "tweetId",
+          "label": "Tweet ID or URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "tweet",
+      "operation": "search",
+      "title": "Search recent tweets",
+      "method": "GET",
+      "path": "/tweets/search/recent",
+      "query": {
+        "query": "{{ p.searchText }}",
+        "sort_order": "{{ p.additionalFields.sortOrder }}",
+        "start_time": "{{ p.additionalFields.startTime }}",
+        "end_time": "{{ p.additionalFields.endTime }}",
+        "tweet.fields": "{{ p.additionalFields.tweetFieldsObject | csv }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "next_token",
+        "cursor_path": "meta.next_token",
+        "limit_param": "max_results",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "searchText",
+          "label": "Search query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sortOrder",
+            "startTime",
+            "endTime",
+            "tweetFieldsObject"
+          ],
+          "help": "sortOrder: recency or relevancy; tweetFieldsObject: list of tweet.fields names"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "searchUser",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users{{ p.me | eq:'true' | then:'/me' }}{{ p.me | ne:'true' | then:(p.user.mode | default:'username' | eq:'username' | then:'/by/username') | path }}{{ p.me | ne:'true' | then:(p.user | rl | replace:'@','' | prefix:'/') | path }}",
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "help": "Username (or @handle) or, with the n8n locator in id mode, a user ID"
+        },
+        {
+          "key": "me",
+          "label": "Me",
+          "type": "boolean",
+          "default": false,
+          "help": "Return the authenticated user"
+        }
+      ]
+    },
+    {
+      "resource": "list",
+      "operation": "add",
+      "title": "Add a member to a list",
+      "method": "POST",
+      "path": "/lists/{{ p.list | rl | re:'lists/([0-9]+)' }}/members",
+      "before": {
+        "when": "{{ p.user.mode | default:'username' | eq:'username' }}",
+        "method": "GET",
+        "path": "/users/by/username/{{ p.user | rl | replace:'@','' }}"
+      },
+      "body": {
+        "user_id": "{{ pre.data.id | default:(p.user | rl) }}"
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "list",
+          "label": "List ID or URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "Username, or a user ID in an n8n id-mode locator"
+        }
+      ]
+    },
+    {
+      "resource": "directMessage",
+      "operation": "create",
+      "title": "Send a direct message",
+      "method": "POST",
+      "path": "/dm_conversations/with/{{ pre.data.id | default:(p.user | rl) }}/messages",
+      "before": {
+        "when": "{{ p.user.mode | default:'username' | eq:'username' }}",
+        "method": "GET",
+        "path": "/users/by/username/{{ p.user | rl | replace:'@','' }}"
+      },
+      "body": {
+        "text": "{{ p.text }}",
+        "attachments": [
+          {
+            "media_id": "{{ p.additionalFields.attachments }}"
+          }
+        ]
+      },
+      "output": {
+        "path": "data"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "Username, or a user ID in an n8n id-mode locator"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachments"
+          ],
+          "help": "attachments: a media ID"
+        }
+      ]
+    }
+  ]
+}
