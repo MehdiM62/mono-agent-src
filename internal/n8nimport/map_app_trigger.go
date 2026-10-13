@@ -72,6 +72,23 @@ func init() {
 	}
 }
 
+// TriggerKind says how an n8n app trigger type ("n8n-nodes-base.x" or
+// "x") is imported: "webhook" (a trigger.webhook), "poll" (a
+// trigger.schedule that lists the app's records and drops those seen
+// before) or "" when no trigger table has it. missing is set when a
+// polling trigger cannot be rebuilt because the app cannot list its
+// records.
+func TriggerKind(n8nType string) (kind, missing string) {
+	name := strings.TrimPrefix(n8nType, "n8n-nodes-base.")
+	if _, ok := webhookTriggers[name]; ok {
+		return "webhook", ""
+	}
+	if spec, ok := pollTriggers[name]; ok {
+		return "poll", spec.Missing
+	}
+	return "", ""
+}
+
 // triggerParamsIgnored are n8n trigger parameters about n8n's own handling
 // (credential choice, UI notices) that say nothing about the vendor setup.
 var triggerParamsIgnored = []string{"authentication", "notice"}
