@@ -124,7 +124,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	if contentType != "" && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", contentType)
 	}
-	if req.Header.Get("Accept") == "" && (r.op.Binary == nil || !r.op.Binary.Download) {
+	if req.Header.Get("Accept") == "" && !r.downloads() {
 		req.Header.Set("Accept", "application/json")
 	}
 	if err := injectAuth(req, r.credDef, sc, body); err != nil {
@@ -284,6 +284,15 @@ func (r *opRun) uploadName() string {
 // uploadData finds the bytes to upload: the item's binary property, else a
 // base64 string at item.json[prop] or item.json.binary[prop].data (n8n).
 func (r *opRun) uploadData() ([]byte, error) {
+	if t := r.op.Binary.UploadText; t != "" {
+		txt, err := renderText(t, r.scope)
+		if err != nil {
+			return nil, r.errf("binary.upload_text: %w", err)
+		}
+		if txt != "" {
+			return []byte(txt), nil
+		}
+	}
 	prop := r.uploadProperty()
 	if b, ok := r.item.Binary[prop]; ok {
 		return b, nil
@@ -339,6 +348,11 @@ func addValues(q url.Values, obj map[string]any) {
 // mono's mime_type field), else guessed from the file name, else
 // application/octet-stream.
 func (r *opRun) uploadMime() string {
+	if t := r.op.Binary.UploadText; t != "" {
+		if txt, _ := renderText(t, r.scope); txt != "" {
+			return "text/plain"
+		}
+	}
 	prop := r.uploadProperty()
 	if m, ok := r.item.JSON["binary"].(map[string]any); ok {
 		if meta, ok := m[prop].(map[string]any); ok {

@@ -238,6 +238,10 @@ type Output struct {
 	// template, skips the reshape when it renders empty/false (rawData).
 	To     any    `json:"to,omitempty"`
 	ToWhen string `json:"to_when,omitempty"`
+	// Firestore (a template): when true, decode Firestore documents
+	// ({name, fields{typed values}}) into plain JSON with _name, _id,
+	// _createTime and _updateTime (n8n's "simple" output).
+	Firestore string `json:"firestore,omitempty"`
 }
 
 // OutputMatch filters result elements by condition rows. Rows is a
@@ -268,6 +272,12 @@ type Binary struct {
 	// FileName and MimeType are templates for the uploaded part.
 	FileName string `json:"file_name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`
+	// DownloadWhen (a template) decides per run whether the response is a
+	// file (GCS alt=media, Slides thumbnail download); it overrides Download.
+	DownloadWhen string `json:"download_when,omitempty"`
+	// UploadText (a template): when it renders non-empty, its text is the
+	// upload instead of the input item's binary (GCS create from text).
+	UploadText string `json:"upload_text,omitempty"`
 }
 
 // NodeTypeOf is the node type a package registers ("" for extends).

@@ -239,6 +239,9 @@ through, so an unset param stays unset:
 | `split` / `split:';'` | `"a, b,c"` → `["a","b","c"]` (default separator `,`; parts trimmed, empty ones dropped; lists pass) |
 | `date:'YYYY-MM-DD'` | date or epoch-ms → formatted text in UTC; tokens `YYYY`/`yyyy`, `YY`, `MM`, `DD`/`dd`, `HH`, `hh`, `mm`, `ss`, `SSS`, `Z` (`Z` for UTC), `ZZ` (`+00:00`), `A`; other characters are literal |
 | `epoch_ms`, `epoch` | date (RFC 3339, `2006-01-02T15:04:05`, `2006-01-02`, …) → Unix milliseconds / seconds; numbers pass |
+| `pick:'a,b'` | object with only the listed keys (comma string, list or path: `{{ item \| pick:p.columns }}`) |
+| `firestore_value` | a JSON value → a Firestore Value (stringValue, integerValue/doubleValue, booleanValue incl. "true"/"false", timestampValue for RFC 3339 text, nullValue, arrayValue, mapValue) |
+| `firestore_fields` / `firestore_fields:p.columns` | object → Firestore `fields` (all keys, or the listed columns with missing ones as nullValue) |
 | `omit:'a,b'` | object without the listed keys; the argument may be a path to a comma string or list (`omit:p.inputsToIgnore`) |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -423,6 +426,7 @@ Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `
 **Output shaping** (applied in this order, also to paginated results; a single-object response is shaped as a one-element list):
 - `"each": "invoice"` replaces each element by its value at that path (Chargebee `[{"invoice": {…}}]` → the invoices).
 - `"expand": {method, path, query, …}` sends one request per element (`el` = the element) and replaces it with the response (Gmail lists ids, then GETs each message with `format`).
+- `"firestore": "{{ p.simple }}"` decodes Firestore documents into n8n's simple shape `{_name, _id, _createTime, _updateTime, …fields}` (use `"each": "found"` / `"document"` first for batchGet / runQuery).
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
 - `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept.
 
@@ -452,6 +456,8 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
   one part beside the body fields; otherwise (`raw`) it is the whole body.
 - `upload_field`/`property_field` must be declared op fields (n8n uses
   `binaryPropertyName`).
+
+`binary.download_when` (template) decides per run whether the response is a file (GCS `alt=media`, Slides thumbnail download); it overrides `download`. `binary.upload_text` (template): when it renders non-empty, that text (Content-Type text/plain) is uploaded instead of the item's binary (GCS create from text).
 
 ## 11. `extends` (apps with a native Go node)
 
@@ -638,6 +644,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | templates | filters `eq`, `ne`, `kv`, `omit`, `fromjson`, `epoch_ms`, `epoch`; roots `el`, `res`; `$map`/`$to`, `$concat` | §5 |
 | credential | `scope_group` (umbrella scope check) | §7 |
 | operation | `before` (pre-request → `pre`); output `header_row`, `each`, `expand`, `match` | §9 |
+| templates | filters `pick`, `firestore_value`, `firestore_fields`; output `firestore`; binary `download_when`, `upload_text` | §5, §9, §10 |
 | templates | filter `entries`; output `to`/`to_when` | §5, §9 |
 | templates | parenthesised expression arguments; filter `sheetgid`; `row` null mode; `p.*` in `inject`; templated `output.path`/`each` | §5 |
 | templates | multi-argument filters `find`, `find_row`; filters `get`, `add`, `sub`, `colnum`, `colname`; `$entries`/`$key`/`$value` | §5 |
