@@ -429,3 +429,21 @@ func TestReplaceAndRe(t *testing.T) {
 		t.Error("bad regexp must error")
 	}
 }
+
+func TestGA4ZipRows(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"report","title":"R","method":"POST","path":"/runReport",
+	  "output":{"path":"rows","to":{"$merge":["{{ el.dimensionValues | zip:res.dimensionHeaders,'name','value' }}",
+	    "{{ el.metricValues | zip:res.metricHeaders,'name','value' }}"]}}}`))
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"dimensionHeaders":[{"name":"country"}],"metricHeaders":[{"name":"sessions"},{"name":"users"}],
+		  "rows":[{"dimensionValues":[{"value":"NO"}],"metricValues":[{"value":"10"},{"value":"7"}]}]}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "report"}, cred, nil)
+	want := map[string]any{"country": "NO", "sessions": "10", "users": "7"}
+	if err != nil || len(items) != 1 || !reflect.DeepEqual(items[0].JSON, want) {
+		t.Errorf("ga4 rows = %v, %v", items, err)
+	}
+	if got, _ := renderString("{{ p.v | zip:p.h }}", Scope{P: map[string]any{"h": []any{"a", "b"}, "v": []any{1.0}}}); !reflect.DeepEqual(got, map[string]any{"a": 1.0}) {
+		t.Errorf("plain zip = %#v", got)
+	}
+}

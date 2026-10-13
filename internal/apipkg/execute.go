@@ -321,6 +321,7 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	if r.op.Output != nil && r.op.Output.HeaderRow {
 		v = rowsToObjects(v)
 	}
+	r.scope.Res = doc // output.to/match templates may read the whole response
 	if v, err = r.shapeOutput(ctx, v); err != nil {
 		return nil, err
 	}

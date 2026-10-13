@@ -25,7 +25,7 @@ var knownFilters = map[string]bool{
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
-	"replace": true, "re": true,
+	"replace": true, "re": true, "zip": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -133,6 +133,16 @@ func applyFilter(name string, v, arg any) (any, error) {
 			}
 		}
 		return firestoreFields(obj, cols), nil
+	case "zip":
+		a := arg.([]any)
+		hk, vk := "", ""
+		if len(a) > 1 {
+			hk = stringify(a[1])
+		}
+		if len(a) > 2 {
+			vk = stringify(a[2])
+		}
+		return zipLists(a[0], v, hk, vk), nil
 	case "replace":
 		a := arg.([]any)
 		return strings.ReplaceAll(stringify(v), stringify(a[0]), stringify(a[1])), nil
@@ -794,4 +804,30 @@ func cachedRegexp(p string) (*regexp.Regexp, error) {
 	}
 	reCache.Store(p, re)
 	return re, nil
+}
+
+// zipLists pairs a header list with a value list into an object: key i is
+// headers[i] (or headers[i][headerKey]), value i is values[i] (or
+// values[i][valueKey]). GA4 rows: {{ el.dimensionValues | zip:res.dimensionHeaders,'name','value' }}.
+func zipLists(headers, values any, headerKey, valueKey string) any {
+	hs, _ := headers.([]any)
+	vs, _ := values.([]any)
+	out := map[string]any{}
+	for i, h := range hs {
+		if i >= len(vs) {
+			break
+		}
+		k := h
+		if headerKey != "" {
+			k = lookupPath(h, strings.Split(headerKey, "."))
+		}
+		v := vs[i]
+		if valueKey != "" {
+			v = lookupPath(v, strings.Split(valueKey, "."))
+		}
+		if ks := stringify(k); ks != "" {
+			out[ks] = v
+		}
+	}
+	return out
 }

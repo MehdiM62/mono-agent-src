@@ -86,7 +86,7 @@ type filterCall struct {
 
 // multiArgFilters take comma-separated arguments, passed to applyFilter
 // as a []any.
-var multiArgFilters = map[string][2]int{"find": {2, 2}, "find_row": {2, 2}, "row": {1, 2}, "replace": {2, 2}}
+var multiArgFilters = map[string][2]int{"find": {2, 2}, "find_row": {2, 2}, "row": {1, 2}, "replace": {2, 2}, "zip": {1, 3}}
 
 type filterArg struct {
 	lit  any   // a quoted string, number, bool or null
