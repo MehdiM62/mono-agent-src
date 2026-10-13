@@ -86,6 +86,7 @@ func platformDef(p *Package, c *Credential) (connections.PlatformDef, bool) {
 				def.OAuth = &connections.OAuthConfig{
 					AuthURL: c.OAuth.AuthURL, TokenURL: c.OAuth.TokenURL,
 					Scopes: c.OAuth.Scopes, ExtraParams: c.OAuth.ExtraParams,
+					TokenFields: c.OAuth.TokenFields,
 				}
 			}
 		}

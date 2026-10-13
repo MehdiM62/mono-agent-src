@@ -106,7 +106,17 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	if body != nil {
 		rd = bytes.NewReader(body)
 	}
-	req, err := http.NewRequestWithContext(ctx, strings.ToUpper(r.op.Method), u.String(), rd)
+	method := strings.ToUpper(r.op.Method)
+	if hasTemplate(r.op.Method) {
+		m, err := renderText(r.op.Method, r.scope)
+		if err != nil {
+			return nil, r.errf("method: %w", err)
+		}
+		if method = strings.ToUpper(strings.TrimSpace(m)); !validMethods[method] {
+			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE or HEAD", m)
+		}
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), rd)
 	if err != nil {
 		return nil, r.errf("request: %w", err)
 	}
@@ -328,6 +338,15 @@ func renderPath(s string, sc Scope) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// A path that is one expression yielding an absolute URL (an upload
+	// URL from a before step, hdr.Location) is used as is, unescaped.
+	if t.single {
+		if v, err := t.parts[0].expr.eval(sc); err == nil {
+			if u := stringify(v); strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+				return u, nil
+			}
+		}
+	}
 	v, err := t.render(sc, url.PathEscape)
 	if err != nil {
 		return "", err
@@ -410,6 +429,9 @@ func (r *opRun) bodyType() string {
 	bt := r.op.effectiveBodyType()
 	if r.op.Binary == nil || r.op.Binary.UploadWhen == "" || r.uploads() {
 		return bt
+	}
+	if fb := r.op.Binary.FallbackBodyType; fb != "" {
+		return fb
 	}
 	if r.op.Body != nil {
 		return BodyJSON
