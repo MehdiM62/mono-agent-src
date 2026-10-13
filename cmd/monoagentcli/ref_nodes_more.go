@@ -40,6 +40,34 @@ The bind address is loopback by default; set MONOAGENT_WEBHOOK_ADDR (e.g.
 		Notes:   `The workflow must be activated ("workflow activate <id>") and the daemon running.`,
 	},
 	{
+		Type:     "trigger.execute_workflow",
+		Category: "trigger",
+		Short:    "Start this workflow when another workflow calls it (core.execute_workflow)",
+		Description: `Marks a workflow as callable by core.execute_workflow. Every item the caller
+passes arrives as this trigger's output items, one item per caller item. The
+workflow does not need to be active to be called.`,
+		Config:  `{}`,
+		Inputs:  "none",
+		Outputs: "the items passed by the calling workflow",
+	},
+	{
+		Type:     "core.execute_workflow",
+		Category: "core",
+		Short:    "Run another workflow as a sub-workflow and use its output",
+		Description: `Starts a child execution of another workflow (by ID or exact name) with this
+node's items as its trigger items. While waiting, the parent run pauses without
+holding a concurrency slot and resumes when every child has finished. The output
+is each child's last successful node's items, in input order. A failed child
+fails this node (on_error applies).`,
+		Config: `{
+  "workflowId":         "my-sub-workflow", // required: ID or exact name
+  "mode":               "once",            // once: one child for all items | each: one child per item
+  "waitForSubWorkflow": true               // false: start the children and pass items through
+}`,
+		Inputs:  "any items",
+		Outputs: "the child workflows' output items (or the input items plus child execution ids when not waiting)",
+	},
+	{
 		Type:     "trigger.org",
 		Category: "trigger",
 		Short:    "Run workflow on an agent-org event or message",
