@@ -286,6 +286,12 @@ type Binary struct {
 	PropertyField string `json:"property_field,omitempty"`
 	// MultipartField is the form field of the file part (default "file").
 	MultipartField string `json:"multipart_field,omitempty"`
+	// UploadWhen (a template) decides per run whether to upload at all
+	// (n8n sendBinaryData); when false the op sends its body (JSON, or
+	// none). Property (a template) overrides the binary property read
+	// from upload_field ("formField:binaryProperty" values).
+	UploadWhen string `json:"upload_when,omitempty"`
+	Property   string `json:"property,omitempty"`
 	// FileName and MimeType are templates for the uploaded part.
 	FileName string `json:"file_name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`

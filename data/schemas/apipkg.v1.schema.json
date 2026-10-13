@@ -169,6 +169,8 @@
             "file_name": { "type": "string" },
             "mime_type": { "type": "string" },
             "download_when": { "type": "string" },
+            "upload_when": { "type": "string" },
+            "property": { "type": "string" },
             "upload_text": { "type": "string" }
           }
         },

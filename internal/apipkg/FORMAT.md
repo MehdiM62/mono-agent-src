@@ -223,6 +223,7 @@ through, so an unset param stays unset:
 | `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
 | `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
 | `lines` | text → list of its non-empty trimmed lines |
+| `pluck:'path'` | list of objects → list of their values at `path` (empties dropped): `{{ p.options.fields.field \| pluck:'name' \| csv }}` |
 | `zip:headers[,'hkey'[,'vkey']]` | pair a header list with the value list into an object: GA4 `{{ el.dimensionValues \| zip:res.dimensionHeaders,'name','value' }}` |
 | `replace:'from','to'` | replace every occurrence: `{{ p.clientCustomerId \| replace:'-','' }}` |
 | `re:'pattern'` | first capture group of the first match (whole match without groups); no match → the value unchanged: `{{ p.review \| rl \| re:'reviews/([^/]+)' }}` |
@@ -466,6 +467,8 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
   `binaryPropertyName`).
 
 `binary.download_when` (template) decides per run whether the response is a file (GCS `alt=media`, Slides thumbnail download); it overrides `download`. `binary.upload_text` (template): when it renders non-empty, that text (Content-Type text/plain) is uploaded instead of the item's binary (GCS create from text).
+
+`binary.upload_when` (template) decides per run whether to upload (n8n `sendBinaryData`); without the upload a multipart op sends its `body` as JSON (or nothing). `binary.multipart_field` may be a template, and `binary.property` (template) overrides the property read from `upload_field` — n8n's `"formField:binaryProperty"` values: `"multipart_field": "{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}"`, `"property": "{{ p.binaryPropertyName | split:':' | get:'-1' }}"`.
 
 ## 11. `extends` (apps with a native Go node)
 
