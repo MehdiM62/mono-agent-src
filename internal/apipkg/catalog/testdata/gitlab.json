@@ -301,14 +301,8 @@
       "fileContent": "hi",
       "commitMessage": "c",
       "branch": "main",
-      "additionalParameters": {
-        "encoding": {
-          "encoding": "base64"
-        },
-        "author": {
-          "name": "Ada"
-        }
-      }
+      "binaryData": true,
+      "binaryPropertyName": "data"
     },
     "expect": {
       "method": "POST",
@@ -317,13 +311,15 @@
         "branch": "main",
         "commit_message": "c",
         "content": "aGk=",
-        "encoding": "base64",
-        "author_name": "Ada"
+        "encoding": "base64"
       }
     },
     "credential": {
       "server": "https://gitlab.test/",
       "access_token": "t"
+    },
+    "input": {
+      "data": "aGk="
     }
   },
   "file.delete": {
@@ -358,6 +354,9 @@
       "additionalParameters": {
         "branchStart": {
           "branchStart": "main"
+        },
+        "encoding": {
+          "encoding": "base64"
         }
       }
     },
@@ -367,8 +366,9 @@
       "body": {
         "branch": "dev",
         "commit_message": "c",
-        "content": "x",
-        "start_branch": "main"
+        "content": "eA==",
+        "start_branch": "main",
+        "encoding": "base64"
       }
     },
     "credential": {
@@ -381,10 +381,11 @@
       "owner": "grp/sub",
       "repository": "app",
       "filePath": "a.md",
-      "asBinaryProperty": false
+      "asBinaryProperty": true
     },
     "response": {
-      "content": "aGk="
+      "content": "aGk=",
+      "file_name": "a.md"
     },
     "expect": {
       "method": "GET",

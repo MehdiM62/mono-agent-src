@@ -645,8 +645,12 @@
         "branch": "{{ p.branch }}",
         "commit_message": "{{ p.commitMessage }}",
         "start_branch": "{{ p.additionalParameters.branchStart.branchStart }}",
-        "content": "{{ p.additionalParameters.encoding.encoding | eq:'base64' | then:(p.fileContent | base64) | default:p.fileContent }}",
-        "encoding": "{{ p.additionalParameters.encoding.encoding | eq:'base64' | then:'base64' }}"
+        "content": "{{ p.binaryData | then:bin.base64 | default:(p.additionalParameters.encoding.encoding | eq:'base64' | then:(p.fileContent | base64) | default:p.fileContent) }}",
+        "encoding": "{{ p.binaryData | then:'base64' | default:(p.additionalParameters.encoding.encoding | eq:'base64' | then:'base64') }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}"
       }
     },
     {
@@ -780,8 +784,12 @@
         "branch": "{{ p.branch }}",
         "commit_message": "{{ p.commitMessage }}",
         "start_branch": "{{ p.additionalParameters.branchStart.branchStart }}",
-        "content": "{{ p.additionalParameters.encoding.encoding | eq:'base64' | then:(p.fileContent | base64) | default:p.fileContent }}",
-        "encoding": "{{ p.additionalParameters.encoding.encoding | eq:'base64' | then:'base64' }}"
+        "content": "{{ p.binaryData | then:bin.base64 | default:(p.additionalParameters.encoding.encoding | eq:'base64' | then:(p.fileContent | base64) | default:p.fileContent) }}",
+        "encoding": "{{ p.binaryData | then:'base64' | default:(p.additionalParameters.encoding.encoding | eq:'base64' | then:'base64') }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}"
       }
     },
     {
@@ -833,6 +841,12 @@
       ],
       "query": {
         "ref": "{{ p.additionalParameters.reference | default:'master' }}"
+      },
+      "binary": {
+        "property_field": "binaryPropertyName",
+        "download_when": "{{ p.asBinaryProperty }}",
+        "download_base64": "{{ res.content }}",
+        "file_name": "{{ res.file_name }}"
       }
     },
     {
