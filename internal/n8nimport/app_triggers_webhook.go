@@ -28,8 +28,8 @@ var webhookTriggers = map[string]hookSpec{
 	"facebookLeadAdsTrigger":       {Vendor: "Facebook Lead Ads", Where: "the Meta app dashboard (Webhooks → Page → leadgen), with the page subscribed to the app", Handshake: "a GET with hub.challenge that must be echoed back"},
 	"figmaTrigger":                 {Vendor: "Figma", Where: "Figma (POST /v2/webhooks for the team)"},
 	"flowTrigger":                  {Vendor: "Flow", Where: "Flow (integration webhooks)"},
-	"formIoTrigger":                {Vendor: "Form.io", Where: "Form.io (the form's Actions → Webhook)"},
-	"formstackTrigger":             {Vendor: "Formstack", Where: "Formstack (the form's Settings → Emails & Actions → Webhook)"},
+	"formIoTrigger":                {Vendor: "Form.io", Where: "Form.io (the form's Actions → Webhook)", Shape: shapeFormIo},
+	"formstackTrigger":             {Vendor: "Formstack", Where: "Formstack (the form's Settings → Emails & Actions → Webhook)", Shape: shapeFormstack},
 	"getResponseTrigger":           {Vendor: "GetResponse", Where: "GetResponse (account callbacks)", Method: "GET"},
 	"githubTrigger":                {Vendor: "GitHub", Where: "GitHub (repository Settings → Webhooks, content type application/json)", DedupeHeader: "X-GitHub-Delivery"},
 	"gitlabTrigger":                {Vendor: "GitLab", Where: "GitLab (project Settings → Webhooks)"},
@@ -73,6 +73,6 @@ var webhookTriggers = map[string]hookSpec{
 	"wiseTrigger":                  {Vendor: "Wise", Where: "Wise (Settings → Developer tools → Webhooks)"},
 	"wooCommerceTrigger":           {Vendor: "WooCommerce", Where: "WooCommerce (Settings → Advanced → Webhooks)", DedupeHeader: "X-WC-Webhook-Delivery-ID"},
 	"workableTrigger":              {Vendor: "Workable", Where: "Workable (POST /subscriptions)"},
-	"wufooTrigger":                 {Vendor: "Wufoo", Where: "Wufoo (the form's Notifications → WebHook)"},
+	"wufooTrigger":                 {Vendor: "Wufoo", Where: "Wufoo (the form's Notifications → WebHook)", Shape: shapeWufoo},
 	"zendeskTrigger":               {Vendor: "Zendesk", Where: "Zendesk (Admin Center → Apps and integrations → Webhooks, plus a trigger that notifies it)"},
 }

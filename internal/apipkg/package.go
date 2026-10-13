@@ -387,6 +387,9 @@ type Output struct {
 	Firestore string `json:"firestore,omitempty"`
 	// Download fetches files per element onto the item's binary data.
 	Download *DownloadStep `json:"download,omitempty"`
+	// Where (a template, el = the element) drops the elements it renders
+	// empty or false for (Graph delta: only entries with a file facet).
+	Where string `json:"where,omitempty"`
 	// Walk appends the records of a tree walk (a request repeated over a
 	// growing frontier of ids) to the main result: Confluence descendants.
 	Walk *Walk `json:"walk,omitempty"`

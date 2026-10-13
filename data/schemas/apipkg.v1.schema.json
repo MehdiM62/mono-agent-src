@@ -235,6 +235,7 @@
             "headers": { "$ref": "#/$defs/stringMap" }
           }
         },
+            "where": { "type": "string" },
             "walk": {
               "type": "object",
               "required": ["start", "request"],

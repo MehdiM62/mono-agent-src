@@ -542,6 +542,7 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - `expand` with `"expand_merge_key": "transcript", "expand_merge_path": "callTranscripts.0.transcript"` sets that key on the element instead of replacing it.
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
 - `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept. `rows` may give one object for a single condition: `"rows": "{{ p | pick:'lookupColumn,lookupValue' }}"`.
+- `"where": "{{ el.file }}"` keeps only the elements for which the template (`el` = the element) renders true — client-side filtering for APIs without a server-side filter (Graph delta: files only, no folders or the root). Runs after `download`, before `match`.
 - `"match_after_to": true` runs `match` after `to` instead of before, so it filters the reshaped elements (Excel table rows `{values: [[…]]}` zipped with their column names, then matched by column; `first` = `{{ p.options.returnAllMatches | ne:'true' }}`).
 
 **Files per element (`output.download`).** Fetches files for every output
@@ -853,4 +854,5 @@ Optional keys the engine added (the design's keys are unchanged):
 | credential | `oauth.connect_fields` (templated per-tenant OAuth endpoints), `oauth.metadata` | §7 |
 | credential | AWS AssumeRole via connection `role_arn` (`external_id`, `role_session_name`) | §7 |
 | templates, binary | filters `wrap`, `mime_parts`; `binary.properties` without `upload_field` | §5, §10 |
+| output | `where` (keep elements by a template) | §9 |
 | output | `walk` (tree walk over a growing id frontier, optional chunked `fetch`) | §9 |

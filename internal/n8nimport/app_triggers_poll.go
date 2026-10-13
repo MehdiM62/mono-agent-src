@@ -169,15 +169,27 @@ func planCalendar(c *MapContext, p *pollPlan) string {
 func planDrive(c *MapContext, p *pollPlan) string {
 	p.Resource, p.Operation = "fileFolder", "search"
 	filter := map[string]interface{}{}
-	switch on := c.Literal("triggerOn", ""); on {
+	on := c.Literal("triggerOn", "")
+	if on == "specificFile" || (on == "specificFolder" && c.Literal("event", "") == "watchFolderUpdated") {
+		// One file (or the watched folder itself): read it each poll and
+		// pass it on when its modifiedTime changed.
+		p.Resource, p.Operation = "file", "get"
+		if on == "specificFile" {
+			c.Literal("event", "fileUpdated")
+			p.Config["fileId"] = c.rlValue("fileToWatch")
+		} else {
+			p.Config["fileId"] = c.rlValue("folderToWatch")
+		}
+		p.Dedupe = "={{ $json.id }}|{{ $json.modifiedTime }}"
+		return ""
+	}
+	switch on {
 	case "specificFolder":
 		filter["folderId"] = c.rlValue("folderToWatch")
 	case "anyFileFolder":
 		if c.Has("driveToWatch") {
 			filter["driveId"] = c.rlValue("driveToWatch")
 		}
-	case "specificFile":
-		return "one file cannot be watched through a Drive search"
 	default:
 		return fmt.Sprintf("triggerOn %q is not known", on)
 	}
@@ -268,17 +280,32 @@ func planSalesforce(c *MapContext, p *pollPlan) string {
 }
 
 func planSharePoint(c *MapContext, p *pollPlan) string {
-	if r := c.Literal("resource", "documentLibrary"); r != "list" {
-		return "changes in a document library are not listed by the SharePoint package"
+	library := c.Literal("resource", "documentLibrary") != "list"
+	what := "list items"
+	if library {
+		what = "files"
 	}
-	if ev := c.Raw("events"); strings.Contains(fmt.Sprint(ev), "deleted") {
-		return "deleted list items cannot be listed"
+	// A poll sees the current items only, so deletions (in n8n's default
+	// events) are lost; changes are what it can report.
+	events := fmt.Sprint(c.Raw("events"))
+	if c.Has("events") && !strings.Contains(events, "changed") {
+		return "deleted " + what + " cannot be listed"
+	}
+	if !c.Has("events") || strings.Contains(events, "deleted") {
+		c.Warn("events", c.Raw("events"), "deleted %s are not reported: the poll lists the current %s and passes on new or changed ones", what, what)
+	}
+	p.Config["site"] = c.Value("site")
+	p.Dedupe = "={{ $json.id }}|{{ $json.lastModifiedDateTime }}"
+	if library {
+		p.Resource, p.Operation = "file", "getChanges"
+		if c.Has("drive") {
+			p.Config["drive"] = c.Value("drive")
+		}
+		return ""
 	}
 	p.Resource, p.Operation = "item", "getAll"
-	p.Config["site"] = c.Value("site")
 	p.Config["list"] = c.Value("list")
 	p.Config["returnAll"] = true
-	p.Dedupe = "={{ $json.id }}|{{ $json.lastModifiedDateTime }}"
 	return ""
 }
 

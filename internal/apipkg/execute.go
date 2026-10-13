@@ -687,6 +687,11 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			return nil, err
 		}
 	}
+	if o.Where != "" {
+		if list, err = r.applyWhere(list); err != nil {
+			return nil, err
+		}
+	}
 	if !o.MatchAfterTo {
 		if list, err = r.applyMatch(list); err != nil {
 			return nil, err

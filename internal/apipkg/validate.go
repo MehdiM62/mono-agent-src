@@ -308,6 +308,9 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 			probs = append(probs, checkTemplates(where+" output.expand", v, fields, credKeys)...)
 		}
 	}
+	if o.Output != nil {
+		probs = append(probs, checkTemplates(where+" output.where", o.Output.Where, fields, credKeys)...)
+	}
 	if o.Output != nil && o.Output.Walk != nil {
 		probs = append(probs, o.Output.Walk.check(where+" output.walk", o.Pagination != nil, fields, credKeys)...)
 	}

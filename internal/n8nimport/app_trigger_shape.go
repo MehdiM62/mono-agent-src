@@ -69,3 +69,78 @@ return items.map(function (it) {
 `, jsValue(only))
 	return &ChainStep{Type: "core.code", Config: codeConfig(wrapCode(body))}
 }
+
+// shapeWufoo turns a Wufoo WebHook post (form fields plus the
+// FieldStructure JSON) into answers keyed by field title: file fields give
+// their URL, checkboxes the ticked choices, address/likert/name fields an
+// object keyed by sub-field label. With onlyAnswers off the entry's
+// metadata and parsed structures come along, as in n8n.
+func shapeWufoo(c *MapContext) *ChainStep {
+	only := c.Bool("onlyAnswers", true)
+	c.Note("Wufoo sends a HandshakeKey with each post; n8n dropped posts whose key did not match the one it registered, the imported webhook does not check it")
+	body := fmt.Sprintf(`var onlyAnswers = %s;
+function parse(v) {
+  if (typeof v !== "string") { return v || {}; }
+  try { return JSON.parse(v); } catch (e) { return {}; }
+}
+return items.map(function (it) {
+  var b = it.json.body !== undefined && it.json.body !== null && typeof it.json.body === "object" ? it.json.body : it.json;
+  var fields = parse(b.FieldStructure), entries = {};
+  (fields.Fields || []).forEach(function (f) {
+    var subs = f.SubFields || [];
+    if (f.Type === "file") {
+      entries[f.Title] = b[f.ID + "-url"];
+    } else if (f.Type === "checkbox") {
+      entries[f.Title] = subs.map(function (s) { return b[s.ID]; }).filter(function (v) { return v !== "" && v !== undefined; });
+    } else if (f.Type === "address" || f.Type === "likert" || f.Type === "shortname") {
+      var obj = {};
+      subs.forEach(function (s) { obj[s.Label] = b[s.ID]; });
+      entries[f.Title] = obj;
+    } else {
+      entries[f.Title] = b[f.ID];
+    }
+  });
+  if (onlyAnswers) { return entries; }
+  return { createdBy: b.CreatedBy, entryId: b.EntryId, dateCreated: b.DateCreated, formId: b.FormId,
+    formStructure: parse(b.FormStructure), fieldStructure: fields, entries: entries };
+});
+`, jsValue(only))
+	return &ChainStep{Type: "core.code", Config: codeConfig(wrapCode(body))}
+}
+
+// shapeFormstack replaces each {value, …} field object of a Formstack
+// submission by its value (Simplify, default on); off, the body passes
+// unchanged and no step is needed.
+func shapeFormstack(c *MapContext) *ChainStep {
+	if !c.Bool("simple", true) {
+		return nil
+	}
+	body := `return items.map(function (it) {
+  var b = it.json.body !== undefined && it.json.body !== null && typeof it.json.body === "object" ? it.json.body : it.json;
+  var out = {};
+  Object.keys(b).forEach(function (k) {
+    var v = b[k];
+    out[k] = v !== null && typeof v === "object" && !Array.isArray(v) && Object.prototype.hasOwnProperty.call(v, "value") ? v.value : v;
+  });
+  return out;
+});
+`
+	return &ChainStep{Type: "core.code", Config: codeConfig(wrapCode(body))}
+}
+
+// shapeFormIo returns the submission Form.io posts under "request": its
+// data (Simplify, default on) or the whole submission; a list becomes one
+// item per element.
+func shapeFormIo(c *MapContext) *ChainStep {
+	simple := c.Bool("simple", true)
+	body := fmt.Sprintf(`var simple = %s, out = [];
+items.forEach(function (it) {
+  var b = it.json.body !== undefined && it.json.body !== null && typeof it.json.body === "object" ? it.json.body : it.json;
+  var r = b.request || {};
+  if (simple) { r = r.data || {}; }
+  (Array.isArray(r) ? r : [r]).forEach(function (x) { out.push(x); });
+});
+return out;
+`, jsValue(simple))
+	return &ChainStep{Type: "core.code", Config: codeConfig(wrapCode(body))}
+}

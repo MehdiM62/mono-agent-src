@@ -446,5 +446,10 @@
         "name": "Team 2"
       }
     }
+  },
+  "file.get": {
+    "params": { "fileId": { "__rl": true, "mode": "url", "value": "https://drive.google.com/file/d/1AbCdEfGhIjK/view" } },
+    "response": { "id": "1AbCdEfGhIjK", "modifiedTime": "2026-10-13T08:00:00Z" },
+    "expect": { "method": "GET", "path": "/drive/v3/files/1AbCdEfGhIjK", "query": { "fields": "*", "supportsAllDrives": "true" }, "items": 1 }
   }
 }
