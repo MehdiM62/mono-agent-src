@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/imagescan"
@@ -123,6 +124,10 @@ func RunExecution(
 	// (on_error=continue/skip/error_branch), so the final status can reflect
 	// that the run had failures instead of reporting a misleading SUCCESS.
 	var nonFatalFailures []string
+
+	// A workflow with a Human-in-Loop node may have outbound messages queued
+	// in Communications; the nodes they wait for report how they ended.
+	hasHIL := dagHasHIL(dag)
 
 	for _, node := range order {
 		// On resume, skip nodes that already completed in the earlier run so
@@ -411,8 +416,19 @@ func RunExecution(
 			NodeName:    node.Name,
 		}
 
+		// Communications: tell a Human-in-Loop node what it is approving, and
+		// mark the approved messages that wait for this node as sending.
+		nodeCtx := ctx
+		if hasHIL {
+			if node.Type == humanInLoopType {
+				nodeCtx = commsync.WithDownstream(ctx, wf.Name, downstreamOf(dag, node.ID))
+			} else {
+				commsync.NodeStarted(ctx, vault.DBFromContext(ctx), exec.ID, node.ID)
+			}
+		}
+
 		// Execute with retry.
-		outputs, execErr := executeWithRetry(ctx, executor, nodeInput, resolvedConfig, retryPolicy, func(outputs []NodeOutput) {
+		outputs, execErr := executeWithRetry(nodeCtx, executor, nodeInput, resolvedConfig, retryPolicy, func(outputs []NodeOutput) {
 			// Capture returned successful items even when another item failed. Tracking
 			// errors never change the publisher's outcome or retry decisions.
 			if db := vault.DBFromContext(ctx); db != nil {
@@ -430,6 +446,10 @@ func RunExecution(
 			}
 
 		})
+
+		if hasHIL && node.Type != humanInLoopType && !errors.Is(execErr, ErrNodePaused) {
+			commsync.NodeFinished(ctx, vault.DBFromContext(ctx), exec.ID, node.ID, execErr)
+		}
 
 		// A node can pause the run (Human-in-Loop awaiting approval). Persist the
 		// working state and suspend as WAITING rather than failing — resume picks

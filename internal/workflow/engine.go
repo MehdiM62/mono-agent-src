@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/rs/zerolog"
@@ -219,6 +220,7 @@ func (e *WorkflowEngine) Start(ctx context.Context) error {
 		); err != nil {
 			e.logger.Warn().Err(err).Msg("engine: failed to clean up orphaned HIL items")
 		}
+		_ = commsync.SetStatusForRejected(e.ctx, db)
 	}
 
 	// 4. Re-register triggers for all active workflows in this engine's
@@ -1095,6 +1097,7 @@ func (e *WorkflowEngine) cancelExecution(executionID string, cause error) {
 			_, _ = db.ExecContext(dctx,
 				`UPDATE hil_pending SET status='rejected', updated_at=CURRENT_TIMESTAMP WHERE execution_id=? AND status='pending'`,
 				executionID)
+			_ = commsync.SetStatusForExecution(dctx, db, executionID, commsync.Rejected)
 		}
 		e.logger.Info().Str("execution_id", executionID).Msg("engine: queued/waiting execution cancelled")
 	}

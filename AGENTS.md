@@ -233,7 +233,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `people posts list <person>`, `people posts get <post>` and `people posts comments <post>`
   - `people tag list [--person]`, `people tag map -- <ids…>` and `people tag add|color|remove`
   - `people status set|get|history`
-  - `people messages list|all [--unread]|add|compose|drafts|send-draft|reject-draft|read|unread`
+  - `people messages list|all [--unread]|add|compose|drafts|send-draft|reject-draft|read|unread`. Every message JSON has `status` and, for an outbound message waiting behind an approval, `hil_ref` (the `hil` id); `list`/`all` take `--status`. An approval item (a `core.human_in_loop` in front of a send/post node, or an agent send) gets its Communications row (`direction` outbound, `external_id` `hil:<id>`) when it is queued, and the same row moves `pending_approval` → `approved` → `sending` → `sent`, or ends `rejected`/`failed`/`expired` (`internal/commsync`; the one writer is `commsync.SetStatus`, which refuses illegal moves). The recipient is saved in People first (`people.kind` `person`|`company`); a post with no recipient links to your own account on that platform (`profile_details.own_account`).
 - **Social lists:** `list ls`.
 - **Image vault:** `image list|search|get|data|add|label|delete|stats|export`, scoped to the active profile. `image data` returns a data URL. `image sync` scans the profile folder and reconciles discovered images. `image delete` keeps files that live in the profile folder and hides them from later syncs; `image unignore <path>` or `image add <path>` brings one back.
 - **Workflows:**

@@ -1706,7 +1706,17 @@ var cliDocs = []cmdDoc{
   messages list <person-id>         List a person's messages (Files column = attachment count)
   messages show <message-id>        Full text + where it came from + attachment file paths
   messages import <person-id>       Bulk-import messages from a JSON file
-  messages all                      Unified communications feed across everyone
+  messages all                      Unified communications feed across everyone (--status filters)
+
+Message status and approvals: every message JSON (list, all, show) carries
+"status" and, for an outbound message queued behind a Human-in-Loop approval,
+"hil_ref" (the hil id; 'hil show <hil_ref>' opens the card). status is "sent"
+(default; every synced message), "draft", or the approval lifecycle
+pending_approval -> approved -> sending -> sent, or rejected / failed /
+expired. 'messages list <person-id>' and 'messages all' take --status <value>.
+The same row follows the item from queue to outcome; the recipient (a person or
+a company) is saved in People first, and a post with no recipient is linked to
+your own account on that platform.
 
 Reading a synced message: 'messages show' prints the body, a SOURCE block
 (which system, which account, which folder, its id there, a link to the
@@ -1722,6 +1732,7 @@ live under ~/.monoagent/attachments/<message>/.
 			"monoagentcli people import leads.csv",
 			"monoagentcli people messages all --source outlook --limit 50",
 			"monoagentcli people messages show <message-id>   # body + source + attachment paths",
+			"monoagentcli people messages all --status pending_approval --json",
 			`monoagentcli people messages compose <person-id> --connection outlook --subject "Hi" --body "..." --draft`,
 			"monoagentcli people messages drafts --json",
 			"monoagentcli people messages send-draft <message-id>",

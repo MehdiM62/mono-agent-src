@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -760,6 +761,7 @@ func toolHilApprove(ctx context.Context, s *Server, args json.RawMessage) (inter
 	if n, _ := res.RowsAffected(); n == 0 {
 		return nil, fmt.Errorf("HIL item %q not found or already resolved", a.ID)
 	}
+	_ = commsync.SetStatus(ctx, rt.db.DB, a.ID, commsync.Approved, commsync.Detail{Edited: a.Data})
 	return map[string]string{"id": a.ID, "status": "approved"}, nil
 }
 
@@ -788,6 +790,7 @@ func toolHilReject(ctx context.Context, s *Server, args json.RawMessage) (interf
 	if n, _ := res.RowsAffected(); n == 0 {
 		return nil, fmt.Errorf("HIL item %q not found or already resolved", a.ID)
 	}
+	_ = commsync.SetStatus(ctx, rt.db.DB, a.ID, commsync.Rejected, commsync.Detail{})
 	return map[string]string{"id": a.ID, "status": "rejected"}, nil
 }
 
