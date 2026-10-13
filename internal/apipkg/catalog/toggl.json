@@ -1,0 +1,48 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "toggl",
+  "node_type": "app.toggl",
+  "title": "Toggl",
+  "description": "Toggl Track time tracking (trigger only in n8n)",
+  "category": "app",
+  "docs_url": "https://engineering.toggl.com/docs/",
+  "n8n_trigger_types": [
+    "n8n-nodes-base.togglTrigger"
+  ],
+  "base_url": "https://api.track.toggl.com/api/v9",
+  "credentials": [
+    {
+      "platform": "toggl",
+      "name": "Toggl Track",
+      "n8n_credential": "togglApi",
+      "n8n_field_map": {
+        "username": "username",
+        "password": "password"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "username",
+          "label": "Email or API token",
+          "required": true,
+          "help": "Use your API token here and the word api_token as the password"
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      }
+    }
+  ],
+  "operations": []
+}
