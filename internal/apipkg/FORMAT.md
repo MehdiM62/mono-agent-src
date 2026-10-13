@@ -284,6 +284,8 @@ through, so an unset param stays unset:
 argument are not, so an optional path suffix works:
 `"/tasks{{ p.filters.filter | then:'/filter' }}"`.
 
+**Bracket query style.** `"query_style": "brackets"` (on the package or an op) encodes nested query and form values PHP-style — `search_criteria[filter_groups][0][filters][0][field]=sku` (Magento); lists are indexed, empty values dropped. Pagination params may be such flat bracket keys (`"page_param": "search_criteria[current_page]"`).
+
 **Query encoding.** Arrays repeat the key (`tags=a&tags=b`; use `| csv` for
 `tags=a,b`), objects are sent as JSON, everything else as its string.
 
