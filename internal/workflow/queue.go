@@ -111,7 +111,10 @@ type ExecutionQueue struct {
 	wg          sync.WaitGroup
 	cancelFuncs sync.Map // executionID → context.CancelCauseFunc
 	handler     func(ctx context.Context, req ExecutionRequest)
-	logger      zerolog.Logger
+	// claim, when set, makes this process the owner of a request's row
+	// before it is buffered, so a row waiting here is never adoptable.
+	claim  func(executionID string)
+	logger zerolog.Logger
 
 	mu     sync.Mutex // guards closed and serialises sends against Stop's close
 	closed bool
@@ -228,6 +231,9 @@ func (q *ExecutionQueue) StopWithGrace(grace time.Duration) {
 // the (non-blocking) send are serialised under mu against Stop's close, so a
 // trigger firing during shutdown can never panic with send-on-closed-channel.
 func (q *ExecutionQueue) Enqueue(req ExecutionRequest) error {
+	if q.claim != nil {
+		q.claim(req.ExecutionID)
+	}
 	q.mu.Lock()
 	if q.closed {
 		q.mu.Unlock()

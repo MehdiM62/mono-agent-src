@@ -278,3 +278,40 @@ func TestStartQueuedExecution_CAS(t *testing.T) {
 		t.Error("row owned by another process started")
 	}
 }
+
+// TestEngine_EnqueueClaimsUnownedRow: a path that creates its row with pid 0
+// and enqueues it locally (sub-workflow children do) still owns it once it
+// is in the queue, so no engine's adoption sweep can take it.
+func TestEngine_EnqueueClaimsUnownedRow(t *testing.T) {
+	store := newFullEngineStore(t)
+	eng := newTestEngine(t, store, NewNodeTypeRegistry())
+	other := newTestEngine(t, store, NewNodeTypeRegistry())
+	ctx := context.Background()
+	wfID := createActiveManualWorkflow(t, ctx, eng, "test.count.atomic")
+	row := &WorkflowExecution{WorkflowID: wfID, Status: "QUEUED", TriggerType: "trigger.manual"}
+	if err := store.CreateExecution(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	// The queue is not started: the request stays buffered.
+	if err := eng.queue.Enqueue(ExecutionRequest{WorkflowID: wfID, ExecutionID: row.ID}); err != nil {
+		t.Fatal(err)
+	}
+	var pid int
+	if err := store.RawDB().QueryRow(`SELECT COALESCE(pid,0) FROM workflow_executions WHERE id=?`, row.ID).Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	if pid != os.Getpid() {
+		t.Fatalf("enqueued row pid = %d, want %d", pid, os.Getpid())
+	}
+	ids, err := store.ListAdoptableExecutions(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 0 {
+		t.Fatalf("locally enqueued row is adoptable: %v", ids)
+	}
+	other.adoptQueuedExecutions(ctx)
+	if other.queue.Len() != 0 {
+		t.Fatal("another engine adopted a row this engine has queued")
+	}
+}

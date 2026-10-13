@@ -94,6 +94,7 @@ func NewWorkflowEngineWithStore(store WorkflowStore, db *sql.DB, scheduler Sched
 		func(ctx context.Context, req ExecutionRequest) { e.handleExecution(ctx, req) },
 		logger,
 	)
+	e.queue.claim = e.claimLocal
 	return e
 }
 
@@ -175,6 +176,7 @@ func NewWorkflowEngine(db *sql.DB, scheduler SchedulerInterface, registry *NodeT
 		},
 		logger,
 	)
+	e.queue.claim = e.claimLocal
 
 	return e
 }
