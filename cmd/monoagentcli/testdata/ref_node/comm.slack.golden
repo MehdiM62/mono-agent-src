@@ -17,6 +17,155 @@
   Fields (every operation):
     credential_id        Slack Connection · credential_picker · required
     operation            Operation · select · required · default="post_message"
+    resource             Resource · select · default="" · options: |message|channel|file|reaction|star|user|userGroup
+                         Leave empty for the built-in operations; pick a resource for the Slack API package operations.
+    operation            Message Operation · select · required · default="post"
+                         shown when resource is message
+    operation            Channel Operation · select · required · default="create"
+                         shown when resource is channel
+    operation            File Operation · select · required · default="upload"
+                         shown when resource is file
+    operation            Reaction Operation · select · required · default="add"
+                         shown when resource is reaction
+    operation            Star Operation · select · required · default="add"
+                         shown when resource is star
+    operation            User Operation · select · required · default="info"
+                         shown when resource is user
+    operation            User Group Operation · select · required · default="create"
+                         shown when resource is userGroup
+    select               Send to · select · default="channel" · options: channel|user
+                         shown when resource is message
+    channelId            Channel · text
+                         Channel ID (or a resource locator)
+                         shown when resource is message|channel|reaction|star
+    user                 User · text
+                         User ID (or a resource locator), when sending to a user
+                         shown when resource is message|user
+    messageType          Message type · select · default="text" · options: text|block|attachment
+                         shown when resource is message
+    text                 Text · textarea
+                         Message text (with block: notification fallback text)
+                         shown when resource is message
+    blocksUi             Blocks · code
+                         Block Kit JSON: {"blocks": [...]}
+                         shown when resource is message
+    attachments          Attachments · code
+                         List of legacy attachments; fields as {"item": [{"title", "value", "short"}]}
+                         shown when resource is message
+    otherOptions         Other options · code · default={}
+                         thread_ts: {"replyValues": {"thread_ts", "reply_broadcast"}}; botProfile: {"imageValues": {"profilePhotoType": "image|emoji", "icon_url", "icon_emoji"}}; ephemeral: {"ephemeralValues": {"user": "U123"}} (channel) or true (user) Keys: botProfile, ephemeral, link_names, mrkdwn, sendAsUser, thread_ts, unfurl_links, unfurl_media, includeLinkToWorkflow
+                         shown when resource is message
+    timestamp            Message timestamp · text
+                         shown when resource is message|reaction|star
+    scheduledMessageId   Scheduled message ID · text
+                         shown when resource is message
+    returnAll            Return all · boolean · default=false
+                         shown when resource is message|channel|file|star|user|userGroup
+    limit                Limit · number · default=50
+                         shown when resource is message|channel|file|star|user|userGroup
+    filters              Filters · code · default={}
+                         Keys: channelId, latest, oldest
+                         shown when resource is message
+    postAt               Send at · text
+                         e.g. 2026-01-31T09:00:00Z
+                         shown when resource is message
+    query                Search query · text
+                         shown when resource is message
+    sort                 Sort · select · default="desc" · options: desc|asc|relevance
+                         shown when resource is message
+    options              Options · code · default={}
+                         searchChannel: list of channel names to search in Keys: searchChannel
+                         shown when resource is message
+    ts                   Message timestamp · text
+                         shown when resource is message
+    updateFields         Update fields · code · default={}
+                         Keys: link_names, parse
+                         shown when resource is message
+    otherOptions         Other options · code · default={}
+                         Keys: includeLinkToWorkflow
+                         shown when resource is message
+    channelVisibility    Visibility · select · default="public" · options: public|private
+                         shown when resource is channel
+    options              Options · code · default={}
+                         Keys: includeNumMembers
+                         shown when resource is channel
+    filters              Filters · code · default={}
+                         types: list of public_channel, private_channel, mpim, im Keys: excludeArchived, types
+                         shown when resource is channel
+    filters              Filters · code · default={}
+                         Keys: inclusive, latest, oldest
+                         shown when resource is channel
+    userIds              User IDs · array
+                         shown when resource is channel
+    userId               User ID · text
+                         shown when resource is channel
+    resolveData          Resolve user details · boolean · default=false
+                         shown when resource is channel
+    options              Options · code · default={}
+                         Keys: channelId, returnIm, users
+                         shown when resource is channel
+    name                 New name · text
+                         shown when resource is channel
+    ts                   Thread timestamp · text
+                         shown when resource is channel
+    purpose              Purpose · text
+                         shown when resource is channel
+    topic                Topic · text
+                         shown when resource is channel
+    binaryData           Upload binary data · boolean · default=true
+                         shown when resource is file
+    fileContent          File content · textarea
+                         Text to upload when Upload binary data is off
+                         shown when resource is file
+    binaryPropertyName   Input binary property · text · default="data"
+                         shown when resource is file
+    options              Options · code · default={}
+                         Keys: channelIds, channelId, fileName, initialComment, threadTs, title
+                         shown when resource is file
+    fileId               File ID · text
+                         shown when resource is file|star
+    filters              Filters · code · default={}
+                         Keys: channelId, showFilesHidden, tsFrom, tsTo, types, userId
+                         shown when resource is file
+    name                 Emoji name · text
+                         shown when resource is reaction
+    target               Target · select · default="message" · options: message|file
+                         shown when resource is star
+    options              Options · code · default={}
+                         Keys: fileComment
+                         shown when resource is star
+    options              Options · code · default={}
+                         Keys: channelId, fileId, fileComment, timestamp
+                         shown when resource is star
+    email                Email · text
+                         shown when resource is user
+    options              Options · code · default={}
+                         status: {"set_status": [{"status_emoji", "status_text", "status_expiration"}]}; customFieldUi: {"customFieldValues": [{"id", "value", "alt"}]} Keys: customFieldUi, email, first_name, last_name, status, user
+                         shown when resource is user
+    name                 Name · text
+                         shown when resource is userGroup
+    Options              Options · code · default={}
+                         Keys: channelIds, description, handle, include_count
+                         shown when resource is userGroup
+    userGroupId          User group ID · text
+                         shown when resource is userGroup
+    options              Options · code · default={}
+                         Keys: include_count
+                         shown when resource is userGroup
+    option               Options · code · default={}
+                         Keys: include_count
+                         shown when resource is userGroup
+    options              Options · code · default={}
+                         Keys: include_count, include_disabled, include_users
+                         shown when resource is userGroup
+    options              Options · code · default={}
+                         resolveData (default true): return full user objects Keys: resolveData
+                         shown when resource is userGroup
+    updateFields         Update fields · code · default={}
+                         Keys: channels, description, handle, include_count, name
+                         shown when resource is userGroup
+    users                User IDs · array
+                         shown when resource is userGroup
 
   Operations (operation):
     post_message  (default)

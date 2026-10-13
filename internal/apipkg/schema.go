@@ -126,12 +126,18 @@ func (p *Package) opNames(resource string) []string {
 // opFields merges every op's fields: one entry per (key, type, label, options),
 // shown for the ops listed in visible_for. depends_on carries the operation
 // names (the editor's single-key rule); visible_for is exact.
-func (p *Package) opFields() []map[string]any {
+// opFields lists every op's fields. For an extension with resources the
+// fields depend on the resource, not the operation name: native configs
+// carry no resource, so a package op named like a native one ("reply")
+// never imposes its required fields on them. visible_for stays exact.
+func (p *Package) opFields(extension ...bool) []map[string]any {
+	ext := len(extension) > 0 && extension[0] && len(p.Resources) > 0
 	type group struct {
 		field    workflow.NodeSchemaField
 		required bool
 		ops      []opRef
 		opNames  []string
+		resNames []string
 	}
 	var order []string
 	groups := map[string]*group{}
@@ -149,6 +155,9 @@ func (p *Package) opFields() []map[string]any {
 			if !contains(g.opNames, o.Operation) {
 				g.opNames = append(g.opNames, o.Operation)
 			}
+			if !contains(g.resNames, o.Resource) {
+				g.resNames = append(g.resNames, o.Resource)
+			}
 		}
 	}
 	out := make([]map[string]any, 0, len(order))
@@ -157,6 +166,12 @@ func (p *Package) opFields() []map[string]any {
 		f := schemaField(g.field)
 		f.Required = g.required
 		f.DependsOn = &workflow.FieldDependency{Key: "operation", Values: g.opNames}
+		if ext {
+			f.DependsOn = &workflow.FieldDependency{Key: "resource", Values: g.resNames}
+			// A field some ops of the resource don't use can't be required
+			// once it shows for the whole resource.
+			f.Required = g.required && len(g.ops) == p.opsIn(g.resNames)
+		}
 		m := toMap(f)
 		m["visible_for"] = g.ops
 		out = append(out, m)
@@ -242,7 +257,7 @@ func (p *Package) extendSchema(base []byte) ([]byte, bool) {
 			fields = append(fields, f)
 		}
 	}
-	for _, f := range p.opFields() {
+	for _, f := range p.opFields(true) {
 		fields = append(fields, f)
 	}
 	doc["fields"] = fields
@@ -269,4 +284,15 @@ func sortedKeys[V any](m map[string]V) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// opsIn counts the package's ops in the given resources.
+func (p *Package) opsIn(resources []string) int {
+	n := 0
+	for _, o := range p.Operations {
+		if contains(resources, o.Resource) {
+			n++
+		}
+	}
+	return n
 }
