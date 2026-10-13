@@ -18,9 +18,13 @@ import (
 
 // OutlookMailNode implements the service.outlook_mail node type, talking to
 // Outlook/Hotmail over the Microsoft Graph REST API using an OAuth access
-// token. Unlike comm.outlook_read/outlook_send (raw IMAP/SMTP), this does not
-// need XOAUTH2 and keeps working now that Microsoft has deprecated Basic Auth
-// for IMAP on outlook.com/hotmail.com accounts.
+// token. That needs no XOAUTH2 and keeps working now that Microsoft has
+// deprecated Basic Auth for IMAP on outlook.com/hotmail.com accounts.
+//
+// With "auth": "app_password" (or an app-password connection, detected from
+// its keys) it reads over IMAP and sends over SMTP instead — see
+// outlook_apppass.go. That mode is also the runtime of the legacy
+// comm.outlook_read / comm.outlook_send types, registered as aliases.
 type OutlookMailNode struct{}
 
 func (n *OutlookMailNode) Type() string { return "service.outlook_mail" }
@@ -28,6 +32,11 @@ func (n *OutlookMailNode) Type() string { return "service.outlook_mail" }
 const outlookGraphBaseURL = "https://graph.microsoft.com/v1.0/me"
 
 func (n *OutlookMailNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if mode, err := outlookAuthMode(config); err != nil {
+		return nil, err
+	} else if mode == outlookAuthAppPassword {
+		return outlookAppPasswordExecute(ctx, input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("outlook_mail: access_token is required")
