@@ -15,7 +15,7 @@ import {
   NODE_CONFIG_FIELDS, BROWSER_NODE_GENERIC,
   deriveInputs, deriveOutputs, portsDependOnConfig, isCaseListSettled, remapSourceEdges,
   arrayFieldItems, arrayTagLabel, normalizeConfigForSave,
-  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle,
+  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath,
 } from './nodeConfigFields.js'
 import { SaveModal, WorkflowsModal, TriggerInputModal } from './NodeRunnerModals.jsx'
 import WorkflowImportDialog from './WorkflowImportDialog.jsx'
@@ -69,6 +69,7 @@ const CAT_COLOR = {
   org:            '#6366f1',
 }
 const catColor = (cat) => CAT_COLOR[cat] || '#00b4d8'
+const LOOP_EDGE_COLOR = '#f59e0b'
 
 function nodeH(n) {
   return HEAD_H + PORT_PAD + Math.max(n.inputs.length, n.outputs.length, 1) * PORT_H + PORT_PAD
@@ -447,7 +448,9 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
         ><X size={12} /></button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+      {/* overflowWrap: long unbroken words (option ids in help text) wrap
+          instead of running past the inspector's right edge. */}
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', overflowWrap: 'anywhere', padding: '12px' }}>
         {/* Credential dropdown — shown for platforms that require auth */}
         {pickerMode && (
           <>
@@ -1825,12 +1828,19 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   }, [nodes, edges])
 
   // ── Edge paths ────────────────────────────────────────────────────────────
+  // Loop back-edges run below their loop's nodes, dashed in LOOP_EDGE_COLOR.
+  const backEdges = loopBackEdges(nodes, edges)
   const edgePaths = edges.map(edge => {
     const sNode = nodes.find(n => n.id === edge.source)
     const tNode = nodes.find(n => n.id === edge.target)
     if (!sNode || !tNode) return null
     const sp = outPortPos(sNode, edge.sourcePortIdx)
     const tp = inPortPos(tNode, edge.targetPortIdx)
+    const loopIds = backEdges.get(edge)
+    if (loopIds) {
+      const bottom = Math.max(...nodes.filter(n => loopIds.has(n.id)).map(n => n.y + nodeH(n))) + 28
+      return { ...edge, path: loopEdgePath(sp.x, sp.y, tp.x, tp.y, bottom), color: LOOP_EDGE_COLOR, loop: true }
+    }
     return { ...edge, path: edgePath(sp.x, sp.y, tp.x, tp.y), color: sNode.color || catColor(sNode.category) }
   }).filter(Boolean)
 
@@ -2262,7 +2272,8 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
               <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.zoom})`}>
                 {edgePaths.map(ep => (
                   <g key={ep.id}>
-                    <path d={ep.path} stroke={ep.color} strokeWidth={1.5} fill="none" strokeOpacity={0.5} />
+                    <path d={ep.path} stroke={ep.color} strokeWidth={1.5} fill="none"
+                      strokeOpacity={ep.loop ? 0.85 : 0.5} strokeDasharray={ep.loop ? '6 4' : undefined} />
                     <path d={ep.path} stroke={ep.color} strokeWidth={4} fill="none" strokeOpacity={0}
                       style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                       onClick={() => { setEdges(prev => prev.filter(e => e.id !== ep.id)); setIsDirty(true) }}

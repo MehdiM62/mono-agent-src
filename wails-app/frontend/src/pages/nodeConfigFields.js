@@ -67,8 +67,8 @@ export const NODE_CONFIG_FIELDS = {
     { key: 'code', label: 'JavaScript Code', type: 'textarea', default: '// return array of items\nreturn items.map(item => ({ ...item.json }))' },
   ],
   'core.wait': [
-    { key: 'resume', label: 'Resume', type: 'select', options: ['','timeInterval','specificTime'], default: '',
-      help: 'timeInterval waits Amount × Unit; specificTime waits until Date and Time. Leave unset to use Wait Duration.' },
+    { key: 'resume', label: 'Resume', type: 'select', options: ['duration','timeInterval','specificTime'], default: 'duration',
+      help: 'duration waits Wait Duration seconds; timeInterval waits Amount × Unit; specificTime waits until Date and Time.' },
     { key: 'amount', label: 'Amount', type: 'number', default: '1',
       depends_on: { key: 'resume', values: ['timeInterval'] } },
     { key: 'unit', label: 'Unit', type: 'select', options: ['seconds','minutes','hours','days'], default: 'hours',
@@ -76,7 +76,7 @@ export const NODE_CONFIG_FIELDS = {
     { key: 'dateTime', label: 'Date and Time', type: 'text', default: '', placeholder: '2026-12-31T09:00:00Z',
       depends_on: { key: 'resume', values: ['specificTime'] }, help: 'RFC 3339 or local YYYY-MM-DD HH:MM.' },
     { key: 'duration', label: 'Wait Duration (seconds)', type: 'number', default: '5',
-      depends_on: { key: 'resume', values: [''] }, help: 'Used when Resume is not set.' },
+      depends_on: { key: 'resume', values: ['duration', ''] } },
   ],
   'core.limit': [
     { key: 'max_items', label: 'Max Items', type: 'number', default: '10' },
@@ -748,7 +748,8 @@ const isLoopHandle = h => h === 'loop' || h === 'batch'
 
 // loopBackEdges mirrors workflow.BuildDAG (dag_loop.go): an edge u→L into a
 // loop node L is a back-edge when u is reachable from L's loop output
-// without passing through L itself. Returns the set of such edges.
+// without passing through L itself. Returns a Map from each such edge to
+// the ids of the nodes its loop runs through (L and its body).
 export function loopBackEdges(nodes, edges) {
   const byId = new Map((nodes || []).map(n => [n.id, n]))
   const handleOf = e => e.sourcePortId ?? byId.get(e.source)?.outputs?.[e.sourcePortIdx]?.id
@@ -757,7 +758,7 @@ export function loopBackEdges(nodes, edges) {
     if (!out.has(e.source)) out.set(e.source, [])
     out.get(e.source).push(e)
   }
-  const back = new Set()
+  const back = new Map()
   for (const n of nodes || []) {
     if (n.subtype !== LOOP_NODE_TYPE) continue
     const seen = new Set()
@@ -768,11 +769,22 @@ export function loopBackEdges(nodes, edges) {
       if (cur === n.id) continue
       for (const e of out.get(cur) || []) if (!seen.has(e.target)) { seen.add(e.target); queue.push(e.target) }
     }
+    seen.add(n.id)
     for (const e of edges || []) {
-      if (e.target === n.id && (e.source === n.id || seen.has(e.source))) back.add(e)
+      if (e.target === n.id && (e.source === n.id || seen.has(e.source))) back.set(e, seen)
     }
   }
   return back
+}
+
+// loopEdgePath routes a loop back-edge around its loop instead of across it:
+// out of the source port, down to bottomY (below the loop's nodes), back
+// along the bottom, and up into the target port, with rounded corners.
+export function loopEdgePath(sx, sy, tx, ty, bottomY, off = 24, r = 10) {
+  const a = sx + off, b = tx - off
+  const dir = b < a ? -1 : 1
+  return `M${sx},${sy} H${a - r} Q${a},${sy} ${a},${sy + r} V${bottomY - r} Q${a},${bottomY} ${a + dir * r},${bottomY}` +
+    ` H${b - dir * r} Q${b},${bottomY} ${b},${bottomY - r} V${ty + r} Q${b},${ty} ${b + r},${ty} H${tx}`
 }
 
 // hasForbiddenCycle reports whether the graph has a cycle other than a loop

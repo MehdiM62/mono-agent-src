@@ -3,7 +3,7 @@ import {
   deriveOutputs, deriveInputs, caseHandles, portsDependOnConfig,
   isCaseListSettled, remapSourceEdges, NODE_CONFIG_FIELDS,
   arrayFieldItems, arrayTagLabel, normalizeConfigForSave, portRenames,
-  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle,
+  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath,
 } from './nodeConfigFields.js'
 
 const ids = ports => ports.map(p => p.id)
@@ -187,7 +187,9 @@ describe('loops (core.split_in_batches)', () => {
   it('allows a back-edge from the loop body into the loop node', () => {
     const edges = [e('t', 'main', 'L'), e('L', 'loop', 'a'), e('a', 'out', 'b'), e('b', 'main', 'L'), e('L', 'done', 'd')]
     expect(hasForbiddenCycle(nodes, edges)).toBe(false)
-    expect([...loopBackEdges(nodes, edges)]).toEqual([edges[3]])
+    const back = loopBackEdges(nodes, edges)
+    expect([...back.keys()]).toEqual([edges[3]])
+    expect([...back.get(edges[3])].sort()).toEqual(['L', 'a', 'b'])
     // drawn in the other order: the closing edge is the loop output itself
     const reordered = [e('a', 'out', 'b'), e('b', 'main', 'L'), e('L', 'loop', 'a')]
     expect(hasForbiddenCycle(nodes, reordered)).toBe(false)
@@ -201,5 +203,25 @@ describe('loops (core.split_in_batches)', () => {
     expect(hasForbiddenCycle(nodes, [e('L', 'loop', 'a'), e('a', 'out', 'b'), e('b', 'main', 'a')])).toBe(true)
     // from the done branch back into the loop node is not a loop
     expect(hasForbiddenCycle(nodes, [e('L', 'done', 'd'), e('d', 'main', 'L')])).toBe(true)
+  })
+})
+
+describe('loopEdgePath', () => {
+  const points = d => [...d.matchAll(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g)].map(m => [+m[1], +m[2]])
+
+  it('leaves the source rightwards, runs along the bottom and enters the target from the left', () => {
+    const d = loopEdgePath(700, 100, 300, 100, 260)
+    expect(d.startsWith('M700,100 H714')).toBe(true)
+    expect(d).toContain('V250')
+    expect(d).toContain('H286')        // bottom run back towards the target
+    expect(d.endsWith('H300')).toBe(true)
+    for (const [, y] of points(d)) expect(y).toBeLessThanOrEqual(260)
+    expect(points(d).some(([, y]) => y === 260)).toBe(true)
+  })
+
+  it('stays well-formed when the target sits right of the source', () => {
+    const d = loopEdgePath(300, 100, 700, 120, 260)
+    expect(d).toContain('Q324,260 334,260')
+    expect(d.endsWith('H700')).toBe(true)
   })
 })
