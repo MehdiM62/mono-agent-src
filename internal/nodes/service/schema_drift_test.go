@@ -40,6 +40,13 @@ var schemaDriftAllowed = map[string]map[string]string{
 	"system.execute_command": {"timeout_seconds": "alias of timeout"},
 	"comm.telegram":          {"text": "legacy alias of message"},
 	"comm.email_send":        {"html": "legacy boolean; body_type replaces it"},
+	// Connection fields the engine merges into config from credential_id.
+	"db.snowflake": {"account": "connection field", "user": "connection field", "database": "connection field",
+		"warehouse": "connection field", "role": "connection field", "private_key": "connection field",
+		"token_type": "connection field", "timeout_seconds": "connection option"},
+	// n8n's RabbitMQ node has one operation; an imported deleteMessage
+	// config is refused with a clear error instead of silently sending.
+	"queue.rabbitmq": {"operation": "n8n import guard (only sendMessage)"},
 }
 
 // TestExecuteConfigKeysAreInSchema fails when a service/comm/db/data/system node

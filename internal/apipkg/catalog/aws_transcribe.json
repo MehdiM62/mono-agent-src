@@ -1,0 +1,283 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_transcribe",
+  "node_type": "app.aws_transcribe",
+  "title": "AWS Transcribe",
+  "description": "Speech-to-text transcription jobs in Amazon Transcribe",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/transcribe/latest/APIReference/API_Operations.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsTranscribe"
+  ],
+  "base_url": "https://transcribe.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "transcribe",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "transcriptionJob",
+      "label": "Transcription Job"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "transcriptionJob",
+      "operation": "create",
+      "title": "Create a transcription job",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "Transcribe.StartTranscriptionJob",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "TranscriptionJobName": "{{ p.transcriptionJobName }}",
+        "Media": {
+          "MediaFileUri": "{{ p.mediaFileUri }}"
+        },
+        "IdentifyLanguage": "{{ p.detectLanguage | then:true }}",
+        "LanguageCode": "{{ p.detectLanguage | ne:'true' | then:p.languageCode }}",
+        "Settings": {
+          "ChannelIdentification": "{{ p.options.channelIdentification | then:true }}",
+          "ShowAlternatives": "{{ p.options.maxAlternatives | then:true }}",
+          "MaxAlternatives": "{{ p.options.maxAlternatives }}",
+          "ShowSpeakerLabels": "{{ p.options.maxSpeakerLabels | then:true }}",
+          "MaxSpeakerLabels": "{{ p.options.maxSpeakerLabels }}",
+          "VocabularyName": "{{ p.options.vocabularyName }}",
+          "VocabularyFilterName": "{{ p.options.vocabularyFilterName }}",
+          "VocabularyFilterMethod": "{{ p.options.vocabularyFilterMethod }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "transcriptionJobName",
+          "label": "Job name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "mediaFileUri",
+          "label": "Media file URI",
+          "type": "text",
+          "required": true,
+          "help": "s3://bucket/key of the audio or video"
+        },
+        {
+          "key": "detectLanguage",
+          "label": "Detect language",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "languageCode",
+          "label": "Language",
+          "type": "select",
+          "default": "en-US",
+          "options": [
+            "en-US",
+            "en-GB",
+            "de-DE",
+            "en-IN",
+            "en-IE",
+            "ru-RU",
+            "es-ES"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "channelIdentification",
+            "maxAlternatives",
+            "maxSpeakerLabels",
+            "vocabularyName",
+            "vocabularyFilterName",
+            "vocabularyFilterMethod"
+          ],
+          "help": "vocabularyFilterMethod: remove, mask or tag"
+        }
+      ],
+      "output": {
+        "path": "TranscriptionJob"
+      }
+    },
+    {
+      "resource": "transcriptionJob",
+      "operation": "delete",
+      "title": "Delete a transcription job",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "Transcribe.DeleteTranscriptionJob",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "TranscriptionJobName": "{{ p.transcriptionJobName }}"
+      },
+      "fields": [
+        {
+          "key": "transcriptionJobName",
+          "label": "Job name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "transcriptionJob",
+      "operation": "get",
+      "title": "Get a transcription job",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "Transcribe.GetTranscriptionJob",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "TranscriptionJobName": "{{ p.transcriptionJobName }}"
+      },
+      "fields": [
+        {
+          "key": "transcriptionJobName",
+          "label": "Job name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnTranscript",
+          "label": "Return transcript",
+          "type": "boolean",
+          "default": true,
+          "help": "When the job is completed, return the transcript instead of the job"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return only the transcript text"
+        }
+      ],
+      "output": {
+        "path": "TranscriptionJob",
+        "expand": {
+          "when": "{{ p.returnTranscript | then:(el.TranscriptionJobStatus | eq:'COMPLETED') }}",
+          "method": "GET",
+          "path": "{{ el.Transcript.TranscriptFileUri }}",
+          "auth": false
+        },
+        "to": {
+          "$merge": "{{ el.TranscriptionJobStatus | then:el }}",
+          "transcript": "{{ el.results.transcripts | pluck:'transcript' | join:' ' }}"
+        },
+        "to_when": "{{ p.returnTranscript | then:p.simple }}"
+      }
+    },
+    {
+      "resource": "transcriptionJob",
+      "operation": "getAll",
+      "title": "Get many transcription jobs",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "Transcribe.ListTranscriptionJobs",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "Status": "{{ p.filters.status }}",
+        "JobNameContains": "{{ p.filters.jobNameContains }}"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "jobNameContains",
+            "status"
+          ],
+          "help": "status: COMPLETED, FAILED, IN_PROGRESS or QUEUED"
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "NextToken",
+        "cursor_path": "NextToken",
+        "limit_param": "MaxResults",
+        "page_size": 100,
+        "param_in": "body",
+        "results_path": "TranscriptionJobSummaries"
+      }
+    }
+  ]
+}

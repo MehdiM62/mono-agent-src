@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // WorkflowFile is the on-disk JSON representation of a workflow.
@@ -74,7 +75,7 @@ type WorkflowFileStore struct {
 // NewWorkflowFileStore creates a WorkflowFileStore backed by the given directory.
 // The directory is created if it does not exist.
 func NewWorkflowFileStore(dir string) (*WorkflowFileStore, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := statedir.MkdirAll(dir); err != nil {
 		return nil, fmt.Errorf("file_store: create dir %s: %w", dir, err)
 	}
 	return &WorkflowFileStore{dir: dir, cache: make(map[string]fileCacheEntry)}, nil
@@ -161,7 +162,7 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 	// Write atomically: write to a temp file then rename over the target, so a
 	// crash mid-write cannot truncate/corrupt an existing workflow definition.
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := statedir.WriteFile(tmp, data); err != nil {
 		return fmt.Errorf("file_store: write %s: %w", wf.ID, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
@@ -204,7 +205,7 @@ func (s *WorkflowFileStore) restoreRaw(id string, data []byte, existed bool) err
 		return nil
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := statedir.WriteFile(tmp, data); err != nil {
 		return fmt.Errorf("file_store: write %s: %w", id, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {

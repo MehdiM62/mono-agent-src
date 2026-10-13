@@ -1,0 +1,238 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_to_do",
+  "node_type": "app.microsoft_to_do",
+  "title": "Microsoft To Do",
+  "description": "Task lists, tasks and linked resources in Microsoft To Do (Microsoft Graph)",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/graph/api/resources/todo-overview",
+  "n8n_types": ["n8n-nodes-base.microsoftToDo"],
+  "base_url": "https://graph.microsoft.com/v1.0",
+  "credentials": [
+    {
+      "platform": "microsoft",
+      "name": "Microsoft 365 (To Do)",
+      "n8n_credential": "microsoftToDoOAuth2Api",
+      "n8n_credential_alt": ["microsoftOAuth2Api"],
+      "methods": ["oauth"],
+      "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } },
+      "reuse_platform": "microsoft"
+    },
+    {
+      "platform": "microsoft_entra_app",
+      "name": "Microsoft Entra app (app-only Graph)",
+      "n8n_credential": "microsoftEntraServicePrincipalApi",
+      "n8n_field_map": { "tenantId": "tenant_id", "clientId": "client_id", "clientSecret": "client_secret" },
+      "methods": ["client_credentials"],
+      "fields": [
+        { "key": "tenant_id", "label": "Tenant ID", "required": true, "help": "Directory (tenant) GUID or a verified domain such as contoso.onmicrosoft.com." },
+        { "key": "client_id", "label": "Application (client) ID", "required": true },
+        { "key": "client_secret", "label": "Client secret", "secret": true, "required": true }
+      ],
+      "oauth": {
+        "token_url": "https://login.microsoftonline.com/{{ cred.tenant_id }}/oauth2/v2.0/token",
+        "scopes": ["https://graph.microsoft.com/.default"]
+      },
+      "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } }
+    }
+  ],
+  "resources": [
+    { "value": "task", "label": "Task" },
+    { "value": "linkedResource", "label": "Linked resource" },
+    { "value": "list", "label": "List" }
+  ],
+  "operations": [
+    {
+      "resource": "task", "operation": "get", "title": "Get a task",
+      "method": "GET",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks/{{ p.taskId }}",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "taskId", "label": "Task ID", "type": "text", "required": true }
+      ]
+    },
+    {
+      "resource": "task", "operation": "create", "title": "Create a task",
+      "method": "POST",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "title", "label": "Subject", "type": "text", "required": true },
+        { "key": "additionalFields", "label": "Additional fields", "type": "collection", "default": {},
+          "options": ["content", "dueDateTime", "reminderDateTime", "importance", "status"],
+          "help": "content: HTML body; dueDateTime/reminderDateTime: ISO date-times (sent as UTC); importance: low, normal, high; status: notStarted, inProgress, completed, waitingOnOthers, deferred." }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "importance": "{{ p.additionalFields.importance }}",
+        "status": "{{ p.additionalFields.status }}",
+        "body": { "$when": "{{ p.additionalFields.content }}", "content": "{{ p.additionalFields.content }}", "contentType": "html" },
+        "dueDateTime": { "$when": "{{ p.additionalFields.dueDateTime }}", "dateTime": "{{ p.additionalFields.dueDateTime | date:'YYYY-MM-DDTHH:mm:ss' }}", "timeZone": "UTC" },
+        "reminderDateTime": { "$when": "{{ p.additionalFields.reminderDateTime }}", "dateTime": "{{ p.additionalFields.reminderDateTime | date:'YYYY-MM-DDTHH:mm:ss' }}", "timeZone": "UTC" },
+        "isReminderOn": "{{ p.additionalFields.reminderDateTime | then:true }}"
+      }
+    },
+    {
+      "resource": "task", "operation": "delete", "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks/{{ p.taskId }}",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "taskId", "label": "Task ID", "type": "text", "required": true }
+      ]
+    },
+    {
+      "resource": "task", "operation": "getAll", "title": "Get many tasks",
+      "method": "GET",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50, "min": 1 }
+      ],
+      "pagination": { "type": "next_url", "next_url_path": "@odata.nextLink", "results_path": "value", "limit_param": "$top", "page_size": 100 }
+    },
+    {
+      "resource": "task", "operation": "update", "title": "Update a task",
+      "method": "PATCH",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks/{{ p.taskId }}",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "taskId", "label": "Task ID", "type": "text", "required": true },
+        { "key": "updateFields", "label": "Update fields", "type": "collection", "default": {},
+          "options": ["content", "dueDateTime", "reminderDateTime", "importance", "status", "title"],
+          "help": "Without reminderDateTime the task's reminder is switched off." }
+      ],
+      "body": {
+        "title": "{{ p.updateFields.title }}",
+        "importance": "{{ p.updateFields.importance }}",
+        "status": "{{ p.updateFields.status }}",
+        "body": { "$when": "{{ p.updateFields.content }}", "content": "{{ p.updateFields.content }}", "contentType": "html" },
+        "dueDateTime": { "$when": "{{ p.updateFields.dueDateTime }}", "dateTime": "{{ p.updateFields.dueDateTime | date:'YYYY-MM-DDTHH:mm:ss' }}", "timeZone": "UTC" },
+        "reminderDateTime": { "$when": "{{ p.updateFields.reminderDateTime }}", "dateTime": "{{ p.updateFields.reminderDateTime | date:'YYYY-MM-DDTHH:mm:ss' }}", "timeZone": "UTC" },
+        "isReminderOn": "{{ p.updateFields.reminderDateTime | then:true | default:false }}"
+      }
+    },
+    {
+      "resource": "linkedResource", "operation": "get", "title": "Get a linked resource",
+      "method": "GET",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks/{{ p.taskId }}/linkedResources/{{ p.linkedResourceId }}",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "taskId", "label": "Task ID", "type": "text", "required": true },
+        { "key": "linkedResourceId", "label": "Linked resource ID", "type": "text", "required": true }
+      ]
+    },
+    {
+      "resource": "linkedResource", "operation": "create", "title": "Create a linked resource",
+      "method": "POST",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks/{{ p.taskId }}/linkedResources",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "taskId", "label": "Task ID", "type": "text", "required": true },
+        { "key": "displayName", "label": "Name", "type": "text", "required": true, "help": "Title shown for the linked item." },
+        { "key": "applicationName", "label": "Source app name", "type": "text", "required": true, "help": "The app the linked item comes from." },
+        { "key": "additionalFields", "label": "Additional fields", "type": "collection", "default": {}, "options": ["externalId", "webUrl"] }
+      ],
+      "body": {
+        "applicationName": "{{ p.applicationName }}",
+        "displayName": "{{ p.displayName }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "linkedResource", "operation": "delete", "title": "Delete a linked resource",
+      "method": "DELETE",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks/{{ p.taskId }}/linkedResources/{{ p.linkedResourceId }}",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "taskId", "label": "Task ID", "type": "text", "required": true },
+        { "key": "linkedResourceId", "label": "Linked resource ID", "type": "text", "required": true }
+      ]
+    },
+    {
+      "resource": "linkedResource", "operation": "getAll", "title": "Get many linked resources",
+      "method": "GET",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks/{{ p.taskId }}/linkedResources",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "taskId", "label": "Task ID", "type": "text", "required": true },
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50, "min": 1 }
+      ],
+      "pagination": { "type": "next_url", "next_url_path": "@odata.nextLink", "results_path": "value", "limit_param": "$top", "page_size": 100 }
+    },
+    {
+      "resource": "linkedResource", "operation": "update", "title": "Update a linked resource",
+      "method": "PATCH",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.taskListId }}/tasks/{{ p.taskId }}/linkedResources/{{ p.linkedResourceId }}",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "taskListId", "label": "List ID", "type": "text", "required": true },
+        { "key": "taskId", "label": "Task ID", "type": "text", "required": true },
+        { "key": "linkedResourceId", "label": "Linked resource ID", "type": "text", "required": true },
+        { "key": "updateFields", "label": "Update fields", "type": "collection", "default": {}, "options": ["applicationName", "displayName", "externalId", "webUrl"] }
+      ],
+      "body": { "$merge": "{{ p.updateFields }}" }
+    },
+    {
+      "resource": "list", "operation": "get", "title": "Get a list",
+      "method": "GET",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.listId }}",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "listId", "label": "List ID", "type": "text", "required": true }
+      ]
+    },
+    {
+      "resource": "list", "operation": "create", "title": "Create a list",
+      "method": "POST",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "displayName", "label": "List name", "type": "text", "required": true }
+      ],
+      "body": { "displayName": "{{ p.displayName }}" }
+    },
+    {
+      "resource": "list", "operation": "delete", "title": "Delete a list",
+      "method": "DELETE",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.listId }}",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "listId", "label": "List ID", "type": "text", "required": true }
+      ]
+    },
+    {
+      "resource": "list", "operation": "getAll", "title": "Get many lists",
+      "method": "GET",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50, "min": 1 }
+      ],
+      "pagination": { "type": "next_url", "next_url_path": "@odata.nextLink", "results_path": "value", "limit_param": "$top", "page_size": 100 }
+    },
+    {
+      "resource": "list", "operation": "update", "title": "Rename a list",
+      "method": "PATCH",
+      "path": "/{{ p.userTarget | rl | then:'users' | default:'me' }}{{ p.userTarget | rl | then:'/' }}{{ p.userTarget | rl }}/todo/lists/{{ p.listId }}",
+      "fields": [
+        { "key": "userTarget", "label": "User (app-only)", "type": "text", "help": "Only with an Entra app connection: the user's principal name or object ID whose To Do to use. Leave empty for your own account." },
+        { "key": "listId", "label": "List ID", "type": "text", "required": true },
+        { "key": "displayName", "label": "New list name", "type": "text", "required": true }
+      ],
+      "body": { "displayName": "{{ p.displayName }}" }
+    }
+  ]
+}

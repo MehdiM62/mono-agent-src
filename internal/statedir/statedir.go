@@ -63,10 +63,29 @@ type Exposed struct {
 	Mode fs.FileMode
 }
 
-// FindExposed lists dir, the files directly inside it, and the extra paths
-// (such as a database outside dir) that carry group or world permission
-// bits. Symlinks and missing paths are skipped. It returns nothing on
-// Windows.
+// PrivateSubdirs are the folders under the state folder that hold the
+// user's own data (workflow definitions, page captures, recordings and
+// their drafts, logs, crash reports, database backups). FindExposed walks
+// them recursively. Other folders are left out on purpose: the automation
+// registry (automations/) and the node install trees (node runtimes,
+// npm packages, native libraries) hold installed programs rather than the
+// user's data, can run to tens of thousands of files, and are protected by
+// the 0700 state folder around them anyway.
+var PrivateSubdirs = []string{"workflows", "captures", "recordings", "recording-drafts", "logs", "crashes", "backups"}
+
+// maxWalk bounds how many entries FindExposed visits in each private
+// subfolder, so a huge capture folder cannot stall doctor (a var so tests
+// can lower it).
+var maxWalk = 50000
+
+// errWalkLimit stops a walk that reached maxWalk.
+var errWalkLimit = errors.New("walk limit reached")
+
+// FindExposed lists dir, the files directly inside it, everything inside
+// the PrivateSubdirs of dir (at most maxWalk entries each), and the extra
+// paths (such as a database outside dir) that carry group or world
+// permission bits. Symlinks and missing paths are skipped. It returns
+// nothing on Windows.
 func FindExposed(dir string, extra ...string) ([]Exposed, error) {
 	if runtime.GOOS == "windows" {
 		return nil, nil
@@ -106,6 +125,11 @@ func FindExposed(dir string, extra ...string) ([]Exposed, error) {
 					add(filepath.Join(dir, e.Name()), fi)
 				}
 			}
+			for _, sub := range PrivateSubdirs {
+				if err := walkPrivate(filepath.Join(dir, sub), add); err != nil {
+					return nil, err
+				}
+			}
 		}
 	}
 	for _, p := range extra {
@@ -117,6 +141,32 @@ func FindExposed(dir string, extra ...string) ([]Exposed, error) {
 		}
 	}
 	return out, nil
+}
+
+// walkPrivate passes root and everything below it to add, without
+// following symlinks, stopping quietly after maxWalk entries. A missing
+// root, or an entry that vanishes mid-walk, is not an error.
+func walkPrivate(root string, add func(string, fs.FileInfo)) error {
+	n := 0
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, fs.ErrPermission) {
+				return nil // gone meanwhile, or a folder we cannot list
+			}
+			return err
+		}
+		if n++; n > maxWalk {
+			return errWalkLimit
+		}
+		if fi, err := d.Info(); err == nil {
+			add(p, fi)
+		}
+		return nil
+	})
+	if errors.Is(err, errWalkLimit) {
+		return nil
+	}
+	return err
 }
 
 // Repair removes the group and world bits from everything FindExposed

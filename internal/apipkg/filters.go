@@ -169,15 +169,23 @@ func applyFilter(name string, v, arg any) (any, error) {
 		}
 		return out, nil
 	case "flatten":
+		// Lists flatten at every depth; objects of lists only at the top
+		// (Rocket.Chat {update, remove}); objects inside lists stay elements.
 		var out []any
-		var add func(x any)
-		add = func(x any) {
+		var add func(x any, top bool)
+		add = func(x any, top bool) {
 			switch t := x.(type) {
 			case []any:
-				out = append(out, t...)
+				for _, e := range t {
+					add(e, false)
+				}
 			case map[string]any:
+				if !top {
+					out = append(out, t)
+					return
+				}
 				for _, k := range sortedKeys(t) {
-					add(t[k])
+					add(t[k], false)
 				}
 			default:
 				if x != nil {
@@ -185,7 +193,7 @@ func applyFilter(name string, v, arg any) (any, error) {
 				}
 			}
 		}
-		add(v)
+		add(v, true)
 		return out, nil
 	case "snake":
 		return snakeCase(stringify(v)), nil

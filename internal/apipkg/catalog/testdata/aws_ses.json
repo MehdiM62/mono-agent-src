@@ -1,0 +1,370 @@
+{
+  "email.send": {
+    "params": {
+      "isBodyHtml": true,
+      "subject": "Hi",
+      "body": "<b>x</b>",
+      "fromEmail": "a@x.io",
+      "toAddresses": [
+        "b@x.io",
+        "c@x.io"
+      ],
+      "additionalFields": {
+        "ccAddresses": [
+          "d@x.io"
+        ],
+        "replyToAddresses": [
+          "r@x.io"
+        ],
+        "configurationSetName": "cs"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "SendEmail",
+        "Version": "2010-12-01",
+        "Source": "a@x.io",
+        "Message.Subject.Data": "Hi",
+        "Message.Body.Html.Data": "<b>x</b>",
+        "Message.Body.Html.Charset": "UTF-8",
+        "Destination.ToAddresses.member.1": "b@x.io",
+        "Destination.ToAddresses.member.2": "c@x.io",
+        "Destination.CcAddresses.member.1": "d@x.io",
+        "ReplyToAddresses.member.1": "r@x.io",
+        "ConfigurationSetName": "cs"
+      },
+      "items": 1
+    },
+    "response": {
+      "SendEmailResponse": {
+        "SendEmailResult": {
+          "MessageId": "1"
+        }
+      }
+    }
+  },
+  "email.sendTemplate": {
+    "params": {
+      "templateName": "welcome",
+      "fromEmail": "a@x.io",
+      "toAddresses": [
+        "b@x.io"
+      ],
+      "templateDataUi": {
+        "templateDataValues": [
+          {
+            "key": "name",
+            "value": "Ada"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "SendTemplatedEmail",
+        "Version": "2010-12-01",
+        "Source": "a@x.io",
+        "Template": "welcome",
+        "Destination.ToAddresses.member.1": "b@x.io",
+        "TemplateData": "{\"name\":\"Ada\"}"
+      },
+      "items": 1
+    },
+    "response": {
+      "SendTemplatedEmailResponse": {
+        "ResponseMetadata": {
+          "RequestId": "r1"
+        }
+      }
+    }
+  },
+  "customVerificationEmail.create": {
+    "params": {
+      "fromEmailAddress": "a@x.io",
+      "templateName": "v",
+      "templateSubject": "Verify",
+      "templateContent": "<p>hi</p>",
+      "successRedirectionURL": "https://ok",
+      "failureRedirectionURL": "https://no"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "CreateCustomVerificationEmailTemplate",
+        "Version": "2010-12-01",
+        "FromEmailAddress": "a@x.io",
+        "TemplateName": "v",
+        "TemplateSubject": "Verify",
+        "TemplateContent": "<p>hi</p>",
+        "SuccessRedirectionURL": "https://ok",
+        "FailureRedirectionURL": "https://no"
+      },
+      "items": 1
+    },
+    "response": {
+      "CreateCustomVerificationEmailTemplateResponse": {
+        "ResponseMetadata": {
+          "RequestId": "r1"
+        }
+      }
+    }
+  },
+  "customVerificationEmail.delete": {
+    "params": {
+      "templateName": "v"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "DeleteCustomVerificationEmailTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "v"
+      },
+      "items": 1
+    },
+    "response": {
+      "DeleteCustomVerificationEmailTemplateResponse": {
+        "ResponseMetadata": {
+          "RequestId": "r1"
+        }
+      }
+    }
+  },
+  "customVerificationEmail.get": {
+    "params": {
+      "templateName": "v"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "GetCustomVerificationEmailTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "v"
+      },
+      "items": 1
+    },
+    "response": {
+      "GetCustomVerificationEmailTemplateResponse": {
+        "GetCustomVerificationEmailTemplateResult": {
+          "TemplateName": "v"
+        }
+      }
+    }
+  },
+  "customVerificationEmail.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "ListCustomVerificationEmailTemplates",
+        "Version": "2010-12-01",
+        "MaxResults": "5"
+      },
+      "items": 2
+    },
+    "response": {
+      "ListCustomVerificationEmailTemplatesResponse": {
+        "ListCustomVerificationEmailTemplatesResult": {
+          "CustomVerificationEmailTemplates": {
+            "member": [
+              {
+                "TemplateName": "a"
+              },
+              {
+                "TemplateName": "b"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "customVerificationEmail.send": {
+    "params": {
+      "email": "z@x.io",
+      "templateName": "v",
+      "additionalFields": {
+        "configurationSetName": "cs"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "SendCustomVerificationEmail",
+        "Version": "2010-12-01",
+        "TemplateName": "v",
+        "EmailAddress": "z@x.io",
+        "ConfigurationSetName": "cs"
+      },
+      "items": 1
+    },
+    "response": {
+      "SendCustomVerificationEmailResponse": {
+        "ResponseMetadata": {
+          "RequestId": "r1"
+        }
+      }
+    }
+  },
+  "customVerificationEmail.update": {
+    "params": {
+      "templateName": "v",
+      "updateFields": {
+        "templateSubject": "New"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "UpdateCustomVerificationEmailTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "v",
+        "TemplateSubject": "New"
+      },
+      "items": 1
+    },
+    "response": {
+      "UpdateCustomVerificationEmailTemplateResponse": {
+        "ResponseMetadata": {
+          "RequestId": "r1"
+        }
+      }
+    }
+  },
+  "template.create": {
+    "params": {
+      "templateName": "w",
+      "subjectPart": "S",
+      "htmlPart": "<p>h</p>",
+      "additionalFields": {
+        "textPart": "h"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "CreateTemplate",
+        "Version": "2010-12-01",
+        "Template.TemplateName": "w",
+        "Template.SubjectPart": "S",
+        "Template.HtmlPart": "<p>h</p>",
+        "Template.TextPart": "h"
+      },
+      "items": 1
+    },
+    "response": {
+      "CreateTemplateResponse": {
+        "ResponseMetadata": {
+          "RequestId": "r1"
+        }
+      }
+    }
+  },
+  "template.delete": {
+    "params": {
+      "templateName": "w"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "DeleteTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "w"
+      },
+      "items": 1
+    },
+    "response": {
+      "DeleteTemplateResponse": {
+        "ResponseMetadata": {
+          "RequestId": "r1"
+        }
+      }
+    }
+  },
+  "template.get": {
+    "params": {
+      "templateName": "w"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "GetTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "w"
+      },
+      "items": 1
+    },
+    "response": {
+      "GetTemplateResponse": {
+        "ResponseMetadata": {
+          "RequestId": "r1"
+        }
+      }
+    }
+  },
+  "template.getAll": {
+    "params": {},
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "ListTemplates",
+        "Version": "2010-12-01",
+        "MaxItems": "20"
+      },
+      "items": 1
+    },
+    "response": {
+      "ListTemplatesResponse": {
+        "ListTemplatesResult": {
+          "TemplatesMetadata": {
+            "member": {
+              "Name": "w"
+            }
+          }
+        }
+      }
+    }
+  },
+  "template.update": {
+    "params": {
+      "templateName": "w",
+      "updateFields": {
+        "htmlPart": "<p>2</p>"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "UpdateTemplate",
+        "Version": "2010-12-01",
+        "Template.TemplateName": "w",
+        "Template.HtmlPart": "<p>2</p>"
+      },
+      "items": 1
+    },
+    "response": {
+      "UpdateTemplateResponse": {
+        "ResponseMetadata": {
+          "RequestId": "r1"
+        }
+      }
+    }
+  }
+}

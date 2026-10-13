@@ -184,7 +184,7 @@ func (c *Credential) check(i int) []string {
 		keys[f.Key] = true
 	}
 	in := c.Inject
-	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 && in.HMAC == nil {
+	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 && in.HMAC == nil && in.AzureSharedKey == nil && in.AzureCosmos == nil {
 		add("inject is empty: say how the credential authenticates (headers, query, basic or aws_sigv4)")
 	}
 	for k, v := range in.Headers {
@@ -307,10 +307,11 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	}
 	if pg := o.Pagination; pg != nil {
 		need := map[string][2]string{
-			PageCursor:  {pg.CursorParam + "|" + pg.CursorPath, "cursor_param and cursor_path"},
-			PageOffset:  {pg.OffsetParam, "offset_param"},
-			PagePage:    {pg.PageParam, "page_param"},
-			PageNextURL: {pg.NextURLPath, "next_url_path"},
+			PageCursor:       {pg.CursorParam + "|" + pg.CursorPath, "cursor_param and cursor_path"},
+			PageHeaderCursor: {pg.CursorParam + "|" + pg.CursorPath, "cursor_param and cursor_path (header names)"},
+			PageOffset:       {pg.OffsetParam, "offset_param"},
+			PagePage:         {pg.PageParam, "page_param"},
+			PageNextURL:      {pg.NextURLPath, "next_url_path"},
 		}
 		if n, ok := need[pg.Type]; ok && (n[0] == "" || strings.HasPrefix(n[0], "|") || strings.HasSuffix(n[0], "|")) {
 			add("pagination %q needs %s", pg.Type, n[1])

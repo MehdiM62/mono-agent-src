@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/monoes/mono-agent/data"
+	"github.com/monoes/mono-agent/internal/statedir"
 	"github.com/spf13/cobra"
 )
 
@@ -182,8 +183,7 @@ func installClaudeSkill(verbose bool) error {
 
 	// Write the marker so first-run check doesn't repeat.
 	monoagentDir := filepath.Join(home, ".monoagent")
-	_ = os.MkdirAll(monoagentDir, 0o755)
-	_ = os.WriteFile(filepath.Join(monoagentDir, claudeInitMarker), []byte("1"), 0o644)
+	_ = statedir.WriteFile(filepath.Join(monoagentDir, claudeInitMarker), []byte("1"))
 
 	if verbose {
 		fmt.Printf("\nIn Claude Code, run /action-template-generator to generate crawling templates.\n")
@@ -213,9 +213,7 @@ func runClaudeFirstRunCheck() {
 		// No coding agent installed — write marker so we don't re-check.
 		marker := filepath.Join(home, ".monoagent", claudeInitMarker)
 		if _, err := os.Stat(marker); err != nil {
-			monoagentDir := filepath.Join(home, ".monoagent")
-			_ = os.MkdirAll(monoagentDir, 0o755)
-			_ = os.WriteFile(marker, []byte("0"), 0o644)
+			_ = statedir.WriteFile(marker, []byte("0"))
 		}
 		return
 	}
@@ -311,7 +309,6 @@ func installMissingSkills(home string, refs []skillRef) error {
 		}
 	}
 	monoagentDir := filepath.Join(home, ".monoagent")
-	_ = os.MkdirAll(monoagentDir, 0o755)
-	_ = os.WriteFile(filepath.Join(monoagentDir, claudeInitMarker), []byte("1"), 0o644)
+	_ = statedir.WriteFile(filepath.Join(monoagentDir, claudeInitMarker), []byte("1"))
 	return nil
 }

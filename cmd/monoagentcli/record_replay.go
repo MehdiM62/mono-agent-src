@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/logging"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -22,9 +23,9 @@ import (
 // recordReplayPage opens the tab a replay drives — the same connect path
 // as verify; tests replace it.
 var recordReplayPage = func(ctx context.Context, verbose bool) (browserpkg.PageInterface, zerolog.Logger, error) {
-	logger := zerolog.New(os.Stderr).With().Timestamp().Str("component", "replay").Logger()
-	if !verbose {
-		logger = logger.Level(zerolog.WarnLevel)
+	logger := logging.Zerolog().With().Str("component", "replay").Logger()
+	if verbose {
+		logger = logger.Level(zerolog.TraceLevel)
 	}
 	bridge := setupProfileBridge(vault.ProfileIDFromContext(ctx), logger, 3*time.Second)
 	if !bridge.IsConnected() {

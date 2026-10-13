@@ -271,3 +271,66 @@ func TestOptionIssuesFollowDependsOn(t *testing.T) {
 		t.Fatalf("want 1 invalid_option and 1 needs_setup, got %d and %d", opts, setup)
 	}
 }
+
+// A native node extended by an API package: the native operation select,
+// resource-scoped operation selects, and required fields shown only for
+// listed resource/operation pairs (visible_for).
+func TestFieldIssuesHonourDependsOnAndVisibleFor(t *testing.T) {
+	s := &NodeSchema{Fields: []NodeSchemaField{
+		{Key: "operation", Type: "select", Default: "list_records", Options: []string{"list_records", "create_record", "reply"}},
+		{Key: "resource", Type: "select", Default: "", Options: []string{"", "record", "message"}},
+		{Key: "operation", Type: "select", Required: true, Default: "create", Options: []string{"create", "get"}, DependsOn: &FieldDependency{Key: "resource", Values: []string{"record"}}},
+		{Key: "operation", Type: "select", Required: true, Default: "reply", Options: []string{"reply", "send"}, DependsOn: &FieldDependency{Key: "resource", Values: []string{"message"}}},
+		{Key: "messageId", Type: "text", Required: true, DependsOn: &FieldDependency{Key: "operation", Values: []string{"reply", "get"}},
+			VisibleFor: []map[string]string{{"resource": "message", "operation": "reply"}, {"resource": "record", "operation": "get"}}},
+	}}
+	tests := []struct {
+		name     string
+		config   map[string]interface{}
+		wantCode map[string]int // issue code -> count
+		wantHint string
+	}{
+		{"native op, resource unset", map[string]interface{}{"operation": "create_record"}, nil, ""},
+		{"native reply needs no package fields", map[string]interface{}{"operation": "reply"}, nil, ""},
+		{"defaults only", map[string]interface{}{}, nil, ""},
+		{"scoped op valid", map[string]interface{}{"resource": "record", "operation": "create"}, nil, ""},
+		{"visible_for required field", map[string]interface{}{"resource": "message", "operation": "reply"}, map[string]int{IssueMissingRequired: 1}, ""},
+		{"visible_for via default operation", map[string]interface{}{"resource": "message"}, map[string]int{IssueMissingRequired: 1}, ""},
+		{"visible_for not matching", map[string]interface{}{"resource": "record", "operation": "create"}, nil, ""},
+		{"required field set", map[string]interface{}{"resource": "message", "operation": "reply", "messageId": "m1"}, nil, ""},
+		{"expression resource", map[string]interface{}{"resource": "{{ $json.r }}", "operation": "reply"}, nil, ""},
+		{"expression operation", map[string]interface{}{"resource": "message", "operation": "{{ $json.op }}"}, nil, ""},
+		{"invalid native op reported once", map[string]interface{}{"operation": "bogus"}, map[string]int{IssueInvalidOption: 1}, "list_records, create_record, reply"},
+		{"invalid scoped op reported once", map[string]interface{}{"resource": "record", "operation": "bogus"}, map[string]int{IssueInvalidOption: 1}, "list_records, create_record, reply, create, get"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := map[string]int{}
+			for _, is := range fieldIssues(vnode("n", "x.y", "N", tc.config), s) {
+				got[is.Code]++
+				if is.Code == IssueInvalidOption && tc.wantHint != "" && is.Hint != "use one of: "+tc.wantHint {
+					t.Errorf("hint = %q, want the applicable options %q", is.Hint, tc.wantHint)
+				}
+			}
+			if len(got) != len(tc.wantCode) {
+				t.Fatalf("issues = %v, want %v", got, tc.wantCode)
+			}
+			for code, n := range tc.wantCode {
+				if got[code] != n {
+					t.Fatalf("issues = %v, want %v", got, tc.wantCode)
+				}
+			}
+		})
+	}
+}
+
+// visible_for round-trips from schema JSON.
+func TestNodeSchemaFieldVisibleForJSON(t *testing.T) {
+	var f NodeSchemaField
+	if err := json.Unmarshal([]byte(`{"key":"messageId","type":"text","visible_for":[{"resource":"message","operation":"reply"}]}`), &f); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.VisibleFor) != 1 || f.VisibleFor[0]["resource"] != "message" || f.VisibleFor[0]["operation"] != "reply" {
+		t.Fatalf("VisibleFor = %v", f.VisibleFor)
+	}
+}
