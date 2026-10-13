@@ -108,7 +108,7 @@ func TestAppNodesInSchemaListAndPalette(t *testing.T) {
 	if nodeTypeCategory("app.todoist") != "app" || nodeCategory("app.todoist") != "app" {
 		t.Error("node list category")
 	}
-	pal := nodePalette(nil)
+	pal := nodePalette(nil, false)
 	var found *paletteNode
 	for i, n := range pal["app"] {
 		if n.Type == "app.todoist" {

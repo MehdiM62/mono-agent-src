@@ -43,6 +43,7 @@ var fileNodeTypes = map[string][]fileField{
 	"data.spreadsheet":       {{"file_path", ""}},
 	"comm.email_send":        {{"attachments", AccessRead}},
 	"comm.outlook_send":      {{"attachments", AccessRead}},
+	"service.outlook_mail":   {{"attachments", AccessRead}},
 	"comm.slack":             {{"file_path", AccessRead}},
 	"comm.telegram":          {{"photo_url", AccessRead}},
 	"http.ftp":               {{"local_path", ""}},

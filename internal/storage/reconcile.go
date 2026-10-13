@@ -40,6 +40,9 @@ func (d *Database) ReconcileSchema(ctx context.Context) error {
 	if err := d.reconcileProfilesIcon(ctx); err != nil {
 		return err
 	}
+	if err := d.reconcileAddedColumns(ctx); err != nil {
+		return err
+	}
 	return d.reconcileExecutionProfiles(ctx)
 }
 

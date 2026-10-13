@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // ErrNotImplemented marks functions not yet filled in.
@@ -42,6 +44,11 @@ func Open(home string) (*Registry, error) {
 		return nil, err
 	}
 	r := &Registry{home: abs, root: filepath.Join(abs, "automations")}
+	// The registry home is ~/.monoagent: create it private if it is missing,
+	// before the automations folder inside it.
+	if err := statedir.MkdirAll(abs); err != nil {
+		return nil, fmt.Errorf("automation: create registry: %w", err)
+	}
 	if err := os.MkdirAll(r.root, 0o755); err != nil {
 		return nil, fmt.Errorf("automation: create registry: %w", err)
 	}

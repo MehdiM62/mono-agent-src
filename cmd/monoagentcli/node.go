@@ -28,6 +28,7 @@ import (
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/i18n"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/nodes"
 	peoplenodes "github.com/monoes/mono-agent/internal/nodes/people"
@@ -110,7 +111,7 @@ func resolveCredentialData(ctx context.Context, store *connections.Store, creden
 		// connection for this platform happened to be found first,
 		// silently operating on the wrong account when multiple profiles
 		// have a connection for the same platform.
-		conns, lErr := store.ListByPlatform(ctx, credentialOrPlatform, profileID)
+		conns, lErr := store.ListUsableByPlatform(ctx, credentialOrPlatform, profileID)
 		if lErr == nil && len(conns) > 0 {
 			for i := range conns {
 				if conns[i].Status == "active" {
@@ -278,6 +279,7 @@ func newNodeCmd(cfg *globalConfig) *cobra.Command {
 		newNodeRunCmd(cfg),
 		newNodeSchemaCmd(cfg),
 		newNodePaletteCmd(cfg),
+		newNodeCurlCmd(cfg),
 	)
 	return cmd
 }
@@ -321,7 +323,12 @@ func nodeTypeCategory(t string) string {
 	return nodeCategory(t)
 }
 
-// newNodeListCmd lists all registered node types.
+// triggerNodeTypes are the trigger types the engine handles itself: they are
+// never in the node registry (execution.go passes them through), so `node
+// list` adds them to the registered types.
+var triggerNodeTypes = []string{"trigger.manual", "trigger.org", "trigger.schedule", "trigger.webhook"}
+
+// newNodeListCmd lists all registered node types and the engine's triggers.
 func newNodeListCmd(cfg *globalConfig) *cobra.Command {
 	var filter string
 
@@ -340,6 +347,11 @@ func newNodeListCmd(cfg *globalConfig) *cobra.Command {
 			}
 			registry := buildNodeRegistry(cfg.Verbose, rawDB)
 			types := registry.Types()
+			for _, t := range triggerNodeTypes {
+				if !registry.Has(t) {
+					types = append(types, t)
+				}
+			}
 			sort.Strings(types)
 
 			if filter != "" {
@@ -368,8 +380,7 @@ func newNodeListCmd(cfg *globalConfig) *cobra.Command {
 			fmt.Fprintln(w, "TYPE\tCATEGORY")
 			fmt.Fprintln(w, "────\t────────")
 			for _, t := range types {
-				cat := nodeCategory(t)
-				fmt.Fprintf(w, "%s\t%s\n", t, cat)
+				fmt.Fprintf(w, "%s\t%s\n", t, nodeTypeCategory(t))
 			}
 			w.Flush()
 			fmt.Printf("\n%d node types\n", len(types))
@@ -583,9 +594,9 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				inputItems = []workflow.Item{{JSON: map[string]interface{}{}}}
 			}
 
-			logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
-			if !cfg.Verbose {
-				logger = logger.Level(zerolog.WarnLevel)
+			logger := logging.Zerolog()
+			if cfg.Verbose {
+				logger = logger.Level(zerolog.TraceLevel)
 			}
 			_ = logger
 
@@ -606,9 +617,9 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 			if needsBrowserSession(nodeType, factory) {
 				// Chrome extension only — no Rod/Chromium fallback, sharing
 				// another local process's connection when one already exists.
-				extLogger := zerolog.New(os.Stderr).With().Timestamp().Str("component", "extension").Logger()
-				if !cfg.Verbose {
-					extLogger = extLogger.Level(zerolog.WarnLevel)
+				extLogger := logging.Zerolog().With().Str("component", "extension").Logger()
+				if cfg.Verbose {
+					extLogger = extLogger.Level(zerolog.TraceLevel)
 				}
 				extBridge := setupProfileBridge(cfg.ProfileID, extLogger, 3*time.Second)
 				if !extBridge.IsConnected() {
@@ -631,7 +642,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				nodes.SetGlobalCredentialStore(connections.NewStore(rawDB))
 
 				// Wire up config manager for selector resolution.
-				cfgLogger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
+				cfgLogger := logging.Zerolog()
 				var cfgStore cfgpkg.ConfigStore
 				if cfgDB, err := initDB(cfg); err == nil {
 					cfgStore = &cfgpkg.DBConfigStore{DB: cfgDB}

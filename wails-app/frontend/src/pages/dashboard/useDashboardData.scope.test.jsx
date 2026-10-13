@@ -5,6 +5,7 @@ import { renderHook, waitFor, cleanup } from '@testing-library/react'
 vi.mock('../../services/api.js', () => ({
   api: {
     getSummary: vi.fn(() => Promise.resolve({ v: 1, scope: 'profile' })),
+    getExtensionStatus: vi.fn(() => Promise.resolve(null)),
     getGlobalSummary: vi.fn(() => Promise.resolve({ v: 1, scope: 'global', profiles: [] })),
     getOrgSummary: vi.fn(() => Promise.resolve({ v: 1, orgs: [], totals: {} })),
     getGlobalOrgSummary: vi.fn(() => Promise.resolve({ v: 1, scope: 'global', orgs: [], totals: {} })),

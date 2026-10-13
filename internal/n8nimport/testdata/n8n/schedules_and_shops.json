@@ -1,0 +1,18 @@
+{
+  "name": "Store reports",
+  "nodes": [
+    {"parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 10}, {"field": "weeks", "triggerAtDay": [1, 5], "triggerAtHour": 8, "triggerAtMinute": 30}, {"field": "cronExpression", "expression": "15 4 * * 2"}, {"field": "months", "triggerAtDayOfMonth": 1, "triggerAtHour": 9}]}}, "name": "Schedule Trigger", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 0]},
+    {"parameters": {"mode": "raw", "jsonOutput": "={\n  \"report\": \"daily\",\n  \"runAt\": \"{{ $now.toISO() }}\"\n}\n", "options": {}}, "name": "Raw JSON", "type": "n8n-nodes-base.set", "typeVersion": 3.4, "position": [200, 0]},
+    {"parameters": {"mode": "runOnceForEachItem", "jsCode": "$input.item.json.stamp = DateTime.now().toFormat('yyyy-MM-dd');\nreturn $input.item;"}, "name": "Stamp", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [400, 0]},
+    {"parameters": {"resource": "order", "operation": "getAll", "limit": 20, "options": {"status": "any"}}, "name": "Shopify", "type": "n8n-nodes-base.shopify", "typeVersion": 1, "position": [600, -100], "credentials": {"shopifyAccessTokenApi": {"id": "1", "name": "Shop"}}},
+    {"parameters": {"resource": "customer", "operation": "getAll", "limit": 10}, "name": "Stripe", "type": "n8n-nodes-base.stripe", "typeVersion": 1, "position": [600, 0], "credentials": {"stripeApi": {"id": "2", "name": "Stripe"}}},
+    {"parameters": {"resource": "video", "operation": "getAll", "limit": 5, "filters": {"q": "product demo"}}, "name": "YouTube", "type": "n8n-nodes-base.youTube", "typeVersion": 1, "position": [600, 100], "credentials": {"youTubeOAuth2Api": {"id": "3", "name": "YT"}}},
+    {"parameters": {"resource": "file", "operation": "upload", "name": "=report-{{ $json.stamp }}.json", "folderId": {"__rl": true, "value": "fold1", "mode": "id"}, "options": {}}, "name": "Google Drive", "type": "n8n-nodes-base.googleDrive", "typeVersion": 3, "position": [800, 0], "credentials": {"googleDriveOAuth2Api": {"id": "4", "name": "Drive"}}}
+  ],
+  "connections": {
+    "Schedule Trigger": {"main": [[{"node": "Raw JSON", "type": "main", "index": 0}]]},
+    "Raw JSON": {"main": [[{"node": "Stamp", "type": "main", "index": 0}]]},
+    "Stamp": {"main": [[{"node": "Shopify", "type": "main", "index": 0}, {"node": "Stripe", "type": "main", "index": 0}, {"node": "YouTube", "type": "main", "index": 0}]]},
+    "Stripe": {"main": [[{"node": "Google Drive", "type": "main", "index": 0}]]}
+  }
+}

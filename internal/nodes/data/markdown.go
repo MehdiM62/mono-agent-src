@@ -18,7 +18,18 @@ type MarkdownNode struct{}
 
 func (n *MarkdownNode) Type() string { return "data.markdown" }
 
+// PerItemConfigFields holds back the markdown/html source values and the
+// destination key so they are evaluated against each item.
+func (n *MarkdownNode) PerItemConfigFields() []string { return markdownPerItemFields }
+
 func (n *MarkdownNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	switch mode, _ := config["mode"].(string); mode {
+	case "":
+	case "markdown_to_html", "html_to_markdown":
+		return executeN8nMarkdown(mode, input, config)
+	default:
+		return nil, fmt.Errorf("%w: data.markdown: unknown mode %q (want markdown_to_html or html_to_markdown)", workflow.ErrInvalidConfig, mode)
+	}
 	field, _ := config["field"].(string)
 	outputField, _ := config["output_field"].(string)
 	unsafe, _ := config["unsafe"].(bool)

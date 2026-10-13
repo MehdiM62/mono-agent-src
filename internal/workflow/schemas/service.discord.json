@@ -3,10 +3,43 @@
   "credential_platform": "discord",
   "fields": [
     {
+      "default": "bot",
+      "help": "bot uses the Discord connection's bot token (all operations); webhook posts through a channel webhook URL (send_message and send_embed only).",
+      "key": "auth",
+      "label": "Authentication",
+      "options": [
+        "bot",
+        "webhook"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "auth",
+        "values": [
+          "bot"
+        ]
+      },
+      "help": "Bot connection. Not needed with webhook authentication.",
       "key": "credential_id",
       "label": "Discord Connection",
-      "required": true,
+      "required": false,
       "type": "credential_picker"
+    },
+    {
+      "depends_on": {
+        "key": "auth",
+        "values": [
+          "webhook"
+        ]
+      },
+      "help": "Channel settings → Integrations → Webhooks → Copy Webhook URL.",
+      "key": "webhook_url",
+      "label": "Webhook URL",
+      "placeholder": "https://discord.com/api/webhooks/...",
+      "required": false,
+      "type": "text"
     },
     {
       "default": "send_message",
@@ -14,6 +47,7 @@
       "label": "Operation",
       "options": [
         "send_message",
+        "send_embed",
         "list_messages",
         "add_reaction",
         "list_channels"
@@ -26,10 +60,12 @@
         "key": "operation",
         "values": [
           "send_message",
+          "send_embed",
           "list_messages",
           "add_reaction"
         ]
       },
+      "help": "Not used with webhook authentication (the webhook decides the channel).",
       "key": "channel_id",
       "label": "Channel ID",
       "required": false,
@@ -39,14 +75,80 @@
       "depends_on": {
         "key": "operation",
         "values": [
-          "send_message"
+          "send_message",
+          "send_embed"
         ]
       },
+      "help": "Required for send_message; optional text above the embed for send_embed.",
       "key": "text",
       "label": "Message",
       "required": false,
       "rows": 3,
       "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "send_embed"
+        ]
+      },
+      "key": "embed_title",
+      "label": "Embed Title",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "send_embed"
+        ]
+      },
+      "key": "embed_description",
+      "label": "Embed Description",
+      "required": false,
+      "rows": 3,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "send_embed"
+        ]
+      },
+      "help": "Decimal color, e.g. 5814783 for #5865F2.",
+      "key": "embed_color",
+      "label": "Embed Color",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "auth",
+        "values": [
+          "webhook"
+        ]
+      },
+      "help": "Webhook only: post under this name.",
+      "key": "username",
+      "label": "Display Name Override",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "auth",
+        "values": [
+          "webhook"
+        ]
+      },
+      "help": "Webhook only: post with this avatar.",
+      "key": "avatar_url",
+      "label": "Avatar URL Override",
+      "required": false,
+      "type": "text"
     },
     {
       "default": 50,

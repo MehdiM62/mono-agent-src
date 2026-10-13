@@ -18,7 +18,7 @@ export default function Orgs({ isActive = true, onNavigate, pendingSelectOrgName
       <div className="page-header">
         <div className="page-header-left">
           <div className="page-title">Org</div>
-          <div className="page-subtitle">Local agent organizations (monomind Org Runtime v2)</div>
+          <div className="page-subtitle">Teams of AI agents that run on this computer</div>
         </div>
       </div>
       <div className="page-body" style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>

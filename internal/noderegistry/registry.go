@@ -28,12 +28,14 @@ import (
 	httpnodes "github.com/monoes/mono-agent/internal/nodes/http"
 	imagenodes "github.com/monoes/mono-agent/internal/nodes/image"
 	matchingnodes "github.com/monoes/mono-agent/internal/nodes/matching"
+	mcpnodes "github.com/monoes/mono-agent/internal/nodes/mcp"
 	orgnodes "github.com/monoes/mono-agent/internal/nodes/org"
 	peoplenodes "github.com/monoes/mono-agent/internal/nodes/people"
 	publicationnodes "github.com/monoes/mono-agent/internal/nodes/publication"
 	"github.com/monoes/mono-agent/internal/nodes/service"
 	"github.com/monoes/mono-agent/internal/nodes/system"
 	vaultnodes "github.com/monoes/mono-agent/internal/nodes/vault"
+	vectornodes "github.com/monoes/mono-agent/internal/nodes/vector"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -60,6 +62,7 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 
 	// Local AI agent nodes (monomind delegation) — no store needed.
 	agentnodes.RegisterAll(registry)
+	mcpnodes.RegisterAll(registry) // mcp.call: MCP client (stdio / Streamable HTTP)
 
 	// Goal-driven browser agent (TypeSafe Jev) in the user's own browser.
 	browserjev.RegisterAll(registry)
@@ -77,6 +80,7 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 
 	// Credential vault nodes (vault.secret_save / vault.secret_get)
 	vaultnodes.RegisterAll(registry)
+	vectornodes.RegisterAll(registry) // RAG: vector.embed / split_text / load_document / store
 	publicationnodes.RegisterAll(registry)
 	apipkg.Register(registry) // declarative API packages: app.* node types
 
@@ -90,7 +94,7 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 		"jira": "service.jira", "linear": "service.linear", "asana": "service.asana",
 		"stripe": "service.stripe", "shopify": "service.shopify", "salesforce": "service.salesforce",
 		"hubspot": "service.hubspot",
-		"slack":   "comm.slack", "discord": "comm.discord", "telegram": "comm.telegram",
+		"slack":   "comm.slack", "discord": "service.discord", "telegram": "comm.telegram",
 		"twilio": "comm.twilio", "whatsapp": "comm.whatsapp",
 		"email_send": "comm.email_send", "email_read": "comm.email_read",
 		"mysql": "db.mysql", "postgres": "db.postgres", "mongodb": "db.mongodb", "redis": "db.redis",

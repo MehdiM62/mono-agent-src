@@ -1,0 +1,25 @@
+{
+  "name": "Reshape orders",
+  "nodes": [
+    {"parameters": {}, "name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0]},
+    {"parameters": {"jsCode": "return [{json: {order: 1, customer: 'ada', lines: [{sku: 'A', qty: 2}, {sku: 'B', qty: 1}], total: 30}}, {json: {order: 2, customer: 'bob', lines: [{sku: 'A', qty: 1}], total: 10}}, {json: {order: 2, customer: 'bob', lines: [{sku: 'A', qty: 1}], total: 10}}];"}, "name": "Orders", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [200, 0]},
+    {"parameters": {"compare": "selectedFields", "fieldsToCompare": "order", "options": {}}, "name": "Dedupe", "type": "n8n-nodes-base.removeDuplicates", "typeVersion": 2, "position": [400, 0]},
+    {"parameters": {"sortFieldsUi": {"sortField": [{"fieldName": "total", "order": "descending"}, {"fieldName": "customer"}]}, "options": {}}, "name": "Sort", "type": "n8n-nodes-base.sort", "typeVersion": 1, "position": [600, 0]},
+    {"parameters": {"fieldToSplitOut": "lines", "include": "selectedOtherFields", "fieldsToInclude": "order,customer", "options": {}}, "name": "Split lines", "type": "n8n-nodes-base.splitOut", "typeVersion": 1, "position": [800, 0]},
+    {"parameters": {"keys": {"key": [{"currentKey": "qty", "newKey": "quantity"}]}, "additionalOptions": {}}, "name": "Rename", "type": "n8n-nodes-base.renameKeys", "typeVersion": 1, "position": [1000, 0]},
+    {"parameters": {"fieldsToSummarize": {"values": [{"aggregation": "sum", "field": "quantity"}, {"aggregation": "countUnique", "field": "order"}]}, "fieldsToSplitBy": "sku", "options": {}}, "name": "Summarize", "type": "n8n-nodes-base.summarize", "typeVersion": 1, "position": [1200, 0]},
+    {"parameters": {"maxItems": 1, "keep": "lastItems"}, "name": "Last", "type": "n8n-nodes-base.limit", "typeVersion": 1, "position": [1400, 0]},
+    {"parameters": {"aggregate": "aggregateAllItemData", "destinationFieldName": "rows", "include": "specifiedFields", "fieldsToInclude": "sku,sum_quantity", "options": {}}, "name": "All rows", "type": "n8n-nodes-base.aggregate", "typeVersion": 1, "position": [1600, 0]},
+    {"parameters": {"operation": "sort", "sortFieldsUi": {"sortField": [{"fieldName": "sku"}]}, "options": {}}, "name": "Item Lists", "type": "n8n-nodes-base.itemLists", "typeVersion": 3, "position": [1400, 200]}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "Orders", "type": "main", "index": 0}]]},
+    "Orders": {"main": [[{"node": "Dedupe", "type": "main", "index": 0}]]},
+    "Dedupe": {"main": [[{"node": "Sort", "type": "main", "index": 0}]]},
+    "Sort": {"main": [[{"node": "Split lines", "type": "main", "index": 0}]]},
+    "Split lines": {"main": [[{"node": "Rename", "type": "main", "index": 0}]]},
+    "Rename": {"main": [[{"node": "Summarize", "type": "main", "index": 0}]]},
+    "Summarize": {"main": [[{"node": "Last", "type": "main", "index": 0}, {"node": "Item Lists", "type": "main", "index": 0}]]},
+    "Last": {"main": [[{"node": "All rows", "type": "main", "index": 0}]]}
+  }
+}

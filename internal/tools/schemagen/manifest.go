@@ -34,11 +34,13 @@ var Manifest = []ManifestEntry{
 	{NodeType: "core.limit", GoFile: "internal/nodes/control/limit_schema.go", StructName: "LimitNodeSchema"},
 	{NodeType: "core.merge", GoFile: "internal/nodes/control/merge_schema.go", StructName: "MergeNodeSchema"},
 	{NodeType: "core.remove_duplicates", GoFile: "internal/nodes/control/remove_duplicates_schema.go", StructName: "RemoveDuplicatesNodeSchema"},
+	{NodeType: "core.respond_webhook", GoFile: "internal/nodes/control/respond_webhook_schema.go", StructName: "RespondWebhookNodeSchema"},
 	{NodeType: "core.sort", GoFile: "internal/nodes/control/sort_schema.go", StructName: "SortNodeSchema"},
 	{NodeType: "core.split_in_batches", GoFile: "internal/nodes/control/split_in_batches_schema.go", StructName: "SplitInBatchesNodeSchema"},
 	{NodeType: "core.stop_error", GoFile: "internal/nodes/control/stop_error_schema.go", StructName: "StopErrorNodeSchema"},
 	{NodeType: "core.switch", GoFile: "internal/nodes/control/switch_schema.go", StructName: "SwitchNodeSchema"},
 	{NodeType: "core.wait", GoFile: "internal/nodes/control/wait_schema.go", StructName: "WaitNodeSchema"},
+	{NodeType: "core.execute_workflow", GoFile: "internal/nodes/control/execute_workflow_schema.go", StructName: "ExecuteWorkflowNodeSchema"},
 
 	// --- http.* ---
 	{NodeType: "http.request", GoFile: "internal/nodes/http/request_schema.go", StructName: "RequestNodeSchema"},

@@ -16,7 +16,9 @@ desktop GUI (`wails-app/`).
 - All state lives in `~/.monoagent/` (SQLite + JSON workflow files). Every
   command works from any directory — there is no per-project setup. One
   exception: `monoagentcli init` also copies skill files into
-  `~/.claude/skills/` when `~/.claude` exists (a local file copy; no
+  `~/.claude/skills/` when `~/.claude` exists, and into `~/.codex/skills/`,
+  `~/.gemini/skills/` and `~/.config/opencode/skills/` (opencode only
+  without `~/.claude`) when those folders exist (a local file copy; no
   network).
 - A monoes.me sign-in is required since 2026-10-11 UTC (see
   [monoes.me account](#monoesme-account)). Your data stays on your machine, and there are no analytics or usage
@@ -490,7 +492,14 @@ monoagentcli --profile work mcp --tasks-only --allow-mutations   # the user's ta
 ```
 
 Register it with any MCP client (stdio transport). Prefer MCP when the
-host supports it; the CLI covers the same surface. Tools carry
+host supports it; the CLI covers the same surface. `doctor fix
+integrations.mcp_monoagent.register` (or `setup --mcp`) registers it as
+`monoagent` running `monoagentcli mcp --allow-mutations` with every installed
+runtime: Claude Code (`claude mcp add --scope user`), Codex (`codex mcp add`),
+Gemini CLI (`mcpServers` in `~/.gemini/settings.json`) and opencode (`mcp` in
+`~/.config/opencode/opencode.json`; both JSON edits keep a `.bak`). A
+registration without `--allow-mutations` is reported as outdated and the fix
+replaces it. Tools carry
 `readOnly`/`destructive` annotations where applicable, so hosts can gate
 dangerous calls.
 
@@ -1417,7 +1426,7 @@ letters, digits and `._#@:-`, the same name for a whole task; `you`,
 `agent`, `capture`, `chrome` and `os` are reserved; a name is a label,
 not a credential), use `list`, `show`, `next`, `claim`, `comment` (on a
 task they hold), `finish`, `release` and `digest`, and may `add` to the
-Inbox (20 tasks an hour). `digest` has no gate: it runs the same in any
+Inbox. `digest` has no gate: it runs the same in any
 context, so a session-start hook can call it. A `comment` run under an
 agent context is an agent's comment: it needs a name.
 
@@ -1457,8 +1466,7 @@ A claim that has run out may be taken over by another agent, and a task
 another agent holds answers `claimed`.
 
 Limits: 2,000 open tasks per profile (every task that is not archived,
-Done ones included: archive some to make room) and 20 tasks an hour
-created by agents per profile; a task with 500 events takes no more
+Done ones included: archive some to make room); a task with 500 events takes no more
 comments, and one with 2,000 events no more claims. Passing a limit
 answers `limit`: finish or release a task you hold, otherwise leave it
 to the user.
@@ -2475,14 +2483,16 @@ profiles or credentials.
 |---|---|
 | 0 | success |
 | 0 | run paused at a HIL node — status `WAITING` (paused for human review); the output carries a `hint` field pointing at `hil list` |
-| 1 | general error — also the exit for a run that ends `CANCELLED` |
+| 1 | general error — also the exit for a run that ends `CANCELLED`, and for a run that ends `SUCCESS_WITH_ERRORS` with no successful step (every non-trigger node failed; a partial success still exits 0) |
 | 2 | not found (workflow, node type, HIL item, secret name, …). Includes `hil approve`/`hil reject`, `secret rm`/`secret update`, and `workflow delete` on unknown ids |
 | 3 | invalid input / validation failure |
 | 4 | auth or connection failure — including `login_required`: no valid monoes.me sign-in (see [monoes.me account](#monoesme-account)) |
 
 Branch on these instead of parsing stderr.
 
-With `--json`, a classified failure's `{"error"}` object also carries a
+With `--json`, every command prints a failure as one JSON object on stdout
+(human text, if any, goes to stderr) with the same exit code; it may add a
+`"hint"` with the next step. A classified failure's `{"error"}` object also carries a
 `"code"`: `not_found` (2), `invalid_input` (3), `auth_or_connection` (4),
 or `agent_not_setup` — the AI agent is not set up (monomind missing or
 unusable, no runtime installed, the requested runtime missing or unknown,

@@ -19,7 +19,9 @@ import (
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/i18n"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/scheduler"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -170,9 +172,9 @@ func buildEngine(cfg *globalConfig, allowAllProfiles bool) (*workflow.WorkflowEn
 
 	registry := buildNodeRegistry(cfg.Verbose, db.DB)
 
-	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
-	if !cfg.Verbose {
-		logger = logger.Level(zerolog.WarnLevel)
+	logger := logging.Zerolog()
+	if cfg.Verbose {
+		logger = logger.Level(zerolog.TraceLevel)
 	}
 
 	// Set up browser session provider, bot registry, and config manager
@@ -188,7 +190,7 @@ func buildEngine(cfg *globalConfig, allowAllProfiles bool) (*workflow.WorkflowEn
 	nodes.SetGlobalBotRegistry(&cliBotRegistry{})
 	nodes.SetGlobalCredentialStore(connections.NewStore(db.DB))
 
-	cfgLogger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
+	cfgLogger := logging.Zerolog()
 	cfgStore := cfgpkg.ConfigStore(&cfgpkg.DBConfigStore{DB: db})
 	rawCfgMgr := cfgpkg.NewConfigManager(expandPath("~/.monoagent/configs"), cfgStore, cfgLogger)
 	nodes.SetGlobalConfigMgr(&cfgpkg.ConfigManagerAdapter{Mgr: rawCfgMgr})
@@ -288,6 +290,7 @@ func newWorkflowCmd(cfg *globalConfig) *cobra.Command {
 		newWorkflowGetCmd(cfg),
 		newWorkflowCreateCmd(cfg),
 		newWorkflowImportCmd(cfg),
+		newWorkflowConvertCmd(cfg),
 		newWorkflowExportCmd(cfg),
 		newWorkflowRunCmd(cfg),
 		newWorkflowInputsCmd(cfg),
@@ -305,6 +308,8 @@ func newWorkflowCmd(cfg *globalConfig) *cobra.Command {
 		newWorkflowMigrateCmd(cfg),
 		newWorkflowTemplatesCmd(cfg),
 		newWorkflowSearchCmd(cfg),
+		newWorkflowVersionsCmd(cfg),
+		newWorkflowGenerateCmd(cfg),
 	)
 
 	return cmd
@@ -501,8 +506,9 @@ func exampleInputJSON(inputs []string) string {
 	}
 	parts := make([]string, 0, len(inputs))
 	for _, key := range inputs {
-		// Plural keys are arrays in every bundled template (prompts, urls, …).
-		if strings.HasSuffix(key, "s") {
+		// Plural keys are arrays in the bundled templates (prompts, urls, …);
+		// find_jobs' keywords is one search string.
+		if strings.HasSuffix(key, "s") && key != "keywords" {
 			parts = append(parts, fmt.Sprintf("%q:[\"...\",\"...\"]", key))
 		} else {
 			parts = append(parts, fmt.Sprintf("%q:\"...\"", key))
@@ -602,6 +608,9 @@ func newWorkflowTemplatesUseCmd(cfg *globalConfig) *cobra.Command {
 			tmplFile, ok := workflow.GetTemplate(args[0])
 			if !ok {
 				return fmt.Errorf("unknown template %q. Run `monoagentcli workflow templates list` to see available IDs", args[0])
+			}
+			if err := checkTemplateNodeTypes(args[0], tmplFile, buildNodeRegistry(cfg.Verbose, nil).Has); err != nil {
+				return err
 			}
 
 			db, err := initDB(cfg)
@@ -780,7 +789,7 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 						fmt.Fprintf(os.Stdout, "Hint:   %s\n", waitingHint)
 					}
 				}
-				// A FAILED or CANCELLED execution must exit 1 even though the
+				// A FAILED, REJECTED or CANCELLED execution must exit 1 even though the
 				// wait itself succeeded. JSON callers still print the full
 				// execution record (with error fields populated) before this
 				// propagates.
@@ -797,6 +806,8 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 						msg = "cancelled"
 					}
 					return fmt.Errorf("execution %s was cancelled: %s", executionID, msg)
+				case workflow.StatusRejected:
+					return fmt.Errorf("execution %s was rejected by a reviewer: %s", executionID, exec.ErrorMessage)
 				}
 				return nil
 			}
@@ -820,7 +831,12 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 		Short: "Run a bundled template once, without saving a workflow",
 		Long: "Instantiates a bundled template as a temporary workflow, triggers it, waits for it " +
 			"to finish, then deletes it. Safe to run several times concurrently — each run is a " +
-			"separate throwaway workflow. Use --keep to leave the instantiated workflow behind for editing.",
+			"separate throwaway workflow. Use --keep to leave the instantiated workflow behind for editing.\n\n" +
+			"Nothing runs when the template needs node types that are not installed (it names the " +
+			"automation to install) or reads input keys and --input is missing (exit 3). A run whose " +
+			"every step failed exits 1 even though its status is SUCCESS_WITH_ERRORS; a partial " +
+			"success exits 0. Without --json it ends with the output of the last nodes that ran " +
+			"(up to 5 items; --json has all).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tmplFile, ok := workflow.GetTemplate(args[0])
@@ -828,11 +844,18 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("unknown template %q. Run `monoagentcli workflow templates list` to see available IDs", args[0])
 			}
 
+			if err := checkTemplateNodeTypes(args[0], tmplFile, buildNodeRegistry(cfg.Verbose, nil).Has); err != nil {
+				return err
+			}
+
 			triggerData := map[string]interface{}{}
 			if inputJSON != "" {
 				if err := json.Unmarshal([]byte(inputJSON), &triggerData); err != nil {
 					return fmt.Errorf("invalid --input JSON (expected a JSON object): %w", err)
 				}
+			}
+			if err := checkTemplateInputs(templateInputKeys(args[0]), triggerData); err != nil {
+				return err
 			}
 
 			engine, closeBrowsers, err := buildEngine(cfg, false)
@@ -875,14 +898,14 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 				fmt.Fprintf(os.Stdout, "Running template %q (workflow %s, execution %s)\n", args[0], wf.ID, executionID)
 			}
 
-			runErr := waitForExecution(ctx, engine, executionID, 15*time.Minute, cfg.JSONOutput)
+			runErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, 15*time.Minute, cfg.JSONOutput))
 
+			summary, serr := buildExecutionSummary(ctx, cfg, executionID)
 			if cfg.JSONOutput {
 				// Same record `workflow run --json` prints after its wait:
 				// status, timestamps, and per-node output items — printed
 				// even when the run failed, since runErr (returned below)
 				// then maps FAILED/CANCELLED to exit 1.
-				summary, serr := buildExecutionSummary(ctx, cfg, executionID)
 				if serr != nil {
 					return serr
 				}
@@ -892,8 +915,17 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 					return eerr
 				}
 			}
+			if runErr == nil && serr == nil {
+				runErr = nothingSucceeded(summary)
+				if runErr == nil && !cfg.JSONOutput {
+					printRunOutput(os.Stdout, summary, &wf)
+				}
+			}
 			if keep && !cfg.JSONOutput {
 				fmt.Fprintf(os.Stdout, "Kept workflow %s\n", wf.ID)
+			}
+			if runErr != nil && cfg.JSONOutput {
+				return reportedError{runErr} // the record above is the one JSON document
 			}
 			return runErr
 		},
@@ -919,7 +951,10 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 			"starting anything. --no-wait prints the execution id and exits immediately — the run " +
 			"only keeps going while an engine (e.g. `monoagentcli daemon`) stays alive, so poll " +
 			"`workflow executions` for the final status. --json prints the execution record with " +
-			"per-node output items once the wait finishes.",
+			"per-node output items once the wait finishes.\n\n" +
+			"A run whose every step failed exits 1 even though its status is SUCCESS_WITH_ERRORS " +
+			"(on_error=continue kept it going); a partial success exits 0. Without --json it ends " +
+			"with the output of the last nodes that ran (up to 5 items; --json has all).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workflowID := args[0]
@@ -961,7 +996,10 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 				if errors.Is(err, workflow.ErrWorkflowInactive) {
 					return errInvalidInput("trigger workflow: %v — activate it first: monoagentcli workflow activate %s", err, workflowID)
 				}
-				return fmt.Errorf("trigger workflow: %w", err)
+				if errors.Is(err, workflow.ErrWorkflowNotFound) {
+					return workflowNotFound(err, workflowID)
+				}
+				return withNodeTypeHint(fmt.Errorf("trigger workflow: %w", err))
 			}
 
 			if noWait {
@@ -971,13 +1009,13 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 			if !cfg.JSONOutput {
 				fmt.Fprintf(os.Stdout, "Execution started: %s\n", executionID)
 			}
-			waitErr := waitForExecution(ctx, engine, executionID, timeout, cfg.JSONOutput)
+			waitErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, timeout, cfg.JSONOutput))
 
+			summary, serr := buildExecutionSummary(ctx, cfg, executionID)
 			if cfg.JSONOutput {
 				// Print the full record even when the run FAILED — the
 				// summary's error fields carry the reason, and waitErr
 				// (returned below) maps FAILED to exit code 1.
-				summary, serr := buildExecutionSummary(ctx, cfg, executionID)
 				if serr != nil {
 					return serr
 				}
@@ -987,12 +1025,23 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 					return eerr
 				}
 			}
+			if waitErr == nil && serr == nil {
+				waitErr = nothingSucceeded(summary)
+				if waitErr == nil && !cfg.JSONOutput {
+					if wf, gerr := engine.GetWorkflow(ctx, workflowID); gerr == nil {
+						printRunOutput(os.Stdout, summary, wf)
+					}
+				}
+			}
+			if waitErr != nil && cfg.JSONOutput {
+				return reportedError{waitErr} // the record above is the one JSON document
+			}
 			return waitErr
 		},
 	}
 
 	cmd.Flags().StringVar(&inputJSON, "input", "", `Trigger data as a JSON object, e.g. --input '{"prompt":"a red bicycle"}' (available downstream as {{ $json.<field> }})`)
-	cmd.Flags().BoolVar(&noWait, "no-wait", false, "Print the execution id and exit immediately without waiting for completion (the run only completes while an engine, e.g. `monoagentcli daemon`, stays alive)")
+	cmd.Flags().BoolVar(&noWait, "no-wait", false, "Print the execution id and exit immediately without waiting for completion (the run only completes while an engine, e.g. 'monoagentcli daemon', stays alive)")
 	cmd.Flags().DurationVar(&timeout, "timeout", 15*time.Minute, "Maximum time to wait for the execution to finish")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Validate the workflow and print its execution plan without running it")
 	return cmd
@@ -1004,9 +1053,9 @@ func newWorkflowActivateCmd(cfg *globalConfig) *cobra.Command {
 		Use:   "activate <id>",
 		Short: "Activate a workflow and start its triggers",
 		Long: "Activate a workflow and start its triggers.\n\n" +
-			"IMPORTANT: activation only registers triggers for the lifetime of this command. " +
-			"For a trigger.schedule or trigger.webhook to actually fire later, `monoagentcli daemon` " +
-			"must be running continuously (it restores every active workflow's triggers on startup).",
+			"Schedule and webhook triggers fire from `monoagentcli daemon`. A running daemon picks " +
+			"the activation up within a few seconds — no restart needed — and it also follows later " +
+			"edits, deactivation and deletion. Without a daemon running, nothing fires until one starts.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			engine, closeBrowsers, err := buildEngine(cfg, false)
@@ -1029,7 +1078,11 @@ func newWorkflowActivateCmd(cfg *globalConfig) *cobra.Command {
 			}
 
 			fmt.Fprintf(os.Stdout, "Workflow %s activated.\n", args[0])
-			fmt.Fprintln(os.Stdout, "Note: run `monoagentcli daemon` (kept running continuously) for this workflow's triggers to actually fire — activation alone only registers them for this command's lifetime.")
+			if _, live := daemonhb.Read(); live {
+				fmt.Fprintln(os.Stdout, "The running daemon starts this workflow's triggers within a few seconds.")
+			} else {
+				fmt.Fprintln(os.Stdout, "Note: no daemon is running. Start `monoagentcli daemon` (kept running) for this workflow's schedule and webhook triggers to fire.")
+			}
 			return nil
 		},
 	}
@@ -1040,7 +1093,9 @@ func newWorkflowDeactivateCmd(cfg *globalConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:   "deactivate <id>",
 		Short: "Deactivate a workflow and stop its triggers",
-		Args:  cobra.ExactArgs(1),
+		Long: "Deactivate a workflow and stop its triggers. A running `monoagentcli daemon` " +
+			"stops firing them within a few seconds — no restart needed.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			engine, closeBrowsers, err := buildEngine(cfg, false)
 			if err != nil {
@@ -1638,6 +1693,7 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 	// With --json a failure is also {"error","code"} on stdout (contracts
 	// §5), as the automation commands do; the exit code is unchanged.
 	withJSONErrors(cfg, cmd)
+	withN8nImport(cfg, cmd)
 	return cmd
 }
 
