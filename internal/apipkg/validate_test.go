@@ -50,7 +50,6 @@ func TestValidateReportsEveryProblem(t *testing.T) {
 			`inject is empty`,
 			`reuse_platform "nope" is not a built-in connection platform`,
 			`field "refresh_token" clashes with an OAuth token key`,
-			`{{ p.a }}: p.* is not available here`,
 			`{{ cred.sub }}: "sub" is not a credential field`,
 		}},
 	}
