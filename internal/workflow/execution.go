@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"strings"
@@ -79,7 +80,44 @@ func buildTriggerItems(triggerData map[string]interface{}) []Item {
 	if items, ok := subWorkflowTriggerItems(triggerData); ok {
 		return items
 	}
-	return []Item{NewItem(triggerData)}
+	item := NewItem(triggerData)
+	item.Binary = webhookFiles(triggerData)
+	return []Item{item}
+}
+
+// webhookFiles decodes the multipart files a webhook item carries under
+// "binary" (field -> {file_name, mime_type, file_size, data (base64)}, see
+// buildWebhookItem) back into bytes for Item.Binary: trigger data is stored
+// as JSON, which keeps only that form. Anything not shaped like it (a body
+// field named "binary", a manual run's data) yields nil.
+func webhookFiles(triggerData map[string]interface{}) map[string][]byte {
+	files, ok := triggerData["binary"].(map[string]interface{})
+	if !ok || len(files) == 0 {
+		return nil
+	}
+	out := make(map[string][]byte, len(files))
+	for field, v := range files {
+		f, _ := v.(map[string]interface{})
+		enc, _ := f["data"].(string)
+		data, err := base64.StdEncoding.DecodeString(enc)
+		if err != nil || !sameSize(f["file_size"], len(data)) {
+			return nil
+		}
+		out[field] = data
+	}
+	return out
+}
+
+// sameSize reports whether a file_size value (an int, or a float64 after a
+// JSON round trip) is n.
+func sameSize(v interface{}, n int) bool {
+	switch s := v.(type) {
+	case int:
+		return s == n
+	case float64:
+		return s == float64(n)
+	}
+	return false
 }
 
 // extractOnError reads the on_error string from the resolved config map.
