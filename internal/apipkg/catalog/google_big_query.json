@@ -43,7 +43,7 @@
       "title": "Execute a query",
       "method": "POST",
       "path": "/projects/{{ p.projectId | rl }}/queries",
-      "description": "Runs the query and waits up to timeoutMs (default 10 s) for it to finish; output rows carry BigQuery's {f:[{v}]} cells with the schema.",
+      "description": "Runs the query, waits for the job to finish and returns one item per row (rawOutput/dryRun return the API response).",
       "fields": [
         {
           "key": "projectId",
@@ -106,8 +106,22 @@
           }
         }
       },
+      "poll": {
+        "method": "GET",
+        "path": "/projects/{{ p.projectId | rl }}/queries/{{ res.jobReference.jobId }}",
+        "query": {
+          "location": "{{ res.jobReference.location }}",
+          "maxResults": "{{ p.options.maxResults | default:1000 }}",
+          "timeoutMs": "{{ p.options.timeoutMs | default:10000 }}"
+        },
+        "until": "{{ res.jobComplete }}",
+        "interval_ms": 1000,
+        "max_wait_ms": 300000
+      },
       "output": {
-        "path": "rows"
+        "path": "{{ p.options.rawOutput | default:p.options.dryRun | ne:'true' | then:'rows' }}",
+        "schema_rows": "{{ p.options.rawOutput | default:p.options.dryRun | ne:'true' | then:'schema.fields' }}",
+        "numbers": "{{ p.options.returnAsNumbers }}"
       }
     },
     {

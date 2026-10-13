@@ -18,18 +18,35 @@
         }
       }
     },
-    "response": {
-      "jobComplete": true,
-      "rows": [
-        {
-          "f": [
+    "responses": [
+      {
+        "jobComplete": false,
+        "jobReference": {
+          "jobId": "j1",
+          "location": "US"
+        }
+      },
+      {
+        "jobComplete": true,
+        "schema": {
+          "fields": [
             {
-              "v": "1"
+              "name": "x",
+              "type": "INTEGER"
             }
           ]
-        }
-      ]
-    },
+        },
+        "rows": [
+          {
+            "f": [
+              {
+                "v": "1"
+              }
+            ]
+          }
+        ]
+      }
+    ],
     "expect": {
       "method": "POST",
       "path": "/bigquery/v2/projects/proj/queries",
