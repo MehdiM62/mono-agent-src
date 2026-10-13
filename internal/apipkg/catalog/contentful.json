@@ -1,0 +1,509 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "contentful",
+  "node_type": "app.contentful",
+  "title": "Contentful",
+  "description": "Read entries, assets, content types, locales and spaces from Contentful",
+  "category": "app",
+  "docs_url": "https://www.contentful.com/developers/docs/references/content-delivery-api/",
+  "n8n_types": [
+    "n8n-nodes-base.contentful"
+  ],
+  "base_url": "https://cdn.contentful.com",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "contentful",
+      "name": "Contentful",
+      "n8n_credential": "contentfulApi",
+      "n8n_field_map": {
+        "spaceId": "space_id",
+        "ContentDeliveryaccessToken": "access_token",
+        "ContentPreviewaccessToken": "preview_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "space_id",
+          "label": "Space ID",
+          "required": true
+        },
+        {
+          "key": "access_token",
+          "label": "Content Delivery API token",
+          "secret": true,
+          "required": true,
+          "help": "Settings → API keys"
+        },
+        {
+          "key": "preview_token",
+          "label": "Content Preview API token",
+          "secret": true,
+          "help": "Kept for n8n imports; Source = previewApi needs engine support to pick this token"
+        }
+      ],
+      "inject": {
+        "query": {
+          "access_token": "{{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "entry",
+      "label": "Entry"
+    },
+    {
+      "value": "asset",
+      "label": "Asset"
+    },
+    {
+      "value": "contentType",
+      "label": "Content Type"
+    },
+    {
+      "value": "locale",
+      "label": "Locale"
+    },
+    {
+      "value": "space",
+      "label": "Space"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "entry",
+      "operation": "get",
+      "title": "Get a entry",
+      "method": "GET",
+      "path": "/spaces/{{ cred.space_id }}/environments/{{ p.environmentId }}/entries/{{ p.entryId }}",
+      "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
+      "output": {
+        "path": "fields"
+      },
+      "fields": [
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "deliveryApi",
+            "previewApi"
+          ],
+          "default": "deliveryApi"
+        },
+        {
+          "key": "environmentId",
+          "label": "Environment ID",
+          "type": "text",
+          "default": "master"
+        },
+        {
+          "key": "entryId",
+          "label": "Entry ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData"
+          ],
+          "help": "rawData is not supported yet: the item is the record's fields."
+        }
+      ]
+    },
+    {
+      "resource": "entry",
+      "operation": "getAll",
+      "title": "Get many entrys",
+      "method": "GET",
+      "path": "/spaces/{{ cred.space_id }}/environments/{{ p.environmentId }}/entries",
+      "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
+      "query": {
+        "content_type": "{{ p.additionalFields.content_type }}",
+        "select": "{{ p.additionalFields.select }}",
+        "order": "{{ p.additionalFields.order }}",
+        "query": "{{ p.additionalFields.query }}",
+        "$merge": [
+          {
+            "$entries": [
+              "{{ p.additionalFields.equal }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          },
+          {
+            "$entries": [
+              "{{ p.additionalFields.notEqual }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          },
+          {
+            "$entries": [
+              "{{ p.additionalFields.include }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          },
+          {
+            "$entries": [
+              "{{ p.additionalFields.exclude }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          },
+          {
+            "$entries": [
+              "{{ p.additionalFields.exist }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          }
+        ]
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "skip",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items",
+        "each": "fields"
+      },
+      "fields": [
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "deliveryApi",
+            "previewApi"
+          ],
+          "default": "deliveryApi"
+        },
+        {
+          "key": "environmentId",
+          "label": "Environment ID",
+          "type": "text",
+          "default": "master"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "content_type",
+            "equal",
+            "exclude",
+            "exist",
+            "select",
+            "include",
+            "notEqual",
+            "order",
+            "query",
+            "rawData"
+          ],
+          "help": "equal/notEqual/include/exclude/exist take name=value, e.g. fields.title=Hello or fields.tags[in]=a,b. rawData is not supported yet: the item is the record's fields."
+        }
+      ]
+    },
+    {
+      "resource": "asset",
+      "operation": "get",
+      "title": "Get a asset",
+      "method": "GET",
+      "path": "/spaces/{{ cred.space_id }}/environments/{{ p.environmentId }}/assets/{{ p.assetId }}",
+      "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
+      "output": {
+        "path": "fields"
+      },
+      "fields": [
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "deliveryApi",
+            "previewApi"
+          ],
+          "default": "deliveryApi"
+        },
+        {
+          "key": "environmentId",
+          "label": "Environment ID",
+          "type": "text",
+          "default": "master"
+        },
+        {
+          "key": "assetId",
+          "label": "Asset ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData"
+          ],
+          "help": "rawData is not supported yet: the item is the record's fields."
+        }
+      ]
+    },
+    {
+      "resource": "asset",
+      "operation": "getAll",
+      "title": "Get many assets",
+      "method": "GET",
+      "path": "/spaces/{{ cred.space_id }}/environments/{{ p.environmentId }}/assets",
+      "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
+      "query": {
+        "select": "{{ p.additionalFields.select }}",
+        "order": "{{ p.additionalFields.order }}",
+        "query": "{{ p.additionalFields.query }}",
+        "$merge": [
+          {
+            "$entries": [
+              "{{ p.additionalFields.equal }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          },
+          {
+            "$entries": [
+              "{{ p.additionalFields.notEqual }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          },
+          {
+            "$entries": [
+              "{{ p.additionalFields.include }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          },
+          {
+            "$entries": [
+              "{{ p.additionalFields.exclude }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          },
+          {
+            "$entries": [
+              "{{ p.additionalFields.exist }}"
+            ],
+            "$key": "{{ el | split:'=' | get:'0' }}",
+            "$value": "{{ el | split:'=' | get:'1' }}"
+          }
+        ]
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "skip",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "output": {
+        "path": "items",
+        "each": "fields"
+      },
+      "fields": [
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "deliveryApi",
+            "previewApi"
+          ],
+          "default": "deliveryApi"
+        },
+        {
+          "key": "environmentId",
+          "label": "Environment ID",
+          "type": "text",
+          "default": "master"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "equal",
+            "exclude",
+            "exist",
+            "select",
+            "include",
+            "notEqual",
+            "order",
+            "query",
+            "rawData"
+          ],
+          "help": "equal/notEqual/include/exclude/exist take name=value, e.g. fields.title=Hello or fields.tags[in]=a,b. rawData is not supported yet: the item is the record's fields."
+        }
+      ]
+    },
+    {
+      "resource": "contentType",
+      "operation": "get",
+      "title": "Get a content type",
+      "method": "GET",
+      "path": "/spaces/{{ cred.space_id }}/environments/{{ p.environmentId }}/content_types/{{ p.contentTypeId }}",
+      "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
+      "output": {
+        "path": "fields"
+      },
+      "fields": [
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "deliveryApi",
+            "previewApi"
+          ],
+          "default": "deliveryApi"
+        },
+        {
+          "key": "environmentId",
+          "label": "Environment ID",
+          "type": "text",
+          "default": "master"
+        },
+        {
+          "key": "contentTypeId",
+          "label": "Content Type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rawData"
+          ],
+          "help": "rawData is not supported yet: the item is the record's fields."
+        }
+      ]
+    },
+    {
+      "resource": "locale",
+      "operation": "getAll",
+      "title": "Get many locales",
+      "method": "GET",
+      "path": "/spaces/{{ cred.space_id }}/environments/{{ p.environmentId }}/locales",
+      "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
+      "pagination": {
+        "type": "offset",
+        "offset_param": "skip",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "fields": [
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "deliveryApi",
+            "previewApi"
+          ],
+          "default": "deliveryApi"
+        },
+        {
+          "key": "environmentId",
+          "label": "Environment ID",
+          "type": "text",
+          "default": "master"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "space",
+      "operation": "get",
+      "title": "Get the space",
+      "method": "GET",
+      "path": "/spaces/{{ cred.space_id }}",
+      "base_url": "https://{{ p.source | eq:'previewApi' | then:'preview' | default:'cdn' }}.contentful.com",
+      "fields": [
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "deliveryApi",
+            "previewApi"
+          ],
+          "default": "deliveryApi"
+        }
+      ]
+    }
+  ]
+}
