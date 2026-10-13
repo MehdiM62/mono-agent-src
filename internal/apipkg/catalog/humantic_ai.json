@@ -50,8 +50,8 @@
       "resource": "profile",
       "operation": "create",
       "title": "Create a profile",
-      "description": "Analyses a LinkedIn URL or email address given as the user ID. To analyse a resume file, use the Update operation with Send resume on.",
-      "method": "GET",
+      "description": "Analyses a LinkedIn URL or email address given as the user ID, or a resume file when Send resume is on",
+      "method": "{{ p.sendResume | eq:'true' | then:'POST' | default:'GET' }}",
       "path": "/user-profile/create",
       "fields": [
         {
@@ -66,7 +66,7 @@
           "label": "Send resume",
           "type": "boolean",
           "default": false,
-          "help": "Resume uploads are sent by the Update operation"
+          "help": "Upload the resume file from the input binary field"
         },
         {
           "key": "binaryPropertyName",
@@ -77,6 +77,16 @@
       ],
       "query": {
         "userid": "{{ p.userId }}"
+      },
+      "body_type": "multipart",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.sendResume }}",
+        "multipart_field": "resume",
+        "fallback_body_type": "none"
+      },
+      "output": {
+        "path": "{{ p.sendResume | eq:'true' | then:'data' }}"
       }
     },
     {

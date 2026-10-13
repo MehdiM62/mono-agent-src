@@ -56,10 +56,10 @@
       "resource": "notification",
       "operation": "send",
       "title": "Send a notification",
-      "description": "Image files from binary data are not uploaded; use image URLs",
+      "description": "Image files are uploaded from the input item's binary field named in imageUi.imageValue.binaryProperty",
       "method": "POST",
       "path": "/notify",
-      "body_type": "form",
+      "body_type": "multipart",
       "fields": [
         {
           "key": "message",
@@ -77,7 +77,7 @@
             "notificationDisabled",
             "stickerUi"
           ],
-          "help": "imageUi.imageValue: {imageFullsize, imageThumbnail}; stickerUi.stickerValue: {stickerId, stickerPackageId}"
+          "help": "imageUi.imageValue: {binaryData, binaryProperty, imageFullsize, imageThumbnail}; stickerUi.stickerValue: {stickerId, stickerPackageId}"
         }
       ],
       "body": {
@@ -85,8 +85,15 @@
         "notificationDisabled": "{{ p.additionalFields.notificationDisabled | string }}",
         "stickerId": "{{ p.additionalFields.stickerUi.stickerValue.stickerId }}",
         "stickerPackageId": "{{ p.additionalFields.stickerUi.stickerValue.stickerPackageId }}",
-        "imageFullsize": "{{ p.additionalFields.imageUi.imageValue.imageFullsize }}",
-        "imageThumbnail": "{{ p.additionalFields.imageUi.imageValue.imageThumbnail }}"
+        "imageFullsize": "{{ p.additionalFields.imageUi.imageValue.binaryData | ne:'true' | then:p.additionalFields.imageUi.imageValue.imageFullsize }}",
+        "imageThumbnail": "{{ p.additionalFields.imageUi.imageValue.binaryData | ne:'true' | then:p.additionalFields.imageUi.imageValue.imageThumbnail }}"
+      },
+      "binary": {
+        "upload_field": "additionalFields",
+        "property": "{{ p.additionalFields.imageUi.imageValue.binaryProperty | default:'data' }}",
+        "upload_when": "{{ p.additionalFields.imageUi.imageValue.binaryData }}",
+        "multipart_field": "imageFile",
+        "fallback_body_type": "form"
       }
     }
   ]

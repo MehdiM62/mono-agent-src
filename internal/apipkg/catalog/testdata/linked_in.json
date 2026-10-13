@@ -7,10 +7,10 @@
       "additionalFields": {
         "title": "Post",
         "originalUrl": "https://example.com/p",
-        "visibility": "CONNECTIONS"
+        "visibility": "CONNECTIONS",
+        "thumbnailBinaryPropertyName": "thumb"
       }
     },
-    "response_status": 201,
     "expect": {
       "method": "POST",
       "path": "/rest/posts",
@@ -29,11 +29,69 @@
         "content": {
           "article": {
             "title": "Post",
-            "source": "https://example.com/p"
+            "source": "https://example.com/p",
+            "thumbnail": "urn:li:image:42"
           }
         }
       },
       "items": 1
-    }
+    },
+    "input": {
+      "thumb": "aGVsbG8=",
+      "file_name": "t.png"
+    },
+    "responses": [
+      {
+        "value": {
+          "uploadUrl": "https://www.linkedin.com/dms-uploads/abc",
+          "image": "urn:li:image:42"
+        }
+      },
+      {},
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/rest/images",
+        "query": {
+          "action": "initializeUpload"
+        },
+        "body": {
+          "initializeUploadRequest": {
+            "owner": "urn:li:person:abc123"
+          }
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/dms-uploads/abc",
+        "body": "hello",
+        "headers": {
+          "Content-Type": "image/png"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/rest/posts",
+        "body": {
+          "author": "urn:li:person:abc123",
+          "commentary": "Hello \\(world\\) \\@team",
+          "visibility": "CONNECTIONS",
+          "lifecycleState": "PUBLISHED",
+          "distribution": {
+            "feedDistribution": "MAIN_FEED",
+            "thirdPartyDistributionChannels": []
+          },
+          "content": {
+            "article": {
+              "title": "Post",
+              "source": "https://example.com/p",
+              "thumbnail": "urn:li:image:42"
+            }
+          }
+        }
+      }
+    ]
   }
 }
