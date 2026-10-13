@@ -996,3 +996,24 @@ func TestPaginationWhenAndTemplatedParams(t *testing.T) {
 		t.Errorf("v3 no paging: %d items, %v, %v", len(v3), qs, err)
 	}
 }
+
+func TestIdxMatchesInFlatten(t *testing.T) {
+	sc := Scope{P: map[string]any{"dates": []any{"d1", "d2"}, "mrr": []any{10.0, 20.0}, "v": "TODAY", "lists": map[string]any{"update": []any{1.0}, "remove": []any{2.0, 3.0}}}}
+	got, err := renderValue(map[string]any{"$map": "{{ p.dates }}", "$to": map[string]any{"date": "{{ el }}", "mrr": "{{ p.mrr | get:(idx | string) }}"}}, sc)
+	want := []any{map[string]any{"date": "d1", "mrr": 10.0}, map[string]any{"date": "d2", "mrr": 20.0}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("idx pivot = %#v, %v", got, err)
+	}
+	for in, w := range map[string]any{
+		"{{ p.v | matches:'^(TODAY|YESTERDAY|LAST_N_DAYS:[0-9]+)$' }}": true,
+		"{{ p.v | in:'TODAY,TOMORROW' }}":                              true,
+		"{{ p.v | in:'NOW' }}":                                         nil,
+	} {
+		if g, _ := renderString(in, sc); g != w {
+			t.Errorf("%s = %#v", in, g)
+		}
+	}
+	if g, _ := renderString("{{ p.lists | flatten }}", sc); !reflect.DeepEqual(g, []any{2.0, 3.0, 1.0}) {
+		t.Errorf("flatten = %#v", g)
+	}
+}
