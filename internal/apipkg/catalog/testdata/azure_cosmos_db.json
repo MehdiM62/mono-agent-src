@@ -1,0 +1,78 @@
+{
+  "container.getAll": {
+    "params": { "limit": 5 },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "response": { "DocumentCollections": [ { "id": "c1", "_rid": "x" }, { "id": "c2" } ] },
+    "expect": { "method": "GET", "path": "/dbs/db1/colls", "headers": { "x-ms-max-item-count": "5", "x-ms-version": "2018-12-31" }, "items": 2 }
+  },
+  "container.create": {
+    "params": { "containerCreate": "orders", "partitionKey": "{\"paths\":[\"/customerId\"],\"kind\":\"Hash\"}", "additionalFields": { "maxThroughput": 4000 } },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "response_status": 201,
+    "expect": {
+      "method": "POST", "path": "/dbs/db1/colls",
+      "headers": { "x-ms-cosmos-offer-autopilot-setting": "{\"maxThroughput\":4000}" },
+      "body": { "id": "orders", "partitionKey": { "paths": ["/customerId"], "kind": "Hash" } }
+    }
+  },
+  "container.delete": {
+    "params": { "container": { "__rl": true, "mode": "list", "value": "orders" } },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/dbs/db1/colls/orders", "items": 1 }
+  },
+  "container.get": {
+    "params": { "container": "orders" },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "expect": { "method": "GET", "path": "/dbs/db1/colls/orders" }
+  },
+  "item.getAll": {
+    "params": { "container": "orders", "returnAll": true },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "response": { "Documents": [ { "id": "o1" } ] },
+    "expect": { "method": "GET", "path": "/dbs/db1/colls/orders/docs", "items": 1 }
+  },
+  "item.create": {
+    "params": { "container": "orders", "customProperties": "{\"id\":\"o1\",\"customerId\":\"c7\",\"total\":12}" },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "responses": [ { "id": "orders", "partitionKey": { "paths": ["/customerId"] } }, { "id": "o1" } ],
+    "expect": {
+      "method": "POST", "path": "/dbs/db1/colls/orders/docs",
+      "headers": { "x-ms-documentdb-is-upsert": "True", "x-ms-documentdb-partitionkey": "[\"c7\"]" },
+      "body": { "id": "o1", "customerId": "c7", "total": 12 }
+    }
+  },
+  "item.delete": {
+    "params": { "container": "orders", "item": "o1", "additionalFields": { "partitionKey": "c7" } },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "responses": [ { "partitionKey": { "paths": ["/customerId"] } }, {} ],
+    "expect": { "method": "DELETE", "path": "/dbs/db1/colls/orders/docs/o1", "headers": { "x-ms-documentdb-partitionkey": "[\"c7\"]" } }
+  },
+  "item.get": {
+    "params": { "container": "orders", "item": "o1" },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "responses": [ { "partitionKey": { "paths": ["/id"] } }, { "id": "o1" } ],
+    "expect": { "method": "GET", "path": "/dbs/db1/colls/orders/docs/o1", "headers": { "x-ms-documentdb-partitionkey": "[\"o1\"]" } }
+  },
+  "item.query": {
+    "params": { "container": "orders", "query": "SELECT * FROM c WHERE c.customerId = $1", "options": { "queryOptions": { "queryParameters": "c7" } } },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "response": { "Documents": [ { "id": "o1" } ] },
+    "expect": {
+      "method": "POST", "path": "/dbs/db1/colls/orders/docs",
+      "headers": { "x-ms-documentdb-isquery": "True" },
+      "body": { "query": "SELECT * FROM c WHERE c.customerId = @Param1", "parameters": [ { "name": "@Param1", "value": "c7" } ] },
+      "items": 1
+    }
+  },
+  "item.update": {
+    "params": { "container": "orders", "item": "o1", "customProperties": "{\"total\":15}", "additionalFields": { "partitionKey": "c7" } },
+    "credential": { "account": "acct", "key": "c2VjcmV0LWtleQ==", "database": "db1" },
+    "responses": [ { "partitionKey": { "paths": ["/customerId"] } }, { "id": "o1" } ],
+    "expect": {
+      "method": "PUT", "path": "/dbs/db1/colls/orders/docs/o1",
+      "headers": { "x-ms-documentdb-partitionkey": "[\"c7\"]" },
+      "body": { "total": 15, "customerId": "c7", "id": "o1" }
+    }
+  }
+}
