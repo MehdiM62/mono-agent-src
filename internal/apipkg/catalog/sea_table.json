@@ -215,7 +215,7 @@
         }
       ],
       "body": {
-        "sql": "SELECT * FROM `{{ p.tableName | replace:'`','``' }}` WHERE _id = '{{ p.rowId | replace:'\\\\','\\\\\\\\' | replace:\"'\",\"\\\\'\" }}'",
+        "sql": "SELECT * FROM `{{ p.tableName | replace:'`','``' }}` WHERE _id = '{{ p.rowId | replace:'\\','\\\\' | replace:\"'\",\"\\'\" }}'",
         "convert_keys": "{{ p.options.convert | default:true | bool }}"
       },
       "output": {
@@ -349,7 +349,7 @@
         }
       ],
       "body": {
-        "sql": "SELECT * FROM `{{ p.tableName | replace:'`','``' }}` WHERE {{ p.options.insensitive | bool | eq:'true' | then:'lower(' }}`{{ p.searchColumn | replace:'`','``' }}`{{ p.options.insensitive | bool | eq:'true' | then:')' }}{{ p.options.wildcard | default:true | bool | eq:'true' | then:' LIKE \"%' | default:' = \"' }}{{ p.options.insensitive | bool | eq:'true' | then:(p.searchTerm | string | lower) | default:(p.searchTerm | string) | replace:'\\\\','\\\\\\\\' | replace:'\"','\\\\\"' | replace:\"'\",\"\\\\'\" }}{{ p.options.wildcard | default:true | bool | eq:'true' | then:'%\"' | default:'\"' }}",
+        "sql": "SELECT * FROM `{{ p.tableName | replace:'`','``' }}` WHERE {{ p.options.insensitive | bool | eq:'true' | then:'lower(' }}`{{ p.searchColumn | replace:'`','``' }}`{{ p.options.insensitive | bool | eq:'true' | then:')' }}{{ p.options.wildcard | default:true | bool | eq:'true' | then:' LIKE \"%' | default:' = \"' }}{{ p.options.insensitive | bool | eq:'true' | then:(p.searchTerm | string | lower) | default:(p.searchTerm | string) | replace:'\\','\\\\' | replace:'\"','\\\"' | replace:\"'\",\"\\'\" }}{{ p.options.wildcard | default:true | bool | eq:'true' | then:'%\"' | default:'\"' }}",
         "convert_keys": "{{ p.options.convert | default:true | bool }}"
       },
       "output": {
