@@ -84,6 +84,10 @@ type Options struct {
 	// settable via MONOAGENT_MCP_TASKS_ONLY=="1". Serve refuses it together with
 	// APIOnly; grant mode ignores it.
 	TasksOnly bool
+	// WorkflowTools serves saved workflows as tools wf_<slug> (workflow_tools.go):
+	// "all" every workflow of the profile, otherwise a comma list of workflow IDs
+	// or names; empty serves none. Also settable via MONOAGENT_MCP_WORKFLOW_TOOLS.
+	WorkflowTools string
 	// APIEnv is what the API tools (api_status, api_config_get/set/apply) read
 	// of this process: its environment, the daemon's heartbeat, the service
 	// manager (api_config_apply restarts the daemon through it) and the HTTP
@@ -160,6 +164,9 @@ func NewServer(opts Options) *Server {
 	if !opts.TasksOnly {
 		opts.TasksOnly = os.Getenv("MONOAGENT_MCP_TASKS_ONLY") == "1"
 	}
+	if opts.WorkflowTools == "" {
+		opts.WorkflowTools = os.Getenv("MONOAGENT_MCP_WORKFLOW_TOOLS")
+	}
 	return &Server{opts: opts, actorSuffix: newActorSuffix()}
 }
 
@@ -188,6 +195,9 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 	// would serve neither: it refuses at once, reading nothing.
 	if s.opts.Grant == "" && s.opts.TasksOnly && s.opts.APIOnly {
 		return ErrTasksOnlyWithAPIOnly
+	}
+	if s.opts.Grant == "" && workflowToolsRequested(s.opts.WorkflowTools) && (s.opts.TasksOnly || s.opts.APIOnly) {
+		return ErrWorkflowToolsWithNarrowMode
 	}
 
 	// serveCtx is cancelled as soon as the read loop ends (client closed
