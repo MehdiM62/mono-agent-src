@@ -153,13 +153,31 @@ func TestGmailTriggerPollsRecentMessages(t *testing.T) {
 	}
 }
 
-// A polling trigger whose app has no list operation stays a placeholder
-// that says why.
-func TestPollingTriggerWithoutListOpIsUnmapped(t *testing.T) {
-	_, rep := convertFile(t, "app_triggers.json")
-	if nr := nodeReport(t, rep, "Toggl Trigger"); nr.Status != n8nimport.StatusUnmapped ||
-		!strings.Contains(issueText(rep, "Toggl Trigger"), "the Toggl package has no operations yet") {
-		t.Errorf("toggl: %s %s", nr.Status, issueText(rep, "Toggl Trigger"))
+// A polling trigger whose settings have no list equivalent stays a
+// placeholder that says why.
+func TestPollingTriggerWithoutListEquivalentIsUnmapped(t *testing.T) {
+	_, rep, err := n8nimport.Convert([]byte(`{"name":"c","nodes":[{"name":"Cal","type":"n8n-nodes-base.googleCalendarTrigger",
+	 "typeVersion":1,"position":[0,0],"parameters":{"calendarId":"primary","triggerOn":"eventEnded"}}],"connections":{}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nr := nodeReport(t, rep, "Cal"); nr.Status != n8nimport.StatusUnmapped ||
+		!strings.Contains(issueText(rep, "Cal"), "an event's end cannot be selected") {
+		t.Errorf("calendar: %s %s", nr.Status, issueText(rep, "Cal"))
+	}
+}
+
+// The Toggl trigger polls the user's recent time entries.
+func TestTogglTriggerPollsTimeEntries(t *testing.T) {
+	wf, rep := convertFile(t, "app_triggers.json")
+	list := node(t, wf, "Toggl Trigger (list)")
+	if list.Type != "app.toggl" || nodeReport(t, rep, "Toggl Trigger").Status != n8nimport.StatusFull {
+		t.Fatalf("list type %s:\n%s", list.Type, issueText(rep, "Toggl Trigger"))
+	}
+	wantConfig(t, list, map[string]interface{}{"resource": "timeEntry", "operation": "getAll", "returnAll": true})
+	filters, _ := list.Config["filters"].(map[string]interface{})
+	if s, _ := filters["startDate"].(string); !strings.Contains(s, "$now.AddDate 0 0 -") {
+		t.Errorf("filters %v", filters)
 	}
 }
 

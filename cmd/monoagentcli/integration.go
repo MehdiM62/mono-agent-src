@@ -150,15 +150,13 @@ func newIntegrationShowCmd(cfg *globalConfig) *cobra.Command {
 // triggerImport says what an n8n trigger of the package becomes when an
 // n8n workflow is imported.
 func triggerImport(n8nType string) string {
-	switch kind, missing := n8nimport.TriggerKind(n8nType); {
-	case missing != "":
-		return "not imported (" + missing + ")"
-	case kind == "webhook":
+	switch n8nimport.TriggerKind(n8nType) {
+	case "webhook":
 		return "trigger.webhook (register its URL with the app)"
-	case kind == "poll":
+	case "poll":
 		return "trigger.schedule polling the app's list operation, new records only"
 	default:
-		return "imported as a webhook or schedule trigger"
+		return "not imported yet (no trigger mapping)"
 	}
 }
 

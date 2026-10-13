@@ -708,7 +708,7 @@
       "method": "GET",
       "path": "/api/2.2/jobs/runs/list",
       "query": {
-        "job_id": "{{ p.jobId | rl }}",
+        "job_id": "{{ p.jobId | rl | re:'jobs?/([0-9]+)' }}",
         "start_time_from": "{{ p.filters.startTimeFrom | epoch_ms }}",
         "start_time_to": "{{ p.filters.startTimeTo | epoch_ms }}",
         "active_only": "{{ p.filters.activeOnly | then:'true' }}",

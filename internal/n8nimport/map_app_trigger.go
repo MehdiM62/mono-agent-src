@@ -40,9 +40,6 @@ type hookSpec struct {
 
 // pollSpec describes an n8n polling trigger.
 type pollSpec struct {
-	// Missing, when set, says why no mono operation can list the records:
-	// the node stays a placeholder.
-	Missing string
 	// Plan fills in the list step: resource, operation, params and the
 	// value that identifies a record (or a record version). A non-empty
 	// result says why this node's settings cannot be rebuilt.
@@ -75,18 +72,16 @@ func init() {
 // TriggerKind says how an n8n app trigger type ("n8n-nodes-base.x" or
 // "x") is imported: "webhook" (a trigger.webhook), "poll" (a
 // trigger.schedule that lists the app's records and drops those seen
-// before) or "" when no trigger table has it. missing is set when a
-// polling trigger cannot be rebuilt because the app cannot list its
-// records.
-func TriggerKind(n8nType string) (kind, missing string) {
+// before) or "" when no trigger table has it.
+func TriggerKind(n8nType string) string {
 	name := strings.TrimPrefix(n8nType, "n8n-nodes-base.")
 	if _, ok := webhookTriggers[name]; ok {
-		return "webhook", ""
+		return "webhook"
 	}
-	if spec, ok := pollTriggers[name]; ok {
-		return "poll", spec.Missing
+	if _, ok := pollTriggers[name]; ok {
+		return "poll"
 	}
-	return "", ""
+	return ""
 }
 
 // triggerParamsIgnored are n8n trigger parameters about n8n's own handling
@@ -156,11 +151,6 @@ func (c *MapContext) vendorSetup() string {
 
 func mapPollTrigger(c *MapContext, spec pollSpec) Mapping {
 	c.Ignore(triggerParamsIgnored...)
-	if spec.Missing != "" {
-		c.issues = append(c.issues, Issue{Severity: SevError,
-			Message: fmt.Sprintf("n8n polling trigger %s cannot be rebuilt: %s; start the workflow with a schedule trigger and a node that lists the records instead", c.Type, spec.Missing)})
-		return Mapping{Unmapped: true}
-	}
 	app, ok := lookupApp(c.Type)
 	if !ok || (app.NodeType == "" && app.Extends == "") {
 		c.issues = append(c.issues, Issue{Severity: SevError,
