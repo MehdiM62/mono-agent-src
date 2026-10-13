@@ -10,7 +10,8 @@ import (
 
 // Workflow bundles (`workflow export --bundle-automations`, the bundle half of `workflow import`,
 // and `library publish`) live in internal/cli/workflowbundle. This file hands it the CLI's
-// helpers and keeps the old names for the rest of the CLI.
+// helpers (workflowio takes them as workflowBundleDeps) and keeps the old names that
+// library_publish.go and the bundle tests use.
 
 // workflowBundleDeps hands the CLI's helpers to internal/cli/workflowbundle.
 func workflowBundleDeps() workflowbundle.Deps {
@@ -44,10 +45,6 @@ type bundleImportOptions struct {
 	out         io.Writer
 }
 
-func parseAutomationDomains(vals []string) (map[string][]string, error) {
-	return workflowBundleDeps().ParseAutomationDomains(vals)
-}
-
 func bundleWorkflowAutomations(file workflow.WorkflowFile, opts bundleOptions) (workflowBundleFile, error) {
 	return workflowBundleDeps().BundleWorkflowAutomations(file, workflowbundle.Options{
 		Domains: opts.domains, UseSuggested: opts.useSuggested, SkipShipped: opts.skipShipped})
@@ -63,9 +60,6 @@ func newBundleReviewDetail(r *automation.InstallResult) *workflowbundle.ReviewDe
 }
 
 var (
-	suggestedNotices  = workflowbundle.SuggestedNotices
-	unbundledWarnings = workflowbundle.UnbundledWarnings
-	printBundleImport = workflowbundle.PrintBundleImport
-	packageResolver   = workflowbundle.PackageResolver
-	writeFileAtomic   = workflowbundle.WriteFileAtomic
+	suggestedNotices = workflowbundle.SuggestedNotices
+	packageResolver  = workflowbundle.PackageResolver
 )

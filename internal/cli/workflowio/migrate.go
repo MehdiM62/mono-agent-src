@@ -1,4 +1,4 @@
-package main
+package workflowio
 
 import (
 	"context"
@@ -11,19 +11,19 @@ import (
 )
 
 // newWorkflowMigrateCmd migrates workflows from SQLite to JSON files.
-func newWorkflowMigrateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newMigrateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "migrate",
 		Short: "Migrate workflows from SQLite to JSON files",
-		RunE:  runWorkflowMigrate(cfg),
+		RunE:  d.runWorkflowMigrate(),
 	}
 }
 
-func runWorkflowMigrate(cfg *globalConfig) func(cmd *cobra.Command, args []string) error {
+func (d Deps) runWorkflowMigrate() func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		ctx := context.Background()
 
-		db, err := initDB(cfg)
+		db, err := d.OpenDB()
 		if err != nil {
 			return fmt.Errorf("open sqlite store: %w", err)
 		}

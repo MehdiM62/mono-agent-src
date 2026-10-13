@@ -1,4 +1,4 @@
-package main
+package workflowio
 
 import (
 	"bytes"
@@ -14,17 +14,17 @@ import (
 
 // n8nIncompleteError is returned (after the result was printed) when an
 // n8n workflow converted with placeholder nodes: exit code 3.
-func n8nIncompleteError(rep *n8nimport.Report) error {
-	return reportedError{errInvalidInput("n8n import incomplete: %d node(s) have no mono-agent equivalent and fail until replaced (see the report)", rep.Counts.Unmapped)}
+func (d Deps) n8nIncompleteError(rep *n8nimport.Report) error {
+	return d.Reported(d.InvalidInput("n8n import incomplete: %d node(s) have no mono-agent equivalent and fail until replaced (see the report)", rep.Counts.Unmapped))
 }
 
 // readImportSource reads the workflow file named by the positional
 // argument or --file, or stdin for "-" / nothing.
-func readImportSource(cmd *cobra.Command, args []string) ([]byte, error) {
+func (d Deps) readImportSource(cmd *cobra.Command, args []string) ([]byte, error) {
 	path, _ := cmd.Flags().GetString("file")
 	if len(args) > 0 {
 		if path != "" && path != args[0] {
-			return nil, errInvalidInput("give the file either as an argument or with --file, not both")
+			return nil, d.InvalidInput("give the file either as an argument or with --file, not both")
 		}
 		path = args[0]
 	}
@@ -37,7 +37,7 @@ func readImportSource(cmd *cobra.Command, args []string) ([]byte, error) {
 	}
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, errNotFound("read input: %v", err)
+			return nil, d.NotFound("read input: %v", err)
 		}
 		return nil, fmt.Errorf("read input: %w", err)
 	}
@@ -45,10 +45,10 @@ func readImportSource(cmd *cobra.Command, args []string) ([]byte, error) {
 }
 
 // convertN8n converts n8n workflow JSON, mapping bad input to exit code 3.
-func convertN8n(raw []byte) ([]byte, *n8nimport.Report, error) {
+func (d Deps) convertN8n(raw []byte) ([]byte, *n8nimport.Report, error) {
 	file, rep, err := n8nimport.Convert(raw)
 	if err != nil {
-		return nil, nil, errInvalidInput("%v", err)
+		return nil, nil, d.InvalidInput("%v", err)
 	}
 	out, err := json.MarshalIndent(file, "", "  ")
 	if err != nil {
@@ -61,7 +61,7 @@ func convertN8n(raw []byte) ([]byte, *n8nimport.Report, error) {
 // converted, then imported by the unchanged import command (fed the mono
 // workflow on stdin), and the conversion report is printed with its
 // result. The file may also be given as a positional argument.
-func withN8nImport(cfg *globalConfig, cmd *cobra.Command) {
+func (d Deps) withN8nImport(cmd *cobra.Command) {
 	var from string
 	cmd.Flags().StringVar(&from, "from", "", `Convert from another tool's format first: "n8n" (an n8n workflow export; prints a conversion report, exit 3 when a node has no equivalent)`)
 	cmd.Use = "import [file|-]"
@@ -78,13 +78,13 @@ func withN8nImport(cfg *globalConfig, cmd *cobra.Command) {
 			return run(c, nil)
 		case "n8n":
 		default:
-			return errInvalidInput("--from %q: only \"n8n\" is supported", from)
+			return d.InvalidInput("--from %q: only \"n8n\" is supported", from)
 		}
-		raw, err := readImportSource(c, args)
+		raw, err := d.readImportSource(c, args)
 		if err != nil {
 			return err
 		}
-		converted, rep, err := convertN8n(raw)
+		converted, rep, err := d.convertN8n(raw)
 		if err != nil {
 			return err
 		}
@@ -101,7 +101,7 @@ func withN8nImport(cfg *globalConfig, cmd *cobra.Command) {
 			_, _ = out.Write(buf.Bytes())
 			return err
 		}
-		if cfg.JSONOutput {
+		if d.JSONOutput() {
 			var result map[string]interface{}
 			if jerr := json.Unmarshal(buf.Bytes(), &result); jerr != nil {
 				return fmt.Errorf("read import result: %w", jerr)
@@ -116,7 +116,7 @@ func withN8nImport(cfg *globalConfig, cmd *cobra.Command) {
 			fmt.Fprint(out, rep.Text())
 		}
 		if !rep.Complete {
-			return n8nIncompleteError(rep)
+			return d.n8nIncompleteError(rep)
 		}
 		return nil
 	}
@@ -124,7 +124,7 @@ func withN8nImport(cfg *globalConfig, cmd *cobra.Command) {
 
 // newWorkflowConvertCmd converts a workflow from another tool's format and
 // prints it without saving anything.
-func newWorkflowConvertCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConvertCmd() *cobra.Command {
 	var from string
 	cmd := &cobra.Command{
 		Use:   "convert [file|-]",
@@ -142,18 +142,18 @@ that fails until replaced) or the input is not an n8n workflow.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			if strings.ToLower(from) != "n8n" {
-				return errInvalidInput("--from %q: only \"n8n\" is supported", from)
+				return d.InvalidInput("--from %q: only \"n8n\" is supported", from)
 			}
-			raw, err := readImportSource(c, args)
+			raw, err := d.readImportSource(c, args)
 			if err != nil {
 				return err
 			}
-			converted, rep, err := convertN8n(raw)
+			converted, rep, err := d.convertN8n(raw)
 			if err != nil {
 				return err
 			}
 			out := c.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				err = json.NewEncoder(out).Encode(map[string]interface{}{"workflow": json.RawMessage(converted), "report": rep})
 			} else {
 				_, err = fmt.Fprintln(out, string(converted))
@@ -163,13 +163,13 @@ that fails until replaced) or the input is not an n8n workflow.`,
 				return err
 			}
 			if !rep.Complete {
-				return n8nIncompleteError(rep)
+				return d.n8nIncompleteError(rep)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&from, "from", "n8n", `Source format (only "n8n")`)
 	cmd.Flags().StringP("file", "f", "", "Path to the export (default: the argument, or stdin)")
-	withJSONErrors(cfg, cmd)
+	d.WithJSONErrors(cmd)
 	return cmd
 }
