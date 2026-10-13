@@ -217,7 +217,8 @@
         "expand": {
           "when": "{{ p.returnTranscript | then:(el.TranscriptionJobStatus | eq:'COMPLETED') }}",
           "method": "GET",
-          "path": "{{ el.Transcript.TranscriptFileUri }}"
+          "path": "{{ el.Transcript.TranscriptFileUri }}",
+          "auth": false
         },
         "to": {
           "$merge": "{{ el.TranscriptionJobStatus | then:el }}",
