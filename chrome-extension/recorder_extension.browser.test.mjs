@@ -146,7 +146,10 @@ describe("the unpacked extension records a real page", { skip: browser ? false :
     assert.match(net.url, /\/api\/items\?page=2$/);
     assert.deepEqual(net.requestHeaders.find((x) => x.name === "Authorization"), { name: "Authorization", credential: true, scheme: "Bearer" });
     assert.deepEqual(JSON.parse(net.responseSample).items, [1, 2, 3]);
-    // (The page's own markup holds these too -- the onclick above -- so only the frame is checked.)
-    for (const secret of ["sekrit-hdr", "sekrit-body", "sekrit-resp"]) assert.ok(!JSON.stringify(net).includes(secret), `${secret} leaked`);
+    // Nothing anywhere in the outbox: not the network frame, and not the
+    // DOM snippet of the Load button, whose inline onclick holds the header.
+    const all = JSON.stringify(stored);
+    for (const secret of ["sekrit-hdr", "sekrit-body", "sekrit-resp"]) assert.ok(!all.includes(secret), `${secret} leaked`);
+    assert.ok(!/onclick/i.test(all), "inline handlers are stripped from snippets");
   });
 });
