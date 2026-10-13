@@ -268,22 +268,53 @@ func fieldIssues(n WorkflowNode, s *NodeSchema) []ValidationIssue {
 				out = append(out, is)
 			}
 		}
-		if f.Type == "select" && len(f.Options) > 0 && present && !isEmptyValue(v) && !isExpression(v) {
-			sv := fmt.Sprint(v)
-			found := false
-			for _, o := range f.Options {
-				if strings.EqualFold(sv, o) {
-					found = true
-					break
-				}
+	}
+	// Select options: a key can appear several times with different
+	// depends_on (an API package's operation select per resource next to
+	// the native operation select). The value must be one of the options
+	// of the selects that apply to this config; selects whose dependency
+	// clearly does not hold are ignored.
+	checked := map[string]bool{}
+	for i := range s.Fields {
+		f := &s.Fields[i]
+		if checked[f.Key] || f.Type != "select" {
+			continue
+		}
+		v, present := n.Config[f.Key]
+		if !present || isEmptyValue(v) || isExpression(v) {
+			continue
+		}
+		checked[f.Key] = true
+		var opts []string
+		applies := false
+		for j := range s.Fields {
+			g := &s.Fields[j]
+			if g.Key != f.Key || g.Type != "select" || len(g.Options) == 0 {
+				continue
 			}
-			if !found {
-				out = append(out, ValidationIssue{
-					NodeID: n.ID, Field: f.Key, Code: IssueInvalidOption, Severity: "error",
-					Message: fmt.Sprintf("field %q: %q is not one of its options", f.Key, sv),
-					Hint:    "use one of: " + strings.Join(f.Options, ", "),
-				})
+			if holds, known := dependencyHolds(n, s, g.DependsOn); !holds && known {
+				continue
 			}
+			applies = true
+			opts = append(opts, g.Options...)
+		}
+		if !applies {
+			continue
+		}
+		sv := fmt.Sprint(v)
+		found := false
+		for _, o := range opts {
+			if strings.EqualFold(sv, o) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out = append(out, ValidationIssue{
+				NodeID: n.ID, Field: f.Key, Code: IssueInvalidOption, Severity: "error",
+				Message: fmt.Sprintf("field %q: %q is not one of its options", f.Key, sv),
+				Hint:    "use one of: " + strings.Join(opts, ", "),
+			})
 		}
 	}
 	keys := make([]string, 0, len(n.Config))
