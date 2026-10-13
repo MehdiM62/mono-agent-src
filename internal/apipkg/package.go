@@ -40,6 +40,9 @@ type Package struct {
 	// when it isn't "operation" (FileMaker: "action"). A config without
 	// "operation" uses that param's value, so imported nodes run as is.
 	N8nOperationParam string `json:"n8n_operation_param,omitempty"`
+	// N8nResourceParam names the n8n param that selects the resource when
+	// it isn't "resource" (uProc: "group").
+	N8nResourceParam string `json:"n8n_resource_param,omitempty"`
 	// N8nVersionDefaults: per n8n node typeVersion, param defaults the
 	// importer fills in when an exported node omits them (n8n leaves
 	// defaults out; Invoice Ninja v1 meant apiVersion v4).
@@ -119,6 +122,12 @@ type Inject struct {
 	Basic    *BasicInject      `json:"basic,omitempty"`
 	AWSSigV4 *AWSSigV4Inject   `json:"aws_sigv4,omitempty"`
 	JWT      *JWTInject        `json:"jwt,omitempty"`
+	// Body is merged into JSON/form/multipart bodies (Mandrill's "key").
+	Body map[string]string `json:"body,omitempty"`
+	// HMAC signs each request: header = prefix + encode(HMAC(secret,
+	// message)); message is a template over req (method, path, query,
+	// body) — Unleashed signs the encoded query string.
+	HMAC *HMACInject `json:"hmac,omitempty"`
 }
 
 // JWTInject signs a short-lived JWT per request (Ghost Admin API, Zoom
@@ -239,7 +248,15 @@ type Pagination struct {
 	NextURLPath string `json:"next_url_path,omitempty"`
 	// NextURLPrefix (a template) is prepended to a relative next URL whose
 	// base is not the request host (Confluence v2 _links.next).
-	NextURLPrefix  string `json:"next_url_prefix,omitempty"`
+	NextURLPrefix string `json:"next_url_prefix,omitempty"`
+	// Values: the page's results are an object keyed by id (Mautic
+	// {"contacts": {"12": {…}}}); its values are the list (numeric keys in
+	// numeric order, else sorted).
+	Values bool `json:"values,omitempty"`
+	// When (a template) turns paging off when it renders false: one plain
+	// request, no page params (Strapi v3 vs v4 by credential). The param
+	// names (cursor/offset/limit/page_param) may be templates too.
+	When           string `json:"when,omitempty"`
 	ResultsPath    string `json:"results_path,omitempty"`
 	ReturnAllField string `json:"return_all_field,omitempty"`
 	LimitField     string `json:"limit_field,omitempty"`
@@ -278,6 +295,16 @@ type Output struct {
 	// (Gong call transcripts).
 	ExpandMergeKey  string `json:"expand_merge_key,omitempty"`
 	ExpandMergePath string `json:"expand_merge_path,omitempty"`
+	// From (a template over res) replaces the decoded response before
+	// path/split: "{{ res | values }}" for maps keyed by id.
+	From string `json:"from,omitempty"`
+	// Merge folds a list of objects into one object (Hue update results).
+	Merge bool `json:"merge,omitempty"`
+	// Skip drops the first n elements (NextCloud lists the folder itself
+	// first); Sort orders elements by a dot path (SortDesc: descending).
+	Skip     int    `json:"skip,omitempty"`
+	Sort     string `json:"sort,omitempty"`
+	SortDesc bool   `json:"sort_desc,omitempty"`
 	// Limit applies n8n's returnAll/limit fields to a list that isn't
 	// paginated (client-side slicing).
 	Limit bool `json:"limit,omitempty"`
@@ -332,6 +359,10 @@ type Binary struct {
 	// off (default: json when the op has a body, else none).
 	FallbackBodyType string `json:"fallback_body_type,omitempty"`
 	Property         string `json:"property,omitempty"`
+	// Properties (a template giving a list or comma text) uploads several
+	// binary properties: one multipart part each (el = {property, index}
+	// in multipart_field), and bin.files lists them for JSON bodies.
+	Properties string `json:"properties,omitempty"`
 	// FileName and MimeType are templates for the uploaded part.
 	FileName string `json:"file_name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`
@@ -453,4 +484,14 @@ type Poll struct {
 	Until      string `json:"until"`
 	IntervalMs int    `json:"interval_ms,omitempty"` // default 1000
 	MaxWaitMs  int    `json:"max_wait_ms,omitempty"` // default 300000
+}
+
+// HMACInject is a per-request HMAC signature header.
+type HMACInject struct {
+	Header   string `json:"header"`
+	Secret   string `json:"secret"`
+	Message  string `json:"message"`
+	Alg      string `json:"alg,omitempty"`      // SHA256 (default), SHA1, SHA512
+	Encoding string `json:"encoding,omitempty"` // base64 (default) or hex
+	Prefix   string `json:"prefix,omitempty"`
 }

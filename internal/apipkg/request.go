@@ -45,6 +45,7 @@ func (o *Operation) effectiveBodyType() string {
 type pageParams struct {
 	values map[string]any
 	inBody bool
+	inPath bool   // values go to the path template as page.<param>
 	url    string // absolute next-page URL (link_header, next_url)
 }
 
@@ -56,6 +57,9 @@ type built struct {
 
 // buildRequest builds op's request for one item.
 func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error) {
+	if pp.inPath {
+		r.scope.Page = pp.values
+	}
 	sc := r.scope
 	rawURL := pp.url
 	if rawURL == "" {
@@ -90,7 +94,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 		r.addValues(q, qv)
 		u.RawQuery = q.Encode()
 	}
-	if len(pp.values) > 0 && !pp.inBody {
+	if len(pp.values) > 0 && !pp.inBody && !pp.inPath {
 		q := u.Query()
 		for k, v := range pp.values {
 			q.Set(k, stringify(v))
@@ -113,7 +117,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 			return nil, r.errf("method: %w", err)
 		}
 		if method = strings.ToUpper(strings.TrimSpace(m)); !validMethods[method] {
-			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE or HEAD", m)
+			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE, HEAD or a WebDAV method", m)
 		}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), rd)
@@ -157,6 +161,20 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 			obj = m
 		} else if v != nil && bt != BodyJSON {
 			return nil, "", r.errf("body: a %s body must be an object", bt)
+		}
+		if c := r.credDef; c != nil && len(c.Inject.Body) > 0 {
+			if obj == nil {
+				obj = map[string]any{}
+			}
+			for k, tv := range c.Inject.Body {
+				v, err := renderString(tv, sc) // typed: a single expression keeps bools/numbers
+				if err != nil {
+					return nil, "", r.errf("credential %s: inject.body.%s: %w", c.Platform, k, err)
+				}
+				if !isEmpty(v) {
+					obj[k] = v
+				}
+			}
 		}
 		if pp.inBody && len(pp.values) > 0 {
 			if obj == nil {
@@ -233,32 +251,18 @@ func (r *opRun) multipartBody(obj map[string]any) ([]byte, string, error) {
 			}
 		}
 	}
-	if b := r.op.Binary; r.uploads() {
-		data, err := r.uploadData()
-		if err != nil {
+	if b := r.op.Binary; r.uploads() && b.Properties != "" {
+		for i, prop := range r.uploadProperties() {
+			one := *r
+			one.prop = prop
+			one.scope.El = map[string]any{"property": prop, "index": i}
+			if err := one.writeFilePart(w, b); err != nil {
+				return nil, "", err
+			}
+		}
+	} else if b := r.op.Binary; r.uploads() {
+		if err := r.writeFilePart(w, b); err != nil {
 			return nil, "", err
-		}
-		field, _ := renderText(b.MultipartField, r.scope)
-		if field == "" {
-			field = "file"
-		}
-		name, _ := renderText(b.FileName, r.scope)
-		if name == "" {
-			name = r.uploadName()
-		}
-		ct, _ := renderText(b.MimeType, r.scope)
-		if ct == "" {
-			ct = r.uploadMime()
-		}
-		h := make(textproto.MIMEHeader)
-		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, field, name))
-		h.Set("Content-Type", ct)
-		part, err := w.CreatePart(h)
-		if err != nil {
-			return nil, "", r.errf("body: %w", err)
-		}
-		if _, err := part.Write(data); err != nil {
-			return nil, "", r.errf("body: %w", err)
 		}
 	}
 	if err := w.Close(); err != nil {
@@ -269,6 +273,9 @@ func (r *opRun) multipartBody(obj map[string]any) ([]byte, string, error) {
 
 // uploadProperty is the input item's binary property to upload.
 func (r *opRun) uploadProperty() string {
+	if r.prop != "" {
+		return r.prop
+	}
 	if t := r.op.Binary.Property; t != "" {
 		if p, err := renderText(t, r.scope); err == nil && p != "" {
 			return p
@@ -407,6 +414,17 @@ func (r *opRun) binMeta() map[string]any {
 		m["base64"] = base64.StdEncoding.EncodeToString(data)
 		m["file_size"] = len(data)
 	}
+	if r.prop == "" && r.op.Binary.Properties != "" {
+		var files []any
+		for _, prop := range r.uploadProperties() {
+			one := *r
+			one.prop = prop
+			f := one.binMeta()
+			f["property"] = prop
+			files = append(files, f)
+		}
+		m["files"] = files
+	}
 	return m
 }
 
@@ -420,7 +438,7 @@ func (r *opRun) uploads() bool {
 		return true
 	}
 	w, err := renderString(b.UploadWhen, r.scope)
-	return err == nil && !isEmpty(w) && w != false
+	return err == nil && truthy(w)
 }
 
 // bodyType is the op's body type for this run: without an upload, an op
@@ -432,6 +450,9 @@ func (r *opRun) bodyType() string {
 	}
 	if fb := r.op.Binary.FallbackBodyType; fb != "" {
 		return fb
+	}
+	if bt == BodyForm || bt == BodyJSON {
+		return bt // an explicit json/form body stays that type
 	}
 	if r.op.Body != nil {
 		return BodyJSON
@@ -487,4 +508,59 @@ func setPath(obj map[string]any, path string, val any) {
 		cur = next
 	}
 	cur[parts[len(parts)-1]] = val
+}
+
+// uploadProperties renders binary.properties into property names.
+func (r *opRun) uploadProperties() []string {
+	v, err := renderString(r.op.Binary.Properties, r.scope)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	switch t := v.(type) {
+	case []any:
+		for _, x := range t {
+			if s := strings.TrimSpace(stringify(x)); s != "" {
+				out = append(out, s)
+			}
+		}
+	default:
+		for _, s := range strings.Split(stringify(v), ",") {
+			if s = strings.TrimSpace(s); s != "" {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
+}
+
+// writeFilePart writes the current upload property as one multipart part.
+func (r *opRun) writeFilePart(w *multipart.Writer, b *Binary) error {
+	data, err := r.uploadData()
+	if err != nil {
+		return err
+	}
+	field, _ := renderText(b.MultipartField, r.scope)
+	if field == "" {
+		field = "file"
+	}
+	name, _ := renderText(b.FileName, r.scope)
+	if name == "" {
+		name = r.uploadName()
+	}
+	ct, _ := renderText(b.MimeType, r.scope)
+	if ct == "" {
+		ct = r.uploadMime()
+	}
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, field, name))
+	h.Set("Content-Type", ct)
+	part, err := w.CreatePart(h)
+	if err != nil {
+		return r.errf("body: %w", err)
+	}
+	if _, err := part.Write(data); err != nil {
+		return r.errf("body: %w", err)
+	}
+	return nil
 }

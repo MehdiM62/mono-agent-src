@@ -1,7 +1,9 @@
 package apipkg
 
 import (
+	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -91,6 +94,8 @@ type opRun struct {
 	item    workflow.Item
 	credDef *Credential
 	scope   Scope
+	// prop overrides the upload property (one of binary.properties).
+	prop string
 }
 
 func (r *opRun) errf(format string, a ...any) error {
@@ -151,7 +156,9 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
-		if r.uploads() {
+		if op.Binary != nil && op.Binary.UploadField != "" {
+			// Filled for every step: a before step that requests an upload
+			// slot needs the file's name and type (Pushbullet, S3 presigned).
 			r.scope.Bin = r.binMeta()
 		}
 		if op.Batch {
@@ -208,6 +215,9 @@ func itemParams(engine *workflow.ExpressionEngine, config map[string]any, held [
 // the first resource and its first operation (n8n leaves defaults unsaved).
 func (p *Package) resolveOp(params map[string]any) (*Operation, error) {
 	res, _ := params["resource"].(string)
+	if res == "" && p.N8nResourceParam != "" {
+		res, _ = params[p.N8nResourceParam].(string)
+	}
 	if res == "" {
 		res = p.DefaultResource()
 	}
@@ -276,6 +286,35 @@ func checkRequired(pkg *Package, op *Operation, params map[string]any) error {
 // execute sends the request (all pages) and turns the response into items.
 func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	for i, st := range r.op.Before {
+		if st.ForEach != "" {
+			lv, err := renderString(st.ForEach, r.scope)
+			if err != nil {
+				return nil, r.errf("before[%d].for_each: %w", i, err)
+			}
+			list, _ := lv.([]any)
+			collected := make([]any, 0, len(list))
+			for j, el := range list {
+				sc := r.scope
+				sc.El, sc.Idx = el, j
+				step := *r
+				step.scope = sc
+				if s, ok := el.(string); ok && st.Upload {
+					step.prop = s // one upload per binary property (Twist)
+				}
+				resp, err := step.sendStep(ctx, st, sc)
+				if err != nil {
+					return nil, fmt.Errorf("before[%d] element %d: %w", i, j, err)
+				}
+				var v any
+				if resp != nil && len(strings.TrimSpace(string(resp.body))) > 0 {
+					v = decodeBody(resp.body)
+				}
+				collected = append(collected, v)
+			}
+			r.scope.Pres = append(r.scope.Pres, collected)
+			r.scope.Pre = collected
+			continue
+		}
 		resp, err := r.sendStep(ctx, st, r.scope)
 		if err != nil {
 			return nil, fmt.Errorf("before[%d]: %w", i, err)
@@ -287,7 +326,7 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		r.scope.Pres = append(r.scope.Pres, v)
 		r.scope.Pre = v
 	}
-	if r.op.Pagination != nil {
+	if r.op.Pagination != nil && r.pagingOn() {
 		results, truncated, err := r.paginate(ctx)
 		if err != nil {
 			return nil, err
@@ -339,6 +378,15 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		return []workflow.Item{{JSON: map[string]any{"success": true}}}, nil
 	}
 	v := decodeBody(resp.body)
+	if o := r.op.Output; o != nil && o.From != "" {
+		sc := r.scope
+		sc.Res = v
+		fv, err := renderString(o.From, sc)
+		if err != nil {
+			return nil, r.errf("output.from: %w", err)
+		}
+		v = fv
+	}
 	doc := v
 	if path := r.outputPath(); path != "" {
 		v = lookupPath(v, strings.Split(path, "."))
@@ -381,7 +429,7 @@ func (r *opRun) send(ctx context.Context, pp pageParams) (*response, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := httpClient.Do(b.req)
+	resp, err := r.client().Do(b.req)
 	if err != nil {
 		return nil, r.errf("%s %s: %w", b.req.Method, b.req.URL.Redacted(), err)
 	}
@@ -409,6 +457,11 @@ func errorBodyEcho(b []byte) string {
 // downloadItem stores a file response on the item's binary data.
 func (r *opRun) downloadItem(resp *response) workflow.Item {
 	prop := "data"
+	if t := r.op.Binary.Property; t != "" {
+		if s, err := renderText(t, r.scope); err == nil && s != "" {
+			prop = s
+		}
+	}
 	if f := r.op.Binary.PropertyField; f != "" {
 		if s := stringify(r.params[f]); s != "" {
 			prop = s
@@ -431,6 +484,11 @@ func (r *opRun) downloadItem(resp *response) workflow.Item {
 func decodeBody(b []byte) any {
 	var v any
 	if err := json.Unmarshal(b, &v); err != nil {
+		if t := bytes.TrimSpace(b); len(t) > 0 && t[0] == '<' {
+			if x, err := decodeXML(t); err == nil {
+				return x // WebDAV multistatus, SOAP-ish APIs
+			}
+		}
 		return string(b)
 	}
 	return v
@@ -508,7 +566,7 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 		if err != nil {
 			return nil, r.errf("when: %w", err)
 		}
-		if isEmpty(w) || w == false {
+		if !truthy(w) {
 			return nil, nil
 		}
 	}
@@ -519,7 +577,13 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 	if st.Upload && r.op.Binary != nil && r.op.Binary.UploadField != "" {
 		b := *r.op.Binary
 		b.UploadWhen, b.DownloadWhen, b.Download, b.DownloadBase64 = "", "", false, ""
-		op.Binary, op.Body, op.BodyType = &b, nil, BodyRaw
+		op.Binary = &b
+		if st.BodyType == BodyMultipart {
+			// S3-style presigned POST: the step's form fields plus the file.
+			op.BodyType = BodyMultipart
+		} else {
+			op.Body, op.BodyType = nil, BodyRaw
+		}
 	} else {
 		op.Binary = nil
 	}
@@ -629,8 +693,37 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			}
 		}
 	}
+	if o.Skip > 0 {
+		if o.Skip >= len(list) {
+			list = nil
+		} else {
+			list = list[o.Skip:]
+		}
+	}
+	if o.Sort != "" {
+		path := strings.Split(o.Sort, ".")
+		sort.SliceStable(list, func(i, j int) bool {
+			a, b := lookupPath(list[i], path), lookupPath(list[j], path)
+			less := lessValue(a, b)
+			if o.SortDesc {
+				return lessValue(b, a)
+			}
+			return less
+		})
+	}
 	if o.Limit {
 		list = r.clientLimit(list)
+	}
+	if o.Merge {
+		merged := map[string]any{}
+		for _, el := range list {
+			if m, ok := el.(map[string]any); ok {
+				for k, x := range m {
+					merged[k] = x
+				}
+			}
+		}
+		list = []any{merged}
 	}
 	if o.To != nil {
 		apply := true
@@ -639,7 +732,7 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			if err != nil {
 				return nil, r.errf("output.to_when: %w", err)
 			}
-			apply = !isEmpty(w) && w != false
+			apply = truthy(w)
 		}
 		if apply {
 			for i, el := range list {
@@ -704,7 +797,7 @@ func (r *opRun) downloads() bool {
 		return b.Download
 	}
 	w, err := renderString(b.DownloadWhen, r.scope)
-	return err == nil && !isEmpty(w) && w != false
+	return err == nil && truthy(w)
 }
 
 // poll repeats op.Poll after the main response until its until template
@@ -864,3 +957,47 @@ func (r *opRun) clientLimit(list []any) []any {
 	}
 	return list
 }
+
+// lessValue orders numbers numerically and anything else as text.
+func lessValue(a, b any) bool {
+	fa, ea := toFloat(a)
+	fb, eb := toFloat(b)
+	if ea == nil && eb == nil && fa != nil && fb != nil {
+		return fa.(float64) < fb.(float64)
+	}
+	return stringify(a) < stringify(b)
+}
+
+// pagingOn reports whether pagination applies to this run.
+func (r *opRun) pagingOn() bool {
+	w := r.op.Pagination.When
+	if w == "" {
+		return true
+	}
+	v, err := renderString(w, r.scope)
+	return err == nil && truthy(v)
+}
+
+// client is the HTTP client for this run: a connection whose
+// allow_unauthorized_certs field is true (self-hosted Venafi, TheHive with
+// self-signed certificates) skips TLS verification, as n8n's credential
+// option does.
+func (r *opRun) client() *http.Client {
+	if !truthy(r.scope.Cred["allow_unauthorized_certs"]) {
+		return httpClient
+	}
+	insecureOnce.Do(func() {
+		t := http.DefaultTransport.(*http.Transport).Clone()
+		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // user opted in per connection
+		insecureClient = &http.Client{Timeout: httpClient.Timeout, Transport: t}
+	})
+	if httpClient.Transport != nil && httpClient.Transport != http.DefaultTransport {
+		return httpClient // tests reroute traffic through their own transport
+	}
+	return insecureClient
+}
+
+var (
+	insecureOnce   sync.Once
+	insecureClient *http.Client
+)

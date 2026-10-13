@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 var knownFilters = map[string]bool{
@@ -25,7 +26,7 @@ var knownFilters = map[string]bool{
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
-	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true,
+	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true, "snake": true, "matches": true, "in": true, "flatten": true, "unflatten": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -133,6 +134,67 @@ func applyFilter(name string, v, arg any) (any, error) {
 			}
 		}
 		return firestoreFields(obj, cols), nil
+	case "matches":
+		re, err := cachedRegexp(stringify(arg))
+		if err != nil {
+			return nil, fmt.Errorf("matches: %w", err)
+		}
+		if re.MatchString(stringify(v)) {
+			return true, nil
+		}
+		return nil, nil
+	case "in":
+		var set []any
+		if l, ok := arg.([]any); ok {
+			set = l
+		} else {
+			for _, x := range strings.Split(stringify(arg), ",") {
+				set = append(set, strings.TrimSpace(x))
+			}
+		}
+		for _, x := range set {
+			if stringify(x) == stringify(v) {
+				return true, nil
+			}
+		}
+		return nil, nil
+	case "unflatten":
+		m, ok := v.(map[string]any)
+		if !ok {
+			return v, nil
+		}
+		out := map[string]any{}
+		for _, k := range sortedKeys(m) {
+			setPath(out, k, m[k])
+		}
+		return out, nil
+	case "flatten":
+		var out []any
+		var add func(x any)
+		add = func(x any) {
+			switch t := x.(type) {
+			case []any:
+				out = append(out, t...)
+			case map[string]any:
+				for _, k := range sortedKeys(t) {
+					add(t[k])
+				}
+			default:
+				if x != nil {
+					out = append(out, x)
+				}
+			}
+		}
+		add(v)
+		return out, nil
+	case "snake":
+		return snakeCase(stringify(v)), nil
+	case "values":
+		m, ok := v.(map[string]any)
+		if !ok {
+			return v, nil
+		}
+		return objectValues(m), nil
 	case "hex":
 		h := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(stringify(v)), "#"), "0x")
 		if h == "" {
@@ -869,4 +931,51 @@ func epochTime(n int64) time.Time {
 		return time.UnixMilli(n)
 	}
 	return time.Unix(n, 0)
+}
+
+// truthy is how *_when, until and $when conditions read a rendered value:
+// empty, false, 0 and "false"/"0"/"no"/"off" are false; any other
+// non-empty value (an id, a mode name) is true.
+func truthy(v any) bool {
+	if isEmpty(v) {
+		return false
+	}
+	if b, err := toBool(v); err == nil && b != nil {
+		return b == true
+	}
+	return true
+}
+
+// snakeCase is lodash's snakeCase: words split on case changes, digits
+// and non-alphanumerics, lower-cased, joined by "_" ("Due Date",
+// "DueDate", "due-date" → "due_date").
+func snakeCase(s string) string {
+	var words []string
+	var cur []rune
+	flush := func() {
+		if len(cur) > 0 {
+			words = append(words, strings.ToLower(string(cur)))
+			cur = cur[:0]
+		}
+	}
+	rs := []rune(s)
+	for i, r := range rs {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			if len(cur) > 0 {
+				prev := cur[len(cur)-1]
+				lowerToUpper := unicode.IsUpper(r) && (unicode.IsLower(prev) || unicode.IsDigit(prev))
+				acronymEnd := unicode.IsUpper(r) && unicode.IsUpper(prev) && i+1 < len(rs) && unicode.IsLower(rs[i+1])
+				digitEdge := unicode.IsDigit(r) != unicode.IsDigit(prev)
+				if lowerToUpper || acronymEnd || digitEdge {
+					flush()
+				}
+			}
+			cur = append(cur, r)
+		default:
+			flush()
+		}
+	}
+	flush()
+	return strings.Join(words, "_")
 }

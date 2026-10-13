@@ -3,6 +3,8 @@ package apipkg
 import (
 	"context"
 	"net/url"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -54,7 +56,17 @@ func (r *opRun) limits() (returnAll bool, limit int) {
 // paginate fetches pages until the source runs out, the limit is reached
 // or max_pages stops it (truncated).
 func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
-	pg := r.op.Pagination
+	pgv := *r.op.Pagination
+	pg := &pgv
+	for _, f := range []*string{&pg.CursorParam, &pg.OffsetParam, &pg.LimitParam, &pg.PageParam} {
+		if hasTemplate(*f) {
+			v, err := renderText(*f, r.scope)
+			if err != nil {
+				return nil, false, r.errf("pagination param: %w", err)
+			}
+			*f = v
+		}
+	}
 	returnAll, limit := r.limits()
 	pageSize := pg.PageSize
 	if pageSize <= 0 {
@@ -71,7 +83,9 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 	if resultsPath == "" && r.op.Output != nil {
 		resultsPath = r.outputPath()
 	}
-	inBody := pg.paramInBody() && r.bodyType() == BodyJSON
+	bt := r.bodyType()
+	inBody := pg.paramInBody() && (bt == BodyJSON || bt == BodyForm || bt == BodyMultipart)
+	inPath := pg.ParamIn == "path"
 
 	var (
 		all    []any
@@ -84,7 +98,7 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 		page = *pg.StartPage
 	}
 	for n := 0; n < maxPages; n++ {
-		pp := pageParams{values: map[string]any{}, inBody: inBody, url: next}
+		pp := pageParams{values: map[string]any{}, inBody: inBody, inPath: inPath, url: next}
 		if next == "" {
 			if pg.LimitParam != "" {
 				pp.values[pg.LimitParam] = pageSize
@@ -109,6 +123,11 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 			r.scope.Res = doc // output shaping reads headers etc. from the first page
 		}
 		results := pageResults(doc, resultsPath)
+		if pg.Values && len(results) == 1 {
+			if m, ok := results[0].(map[string]any); ok {
+				results = objectValues(m)
+			}
+		}
 		all = append(all, results...)
 		if !returnAll && len(all) >= limit {
 			return all[:limit], false, nil
@@ -208,4 +227,26 @@ func resolveNext(current, next string) string {
 		return ""
 	}
 	return base.ResolveReference(ref).String()
+}
+
+// objectValues lists an object's values: numeric keys in numeric order,
+// other keys sorted.
+func objectValues(m map[string]any) []any {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		a, ea := strconv.ParseFloat(keys[i], 64)
+		b, eb := strconv.ParseFloat(keys[j], 64)
+		if ea == nil && eb == nil {
+			return a < b
+		}
+		return keys[i] < keys[j]
+	})
+	out := make([]any, len(keys))
+	for i, k := range keys {
+		out[i] = m[k]
+	}
+	return out
 }

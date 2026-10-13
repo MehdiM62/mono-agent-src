@@ -184,7 +184,7 @@ func (c *Credential) check(i int) []string {
 		keys[f.Key] = true
 	}
 	in := c.Inject
-	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil {
+	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 && in.HMAC == nil {
 		add("inject is empty: say how the credential authenticates (headers, query, basic or aws_sigv4)")
 	}
 	for k, v := range in.Headers {
@@ -199,6 +199,9 @@ func (c *Credential) check(i int) []string {
 	if s := in.AWSSigV4; s != nil {
 		probs = append(probs, checkTemplates(where+" inject.aws_sigv4",
 			[]any{s.Service, s.Region, s.AccessKeyID, s.SecretAccessKey, s.SessionToken}, anyField, keys)...)
+	}
+	for k, v := range in.Body {
+		probs = append(probs, checkTemplates(where+" inject.body."+k, v, anyField, keys)...)
 	}
 	if jw := in.JWT; jw != nil {
 		switch jw.Alg {
@@ -228,7 +231,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	var probs []string
 	add := func(format string, a ...any) { probs = append(probs, where+": "+fmt.Sprintf(format, a...)) }
 	if !validMethods[strings.ToUpper(o.Method)] && !hasTemplate(o.Method) {
-		add("method %q must be GET, POST, PUT, PATCH, DELETE, HEAD or a template", o.Method)
+		add("method %q must be an HTTP/WebDAV method or a template", o.Method)
 	}
 	fields := map[string]bool{"resource": true, "operation": true}
 	for _, f := range o.Fields {
@@ -281,7 +284,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	for i, st := range o.Also {
 		sw := fmt.Sprintf("%s also[%d]", where, i)
 		if !validMethods[strings.ToUpper(st.Method)] && !hasTemplate(st.Method) {
-			add("also[%d]: method %q must be GET, POST, PUT, PATCH, DELETE, HEAD or a template", i, st.Method)
+			add("also[%d]: method %q must be an HTTP/WebDAV method or a template", i, st.Method)
 		}
 		if st.Path == "" {
 			add("also[%d]: path is required", i)
@@ -312,8 +315,8 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		if n, ok := need[pg.Type]; ok && (n[0] == "" || strings.HasPrefix(n[0], "|") || strings.HasSuffix(n[0], "|")) {
 			add("pagination %q needs %s", pg.Type, n[1])
 		}
-		if pg.ParamIn == "body" && bt != BodyJSON {
-			add(`pagination param_in "body" needs a json body`)
+		if pg.ParamIn == "body" && bt != BodyJSON && bt != BodyForm && bt != BodyMultipart {
+			add(`pagination param_in "body" needs a json, form or multipart body`)
 		}
 	}
 	if b := o.Binary; b != nil {
@@ -334,7 +337,9 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 
 // checkTemplates parses every template string in v and checks that p.X
 // names a field (when fields is set) and cred.X a credential key.
-var validMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true}
+var validMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true,
+	// WebDAV (NextCloud, ownCloud)
+	"MKCOL": true, "MOVE": true, "COPY": true, "PROPFIND": true, "PROPPATCH": true}
 
 func checkTemplates(where string, v any, fields, credKeys map[string]bool) []string {
 	var probs []string
@@ -355,6 +360,9 @@ func checkTemplates(where string, v any, fields, credKeys map[string]bool) []str
 					continue
 				}
 				exprs := []*expr{part.expr}
+				for h := part.expr.head; h != nil; h = h.head {
+					exprs = append(exprs, h)
+				}
 				for _, f := range part.expr.filters {
 					for _, a := range f.args {
 						if a != f.arg && a.path != nil {
@@ -406,11 +414,13 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !fields[e.path[0]] && !fields["*"] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not one of the op's fields", where, e.src, e.path[0])}
 		}
+	case "req":
+		return nil
 	case "cred":
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr":
+	case "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "idx", "page":
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}

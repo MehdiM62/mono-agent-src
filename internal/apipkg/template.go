@@ -35,6 +35,13 @@ type Scope struct {
 	// Hdr is the main response's headers (first value each); lookups are
 	// case-insensitive (hdr.Location, hdr.Resource-ID).
 	Hdr headerMap
+	// Idx is the element's position inside a $map / $entries.
+	Idx int
+	// Page holds the page params when pagination.param_in is "path"
+	// ({{ page.pageNumber }}); Req describes the built request for
+	// inject.hmac (method, path, query, body).
+	Page map[string]any
+	Req  map[string]any
 }
 
 // headerMap holds response headers; lookupPath matches its keys
@@ -65,6 +72,12 @@ func (s Scope) root(name string) any {
 		return s.Main
 	case "hdr":
 		return s.Hdr
+	case "idx":
+		return s.Idx
+	case "page":
+		return s.Page
+	case "req":
+		return s.Req
 	case "now":
 		return time.Now().UTC().Format(time.RFC3339)
 	case "uuid":
@@ -91,6 +104,9 @@ type expr struct {
 	root    string
 	path    []string
 	filters []filterCall
+	// head is a parenthesised sub-expression the value starts from:
+	// {{ (p.a | lower) | prefix:'x' }}.
+	head *expr
 }
 
 type filterCall struct {
@@ -164,9 +180,18 @@ func parseTemplate(s string) (*tmpl, error) {
 // parseExpr parses the inside of {{ }}.
 func parseExpr(src string) (*expr, error) {
 	segs := splitPipes(src)
-	e, err := parsePath(strings.TrimSpace(segs[0]))
-	if err != nil {
-		return nil, err
+	var e *expr
+	if h := strings.TrimSpace(segs[0]); len(h) > 1 && h[0] == '(' && h[len(h)-1] == ')' {
+		inner, err := parseExpr(strings.TrimSpace(h[1 : len(h)-1]))
+		if err != nil {
+			return nil, err
+		}
+		e = &expr{head: inner}
+	} else {
+		var err error
+		if e, err = parsePath(h); err != nil {
+			return nil, err
+		}
 	}
 	e.src = src
 	for _, f := range segs[1:] {
@@ -235,9 +260,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now", "idx", "page", "req":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., hdr., pre., pres., bin. or be uuid / now", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., hdr., pre., pres., bin., page., req. or be uuid / now / idx", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
@@ -288,7 +313,16 @@ func (e *expr) eval(sc Scope) (any, error) {
 // evalLit also reports whether the value is a literal the package author
 // wrote (a then/default argument), which path rendering does not escape.
 func (e *expr) evalLit(sc Scope) (any, bool, error) {
-	v := lookupPath(sc.root(e.root), e.path)
+	var v any
+	if e.head != nil {
+		hv, err := e.head.eval(sc)
+		if err != nil {
+			return nil, false, err
+		}
+		v = hv
+	} else {
+		v = lookupPath(sc.root(e.root), e.path)
+	}
 	literal := false
 	for _, f := range e.filters {
 		var arg any
@@ -426,6 +460,26 @@ func renderValue(v any, sc Scope) (any, error) {
 		if parts, ok := t["$concat"]; ok {
 			return renderConcat(parts, sc)
 		}
+		if parts, ok := t["$list"]; ok {
+			// Positional lists keep every element, empty ones included
+			// (Odoo execute_kw args, Notion {"past_week": {}}).
+			arr, ok := parts.([]any)
+			if !ok {
+				return nil, fmt.Errorf("$list must be a list")
+			}
+			out := make([]any, len(arr))
+			for i, el := range arr {
+				r, err := renderValue(el, sc)
+				if err != nil {
+					return nil, fmt.Errorf("$list element %d: %w", i, err)
+				}
+				if m, ok := r.(map[string]any); ok && m == nil {
+					r = map[string]any{}
+				}
+				out[i] = r
+			}
+			return out, nil
+		}
 		if parts, ok := t["$join"]; ok {
 			return renderJoin(parts, t, sc)
 		}
@@ -475,7 +529,7 @@ func renderObject(m map[string]any, sc Scope) (map[string]any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("$when: %w", err)
 		}
-		if isEmpty(w) || w == false {
+		if !truthy(w) {
 			return nil, nil
 		}
 	}
@@ -602,7 +656,7 @@ func renderMap(src, to any, sc Scope) (any, error) {
 	out := make([]any, 0, len(arr))
 	for i, el := range arr {
 		esc := sc
-		esc.El = el
+		esc.El, esc.Idx = el, i
 		r, err := renderValue(to, esc)
 		if err != nil {
 			return nil, fmt.Errorf("$map element %d: %w", i, err)
@@ -694,7 +748,7 @@ func renderEntries(src, key, val any, sc Scope) (any, error) {
 	out := map[string]any{}
 	for i, el := range arr {
 		esc := sc
-		esc.El = el
+		esc.El, esc.Idx = el, i
 		k, err := renderText(ks, esc)
 		if err != nil {
 			return nil, fmt.Errorf("$entries element %d key: %w", i, err)

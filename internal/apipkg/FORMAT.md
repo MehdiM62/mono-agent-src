@@ -158,6 +158,8 @@ Every field is resolved **per input item** from workflow expressions
 (`{{ $json.id }}` in the node config), so one node run makes one request per
 item.
 
+**Conditions.** `when`, `*_when`, `until`, `$when` and `to_when` are true unless the value is empty, `false`, `0` or the text `"false"`/`"0"`/`"no"`/`"off"`; any other value (an id, a mode name) is true.
+
 ## 5. Template language
 
 Strings in `base_url`, `headers`, `path`, `query`, `body`, `binary.file_name`,
@@ -179,6 +181,7 @@ Scopes:
 | `main.<path>` | the main request's response, unchanged while `poll` repeats rebind `res` (also set in `also` steps) |
 | `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
 | `now` | the current UTC time (RFC 3339): `{{ now \| epoch \| add:p.duration \| date:'YYYY-MM-DDTHH:mm:ssZ' }}` |
+| `idx` | the element's position inside `$map`/`$entries` (pivot parallel lists: `{{ p.mrr \| get:(idx \| string) }}`) |
 | `uuid` | a new random UUID each time (e.g. a Calendar conference `requestId`) |
 
 Paths walk objects by key and arrays by index; `-1` is the last element
@@ -225,6 +228,12 @@ through, so an unset param stays unset:
 | `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
 | `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
 | `lines` | text → list of its non-empty trimmed lines |
+| `matches:'regex'` | `true` when the text matches, else nil (chain into `then`; SOQL date literals) |
+| `in:'a,b'` | `true` when the value is one of the listed (comma text, list or path), else nil |
+| `unflatten` | dotted keys → nested objects (`{"customFields.x": 1}` → `{"customFields": {"x": 1}}`; TheHive 5) |
+| `flatten` | lists and objects of lists → one flat list (object keys sorted; Rocket.Chat `{update: […], remove: […]}`) |
+| `snake` | lodash snake_case (`"Due Date"`, `"DueDate"` → `due_date`; Notion `property_*` keys) |
+| `values` | object → list of its values, by sorted key (maps keyed by id: Philips Hue lights) |
 | `hex` | hex text → integer (`#ff0000` → 16711680; `#`/`0x` stripped) |
 | `pluck:'path'` | list of objects → list of their values at `path` (empties dropped): `{{ p.options.fields.field \| pluck:'name' \| csv }}` |
 | `zip:headers[,'hkey'[,'vkey']]` | pair a header list with the value list into an object: GA4 `{{ el.dimensionValues \| zip:res.dimensionHeaders,'name','value' }}` |
@@ -260,6 +269,10 @@ through, so an unset param stays unset:
 ] }
 ```
 (`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
+
+**Positional lists (`$list`).** `{"$list": [ … ]}` keeps every element, empty ones included (`""`, `[]`, `{}`, null), for APIs with positional arguments (Odoo `execute_kw`). An empty object as a key's value is kept with `"!key": {}` (Notion `{"!past_week": {}}`).
+
+**Expression heads.** An expression may start with a parenthesised sub-expression: `{{ (p.name | lower) | prefix:'x-' }}`.
 
 **Joined text (`$join`).** `{"$join": [ <template>, … ] | <template/builder giving a list>, "$sep": " AND ", "$prefix": "\"", "$suffix": "\""}` renders the parts, drops empty ones, joins the rest with `$sep` and wraps them in `$prefix`/`$suffix`; nothing left → omitted. Freshservice filters `"name:'Ada' AND department_id:5"`; Grist sort `{"$join": {"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}`.
 
@@ -314,6 +327,8 @@ workflows is the node's normal `on_error`.
 
 `method` may be a template (`"{{ p.sendResume | then:'POST' | default:'GET' }}"`), upper-cased and checked at run time. A `path` that is a single expression yielding an absolute `http(s)://` URL is used unescaped.
 
+WebDAV methods MKCOL, MOVE, COPY, PROPFIND and PROPPATCH are allowed (NextCloud). XML responses decode to JSON: elements by local name (repeats become lists), attributes as `@name`, text as `#text` or the plain string — a PROPFIND reads as `res.multistatus.response`.
+
 ## 7. Credentials and auth injection
 
 ```jsonc
@@ -367,6 +382,12 @@ workflows is the node's normal `on_error`.
 
 **Scope groups (`scope_group`).** A credential on an umbrella connection (`"reuse_platform": "google"` / `"microsoft"`) names the scope group it needs: `"scope_group": "calendar"` (google: sheets, gmail, drive, youtube, calendar, docs, forms, tasks, contacts; microsoft: mail, calendar, files, sites, teams). Before the first request the engine checks the connection grants it and otherwise fails with the exact `monoagentcli connect google --scopes …` command.
 
+`inject.body: {"key": "{{ cred.api_key }}"}` merges credential values (typed: a single expression keeps booleans/numbers) into JSON/form/multipart bodies (Mandrill sends its key in every body).
+
+**HMAC request signature (`inject.hmac`).** `{"header": "api-auth-signature", "secret": "{{ cred.api_key }}", "message": "{{ req.query }}", "alg": "SHA256", "encoding": "base64", "prefix": ""}` — `req.method`, `req.path`, `req.query` (the encoded query string) and `req.body` describe the built request (Unleashed).
+
+**Self-signed certificates.** A connection field `allow_unauthorized_certs` that is true skips TLS verification for that connection's requests (n8n's credential option; self-hosted Venafi, TheHive).
+
 **Signed JWT per request (`inject.jwt`).** For APIs that want a short-lived token you sign (Ghost Admin, Zoom JWT apps, App Store Connect): `"jwt": {"header": "Authorization", "prefix": "Ghost ", "alg": "HS256", "secret": "{{ cred.api_key | split:':' | get:'1' }}", "secret_encoding": "hex", "kid": "{{ cred.api_key | split:':' | get:'0' }}", "claims": {"aud": "/admin/"}, "ttl_s": 300}`. `alg`: HS256/384/512 (secret as `text` (default), `hex` or `base64`), RS256 or ES256 (secret = a PEM private key). `iat` and `exp` (= iat + ttl_s, default 300) are added; header defaults to Authorization with prefix "Bearer ".
 
 `oauth.token_fields: ["organizer_key", "account_key"]` copies those keys of the token response onto the connection at connect and refresh (readable as `cred.organizer_key`; GoTo Webinar).
@@ -418,6 +439,12 @@ workflows is the node's normal `on_error`.
 
 With `"param_in": "body"`, the page param names may be dot paths, nested into the JSON body (GraphQL relay paging): `"cursor_param": "variables.after"`, `"limit_param": "variables.first"`.
 
+`"values": true` (pagination): the results at `results_path` are an object keyed by id (Mautic `{"contacts": {"12": {…}}}`); its values are the page's list (numeric keys in numeric order, else sorted), and offsets advance by their count. The `values` filter uses the same order.
+
+`pagination.when` (template): when false, the op makes one plain request with no page params (Strapi v3 vs v4: `"when": "{{ cred.api_version | eq:'v4' }}"`). `cursor_param`, `offset_param`, `limit_param` and `page_param` may be templates.
+
+`"param_in": "path"` puts the page params into the path template as `page.<param>` instead of the query (`"path": "/SalesOrders/{{ page.pageNumber }}"`). `param_in: "body"` works with json, form and multipart bodies.
+
 ## 9. Output
 
 `"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)
@@ -433,10 +460,12 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
   { "when": "{{ p.updateFields.starValue }}", "method": "PUT", "path": "/contacts/{{ res.id }}/star", "body": { "star_value": "{{ p.updateFields.starValue | int }}" } }
 ]
 ```
-`"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). A step with `"upload": true` sends the op's binary (`binary.upload_field`/`property`) as its raw body with the binary's Content-Type (LinkedIn: register an upload, PUT the bytes to `{{ pre.value.uploadUrl }}`, then create the post). Step keys: `when`, `for_each`, `upload`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
+`"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). A step with `"upload": true` and `"body_type": "multipart"` sends its `body` fields plus the file part (S3-style presigned POST: request a slot with `{{ bin.file_name }}`/`{{ bin.mime_type }}` — `bin` is filled for every step when the op declares `binary.upload_field` — then upload, then create; set `binary.upload_when: "false"` so only the step uploads). A step with `"upload": true` sends the op's binary (`binary.upload_field`/`property`) as its raw body with the binary's Content-Type (LinkedIn: register an upload, PUT the bytes to `{{ pre.value.uploadUrl }}`, then create the post). Step keys: `when`, `for_each`, `upload`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
 
 **Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
 `"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.
+
+**Collecting before steps.** A `before` step with `for_each` runs once per element (`el`, `idx`; with `upload: true` and a list of binary property names, each element is uploaded) and its `pres.<i>`/`pre` entry is the LIST of responses (Twist uploads each attachment, then sends `attachments: {{ pre | json }}`).
 
 **Before request(s) (`before`).** One step — or a list of steps run in order, each seeing the earlier responses (`pres.0`, `pres.1`, …; `pre` = the latest) — sent before the main one (same keys as an `also` step); its decoded response is the `pre` root. Google Sheets append reads the header row, then orders the item by it:
 ```json
@@ -449,6 +478,9 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - In `to`, `match` and `expand` templates `res` is the whole decoded response (the first page for paginated ops), so per-row shaping can read response-level headers.
 - `"schema_rows": "schema.fields"` (a path in the WHOLE response) turns BigQuery rows `{f: [{v}]}` at `output.path` into objects keyed by the schema's field names (RECORD recurses, REPEATED → list, BOOLEAN → bool); `"numbers": "{{ p.options.returnAsNumbers }}"` casts INTEGER/NUMERIC/FLOAT.
 - `"firestore": "{{ p.simple }}"` decodes Firestore documents into n8n's simple shape `{_name, _id, _createTime, _updateTime, …fields}` (use `"each": "found"` / `"document"` first for batchGet / runQuery).
+- `"from": "{{ res | values }}"` (template over `res`) replaces the decoded response before `path`/`split` (npm versions: `"{{ res.time | entries:'version,published_at' }}"`).
+- `"merge": true` folds a list of objects into one object (Hue update: `"each": "success", "merge": true`).
+- `"skip": 1` drops the first n elements (NextCloud lists the folder itself first); `"sort": "time"` orders by a path (numbers numerically, else as text), `"sort_desc": true` descending (npm getVersions).
 - `"limit": true` applies n8n's `returnAll`/`limit` params to a list the API returns whole (client-side slicing; replaces the `__no_next_page__` pagination trick).
 - `expand` with `"expand_merge_key": "transcript", "expand_merge_path": "callTranscripts.0.transcript"` sets that key on the element instead of replacing it.
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
@@ -491,6 +523,8 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 
 `binary.fallback_body_type` (json/form/multipart/raw/none) is the body type when `upload_when` turns the upload off (LINE Notify stays a form without an image).
 
+**Several files.** `binary.properties` (a template giving a list or comma text, e.g. n8n's `"attachments": "data,data2"`) uploads each property: in a multipart body one part per file, with `el = {property, index}` in the `multipart_field` template (`"attachment[{{ el.index }}]"`); for JSON bodies `bin.files` is the list of `{property, file_name, mime_type, file_extension, base64, file_size}` (`{"$map": "{{ bin.files }}", "$to": {"name": "{{ el.file_name }}", "content": "{{ el.base64 }}"}}`).
+
 ## 11. `extends` (apps with a native Go node)
 
 `{"id": "github_more", "extends": "service.github", …}` registers no node
@@ -526,6 +560,8 @@ When a config has no `resource` and the default resource lacks the operation, an
 **Trigger-only apps** (n8n has only a `…Trigger` node, e.g. Eventbrite, Figma): write a package with `"operations": []` and the app's `n8n_trigger_types` (plus its credentials). It registers no action node; it records the triggers for the importer and the trigger work.
 
 `n8n_version_defaults` (package): `{"1": {"apiVersion": "v4"}}` — per n8n node `typeVersion`, defaults the importer fills in for params an exported node omits (n8n doesn't export defaults, and some changed between node versions).
+
+`n8n_resource_param` (package): the n8n param that selects the resource when it isn't `resource` (uProc: `group`).
 
 ## 13. Testing a package
 
@@ -571,7 +607,7 @@ and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
 
-**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
 ```json
 "values.append": {
   "params": { "documentId": "abc", "sheetName": "Main" },
