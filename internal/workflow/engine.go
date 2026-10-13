@@ -95,6 +95,7 @@ func NewWorkflowEngineWithStore(store WorkflowStore, db *sql.DB, scheduler Sched
 		logger,
 	)
 	e.queue.claim = e.claimLocal
+	e.wireWebhookRuns()
 	return e
 }
 
@@ -177,6 +178,7 @@ func NewWorkflowEngine(db *sql.DB, scheduler SchedulerInterface, registry *NodeT
 		logger,
 	)
 	e.queue.claim = e.claimLocal
+	e.wireWebhookRuns()
 
 	return e
 }

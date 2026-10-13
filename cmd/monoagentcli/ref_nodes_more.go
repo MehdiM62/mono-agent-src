@@ -33,11 +33,28 @@ The bind address is loopback by default; set MONOAGENT_WEBHOOK_ADDR (e.g.
   "method":      "POST",            // GET | POST | PUT | PATCH | DELETE
   "hmac_secret": "",                // optional: require a valid HMAC signature
   "auth_header": "X-Token",         // optional: require this header ...
-  "auth_token":  "@secret:hook"     // ... to carry this value
+  "auth_token":  "@secret:hook",    // ... to carry this value
+  "response_mode": "onReceived",    // onReceived | lastNode | responseNode
+  "response_code": 200,             // onReceived: 2xx status of the answer
+  "response_data": "firstEntryJson",// lastNode: firstEntryJson | allEntries | noData
+  "response_timeout": 30,           // lastNode/responseNode: seconds to wait, then 202
+  "dedupe_header": "X-GitHub-Delivery", // optional: a repeated delivery id starts no run
+  "max_body_bytes": 1048576         // optional: raise the 1MB body cap (max 32MB)
 }`,
-		Inputs:  "none",
-		Outputs: "one item with the request body (and request metadata)",
-		Notes:   `The workflow must be activated ("workflow activate <id>") and the daemon running.`,
+		Inputs: "none",
+		Outputs: `one item: body (JSON value, form fields, or text), query, headers (lower-cased,
+credentials left out), method, path, and binary for multipart files
+({file_name, mime_type, file_size, data base64}). The fields of an object body
+are also at the top level ($json.<field>); a body field named query, headers,
+method, path or binary wins there, and body always holds the whole body.`,
+		Notes: `The workflow must be activated ("workflow activate <id>") and the daemon running.
+Accepts JSON (objects, arrays), application/x-www-form-urlencoded,
+multipart/form-data and text/*. Answers {"success":true,"execution_id":"..."}
+(onReceived). A request that starts no run gets a JSON error: 503 (login
+required, queue full), 404 (workflow gone), 409 (workflow inactive). lastNode
+answers with the output of the node that ran last; responseNode with what a
+core.respond_webhook node sends; a failed run answers 500. A duplicate
+delivery answers {"success":true,"duplicate":true,"execution_id":<first run>}.`,
 	},
 	{
 		Type:     "trigger.execute_workflow",
@@ -117,6 +134,24 @@ a human reject. Runs started by an org never auto-decide (they are tier-routed).
 While waiting the run's status is WAITING (exit code 0 from "workflow run").
 Review with "monoagentcli hil list" / "hil approve <id>" / "hil reject <id>",
 the GUI review panel, the MCP hil_* tools, or the HTTP API.`,
+	},
+
+	{
+		Type:     "core.respond_webhook",
+		Category: "core",
+		Short:    "Answer the webhook request that started the run",
+		Description: `For a trigger.webhook with response_mode "responseNode": the first
+core.respond_webhook the run reaches sends the HTTP response, and the caller
+waits for it (up to the trigger's response_timeout). Items pass through
+unchanged. In any other run it only passes items through.`,
+		Config: `{
+  "respond_with": "firstIncomingItem", // firstIncomingItem | allIncomingItems | json | text | noData
+  "response_code": 200,
+  "response_headers": "{\"X-Request-Id\": \"{{ $json.id }}\"}",
+  "response_body": "{\"ok\": true}"   // json: JSON text; text: sent as is
+}`,
+		Inputs:  "any items",
+		Outputs: "the same items",
 	},
 
 	// ── Agents & orgs ─────────────────────────────────────────────────────────
