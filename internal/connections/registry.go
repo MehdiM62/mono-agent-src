@@ -48,11 +48,11 @@ type OAuthConfig struct {
 	// Tailor, when set, returns the config for a connection's data, at
 	// connect and at every refresh: per-tenant auth/token URLs, scopes and
 	// extra params (Zendesk subdomain, Microsoft tenant, Salesforce sandbox).
-	Tailor func(cfg OAuthConfig, data map[string]interface{}) (OAuthConfig, error)
+	Tailor func(cfg OAuthConfig, data map[string]interface{}) (OAuthConfig, error) `json:"-"`
 	// AfterToken runs once a connect flow has a token and may add keys to
 	// the connection's data (Mailchimp: the data centre from its metadata
 	// endpoint).
-	AfterToken func(ctx context.Context, data map[string]interface{}) error
+	AfterToken func(ctx context.Context, data map[string]interface{}) error `json:"-"`
 }
 
 // PlatformDef defines a platform's connection capabilities.
