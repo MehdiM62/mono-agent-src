@@ -3,15 +3,22 @@ package workflow
 import "strings"
 
 // DAG represents the directed acyclic graph of a workflow.
+//
+// The one permitted kind of cycle is a loop: an edge from a loop node's
+// body back into the loop node (LoopNodeType, see dag_loop.go). Such
+// back-edges are kept for routing but left out of the topological order and
+// of the forward in-degree used for merge waiting.
 type DAG struct {
 	nodes       map[string]*WorkflowNode // nodeID → node
 	connections []WorkflowConnection
 	outEdges    map[string][]WorkflowConnection // sourceNodeID → connections
 	inEdges     map[string][]WorkflowConnection // targetNodeID → connections
+	loops       loopIndex
 }
 
 // BuildDAG constructs a DAG from nodes and connections.
-// Returns ErrCycleDetected if the graph has a cycle.
+// Returns ErrCycleDetected if the graph has a cycle other than a loop
+// back-edge into a loop node.
 func BuildDAG(nodes []WorkflowNode, connections []WorkflowConnection) (*DAG, error) {
 	d := &DAG{
 		nodes:       make(map[string]*WorkflowNode, len(nodes)),
@@ -32,6 +39,8 @@ func BuildDAG(nodes []WorkflowNode, connections []WorkflowConnection) (*DAG, err
 		d.inEdges[c.TargetNodeID] = append(d.inEdges[c.TargetNodeID], c)
 	}
 
+	d.loops = buildLoopIndex(d)
+
 	// Eagerly detect cycles at construction time.
 	if _, err := d.TopologicalSort(); err != nil {
 		return nil, err
@@ -42,12 +51,13 @@ func BuildDAG(nodes []WorkflowNode, connections []WorkflowConnection) (*DAG, err
 
 // TopologicalSort returns nodes in execution order using Kahn's BFS algorithm.
 // Trigger nodes (NodeType starts with "trigger.") appear first in the initial queue.
-// Returns ErrCycleDetected if the graph contains a cycle.
+// Loop back-edges are ignored. Returns ErrCycleDetected if the graph
+// contains any other cycle.
 func (d *DAG) TopologicalSort() ([]WorkflowNode, error) {
 	// Step 1: compute in-degree for all nodes.
 	inDegree := make(map[string]int, len(d.nodes))
 	for id := range d.nodes {
-		inDegree[id] = len(d.inEdges[id])
+		inDegree[id] = d.forwardInDegree(id)
 	}
 
 	// Step 2: seed the queue — trigger nodes first, then other zero-in-degree nodes.
@@ -76,6 +86,9 @@ func (d *DAG) TopologicalSort() ([]WorkflowNode, error) {
 		result = append(result, current)
 
 		for _, conn := range d.outEdges[current.ID] {
+			if d.isBackEdge(conn) {
+				continue
+			}
 			inDegree[conn.TargetNodeID]--
 			if inDegree[conn.TargetNodeID] == 0 {
 				next := *d.nodes[conn.TargetNodeID]
