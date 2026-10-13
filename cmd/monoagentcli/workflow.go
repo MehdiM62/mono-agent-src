@@ -828,7 +828,8 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 			"Nothing runs when the template needs node types that are not installed (it names the " +
 			"automation to install) or reads input keys and --input is missing (exit 3). A run whose " +
 			"every step failed exits 1 even though its status is SUCCESS_WITH_ERRORS; a partial " +
-			"success exits 0.",
+			"success exits 0. Without --json it ends with the output of the last nodes that ran " +
+			"(up to 5 items; --json has all).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			tmplFile, ok := workflow.GetTemplate(args[0])
@@ -909,6 +910,9 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 			}
 			if runErr == nil && serr == nil {
 				runErr = nothingSucceeded(summary)
+				if runErr == nil && !cfg.JSONOutput {
+					printRunOutput(os.Stdout, summary, &wf)
+				}
 			}
 			if keep && !cfg.JSONOutput {
 				fmt.Fprintf(os.Stdout, "Kept workflow %s\n", wf.ID)
@@ -942,7 +946,8 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 			"`workflow executions` for the final status. --json prints the execution record with " +
 			"per-node output items once the wait finishes.\n\n" +
 			"A run whose every step failed exits 1 even though its status is SUCCESS_WITH_ERRORS " +
-			"(on_error=continue kept it going); a partial success exits 0.",
+			"(on_error=continue kept it going); a partial success exits 0. Without --json it ends " +
+			"with the output of the last nodes that ran (up to 5 items; --json has all).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workflowID := args[0]
@@ -1015,6 +1020,11 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 			}
 			if waitErr == nil && serr == nil {
 				waitErr = nothingSucceeded(summary)
+				if waitErr == nil && !cfg.JSONOutput {
+					if wf, gerr := engine.GetWorkflow(ctx, workflowID); gerr == nil {
+						printRunOutput(os.Stdout, summary, wf)
+					}
+				}
 			}
 			if waitErr != nil && cfg.JSONOutput {
 				return reportedError{waitErr} // the record above is the one JSON document
