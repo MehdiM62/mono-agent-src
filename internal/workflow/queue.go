@@ -41,6 +41,24 @@ func SlotFromContext(ctx context.Context) (ConcurrencySlot, bool) {
 	return s, ok
 }
 
+// YieldSlotWhile runs fn with the execution's ConcurrencySlot released, so
+// other executions can run while this one only waits (a retry back-off, a
+// core.wait delay), then re-acquires the slot. Without a slot in ctx it just
+// runs fn. fn's error wins; otherwise a failed re-acquire (ctx cancelled while
+// waiting for a free slot) returns ErrExecutionCancelled.
+func YieldSlotWhile(ctx context.Context, fn func() error) error {
+	slot, ok := SlotFromContext(ctx)
+	if !ok {
+		return fn()
+	}
+	slot.Release()
+	err := fn()
+	if aerr := slot.Acquire(ctx); aerr != nil && err == nil {
+		err = ErrExecutionCancelled
+	}
+	return err
+}
+
 // gate bounds the number of executions actively doing work via a token channel.
 type gate struct {
 	tokens chan struct{}
