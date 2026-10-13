@@ -1,4 +1,4 @@
-package main
+package workflowedit
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 // replacing its definition when it has one. This is the desktop editor's
 // save: unlike `import` it never remaps ids or dedupes against earlier
 // imports, because the editor owns the ids it sends.
-func newWorkflowSaveCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSaveCmd() *cobra.Command {
 	var inputFile string
 
 	cmd := &cobra.Command{
@@ -39,24 +39,24 @@ func newWorkflowSaveCmd(cfg *globalConfig) *cobra.Command {
 			}
 			if err != nil {
 				if os.IsNotExist(err) {
-					return errNotFound("read input: %v", err)
+					return d.NotFound("read input: %v", err)
 				}
 				return fmt.Errorf("read input: %w", err)
 			}
 			var doc workflow.Workflow
 			if err := json.Unmarshal(raw, &doc); err != nil {
-				return errInvalidInput("parse workflow document: %v", err)
+				return d.InvalidInput("parse workflow document: %v", err)
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
-			wf, err := saveWorkflowDocument(ctx, store, cfg.ProfileID, doc)
+			wf, err := d.SaveDocument(ctx, store, d.ProfileID(), doc)
 			if err != nil {
 				return err
 			}
@@ -67,11 +67,11 @@ func newWorkflowSaveCmd(cfg *globalConfig) *cobra.Command {
 			_, _ = db.DB.ExecContext(ctx, `INSERT OR IGNORE INTO workflows
 				(id, name, description, is_active, version, profile_id, created_at, updated_at)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-				wf.ID, wf.Name, wf.Description, wf.IsActive, wf.Version, cfg.ProfileID,
+				wf.ID, wf.Name, wf.Description, wf.IsActive, wf.Version, d.ProfileID(),
 				wf.CreatedAt.UTC().Format(time.RFC3339), wf.UpdatedAt.UTC().Format(time.RFC3339))
-			_, _ = db.DB.ExecContext(ctx, `UPDATE workflows SET profile_id = ? WHERE id = ?`, cfg.ProfileID, wf.ID)
+			_, _ = db.DB.ExecContext(ctx, `UPDATE workflows SET profile_id = ? WHERE id = ?`, d.ProfileID(), wf.ID)
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				summary := *wf
 				summary.Nodes, summary.Connections = nil, nil
 				return json.NewEncoder(os.Stdout).Encode(summary)
@@ -85,13 +85,13 @@ func newWorkflowSaveCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-// saveWorkflowDocument persists doc for profileID. An id owned by another
+// SaveDocument persists doc for profileID. An id owned by another
 // profile is reported as not found, like every other profile-scoped lookup.
 // For an existing workflow the stored activation, version and creation time
 // win over the document's: the editor sends none of them, and honouring
 // its zero values deactivated the workflow on every auto-save-before-run.
 // Nodes without a schema get their type's default one.
-func saveWorkflowDocument(ctx context.Context, store *workflow.HybridWorkflowStore, profileID string, doc workflow.Workflow) (*workflow.Workflow, error) {
+func (d Deps) SaveDocument(ctx context.Context, store *workflow.HybridWorkflowStore, profileID string, doc workflow.Workflow) (*workflow.Workflow, error) {
 	wf := &workflow.Workflow{
 		ID:          doc.ID,
 		Name:        doc.Name,
@@ -100,10 +100,10 @@ func saveWorkflowDocument(ctx context.Context, store *workflow.HybridWorkflowSto
 		ProfileID:   profileID,
 	}
 	if doc.ID != "" {
-		existing := ownedWorkflow(ctx, store, store.RawDB(), profileID, doc.ID)
+		existing := d.OwnedWorkflow(ctx, store, store.RawDB(), profileID, doc.ID)
 		if existing == nil {
 			if other, _ := store.GetWorkflow(ctx, doc.ID); other != nil {
-				return nil, errNotFound("workflow %q not found", doc.ID)
+				return nil, d.NotFound("workflow %q not found", doc.ID)
 			}
 		} else {
 			wf.IsActive = existing.IsActive
