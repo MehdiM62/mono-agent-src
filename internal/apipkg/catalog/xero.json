@@ -1,0 +1,590 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "xero",
+  "title": "Xero",
+  "description": "Contacts and invoices in Xero accounting",
+  "category": "app",
+  "docs_url": "https://developer.xero.com/documentation/api/accounting/overview",
+  "n8n_types": [
+    "n8n-nodes-base.xero"
+  ],
+  "base_url": "https://api.xero.com/api.xro/2.0",
+  "credentials": [
+    {
+      "platform": "xero",
+      "name": "Xero",
+      "n8n_credential": "xeroOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth"
+      ],
+      "fields": [],
+      "oauth": {
+        "auth_url": "https://login.xero.com/identity/connect/authorize",
+        "token_url": "https://identity.xero.com/connect/token",
+        "scopes": [
+          "offline_access",
+          "accounting.invoices",
+          "accounting.payments",
+          "accounting.banktransactions",
+          "accounting.manualjournals",
+          "accounting.attachments",
+          "accounting.settings",
+          "accounting.contacts"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "invoice",
+      "label": "Invoice"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "invoice",
+      "operation": "create",
+      "title": "Create an invoice",
+      "method": "POST",
+      "path": "/Invoices",
+      "body": {
+        "Type": "{{ p.type }}",
+        "Contact": {
+          "ContactID": "{{ p.contactId }}"
+        },
+        "LineItems": {
+          "$map": "{{ p.lineItemsUi.lineItemsValues }}",
+          "$to": {
+            "LineItemID": "{{ el.lineItemId }}",
+            "AccountCode": "{{ el.accountCode }}",
+            "Description": "{{ el.description }}",
+            "DiscountRate": "{{ el.discountRate }}",
+            "ItemCode": "{{ el.itemCode }}",
+            "LineAmount": "{{ el.lineAmount }}",
+            "Quantity": "{{ el.quantity | string }}",
+            "TaxAmount": "{{ el.taxAmount }}",
+            "TaxType": "{{ el.taxType }}",
+            "UnitAmount": "{{ el.unitAmount }}"
+          }
+        },
+        "BrandingThemeID": "{{ p.additionalFields.brandingThemeId }}",
+        "CurrencyCode": "{{ p.additionalFields.currency }}",
+        "CurrencyRate": "{{ p.additionalFields.currencyRate }}",
+        "Date": "{{ p.additionalFields.date }}",
+        "DueDate": "{{ p.additionalFields.dueDate }}",
+        "ExpectedPaymentDate": "{{ p.additionalFields.expectedPaymentDate }}",
+        "InvoiceNumber": "{{ p.additionalFields.invoiceNumber }}",
+        "LineAmountTypes": "{{ p.additionalFields.lineAmountType }}",
+        "PlannedPaymentDate": "{{ p.additionalFields.plannedPaymentDate }}",
+        "Reference": "{{ p.additionalFields.reference }}",
+        "SentToContact": "{{ p.additionalFields.sendToContact | then:true }}",
+        "Status": "{{ p.additionalFields.status }}",
+        "Url": "{{ p.additionalFields.url }}"
+      },
+      "output": {
+        "path": "Invoices"
+      },
+      "headers": {
+        "Xero-tenant-id": "{{ p.organizationId }}"
+      },
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization (tenant) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "options": [
+            "ACCPAY",
+            "ACCREC"
+          ]
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lineItemsUi",
+          "label": "Line items",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "lineItemsValues"
+          ],
+          "help": "{\"lineItemsValues\": [{\"description\", \"quantity\", \"unitAmount\", \"itemCode\", \"accountCode\", \"taxType\", \"taxAmount\", \"lineAmount\", \"discountRate\"}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "brandingThemeId",
+            "currency",
+            "currencyRate",
+            "date",
+            "dueDate",
+            "expectedPaymentDate",
+            "invoiceNumber",
+            "lineAmountType",
+            "plannedPaymentDate",
+            "reference",
+            "sendToContact",
+            "status",
+            "url"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "invoice",
+      "operation": "get",
+      "title": "Get an invoice",
+      "method": "GET",
+      "path": "/Invoices/{{ p.invoiceId }}",
+      "output": {
+        "path": "Invoices"
+      },
+      "headers": {
+        "Xero-tenant-id": "{{ p.organizationId }}"
+      },
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization (tenant) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "invoice",
+      "operation": "getAll",
+      "title": "Get many invoices",
+      "method": "GET",
+      "path": "/Invoices",
+      "query": {
+        "statuses": "{{ p.options.statuses | csv }}",
+        "order": "{{ p.options.orderBy | suffix:' ' | suffix:(p.options.sortOrder | default:'DESC') }}",
+        "where": "{{ p.options.where }}",
+        "createdByMyApp": "{{ p.options.createdByMyApp | then:true }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "results_path": "Invoices"
+      },
+      "headers": {
+        "Xero-tenant-id": "{{ p.organizationId }}"
+      },
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization (tenant) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "createdByMyApp",
+            "orderBy",
+            "sortOrder",
+            "statuses",
+            "where"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "invoice",
+      "operation": "update",
+      "title": "Update an invoice",
+      "method": "POST",
+      "path": "/Invoices/{{ p.invoiceId }}",
+      "body": {
+        "Contact": {
+          "ContactID": "{{ p.updateFields.contactId }}"
+        },
+        "LineItems": {
+          "$map": "{{ p.updateFields.lineItemsUi.lineItemsValues }}",
+          "$to": {
+            "LineItemID": "{{ el.lineItemId }}",
+            "AccountCode": "{{ el.accountCode }}",
+            "Description": "{{ el.description }}",
+            "DiscountRate": "{{ el.discountRate }}",
+            "ItemCode": "{{ el.itemCode }}",
+            "LineAmount": "{{ el.lineAmount }}",
+            "Quantity": "{{ el.quantity | string }}",
+            "TaxAmount": "{{ el.taxAmount }}",
+            "TaxType": "{{ el.taxType }}",
+            "UnitAmount": "{{ el.unitAmount }}"
+          }
+        },
+        "BrandingThemeID": "{{ p.updateFields.brandingThemeId }}",
+        "CurrencyCode": "{{ p.updateFields.currency }}",
+        "CurrencyRate": "{{ p.updateFields.currencyRate }}",
+        "Date": "{{ p.updateFields.date }}",
+        "DueDate": "{{ p.updateFields.dueDate }}",
+        "ExpectedPaymentDate": "{{ p.updateFields.expectedPaymentDate }}",
+        "InvoiceNumber": "{{ p.updateFields.invoiceNumber }}",
+        "LineAmountTypes": "{{ p.updateFields.lineAmountType }}",
+        "PlannedPaymentDate": "{{ p.updateFields.plannedPaymentDate }}",
+        "Reference": "{{ p.updateFields.reference }}",
+        "SentToContact": "{{ p.updateFields.sendToContact | then:true }}",
+        "Status": "{{ p.updateFields.status }}",
+        "Url": "{{ p.updateFields.url }}"
+      },
+      "output": {
+        "path": "Invoices"
+      },
+      "headers": {
+        "Xero-tenant-id": "{{ p.organizationId }}"
+      },
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization (tenant) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "invoiceId",
+          "label": "Invoice ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "brandingThemeId",
+            "currency",
+            "currencyRate",
+            "date",
+            "dueDate",
+            "expectedPaymentDate",
+            "invoiceNumber",
+            "lineAmountType",
+            "plannedPaymentDate",
+            "reference",
+            "sendToContact",
+            "status",
+            "url",
+            "contactId",
+            "lineItemsUi"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/Contacts",
+      "body": {
+        "Contacts": [
+          {
+            "Name": "{{ p.name }}",
+            "AccountNumber": "{{ p.additionalFields.accountNumber }}",
+            "BankAccountDetails": "{{ p.additionalFields.bankAccountDetails }}",
+            "ContactNumber": "{{ p.additionalFields.contactNumber }}",
+            "ContactStatus": "{{ p.additionalFields.contactStatus }}",
+            "DefaultCurrency": "{{ p.additionalFields.defaultCurrency }}",
+            "EmailAddress": "{{ p.additionalFields.emailAddress }}",
+            "FirstName": "{{ p.additionalFields.firstName }}",
+            "LastName": "{{ p.additionalFields.lastName }}",
+            "PurchasesDefaultAccountCode": "{{ p.additionalFields.purchasesDefaultAccountCode }}",
+            "SalesDefaultAccountCode": "{{ p.additionalFields.salesDefaultAccountCode }}",
+            "SkypeUserName": "{{ p.additionalFields.skypeUserName }}",
+            "TaxNumber": "{{ p.additionalFields.taxNumber }}",
+            "XeroNetworkKey": "{{ p.additionalFields.xeroNetworkKey }}",
+            "Phones": {
+              "$map": "{{ p.additionalFields.phonesUi.phonesValues }}",
+              "$to": {
+                "PhoneType": "{{ el.phoneType }}",
+                "PhoneNumber": "{{ el.phoneNumber }}",
+                "PhoneAreaCode": "{{ el.phoneAreaCode }}",
+                "PhoneCountryCode": "{{ el.phoneCountryCode }}"
+              }
+            },
+            "Addresses": {
+              "$map": "{{ p.additionalFields.addressesUi.addressesValues }}",
+              "$to": {
+                "AddressType": "{{ el.type }}",
+                "AddressLine1": "{{ el.line1 }}",
+                "AddressLine2": "{{ el.line2 }}",
+                "City": "{{ el.city }}",
+                "Region": "{{ el.region }}",
+                "PostalCode": "{{ el.postalCode }}",
+                "Country": "{{ el.country }}",
+                "AttentionTo": "{{ el.attentionTo }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "Contacts"
+      },
+      "headers": {
+        "Xero-tenant-id": "{{ p.organizationId }}"
+      },
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization (tenant) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountNumber",
+            "addressesUi",
+            "bankAccountDetails",
+            "contactNumber",
+            "contactStatus",
+            "defaultCurrency",
+            "emailAddress",
+            "firstName",
+            "lastName",
+            "phonesUi",
+            "purchasesDefaultAccountCode",
+            "salesDefaultAccountCode",
+            "skypeUserName",
+            "taxNumber",
+            "xeroNetworkKey"
+          ],
+          "help": "addressesUi: {\"addressesValues\": [{\"type\", \"line1\", …}]}; phonesUi: {\"phonesValues\": [{\"phoneType\", \"phoneNumber\", …}]}"
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/Contacts/{{ p.contactId }}",
+      "output": {
+        "path": "Contacts"
+      },
+      "headers": {
+        "Xero-tenant-id": "{{ p.organizationId }}"
+      },
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization (tenant) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/Contacts",
+      "query": {
+        "includeArchived": "{{ p.options.includeArchived | then:true }}",
+        "order": "{{ p.options.orderBy | suffix:' ' | suffix:(p.options.sortOrder | default:'DESC') }}",
+        "where": "{{ p.options.where }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 1,
+        "results_path": "Contacts"
+      },
+      "headers": {
+        "Xero-tenant-id": "{{ p.organizationId }}"
+      },
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization (tenant) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeArchived",
+            "orderBy",
+            "sortOrder",
+            "where"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "POST",
+      "path": "/Contacts/{{ p.contactId }}",
+      "body": {
+        "Contacts": [
+          {
+            "Name": "{{ p.updateFields.name }}",
+            "AccountNumber": "{{ p.updateFields.accountNumber }}",
+            "BankAccountDetails": "{{ p.updateFields.bankAccountDetails }}",
+            "ContactNumber": "{{ p.updateFields.contactNumber }}",
+            "ContactStatus": "{{ p.updateFields.contactStatus }}",
+            "DefaultCurrency": "{{ p.updateFields.defaultCurrency }}",
+            "EmailAddress": "{{ p.updateFields.emailAddress }}",
+            "FirstName": "{{ p.updateFields.firstName }}",
+            "LastName": "{{ p.updateFields.lastName }}",
+            "PurchasesDefaultAccountCode": "{{ p.updateFields.purchasesDefaultAccountCode }}",
+            "SalesDefaultAccountCode": "{{ p.updateFields.salesDefaultAccountCode }}",
+            "SkypeUserName": "{{ p.updateFields.skypeUserName }}",
+            "TaxNumber": "{{ p.updateFields.taxNumber }}",
+            "XeroNetworkKey": "{{ p.updateFields.xeroNetworkKey }}",
+            "Phones": {
+              "$map": "{{ p.updateFields.phonesUi.phonesValues }}",
+              "$to": {
+                "PhoneType": "{{ el.phoneType }}",
+                "PhoneNumber": "{{ el.phoneNumber }}",
+                "PhoneAreaCode": "{{ el.phoneAreaCode }}",
+                "PhoneCountryCode": "{{ el.phoneCountryCode }}"
+              }
+            },
+            "Addresses": {
+              "$map": "{{ p.updateFields.addressesUi.addressesValues }}",
+              "$to": {
+                "AddressType": "{{ el.type }}",
+                "AddressLine1": "{{ el.line1 }}",
+                "AddressLine2": "{{ el.line2 }}",
+                "City": "{{ el.city }}",
+                "Region": "{{ el.region }}",
+                "PostalCode": "{{ el.postalCode }}",
+                "Country": "{{ el.country }}",
+                "AttentionTo": "{{ el.attentionTo }}"
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "path": "Contacts"
+      },
+      "headers": {
+        "Xero-tenant-id": "{{ p.organizationId }}"
+      },
+      "fields": [
+        {
+          "key": "organizationId",
+          "label": "Organization (tenant) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "accountNumber",
+            "addressesUi",
+            "bankAccountDetails",
+            "contactNumber",
+            "contactStatus",
+            "defaultCurrency",
+            "emailAddress",
+            "firstName",
+            "lastName",
+            "phonesUi",
+            "purchasesDefaultAccountCode",
+            "salesDefaultAccountCode",
+            "skypeUserName",
+            "taxNumber",
+            "xeroNetworkKey",
+            "name"
+          ]
+        }
+      ]
+    }
+  ]
+}
