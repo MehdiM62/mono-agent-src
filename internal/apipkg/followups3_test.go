@@ -238,3 +238,43 @@ func TestUnleashedDotnetDates(t *testing.T) {
 		t.Errorf("items = %v", items)
 	}
 }
+
+func TestNocoDBAttachmentDownload(t *testing.T) {
+	p := catalogPkg(t, "noco_db")
+	newMockServer(t, nil, 200,
+		map[string]any{"id": 5.0, "fields": map[string]any{"Docs": `[{"url":"https://f.test/a.pdf","title":"a.pdf","mimetype":"application/pdf"}]`}})
+	items, err := runPackageOp(p, map[string]any{"resource": "row", "operation": "get", "projectId": "p1", "table": "t1", "id": "5",
+		"downloadAttachments": true, "downloadFieldNames": "Docs"}, map[string]any{"host": "https://app.nocodb.com", "api_token": "T"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta, _ := items[0].JSON["binary"].(map[string]any)
+	if len(items) != 1 || string(items[0].Binary["Docs_0"]) != "{}" || meta["Docs_0"].(map[string]any)["fileName"] != "a.pdf" {
+		t.Errorf("items = %+v", items)
+	}
+}
+
+func TestNotionDownloadFiles(t *testing.T) {
+	p := catalogPkg(t, "notion")
+	cases, err := loadCases("notion")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := cases["databasePage.get"]
+	m := newMockServer(t, c.Response, 200)
+	params := map[string]any{"resource": "databasePage", "operation": "get"}
+	for k, v := range c.Params {
+		params[k] = v
+	}
+	items, err := runPackageOp(p, params, c.Credential, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs := m.requests()
+	if len(reqs) != 2 || reqs[1].path != "/x.pdf" || reqs[1].query.Get("X-Amz-Signature") != "s" || reqs[1].header.Get("Authorization") != "" {
+		t.Fatalf("download request: %+v", reqs)
+	}
+	if len(items) != 1 || items[0].Binary["Files & media_0"] == nil || items[0].JSON["property_files_media"] == nil {
+		t.Errorf("items = %+v", items)
+	}
+}

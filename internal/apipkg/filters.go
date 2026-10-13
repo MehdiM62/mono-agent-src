@@ -308,11 +308,19 @@ func applyFilter(name string, v, arg any) (any, error) {
 	case "path":
 		// Escape each segment but keep the slashes of resource names
 		// (spaces/AAA/messages/BBB) in a path template.
-		segs := strings.Split(stringify(v), "/")
+		// path:'query' keeps a "?query" suffix as is (a server-relative
+		// link with its own query, e.g. Confluence's downloadLink).
+		p, query := stringify(v), ""
+		if stringify(arg) == "query" {
+			if i := strings.Index(p, "?"); i >= 0 {
+				p, query = p[:i], p[i:]
+			}
+		}
+		segs := strings.Split(p, "/")
 		for i, sg := range segs {
 			segs[i] = url.PathEscape(sg)
 		}
-		return pathValue(strings.Join(segs, "/")), nil
+		return pathValue(strings.Join(segs, "/") + query), nil
 	case "entries":
 		return toEntries(v, arg)
 	case "sheetgid":

@@ -813,7 +813,7 @@
           "options": [
             "downloadFiles"
           ],
-          "help": "downloadFiles is not supported; file URLs are in the output."
+          "help": "downloadFiles: put each file of the page's file properties on the item (binary <property>_<index>)."
         }
       ],
       "output": {
@@ -827,7 +827,26 @@
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
-        "to_when": "{{ p.simple }}"
+        "to_when": "{{ p.simple }}",
+        "download": {
+          "when": "{{ p.options.downloadFiles }}",
+          "auth": false,
+          "files": {
+            "$map": "{{ el.properties | entries }}",
+            "$to": {
+              "$map": "{{ el.value.type | eq:'files' | then:el.value.files }}",
+              "$to": {
+                "url": "{{ el.file.url | default:el.external.url }}",
+                "property": "{{ up.key }}_{{ idx }}",
+                "name": "{{ el.name }}"
+              }
+            }
+          },
+          "method": "GET",
+          "path": "{{ el.url }}",
+          "property": "{{ el.property }}",
+          "file_name": "{{ el.name }}"
+        }
       }
     },
     {
@@ -1012,7 +1031,26 @@
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
-        "to_when": "{{ p.simple }}"
+        "to_when": "{{ p.simple }}",
+        "download": {
+          "when": "{{ p.options.downloadFiles }}",
+          "auth": false,
+          "files": {
+            "$map": "{{ el.properties | entries }}",
+            "$to": {
+              "$map": "{{ el.value.type | eq:'files' | then:el.value.files }}",
+              "$to": {
+                "url": "{{ el.file.url | default:el.external.url }}",
+                "property": "{{ up.key }}_{{ idx }}",
+                "name": "{{ el.name }}"
+              }
+            }
+          },
+          "method": "GET",
+          "path": "{{ el.url }}",
+          "property": "{{ el.property }}",
+          "file_name": "{{ el.name }}"
+        }
       }
     },
     {
