@@ -79,6 +79,37 @@ func TestWorkflowExecutionDetail(t *testing.T) {
 	}
 }
 
+// A failed run's detail carries the error class of the run and of the
+// failed node, with the node's fix hint.
+func TestWorkflowExecutionDetailErrorClass(t *testing.T) {
+	cfg, db := seedExecutionDB(t)
+	if _, err := db.DB.Exec(`INSERT INTO workflow_executions (id, workflow_id, status, trigger_type, profile_id, error_message, error_class, created_at)
+		VALUES ('e-bad','w1','FAILED','trigger.manual','default','status 429','rate_limited','2026-09-26 10:00:00');
+		INSERT INTO workflow_execution_nodes (id, execution_id, node_id, node_name, status, error_message, error_class, error_hint, started_at)
+		VALUES ('en2','e-bad','n1','Call API','FAILED','status 429','rate_limited','wait and retry','2026-09-26 10:00:01')`); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runWorkflowCmdIn(t, cfg, "", "execution", "e-bad")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d executionDetailJSON
+	if err := json.Unmarshal([]byte(out), &d); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if d.ErrorClass != "rate_limited" || len(d.Nodes) != 1 || d.Nodes[0].ErrorClass != "rate_limited" || d.Nodes[0].ErrorHint != "wait and retry" {
+		t.Fatalf("detail = %+v", d)
+	}
+
+	// A REJECTED run is finished: cancel leaves it alone.
+	if _, err := db.DB.Exec(`UPDATE workflow_executions SET status = 'REJECTED' WHERE id = 'e-bad'`); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := cancelJSON(t, cfg, "e-bad"); err != nil || res.Status != "REJECTED" {
+		t.Fatalf("rejected execution: %+v, %v", res, err)
+	}
+}
+
 // startMonoagentLookalike runs a symlink to sleep whose command line contains
 // "monoagent", so signalWorkflowPID accepts it as one of ours.
 func startMonoagentLookalike(t *testing.T) *exec.Cmd {

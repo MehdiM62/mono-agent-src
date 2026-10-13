@@ -735,7 +735,7 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		e.persistExecutionFinished(log, req.ExecutionID, "CANCELLED", cancelledMessage(ctx, runErr))
 	default:
 		log.Warn().Err(runErr).Str("final_status", "FAILED").Msg("engine: execution finished with error")
-		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", runErr.Error())
+		e.persistExecutionFinished(log, req.ExecutionID, failureStatus(runErr), runErr.Error())
 	}
 }
 
@@ -746,6 +746,7 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 // FAILED. A failed write is logged at error level and retried once.
 func (e *WorkflowEngine) persistExecutionFinished(log zerolog.Logger, executionID, status, errMsg string) {
 	defer e.onExecutionFinished(executionID) // wakes a parent waiting on this sub-workflow run
+	defer e.afterExecutionFinished(log, executionID, status, errMsg)
 	persistCtx := context.WithoutCancel(context.Background())
 	err := e.store.SetExecutionFinished(persistCtx, executionID, status, errMsg)
 	if err == nil {

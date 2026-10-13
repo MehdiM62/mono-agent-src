@@ -21,6 +21,7 @@ import (
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/i18n"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/scheduler"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -171,9 +172,9 @@ func buildEngine(cfg *globalConfig, allowAllProfiles bool) (*workflow.WorkflowEn
 
 	registry := buildNodeRegistry(cfg.Verbose, db.DB)
 
-	logger := zerolog.New(os.Stderr).With().Timestamp().Logger()
-	if !cfg.Verbose {
-		logger = logger.Level(zerolog.WarnLevel)
+	logger := logging.Zerolog()
+	if cfg.Verbose {
+		logger = logger.Level(zerolog.TraceLevel)
 	}
 
 	// Set up browser session provider, bot registry, and config manager
@@ -189,7 +190,7 @@ func buildEngine(cfg *globalConfig, allowAllProfiles bool) (*workflow.WorkflowEn
 	nodes.SetGlobalBotRegistry(&cliBotRegistry{})
 	nodes.SetGlobalCredentialStore(connections.NewStore(db.DB))
 
-	cfgLogger := zerolog.New(os.Stderr).Level(zerolog.WarnLevel)
+	cfgLogger := logging.Zerolog()
 	cfgStore := cfgpkg.ConfigStore(&cfgpkg.DBConfigStore{DB: db})
 	rawCfgMgr := cfgpkg.NewConfigManager(expandPath("~/.monoagent/configs"), cfgStore, cfgLogger)
 	nodes.SetGlobalConfigMgr(&cfgpkg.ConfigManagerAdapter{Mgr: rawCfgMgr})
@@ -787,7 +788,7 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 						fmt.Fprintf(os.Stdout, "Hint:   %s\n", waitingHint)
 					}
 				}
-				// A FAILED or CANCELLED execution must exit 1 even though the
+				// A FAILED, REJECTED or CANCELLED execution must exit 1 even though the
 				// wait itself succeeded. JSON callers still print the full
 				// execution record (with error fields populated) before this
 				// propagates.
@@ -804,6 +805,8 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 						msg = "cancelled"
 					}
 					return fmt.Errorf("execution %s was cancelled: %s", executionID, msg)
+				case workflow.StatusRejected:
+					return fmt.Errorf("execution %s was rejected by a reviewer: %s", executionID, exec.ErrorMessage)
 				}
 				return nil
 			}

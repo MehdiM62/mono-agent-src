@@ -184,6 +184,7 @@ func (h *HybridWorkflowStore) mirrorToSQL(ctx context.Context, w *Workflow) erro
 		w.Name, w.Description, boolToInt(w.IsActive), time.Now().UTC(), w.ID); err != nil {
 		return fmt.Errorf("mirror workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, h.sql.db, w)
 	nodes := append([]WorkflowNode(nil), w.Nodes...)
 	if err := h.sql.SaveWorkflowNodes(ctx, w.ID, nodes); err != nil {
 		return fmt.Errorf("mirror workflow %s nodes: %w", w.ID, err)

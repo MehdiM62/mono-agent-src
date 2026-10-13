@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/logging"
 )
 
 // ToolHandler executes one bridged tool call (protocol §4). The returned
@@ -487,7 +489,11 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 	// them here means every chat/agent turn gets a clean environment
 	// regardless of what launched monoagentcli.
 	cmd.Env = PinEnvIn(append(FilteredEnviron(), envSlice(opts.Env)...), bin, opts.Cwd)
+	// The run this turn belongs to (a workflow execution, an org run) goes
+	// to monomind as MONOAGENT_RUN_ID, so its lines can be joined with ours.
+	cmd.Env = logging.ChildEnv(ctx, cmd.Env)
 	setProcessGroup(cmd)
+	logging.FromContext(ctx).Debug("monomind exec", "runtime", opts.Runtime, "model", opts.Model, "cwd", cwd)
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

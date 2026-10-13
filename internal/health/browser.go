@@ -275,7 +275,7 @@ func bridgeDown(ctx context.Context, env *Env) Result {
 		if d := env.Daemon(ctx); d.Running {
 			if d.BridgeAddr == "" {
 				res.Summary = fmt.Sprintf("not running — the daemon (pid %d) runs without it", d.PID)
-				res.Detail = "it was started with --bridge=false, or its bridge failed to start (see ~/.monoagent/logs/daemon.log); " +
+				res.Detail = "it was started with --bridge=false, or its bridge failed to start (see " + daemonLogHint(ctx, env) + "); " +
 					"restart the daemon without --bridge=false, or run: monoagentcli extension serve"
 			} else {
 				res.Summary = fmt.Sprintf("not answering — the daemon (pid %d) should serve it on %s", d.PID, d.BridgeAddr)
