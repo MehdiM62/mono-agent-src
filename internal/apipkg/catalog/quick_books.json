@@ -27,7 +27,7 @@
           "key": "realm_id",
           "label": "Company ID (realm ID)",
           "required": true,
-          "help": "Shown in QuickBooks under Settings \u2192 Account and settings \u2192 Billing & subscription"
+          "help": "Shown in QuickBooks under Settings → Account and settings → Billing & subscription"
         },
         {
           "key": "environment",

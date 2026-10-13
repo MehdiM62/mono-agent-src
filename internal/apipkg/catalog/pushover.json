@@ -68,7 +68,7 @@
           "label": "Priority",
           "type": "number",
           "default": -2,
-          "help": "-2 lowest \u2026 2 emergency (needs retry and expire)",
+          "help": "-2 lowest … 2 emergency (needs retry and expire)",
           "min": -2,
           "max": 2
         },

@@ -1,0 +1,1251 @@
+{
+  "lead.get": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "leadId": "001"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/lead/001"
+    }
+  },
+  "lead.delete": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "leadId": "001"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/data/v59.0/sobjects/lead/001"
+    }
+  },
+  "lead.getSummary": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/lead"
+    }
+  },
+  "lead.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "returnAll": true,
+      "options": {
+        "fields": [
+          "Id",
+          "Email"
+        ],
+        "conditionsUi": {
+          "conditionValues": [
+            {
+              "field": "Email",
+              "operation": "equal",
+              "value": "o'neil@x.com"
+            },
+            {
+              "field": "NumberOfEmployees",
+              "operation": ">",
+              "value": 10
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT Id,Email FROM Lead WHERE Email = 'o\\'neil@x.com' AND NumberOfEmployees > 10"
+      },
+      "items": 1
+    },
+    "response": {
+      "records": [
+        {
+          "Id": "1"
+        }
+      ]
+    }
+  },
+  "contact.get": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "contactId": "001"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/contact/001"
+    }
+  },
+  "contact.delete": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "contactId": "001"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/data/v59.0/sobjects/contact/001"
+    }
+  },
+  "contact.getSummary": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/contact"
+    }
+  },
+  "contact.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 5
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT id,firstname,lastname,email,LastModifiedDate FROM Contact LIMIT 5"
+      },
+      "items": 1
+    },
+    "response": {
+      "records": [
+        {
+          "Id": "1"
+        }
+      ]
+    }
+  },
+  "opportunity.get": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "opportunityId": "001"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/opportunity/001"
+    }
+  },
+  "opportunity.delete": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "opportunityId": "001"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/data/v59.0/sobjects/opportunity/001"
+    }
+  },
+  "opportunity.getSummary": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/opportunity"
+    }
+  },
+  "opportunity.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 5
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT id,accountId,amount,probability,type,LastModifiedDate FROM Opportunity LIMIT 5"
+      },
+      "items": 1
+    },
+    "response": {
+      "records": [
+        {
+          "Id": "1"
+        }
+      ]
+    }
+  },
+  "account.get": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "accountId": "001"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/account/001"
+    }
+  },
+  "account.delete": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "accountId": "001"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/data/v59.0/sobjects/account/001"
+    }
+  },
+  "account.getSummary": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/account"
+    }
+  },
+  "account.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 5
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT id,name,type,LastModifiedDate FROM Account LIMIT 5"
+      },
+      "items": 1
+    },
+    "response": {
+      "records": [
+        {
+          "Id": "1"
+        }
+      ]
+    }
+  },
+  "case.get": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "caseId": "001"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/case/001"
+    }
+  },
+  "case.delete": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "caseId": "001"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/data/v59.0/sobjects/case/001"
+    }
+  },
+  "case.getSummary": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/case"
+    }
+  },
+  "case.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 5
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT id,accountId,contactId,priority,status,subject,type,LastModifiedDate FROM Case LIMIT 5"
+      },
+      "items": 1
+    },
+    "response": {
+      "records": [
+        {
+          "Id": "1"
+        }
+      ]
+    }
+  },
+  "task.get": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "taskId": "001"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/task/001"
+    }
+  },
+  "task.delete": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "taskId": "001"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/data/v59.0/sobjects/task/001"
+    }
+  },
+  "task.getSummary": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/task"
+    }
+  },
+  "task.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 5
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT id,subject,status,priority,LastModifiedDate FROM Task LIMIT 5"
+      },
+      "items": 1
+    },
+    "response": {
+      "records": [
+        {
+          "Id": "1"
+        }
+      ]
+    }
+  },
+  "attachment.get": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "attachmentId": "001"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/attachment/001"
+    }
+  },
+  "attachment.delete": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "attachmentId": "001"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/data/v59.0/sobjects/attachment/001"
+    }
+  },
+  "attachment.getSummary": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/attachment"
+    }
+  },
+  "attachment.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 5
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT id,name,LastModifiedDate FROM Attachment LIMIT 5"
+      },
+      "items": 1
+    },
+    "response": {
+      "records": [
+        {
+          "Id": "1"
+        }
+      ]
+    }
+  },
+  "lead.addNote": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "leadId": "001",
+      "title": "T",
+      "options": {
+        "body": "B"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/note",
+      "body": {
+        "Title": "T",
+        "ParentId": "001",
+        "Body": "B"
+      }
+    }
+  },
+  "contact.addNote": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "contactId": "001",
+      "title": "T",
+      "options": {
+        "body": "B"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/note",
+      "body": {
+        "Title": "T",
+        "ParentId": "001",
+        "Body": "B"
+      }
+    }
+  },
+  "opportunity.addNote": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "opportunityId": "001",
+      "title": "T",
+      "options": {
+        "body": "B"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/note",
+      "body": {
+        "Title": "T",
+        "ParentId": "001",
+        "Body": "B"
+      }
+    }
+  },
+  "account.addNote": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "accountId": "001",
+      "title": "T",
+      "options": {
+        "body": "B"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/note",
+      "body": {
+        "Title": "T",
+        "ParentId": "001",
+        "Body": "B"
+      }
+    }
+  },
+  "lead.create": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "company": "Acme",
+      "lastname": "Lovelace",
+      "additionalFields": {
+        "email": "a@b.c",
+        "owner": {
+          "__rl": true,
+          "mode": "id",
+          "value": "005"
+        },
+        "customFieldsUi": {
+          "customFieldsValues": [
+            {
+              "fieldId": "Tier__c",
+              "value": "Gold"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/lead",
+      "body": {
+        "Company": "Acme",
+        "LastName": "Lovelace",
+        "Email": "a@b.c",
+        "OwnerId": "005",
+        "Tier__c": "Gold"
+      }
+    }
+  },
+  "lead.upsert": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "externalId": "Ext__c",
+      "externalIdValue": "X1",
+      "company": "Acme",
+      "lastname": "L",
+      "additionalFields": {
+        "customFieldsUi": {
+          "customFieldsValues": [
+            {
+              "fieldId": "Ext__c",
+              "value": "X1"
+            },
+            {
+              "fieldId": "A__c",
+              "value": "1"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/lead/Ext__c/X1",
+      "body": {
+        "Company": "Acme",
+        "LastName": "L",
+        "A__c": "1"
+      }
+    }
+  },
+  "lead.update": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "leadId": "00Q",
+      "updateFields": {
+        "status": "Working",
+        "firstname": "Ada"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/lead/00Q",
+      "body": {
+        "Status": "Working",
+        "FirstName": "Ada"
+      }
+    }
+  },
+  "lead.addToCampaign": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "leadId": "00Q",
+      "campaignId": "701",
+      "options": {
+        "status": "Sent"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/CampaignMember",
+      "body": {
+        "LeadId": "00Q",
+        "CampaignId": "701",
+        "Status": "Sent"
+      }
+    }
+  },
+  "contact.create": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "lastname": "L",
+      "additionalFields": {
+        "acconuntId": "001",
+        "mailingCity": "Paris"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/contact",
+      "body": {
+        "LastName": "L",
+        "AccountId": "001",
+        "MailingCity": "Paris"
+      }
+    }
+  },
+  "contact.upsert": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "externalId": "Ext__c",
+      "externalIdValue": "9",
+      "lastname": "L"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/contact/Ext__c/9",
+      "body": {
+        "LastName": "L"
+      }
+    }
+  },
+  "contact.update": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "contactId": "003",
+      "updateFields": {
+        "lastName": "M"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/contact/003",
+      "body": {
+        "LastName": "M"
+      }
+    }
+  },
+  "contact.addToCampaign": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "contactId": "003",
+      "campaignId": "701"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/CampaignMember",
+      "body": {
+        "ContactId": "003",
+        "CampaignId": "701"
+      }
+    }
+  },
+  "opportunity.create": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "name": "Deal",
+      "closeDate": "2024-06-30",
+      "stageName": "Prospecting",
+      "additionalFields": {
+        "amount": 1000
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/opportunity",
+      "body": {
+        "Name": "Deal",
+        "CloseDate": "2024-06-30",
+        "StageName": "Prospecting",
+        "Amount": 1000
+      }
+    }
+  },
+  "opportunity.upsert": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "externalId": "E__c",
+      "externalIdValue": "1",
+      "name": "D",
+      "closeDate": "2024-06-30",
+      "stageName": "S"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/opportunity/E__c/1",
+      "body": {
+        "Name": "D",
+        "CloseDate": "2024-06-30",
+        "StageName": "S"
+      }
+    }
+  },
+  "opportunity.update": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "opportunityId": "006",
+      "updateFields": {
+        "stageName": "Closed Won"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/opportunity/006",
+      "body": {
+        "StageName": "Closed Won"
+      }
+    }
+  },
+  "account.create": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "name": "Acme",
+      "additionalFields": {
+        "billingCity": "Oslo"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/account",
+      "body": {
+        "Name": "Acme",
+        "BillingCity": "Oslo"
+      }
+    }
+  },
+  "account.upsert": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "externalId": "E__c",
+      "externalIdValue": "1",
+      "name": "Acme"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/account/E__c/1",
+      "body": {
+        "Name": "Acme"
+      }
+    }
+  },
+  "account.update": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "accountId": "001",
+      "updateFields": {
+        "ownerId": "005"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/account/001",
+      "body": {
+        "OwnerId": "005"
+      }
+    }
+  },
+  "case.create": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "type": "Problem",
+      "additionalFields": {
+        "subject": "Broken"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/case",
+      "body": {
+        "Type": "Problem",
+        "Subject": "Broken"
+      }
+    }
+  },
+  "case.update": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "caseId": "500",
+      "updateFields": {
+        "status": "Closed"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/case/500",
+      "body": {
+        "Status": "Closed"
+      }
+    }
+  },
+  "case.addComment": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "caseId": "500",
+      "options": {
+        "commentBody": "hi",
+        "isPublished": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/casecomment",
+      "body": {
+        "ParentId": "500",
+        "CommentBody": "hi",
+        "IsPublished": true
+      }
+    }
+  },
+  "task.create": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "status": "Not Started",
+      "additionalFields": {
+        "subject": "Call",
+        "whoId": "003"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/task",
+      "body": {
+        "Status": "Not Started",
+        "Subject": "Call",
+        "WhoId": "003"
+      }
+    }
+  },
+  "task.update": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "taskId": "00T",
+      "updateFields": {
+        "status": "Completed"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/task/00T",
+      "body": {
+        "Status": "Completed"
+      }
+    }
+  },
+  "attachment.create": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "name": "a.txt",
+      "parentId": "001",
+      "binaryPropertyName": "data"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/attachment",
+      "body": {
+        "Name": "a.txt",
+        "ParentId": "001",
+        "Body": "aGk=",
+        "ContentType": "application/octet-stream"
+      }
+    },
+    "input": {
+      "data": "aGk="
+    }
+  },
+  "attachment.update": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "attachmentId": "00P",
+      "updateFields": {
+        "name": "b.txt"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/attachment/00P",
+      "body": {
+        "Name": "b.txt"
+      }
+    }
+  },
+  "customObject.create": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "customObject": "Inv__c",
+      "customFieldsUi": {
+        "customFieldsValues": [
+          {
+            "fieldId": "Amt__c",
+            "value": 5
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/Inv__c",
+      "body": {
+        "Amt__c": 5
+      }
+    }
+  },
+  "customObject.upsert": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "customObject": "Inv__c",
+      "externalId": "Ext__c",
+      "externalIdValue": "7",
+      "customFieldsUi": {
+        "customFieldsValues": [
+          {
+            "fieldId": "Amt__c",
+            "value": 5
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/Inv__c/Ext__c/7",
+      "body": {
+        "Amt__c": 5
+      }
+    }
+  },
+  "customObject.update": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "customObject": "Inv__c",
+      "recordId": "a01",
+      "customFieldsUi": {
+        "customFieldsValues": [
+          {
+            "fieldId": "Amt__c",
+            "value": 6
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/services/data/v59.0/sobjects/Inv__c/a01",
+      "body": {
+        "Amt__c": 6
+      }
+    }
+  },
+  "customObject.get": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "customObject": "Inv__c",
+      "recordId": "a01"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/Inv__c/a01"
+    }
+  },
+  "customObject.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "customObject": "Inv__c",
+      "limit": 3
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT id,LastModifiedDate FROM Inv__c LIMIT 3"
+      }
+    },
+    "response": {
+      "records": []
+    }
+  },
+  "customObject.delete": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "customObject": "Inv__c",
+      "recordId": "a01"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/data/v59.0/sobjects/Inv__c/a01"
+    }
+  },
+  "document.upload": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "title": "Report",
+      "binaryPropertyName": "data",
+      "additionalFields": {
+        "fileExtension": "pdf"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/sobjects/ContentVersion",
+      "body": {
+        "entity_content": "{\"ContentLocation\":\"S\",\"PathOnClient\":\"Report.pdf\",\"Title\":\"Report\"}",
+        "VersionData": "file:Report.pdf:hi"
+      }
+    },
+    "input": {
+      "data": "aGk="
+    }
+  },
+  "flow.invoke": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "apiName": "My_Flow",
+      "variablesUi": {
+        "variablesValues": [
+          {
+            "name": "x",
+            "value": "1"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/data/v59.0/actions/custom/flow/My_Flow",
+      "body": {
+        "inputs": [
+          {
+            "x": "1"
+          }
+        ]
+      }
+    }
+  },
+  "flow.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/actions/custom/flow",
+      "items": 1
+    },
+    "response": {
+      "actions": [
+        {
+          "name": "a"
+        },
+        {
+          "name": "b"
+        }
+      ]
+    }
+  },
+  "search.query": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "query": "SELECT Id FROM Account"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT Id FROM Account"
+      },
+      "items": 1
+    },
+    "response": {
+      "records": [
+        {
+          "Id": "1"
+        }
+      ]
+    }
+  },
+  "user.get": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "userId": "005"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/sobjects/user/005"
+    }
+  },
+  "user.getAll": {
+    "credential": {
+      "instance_url": "https://acme.my.salesforce.com",
+      "access_token": "tok"
+    },
+    "params": {
+      "limit": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/data/v59.0/query",
+      "query": {
+        "q": "SELECT id,name,email,LastModifiedDate FROM User LIMIT 2"
+      }
+    },
+    "response": {
+      "records": []
+    }
+  }
+}

@@ -3,7 +3,7 @@
   "id": "s3",
   "node_type": "app.s3",
   "title": "S3",
-  "description": "Buckets, folders and files on any S3-compatible storage (MinIO, Wasabi, R2, \u2026)",
+  "description": "Buckets, folders and files on any S3-compatible storage (MinIO, Wasabi, R2, …)",
   "category": "app",
   "docs_url": "https://docs.aws.amazon.com/AmazonS3/latest/API/",
   "n8n_types": [
@@ -31,7 +31,7 @@
           "key": "endpoint",
           "label": "Endpoint",
           "required": true,
-          "help": "https://\u2026 of the S3 service; buckets are addressed path-style"
+          "help": "https://… of the S3 service; buckets are addressed path-style"
         },
         {
           "key": "region",
