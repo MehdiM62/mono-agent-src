@@ -1,4 +1,4 @@
-package main
+package ref
 
 import (
 	"strings"
@@ -8,7 +8,8 @@ import (
 // `ref tasks` says how an agent reaches the board over MCP, and how a session-start hook shows
 // the ready work (spec 9 items 1 and 6, 15.2).
 func TestRefTasksDescribesTheTaskToolsAndTheHook(t *testing.T) {
-	text := strings.Join(strings.Fields(refTasksText), " ")
+	t.Parallel()
+	text := strings.Join(strings.Fields(TasksText), " ")
 	for _, want := range []string{
 		"FROM MCP", "task_list", "task_next", "task_claim", "task_add", "--allow-mutations", "_untrusted",
 		"agent:<client>#<4 hex digits>", "No tool approves, edits, moves or archives a task", "MONOAGENT_MCP_TASKS_ONLY",

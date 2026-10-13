@@ -1,8 +1,9 @@
-package main
+package ref
 
 import (
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -85,4 +86,13 @@ NO TEMPLATE FITS?
 `)
 		},
 	}
+}
+
+// inputKeyList is a template's input keys for the table, or "(none)" (the CLI's
+// inputKeyList of `workflow templates`).
+func inputKeyList(inputs []string) string {
+	if len(inputs) == 0 {
+		return "(none)"
+	}
+	return strings.Join(inputs, ",")
 }
