@@ -385,10 +385,11 @@ func (e *WorkflowEngine) adoptQueuedExecutions(ctx context.Context) {
 			continue // another engine won the CAS
 		}
 		req := ExecutionRequest{
-			WorkflowID:  exec.WorkflowID,
-			ExecutionID: id,
-			TriggerType: exec.TriggerType,
-			TriggerData: exec.TriggerData,
+			WorkflowID:    exec.WorkflowID,
+			ExecutionID:   id,
+			TriggerType:   exec.TriggerType,
+			TriggerNodeID: exec.TriggerNodeID,
+			TriggerData:   exec.TriggerData,
 		}
 		if err := e.queue.Enqueue(req); err != nil {
 			e.logger.Warn().Err(err).Str("execution_id", id).Msg("engine: adopted execution could not be enqueued")
@@ -430,10 +431,11 @@ func (e *WorkflowEngine) ResumeExecution(executionID string) error {
 		return nil // another engine won the resume, or it's no longer WAITING
 	}
 	req := ExecutionRequest{
-		WorkflowID:  exec.WorkflowID,
-		ExecutionID: executionID,
-		TriggerType: exec.TriggerType,
-		TriggerData: exec.TriggerData,
+		WorkflowID:    exec.WorkflowID,
+		ExecutionID:   executionID,
+		TriggerType:   exec.TriggerType,
+		TriggerNodeID: exec.TriggerNodeID,
+		TriggerData:   exec.TriggerData,
 	}
 	if err := e.queue.Enqueue(req); err != nil {
 		// Transient (queue full / closing): revert to WAITING preserving the
@@ -594,12 +596,13 @@ func (e *WorkflowEngine) handleTrigger(workflowID string, nodeID string, items [
 	}
 
 	exec := &WorkflowExecution{
-		WorkflowID:  workflowID,
-		ProfileID:   executionProfileID(wf, e.profileID),
-		Status:      "QUEUED",
-		TriggerType: triggerType,
-		TriggerData: triggerData,
-		PID:         ownerPID(),
+		WorkflowID:    workflowID,
+		ProfileID:     executionProfileID(wf, e.profileID),
+		Status:        "QUEUED",
+		TriggerType:   triggerType,
+		TriggerNodeID: nodeID,
+		TriggerData:   triggerData,
+		PID:           ownerPID(),
 	}
 
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
@@ -696,9 +699,12 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", "could not load execution record")
 		return
 	}
-	// TriggerNodeID isn't persisted; carry it from the request so RunExecution
-	// only fires the branch of the trigger node that actually fired.
-	exec.TriggerNodeID = req.TriggerNodeID
+	// The row carries the trigger node that fired (RunExecution fires only
+	// its branch); a request naming one wins for rows written before the
+	// column existed.
+	if req.TriggerNodeID != "" {
+		exec.TriggerNodeID = req.TriggerNodeID
+	}
 
 	// 4. Execute via runExecution (defined in execution.go).
 	runErr := e.runExecution(ctx, exec, wf, dag)
@@ -1163,8 +1169,10 @@ func (e *WorkflowEngine) RetryExecution(ctx context.Context, executionID string)
 		ProfileID:   executionProfileID(wf, e.profileID),
 		Status:      "QUEUED",
 		TriggerType: orig.TriggerType,
-		TriggerData: data,
-		PID:         ownerPID(),
+		// The retry replays the same trigger, so it fires the same branch.
+		TriggerNodeID: orig.TriggerNodeID,
+		TriggerData:   data,
+		PID:           ownerPID(),
 	}
 
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
@@ -1172,10 +1180,11 @@ func (e *WorkflowEngine) RetryExecution(ctx context.Context, executionID string)
 	}
 
 	req := ExecutionRequest{
-		WorkflowID:  orig.WorkflowID,
-		ExecutionID: exec.ID,
-		TriggerType: orig.TriggerType,
-		TriggerData: data,
+		WorkflowID:    orig.WorkflowID,
+		ExecutionID:   exec.ID,
+		TriggerType:   orig.TriggerType,
+		TriggerNodeID: orig.TriggerNodeID,
+		TriggerData:   data,
 	}
 
 	if err := e.queue.Enqueue(req); err != nil {
