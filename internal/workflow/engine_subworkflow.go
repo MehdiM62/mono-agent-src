@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -302,4 +303,52 @@ func (e *WorkflowEngine) cancelSubWorkflowChildren(parentID string, cause error)
 		e.logger.Info().Str("execution_id", id).Str("parent_execution_id", parentID).Msg("engine: cancelling sub-workflow child with its parent")
 		e.cancelExecution(id, cause)
 	}
+}
+
+// WaitingOnSubWorkflows reports whether executionID is WAITING for its
+// sub-workflow children: a node that started children it waits on has not
+// completed, and no human review is pending. Such a run needs only a live
+// engine (this one runs the children it started, and resumes the parent).
+func (e *WorkflowEngine) WaitingOnSubWorkflows(ctx context.Context, executionID string) (bool, error) {
+	db := e.store.RawDB()
+	if db == nil {
+		return false, nil
+	}
+	exec, err := e.store.GetExecution(ctx, executionID)
+	if err != nil {
+		return false, fmt.Errorf("sub-workflow wait: %w", err)
+	}
+	if exec == nil || exec.Status != "WAITING" {
+		return false, nil
+	}
+	var reviews int
+	if err := db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM hil_pending WHERE execution_id = ? AND status = 'pending'`, executionID).Scan(&reviews); err != nil {
+		return false, fmt.Errorf("sub-workflow wait: %w", err)
+	}
+	if reviews > 0 {
+		return false, nil
+	}
+	var state executionResumeState
+	if exec.ResumeState != "" {
+		if err := json.Unmarshal([]byte(exec.ResumeState), &state); err != nil {
+			return false, nil
+		}
+	}
+	rows, err := db.QueryContext(ctx,
+		`SELECT DISTINCT parent_node_id FROM subworkflow_runs WHERE parent_execution_id = ? AND wait = 1`, executionID)
+	if err != nil {
+		return false, fmt.Errorf("sub-workflow wait: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var nodeID string
+		if err := rows.Scan(&nodeID); err != nil {
+			return false, fmt.Errorf("sub-workflow wait: %w", err)
+		}
+		if !state.CompletedNodes[nodeID] {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
