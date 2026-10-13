@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/i18n"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/monomind"
 )
 
@@ -84,6 +85,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if args == nil {
 		args = []string{} // cobra reads os.Args for a nil slice
 	}
+	// The root logger, before anything can log (see internal/logging).
+	logging.Init(args, os.Getenv, os.Stderr)
 
 	// Locale must be resolved before newRootCmd() builds the command tree,
 	// since cobra Short/Long/Example strings are evaluated once at
@@ -199,6 +202,7 @@ func wantsJSONError(args []string) bool {
 var globalValueFlags = map[string]bool{
 	"--log-file": true, "--db-path": true, "--output-dir": true,
 	"--config-dir": true, "--workers": true, "--profile": true, "--lang": true,
+	"--log-level": true,
 }
 
 // valueFlagName reports whether arg is one of those flags, and returns its

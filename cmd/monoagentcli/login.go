@@ -13,6 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/automation"
 	"github.com/monoes/mono-agent/internal/bot"
 	"github.com/monoes/mono-agent/internal/chromecookies"
+	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/olekukonko/tablewriter/tw"
 	"github.com/rs/zerolog"
@@ -32,7 +33,7 @@ import (
 // newExtensionBridgeLogger builds the same warn-level stderr logger used by
 // `node run`/`workflow run` when talking to the Chrome extension bridge.
 func newExtensionBridgeLogger() zerolog.Logger {
-	return zerolog.New(os.Stderr).With().Timestamp().Str("component", "extension").Logger().Level(zerolog.WarnLevel)
+	return logging.Zerolog().With().Str("component", "extension").Logger()
 }
 
 // loginTabStatePath returns the path to the small state file recording the

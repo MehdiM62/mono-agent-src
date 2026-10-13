@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/extension"
+	"github.com/monoes/mono-agent/internal/logging"
 )
 
 // The long-lived bridge.
@@ -324,7 +325,7 @@ func browserName(b extension.ConnInfo) string {
 // sentences. The server's warn-level events (a rejected handshake, a
 // fallback port) still reach stderr, where they matter.
 func newBridgeServeLogger() zerolog.Logger {
-	return zerolog.New(os.Stderr).With().Timestamp().Str("component", "extension").Logger().Level(zerolog.WarnLevel)
+	return logging.Zerolog().With().Str("component", "extension").Logger()
 }
 
 // bridgeStatusReport is `extension status --json`. Running is separate from

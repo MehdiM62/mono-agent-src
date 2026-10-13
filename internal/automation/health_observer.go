@@ -3,7 +3,7 @@ package automation
 import (
 	"database/sql"
 	"errors"
-	"log"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -204,7 +204,7 @@ func (r *HealthRecorder) loop() {
 		}
 		err := writeHealthBatch(r.db, batch, r.now())
 		if err != nil {
-			log.Printf("automation: selector health: write batch: %v", err)
+			slog.Warn("automation: selector health: write batch", "err", err)
 		}
 		r.promote(batch)
 		r.maybePrune()
@@ -269,7 +269,7 @@ func (r *HealthRecorder) promote(batch map[healthKey]*healthDelta) {
 			continue
 		}
 		if err := r.opts.Promoter.PromoteCandidate(k.id, k.key, *d.promote); err != nil {
-			log.Printf("automation: selector health: promote %s/%s: %v", k.id, k.key, err)
+			slog.Warn("automation: selector health: promote", "automation", k.id, "key", k.key, "err", err)
 		}
 	}
 }
