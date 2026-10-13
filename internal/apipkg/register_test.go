@@ -45,7 +45,8 @@ func TestRegisterAndNodeSchema(t *testing.T) {
 	if byKey["credential_id"][0]["type"] != "credential_picker" || byKey["resource"][0]["default"] != "task" {
 		t.Errorf("selectors: %v %v", byKey["credential_id"], byKey["resource"])
 	}
-	if len(byKey["operation"]) != 5 || byKey["operation"][0]["default"] != "create" {
+	todoist, _ := ByID("todoist")
+	if len(byKey["operation"]) != len(todoist.Resources) || byKey["operation"][0]["default"] != "create" {
 		t.Errorf("one operation select per resource: %v", byKey["operation"])
 	}
 	content := byKey["content"][0]

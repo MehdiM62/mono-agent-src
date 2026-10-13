@@ -3,6 +3,7 @@ package apipkg
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -213,6 +215,9 @@ func itemParams(engine *workflow.ExpressionEngine, config map[string]any, held [
 // the first resource and its first operation (n8n leaves defaults unsaved).
 func (p *Package) resolveOp(params map[string]any) (*Operation, error) {
 	res, _ := params["resource"].(string)
+	if res == "" && p.N8nResourceParam != "" {
+		res, _ = params[p.N8nResourceParam].(string)
+	}
 	if res == "" {
 		res = p.DefaultResource()
 	}
@@ -281,6 +286,35 @@ func checkRequired(pkg *Package, op *Operation, params map[string]any) error {
 // execute sends the request (all pages) and turns the response into items.
 func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	for i, st := range r.op.Before {
+		if st.ForEach != "" {
+			lv, err := renderString(st.ForEach, r.scope)
+			if err != nil {
+				return nil, r.errf("before[%d].for_each: %w", i, err)
+			}
+			list, _ := lv.([]any)
+			collected := make([]any, 0, len(list))
+			for j, el := range list {
+				sc := r.scope
+				sc.El, sc.Idx = el, j
+				step := *r
+				step.scope = sc
+				if s, ok := el.(string); ok && st.Upload {
+					step.prop = s // one upload per binary property (Twist)
+				}
+				resp, err := step.sendStep(ctx, st, sc)
+				if err != nil {
+					return nil, fmt.Errorf("before[%d] element %d: %w", i, j, err)
+				}
+				var v any
+				if resp != nil && len(strings.TrimSpace(string(resp.body))) > 0 {
+					v = decodeBody(resp.body)
+				}
+				collected = append(collected, v)
+			}
+			r.scope.Pres = append(r.scope.Pres, collected)
+			r.scope.Pre = collected
+			continue
+		}
 		resp, err := r.sendStep(ctx, st, r.scope)
 		if err != nil {
 			return nil, fmt.Errorf("before[%d]: %w", i, err)
@@ -395,7 +429,7 @@ func (r *opRun) send(ctx context.Context, pp pageParams) (*response, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := httpClient.Do(b.req)
+	resp, err := r.client().Do(b.req)
 	if err != nil {
 		return nil, r.errf("%s %s: %w", b.req.Method, b.req.URL.Redacted(), err)
 	}
@@ -423,6 +457,11 @@ func errorBodyEcho(b []byte) string {
 // downloadItem stores a file response on the item's binary data.
 func (r *opRun) downloadItem(resp *response) workflow.Item {
 	prop := "data"
+	if t := r.op.Binary.Property; t != "" {
+		if s, err := renderText(t, r.scope); err == nil && s != "" {
+			prop = s
+		}
+	}
 	if f := r.op.Binary.PropertyField; f != "" {
 		if s := stringify(r.params[f]); s != "" {
 			prop = s
@@ -938,3 +977,27 @@ func (r *opRun) pagingOn() bool {
 	v, err := renderString(w, r.scope)
 	return err == nil && truthy(v)
 }
+
+// client is the HTTP client for this run: a connection whose
+// allow_unauthorized_certs field is true (self-hosted Venafi, TheHive with
+// self-signed certificates) skips TLS verification, as n8n's credential
+// option does.
+func (r *opRun) client() *http.Client {
+	if !truthy(r.scope.Cred["allow_unauthorized_certs"]) {
+		return httpClient
+	}
+	insecureOnce.Do(func() {
+		t := http.DefaultTransport.(*http.Transport).Clone()
+		t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // user opted in per connection
+		insecureClient = &http.Client{Timeout: httpClient.Timeout, Transport: t}
+	})
+	if httpClient.Transport != nil && httpClient.Transport != http.DefaultTransport {
+		return httpClient // tests reroute traffic through their own transport
+	}
+	return insecureClient
+}
+
+var (
+	insecureOnce   sync.Once
+	insecureClient *http.Client
+)

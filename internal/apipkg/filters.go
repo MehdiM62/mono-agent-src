@@ -26,7 +26,7 @@ var knownFilters = map[string]bool{
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
-	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true, "snake": true, "matches": true, "in": true, "flatten": true,
+	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true, "snake": true, "matches": true, "in": true, "flatten": true, "unflatten": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -158,6 +158,16 @@ func applyFilter(name string, v, arg any) (any, error) {
 			}
 		}
 		return nil, nil
+	case "unflatten":
+		m, ok := v.(map[string]any)
+		if !ok {
+			return v, nil
+		}
+		out := map[string]any{}
+		for _, k := range sortedKeys(m) {
+			setPath(out, k, m[k])
+		}
+		return out, nil
 	case "flatten":
 		var out []any
 		var add func(x any)
