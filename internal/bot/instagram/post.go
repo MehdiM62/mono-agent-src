@@ -353,7 +353,6 @@ func (b *InstagramBot) LikeComments(ctx context.Context, p browser.PageInterface
 	rows := waitComments(ctx, p)
 	if author != "" && !hasAuthor(rows, author) {
 		loadMoreComments(ctx, p, 3)
-		rows, _ = readComments(p)
 	}
 	state := "marked"
 	switch {
@@ -463,7 +462,6 @@ func (b *InstagramBot) ReplyToComment(ctx context.Context, p browser.PageInterfa
 	rows := waitComments(ctx, p)
 	if author != "" && !hasAuthor(rows, author) {
 		loadMoreComments(ctx, p, 3)
-		rows, _ = readComments(p)
 	}
 	rm := newMark()
 	var target struct {
