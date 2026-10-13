@@ -261,6 +261,8 @@ through, so an unset param stays unset:
 ```
 (`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
 
+**Joined text (`$join`).** `{"$join": [ <template>, … ] | <template/builder giving a list>, "$sep": " AND ", "$prefix": "\"", "$suffix": "\""}` renders the parts, drops empty ones, joins the rest with `$sep` and wraps them in `$prefix`/`$suffix`; nothing left → omitted. Freshservice filters `"name:'Ada' AND department_id:5"`; Grist sort `{"$join": {"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}`.
+
 **JSON text of a built value (`$json`).** `{"$json": { … }}` renders the inner template (with `$concat`, `$map`, …) and returns it as a JSON string (Confluence ADF bodies).
 
 **Objects with built keys (`$entries`).** `{"$entries": "{{ p.filters.date }}", "$key": "date[{{ el.operation }}]", "$value": "{{ el.value | epoch }}"}` → `{"date[after]": 1704067200}`; empty keys/values are skipped (works inside `query`, `body` and `$merge`).
@@ -413,6 +415,8 @@ workflows is the node's normal `on_error`.
 - Paginated results are always split into one item per element.
 
 `next_url_prefix` (template) is prepended to a next URL that starts with `/` when its base is not the request host (Confluence v2: `"next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl }}"`).
+
+With `"param_in": "body"`, the page param names may be dot paths, nested into the JSON body (GraphQL relay paging): `"cursor_param": "variables.after"`, `"limit_param": "variables.first"`.
 
 ## 9. Output
 

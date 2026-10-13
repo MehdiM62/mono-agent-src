@@ -125,17 +125,19 @@ func TestExtendSchemaMergesIntoNative(t *testing.T) {
 }
 
 func TestExtensionSchemaThroughWorkflowProvider(t *testing.T) {
+	// service.huggingface: n8n has no such node, so no catalog package
+	// extends it and the installed fake is the only extender.
 	installPkg(t, map[string]string{"ghx": strings.Replace(
-		strings.Replace(fakeExt, `"id":"fakeext"`, `"id":"ghx"`, 1), "service.fakenative", "service.github", 1)})
-	native, ok := workflow.ReadEmbeddedSchema("service.github")
+		strings.Replace(fakeExt, `"id":"fakeext"`, `"id":"ghx"`, 1), "service.fakenative", "service.huggingface", 1)})
+	native, ok := workflow.ReadEmbeddedSchema("service.huggingface")
 	if !ok || !strings.Contains(string(native), `"extended_by":["ghx"]`) || !strings.Contains(string(native), `"gistId"`) {
-		t.Fatalf("service.github schema not extended: %s", native)
+		t.Fatalf("service.huggingface schema not extended: %s", native)
 	}
-	s, err := workflow.LoadDefaultSchema("service.github")
+	s, err := workflow.LoadDefaultSchema("service.huggingface")
 	if err != nil || s.Fields[0].Key == "gistId" {
 		t.Errorf("native fields must stay first: %v", err)
 	}
-	if b, ok := SchemaFor("service.github"); !ok || strings.Count(string(b), `"gistId"`) != 1 {
+	if b, ok := SchemaFor("service.huggingface"); !ok || strings.Count(string(b), `"gistId"`) != 1 {
 		t.Errorf("SchemaFor merges once: %s", b)
 	}
 }

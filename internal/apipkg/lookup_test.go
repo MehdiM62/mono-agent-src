@@ -746,3 +746,48 @@ func TestBracketQueryStyle(t *testing.T) {
 		t.Errorf("query = %v", q)
 	}
 }
+
+func TestJoinBuilder(t *testing.T) {
+	sc := Scope{P: map[string]any{"name": "Ada", "dep": 5.0, "none": "",
+		"sort": []any{map[string]any{"field": "a", "direction": "desc"}, map[string]any{"field": "b"}}}}
+	join := map[string]any{"$join": []any{"{{ p.name | prefix:\"name:'\" | suffix:\"'\" }}", "{{ p.none | prefix:'x:' }}", "{{ p.dep | prefix:'department_id:' }}"},
+		"$sep": " AND ", "$prefix": "\"", "$suffix": "\""}
+	if got, err := renderValue(join, sc); err != nil || got != `"name:'Ada' AND department_id:5"` {
+		t.Errorf("join = %#v, %v", got, err)
+	}
+	empty := map[string]any{"$join": []any{"{{ p.none }}"}, "$sep": ",", "$prefix": "\""}
+	if got, _ := renderValue(empty, sc); got != nil {
+		t.Errorf("empty join = %#v", got)
+	}
+	grist := map[string]any{"$join": map[string]any{"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}
+	if got, _ := renderValue(grist, sc); got != "-a,b" {
+		t.Errorf("grist = %#v", got)
+	}
+}
+
+func TestGraphQLBodyPagination(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"issues","title":"I","method":"POST","path":"/graphql",
+	  "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	  "body":{"query":"query($first:Int,$after:String){issues(first:$first,after:$after){nodes{id} pageInfo{hasNextPage endCursor}}}","variables":{"x":1}},
+	  "pagination":{"type":"cursor","param_in":"body","cursor_param":"variables.after","limit_param":"variables.first","page_size":2,
+	    "cursor_path":"data.issues.pageInfo.endCursor","has_more_path":"data.issues.pageInfo.hasNextPage","results_path":"data.issues.nodes"}}`))
+	var bodies []map[string]any
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		var b map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&b)
+		bodies = append(bodies, b)
+		if n == 1 {
+			w.Write([]byte(`{"data":{"issues":{"nodes":[{"id":1},{"id":2}],"pageInfo":{"hasNextPage":true,"endCursor":"c1"}}}}`))
+			return
+		}
+		w.Write([]byte(`{"data":{"issues":{"nodes":[{"id":3}],"pageInfo":{"hasNextPage":false}}}}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "issues", "returnAll": true}, cred, nil)
+	if err != nil || len(items) != 3 {
+		t.Fatalf("items %v %v", items, err)
+	}
+	v2 := bodies[1]["variables"].(map[string]any)
+	if v2["after"] != "c1" || v2["first"] != 2.0 || v2["x"] != 1.0 || bodies[1]["after"] != nil {
+		t.Errorf("second page body = %v", bodies[1])
+	}
+}
