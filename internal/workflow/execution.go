@@ -352,7 +352,7 @@ func RunExecution(
 		if len(inputItems) > 0 {
 			currentItemJSON = inputItems[0].JSON
 		}
-		exprCtx := buildExpressionContext(currentItemJSON, nodeOutputs, wf.ID, exec.ID)
+		exprCtx := buildExpressionContext(currentItemJSON, nodeOutputs, wf, exec)
 
 		// Resolve config templates — but hold back any fields the node
 		// declares via PerItemConfigResolver (e.g. a filter condition, or
@@ -749,12 +749,13 @@ func computeDelay(attempt int, p RetryPolicy) time.Duration {
 }
 
 // buildExpressionContext constructs an ExpressionContext from the current
-// item's JSON map and the accumulated nodeOutputs map.
+// item's JSON map and the accumulated nodeOutputs map. $trigger is the
+// execution's trigger data and $vars the workflow's settings.variables map.
 func buildExpressionContext(
 	currentJSON map[string]interface{},
 	nodeOutputs map[string][]Item,
-	workflowID string,
-	executionID string,
+	wf *Workflow,
+	exec *WorkflowExecution,
 ) ExpressionContext {
 	if currentJSON == nil {
 		currentJSON = make(map[string]interface{})
@@ -764,12 +765,15 @@ func buildExpressionContext(
 	for k, v := range nodeOutputs {
 		nodeCopy[k] = v
 	}
+	vars, _ := wf.Settings["variables"].(map[string]interface{})
 	return ExpressionContext{
 		JSON:        currentJSON,
 		Node:        nodeCopy,
-		WorkflowID:  workflowID,
-		ExecutionID: executionID,
+		WorkflowID:  wf.ID,
+		ExecutionID: exec.ID,
 		Env:         nil, // populated from ctx.Env; OS env only merged when MONOAGENT_ALLOW_ENV_TEMPLATES=1
+		Trigger:     exec.TriggerData,
+		Vars:        vars,
 	}
 }
 

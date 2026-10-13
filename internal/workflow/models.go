@@ -83,8 +83,9 @@ type Workflow struct {
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 	// Populated by LoadWorkflow — not stored directly
-	Nodes       []WorkflowNode       `json:"nodes,omitempty"`
-	Connections []WorkflowConnection `json:"connections,omitempty"`
+	Nodes       []WorkflowNode         `json:"nodes,omitempty"`
+	Connections []WorkflowConnection   `json:"connections,omitempty"`
+	Settings    map[string]interface{} `json:"settings,omitempty"`
 }
 
 // WorkflowNode is one node in the workflow graph.
@@ -271,6 +272,14 @@ type ExpressionContext struct {
 	WorkflowID  string
 	ExecutionID string
 	Env         map[string]string // env var access
+
+	// Optional — callers may leave these unset.
+	Trigger  map[string]interface{} // $trigger: the execution's trigger data
+	Vars     map[string]interface{} // $vars: workflow variables (never secrets)
+	RunIndex int                    // $runIndex: loop iteration, 0 outside a loop
+	PrevNode string                 // $prevNode: name of the node that fed this one
+
+	base *exprBase // cached derived data; see Prepared
 }
 
 // ValidateConnectionsAgainstNodes checks that every connection's source and
