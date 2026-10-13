@@ -254,3 +254,14 @@ func TestOutputToOnSingleObject(t *testing.T) {
 		t.Errorf("single object to: %v %v", items, err)
 	}
 }
+
+func TestHarnessSkippedBeforeStep(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"send","title":"S","method":"POST","path":"/send",
+	  "fields":[{"key":"senderName","label":"N","type":"text"}],
+	  "before":[{"when":"{{ p.senderName }}","method":"GET","path":"/profile"}],"body":{"x":1}}`))
+	var c opCase
+	_ = json.Unmarshal([]byte(`{"expect":{"method":"POST","path":"/v1/send","body":{"x":1}}}`), &c)
+	checkCase(t, p, &p.Operations[0], c) // before skipped: one request
+	c.Params = map[string]any{"senderName": "Ada"}
+	checkCase(t, p, &p.Operations[0], c) // before ran: main is request #1
+}

@@ -207,11 +207,7 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 			check(fmt.Sprintf("%s · request %d", where, i), reqs[i], e)
 		}
 	} else {
-		main := len(op.Before) // the main request follows the before steps
-		if main >= len(reqs) {
-			t.Fatalf("%s: the main request (#%d) never reached the server", where, main)
-		}
-		check(where, reqs[main], c.Expect)
+		check(where, reqs[mainRequest(reqs, op, c.Expect)], c.Expect)
 	}
 	if e := c.Expect; e.Items != nil && len(items) != *e.Items {
 		t.Errorf("%s: items: got %d, want %d", where, len(items), *e.Items)
@@ -387,4 +383,20 @@ func sortedCaseKeys(m map[string]opCase) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// mainRequest picks the request expect describes: the first one with the
+// expected method and path (before steps may be skipped by their when),
+// else the one right after the before steps (clipped to the last), so a
+// mismatch is reported against the likeliest candidate.
+func mainRequest(reqs []captured, op *Operation, e expectReq) int {
+	for i, r := range reqs {
+		if r.path == e.Path && (e.Method == "" || r.method == e.Method) {
+			return i
+		}
+	}
+	if i := len(op.Before); i < len(reqs) {
+		return i
+	}
+	return len(reqs) - 1
 }
