@@ -1,0 +1,101 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_dynamics_crm",
+  "node_type": "app.microsoft_dynamics_crm",
+  "title": "Microsoft Dynamics CRM",
+  "description": "Accounts in Microsoft Dynamics 365 (Dataverse Web API)",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/overview",
+  "n8n_types": ["n8n-nodes-base.microsoftDynamicsCrm"],
+  "base_url": "https://{{ cred.subdomain }}.{{ cred.region | default:'crm.dynamics.com' }}/api/data/v9.2",
+  "headers": { "Prefer": "return=representation" },
+  "credentials": [
+    {
+      "platform": "microsoft_dynamics",
+      "name": "Microsoft Dynamics 365 (Entra app)",
+      "n8n_credential": "microsoftDynamicsOAuth2Api",
+      "n8n_field_map": { "subdomain": "subdomain", "region": "region", "clientId": "client_id", "clientSecret": "client_secret" },
+      "methods": ["client_credentials"],
+      "fields": [
+        { "key": "subdomain", "label": "Organization subdomain", "required": true, "help": "The part before the region in your org URL, e.g. contoso in contoso.crm.dynamics.com." },
+        { "key": "region", "label": "Region host", "help": "e.g. crm.dynamics.com (North America, the default), crm4.dynamics.com (EMEA), crm5.dynamics.com (APAC)." },
+        { "key": "tenant_id", "label": "Tenant ID", "required": true, "help": "Directory (tenant) GUID or verified domain of the Entra app." },
+        { "key": "client_id", "label": "Application (client) ID", "required": true, "help": "An Entra app registered as an application user in the Dynamics environment." },
+        { "key": "client_secret", "label": "Client secret", "secret": true, "required": true }
+      ],
+      "oauth": {
+        "token_url": "https://login.microsoftonline.com/{{ cred.tenant_id }}/oauth2/v2.0/token",
+        "extra_params": { "scope": "https://{{ cred.subdomain }}.{{ cred.region | default:'crm.dynamics.com' }}/.default" }
+      },
+      "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } }
+    }
+  ],
+  "resources": [ { "value": "account", "label": "Account" } ],
+  "operations": [
+    {
+      "resource": "account", "operation": "create", "title": "Create an account",
+      "method": "POST", "path": "/accounts",
+      "fields": [
+        { "key": "name", "label": "Name", "type": "text", "required": true },
+        { "key": "additionalFields", "label": "Additional fields", "type": "collection", "default": {},
+          "options": ["accountcategorycode", "accountratingcode", "addresses", "businesstypecode", "customersizecode", "customertypecode", "description", "emailaddress1", "emailaddress2", "emailaddress3", "fax", "ftpsiteurl", "industrycode", "creditlimit", "numberofemployees", "paymenttermscode", "preferredappointmentdaycode", "preferredappointmenttimecode", "preferredcontactmethodcode", "primarysatoriid", "primarytwitterid", "revenue", "sharesoutstanding", "shippingmethodcode", "sic", "stageid", "stockexchange", "telephone1", "telephone2", "telephone3", "territorycode", "tickersymbol", "websiteurl", "yominame"],
+          "help": "Dataverse account column names. addresses: {address: [{addresstypecode, line1, line2, line3, city, stateorprovince, country, name, postalcode, primarycontactname, telephone1, telephone2, fax}]} — the first entry becomes address1_*, the second address2_*." },
+        { "key": "options", "label": "Options", "type": "collection", "default": {}, "options": ["returnFields"], "help": "returnFields: columns to return (accountid is always added)." }
+      ],
+      "query": { "$select": "{{ p.options.returnFields | csv | suffix:',accountid' | default:'accountid' }}" },
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": [
+          "{{ p.additionalFields | omit:'addresses' }}",
+          { "$entries": "{{ p.additionalFields.addresses.address.0 | entries }}", "$key": "address1_{{ el.key }}", "$value": "{{ el.value }}" },
+          { "$entries": "{{ p.additionalFields.addresses.address.1 | entries }}", "$key": "address2_{{ el.key }}", "$value": "{{ el.value }}" }
+        ]
+      }
+    },
+    {
+      "resource": "account", "operation": "delete", "title": "Delete an account",
+      "method": "DELETE", "path": "/accounts({{ p.accountId }})",
+      "fields": [ { "key": "accountId", "label": "Account ID", "type": "text", "required": true } ]
+    },
+    {
+      "resource": "account", "operation": "get", "title": "Get an account",
+      "method": "GET", "path": "/accounts({{ p.accountId }})",
+      "fields": [
+        { "key": "accountId", "label": "Account ID", "type": "text", "required": true },
+        { "key": "options", "label": "Options", "type": "collection", "default": {}, "options": ["returnFields", "expandFields"], "help": "returnFields: columns to return; expandFields: lookup columns to expand." }
+      ],
+      "query": { "$select": "{{ p.options.returnFields | csv }}", "$expand": "{{ p.options.expandFields | csv }}" }
+    },
+    {
+      "resource": "account", "operation": "getAll", "title": "Get many accounts",
+      "method": "GET", "path": "/accounts",
+      "fields": [
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50, "min": 1 },
+        { "key": "options", "label": "Options", "type": "collection", "default": {}, "options": ["returnFields", "expandFields"], "help": "returnFields: columns to return; expandFields: lookup columns to expand." },
+        { "key": "filters", "label": "Filters", "type": "collection", "default": {}, "options": ["query"], "help": "query: an OData $filter expression, e.g. revenue gt 100000." }
+      ],
+      "query": { "$select": "{{ p.options.returnFields | csv }}", "$expand": "{{ p.options.expandFields | csv }}", "$filter": "{{ p.filters.query }}" },
+      "pagination": { "type": "next_url", "next_url_path": "@odata.nextLink", "results_path": "value", "limit_param": "$top", "page_size": 100 }
+    },
+    {
+      "resource": "account", "operation": "update", "title": "Update an account",
+      "method": "PATCH", "path": "/accounts({{ p.accountId }})",
+      "fields": [
+        { "key": "accountId", "label": "Account ID", "type": "text", "required": true },
+        { "key": "updateFields", "label": "Update fields", "type": "collection", "default": {},
+          "options": ["accountcategorycode", "accountratingcode", "addresses", "businesstypecode", "customersizecode", "customertypecode", "description", "emailaddress1", "emailaddress2", "emailaddress3", "fax", "ftpsiteurl", "industrycode", "name", "creditlimit", "numberofemployees", "paymenttermscode", "preferredappointmentdaycode", "preferredappointmenttimecode", "preferredcontactmethodcode", "primarysatoriid", "primarytwitterid", "revenue", "sharesoutstanding", "shippingmethodcode", "sic", "stageid", "stockexchange", "telephone1", "telephone2", "telephone3", "territorycode", "tickersymbol", "websiteurl", "yominame"],
+          "help": "Same columns as create; addresses map to address1_*/address2_*." },
+        { "key": "options", "label": "Options", "type": "collection", "default": {}, "options": ["returnFields"], "help": "returnFields: columns to return (accountid is always added)." }
+      ],
+      "query": { "$select": "{{ p.options.returnFields | csv | suffix:',accountid' | default:'accountid' }}" },
+      "body": {
+        "$merge": [
+          "{{ p.updateFields | omit:'addresses' }}",
+          { "$entries": "{{ p.updateFields.addresses.address.0 | entries }}", "$key": "address1_{{ el.key }}", "$value": "{{ el.value }}" },
+          { "$entries": "{{ p.updateFields.addresses.address.1 | entries }}", "$key": "address2_{{ el.key }}", "$value": "{{ el.value }}" }
+        ]
+      }
+    }
+  ]
+}

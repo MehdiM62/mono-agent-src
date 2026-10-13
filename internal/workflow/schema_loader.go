@@ -31,6 +31,10 @@ type NodeSchemaField struct {
 	ItemType  string                `json:"item_type,omitempty"`
 	Resource  *ResourcePickerConfig `json:"resource,omitempty"`
 	DependsOn *FieldDependency      `json:"depends_on,omitempty"`
+	// VisibleFor, when set, shows the field only for configs matching one
+	// entry exactly (every key's value equal), e.g. an API package field
+	// shown for {resource: message, operation: reply}.
+	VisibleFor []map[string]string `json:"visible_for,omitempty"`
 }
 
 // ResourcePickerConfig configures a resource_picker field.

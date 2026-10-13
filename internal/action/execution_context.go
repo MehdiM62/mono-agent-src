@@ -27,6 +27,14 @@ type ExecutionContext struct {
 	// Gemini shape). The node layer emits records as separate items.
 	ListOutput bool
 	loopDepth  int
+	// targetPos is 1 + the index, in the run's target list, of the target
+	// being processed; 0 outside a target iteration (see beginTarget).
+	targetPos int
+	// completedTargets are the targets whose iteration ran to its end.
+	completedTargets []int
+	// extractedTargets[i] is the target ExtractedItems[i] was produced for,
+	// -1 when none.
+	extractedTargets []int
 }
 
 // NewExecutionContext returns an initialised execution context.
@@ -100,10 +108,14 @@ func (ec *ExecutionContext) GetData(key string) (interface{}, bool) {
 	return v, ok
 }
 
-// AddFailedItem appends a failure record.
+// AddFailedItem appends a failure record. A failure inside a target
+// iteration is attributed to that target (Index, Target).
 func (ec *ExecutionContext) AddFailedItem(item FailedItem) {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
+	if ec.targetPos > 0 {
+		item.Index, item.Target = ec.targetPos-1, true
+	}
 	ec.FailedItems = append(ec.FailedItems, item)
 }
 
@@ -121,6 +133,7 @@ func (ec *ExecutionContext) AddExtractedItem(item map[string]interface{}) {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 	ec.ExtractedItems = append(ec.ExtractedItems, item)
+	ec.extractedTargets = append(ec.extractedTargets, ec.targetPos-1)
 }
 
 // AddRecord appends an item that is one record of a list result (see
@@ -129,6 +142,7 @@ func (ec *ExecutionContext) AddRecord(item map[string]interface{}) {
 	ec.mu.Lock()
 	defer ec.mu.Unlock()
 	ec.ExtractedItems = append(ec.ExtractedItems, item)
+	ec.extractedTargets = append(ec.extractedTargets, ec.targetPos-1)
 	ec.ListOutput = true
 }
 

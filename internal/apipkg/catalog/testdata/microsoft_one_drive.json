@@ -1,0 +1,74 @@
+{
+  "file.upload": {
+    "params": { "parentId": "root", "fileName": "notes.txt", "fileContent": "hello" },
+    "response": { "id": "f1" },
+    "expect": { "method": "PUT", "path": "/v1.0/me/drive/items/root:/notes.txt:/content", "body": "hello", "items": 1 }
+  },
+  "file.copy": {
+    "params": { "fileId": "f1", "additionalFields": { "name": "copy.txt" }, "parentReference": { "id": "d2" } },
+    "response_status": 202,
+    "expect": { "method": "POST", "path": "/v1.0/me/drive/items/f1/copy", "body": { "parentReference": { "id": "d2" }, "name": "copy.txt" }, "items": 1 }
+  },
+  "file.delete": {
+    "params": { "fileId": "f1", "resourceTarget": "drive", "driveTarget": { "__rl": true, "mode": "id", "value": "b!abc" } },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/drives/b!abc/items/f1" }
+  },
+  "file.download": {
+    "params": { "fileId": "f1" },
+    "responses": [ { "name": "a.txt", "file": { "mimeType": "text/plain" } }, { "x": 1 } ],
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/items/f1/content" }
+  },
+  "file.get": {
+    "params": { "fileId": "f1", "userTarget": "jane@contoso.com" },
+    "expect": { "method": "GET", "path": "/v1.0/users/jane@contoso.com/drive/items/f1" }
+  },
+  "file.move": {
+    "params": { "fileId": "f1", "destinationFolderId": "d2" },
+    "expect": { "method": "PATCH", "path": "/v1.0/me/drive/items/f1", "body": { "parentReference": { "id": "d2" } } }
+  },
+  "file.rename": {
+    "params": { "itemId": "f1", "newName": "b.txt" },
+    "expect": { "method": "PATCH", "path": "/v1.0/me/drive/items/f1", "body": { "name": "b.txt" } }
+  },
+  "file.search": {
+    "params": { "query": "budget" },
+    "response": { "value": [ { "id": "f1", "file": {} } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/root/search(q='budget')", "items": 1 }
+  },
+  "file.share": {
+    "params": { "fileId": "f1", "type": "view", "scope": "anonymous" },
+    "expect": { "method": "POST", "path": "/v1.0/me/drive/items/f1/createLink", "body": { "type": "view", "scope": "anonymous" } }
+  },
+  "folder.getChildren": {
+    "params": { "folderId": "root" },
+    "response": { "value": [ { "id": "a" }, { "id": "b" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/items/root/children", "items": 2 }
+  },
+  "folder.create": {
+    "params": { "name": "reports/2026/q1" },
+    "expect": { "method": "POST", "path": "/v1.0/me/drive/items/root:/reports/2026:/children", "body": { "name": "q1", "folder": {} } }
+  },
+  "folder.delete": {
+    "params": { "folderId": "d1" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/me/drive/items/d1" }
+  },
+  "folder.move": {
+    "params": { "folderId": "d1", "destinationFolderId": "root", "additionalFields": { "name": "Archive" } },
+    "expect": { "method": "PATCH", "path": "/v1.0/me/drive/items/d1", "body": { "parentReference": { "id": "root" }, "name": "Archive" } }
+  },
+  "folder.rename": {
+    "params": { "itemId": "d1", "newName": "Old" },
+    "expect": { "method": "PATCH", "path": "/v1.0/me/drive/items/d1", "body": { "name": "Old" } }
+  },
+  "folder.search": {
+    "params": { "query": "it's" },
+    "response": { "value": [] },
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/root/search(q='it%27%27s')", "items": 0 }
+  },
+  "folder.share": {
+    "params": { "folderId": "d1", "type": "edit", "scope": "organization" },
+    "expect": { "method": "POST", "path": "/v1.0/me/drive/items/d1/createLink", "body": { "type": "edit", "scope": "organization" } }
+  }
+}

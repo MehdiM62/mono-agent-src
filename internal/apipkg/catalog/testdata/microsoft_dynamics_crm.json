@@ -1,0 +1,35 @@
+{
+  "account.create": {
+    "params": {
+      "name": "Contoso",
+      "additionalFields": { "revenue": 1000, "addresses": { "address": [ { "city": "Oslo", "line1": "" }, { "city": "Bergen" } ] } }
+    },
+    "credential": { "subdomain": "contoso", "region": "crm4.dynamics.com", "tenant_id": "t", "client_id": "c", "client_secret": "s", "access_token": "tok" },
+    "response": { "accountid": "a1" },
+    "expect": {
+      "method": "POST", "path": "/api/data/v9.2/accounts",
+      "query": { "$select": "accountid" },
+      "headers": { "Prefer": "return=representation" },
+      "body": { "name": "Contoso", "revenue": 1000, "address1_city": "Oslo", "address2_city": "Bergen" },
+      "items": 1
+    }
+  },
+  "account.delete": {
+    "params": { "accountId": "00000000-0000-0000-0000-000000000001" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/api/data/v9.2/accounts(00000000-0000-0000-0000-000000000001)" }
+  },
+  "account.get": {
+    "params": { "accountId": "a1", "options": { "returnFields": ["name", "revenue"], "expandFields": ["primarycontactid"] } },
+    "expect": { "method": "GET", "path": "/api/data/v9.2/accounts(a1)", "query": { "$select": "name,revenue", "$expand": "primarycontactid" } }
+  },
+  "account.getAll": {
+    "params": { "limit": 3, "filters": { "query": "revenue gt 10" } },
+    "response": { "value": [ { "accountid": "a1" } ] },
+    "expect": { "method": "GET", "path": "/api/data/v9.2/accounts", "query": { "$filter": "revenue gt 10", "$top": "3" }, "items": 1 }
+  },
+  "account.update": {
+    "params": { "accountId": "a1", "updateFields": { "name": "Contoso Ltd" }, "options": { "returnFields": ["name"] } },
+    "expect": { "method": "PATCH", "path": "/api/data/v9.2/accounts(a1)", "query": { "$select": "name,accountid" }, "body": { "name": "Contoso Ltd" } }
+  }
+}

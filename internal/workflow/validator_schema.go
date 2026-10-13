@@ -17,6 +17,7 @@ const (
 	IssueDanglingNodeRef      = "dangling_node_ref"
 	IssueBadExpression        = "bad_expression"
 	IssueUnknownUpstreamField = "unknown_upstream_field"
+	IssueNeedsSetup           = "needs_setup"
 )
 
 // ValidationIssue is one finding of ValidateWorkflow.
@@ -194,50 +195,97 @@ func isExpression(v interface{}) bool {
 	return ok && strings.Contains(s, "{{")
 }
 
-// effectiveValue is a field's config value, else its schema default.
-func effectiveValue(n WorkflowNode, f *NodeSchemaField) (interface{}, bool) {
-	if v, ok := n.Config[f.Key]; ok && !isEmptyValue(v) {
-		return v, true
+// controlValue is the effective value of a controlling key: its config
+// value, else the default of a field with that key that applies (one with
+// a condition before an unconditional one: a resource-scoped operation
+// select over the native one), else "". known is false when the value is
+// an expression.
+func controlValue(n WorkflowNode, s *NodeSchema, key string, depth int) (val string, known bool) {
+	if v, ok := n.Config[key]; ok && !isEmptyValue(v) {
+		if isExpression(v) {
+			return "", false
+		}
+		return fmt.Sprint(v), true
 	}
-	if f != nil && f.Default != nil {
-		return f.Default, true
+	if depth > 3 {
+		return "", true
 	}
-	return nil, false
+	fallback := ""
+	for i := range s.Fields {
+		f := &s.Fields[i]
+		if f.Key != key || f.Default == nil {
+			continue
+		}
+		if f.DependsOn == nil && len(f.VisibleFor) == 0 {
+			if fallback == "" {
+				fallback = fmt.Sprint(f.Default)
+			}
+			continue
+		}
+		if holds, ok := conditionsHold(n, s, f, depth+1); holds && ok {
+			return fmt.Sprint(f.Default), true
+		}
+	}
+	return fallback, true
 }
 
 // dependencyHolds reports whether a field's depends_on condition is met;
 // known is false when the controlling value is an expression.
-func dependencyHolds(n WorkflowNode, s *NodeSchema, dep *FieldDependency) (holds, known bool) {
+func dependencyHolds(n WorkflowNode, s *NodeSchema, dep *FieldDependency, depth int) (holds, known bool) {
 	if dep == nil || dep.Key == "" {
 		return true, true
 	}
-	var ctrl *NodeSchemaField
-	for i := range s.Fields {
-		if s.Fields[i].Key == dep.Key {
-			ctrl = &s.Fields[i]
-		}
-	}
-	var v interface{}
-	var ok bool
-	if ctrl != nil {
-		v, ok = effectiveValue(n, ctrl)
-	} else {
-		v, ok = n.Config[dep.Key]
-		ok = ok && !isEmptyValue(v)
-	}
+	sv, ok := controlValue(n, s, dep.Key, depth)
 	if !ok {
-		return false, true
-	}
-	if isExpression(v) {
 		return false, false
 	}
-	sv := fmt.Sprint(v)
 	for _, want := range dep.Values {
 		if strings.EqualFold(sv, want) {
 			return true, true
 		}
 	}
 	return false, true
+}
+
+// visibleForHolds reports whether a field's visible_for matches: empty, or
+// one entry whose every key has exactly that effective value.
+func visibleForHolds(n WorkflowNode, s *NodeSchema, vf []map[string]string, depth int) (holds, known bool) {
+	if len(vf) == 0 {
+		return true, true
+	}
+	known = true
+	for _, entry := range vf {
+		match := true
+		for k, want := range entry {
+			sv, ok := controlValue(n, s, k, depth)
+			if !ok {
+				known, match = false, false
+				break
+			}
+			if sv != want {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true, true
+		}
+	}
+	return false, known
+}
+
+func conditionsHold(n WorkflowNode, s *NodeSchema, f *NodeSchemaField, depth int) (holds, known bool) {
+	if holds, known := dependencyHolds(n, s, f.DependsOn, depth); !holds || !known {
+		return holds, known
+	}
+	return visibleForHolds(n, s, f.VisibleFor, depth)
+}
+
+// fieldApplies reports whether f is shown for n's config: its depends_on
+// and visible_for both hold. known is false when a controlling value is
+// an expression; callers then raise no issue for f.
+func fieldApplies(n WorkflowNode, s *NodeSchema, f *NodeSchemaField) (applies, known bool) {
+	return conditionsHold(n, s, f, 0)
 }
 
 func fieldIssues(n WorkflowNode, s *NodeSchema) []ValidationIssue {
@@ -249,43 +297,31 @@ func fieldIssues(n WorkflowNode, s *NodeSchema) []ValidationIssue {
 			known[f.Resource.ParamField] = true
 		}
 	}
+	reported := map[string]bool{}
 	for i := range s.Fields {
 		f := &s.Fields[i]
 		v, present := n.Config[f.Key]
-		if f.Required && (!present || isEmptyValue(v)) && f.Default == nil {
-			if holds, ok := dependencyHolds(n, s, f.DependsOn); holds && ok {
+		if f.Required && (!present || isEmptyValue(v)) && f.Default == nil && !reported[f.Key] {
+			if applies, ok := fieldApplies(n, s, f); applies && ok {
+				reported[f.Key] = true
 				is := ValidationIssue{
 					NodeID: n.ID, Field: f.Key, Code: IssueMissingRequired, Severity: "error",
 					Message: fmt.Sprintf("required field %q is missing", f.Key),
 					Hint:    fmt.Sprintf("set config.%s (see `monoagentcli node schema %s`)", f.Key, n.Type),
 				}
 				// An account is bound per machine: a shared workflow or a
-				// template leaves it for the user to pick.
-				if f.Type == "credential_picker" {
+				// template leaves it for the user to pick at install/setup.
+				if isCredentialField(f) {
+					is.Code = IssueNeedsSetup
 					is.Severity = "warning"
+					is.Message = fmt.Sprintf("needs setup: no account chosen for %q", f.Key)
 					is.Hint = fmt.Sprintf("pick a connected account for config.%s before running (`monoagentcli connect for-node %s`)", f.Key, n.Type)
 				}
 				out = append(out, is)
 			}
 		}
-		if f.Type == "select" && len(f.Options) > 0 && present && !isEmptyValue(v) && !isExpression(v) {
-			sv := fmt.Sprint(v)
-			found := false
-			for _, o := range f.Options {
-				if strings.EqualFold(sv, o) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				out = append(out, ValidationIssue{
-					NodeID: n.ID, Field: f.Key, Code: IssueInvalidOption, Severity: "error",
-					Message: fmt.Sprintf("field %q: %q is not one of its options", f.Key, sv),
-					Hint:    "use one of: " + strings.Join(f.Options, ", "),
-				})
-			}
-		}
 	}
+	out = append(out, optionIssues(n, s)...)
 	keys := make([]string, 0, len(n.Config))
 	for k := range n.Config {
 		keys = append(keys, k)
@@ -441,6 +477,75 @@ func expressionIssues(nodeID, field, s string, names map[string]bool) []Validati
 				Message: fmt.Sprintf("expression references node %q, which is not in this workflow", ref),
 				Hint:    "reference a node by its name (or id) exactly as it appears in the workflow",
 			})
+		}
+	}
+	return out
+}
+
+// isCredentialField reports whether f picks the account a node runs as.
+func isCredentialField(f *NodeSchemaField) bool {
+	return f.Type == "credential_picker" || f.Key == "credential_id" || f.Key == "credential"
+}
+
+// optionIssues checks select values. A schema may declare one field per key
+// for each value of a controlling field (n8n-style resource/operation
+// lists), so a value is checked only against the fields that apply
+// (depends_on and visible_for hold), and it is valid when any of them offers it; one issue per key.
+func optionIssues(n WorkflowNode, s *NodeSchema) []ValidationIssue {
+	type check struct {
+		options []string
+		ok      bool
+	}
+	byKey := map[string]*check{}
+	var order []string
+	for i := range s.Fields {
+		f := &s.Fields[i]
+		if f.Type != "select" || len(f.Options) == 0 {
+			continue
+		}
+		v, present := n.Config[f.Key]
+		if !present || isEmptyValue(v) || isExpression(v) {
+			continue
+		}
+		if applies, known := fieldApplies(n, s, f); !applies || !known {
+			continue
+		}
+		c := byKey[f.Key]
+		if c == nil {
+			c = &check{}
+			byKey[f.Key] = c
+			order = append(order, f.Key)
+		}
+		sv := fmt.Sprint(v)
+		for _, o := range f.Options {
+			if strings.EqualFold(sv, o) {
+				c.ok = true
+			}
+		}
+		c.options = append(c.options, f.Options...)
+	}
+	var out []ValidationIssue
+	for _, k := range order {
+		c := byKey[k]
+		if c.ok {
+			continue
+		}
+		out = append(out, ValidationIssue{
+			NodeID: n.ID, Field: k, Code: IssueInvalidOption, Severity: "error",
+			Message: fmt.Sprintf("field %q: %q is not one of its options", k, fmt.Sprint(n.Config[k])),
+			Hint:    "use one of: " + strings.Join(dedupeStrings(c.options), ", "),
+		})
+	}
+	return out
+}
+
+func dedupeStrings(in []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
 		}
 	}
 	return out
