@@ -1,0 +1,636 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_share_point",
+  "node_type": "app.microsoft_share_point",
+  "title": "Microsoft SharePoint",
+  "description": "Lists, list items and library files in SharePoint (Microsoft Graph)",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/graph/api/resources/sharepoint",
+  "n8n_types": [
+    "n8n-nodes-base.microsoftSharePoint"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.microsoftSharePointTrigger"
+  ],
+  "base_url": "https://graph.microsoft.com/v1.0",
+  "credentials": [
+    {
+      "platform": "microsoft",
+      "name": "Microsoft 365 (SharePoint sites)",
+      "n8n_credential": "microsoftOAuth2Api",
+      "n8n_credential_alt": [
+        "microsoftSharePointOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "microsoft",
+      "scope_group": "sites"
+    },
+    {
+      "platform": "microsoft_entra_app",
+      "name": "Microsoft Entra app (app-only Graph)",
+      "n8n_credential": "microsoftEntraServicePrincipalApi",
+      "n8n_field_map": {
+        "tenantId": "tenant_id",
+        "clientId": "client_id",
+        "clientSecret": "client_secret"
+      },
+      "methods": [
+        "client_credentials"
+      ],
+      "fields": [
+        {
+          "key": "tenant_id",
+          "label": "Tenant ID",
+          "required": true,
+          "help": "Directory (tenant) GUID or a verified domain such as contoso.onmicrosoft.com."
+        },
+        {
+          "key": "client_id",
+          "label": "Application (client) ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "Client secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "token_url": "https://login.microsoftonline.com/{{ cred.tenant_id }}/oauth2/v2.0/token",
+        "scopes": [
+          "https://graph.microsoft.com/.default"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "list",
+      "label": "List"
+    },
+    {
+      "value": "item",
+      "label": "Item"
+    },
+    {
+      "value": "file",
+      "label": "File"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "list",
+      "operation": "get",
+      "title": "Get a list",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/lists/{{ p.list | rl }}",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "list",
+          "label": "List ID or title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "query": {
+        "$select": "{{ p.simplify | then:'id,name,displayName,description,createdDateTime,lastModifiedDateTime,webUrl' }}"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'@odata.context,@odata.etag,fields@odata.navigationLink' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "list",
+      "operation": "getAll",
+      "title": "Get many lists",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/lists",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "query": {
+        "$select": "{{ p.simplify | then:'id,name,displayName,description,createdDateTime,lastModifiedDateTime,webUrl' }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'@odata.context,@odata.etag,fields@odata.navigationLink' }}"
+        },
+        "to_when": "{{ p.simplify }}",
+        "path": "value"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "getAll",
+      "title": "Get many items",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/lists/{{ p.list | rl }}/items",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "list",
+          "label": "List ID or title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filter",
+          "label": "Filter",
+          "type": "text",
+          "help": "OData $filter on list fields, e.g. fields/Status eq 'Open'."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: properties to return when Simplify is off (contentType, createdDateTime, createdBy, fields, id, lastModifiedDateTime, lastModifiedBy, parentReference, webUrl)."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "headers": {
+        "Prefer": "{{ p.filter | then:'HonorNonIndexedQueriesWarningMayFailRandomly' }}"
+      },
+      "query": {
+        "$filter": "{{ p.filter }}",
+        "$select": "{{ p.simplify | then:'id,createdDateTime,lastModifiedDateTime,webUrl' | default:(p.options.fields | csv) }}",
+        "$expand": "{{ p.simplify | then:'fields($select=Title)' | default:(p.options.fields | csv | matches:'(^|,)fields(,|$)' | then:'fields') }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value",
+        "limit_param": "$top",
+        "page_size": 100
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'@odata.context,@odata.etag,fields@odata.navigationLink' }}"
+        },
+        "to_when": "{{ p.simplify }}",
+        "path": "value"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "create",
+      "title": "Create an item",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/lists/{{ p.list | rl }}/items",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "list",
+          "label": "List ID or title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "json",
+          "default": {},
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {column: value}, matchingColumns: [..], schema: [{id}]}."
+        }
+      ],
+      "body": {
+        "fields": "{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | omit:'id' }}"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "upsert",
+      "title": "Create or update an item",
+      "method": "{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:'id' | default:pre.value.0.id | then:'PATCH' | default:'POST' }}",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/lists/{{ p.list | rl }}/items{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:'id' | default:pre.value.0.id | then:'/' }}{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:'id' | default:pre.value.0.id }}{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:'id' | default:pre.value.0.id | then:'/fields' }}",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "list",
+          "label": "List ID or title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "json",
+          "default": {},
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {column: value}, matchingColumns: [..], schema: [{id}]}."
+        }
+      ],
+      "description": "Updates the item matched by columns.matchingColumns (or columns.value.id), else creates it.",
+      "before": {
+        "when": "{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:'id' | default:'' | eq:'' }}",
+        "method": "GET",
+        "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+        "path": "/lists/{{ p.list | rl }}/items",
+        "headers": {
+          "Prefer": "HonorNonIndexedQueriesWarningMayFailRandomly"
+        },
+        "query": {
+          "$top": "2",
+          "$filter": {
+            "$join": {
+              "$map": "{{ p.columns.matchingColumns }}",
+              "$to": "fields/{{ el }} eq '{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:el | string | replace:\"'\",\"''\" }}'"
+            },
+            "$sep": " and "
+          }
+        }
+      },
+      "body": {
+        "$merge": "{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:'id' | default:pre.value.0.id | then:((p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | omit:'id') }}",
+        "fields": "{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:'id' | default:pre.value.0.id | default:'' | eq:'' | then:((p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | omit:'id') }}"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "delete",
+      "title": "Delete an item",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/lists/{{ p.list | rl }}/items/{{ p.item | rl }}",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "list",
+          "label": "List ID or title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "item",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "deleted": true
+        }
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "get",
+      "title": "Get an item",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/lists/{{ p.list | rl }}/items/{{ p.item | rl }}",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "list",
+          "label": "List ID or title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "item",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "query": {
+        "$select": "{{ p.simplify | then:'id,createdDateTime,lastModifiedDateTime,webUrl' }}",
+        "$expand": "{{ p.simplify | then:'fields($select=Title)' | default:'fields' }}"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'@odata.context,@odata.etag,fields@odata.navigationLink' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "update",
+      "title": "Update an item",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/lists/{{ p.list | rl }}/items/{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:'id' | default:pre.value.0.id }}/fields",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "list",
+          "label": "List ID or title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "json",
+          "default": {},
+          "help": "n8n resource mapper: {mappingMode: defineBelow|autoMapInputData, value: {column: value}, matchingColumns: [..], schema: [{id}]}."
+        }
+      ],
+      "description": "Updates the item matched by columns.matchingColumns (or columns.value.id).",
+      "before": {
+        "when": "{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:'id' | default:'' | eq:'' }}",
+        "method": "GET",
+        "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+        "path": "/lists/{{ p.list | rl }}/items",
+        "headers": {
+          "Prefer": "HonorNonIndexedQueriesWarningMayFailRandomly"
+        },
+        "query": {
+          "$top": "2",
+          "$filter": {
+            "$join": {
+              "$map": "{{ p.columns.matchingColumns }}",
+              "$to": "fields/{{ el }} eq '{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | get:el | string | replace:\"'\",\"''\" }}'"
+            },
+            "$sep": " and "
+          }
+        }
+      },
+      "body": {
+        "$merge": "{{ (p.columns.mappingMode | eq:'autoMapInputData' | then:(item | pick:(p.columns.schema | pluck:'id' | default:'')) | default:p.columns.value) | omit:'id' }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a file",
+      "method": "PUT",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/drive/items/{{ p.folder | rl }}:/{{ p.fileName }}:/content",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "folder",
+          "label": "Parent folder ID",
+          "type": "text",
+          "required": true,
+          "help": "Drive item ID of the folder; root for the library root."
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data",
+          "required": true
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryPropertyName"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "download",
+      "title": "Download a file",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/drive/items/{{ p.file | rl }}/content",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "folder",
+          "label": "Parent folder ID",
+          "type": "text",
+          "help": "Only used to pick the file in the editor."
+        },
+        {
+          "key": "file",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data",
+          "required": true
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+        "path": "/drive/items/{{ p.file | rl }}"
+      },
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName",
+        "file_name": "{{ pre.name }}",
+        "mime_type": "{{ pre.file.mimeType }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "update",
+      "title": "Update a file",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+      "path": "/drive/items/{{ p.file | rl }}",
+      "fields": [
+        {
+          "key": "site",
+          "label": "Site",
+          "type": "text",
+          "required": true,
+          "help": "Graph site ID (host,site-guid,web-guid) or the site's URL, e.g. https://contoso.sharepoint.com/sites/team."
+        },
+        {
+          "key": "folder",
+          "label": "Parent folder ID",
+          "type": "text",
+          "help": "Only used to pick the file in the editor."
+        },
+        {
+          "key": "file",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fileName",
+          "label": "New file name",
+          "type": "text",
+          "help": "Renames the file."
+        },
+        {
+          "key": "changeFileContent",
+          "label": "Change file content",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "description": "Renames the file (when a new name is set), then replaces its content with the input binary when Change file content is on.",
+      "body": {
+        "name": "{{ p.fileName }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "false"
+      },
+      "also": [
+        {
+          "when": "{{ p.changeFileContent }}",
+          "upload": true,
+          "method": "PUT",
+          "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl | re:'^https?://([^/]+)' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:(p.site | rl | re:'^https?://[^/]+(/[^?#]*?)/?$') }}{{ p.site | rl | matches:'^https?://[^/]+/.' | then:':' }}",
+          "path": "/drive/items/{{ p.file | rl }}/content"
+        }
+      ]
+    }
+  ]
+}
