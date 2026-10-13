@@ -338,7 +338,7 @@
       "operation": "get",
       "title": "Get a transfer",
       "method": "GET",
-      "path": "/v1/transfers/{{ p.transferId }}{{ p.downloadReceipt | then:'/receipt.pdf' }}",
+      "path": "/v1/transfers/{{ p.transferId }}{{ p.downloadReceipt | eq:'true' | then:'/receipt.pdf' }}",
       "binary": {
         "download_when": "{{ p.downloadReceipt }}",
         "property_field": "binaryProperty",

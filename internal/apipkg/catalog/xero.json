@@ -87,7 +87,7 @@
         "LineAmountTypes": "{{ p.additionalFields.lineAmountType }}",
         "PlannedPaymentDate": "{{ p.additionalFields.plannedPaymentDate }}",
         "Reference": "{{ p.additionalFields.reference }}",
-        "SentToContact": "{{ p.additionalFields.sendToContact | then:true }}",
+        "SentToContact": "{{ p.additionalFields.sendToContact | eq:'true' }}",
         "Status": "{{ p.additionalFields.status }}",
         "Url": "{{ p.additionalFields.url }}"
       },
@@ -190,7 +190,7 @@
         "statuses": "{{ p.options.statuses | csv }}",
         "order": "{{ p.options.orderBy | suffix:' ' | suffix:(p.options.sortOrder | default:'DESC') }}",
         "where": "{{ p.options.where }}",
-        "createdByMyApp": "{{ p.options.createdByMyApp | then:true }}"
+        "createdByMyApp": "{{ p.options.createdByMyApp | eq:'true' }}"
       },
       "pagination": {
         "type": "page",
@@ -271,7 +271,7 @@
         "LineAmountTypes": "{{ p.updateFields.lineAmountType }}",
         "PlannedPaymentDate": "{{ p.updateFields.plannedPaymentDate }}",
         "Reference": "{{ p.updateFields.reference }}",
-        "SentToContact": "{{ p.updateFields.sendToContact | then:true }}",
+        "SentToContact": "{{ p.updateFields.sendToContact | eq:'true' }}",
         "Status": "{{ p.updateFields.status }}",
         "Url": "{{ p.updateFields.url }}"
       },
@@ -446,7 +446,7 @@
       "method": "GET",
       "path": "/Contacts",
       "query": {
-        "includeArchived": "{{ p.options.includeArchived | then:true }}",
+        "includeArchived": "{{ p.options.includeArchived | eq:'true' }}",
         "order": "{{ p.options.orderBy | suffix:' ' | suffix:(p.options.sortOrder | default:'DESC') }}",
         "where": "{{ p.options.where }}"
       },

@@ -229,7 +229,7 @@
         "before": "{{ p.options.before }}",
         "category": "{{ p.options.category }}",
         "context": "{{ p.options.context }}",
-        "featured": "{{ p.options.featured | then:true }}",
+        "featured": "{{ p.options.featured | eq:'true' }}",
         "max_price": "{{ p.options.maxPrice }}",
         "min_price": "{{ p.options.minPrice }}",
         "order": "{{ p.options.order }}",
