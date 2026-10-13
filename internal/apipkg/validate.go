@@ -222,6 +222,14 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 			probs = append(probs, checkTemplates(where+" output.expand", v, fields, credKeys)...)
 		}
 	}
+	if pl := o.Poll; pl != nil {
+		if !validMethods[pl.Method] || pl.Path == "" || pl.Until == "" {
+			add("poll: needs method, path and until")
+		}
+		for _, v := range []any{pl.Until, pl.BaseURL, pl.Path, pl.Query, pl.Body} {
+			probs = append(probs, checkTemplates(where+" poll", v, fields, credKeys)...)
+		}
+	}
 	for i, st := range o.Before {
 		if !validMethods[st.Method] || st.Path == "" {
 			add("before[%d]: needs a method (GET, POST, …) and a path", i)
@@ -238,7 +246,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		if st.Path == "" {
 			add("also[%d]: path is required", i)
 		}
-		for _, v := range []any{st.When, st.BaseURL, st.Path, st.Query, st.Body} {
+		for _, v := range []any{st.When, st.ForEach, st.BaseURL, st.Path, st.Query, st.Body} {
 			probs = append(probs, checkTemplates(sw, v, fields, credKeys)...)
 		}
 		for k, v := range st.Headers {

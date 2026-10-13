@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -209,6 +210,9 @@ func (p *Package) resolveOp(params map[string]any) (*Operation, error) {
 		res = p.DefaultResource()
 	}
 	opName, _ := params["operation"].(string)
+	if opName == "" && p.N8nOperationParam != "" {
+		opName, _ = params[p.N8nOperationParam].(string)
+	}
 	if opName == "" {
 		opName = p.DefaultOperation(res)
 	}
@@ -287,6 +291,9 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	if err != nil {
 		return nil, err
 	}
+	if resp, err = r.poll(ctx, resp); err != nil {
+		return nil, err
+	}
 	if err := r.runAlso(ctx, resp); err != nil {
 		return nil, err
 	}
@@ -297,12 +304,27 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		return []workflow.Item{{JSON: map[string]any{"success": true}}}, nil
 	}
 	v := decodeBody(resp.body)
+	doc := v
 	if path := r.outputPath(); path != "" {
 		v = lookupPath(v, strings.Split(path, "."))
+	}
+	if o := r.op.Output; o != nil && o.SchemaRows != "" {
+		fields, _ := lookupPath(doc, strings.Split(o.SchemaRows, ".")).([]any)
+		nums := false
+		if o.Numbers != "" {
+			on, err := renderString(o.Numbers, r.scope)
+			if err != nil {
+				return nil, r.errf("output.numbers: %w", err)
+			}
+			b, _ := toBool(on)
+			nums = b == true
+		}
+		v = schemaRows(v, fields, nums)
 	}
 	if r.op.Output != nil && r.op.Output.HeaderRow {
 		v = rowsToObjects(v)
 	}
+	r.scope.Res = doc // output.to/match templates may read the whole response
 	if v, err = r.shapeOutput(ctx, v); err != nil {
 		return nil, err
 	}
@@ -416,6 +438,21 @@ func (r *opRun) runAlso(ctx context.Context, main *response) error {
 	for i, st := range r.op.Also {
 		sc := r.scope
 		sc.Res = res
+		if st.ForEach != "" {
+			lv, err := renderString(st.ForEach, sc)
+			if err != nil {
+				return r.errf("also[%d].for_each: %w", i, err)
+			}
+			list, _ := lv.([]any)
+			for j, el := range list {
+				esc := sc
+				esc.El = el
+				if _, err := r.sendStep(ctx, st, esc); err != nil {
+					return fmt.Errorf("also[%d] element %d: %w", i, j, err)
+				}
+			}
+			continue
+		}
 		if _, err := r.sendStep(ctx, st, sc); err != nil {
 			return fmt.Errorf("also[%d]: %w", i, err)
 		}
@@ -612,4 +649,113 @@ func (r *opRun) downloads() bool {
 	}
 	w, err := renderString(b.DownloadWhen, r.scope)
 	return err == nil && !isEmpty(w) && w != false
+}
+
+// poll repeats op.Poll after the main response until its until template
+// (res = the latest response) is true, waiting interval_ms between tries
+// and failing after max_wait_ms.
+func (r *opRun) poll(ctx context.Context, resp *response) (*response, error) {
+	pl := r.op.Poll
+	if pl == nil {
+		return resp, nil
+	}
+	interval := time.Duration(pl.IntervalMs) * time.Millisecond
+	if interval <= 0 {
+		interval = time.Second
+	}
+	maxWait := time.Duration(pl.MaxWaitMs) * time.Millisecond
+	if maxWait <= 0 {
+		maxWait = 5 * time.Minute
+	}
+	deadline := time.Now().Add(maxWait)
+	for {
+		sc := r.scope
+		sc.Res = decodeBody(resp.body)
+		done, err := renderString(pl.Until, sc)
+		if err != nil {
+			return nil, r.errf("poll.until: %w", err)
+		}
+		if b, _ := toBool(done); b == true {
+			return resp, nil
+		}
+		if time.Now().After(deadline) {
+			return nil, r.errf("poll: not done after %s", maxWait)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(interval):
+		}
+		next, err := r.sendStep(ctx, pl.Step, sc)
+		if err != nil {
+			return nil, fmt.Errorf("poll: %w", err)
+		}
+		if next != nil {
+			resp = next
+		}
+	}
+}
+
+// schemaRows turns BigQuery rows ({f: [{v}]}) into objects keyed by the
+// schema's field names; RECORD fields recurse, REPEATED ones are lists.
+func schemaRows(v any, fields []any, nums bool) any {
+	rows, ok := v.([]any)
+	if !ok || len(fields) == 0 {
+		return v
+	}
+	out := make([]any, len(rows))
+	for i, row := range rows {
+		out[i] = schemaRow(row, fields, nums)
+	}
+	return out
+}
+
+func schemaRow(row any, fields []any, nums bool) any {
+	cells, _ := lookupPath(row, []string{"f"}).([]any)
+	obj := map[string]any{}
+	for i, f := range fields {
+		fm, _ := f.(map[string]any)
+		name := stringify(fm["name"])
+		if name == "" || i >= len(cells) {
+			continue
+		}
+		obj[name] = schemaCell(lookupPath(cells[i], []string{"v"}), fm, nums)
+	}
+	return obj
+}
+
+func schemaCell(v any, f map[string]any, nums bool) any {
+	if v == nil {
+		return nil
+	}
+	if stringify(f["mode"]) == "REPEATED" {
+		list, _ := v.([]any)
+		out := make([]any, len(list))
+		single := map[string]any{}
+		for k, x := range f {
+			if k != "mode" {
+				single[k] = x
+			}
+		}
+		for i, el := range list {
+			out[i] = schemaCell(lookupPath(el, []string{"v"}), single, nums)
+		}
+		return out
+	}
+	switch stringify(f["type"]) {
+	case "RECORD", "STRUCT":
+		sub, _ := f["fields"].([]any)
+		return schemaRow(v, sub, nums)
+	case "INTEGER", "INT64", "NUMERIC", "BIGNUMERIC", "FLOAT", "FLOAT64":
+		if nums {
+			if n, err := strconv.ParseFloat(stringify(v), 64); err == nil {
+				return n
+			}
+		}
+	case "BOOLEAN", "BOOL":
+		if b, err := strconv.ParseBool(stringify(v)); err == nil {
+			return b
+		}
+	}
+	return v
 }
