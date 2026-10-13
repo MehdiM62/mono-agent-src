@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"database/sql"
@@ -48,7 +48,7 @@ type postComment struct {
 	ReplyCount int    `json:"reply_count"`
 }
 
-func newPeopleInteractionsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleInteractionsCmd() *cobra.Command {
 	var limit int
 	cmd := &cobra.Command{
 		Use:     "interactions <person-id>",
@@ -57,9 +57,9 @@ func newPeopleInteractionsCmd(cfg *globalConfig) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if limit <= 0 {
-				return errInvalidInput("--limit must be positive")
+				return d.InvalidInput("--limit must be positive")
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -77,7 +77,7 @@ func newPeopleInteractionsCmd(cfg *globalConfig) *cobra.Command {
 				JOIN people p ON wnt.person_id = p.id
 				WHERE wnt.person_id = ? AND w.profile_id = ?
 				ORDER BY COALESCE(wnt.last_interacted_at, wnt.created_at) DESC
-				LIMIT ?`, args[0], cfg.ProfileID, limit)
+				LIMIT ?`, args[0], d.ProfileID(), limit)
 			if err != nil {
 				return fmt.Errorf("querying interactions: %w", err)
 			}
@@ -96,14 +96,14 @@ func newPeopleInteractionsCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("iterating interactions: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(out)
 			}
 			if len(out) == 0 {
 				fmt.Println("No interactions.")
 				return nil
 			}
-			table := newPlainTable(os.Stdout, []string{"When", "Node", "Platform", "Status", "Link"}, nil)
+			table := d.NewTable(os.Stdout, []string{"When", "Node", "Platform", "Status", "Link"}, nil)
 			for _, i := range out {
 				when := i.LastInteractedAt
 				if when == "" {
@@ -121,12 +121,12 @@ func newPeopleInteractionsCmd(cfg *globalConfig) *cobra.Command {
 
 // newPeoplePostsCmd reads the posts and comments scraped from people's
 // profiles.
-func newPeoplePostsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeoplePostsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "posts",
 		Short: "Read posts and comments scraped from people's profiles",
 	}
-	cmd.AddCommand(newPeoplePostsListCmd(cfg), newPeoplePostsGetCmd(cfg), newPeoplePostsCommentsCmd(cfg))
+	cmd.AddCommand(d.newPeoplePostsListCmd(), d.newPeoplePostsGetCmd(), d.newPeoplePostsCommentsCmd())
 	return cmd
 }
 
@@ -134,14 +134,14 @@ func newPeoplePostsCmd(cfg *globalConfig) *cobra.Command {
 // from the profile's completed like_posts / comment_on_posts workflow node
 // targets on the post's URL (where MigrateActionsToWorkflows moved the
 // legacy action_targets).
-func newPeoplePostsListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeoplePostsListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "list <person-id>",
 		Short:   "List a person's scraped posts, newest scrape first, with whether we liked or commented",
 		Example: `  monoagentcli --json people posts list 3f2a…`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -164,7 +164,7 @@ func newPeoplePostsListCmd(cfg *globalConfig) *cobra.Command {
 				FROM posts p
 				JOIN people pe ON p.person_id = pe.id
 				WHERE p.person_id = ? AND pe.profile_id = ?
-				ORDER BY p.scraped_at DESC`, args[0], cfg.ProfileID)
+				ORDER BY p.scraped_at DESC`, args[0], d.ProfileID())
 			if err != nil {
 				return fmt.Errorf("querying posts: %w", err)
 			}
@@ -184,14 +184,14 @@ func newPeoplePostsListCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("iterating posts: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(posts)
 			}
 			if len(posts) == 0 {
 				fmt.Println("No posts.")
 				return nil
 			}
-			table := newPlainTable(os.Stdout, []string{"ID", "Likes", "Comments", "Liked", "Commented", "URL"}, nil)
+			table := d.NewTable(os.Stdout, []string{"ID", "Likes", "Comments", "Liked", "Commented", "URL"}, nil)
 			for _, p := range posts {
 				table.Append([]string{p.ID, fmt.Sprint(p.LikeCount), fmt.Sprint(p.CommentCount),
 					yesNo(p.WeLiked), yesNo(p.WeCommented), truncateStr(p.URL, 50)})
@@ -202,13 +202,13 @@ func newPeoplePostsListCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newPeoplePostsGetCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeoplePostsGetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <post-id>",
 		Short: "Show one scraped post",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -221,18 +221,18 @@ func newPeoplePostsGetCmd(cfg *globalConfig) *cobra.Command {
 				       COALESCE(caption, ''), COALESCE(posted_at, ''), scraped_at
 				FROM posts
 				JOIN people ON posts.person_id = people.id
-				WHERE posts.id = ? AND people.profile_id = ?`, args[0], cfg.ProfileID,
+				WHERE posts.id = ? AND people.profile_id = ?`, args[0], d.ProfileID(),
 			).Scan(&p.ID, &p.Shortcode, &p.URL,
 				&p.ThumbnailURL, &p.LikeCount, &p.CommentCount,
 				&p.Caption, &p.PostedAt, &p.ScrapedAt)
 			if errors.Is(err, sql.ErrNoRows) {
-				return errNotFound("post %q not found", args[0])
+				return d.NotFound("post %q not found", args[0])
 			}
 			if err != nil {
 				return fmt.Errorf("querying post: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				// A single post doesn't carry the liked/commented flags.
 				return printReviewJSON(struct {
 					ID           string `json:"id"`
@@ -255,13 +255,13 @@ func newPeoplePostsGetCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newPeoplePostsCommentsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeoplePostsCommentsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "comments <post-id>",
 		Short: "List a post's scraped comments, oldest first",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -274,7 +274,7 @@ func newPeoplePostsCommentsCmd(cfg *globalConfig) *cobra.Command {
 				JOIN posts ON post_comments.post_id = posts.id
 				JOIN people ON posts.person_id = people.id
 				WHERE post_id = ? AND people.profile_id = ?
-				ORDER BY timestamp ASC`, args[0], cfg.ProfileID)
+				ORDER BY timestamp ASC`, args[0], d.ProfileID())
 			if err != nil {
 				return fmt.Errorf("querying comments: %w", err)
 			}
@@ -291,14 +291,14 @@ func newPeoplePostsCommentsCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("iterating comments: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(comments)
 			}
 			if len(comments) == 0 {
 				fmt.Println("No comments.")
 				return nil
 			}
-			table := newPlainTable(os.Stdout, []string{"Author", "Likes", "Replies", "Text"}, nil)
+			table := d.NewTable(os.Stdout, []string{"Author", "Likes", "Replies", "Text"}, nil)
 			for _, c := range comments {
 				table.Append([]string{truncateStr(c.Author, 20), fmt.Sprint(c.LikesCount), fmt.Sprint(c.ReplyCount), truncateStr(c.Text, 60)})
 			}

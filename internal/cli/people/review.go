@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 // newPeopleReviewCmd is the review queue for people a workflow staged for
 // outreach (category "pending_approval" with a drafted introduction). The
 // GUI's Human in Loop page is a front end for these commands.
-func newPeopleReviewCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleReviewCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "review",
 		Short: "Review people staged for outreach: list, approve (and send), reject",
@@ -25,11 +25,11 @@ func newPeopleReviewCmd(cfg *globalConfig) *cobra.Command {
 			"`review approve` marks a person approved, optionally editing the introduction and " +
 			"sending it through a dispatch workflow; `review reject` drops them from the queue.",
 	}
-	cmd.AddCommand(newPeopleReviewListCmd(cfg), newPeopleReviewApproveCmd(cfg), newPeopleReviewRejectCmd(cfg))
+	cmd.AddCommand(d.newPeopleReviewListCmd(), d.newPeopleReviewApproveCmd(), d.newPeopleReviewRejectCmd())
 	return cmd
 }
 
-func newPeopleReviewListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleReviewListCmd() *cobra.Command {
 	var suggest, resuggest bool
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -44,24 +44,24 @@ func newPeopleReviewListCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli --json people review list --suggest`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			people, err := peoplereview.ListPending(cmd.Context(), db.DB, cfg.ProfileID)
+			people, err := peoplereview.ListPending(cmd.Context(), db.DB, d.ProfileID())
 			if err != nil {
 				return err
 			}
 			if !suggest && !resuggest {
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return printReviewJSON(people)
 				}
 				if len(people) == 0 {
 					fmt.Println("No one is waiting for review.")
 					return nil
 				}
-				table := newPlainTable(os.Stdout, []string{"ID", "Platform", "Username", "Name", "Introduction"}, nil)
+				table := d.NewTable(os.Stdout, []string{"ID", "Platform", "Username", "Name", "Introduction"}, nil)
 				for _, p := range people {
 					table.Append([]string{p.ID, p.Platform, truncateStr(p.PlatformUsername, 20),
 						truncateStr(p.FullName, 20), truncateStr(p.Introduction, 40)})
@@ -76,18 +76,18 @@ func newPeopleReviewListCmd(cfg *globalConfig) *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(ctx, reviewSuggestTimeout)
 			defer cancel()
-			reviewed, warns := peoplereview.WithSuggestions(ctx, db.DB, cfg.ProfileID, people, resuggest)
+			reviewed, warns := peoplereview.WithSuggestions(ctx, db.DB, d.ProfileID(), people, resuggest)
 			for _, w := range warns {
 				fmt.Fprintln(os.Stderr, "warning: "+w)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(reviewed)
 			}
 			if len(reviewed) == 0 {
 				fmt.Println("No one is waiting for review.")
 				return nil
 			}
-			table := newPlainTable(os.Stdout, []string{"ID", "Platform", "Username", "Name", "Introduction", "Suggestion"}, nil)
+			table := d.NewTable(os.Stdout, []string{"ID", "Platform", "Username", "Name", "Introduction", "Suggestion"}, nil)
 			for _, r := range reviewed {
 				sug := ""
 				if s := r.Suggestion; s != nil {
@@ -121,7 +121,7 @@ type reviewApproval struct {
 	Send   *reviewSend         `json:"send,omitempty"`
 }
 
-func newPeopleReviewApproveCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleReviewApproveCmd() *cobra.Command {
 	var (
 		intro        string
 		send         bool
@@ -146,13 +146,13 @@ func newPeopleReviewApproveCmd(cfg *globalConfig) *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if send && sendPlan {
-				return errInvalidInput("--send and --send-plan are exclusive")
+				return d.InvalidInput("--send and --send-plan are exclusive")
 			}
 			if sendWorkflow != "" && !send && !sendPlan {
-				return errInvalidInput("--send-workflow needs --send or --send-plan")
+				return d.InvalidInput("--send-workflow needs --send or --send-plan")
 			}
 			ctx := cmd.Context()
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -162,20 +162,20 @@ func newPeopleReviewApproveCmd(cfg *globalConfig) *cobra.Command {
 			// person leaves the queue.
 			var wf peoplereview.Workflow
 			if send || sendPlan {
-				if wf, err = pickReviewWorkflow(ctx, cfg, db, sendWorkflow); err != nil {
+				if wf, err = d.pickReviewWorkflow(ctx, db, sendWorkflow); err != nil {
 					return err
 				}
 			}
-			p, err := peoplereview.Approve(ctx, db.DB, cfg.ProfileID, args[0], intro)
+			p, err := peoplereview.Approve(ctx, db.DB, d.ProfileID(), args[0], intro)
 			if err != nil {
-				return reviewErr(err)
+				return d.reviewErr(err)
 			}
 			res := reviewApproval{Person: p}
 			if send || sendPlan {
 				res.Send = &reviewSend{WorkflowID: wf.ID, WorkflowName: wf.Name, Input: peoplereview.SendInput(p)}
 			}
 			if !send {
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return printReviewJSON(res)
 				}
 				fmt.Printf("Approved %s (%s).\n", displayName(p), p.ID)
@@ -185,7 +185,7 @@ func newPeopleReviewApproveCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			if !cfg.JSONOutput {
+			if !d.JSONOutput() {
 				fmt.Printf("Approved %s (%s); sending with workflow %q.\n", displayName(p), p.ID, wf.Name)
 			}
 			input, err := json.Marshal(res.Send.Input)
@@ -193,10 +193,7 @@ func newPeopleReviewApproveCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 			db.Close() // the run opens its own
-			run := newWorkflowRunCmd(cfg)
-			run.SetArgs([]string{wf.ID, "--input", string(input)})
-			run.SetContext(ctx)
-			if err := run.Execute(); err != nil {
+			if err := d.RunWorkflow(ctx, []string{wf.ID, "--input", string(input)}); err != nil {
 				return fmt.Errorf("%s is approved, but sending failed: %w", p.ID, err)
 			}
 			return nil
@@ -209,21 +206,21 @@ func newPeopleReviewApproveCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newPeopleReviewRejectCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleReviewRejectCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "reject <person-id>",
 		Short: "Reject a person so they leave the queue",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			if err := peoplereview.Reject(cmd.Context(), db.DB, cfg.ProfileID, args[0]); err != nil {
-				return reviewErr(err)
+			if err := peoplereview.Reject(cmd.Context(), db.DB, d.ProfileID(), args[0]); err != nil {
+				return d.reviewErr(err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(map[string]string{"id": args[0], "category": peoplereview.Rejected})
 			}
 			fmt.Printf("Rejected %s.\n", args[0])
@@ -235,8 +232,8 @@ func newPeopleReviewRejectCmd(cfg *globalConfig) *cobra.Command {
 // pickReviewWorkflow resolves the dispatch workflow among the profile's
 // workflows (files and SQLite alike) and refuses an inactive one, which
 // the engine would not run.
-func pickReviewWorkflow(ctx context.Context, cfg *globalConfig, db *storage.Database, want string) (peoplereview.Workflow, error) {
-	all, err := openWorkflowStore(db).ListWorkflows(ctx, cfg.ProfileID)
+func (d Deps) pickReviewWorkflow(ctx context.Context, db *storage.Database, want string) (peoplereview.Workflow, error) {
+	all, err := d.WorkflowStore(db).ListWorkflows(ctx, d.ProfileID())
 	if err != nil {
 		return peoplereview.Workflow{}, fmt.Errorf("listing workflows: %w", err)
 	}
@@ -246,20 +243,20 @@ func pickReviewWorkflow(ctx context.Context, cfg *globalConfig, db *storage.Data
 	}
 	wf, err := peoplereview.PickSendWorkflow(cands, want)
 	if err != nil {
-		return wf, reviewErr(err)
+		return wf, d.reviewErr(err)
 	}
 	if !wf.Active {
-		return wf, errInvalidInput("workflow %q (%s) is inactive — activate it first: monoagentcli workflow activate %s", wf.Name, wf.ID, wf.ID)
+		return wf, d.InvalidInput("workflow %q (%s) is inactive — activate it first: monoagentcli workflow activate %s", wf.Name, wf.ID, wf.ID)
 	}
 	return wf, nil
 }
 
-func reviewErr(err error) error {
+func (d Deps) reviewErr(err error) error {
 	switch {
 	case errors.Is(err, peoplereview.ErrNotFound):
-		return errNotFound("%v", err)
+		return d.NotFound("%v", err)
 	case errors.Is(err, peoplereview.ErrAmbiguous):
-		return errInvalidInput("%v", err)
+		return d.InvalidInput("%v", err)
 	}
 	return err
 }

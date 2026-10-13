@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"database/sql"
@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newPeopleImportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleImportCmd() *cobra.Command {
 	var (
 		filePath string
 		platform string
@@ -31,7 +31,7 @@ func newPeopleImportCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("--platform is required")
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -130,7 +130,7 @@ func newPeopleImportCmd(cfg *globalConfig) *cobra.Command {
 					contentCount, nullableStr(followerCount), followingCount,
 					nullableStr(introduction), isVerified,
 					nullableStr(category), nullableStr(jobTitle),
-					cfg.ProfileID, now, now,
+					d.ProfileID(), now, now,
 				)
 				if err != nil {
 					tx.Rollback()

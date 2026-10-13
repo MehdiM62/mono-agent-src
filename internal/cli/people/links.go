@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"errors"
@@ -15,7 +15,7 @@ import (
 // newPeopleLinksCmd manages cross-platform links between people who look
 // like the same human. Links are suggestions for a human to confirm; people
 // rows are never merged.
-func newPeopleLinksCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleLinksCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "links",
 		Short: "Link people on different platforms who are the same human",
@@ -23,13 +23,13 @@ func newPeopleLinksCmd(cfg *globalConfig) *cobra.Command {
 			"TypeSafe Jev whether each pair is the same human (opt-in: jev enable people_links), and " +
 			"keeps confident answers as suggestions to confirm or dismiss. People are never merged.",
 	}
-	cmd.AddCommand(newPeopleLinksSuggestCmd(cfg), newPeopleLinksListCmd(cfg),
-		newPeopleLinksStatusCmd(cfg, "confirm", storage.PersonLinkConfirmed, "Confirm a link: the two people are the same human"),
-		newPeopleLinksStatusCmd(cfg, "dismiss", storage.PersonLinkDismissed, "Dismiss a link: the two people are different"))
+	cmd.AddCommand(d.newPeopleLinksSuggestCmd(), d.newPeopleLinksListCmd(),
+		d.newPeopleLinksStatusCmd("confirm", storage.PersonLinkConfirmed, "Confirm a link: the two people are the same human"),
+		d.newPeopleLinksStatusCmd("dismiss", storage.PersonLinkDismissed, "Dismiss a link: the two people are different"))
 	return cmd
 }
 
-func newPeopleLinksSuggestCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleLinksSuggestCmd() *cobra.Command {
 	var (
 		limit  int
 		dryRun bool
@@ -46,38 +46,38 @@ func newPeopleLinksSuggestCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli people links suggest --limit 50`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 			ctx := cmd.Context()
-			if !dryRun && !jevconf.Enabled(db.DB, cfg.ProfileID, jevconf.PeopleLinks) {
-				return errInvalidInput("%v", peoplelinks.ErrDisabled)
+			if !dryRun && !jevconf.Enabled(db.DB, d.ProfileID(), jevconf.PeopleLinks) {
+				return d.InvalidInput("%v", peoplelinks.ErrDisabled)
 			}
-			pairs, err := peoplelinks.Candidates(ctx, db, cfg.ProfileID, limit)
+			pairs, err := peoplelinks.Candidates(ctx, db, d.ProfileID(), limit)
 			if err != nil {
 				return err
 			}
 			if dryRun {
-				return printLinkCandidates(cfg, pairs)
+				return d.printLinkCandidates(pairs)
 			}
 			if len(pairs) == 0 {
-				return printLinkResult(cfg, peoplelinks.Result{})
+				return d.printLinkResult(peoplelinks.Result{})
 			}
-			c, err := jevconf.NewClient(ctx, db.DB, cfg.ProfileID, "", "", jevconf.PeopleLinks)
+			c, err := jevconf.NewClient(ctx, db.DB, d.ProfileID(), "", "", jevconf.PeopleLinks)
 			if err != nil {
-				return errAuthConnection("%v", err)
+				return d.AuthConnection("%v", err)
 			}
-			threshold := jevconf.Threshold(db.DB, cfg.ProfileID, jevconf.PeopleLinks, jevconf.DefaultThreshold[jevconf.PeopleLinks])
-			res, err := peoplelinks.Suggest(ctx, c, db, cfg.ProfileID, pairs, threshold)
+			threshold := jevconf.Threshold(db.DB, d.ProfileID(), jevconf.PeopleLinks, jevconf.DefaultThreshold[jevconf.PeopleLinks])
+			res, err := peoplelinks.Suggest(ctx, c, db, d.ProfileID(), pairs, threshold)
 			if err != nil {
 				if errors.Is(err, peoplelinks.ErrDisabled) {
-					return errInvalidInput("%v", err)
+					return d.InvalidInput("%v", err)
 				}
 				return fmt.Errorf("asking Jev: %w", err)
 			}
-			return printLinkResult(cfg, res)
+			return d.printLinkResult(res)
 		},
 	}
 	cmd.Flags().IntVarP(&limit, "limit", "n", peoplelinks.DefaultLimit, "Most candidate pairs to consider")
@@ -85,8 +85,8 @@ func newPeopleLinksSuggestCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func printLinkCandidates(cfg *globalConfig, pairs []peoplelinks.Pair) error {
-	if cfg.JSONOutput {
+func (d Deps) printLinkCandidates(pairs []peoplelinks.Pair) error {
+	if d.JSONOutput() {
 		if pairs == nil {
 			pairs = []peoplelinks.Pair{}
 		}
@@ -96,7 +96,7 @@ func printLinkCandidates(cfg *globalConfig, pairs []peoplelinks.Pair) error {
 		fmt.Println("No candidate pairs.")
 		return nil
 	}
-	table := newPlainTable(os.Stdout, []string{"Person A", "Person B", "Matched on"}, nil)
+	table := d.NewTable(os.Stdout, []string{"Person A", "Person B", "Matched on"}, nil)
 	for _, p := range pairs {
 		table.Append([]string{linkPersonLabel(p.A), linkPersonLabel(p.B), strings.Join(p.Reasons, ", ")})
 	}
@@ -113,8 +113,8 @@ func linkPersonLabel(p peoplelinks.Person) string {
 	return fmt.Sprintf("%s (%s @%s) %s", name, strings.ToLower(p.Platform), p.PlatformUsername, p.ID)
 }
 
-func printLinkResult(cfg *globalConfig, res peoplelinks.Result) error {
-	if cfg.JSONOutput {
+func (d Deps) printLinkResult(res peoplelinks.Result) error {
+	if d.JSONOutput() {
 		return printReviewJSON(res)
 	}
 	fmt.Printf("Asked Jev about %d pair(s): %d suggested, %d dismissed as different, %d undecided, %d failed.\n",
@@ -132,7 +132,7 @@ type personLinkView struct {
 	LabelB string `json:"label_b"`
 }
 
-func newPeopleLinksListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleLinksListCmd() *cobra.Command {
 	var status string
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -144,14 +144,14 @@ func newPeopleLinksListCmd(cfg *globalConfig) *cobra.Command {
 			switch status {
 			case "", storage.PersonLinkSuggested, storage.PersonLinkConfirmed, storage.PersonLinkDismissed:
 			default:
-				return errInvalidInput("--status must be suggested, confirmed or dismissed")
+				return d.InvalidInput("--status must be suggested, confirmed or dismissed")
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			links, err := db.ListPersonLinks(cfg.ProfileID, status)
+			links, err := db.ListPersonLinks(d.ProfileID(), status)
 			if err != nil {
 				return err
 			}
@@ -175,14 +175,14 @@ func newPeopleLinksListCmd(cfg *globalConfig) *cobra.Command {
 			for _, l := range links {
 				views = append(views, personLinkView{PersonLink: l, LabelA: label(l.PersonA), LabelB: label(l.PersonB)})
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(views)
 			}
 			if len(views) == 0 {
 				fmt.Println("No links.")
 				return nil
 			}
-			table := newPlainTable(os.Stdout, []string{"ID", "Status", "Person A", "Person B", "Confidence", "Source"}, nil)
+			table := d.NewTable(os.Stdout, []string{"ID", "Status", "Person A", "Person B", "Confidence", "Source"}, nil)
 			for _, v := range views {
 				table.Append([]string{v.ID, v.Status, v.LabelA, v.LabelB, fmt.Sprintf("%.2f", v.Confidence), v.Source})
 			}
@@ -194,24 +194,24 @@ func newPeopleLinksListCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newPeopleLinksStatusCmd(cfg *globalConfig, use, status, short string) *cobra.Command {
+func (d Deps) newPeopleLinksStatusCmd(use, status, short string) *cobra.Command {
 	return &cobra.Command{
 		Use:   use + " <link-id>",
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			if err := db.SetPersonLinkStatus(cfg.ProfileID, args[0], status); err != nil {
+			if err := db.SetPersonLinkStatus(d.ProfileID(), args[0], status); err != nil {
 				if errors.Is(err, storage.ErrPersonLinkNotFound) {
-					return errNotFound("no link %q in this profile", args[0])
+					return d.NotFound("no link %q in this profile", args[0])
 				}
 				return err
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(map[string]string{"id": args[0], "status": status})
 			}
 			fmt.Printf("Link %s is now %s.\n", args[0], status)

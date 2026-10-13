@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"encoding/json"
@@ -8,11 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func runPeople(t *testing.T, cfg *globalConfig, args ...string) (string, error) {
+func runPeople(t *testing.T, cfg *testConfig, args ...string) (string, error) {
 	t.Helper()
 	var err error
 	out := captureStdout(t, func() {
-		var cmd *cobra.Command = newPeopleCmd(cfg)
+		var cmd *cobra.Command = NewCommand(testDeps(cfg))
 		cmd.SetArgs(args)
 		err = cmd.Execute()
 	})
@@ -70,7 +70,5 @@ func TestPeopleNullColumns(t *testing.T) {
 	if p, err := db.GetPerson("p1"); err != nil || p.IsVerified || p.ContentCount != 0 {
 		t.Fatalf("GetPerson = %+v, %v", p, err)
 	}
-	if n, err := exportPeopleData(db, t.TempDir(), "default"); err != nil || n != 2 {
-		t.Fatalf("export = %d, %v", n, err)
-	}
+	// The export half of this test stays in the CLI (TestPeopleNullColumnsExport).
 }

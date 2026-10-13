@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"database/sql"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
-	"github.com/spf13/cobra"
 )
 
 // newMessagesCLITestDB applies every real migration to a fresh SQLite file,
@@ -69,16 +68,14 @@ func fetchPersonMessage(t *testing.T, dbPath, id string) *storage.PersonMessage 
 	return msg
 }
 
-// stubOutlookNode swaps the package-level runOutlookNode dispatch seam for a
-// fake, restored automatically when the test ends. The fake receives the
+// stubOutlookNode makes the test Deps' service.outlook_mail node a fake,
+// restored automatically when the test ends. The fake receives the
 // live *sql.DB so it can observe database state mid-call.
 func stubOutlookNode(t *testing.T, fn func(db *sql.DB, config map[string]interface{}) ([]workflow.NodeOutput, error)) {
 	t.Helper()
-	orig := runOutlookNode
-	runOutlookNode = func(cmd *cobra.Command, cfg *globalConfig, db *sql.DB, connectionID string, config map[string]interface{}) ([]workflow.NodeOutput, error) {
-		return fn(db, config)
-	}
-	t.Cleanup(func() { runOutlookNode = orig })
+	orig := outlookStub
+	outlookStub = fn
+	t.Cleanup(func() { outlookStub = orig })
 }
 
 // nodeOutput wraps a single item the way service.outlook_mail does.
@@ -95,7 +92,7 @@ func TestRejectDraftRefusesNonDraft(t *testing.T) {
 	dbPath := newMessagesCLITestDB(t)
 	seedPersonMessage(t, dbPath, "m-sent", "EXT-1", "inbound", "alice@x.com", "sent", `{"connection_id":"outlook"}`)
 
-	cmd := newPeopleMessagesRejectDraftCmd(&globalConfig{DBPath: dbPath, ProfileID: "default"})
+	cmd := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"}).newPeopleMessagesRejectDraftCmd()
 	cmd.SetArgs([]string{"m-sent"})
 	err := cmd.Execute()
 	if err == nil {
@@ -118,7 +115,7 @@ func TestRejectDraftDeletesDraft(t *testing.T) {
 		return nodeOutput(map[string]interface{}{"status": "deleted", "message_id": "EXT-2"}), nil
 	})
 
-	cmd := newPeopleMessagesRejectDraftCmd(&globalConfig{DBPath: dbPath, ProfileID: "default"})
+	cmd := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"}).newPeopleMessagesRejectDraftCmd()
 	cmd.SetArgs([]string{"m-draft"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("reject-draft on a real draft: %v", err)
@@ -134,6 +131,7 @@ func TestRejectDraftDeletesDraft(t *testing.T) {
 // output shapes: immediate sends report {status,message_id,reply_all} while
 // draft-creating ops return the full Graph message object with "id".
 func TestOutlookResultMessageIDFixtureShapes(t *testing.T) {
+	t.Parallel()
 	fixtures := []struct {
 		name string
 		json string
@@ -173,7 +171,7 @@ func TestReplyCapturesGraphMessageIDAndOwnSender(t *testing.T) {
 		return nodeOutput(map[string]interface{}{"status": "sent", "message_id": "REP-2", "reply_all": true}), nil
 	})
 
-	cmd := newPeopleMessagesReplyCmd(&globalConfig{DBPath: dbPath, ProfileID: "default"})
+	cmd := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"}).newPeopleMessagesReplyCmd()
 	cmd.SetArgs([]string{"m-orig", "--connection", "outlook", "--body", "hey", "--reply-all"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("reply: %v", err)
@@ -205,7 +203,7 @@ func TestComposeReplyCapturesGraphMessageID(t *testing.T) {
 		return nodeOutput(map[string]interface{}{"id": "DR-3", "subject": "Re: Hello"}), nil
 	})
 
-	cmd := newPeopleMessagesComposeCmd(&globalConfig{DBPath: dbPath, ProfileID: "default"})
+	cmd := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"}).newPeopleMessagesComposeCmd()
 	cmd.SetArgs([]string{"p1", "--connection", "outlook", "--body", "re", "--reply-to", "m-orig2", "--draft"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("compose --reply-to --draft: %v", err)
@@ -234,7 +232,7 @@ func TestComposeRecordsOwnSenderNotRecipient(t *testing.T) {
 		return nodeOutput(map[string]interface{}{"status": "sent", "to": "alice@x.com", "subject": "Hi"}), nil
 	})
 
-	cmd := newPeopleMessagesComposeCmd(&globalConfig{DBPath: dbPath, ProfileID: "default"})
+	cmd := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"}).newPeopleMessagesComposeCmd()
 	cmd.SetArgs([]string{"p1", "--connection", "outlook", "--subject", "Hi", "--body", "hello"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("compose: %v", err)
@@ -276,7 +274,7 @@ func TestSendDraftMarksSendingBeforeGraphCall(t *testing.T) {
 		return nodeOutput(map[string]interface{}{"status": "sent", "message_id": "SENT-NEW"}), nil
 	})
 
-	cmd := newPeopleMessagesSendDraftCmd(&globalConfig{DBPath: dbPath, ProfileID: "default"})
+	cmd := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"}).newPeopleMessagesSendDraftCmd()
 	cmd.SetArgs([]string{"m-send"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("send-draft: %v", err)
@@ -306,7 +304,7 @@ func TestSendDraftRestoresDraftStatusOnFailure(t *testing.T) {
 		return nil, fmt.Errorf("graph unavailable")
 	})
 
-	cmd := newPeopleMessagesSendDraftCmd(&globalConfig{DBPath: dbPath, ProfileID: "default"})
+	cmd := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"}).newPeopleMessagesSendDraftCmd()
 	cmd.SetArgs([]string{"m-fail"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("send-draft must surface the Graph failure")
@@ -338,8 +336,8 @@ func TestComposeRefusesContactWithoutEmail(t *testing.T) {
 		t.Fatalf("closing seed db: %v", err)
 	}
 
-	cfg := &globalConfig{DBPath: dbPath, ProfileID: "default"}
-	cmd := newPeopleMessagesComposeCmd(cfg)
+	cfg := &testConfig{DBPath: dbPath, ProfileID: "default"}
+	cmd := testDeps(cfg).newPeopleMessagesComposeCmd()
 	cmd.SetArgs([]string{"p2", "--connection", "outlook", "--body", "hi"})
 	err = cmd.Execute()
 	if err == nil {
@@ -353,7 +351,7 @@ func TestComposeRefusesContactWithoutEmail(t *testing.T) {
 	stubOutlookNode(t, func(_ *sql.DB, _ map[string]interface{}) ([]workflow.NodeOutput, error) {
 		return nodeOutput(map[string]interface{}{"status": "sent"}), nil
 	})
-	cmd2 := newPeopleMessagesComposeCmd(cfg)
+	cmd2 := testDeps(cfg).newPeopleMessagesComposeCmd()
 	cmd2.SetArgs([]string{"p2", "--connection", "outlook", "--body", "hi", "--to", "bobby@example.com"})
 	if err := cmd2.Execute(); err != nil {
 		t.Fatalf("compose with --to override: %v", err)

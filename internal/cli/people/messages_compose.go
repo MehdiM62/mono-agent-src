@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"database/sql"
@@ -17,7 +17,7 @@ import (
 // newPeopleMessagesComposeCmd sends (or drafts) an email to a person via
 // service.outlook_mail and records the result on their message history —
 // the CLI equivalent of the GUI's Compose button on a person's Profile page.
-func newPeopleMessagesComposeCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesComposeCmd() *cobra.Command {
 	var (
 		connectionID string
 		subject      string
@@ -45,7 +45,7 @@ func newPeopleMessagesComposeCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("--body is required")
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -62,7 +62,7 @@ func newPeopleMessagesComposeCmd(cfg *globalConfig) *cobra.Command {
 				if orig == nil {
 					return fmt.Errorf("message %s not found", replyTo)
 				}
-				if err := assertMessageInProfile(db.DB, replyTo, cfg.ProfileID); err != nil {
+				if err := assertMessageInProfile(db.DB, replyTo, d.ProfileID()); err != nil {
 					return err
 				}
 				if orig.ExternalID == "" {
@@ -89,7 +89,7 @@ func newPeopleMessagesComposeCmd(cfg *globalConfig) *cobra.Command {
 				if bcc != "" {
 					config["bcc"] = bcc
 				}
-				outputs, err := runOutlookNode(cmd, cfg, db.DB, connectionID, config)
+				outputs, err := d.runOutlookNode(cmd, db.DB, connectionID, config)
 				if err != nil {
 					return err
 				}
@@ -118,11 +118,11 @@ func newPeopleMessagesComposeCmd(cfg *globalConfig) *cobra.Command {
 					Status:   status,
 					SentAt:   time.Now().UTC(),
 				}
-				if err := db.UpsertPersonMessage(msg, cfg.ProfileID); err != nil {
+				if err := db.UpsertPersonMessage(msg, d.ProfileID()); err != nil {
 					return fmt.Errorf("saving message: %w", err)
 				}
 
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return json.NewEncoder(os.Stdout).Encode(msg)
 				}
 				verb := "Sent"
@@ -140,9 +140,9 @@ func newPeopleMessagesComposeCmd(cfg *globalConfig) *cobra.Command {
 			var toAddr string
 			if err := db.DB.QueryRow(
 				`SELECT platform_username FROM people WHERE id = ? AND profile_id = ?`,
-				args[0], cfg.ProfileID,
+				args[0], d.ProfileID(),
 			).Scan(&toAddr); err != nil {
-				return fmt.Errorf("person %s not found in profile %s: %w", args[0], cfg.ProfileID, err)
+				return fmt.Errorf("person %s not found in profile %s: %w", args[0], d.ProfileID(), err)
 			}
 			if toOverride != "" {
 				toAddr = toOverride
@@ -176,7 +176,7 @@ func newPeopleMessagesComposeCmd(cfg *globalConfig) *cobra.Command {
 			if bcc != "" {
 				config["bcc"] = bcc
 			}
-			outputs, err := runOutlookNode(cmd, cfg, db.DB, connectionID, config)
+			outputs, err := d.runOutlookNode(cmd, db.DB, connectionID, config)
 			if err != nil {
 				return err
 			}
@@ -203,11 +203,11 @@ func newPeopleMessagesComposeCmd(cfg *globalConfig) *cobra.Command {
 				Status:   status,
 				SentAt:   time.Now().UTC(),
 			}
-			if err := db.UpsertPersonMessage(msg, cfg.ProfileID); err != nil {
+			if err := db.UpsertPersonMessage(msg, d.ProfileID()); err != nil {
 				return fmt.Errorf("saving message: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(msg)
 			}
 			verb := "Sent"
@@ -239,7 +239,7 @@ func newPeopleMessagesComposeCmd(cfg *globalConfig) *cobra.Command {
 // (inbound or outbound) on the same Outlook thread, via service.outlook_mail's
 // createReply/createReplyAll/reply/replyAll operations — the CLI equivalent
 // of hitting Reply/Reply All on an email instead of composing a new one.
-func newPeopleMessagesReplyCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesReplyCmd() *cobra.Command {
 	var (
 		connectionID string
 		body         string
@@ -255,7 +255,7 @@ func newPeopleMessagesReplyCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli people messages reply abc123 --connection outlook --body "Looping everyone in" --reply-all
   monoagentcli people messages reply abc123 --connection outlook --body "..." --draft`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -268,7 +268,7 @@ func newPeopleMessagesReplyCmd(cfg *globalConfig) *cobra.Command {
 			if msg == nil {
 				return fmt.Errorf("message %s not found", args[0])
 			}
-			if err := assertMessageInProfile(db.DB, args[0], cfg.ProfileID); err != nil {
+			if err := assertMessageInProfile(db.DB, args[0], d.ProfileID()); err != nil {
 				return err
 			}
 			if msg.ExternalID == "" {
@@ -296,7 +296,7 @@ func newPeopleMessagesReplyCmd(cfg *globalConfig) *cobra.Command {
 			if body != "" {
 				config["body"] = body
 			}
-			outputs, err := runOutlookNode(cmd, cfg, db.DB, resolvedConnectionID, config)
+			outputs, err := d.runOutlookNode(cmd, db.DB, resolvedConnectionID, config)
 			if err != nil {
 				return err
 			}
@@ -325,11 +325,11 @@ func newPeopleMessagesReplyCmd(cfg *globalConfig) *cobra.Command {
 				Status:   status,
 				SentAt:   time.Now().UTC(),
 			}
-			if err := db.UpsertPersonMessage(reply, cfg.ProfileID); err != nil {
+			if err := db.UpsertPersonMessage(reply, d.ProfileID()); err != nil {
 				return fmt.Errorf("saving message: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(reply)
 			}
 			verb := "Sent"
@@ -370,22 +370,23 @@ func outlookResultMessageID(outputs []workflow.NodeOutput) string {
 }
 
 // runOutlookNode resolves credentials for the given connection ID/platform
-// name (scoped to cfg.ProfileID) and executes service.outlook_mail with the
+// name (scoped to d.ProfileID()) and executes service.outlook_mail with the
 // given config, in-process — shared by compose/send-draft/reject-draft so
-// none of them duplicate credential resolution or node dispatch. It is a
-// var so tests can stub the Graph call without a real connection.
-var runOutlookNode = func(cmd *cobra.Command, cfg *globalConfig, db *sql.DB, connectionID string, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+// none of them duplicate credential resolution or node dispatch. The node
+// comes from d.NodeRegistry, so tests can stub the Graph call without a
+// real connection.
+func (d Deps) runOutlookNode(cmd *cobra.Command, db *sql.DB, connectionID string, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	if connectionID == "" {
 		connectionID = "outlook"
 	}
-	registry := buildNodeRegistry(cfg.Verbose, db)
+	registry := d.NodeRegistry(db)
 	factory, ok := registry.Get("service.outlook_mail")
 	if !ok {
 		return nil, fmt.Errorf("service.outlook_mail node not registered")
 	}
 
 	connStore := connections.NewStore(db)
-	credData, err := resolveCredentialData(cmd.Context(), connStore, connectionID, cfg.ProfileID)
+	credData, err := d.ResolveCredential(cmd.Context(), connStore, connectionID, d.ProfileID())
 	if err != nil {
 		return nil, fmt.Errorf("resolving connection %q: %w", connectionID, err)
 	}

@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"bytes"
@@ -129,6 +129,7 @@ func TestStoreMessageClassificationNoLostUpdate(t *testing.T) {
 }
 
 func TestInboxSenderName(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ sender, full, want string }{
 		{"Bob Buyer", "Robert", "Bob Buyer"},
 		{"bob@x.com", "Robert Buyer", "Robert Buyer"},
@@ -158,12 +159,12 @@ func seedInboxMessages(t *testing.T) string {
 
 func runMessagesClassify(t *testing.T, dbPath string, args ...string) (string, error) {
 	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, ProfileID: "default"}
+	cfg := &testConfig{DBPath: dbPath, ProfileID: "default"}
 	if len(args) > 0 && args[0] == "--json" {
 		cfg.JSONOutput, args = true, args[1:]
 	}
 	var out bytes.Buffer
-	cmd := newPeopleMessagesClassifyCmd(cfg)
+	cmd := testDeps(cfg).newPeopleMessagesClassifyCmd()
 	cmd.SetArgs(args)
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -273,7 +274,7 @@ func TestMessagesListIntentFilter(t *testing.T) {
 	})
 
 	stdout := captureStdout(t, func() {
-		cmd := newPeopleMessagesListCmd(&globalConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+		cmd := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true}).newPeopleMessagesListCmd()
 		cmd.SetArgs([]string{"p1", "--intent", "lead"})
 		if err := cmd.Execute(); err != nil {
 			t.Fatal(err)
@@ -287,7 +288,7 @@ func TestMessagesListIntentFilter(t *testing.T) {
 		t.Fatalf("--intent lead returned %+v", msgs)
 	}
 
-	cmd := newPeopleMessagesListCmd(&globalConfig{DBPath: dbPath, ProfileID: "default"})
+	cmd := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"}).newPeopleMessagesListCmd()
 	cmd.SetArgs([]string{"p1", "--intent", "bogus"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("an unknown --intent must be rejected")
@@ -295,6 +296,7 @@ func TestMessagesListIntentFilter(t *testing.T) {
 }
 
 func TestParseAge(t *testing.T) {
+	t.Parallel()
 	for in, ok := range map[string]bool{"": true, "12h": true, "7d": true, "1.5d": true, "x": false, "-1h": false} {
 		if _, err := parseAge(in); (err == nil) != ok {
 			t.Errorf("parseAge(%q) err=%v", in, err)

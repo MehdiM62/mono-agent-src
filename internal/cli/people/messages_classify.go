@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"context"
@@ -254,7 +254,7 @@ type inboxClassifyOutcome struct {
 	Error          string                 `json:"error,omitempty"`
 }
 
-func newPeopleMessagesClassifyCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesClassifyCmd() *cobra.Command {
 	var (
 		personID   string
 		sinceFlag  string
@@ -281,31 +281,31 @@ func newPeopleMessagesClassifyCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			since, err := parseAge(sinceFlag)
 			if err != nil {
-				return errInvalidInput("--since: %v", err)
+				return d.InvalidInput("--since: %v", err)
 			}
 			if limit < 0 {
-				return errInvalidInput("--limit must be positive, got %d", limit)
+				return d.InvalidInput("--limit must be positive, got %d", limit)
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
-			if !jevconf.Enabled(db.DB, cfg.ProfileID, jevconf.Inbox) {
-				return errInvalidInput("inbox classification is off for profile %q: run `monoagentcli jev enable inbox` to turn it on", cfg.ProfileID)
+			if !jevconf.Enabled(db.DB, d.ProfileID(), jevconf.Inbox) {
+				return d.InvalidInput("inbox classification is off for profile %q: run `monoagentcli jev enable inbox` to turn it on", d.ProfileID())
 			}
-			candidates, err := selectInboxCandidates(db.DB, cfg.ProfileID, personID, since, limit, reclassify)
+			candidates, err := selectInboxCandidates(db.DB, d.ProfileID(), personID, since, limit, reclassify)
 			if err != nil {
 				return err
 			}
 			outcomes := make([]inboxClassifyOutcome, len(candidates))
 			if len(candidates) > 0 {
-				client, err := jevconf.NewClient(cmd.Context(), db.DB, cfg.ProfileID, "", "", jevconf.Inbox)
+				client, err := jevconf.NewClient(cmd.Context(), db.DB, d.ProfileID(), "", "", jevconf.Inbox)
 				if err != nil {
 					return err
 				}
-				threshold := jevconf.Threshold(db.DB, cfg.ProfileID, jevconf.Inbox, jevconf.DefaultThreshold[jevconf.Inbox])
+				threshold := jevconf.Threshold(db.DB, d.ProfileID(), jevconf.Inbox, jevconf.DefaultThreshold[jevconf.Inbox])
 				var (
 					wg  sync.WaitGroup
 					sem = make(chan struct{}, inboxClassifyConcurrency)
@@ -337,7 +337,7 @@ func newPeopleMessagesClassifyCmd(cfg *globalConfig) *cobra.Command {
 				wg.Wait()
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(outcomes)
