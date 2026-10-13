@@ -260,6 +260,8 @@ through, so an unset param stays unset:
 | `firestore_value` | a JSON value → a Firestore Value (stringValue, integerValue/doubleValue, booleanValue incl. "true"/"false", timestampValue for RFC 3339 text, nullValue, arrayValue, mapValue) |
 | `firestore_fields` / `firestore_fields:p.columns` | object → Firestore `fields` (all keys, or the listed columns with missing ones as nullValue) |
 | `omit:'a,b'` | object without the listed keys; the argument may be a path to a comma string or list (`omit:p.inputsToIgnore`) |
+| `len` | number of elements of a list, keys of an object or characters of a text: `{{ p.data \| fromjson \| len }}` (Excel raw append spans that many rows) |
+| `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
 ```json
@@ -318,6 +320,13 @@ argument are not, so an optional path suffix works:
    - `none` — no body (`body` must be unset).
 4. Package `headers`, then op `headers` (rendered; empty values not sent).
    `Accept: application/json` unless set (or a download).
+   Header **names** may be templates; a header whose name renders empty is
+   not sent (`"{{ p.options.hdr }}": "{{ p.options.hdrValue }}"`). A
+   `"$merge"` entry spreads an object of headers (rendered first, so explicit
+   headers override it; empty names/values skipped; a non-object is an
+   error) — Azure custom metadata from an n8n key/value collection:
+   `"$merge": "{{ p.options.metadata | kv:'fieldName,fieldValue,x-ms-meta-' }}"`.
+   The same works in `also`/`before` step headers.
 5. Auth is injected last (§7).
 
 Responses: 2xx bodies are read up to 64 MiB (larger is an error); a non-2xx
@@ -380,7 +389,9 @@ WebDAV methods MKCOL, MOVE, COPY, PROPFIND and PROPPATCH are allowed (NextCloud)
   `X-Amz-Content-Sha256`.
 - `inject` must not be empty unless the only method is `none`.
 
-**Scope groups (`scope_group`).** A credential on an umbrella connection (`"reuse_platform": "google"` / `"microsoft"`) names the scope group it needs: `"scope_group": "calendar"` (google: sheets, gmail, drive, youtube, calendar, docs, forms, tasks, contacts; microsoft: mail, calendar, files, sites, teams). Before the first request the engine checks the connection grants it and otherwise fails with the exact `monoagentcli connect google --scopes …` command.
+**Scope groups (`scope_group`).** A credential on an umbrella connection (`"reuse_platform": "google"` / `"microsoft"`) names the scope group it needs: `"scope_group": "calendar"`. Groups (`monoagentcli connect --help` lists them under `--scopes`): google — sheets, gmail, drive, youtube, calendar, docs, forms, tasks, contacts, opt-in translate, naturallanguage, chat, bigquery, cloudstorage, firebase, ads, analytics, books, businessprofile, admin; microsoft — mail, calendar, files, sites, teams, tasks (To Do / Planner), contacts, opt-in teams_admin (channel create/settings/delete, reading channel messages), directory (Entra users and groups), security (Graph Security). Opt-in groups are granted only when named in `--scopes` (or `all`): their scopes need a Google review or a Microsoft tenant admin's consent, so a plain `connect` never asks for them. Before an item's request the engine checks the connection grants the group and otherwise fails with the exact `monoagentcli connect … --scopes …` command (non-umbrella connections are not judged).
+
+An **operation** may set its own `"scope_group"`, which replaces the credential's for that op — one package, several groups: Outlook's credential says `mail`, its calendar/event ops `"scope_group": "calendar"` and contact ops `"contacts"`; Teams channel management `teams_admin`, Planner tasks `tasks`. Names are validated against the umbrella's groups when the package has an umbrella credential.
 
 `inject.body: {"key": "{{ cred.api_key }}"}` merges credential values (typed: a single expression keeps booleans/numbers) into JSON/form/multipart bodies (Mandrill sends its key in every body).
 
@@ -490,7 +501,8 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - `"limit": true` applies n8n's `returnAll`/`limit` params to a list the API returns whole (client-side slicing; replaces the `__no_next_page__` pagination trick).
 - `expand` with `"expand_merge_key": "transcript", "expand_merge_path": "callTranscripts.0.transcript"` sets that key on the element instead of replacing it.
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
-- `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept.
+- `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept. `rows` may give one object for a single condition: `"rows": "{{ p | pick:'lookupColumn,lookupValue' }}"`.
+- `"match_after_to": true` runs `match` after `to` instead of before, so it filters the reshaped elements (Excel table rows `{values: [[…]]}` zipped with their column names, then matched by column; `first` = `{{ p.options.returnAllMatches | ne:'true' }}`).
 
 **Header-row output.** `"output": {"path": "values", "header_row": true}` turns `[[h1,h2],[v1,v2],…]` into one item per row keyed by the first row.
 
@@ -528,6 +540,8 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 **Files inside JSON.** Upload: `bin.base64` is the upload's bytes base64-encoded, for APIs that take file content in a JSON body (GitHub/GitLab `"content": "{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"` with `upload_when: "{{ p.binaryData }}"`). Download: `binary.download_base64` (template over `res`, e.g. `"{{ res.content }}"`) decodes a base64 file from the JSON response onto the item's binary (property from `property_field`, name from the `file_name` template, MIME type from `mime_type` or the name) and keeps the JSON as the item; gate it with `download_when`.
 
 `binary.fallback_body_type` (json/form/multipart/raw/none) is the body type when `upload_when` turns the upload off (LINE Notify stays a form without an image).
+
+**Large files in chunks (`upload_session`).** `"binary": {"upload_field": "binaryPropertyName", "upload_session": {"create": {"method": "POST", "path": "/items/{{ p.parentId }}:/{{ p.fileName }}:/createUploadSession", "body": {"item": {"@microsoft.graph.conflictBehavior": "replace"}}}}}` — when the upload is larger than `min_size` bytes (default 4 MiB) the engine sends `create` (a step, with auth), reads the upload URL at `url_path` (default `uploadUrl`) of its response, and PUTs the file there in `chunk_size` pieces (default 10 MiB; Graph wants multiples of 320 KiB) with `Content-Range: bytes a-b/total` and no credential (the URL is pre-authorised). The last chunk's response is the op's response. Smaller files go in the op's single request as before (OneDrive / SharePoint upload).
 
 **Several files.** `binary.properties` (a template giving a list or comma text, e.g. n8n's `"attachments": "data,data2"`) uploads each property: in a multipart body one part per file, with `el = {property, index}` in the `multipart_field` template (`"attachment[{{ el.index }}]"`); for JSON bodies `bin.files` is the list of `{property, file_name, mime_type, file_extension, base64, file_size}` (`{"$map": "{{ bin.files }}", "$to": {"name": "{{ el.file_name }}", "content": "{{ el.base64 }}"}}`).
 
@@ -739,4 +753,8 @@ Optional keys the engine added (the design's keys are unchanged):
 | credential | method `client_credentials`; `oauth.client_id_field`, `client_secret_field`, `client_auth` (`auth_url` optional for it) | §7 |
 | operation | `also` (follow-up requests), `batch` (one request for all items) | §9 |
 | templates | filters `split`, `date`; `kv` key prefix; root `items` | §5 |
+| templates | filters `len`, `urlencode`; templated header names, headers `$merge` | §5, §6 |
+| operation | `scope_group` (overrides the credential's) | §7 |
+| output | `match_after_to`; `match.rows` may be one object | §9 |
+| binary | `upload_session` (`create`, `min_size`, `chunk_size`, `url_path`) | §10 |
 | schema output | `visible_for`, `apipkg`, `extended_by` | exact op visibility; package id; extending packages |

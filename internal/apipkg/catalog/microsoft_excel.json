@@ -333,7 +333,7 @@
       "title": "Append a row",
       "method": "PATCH",
       "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
-      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/range(address='{{ pre.address | re:'!([A-Z]+)' }}{{ pre.address | re:'([0-9]+)$' | int | add:1 }}:{{ pre.address | re:':([A-Z]+)[0-9]+$' }}{{ pre.address | re:'([0-9]+)$' | int | add:1 }}')",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/range(address='{{ pre.address | re:'!([A-Z]+)' }}{{ pre.address | re:'([0-9]+)$' | int | add:1 }}:{{ p.dataMode | eq:'raw' | then:(pre.address | re:'!([A-Z]+)' | colnum | add:(p.data | fromjson | get:'0' | len | default:1) | sub:1 | colname) | default:(pre.address | re:':([A-Z]+)[0-9]+$') }}{{ pre.address | re:'([0-9]+)$' | int | add:(p.dataMode | eq:'raw' | then:(p.data | fromjson | len) | default:1) }}')",
       "fields": [
         {
           "key": "resourceTarget",
@@ -412,7 +412,7 @@
           "help": "rawData: return Graph's range object instead of one item per row; fields: $select for the raw object."
         }
       ],
-      "description": "Writes one row per input item below the sheet's used range, ordered by its header row.",
+      "description": "Writes one row per input item below the sheet's used range, ordered by its header row (raw mode: every row of Data, starting at the used range's first column).",
       "before": {
         "method": "GET",
         "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/usedRange",
@@ -1511,7 +1511,7 @@
           "options": [
             "returnAllMatches"
           ],
-          "help": "Returns the first matching row; returnAllMatches is not supported yet."
+          "help": "Returns the first matching row; returnAllMatches: true returns every matching row."
         }
       ],
       "before": {
@@ -1520,9 +1520,16 @@
         "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}"
       },
       "output": {
-        "from": "{{ res.value | find:(pre.value | find:'name',p.lookupColumn | get:'index' | string | prefix:'values.0.'),p.lookupValue }}",
+        "path": "value",
         "to": {
           "$merge": "{{ el.values.0 | zip:(pre.value | pluck:'name') }}"
+        },
+        "match_after_to": true,
+        "match": {
+          "rows": "{{ p | pick:'lookupColumn,lookupValue' }}",
+          "column": "lookupColumn",
+          "value": "lookupValue",
+          "first": "{{ p.options.returnAllMatches | ne:'true' }}"
         }
       }
     }

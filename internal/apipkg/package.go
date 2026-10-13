@@ -193,6 +193,10 @@ type Operation struct {
 	// batchUpdate/batchDelete): params come from the first item and the
 	// items root holds every item's JSON.
 	Batch bool `json:"batch,omitempty"`
+	// ScopeGroup overrides the credential's scope_group for this op: an
+	// umbrella connection must grant this group instead (Outlook calendar
+	// and contact ops need "calendar"/"contacts", not "mail").
+	ScopeGroup string `json:"scope_group,omitempty"`
 	// Poll repeats a request after the main one until Until (a template
 	// over res = the latest response) renders true (BigQuery jobs that
 	// are not complete yet). The last response replaces the main one.
@@ -324,6 +328,10 @@ type Output struct {
 	// template, skips the reshape when it renders empty/false (rawData).
 	To     any    `json:"to,omitempty"`
 	ToWhen string `json:"to_when,omitempty"`
+	// MatchAfterTo runs Match on the elements reshaped by To instead of
+	// the raw ones (Excel rows zipped with their column names, then
+	// filtered by column).
+	MatchAfterTo bool `json:"match_after_to,omitempty"`
 	// Firestore (a template): when true, decode Firestore documents
 	// ({name, fields{typed values}}) into plain JSON with _name, _id,
 	// _createTime and _updateTime (n8n's "simple" output).
@@ -383,6 +391,10 @@ type Binary struct {
 	// UploadText (a template): when it renders non-empty, its text is the
 	// upload instead of the input item's binary (GCS create from text).
 	UploadText string `json:"upload_text,omitempty"`
+	// UploadSession sends files larger than MinSize in chunks through a
+	// resumable upload session (Microsoft Graph createUploadSession)
+	// instead of one raw request.
+	UploadSession *UploadSession `json:"upload_session,omitempty"`
 	// DownloadBase64 (a template over res): when the response carries the
 	// file base64-encoded in JSON (GitHub contents), decode it onto the
 	// item's binary and keep the JSON response as the item's json.

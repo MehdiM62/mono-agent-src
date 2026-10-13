@@ -27,6 +27,7 @@ var knownFilters = map[string]bool{
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
 	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true, "snake": true, "matches": true, "in": true, "flatten": true, "unflatten": true,
+	"len": true, "urlencode": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -71,6 +72,10 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return nil, nil
 	}
 	switch name {
+	case "len":
+		return lengthOf(v), nil
+	case "urlencode":
+		return urlEncode(v), nil
 	case "json":
 		b, err := json.Marshal(v)
 		if err != nil {
