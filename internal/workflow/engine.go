@@ -345,10 +345,11 @@ func (e *WorkflowEngine) resumeTick(ctx context.Context) {
 	}
 }
 
-// adoptQueuedExecutions claims unowned QUEUED executions (pid 0, no resume
-// state — the rows `workflow run --no-wait` persists before exiting) and
-// enqueues them locally, so a live engine (the daemon, or any sufficiently
-// long-lived engine command) picks the run up. Each row is claimed with a
+// adoptQueuedExecutions claims unowned QUEUED executions (no resume state;
+// pid 0 — the rows `workflow run --no-wait` persists before exiting — or the
+// pid of a process that died before starting them) and enqueues them
+// locally, so a live engine (the daemon, or any sufficiently long-lived
+// engine command) picks the run up. Each row is claimed with a
 // CAS (pid 0 → self) so among engines sharing the DB exactly one adopts it.
 //
 // It piggybacks the resume loop rather than running synchronously in Start:
@@ -598,6 +599,7 @@ func (e *WorkflowEngine) handleTrigger(workflowID string, nodeID string, items [
 		Status:      "QUEUED",
 		TriggerType: triggerType,
 		TriggerData: triggerData,
+		PID:         ownerPID(),
 	}
 
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
@@ -637,10 +639,17 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		Str("workflow_id", req.WorkflowID).
 		Logger()
 
-	// 0. Honor a cancellation that landed while this request sat in the queue.
-	// Status-only read — cheaper than loading the full execution record.
-	if st, err := e.store.GetExecutionStatus(ctx, req.ExecutionID); err == nil && st == "CANCELLED" {
-		log.Info().Msg("engine: handleExecution: execution cancelled before dispatch; skipping")
+	// 0. Claim the run: QUEUED → RUNNING, guarded. A cancel that landed while
+	// the request sat in the queue, another engine, or a second dispatch of
+	// the same execution makes the claim fail, and then this dispatch must
+	// not run anything — that is what keeps an execution body from running
+	// twice.
+	if started, err := e.startQueued(context.WithoutCancel(ctx), req.ExecutionID); err != nil {
+		log.Error().Err(err).Msg("engine: handleExecution: failed to mark execution as RUNNING")
+		return
+	} else if !started {
+		st, _ := e.store.GetExecutionStatus(ctx, req.ExecutionID)
+		log.Info().Str("status", st).Msg("engine: handleExecution: execution not QUEUED for this process (cancelled, or dispatched elsewhere); skipping")
 		return
 	}
 
@@ -670,12 +679,6 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		log.Error().Msg("engine: handleExecution: workflow not found")
 		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", "workflow not found")
 		return
-	}
-
-	// 2. Update execution status to RUNNING, record started_at.
-	if err := e.store.SetExecutionStarted(persistCtx(), req.ExecutionID); err != nil {
-		log.Error().Err(err).Msg("engine: handleExecution: failed to mark execution as RUNNING")
-		// Non-fatal — attempt to continue.
 	}
 
 	// 3. Build the DAG.
@@ -992,7 +995,7 @@ func (e *WorkflowEngine) TriggerWorkflow(ctx context.Context, workflowID string,
 	if trigErr := account.Require(ctx); trigErr != nil {
 		return "", trigErr
 	}
-	exec, err := e.newManualExecution(ctx, workflowID, data)
+	exec, err := e.newManualExecution(ctx, workflowID, data, ownerPID())
 	if err != nil {
 		return "", err
 	}
@@ -1026,7 +1029,7 @@ func (e *WorkflowEngine) TriggerWorkflowPersistOnly(ctx context.Context, workflo
 	if persistErr := account.Require(ctx); persistErr != nil {
 		return "", persistErr
 	}
-	exec, err := e.newManualExecution(ctx, workflowID, data)
+	exec, err := e.newManualExecution(ctx, workflowID, data, 0)
 	if err != nil {
 		return "", err
 	}
@@ -1038,9 +1041,9 @@ func (e *WorkflowEngine) TriggerWorkflowPersistOnly(ctx context.Context, workflo
 }
 
 // newManualExecution validates the workflow and persists a QUEUED execution
-// row for a manual trigger. Shared by TriggerWorkflow and
-// TriggerWorkflowPersistOnly.
-func (e *WorkflowEngine) newManualExecution(ctx context.Context, workflowID string, data map[string]interface{}) (*WorkflowExecution, error) {
+// row for a manual trigger, owned by pid (0: left for adoption). Shared by
+// TriggerWorkflow and TriggerWorkflowPersistOnly.
+func (e *WorkflowEngine) newManualExecution(ctx context.Context, workflowID string, data map[string]interface{}, pid int) (*WorkflowExecution, error) {
 	wf, err := e.store.GetWorkflow(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("engine: trigger workflow: %w", err)
@@ -1065,6 +1068,7 @@ func (e *WorkflowEngine) newManualExecution(ctx context.Context, workflowID stri
 		Status:      "QUEUED",
 		TriggerType: "trigger.manual",
 		TriggerData: data,
+		PID:         pid,
 	}
 
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
@@ -1160,6 +1164,7 @@ func (e *WorkflowEngine) RetryExecution(ctx context.Context, executionID string)
 		Status:      "QUEUED",
 		TriggerType: orig.TriggerType,
 		TriggerData: data,
+		PID:         ownerPID(),
 	}
 
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
