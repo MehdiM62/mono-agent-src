@@ -8,7 +8,8 @@ import AgentSetupLink from './AgentSetupLink.jsx'
 // Listens to the api error bus and shows transient toasts, so a failed backend
 // call is visible instead of silently degrading a page to empty data. A
 // failure because the AI agent is not set up gets a link to the AI agents
-// page (onNavigate), and stays up longer so there is time to use it.
+// page (onNavigate), and stays up longer so there is time to use it; so does
+// one carrying an action button ({ label, run }, e.g. "Activate & run").
 export default function Toasts({ onNavigate }) {
   const { t } = useTranslation()
   const [toasts, setToasts] = useState([])
@@ -19,15 +20,16 @@ export default function Toasts({ onNavigate }) {
   }, [])
 
   useEffect(() => {
-    return onApiError(({ op, message, code }) => {
+    return onApiError(({ op, message, code, action }) => {
       const id = ++seq.current
       const agentSetup = isAgentNotSetup({ code, message })
       setToasts(prev => {
         // Collapse a rapid burst of the same op into one toast.
         const filtered = prev.filter(t => t.op !== op)
-        return [...filtered, { id, op, message: withoutAgentSetupMarker(message), agentSetup }].slice(-4)
+        return [...filtered, { id, op, message: withoutAgentSetupMarker(message), agentSetup, action }].slice(-4)
       })
-      setTimeout(() => dismiss(id), agentSetup ? 15000 : 6000)
+      // A toast with something to click stays up long enough to click it.
+      setTimeout(() => dismiss(id), agentSetup || action ? 15000 : 6000)
     })
   }, [dismiss])
 
@@ -55,6 +57,13 @@ export default function Toasts({ onNavigate }) {
             <div style={{ color: '#fecaca', fontWeight: 600, marginBottom: 2 }}>{t('toasts.failed', { op: toast.op })}</div>
             <div style={{ color: '#f8a5a5', wordBreak: 'break-word', whiteSpace: 'pre-line', opacity: 0.85 }}>{toast.message}</div>
             {toast.agentSetup && <AgentSetupLink onNavigate={onNavigate} onDone={() => dismiss(toast.id)} />}
+            {toast.action && (
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ marginTop: 8 }}
+                onClick={() => { dismiss(toast.id); toast.action.run() }}
+              >{toast.action.label}</button>
+            )}
           </div>
           <button
             onClick={() => dismiss(toast.id)}

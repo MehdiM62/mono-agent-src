@@ -11,9 +11,11 @@ accounts on the same site.
 
 ## Set it up
 
-1. Install the extension in each browser profile (`chrome://extensions` →
-   Load unpacked → `chrome-extension/`) and pair it: paste the output of
-   `monoagentcli extension pair` into the side panel's Connection settings.
+1. Run `monoagentcli extension install`, then load it in each browser
+   profile (`chrome://extensions` → Developer mode → Load unpacked →
+   `~/.monoagent/extension`) and pair it: `monoagentcli extension pair --open`
+   opens a pairing page that pairs the browser it opens in (or paste the output
+   of `monoagentcli extension pair` into the side panel's Connection settings).
 2. In each browser's side panel, open **Connection settings → Automations in
    this browser** and choose the profile. Give the browser a name you'll
    recognise.

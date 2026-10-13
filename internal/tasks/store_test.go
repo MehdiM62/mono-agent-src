@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 	"unicode/utf8"
 )
 
@@ -156,43 +155,6 @@ func TestAddCutsTheSourceTitleAndTheAppName(t *testing.T) {
 	}
 	if n := utf8.RuneCountInString(task.Source.App); n != MaxAppRunes {
 		t.Errorf("app name of %d runes, want %d", n, MaxAppRunes)
-	}
-}
-
-func TestAgentsMayAddTwentyTasksAnHour(t *testing.T) {
-	s, db, c := newTestStore(t)
-	other := addProfile(t, db, "p2")
-	add := func(profile string) error {
-		_, _, err := s.Add(bg, profile, AddInput{Title: "from an agent"}, bot("b"))
-		return err
-	}
-	for i := 0; i < 5; i++ {
-		mustAdd(t, s, "default", "from the operator", false) // they do not use up the agents' twenty
-	}
-	for i := 0; i < AgentTasksPerHour; i++ {
-		if err := add("default"); err != nil {
-			t.Fatalf("task %d: %v", i+1, err)
-		}
-	}
-	if err := add("default"); !errors.Is(err, ErrLimit) {
-		t.Fatalf("task 21: %v, want ErrLimit", err)
-	}
-	if err := add(other); err != nil {
-		t.Errorf("the limit is per profile: %v", err)
-	}
-	if _, _, err := s.Add(bg, "default", AddInput{Title: "operator"}, human); err != nil {
-		t.Errorf("the operator is not limited: %v", err)
-	}
-	if n := countWhere(t, db, "tasks", "profile_id = 'default' AND source_kind = 'agent'"); n != AgentTasksPerHour {
-		t.Errorf("%d agent tasks stored, want %d: a refused add writes nothing", n, AgentTasksPerHour)
-	}
-	c.advance(59 * time.Minute)
-	if err := add("default"); !errors.Is(err, ErrLimit) {
-		t.Errorf("59 minutes later: %v, want ErrLimit", err)
-	}
-	c.advance(2 * time.Minute)
-	if err := add("default"); err != nil {
-		t.Errorf("an hour later: %v", err)
 	}
 }
 

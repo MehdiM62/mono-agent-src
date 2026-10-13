@@ -20,7 +20,7 @@ import (
 // (control and hidden characters, invalid UTF-8), cut to the limits, the
 // address checked. The actor is always the Chrome capture, whatever
 // environment this process inherited: a daemon started from an agent's shell
-// must not turn the person's browser captures into rate-limited agent tasks,
+// must not turn the person's browser captures into agent tasks,
 // and a capture never reaches Ready.
 
 // chromeCapture is who every task.add acts as.

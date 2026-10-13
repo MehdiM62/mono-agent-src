@@ -31,18 +31,22 @@ srv_pid=$!
 base="http://127.0.0.1:$port"
 for _ in $(seq 1 50); do curl -fs -o /dev/null "$base/" && break; sleep 0.1; done
 
-# Fake release: a raw binary and a tarball holding one.
+# Fake release: a raw binary and a tarball holding one, and a desktop app
+# tarball laid out like the real MonoAgent-linux-amd64.tar.gz.
 asset="monoagentcli-$os-$arch"
 printf '#!/bin/sh\necho fake-monoagentcli\n' > "$web/$asset"
 mkdir -p "$work/pkg" && cp "$web/$asset" "$work/pkg/monoagentcli"
 tar -czf "$web/$asset.tar.gz" -C "$work/pkg" monoagentcli
+mkdir -p "$work/apppkg" && cp "$web/$asset" "$work/apppkg/monoagentcli"
+printf '#!/bin/sh\necho fake-app\n' > "$work/apppkg/MonoAgent-linux-amd64"
+tar -czf "$web/MonoAgent-linux-amd64.tar.gz" -C "$work/apppkg" MonoAgent-linux-amd64 monoagentcli
 
-write_manifest() { # <asset-name> <sha>
+write_manifest() { # <asset-name> <sha> [app-sha]
   cat > "$web/manifest.json" <<EOF
 {"schema":1,"version":"v9.9.9","released_at":"2026-10-08T00:00:00Z","notes_url":"$base/notes",
  "assets":[
   {"os":"plan9","arch":"amd64","name":"other","url":"$base/other","sha256":"00","size":1,"kind":"cli"},
-  {"os":"$os","arch":"$arch","name":"app-$asset","url":"$base/nope","sha256":"00","size":1,"kind":"app"},
+  {"os":"$os","arch":"$arch","name":"MonoAgent-linux-amd64.tar.gz","url":"$base/MonoAgent-linux-amd64.tar.gz","sha256":"${3:-00}","size":1,"kind":"app"},
   {"os":"$os","arch":"$arch","name":"$1","url":"$base/$1","sha256":"$2","size":10,"kind":"cli"}
  ]}
 EOF
@@ -61,8 +65,13 @@ fails=0
 run() { # <name> <expect: ok|fail> <grep-pattern> [env...]; extra args are env assignments
   name="$1"; want="$2"; pat="$3"; shift 3
   dest="$work/prefix-$name"
+  flags=()
+  for a in "$@"; do [ "$a" = --app-flag ] && flags+=(--app); done
+  envs=()
+  for a in "$@"; do [ "$a" = --app-flag ] || envs+=("$a"); done
+  set -- ${envs[@]+"${envs[@]}"}
   rc=0
-  out="$(env -u MONOAGENT_RELEASE_PUBKEY INSTALL_DIR="$dest" MONOAGENT_TEST_ASSET_URL_PREFIX="$base/" MONOAGENT_MANIFEST_URL="$base/manifest.json" "$@" bash "$installer" 2>&1)" || rc=$?
+  out="$(env -u MONOAGENT_RELEASE_PUBKEY HOME="$work/home-$name" INSTALL_DIR="$dest" MONOAGENT_TEST_ASSET_URL_PREFIX="$base/" MONOAGENT_MANIFEST_URL="$base/manifest.json" "$@" bash "$installer" ${flags[@]+"${flags[@]}"} 2>&1)" || rc=$?
   ok=1
   if [ "$want" = ok ]; then [ "$rc" -eq 0 ] && [ -x "$dest/monoagentcli" ] || ok=0
   else [ "$rc" -ne 0 ] && [ ! -e "$dest/monoagentcli" ] || ok=0; fi
@@ -70,15 +79,21 @@ run() { # <name> <expect: ok|fail> <grep-pattern> [env...]; extra args are env a
   if [ "$ok" -eq 1 ]; then echo "PASS $name"; else echo "FAIL $name (rc=$rc)"; printf '%s\n' "$out" | sed 's/^/    /'; fails=$((fails+1)); fi
 }
 
-# 1. checksum-only: no key configured, says so and does not claim a signature.
+# 1. the installer's pinned release key refuses a manifest signed by any
+# other key (here the test key).
 write_manifest "$asset" "$(sha "$web/$asset")"; sign
-run unsigned-no-key ok "signature verification is SKIPPED"
-out="$(INSTALL_DIR="$work/p-neg" MONOAGENT_TEST_ASSET_URL_PREFIX="$base/" MONOAGENT_MANIFEST_URL="$base/manifest.json" bash "$installer" 2>&1)"
-if printf '%s' "$out" | grep -q "signature verified"; then echo "FAIL claimed verification without a key"; fails=$((fails+1)); else echo "PASS no false claim"; fi
+run pinned-key-refuses-other fail "not the pinned key"
+
+# 1b. checksum-only: an openssl without Ed25519 says so and does not claim a
+# signature. A stub openssl that fails everything stands in for one.
+mkdir -p "$work/stub" && printf '#!/bin/sh\nexit 1\n' > "$work/stub/openssl" && chmod +x "$work/stub/openssl"
+run no-ed25519-openssl ok "signature verification is SKIPPED" PATH="$work/stub:$PATH"
+out="$(env -u MONOAGENT_RELEASE_PUBKEY PATH="$work/stub:$PATH" INSTALL_DIR="$work/p-neg" MONOAGENT_TEST_ASSET_URL_PREFIX="$base/" MONOAGENT_MANIFEST_URL="$base/manifest.json" bash "$installer" 2>&1)"
+if printf '%s' "$out" | grep -q "signature verified"; then echo "FAIL claimed verification without checking"; fails=$((fails+1)); else echo "PASS no false claim"; fi
 
 # 2. tarball asset.
 write_manifest "$asset.tar.gz" "$(sha "$web/$asset.tar.gz")"; sign
-run tarball ok "Checksum verified"
+run tarball ok "Checksum verified" MONOAGENT_RELEASE_PUBKEY="$pub"
 
 # 3. signed with the pinned key.
 write_manifest "$asset" "$(sha "$web/$asset")"; sign
@@ -118,16 +133,48 @@ run one-field-sig fail "malformed manifest.json.sig" MONOAGENT_RELEASE_PUBKEY="$
 cat > "$web/manifest.json" <<EOF
 {"schema":1,"version":"v9.9.9","assets":[{"os":"$os","arch":"$arch","name":"$asset","url":"https://evil.example.com/$asset","sha256":"00","size":1,"kind":"cli"}]}
 EOF
-run bad-host fail "not https on an allowed host" MONOAGENT_TEST_ASSET_URL_PREFIX=""
+sign
+run bad-host fail "not https on an allowed host" MONOAGENT_TEST_ASSET_URL_PREFIX="" MONOAGENT_RELEASE_PUBKEY="$pub"
 
 # 7e. validly signed but expired manifest.
 write_manifest "$asset" "$(sha "$web/$asset")"
 sed 's/"schema":1,/"schema":1,"expires_at":"2020-01-01T00:00:00Z",/' "$web/manifest.json" > "$work/m3" && cp "$work/m3" "$web/manifest.json"; sign
 run expired fail "expired" MONOAGENT_RELEASE_PUBKEY="$pub"
 
+# 7f. no INSTALL_DIR: ~/.local/bin unless /usr/local/bin is writable, never
+# sudo; and the PATH hint when the dir is not on PATH.
+write_manifest "$asset" "$(sha "$web/$asset")"; sign
+h="$work/home-default"
+out="$(env -u INSTALL_DIR -u MONOAGENT_RELEASE_PUBKEY HOME="$h" PATH="/usr/bin:/bin" MONOAGENT_RELEASE_PUBKEY="$pub" MONOAGENT_TEST_ASSET_URL_PREFIX="$base/" MONOAGENT_MANIFEST_URL="$base/manifest.json" bash "$installer" 2>&1)" || true
+if [ -w /usr/local/bin ]; then want_dir=/usr/local/bin; else want_dir="$h/.local/bin"; fi
+if [ "$want_dir" = "$h/.local/bin" ] && [ -x "$h/.local/bin/monoagentcli" ] \
+   && printf '%s' "$out" | grep -q "is not on your PATH" && printf '%s' "$out" | grep -q "fish_add_path $h/.local/bin"; then
+  echo "PASS default-dir-no-sudo"
+elif [ "$want_dir" = /usr/local/bin ]; then
+  echo "SKIP default-dir-no-sudo (/usr/local/bin is writable here)"
+else
+  echo "FAIL default-dir-no-sudo"; printf '%s\n' "$out" | sed 's/^/    /'; fails=$((fails+1))
+fi
+
+# 7g. --app installs the desktop app next to its CLI, with a launcher entry.
+if [ "$os/$arch" = linux/amd64 ]; then
+  write_manifest "$asset" "$(sha "$web/$asset")" "$(sha "$web/MonoAgent-linux-amd64.tar.gz")"; sign
+  run app ok "Installed the desktop app" MONOAGENT_RELEASE_PUBKEY="$pub" --app-flag
+  h="$work/home-app"
+  if [ -x "$h/.local/share/monoagent/MonoAgent" ] && [ -x "$h/.local/share/monoagent/monoagentcli" ] \
+     && grep -q "Exec=$h/.local/share/monoagent/MonoAgent" "$h/.local/share/applications/monoagent.desktop" \
+     && [ -L "$h/.local/bin/monoagent" ]; then echo "PASS app-layout"; else echo "FAIL app-layout"; fails=$((fails+1)); fi
+
+  # 7h. --app with a wrong app checksum installs nothing.
+  write_manifest "$asset" "$(sha "$web/$asset")" "$(printf 'y%.0s' $(seq 1 64))"; sign
+  run app-bad-sha fail "checksum mismatch for MonoAgent-linux-amd64.tar.gz" MONOAGENT_RELEASE_PUBKEY="$pub" --app-flag
+else
+  echo "SKIP app (desktop app tarball test is linux/amd64 only)"
+fi
+
 # 8. no asset for this platform.
-printf '{"schema":1,"version":"v9.9.9","assets":[]}' > "$web/manifest.json"
-run no-asset fail "no CLI asset"
+printf '{"schema":1,"version":"v9.9.9","assets":[]}' > "$web/manifest.json"; sign
+run no-asset fail "no CLI asset" MONOAGENT_RELEASE_PUBKEY="$pub"
 
 if [ "$fails" -ne 0 ]; then echo "install-test: $fails failure(s)"; exit 1; fi
 echo "install-test: all passed"

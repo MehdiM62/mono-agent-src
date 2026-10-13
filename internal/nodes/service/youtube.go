@@ -47,6 +47,9 @@ func (n *YouTubeNode) Execute(ctx context.Context, input workflow.NodeInput, con
 	if accessToken == "" {
 		return nil, fmt.Errorf("youtube: access_token is required")
 	}
+	if err := credentialScopeCheck(config, "youtube"); err != nil {
+		return nil, fmt.Errorf("youtube: %w", err)
+	}
 	operation := strVal(config, "operation")
 
 	switch operation {

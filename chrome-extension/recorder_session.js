@@ -35,6 +35,9 @@
 
   const STATE_KEY = "recordingState";
   const MAX_STEPS = 500;
+  // API calls kept per recording (recorder_network.js); a page that polls
+  // must not crowd out the steps.
+  const MAX_NET = 200;
   const STOP_SETTLE_MS = 150;
 
   const REASONS = ["user", "tab_closed", "new_tab", "panel_closed", "error"];
@@ -109,7 +112,7 @@
     function blank() {
       return {
         recording: false, id: "", tabId: 0, goal: "", url: "", title: "", profile: "", startedAt: 0,
-        seq: 0, frameSeq: 0, lastExtract: "", pick: false, stopReason: "", steps: [],
+        seq: 0, frameSeq: 0, lastExtract: "", pick: false, stopReason: "", steps: [], netCount: 0,
         finalized: false, discarded: false, envelopeId: "", error: "", warning: "",
       };
     }
@@ -279,6 +282,25 @@
       return addEvent(ev, msg.snippet || "");
     }
 
+    /**
+     * network takes one recorder_net message: a JSON API call the page made.
+     * It is redacted here (MonoRecorderPrivacy.redactNet), tied to the step
+     * it followed, and sent as op:"network". It is not a step.
+     */
+    function network(msg, sender) {
+      const tabId = sender && sender.tab && sender.tab.id;
+      if (!state.recording || stopping || tabId !== state.tabId || !msg || !msg.entry || !root.MonoRecorderPrivacy) return null;
+      if (state.netCount >= MAX_NET) return null;
+      const net = root.MonoRecorderPrivacy.redactNet(msg.entry);
+      if (!/^https?:/i.test(net.url)) return null;
+      net.t = Math.max(0, Math.round((net.t || now()) - state.startedAt));
+      if (state.seq > 0) net.afterEvent = `e${state.seq}`;
+      if (!enqueue({ op: "network", recordingId: state.id, net })) return null;
+      state.netCount += 1;
+      persist();
+      return net;
+    }
+
     /** navigation takes webNavigation onCommitted / onHistoryStateUpdated / onReferenceFragmentUpdated. */
     function navigation(details, history) {
       if (!state.recording || stopping || !details || details.tabId !== state.tabId || details.frameId !== 0) return null;
@@ -442,12 +464,12 @@
     }
 
     return {
-      start, stop, event, navigation, documentReady, tabCreated, navigationTarget, tabRemoved,
+      start, stop, event, network, navigation, documentReady, tabCreated, navigationTarget, tabRemoved,
       panelClosed, setPick, mark, flush, handleFrame, restore, clear, status,
       outbox: () => outbox.frames(),
       saved: () => Promise.all([saving, outbox.saved()]),
     };
   }
 
-  root.MonoRecorderSession = { createSession, navKind, stepOf, STATE_KEY, REASONS, OVERFLOW };
+  root.MonoRecorderSession = { createSession, navKind, stepOf, STATE_KEY, REASONS, OVERFLOW, MAX_NET };
 })(globalThis);

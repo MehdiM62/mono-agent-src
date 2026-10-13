@@ -166,6 +166,7 @@ func (s *SQLiteWorkflowStore) CreateWorkflow(ctx context.Context, w *Workflow) e
 	if err != nil {
 		return fmt.Errorf("creating workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, s.db, w)
 	return nil
 }
 
@@ -188,6 +189,7 @@ func (s *SQLiteWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 		return nil, fmt.Errorf("getting workflow %s: %w", id, err)
 	}
 	w.IsActive = isActive != 0
+	loadWorkflowSettings(ctx, s.db, w)
 
 	nodes, err := s.loadWorkflowNodes(ctx, id)
 	if err != nil {
@@ -240,7 +242,11 @@ func (s *SQLiteWorkflowStore) ListWorkflows(ctx context.Context, profileID strin
 		w.IsActive = isActive != 0
 		out = append(out, w)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	loadWorkflowsSettings(ctx, s.db, out)
+	return out, nil
 }
 
 // NodeCounts returns each workflow's node count, keyed by workflow id, for
@@ -299,6 +305,7 @@ func (s *SQLiteWorkflowStore) UpdateWorkflow(ctx context.Context, w *Workflow) e
 	if err != nil {
 		return fmt.Errorf("updating workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, s.db, w)
 	return nil
 }
 
@@ -345,7 +352,19 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 	if err != nil {
 		return fmt.Errorf("beginning save-nodes transaction: %w", err)
 	}
+	if err := saveNodesTx(ctx, tx, workflowID, nodes); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing save-nodes transaction: %w", err)
+	}
+	return nil
+}
 
+// saveNodesTx is SaveWorkflowNodes inside the caller's transaction; the
+// caller rolls back on error.
+func saveNodesTx(ctx context.Context, tx *sql.Tx, workflowID string, nodes []WorkflowNode) error {
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO workflow_nodes
 			(id, workflow_id, node_type, name, config, position_x, position_y, disabled, created_at, updated_at)
@@ -360,7 +379,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 			disabled    = excluded.disabled,
 			updated_at  = excluded.updated_at`)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("preparing node upsert: %w", err)
 	}
 	defer stmt.Close()
@@ -375,7 +393,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 		}
 		n.WorkflowID = workflowID
 		if err := n.MarshalConfig(); err != nil {
-			tx.Rollback()
 			return fmt.Errorf("marshalling config for node %s: %w", n.ID, err)
 		}
 		n.CreatedAt = now
@@ -386,7 +403,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 			n.PositionX, n.PositionY, boolToInt(n.Disabled),
 			n.CreatedAt, n.UpdatedAt,
 		); err != nil {
-			tx.Rollback()
 			return fmt.Errorf("upserting node %s: %w", n.ID, err)
 		}
 		args = append(args, n.ID)
@@ -401,12 +417,7 @@ func (s *SQLiteWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 		delSQL = "DELETE FROM workflow_nodes WHERE workflow_id = ? AND id NOT IN (" + placeholders + ")"
 	}
 	if _, err := tx.ExecContext(ctx, delSQL, args...); err != nil {
-		tx.Rollback()
 		return fmt.Errorf("deleting removed nodes for workflow %s: %w", workflowID, err)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing save-nodes transaction: %w", err)
 	}
 	return nil
 }
@@ -418,9 +429,20 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 	if err != nil {
 		return fmt.Errorf("beginning save-connections transaction: %w", err)
 	}
-
-	if _, err := tx.ExecContext(ctx, "DELETE FROM workflow_connections WHERE workflow_id = ?", workflowID); err != nil {
+	if err := saveConnectionsTx(ctx, tx, workflowID, conns); err != nil {
 		tx.Rollback()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing save-connections transaction: %w", err)
+	}
+	return nil
+}
+
+// saveConnectionsTx is SaveWorkflowConnections inside the caller's
+// transaction; the caller rolls back on error.
+func saveConnectionsTx(ctx context.Context, tx *sql.Tx, workflowID string, conns []WorkflowConnection) error {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM workflow_connections WHERE workflow_id = ?", workflowID); err != nil {
 		return fmt.Errorf("deleting old connections for workflow %s: %w", workflowID, err)
 	}
 
@@ -433,7 +455,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 	// connection or which node id is actually wrong.
 	nodeRows, err := tx.QueryContext(ctx, "SELECT id FROM workflow_nodes WHERE workflow_id = ?", workflowID)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("loading node ids for workflow %s: %w", workflowID, err)
 	}
 	validNodeIDs := make(map[string]bool)
@@ -441,24 +462,20 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 		var id string
 		if err := nodeRows.Scan(&id); err != nil {
 			nodeRows.Close()
-			tx.Rollback()
 			return fmt.Errorf("scanning node id for workflow %s: %w", workflowID, err)
 		}
 		validNodeIDs[id] = true
 	}
 	if err := nodeRows.Err(); err != nil {
 		nodeRows.Close()
-		tx.Rollback()
 		return fmt.Errorf("reading node ids for workflow %s: %w", workflowID, err)
 	}
 	nodeRows.Close()
 	for _, c := range conns {
 		if !validNodeIDs[c.SourceNodeID] {
-			tx.Rollback()
 			return fmt.Errorf("%w: connection %q references unknown source node %q", ErrDanglingConnection, c.ID, c.SourceNodeID)
 		}
 		if !validNodeIDs[c.TargetNodeID] {
-			tx.Rollback()
 			return fmt.Errorf("%w: connection %q references unknown target node %q", ErrDanglingConnection, c.ID, c.TargetNodeID)
 		}
 	}
@@ -468,7 +485,6 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 			(id, workflow_id, source_node_id, source_handle, target_node_id, target_handle, position)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		tx.Rollback()
 		return fmt.Errorf("preparing connection insert: %w", err)
 	}
 	defer stmt.Close()
@@ -484,13 +500,8 @@ func (s *SQLiteWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 			c.ID, c.WorkflowID, c.SourceNodeID, c.SourceHandle,
 			c.TargetNodeID, c.TargetHandle, c.Position,
 		); err != nil {
-			tx.Rollback()
 			return fmt.Errorf("inserting connection %s: %w", c.ID, err)
 		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing save-connections transaction: %w", err)
 	}
 	return nil
 }
@@ -556,7 +567,9 @@ func (s *SQLiteWorkflowStore) loadWorkflowConnections(ctx context.Context, workf
 // ---------------------------------------------------------------------------
 
 // CreateExecution inserts a new workflow execution record.
-// If e.ID is empty a UUID is generated.
+// If e.ID is empty a UUID is generated. e.PID is the owner: the pid of the
+// process that will run the row, or 0 for a row left for any live engine to
+// adopt (see ListAdoptableExecutions).
 func (s *SQLiteWorkflowStore) CreateExecution(ctx context.Context, e *WorkflowExecution) error {
 	if e.ID == "" {
 		e.ID = newID()
@@ -576,10 +589,10 @@ func (s *SQLiteWorkflowStore) CreateExecution(ctx context.Context, e *WorkflowEx
 	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO workflow_executions
-			(id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, error_message, created_at, profile_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, error_message, created_at, profile_id, pid, trigger_node_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.ID, e.WorkflowID, e.Status, e.TriggerType, e.TriggerDataRaw,
-		e.StartedAt, e.FinishedAt, e.ErrorMessage, e.CreatedAt, profileID,
+		e.StartedAt, e.FinishedAt, e.ErrorMessage, e.CreatedAt, profileID, e.PID, e.TriggerNodeID,
 	)
 	if err != nil {
 		return fmt.Errorf("creating execution %s: %w", e.ID, err)
@@ -593,11 +606,11 @@ func (s *SQLiteWorkflowStore) GetExecution(ctx context.Context, id string) (*Wor
 	e := &WorkflowExecution{}
 	var createdAt sqliteTime
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), COALESCE(profile_id,'default')
+		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), COALESCE(profile_id,'default'), COALESCE(trigger_node_id,''), COALESCE(error_class,'')
 		FROM workflow_executions WHERE id = ?`, id,
 	).Scan(
 		&e.ID, &e.WorkflowID, &e.Status, &e.TriggerType, &e.TriggerDataRaw,
-		newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ResumeState, &e.ProfileID,
+		newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ResumeState, &e.ProfileID, &e.TriggerNodeID, &e.ErrorClass,
 	)
 	e.CreatedAt = createdAt.Time
 	if err == sql.ErrNoRows {
@@ -624,7 +637,7 @@ func (s *SQLiteWorkflowStore) GetExecution(ctx context.Context, id string) (*Wor
 // Pass limit <= 0 to return all executions. Execution nodes are not populated.
 func (s *SQLiteWorkflowStore) ListExecutions(ctx context.Context, workflowID string, limit int) ([]WorkflowExecution, error) {
 	query := `
-		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at
+		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(error_class,'')
 		FROM workflow_executions WHERE workflow_id = ? ORDER BY created_at DESC`
 	var args []interface{}
 	args = append(args, workflowID)
@@ -646,7 +659,7 @@ func (s *SQLiteWorkflowStore) ListExecutions(ctx context.Context, workflowID str
 		var createdAt sqliteTime
 		if err := rows.Scan(
 			&e.ID, &e.WorkflowID, &e.Status, &e.TriggerType, &e.TriggerDataRaw,
-			newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt,
+			newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ErrorClass,
 		); err != nil {
 			return nil, fmt.Errorf("scanning execution row: %w", err)
 		}
@@ -669,6 +682,26 @@ func (s *SQLiteWorkflowStore) UpdateExecutionStatus(ctx context.Context, id stri
 		return fmt.Errorf("updating execution status %s: %w", id, err)
 	}
 	return nil
+}
+
+// StartQueuedExecution is the guarded QUEUED → RUNNING transition every
+// dispatch goes through: it records started_at and this process's pid only
+// when the row is still QUEUED and owned by this process (or unowned). It
+// returns false when another dispatch, engine or a cancel got there first —
+// the caller must then not run the execution, so no body ever runs twice.
+// The resume path qualifies too: ResumeWaitingExecution leaves the row
+// QUEUED and owned by the resuming process.
+func (s *SQLiteWorkflowStore) StartQueuedExecution(ctx context.Context, id string) (bool, error) {
+	self := os.Getpid()
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE workflow_executions SET status = 'RUNNING', started_at = ?, pid = ?
+		 WHERE id = ? AND status = 'QUEUED' AND COALESCE(pid, 0) IN (0, ?)`,
+		time.Now().UTC(), self, id, self)
+	if err != nil {
+		return false, fmt.Errorf("starting queued execution %s: %w", id, err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 // SetExecutionStarted marks an execution as RUNNING and records started_at and the current PID.
@@ -815,7 +848,8 @@ func (s *SQLiteWorkflowStore) SetExecutionNodeFinished(ctx context.Context, id s
 // loadExecutionNodes is an internal helper to fetch execution-node records.
 func (s *SQLiteWorkflowStore) loadExecutionNodes(ctx context.Context, executionID string) ([]WorkflowExecutionNode, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, execution_id, node_id, node_name, status, input_items, output_items, error_message, started_at, finished_at, retry_count
+		SELECT id, execution_id, node_id, node_name, status, input_items, output_items, error_message, started_at, finished_at, retry_count,
+		       COALESCE(error_class,''), COALESCE(error_hint,'')
 		FROM workflow_execution_nodes WHERE execution_id = ? ORDER BY rowid ASC`, executionID)
 	if err != nil {
 		return nil, fmt.Errorf("loading execution nodes for execution %s: %w", executionID, err)
@@ -829,6 +863,7 @@ func (s *SQLiteWorkflowStore) loadExecutionNodes(ctx context.Context, executionI
 			&en.ID, &en.ExecutionID, &en.NodeID, &en.NodeName, &en.Status,
 			&en.InputRaw, &en.OutputRaw, &en.ErrorMessage,
 			newSqliteNullTime(&en.StartedAt), newSqliteNullTime(&en.FinishedAt), &en.RetryCount,
+			&en.ErrorClass, &en.ErrorHint,
 		); err != nil {
 			return nil, fmt.Errorf("scanning execution node row: %w", err)
 		}
@@ -846,25 +881,66 @@ func (s *SQLiteWorkflowStore) loadExecutionNodes(ctx context.Context, executionI
 // engine to claim them; crash-resume residue (QUEUED with resume_state) is
 // excluded — RecoverStaleExecutions flips those back to WAITING for the
 // resume loop instead.
+//
+// A plain QUEUED row whose owner process has died never started (the owner
+// flips it to RUNNING before running anything), so it is released back to
+// pid 0 here and listed too: running it is its first and only run.
 func (s *SQLiteWorkflowStore) ListAdoptableExecutions(ctx context.Context) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id FROM workflow_executions
+		SELECT id, COALESCE(pid, 0) FROM workflow_executions
 		WHERE status = 'QUEUED'
-		  AND COALESCE(pid, 0) = 0
 		  AND COALESCE(resume_state, '') = ''`)
 	if err != nil {
 		return nil, fmt.Errorf("listing adoptable executions: %w", err)
 	}
-	defer rows.Close()
-	var ids []string
+	type row struct {
+		id  string
+		pid int
+	}
+	var all []row
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var r row
+		if err := rows.Scan(&r.id, &r.pid); err != nil {
+			rows.Close()
 			return nil, fmt.Errorf("scanning adoptable execution: %w", err)
 		}
-		ids = append(ids, id)
+		all = append(all, r)
 	}
-	return ids, rows.Err()
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("listing adoptable executions: %w", err)
+	}
+	self := os.Getpid()
+	var ids []string
+	for _, r := range all {
+		if r.pid != 0 {
+			if r.pid == self || processAlive(r.pid) {
+				continue
+			}
+			released, err := s.releaseDeadOwner(ctx, r.id, r.pid)
+			if err != nil {
+				return nil, err
+			}
+			if !released {
+				continue
+			}
+		}
+		ids = append(ids, r.id)
+	}
+	return ids, nil
+}
+
+// releaseDeadOwner hands a dead process's never-started QUEUED row back to
+// pid 0, guarded on the pid it was read with so a concurrent claim wins.
+func (s *SQLiteWorkflowStore) releaseDeadOwner(ctx context.Context, id string, deadPID int) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE workflow_executions SET pid = 0
+		 WHERE id = ? AND status = 'QUEUED' AND pid = ? AND COALESCE(resume_state, '') = ''`,
+		id, deadPID)
+	if err != nil {
+		return false, fmt.Errorf("releasing queued execution %s: %w", id, err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 // ClaimQueuedExecution atomically claims an unowned QUEUED execution for this
@@ -891,19 +967,19 @@ func (s *SQLiteWorkflowStore) ClaimQueuedExecution(ctx context.Context, id strin
 // FAILED. This should be called once on process startup to handle executions
 // that were interrupted by a previous crash or restart.
 //
-// Two exceptions for QUEUED rows with no pid:
+// QUEUED rows of a dead (or no) owner never started, so they are not failed:
 //   - with a persisted resume_state it is the residue of a crash between the
-//     resume CAS (WAITING → QUEUED) and the enqueue — flipped back to WAITING
+//     resume CAS (WAITING → QUEUED) and the run — flipped back to WAITING
 //     so the resume loop re-enqueues the approved Human-in-Loop run;
-//   - without one it is an unowned row awaiting adoption (`workflow run
-//     --no-wait` persists one and exits). It is left QUEUED — failing it here
-//     would destroy the run before any daemon ever saw it.
+//   - without one it is a row awaiting adoption (`workflow run --no-wait`
+//     persists one and exits; a process that exits with runs still waiting
+//     for a slot leaves its own). It is left QUEUED with pid 0 for a live
+//     engine to claim — failing it here would destroy a run nobody started.
 func (s *SQLiteWorkflowStore) RecoverStaleExecutions(ctx context.Context) error {
 	// Only fail executions whose owning process is no longer alive. A concurrent
 	// engine (e.g. the `daemon` process) may legitimately have RUNNING executions;
-	// blindly failing all RUNNING/QUEUED rows corrupts its in-flight state. QUEUED
-	// rows carry no live worker (pid is only set once RUNNING), so a null/zero/dead
-	// pid means the row is genuinely stale and safe to recover.
+	// blindly failing all RUNNING/QUEUED rows corrupts its in-flight state. A
+	// null/zero/dead pid means the row has no live owner and is safe to recover.
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, status, COALESCE(pid, 0), COALESCE(resume_state, '') FROM workflow_executions WHERE status IN ('RUNNING', 'QUEUED')`)
 	if err != nil {
@@ -914,6 +990,7 @@ func (s *SQLiteWorkflowStore) RecoverStaleExecutions(ctx context.Context) error 
 	self := os.Getpid()
 	var staleIDs []string
 	var resumableIDs []string
+	var releaseIDs []string
 	for rows.Next() {
 		var id, status, resumeState string
 		var pid int
@@ -924,11 +1001,14 @@ func (s *SQLiteWorkflowStore) RecoverStaleExecutions(ctx context.Context) error 
 			continue // never fail our own in-flight rows
 		}
 		if !processAlive(pid) {
-			if status == "QUEUED" && pid == 0 {
+			if status == "QUEUED" {
 				if resumeState != "" {
-					// Crashed between resume-CAS and Enqueue: flip back to
+					// Crashed between resume-CAS and the run: flip back to
 					// WAITING so the resume loop re-enqueues the approved run.
 					resumableIDs = append(resumableIDs, id)
+				} else if pid != 0 {
+					// Never started: release it for adoption.
+					releaseIDs = append(releaseIDs, id)
 				}
 				// else: unowned --no-wait row — an adoption candidate, not
 				// stale. Leave it QUEUED for a live engine to claim.
@@ -947,6 +1027,15 @@ func (s *SQLiteWorkflowStore) RecoverStaleExecutions(ctx context.Context) error 
 			SET status = 'WAITING'
 			WHERE id = ? AND status = 'QUEUED'`, id); err != nil {
 			return fmt.Errorf("recovering resumable execution %s: %w", id, err)
+		}
+	}
+
+	for _, id := range releaseIDs {
+		if _, err := s.db.ExecContext(ctx, `
+			UPDATE workflow_executions
+			SET pid = 0
+			WHERE id = ? AND status = 'QUEUED' AND COALESCE(resume_state, '') = ''`, id); err != nil {
+			return fmt.Errorf("releasing queued execution %s: %w", id, err)
 		}
 	}
 
@@ -1041,10 +1130,11 @@ func (s *SQLiteWorkflowStore) CancelQueuedExecution(ctx context.Context, id stri
 
 // ResumeWaitingExecution atomically flips a WAITING execution to QUEUED, so that
 // among concurrent engines sharing the DB exactly one wins the resume (the
-// others get false). Returns whether this caller flipped it.
+// others get false). The winner becomes the owner (pid), which is what lets
+// its dispatch pass StartQueuedExecution. Returns whether this caller flipped it.
 func (s *SQLiteWorkflowStore) ResumeWaitingExecution(ctx context.Context, id string) (bool, error) {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE workflow_executions SET status = 'QUEUED' WHERE id = ? AND status = 'WAITING'`, id)
+		`UPDATE workflow_executions SET status = 'QUEUED', pid = ? WHERE id = ? AND status = 'WAITING'`, os.Getpid(), id)
 	if err != nil {
 		return false, fmt.Errorf("resuming waiting execution %s: %w", id, err)
 	}

@@ -8,16 +8,37 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// RemoveDuplicatesNode deduplicates items by a key field.
+// RemoveDuplicatesNode deduplicates items by a key field, within one run or
+// across runs.
 // Config fields:
 //
+//	"operation" (string, optional): "removeDuplicateInputItems" (default),
+//	    "removeItemsRepeatedWithinPreviousExecutions" or "clearDeduplicationHistory"
 //	"field" (string, optional): dot-path key field. If empty, deduplicate by entire JSON serialization.
-//	"keep"  (string, optional): "first" (default) or "last"
+//	"keep"  (string, optional): "first" (default) or "last" (removeDuplicateInputItems only)
+//
+// removeItemsRepeatedWithinPreviousExecutions and clearDeduplicationHistory
+// (remove_duplicates_history.go) also read "dedupeValue", "scope" and "historySize".
 type RemoveDuplicatesNode struct{}
 
 func (n *RemoveDuplicatesNode) Type() string { return "core.remove_duplicates" }
 
+// PerItemConfigFields declares that "dedupeValue" is evaluated once per item.
+func (n *RemoveDuplicatesNode) PerItemConfigFields() []string { return []string{"dedupeValue"} }
+
 func (n *RemoveDuplicatesNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	operation, _ := config["operation"].(string)
+	switch operation {
+	case "", opRemoveInputDuplicates:
+	case opRemoveSeenInPreviousRuns:
+		return removeSeenInPreviousRuns(ctx, input, config)
+	case opClearHistory:
+		return clearDedupeHistory(ctx, input, config)
+	default:
+		return nil, fmt.Errorf("%w: remove_duplicates: unknown operation %q (want %q, %q or %q)", workflow.ErrInvalidConfig,
+			operation, opRemoveInputDuplicates, opRemoveSeenInPreviousRuns, opClearHistory)
+	}
+
 	field, _ := config["field"].(string)
 	keep, _ := config["keep"].(string)
 	if keep == "" {

@@ -190,11 +190,10 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 	if len(inputItems) > 0 {
 		currentItemJSON = inputItems[0].JSON
 	}
-	// TODO(merge eng-expr): pass r.exec as the 4th argument, and set
-	// exprCtx.RunIndex = r.runIndex(node.ID) once ExpressionContext has it.
 	// PrevNode is not tracked by the runner (inputs may come from several
 	// predecessors).
-	exprCtx := buildExpressionContext(currentItemJSON, r.nodeOutputs, r.wf.ID, r.exec.ID)
+	exprCtx := buildExpressionContext(currentItemJSON, r.nodeOutputs, r.wf, r.exec)
+	exprCtx.RunIndex = r.runIndex(node.ID)
 
 	// Resolve config templates — but hold back any fields the node
 	// declares via PerItemConfigResolver (e.g. a filter condition, or
@@ -309,17 +308,20 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 	}
 
 	if execErr != nil {
-		// TODO(merge rw/engine/retry): route a PartialItemsError's
-		// successful outputs before the on_error handling below:
-		//   var pie *PartialItemsError
-		//   if errors.As(execErr, &pie) && len(pie.Succeeded) > 0 {
-		//     for _, out := range pie.Succeeded {
-		//       h := out.Handle; if h == "" { h = "main" }
-		//       for _, s := range dag.SuccessorsOnHandle(node.ID, h) {
-		//         r.pendingInputs[s.ID] = append(r.pendingInputs[s.ID], out.Items...)
-		//       }
-		//     }
-		//   }
+		// A partial failure still delivers the items that succeeded, under
+		// every on_error mode.
+		var pie *PartialItemsError
+		if errors.As(execErr, &pie) && len(pie.Succeeded) > 0 {
+			for _, out := range pie.Succeeded {
+				h := out.Handle
+				if h == "" {
+					h = "main"
+				}
+				for _, succ := range dag.SuccessorsOnHandle(node.ID, h) {
+					r.pendingInputs[succ.ID] = append(r.pendingInputs[succ.ID], out.Items...)
+				}
+			}
+		}
 		logger.Error().Err(execErr).
 			Str("node_id", node.ID).
 			Str("node_name", node.Name).
@@ -328,7 +330,7 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 
 		// Persist failure.
 		dbCtx2, dbCancel2 := dbCtx()
-		if storeErr := r.store.SetExecutionNodeFinished(dbCtx2, execNode.ID, "FAILED", nil, execErr.Error()); storeErr != nil {
+		if storeErr := recordNodeFailure(dbCtx2, r.store, execNode, execErr); storeErr != nil {
 			logger.Error().Err(storeErr).
 				Str("node_id", node.ID).
 				Msg("failed to persist node failure")
@@ -431,7 +433,7 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 			Str("node_name", node.Name).
 			Msg("node emitted error output with no edge wired from the 'error' handle — failing node (wire an error edge or set on_error=continue/skip to tolerate)")
 		fctx, fcancel := dbCtx()
-		if storeErr := r.store.SetExecutionNodeFinished(fctx, execNode.ID, "FAILED", nil, nodeErr.Error()); storeErr != nil {
+		if storeErr := recordNodeFailure(fctx, r.store, execNode, nodeErr); storeErr != nil {
 			logger.Error().Err(storeErr).
 				Str("node_id", node.ID).
 				Msg("failed to persist node failure")

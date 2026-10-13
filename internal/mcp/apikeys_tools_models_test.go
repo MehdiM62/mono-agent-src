@@ -368,7 +368,7 @@ func TestAPIModelsListSaysWhetherAutoWorksForTheServersProfile(t *testing.T) {
 func TestTheAPIToolsDescribeToolCalling(t *testing.T) {
 	descriptions := map[string]string{}
 	for _, tl := range apiTools() {
-		descriptions[tl.name] = tl.description
+		descriptions[tl.name] = apiToolText(tl)
 	}
 	for _, want := range []string{"tools", "MONOAGENT_API_TOOL_RUNTIMES", "MONOAGENT_API_IMAGE_RUNTIMES"} {
 		if !strings.Contains(descriptions["api_models_list"], want) {

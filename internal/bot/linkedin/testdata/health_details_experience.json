@@ -1,0 +1,12 @@
+{
+  "found": true,
+  "entries": [
+    {"lines": ["Acme", "Full-time · 6 yrs", "Berlin, Germany"], "description": "", "url": "https://www.linkedin.com/company/acme-test/",
+     "roles": [
+       {"lines": ["Staff Engineer", "Jan 2022 - Present · 2 yrs 9 mos"], "description": "Leads the platform team."},
+       {"lines": ["Senior Engineer", "Jan 2019 - Dec 2021 · 3 yrs"], "description": ""}
+     ]},
+    {"lines": ["Engineer", "Beta Corp · Contract", "2016 – 2018"], "description": "", "url": "", "roles": []},
+    {"lines": [], "description": "an entry without lines is dropped", "url": "", "roles": []}
+  ]
+}

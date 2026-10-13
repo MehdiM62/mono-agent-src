@@ -68,19 +68,20 @@ func (n *WaitNode) Execute(ctx context.Context, input workflow.NodeInput, config
 	}, nil
 }
 
-// sleepFor holds a short wait in memory, honouring cancellation.
-// TODO(merge rw/engine/retry): wrap in workflow.YieldSlotWhile so the queue
-// slot is free while sleeping.
+// sleepFor holds a short wait in memory, honouring cancellation, with the
+// execution's concurrency slot released while it sleeps.
 func sleepFor(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return nil
 	}
-	select {
-	case <-ctx.Done():
-		return workflow.ErrExecutionCancelled
-	case <-time.After(d):
-		return nil
-	}
+	return workflow.YieldSlotWhile(ctx, func() error {
+		select {
+		case <-ctx.Done():
+			return workflow.ErrExecutionCancelled
+		case <-time.After(d):
+			return nil
+		}
+	})
 }
 
 // waitTarget computes when the wait ends from the node's config.

@@ -184,13 +184,21 @@ func recordingTree(ran *[]*cobra.Command) *cobra.Command {
 
 var classRank = map[string]int{classOpen: 0, classServe: 1, classGated: 2}
 
-// gateAgreesWithCobra fails if cobra would run a command of a stricter class
-// than the gate calls the invocation. It reports whether cobra ran one that
-// is not open.
-func gateAgreesWithCobra(t *testing.T, args []string) bool {
-	t.Helper()
-	fresh := newRootCmd() // the gate looks before anything has been parsed, as in run
+// gateTree is the tree the gate looks at: one never parsed or executed, as in
+// run. invocationClass only Finds in it, which parses nothing, so one tree
+// serves every invocation of a test (building one per call was most of the
+// time of TestGateNeverDowngradesWhatCobraWouldRun).
+func gateTree() *cobra.Command {
+	fresh := newRootCmd()
 	applyClassification(fresh)
+	return fresh
+}
+
+// gateAgreesWithCobra fails if cobra would run a command of a stricter class
+// than the gate (looking at fresh, from gateTree) calls the invocation. It
+// reports whether cobra ran one that is not open.
+func gateAgreesWithCobra(t *testing.T, fresh *cobra.Command, args []string) bool {
+	t.Helper()
 	gate := invocationClass(fresh, args)
 
 	var ran []*cobra.Command
@@ -216,8 +224,9 @@ func gateAgreesWithCobra(t *testing.T, args []string) bool {
 // before and after a spread of commands.
 func TestGateNeverDowngradesWhatCobraWouldRun(t *testing.T) {
 	ran := 0
+	fresh := gateTree()
 	for _, tc := range findCases {
-		if gateAgreesWithCobra(t, tc.args) {
+		if gateAgreesWithCobra(t, fresh, tc.args) {
 			ran++
 		}
 	}
@@ -230,7 +239,7 @@ func TestGateNeverDowngradesWhatCobraWouldRun(t *testing.T) {
 	for _, prefix := range prefixes {
 		for _, path := range paths {
 			for _, suffix := range suffixes {
-				if gateAgreesWithCobra(t, append(append(append([]string{}, prefix...), path...), suffix...)) {
+				if gateAgreesWithCobra(t, fresh, append(append(append([]string{}, prefix...), path...), suffix...)) {
 					ran++
 				}
 			}

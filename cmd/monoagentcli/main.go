@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/i18n"
-	"github.com/monoes/mono-agent/internal/monomind"
 )
 
 // version/buildDate are set via -ldflags in release builds (see
@@ -136,21 +135,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// reportCommandError prints a failed command's error on stderr and, where
-// wantsJSONError asks for it, as {"error": …} on stdout. A reportedError
-// already printed its JSON result (e.g. `org validate` on an invalid org),
-// so nothing is added: stdout stays exactly one document.
+// reportCommandError prints a failed command's error on stderr and, when
+// --json was passed, as {"error": …, "code": …} on stdout with the same
+// exit code: "code" is the failure's class (jsonErrorCode) and an error that
+// knows its machine-readable form adds its own fields (login_required, a
+// hint, …). A reportedError already printed its JSON result (e.g. `org
+// validate` on an invalid org, or withJSONErrors' own {"error"}), so nothing
+// is added: stdout stays exactly one document.
 func reportCommandError(args []string, err error, stdout, stderr io.Writer) {
 	fmt.Fprintln(stderr, err)
 	var reported reportedError
-	if wantsJSONError(args) && !errors.As(err, &reported) {
+	if argsWantJSON(args) && !errors.As(err, &reported) {
 		body := map[string]any{"error": err.Error()}
-		// An org command that needs the AI agent says so by code, as
-		// withJSONErrors does, and so does an error that knows its own
-		// machine-readable form (an org refused for its signature);
-		// other failures keep {"error"} alone.
-		if monomind.IsAgentNotSetup(err) {
-			body["code"] = monomind.AgentNotSetupCode
+		if code := jsonErrorCode(err); code != "" {
+			body["code"] = code
 		}
 		var fields jsonErrorFields
 		if errors.As(err, &fields) {
@@ -163,34 +161,6 @@ func reportCommandError(args []string, err error, stdout, stderr io.Writer) {
 		b, _ := json.Marshal(body)
 		fmt.Fprintln(stdout, string(b))
 	}
-}
-
-// wantsJSONError reports whether a failed command should also print
-// {"error": …} on stdout: `org` commands (whose success output is always
-// JSON) and `status`, when --json is passed. The GUI passes that output
-// straight to the page (contracts §4).
-func wantsJSONError(args []string) bool {
-	hasJSON, sub := false, ""
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if a == "--json" || a == "--json=true" {
-			hasJSON = true
-			continue
-		}
-		// A global flag written `--profile X` puts its value in the next
-		// arg; without this skip the value would be mistaken for the
-		// subcommand and `--profile p --json org …` would never qualify.
-		if name, isFlag := valueFlagName(a); isFlag {
-			if name != "" {
-				i++
-			}
-			continue
-		}
-		if sub == "" && !strings.HasPrefix(a, "-") {
-			sub = a
-		}
-	}
-	return hasJSON && (sub == "org" || sub == "status")
 }
 
 // globalValueFlags are the root persistent flags that take a separate value

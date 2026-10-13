@@ -15,7 +15,7 @@ import (
 // logs go to stderr only.
 func newMCPCmd(cfg *globalConfig) *cobra.Command {
 	var allowMutations, allowAPIExposure, apiOnly, tasksOnly bool
-	var grant string
+	var grant, workflowTools string
 	cmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "Run MCP server (stdio) for AI agents",
@@ -89,6 +89,17 @@ Register one server per profile:
 
 It cannot be combined with --api-only or --grant.
 
+--workflow-tools (or MONOAGENT_MCP_WORKFLOW_TOOLS=1) also serves each saved
+workflow of the profile as a tool of its own, wf_<slug>, named after the workflow
+(lowercase a-z, 0-9 and _, at most 64 characters; a second workflow with the same
+name gets a short id suffix). --workflow-tools=<id or name>,... serves only those.
+A tool's arguments are the workflow's trigger input, the fields "workflow inputs"
+lists, plus _timeout_seconds; calling it runs the workflow and waits, as
+workflow_run does, with the same result. They are mutating tools, so they need
+--allow-mutations too. Workflows are read at every tools/list, so one saved later
+is served without a restart. It cannot be combined with --api-only, --tasks-only
+or --grant.
+
 api_config_apply restarts the daemon, as daemon restart does, and interrupts what
 it is running (workflows, org runs). api_auto_set switches the auto model on only
 on a server started with --allow-api-exposure too (what leaves the machine is the
@@ -116,6 +127,12 @@ variable) and --db-path, exactly like every other command.`,
 			if grant != "" && tasksOnly {
 				return fmt.Errorf("--grant serves only the granted automations; --tasks-only does not apply")
 			}
+			if grant != "" && workflowTools != "" {
+				return fmt.Errorf("--grant serves only the granted automations; --workflow-tools does not apply")
+			}
+			if workflowTools != "" && (apiOnly || tasksOnly) {
+				return mcp.ErrWorkflowToolsWithNarrowMode
+			}
 			if tasksOnly && apiOnly {
 				return mcp.ErrTasksOnlyWithAPIOnly
 			}
@@ -128,6 +145,7 @@ variable) and --db-path, exactly like every other command.`,
 				APIOnly:          apiOnly,
 				TasksOnly:        tasksOnly,
 				Grant:            grant,
+				WorkflowTools:    workflowTools,
 			})
 		},
 	}
@@ -141,6 +159,9 @@ variable) and --db-path, exactly like every other command.`,
 		"Serve only the OpenAI-compatible API's tools (api_*) and no other: no workflow, vault, secret, person, org or documentation tool. For a model that is to manage the API and nothing else: --allow-mutations, which the API's mutating tools need, also serves workflow tools that can run a command as you; with --api-only it does not. The mutating API tools still need --allow-mutations, and --allow-api-exposure is still what lets api_config_set widen the server and api_auto_set switch the auto model on; also settable via MONOAGENT_MCP_API_ONLY=1")
 	cmd.Flags().BoolVar(&tasksOnly, "tasks-only", false,
 		"Serve only the user's task board's tools (task_*) and no other: no workflow, vault, secret, person, org, API or documentation tool. For an agent that is to work the board and nothing else: --allow-mutations, which task_claim/comment/finish/release/add need, also serves workflow tools that can run a command as you; with --tasks-only it does not. Cannot be combined with --api-only or --grant; also settable via MONOAGENT_MCP_TASKS_ONLY=1")
+	cmd.Flags().StringVar(&workflowTools, "workflow-tools", "",
+		"Also serve saved workflows as tools wf_<slug> whose arguments are the workflow's trigger input and whose call runs it and waits, as workflow_run does: --workflow-tools for every workflow of the profile, --workflow-tools=<id or name>,... for those only. Mutating: needs --allow-mutations too. Cannot be combined with --api-only, --tasks-only or --grant; also settable via MONOAGENT_MCP_WORKFLOW_TOOLS=1 (or the list)")
+	cmd.Flags().Lookup("workflow-tools").NoOptDefVal = "all"
 	return servingCommand(cmd)
 }
 

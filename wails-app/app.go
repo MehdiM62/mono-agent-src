@@ -554,8 +554,8 @@ func (a *App) ExportData() (*ExportResult, error) {
 	out, err := cmd.Output()
 	if err != nil {
 		var ee *exec.ExitError
-		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
-			return nil, fmt.Errorf("export failed: %s", strings.TrimSpace(string(ee.Stderr)))
+		if errors.As(err, &ee) && cliStderr(ee.Stderr) != "" {
+			return nil, fmt.Errorf("export failed: %s", cliStderr(ee.Stderr))
 		}
 		return nil, fmt.Errorf("export failed: %w", err)
 	}

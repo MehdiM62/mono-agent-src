@@ -37,6 +37,7 @@ type WorkflowEngine struct {
 	profileID        string
 	allowAllProfiles bool
 	drops            dropNotes // triggers dropped while the account is locked
+	reconciler       triggerReconciler
 }
 
 // EngineConfig holds WorkflowEngine configuration.
@@ -93,6 +94,8 @@ func NewWorkflowEngineWithStore(store WorkflowStore, db *sql.DB, scheduler Sched
 		func(ctx context.Context, req ExecutionRequest) { e.handleExecution(ctx, req) },
 		logger,
 	)
+	e.queue.claim = e.claimLocal
+	e.wireWebhookRuns()
 	return e
 }
 
@@ -174,6 +177,8 @@ func NewWorkflowEngine(db *sql.DB, scheduler SchedulerInterface, registry *NodeT
 		},
 		logger,
 	)
+	e.queue.claim = e.claimLocal
+	e.wireWebhookRuns()
 
 	return e
 }
@@ -345,10 +350,11 @@ func (e *WorkflowEngine) resumeTick(ctx context.Context) {
 	}
 }
 
-// adoptQueuedExecutions claims unowned QUEUED executions (pid 0, no resume
-// state — the rows `workflow run --no-wait` persists before exiting) and
-// enqueues them locally, so a live engine (the daemon, or any sufficiently
-// long-lived engine command) picks the run up. Each row is claimed with a
+// adoptQueuedExecutions claims unowned QUEUED executions (no resume state;
+// pid 0 — the rows `workflow run --no-wait` persists before exiting — or the
+// pid of a process that died before starting them) and enqueues them
+// locally, so a live engine (the daemon, or any sufficiently long-lived
+// engine command) picks the run up. Each row is claimed with a
 // CAS (pid 0 → self) so among engines sharing the DB exactly one adopts it.
 //
 // It piggybacks the resume loop rather than running synchronously in Start:
@@ -384,10 +390,11 @@ func (e *WorkflowEngine) adoptQueuedExecutions(ctx context.Context) {
 			continue // another engine won the CAS
 		}
 		req := ExecutionRequest{
-			WorkflowID:  exec.WorkflowID,
-			ExecutionID: id,
-			TriggerType: exec.TriggerType,
-			TriggerData: exec.TriggerData,
+			WorkflowID:    exec.WorkflowID,
+			ExecutionID:   id,
+			TriggerType:   exec.TriggerType,
+			TriggerNodeID: exec.TriggerNodeID,
+			TriggerData:   exec.TriggerData,
 		}
 		if err := e.queue.Enqueue(req); err != nil {
 			e.logger.Warn().Err(err).Str("execution_id", id).Msg("engine: adopted execution could not be enqueued")
@@ -429,10 +436,11 @@ func (e *WorkflowEngine) ResumeExecution(executionID string) error {
 		return nil // another engine won the resume, or it's no longer WAITING
 	}
 	req := ExecutionRequest{
-		WorkflowID:  exec.WorkflowID,
-		ExecutionID: executionID,
-		TriggerType: exec.TriggerType,
-		TriggerData: exec.TriggerData,
+		WorkflowID:    exec.WorkflowID,
+		ExecutionID:   executionID,
+		TriggerType:   exec.TriggerType,
+		TriggerNodeID: exec.TriggerNodeID,
+		TriggerData:   exec.TriggerData,
 	}
 	if err := e.queue.Enqueue(req); err != nil {
 		// Transient (queue full / closing): revert to WAITING preserving the
@@ -593,11 +601,13 @@ func (e *WorkflowEngine) handleTrigger(workflowID string, nodeID string, items [
 	}
 
 	exec := &WorkflowExecution{
-		WorkflowID:  workflowID,
-		ProfileID:   executionProfileID(wf, e.profileID),
-		Status:      "QUEUED",
-		TriggerType: triggerType,
-		TriggerData: triggerData,
+		WorkflowID:    workflowID,
+		ProfileID:     executionProfileID(wf, e.profileID),
+		Status:        "QUEUED",
+		TriggerType:   triggerType,
+		TriggerNodeID: nodeID,
+		TriggerData:   triggerData,
+		PID:           ownerPID(),
 	}
 
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
@@ -637,10 +647,17 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		Str("workflow_id", req.WorkflowID).
 		Logger()
 
-	// 0. Honor a cancellation that landed while this request sat in the queue.
-	// Status-only read — cheaper than loading the full execution record.
-	if st, err := e.store.GetExecutionStatus(ctx, req.ExecutionID); err == nil && st == "CANCELLED" {
-		log.Info().Msg("engine: handleExecution: execution cancelled before dispatch; skipping")
+	// 0. Claim the run: QUEUED → RUNNING, guarded. A cancel that landed while
+	// the request sat in the queue, another engine, or a second dispatch of
+	// the same execution makes the claim fail, and then this dispatch must
+	// not run anything — that is what keeps an execution body from running
+	// twice.
+	if started, err := e.startQueued(context.WithoutCancel(ctx), req.ExecutionID); err != nil {
+		log.Error().Err(err).Msg("engine: handleExecution: failed to mark execution as RUNNING")
+		return
+	} else if !started {
+		st, _ := e.store.GetExecutionStatus(ctx, req.ExecutionID)
+		log.Info().Str("status", st).Msg("engine: handleExecution: execution not QUEUED for this process (cancelled, or dispatched elsewhere); skipping")
 		return
 	}
 
@@ -659,8 +676,8 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 	// the CLI wait hung and the next startup marked it FAILED).
 	persistCtx := func() context.Context { return context.WithoutCancel(ctx) }
 
-	// 1. Load the workflow.
-	wf, err := e.store.GetWorkflow(ctx, req.WorkflowID)
+	// 1. Load the workflow — the version this execution is pinned to.
+	wf, err := e.loadExecutionWorkflow(ctx, log, req)
 	if err != nil {
 		log.Error().Err(err).Msg("engine: handleExecution: failed to load workflow")
 		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", fmt.Sprintf("load workflow: %s", err.Error()))
@@ -670,12 +687,6 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		log.Error().Msg("engine: handleExecution: workflow not found")
 		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", "workflow not found")
 		return
-	}
-
-	// 2. Update execution status to RUNNING, record started_at.
-	if err := e.store.SetExecutionStarted(persistCtx(), req.ExecutionID); err != nil {
-		log.Error().Err(err).Msg("engine: handleExecution: failed to mark execution as RUNNING")
-		// Non-fatal — attempt to continue.
 	}
 
 	// 3. Build the DAG.
@@ -693,9 +704,12 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", "could not load execution record")
 		return
 	}
-	// TriggerNodeID isn't persisted; carry it from the request so RunExecution
-	// only fires the branch of the trigger node that actually fired.
-	exec.TriggerNodeID = req.TriggerNodeID
+	// The row carries the trigger node that fired (RunExecution fires only
+	// its branch); a request naming one wins for rows written before the
+	// column existed.
+	if req.TriggerNodeID != "" {
+		exec.TriggerNodeID = req.TriggerNodeID
+	}
 
 	// 4. Execute via runExecution (defined in execution.go).
 	runErr := e.runExecution(ctx, exec, wf, dag)
@@ -723,7 +737,7 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 		e.persistExecutionFinished(log, req.ExecutionID, "CANCELLED", cancelledMessage(ctx, runErr))
 	default:
 		log.Warn().Err(runErr).Str("final_status", "FAILED").Msg("engine: execution finished with error")
-		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", runErr.Error())
+		e.persistExecutionFinished(log, req.ExecutionID, failureStatus(runErr), runErr.Error())
 	}
 }
 
@@ -733,6 +747,8 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 // forever — the CLI wait hangs and the next startup's recovery marks it
 // FAILED. A failed write is logged at error level and retried once.
 func (e *WorkflowEngine) persistExecutionFinished(log zerolog.Logger, executionID, status, errMsg string) {
+	defer e.onExecutionFinished(executionID) // wakes a parent waiting on this sub-workflow run
+	defer e.afterExecutionFinished(log, executionID, status, errMsg)
 	persistCtx := context.WithoutCancel(context.Background())
 	err := e.store.SetExecutionFinished(persistCtx, executionID, status, errMsg)
 	if err == nil {
@@ -778,11 +794,14 @@ func (e *WorkflowEngine) CreateWorkflow(ctx context.Context, w *Workflow) error 
 	return nil
 }
 
-// SaveWorkflow updates a workflow's definition (nodes + connections).
-// If the workflow is currently active, it is deactivated first, then saved,
-// then reactivated.
+// SaveWorkflow updates a workflow's definition (nodes + connections) in one
+// all-or-nothing store write; the active flag is the stored one (callers
+// control it via Activate/DeactivateWorkflow). Triggers are touched only
+// after the write committed: an active workflow's are swapped for the new
+// definition's, and if those fail to register the previous definition is
+// saved back and its triggers re-armed, so a failed save never leaves the
+// workflow inactive or half-changed.
 func (e *WorkflowEngine) SaveWorkflow(ctx context.Context, w *Workflow) error {
-	// Load current state to check IsActive.
 	existing, err := e.store.GetWorkflow(ctx, w.ID)
 	if err != nil {
 		return fmt.Errorf("engine: save workflow: load existing: %w", err)
@@ -794,38 +813,25 @@ func (e *WorkflowEngine) SaveWorkflow(ctx context.Context, w *Workflow) error {
 		return fmt.Errorf("engine: save workflow: %w", err)
 	}
 
-	wasActive := existing.IsActive
+	w.IsActive = existing.IsActive
+	if err := e.saveDefinition(ctx, w); err != nil {
+		return fmt.Errorf("engine: save workflow: %w", err)
+	}
 
-	// Deactivate triggers if currently active.
-	if wasActive {
-		e.triggerMgr.DeactivateWorkflow(w.ID)
-		if err := e.store.SetWorkflowActive(ctx, w.ID, false); err != nil {
-			return fmt.Errorf("engine: save workflow: deactivate: %w", err)
+	if existing.IsActive {
+		if err := e.rearmTriggers(ctx, w.ID); err != nil {
+			restore := *existing
+			if rerr := e.saveDefinition(ctx, &restore); rerr != nil {
+				return fmt.Errorf("engine: save workflow: register triggers: %w (restoring the previous definition also failed: %v)", err, rerr)
+			}
+			if aerr := e.rearmTriggers(ctx, w.ID); aerr != nil {
+				e.logger.Error().Err(aerr).Str("workflow_id", w.ID).Msg("engine: save workflow: previous triggers could not be re-armed")
+			}
+			return fmt.Errorf("engine: save workflow: register triggers: %w (the previous definition was kept)", err)
 		}
 	}
 
-	// Preserve the active flag from the existing record; caller controls it
-	// via Activate/DeactivateWorkflow.
-	w.IsActive = false
-
-	if err := e.store.UpdateWorkflow(ctx, w); err != nil {
-		return fmt.Errorf("engine: save workflow: update: %w", err)
-	}
-	if err := e.store.SaveWorkflowNodes(ctx, w.ID, w.Nodes); err != nil {
-		return fmt.Errorf("engine: save workflow: save nodes: %w", err)
-	}
-	if err := e.store.SaveWorkflowConnections(ctx, w.ID, w.Connections); err != nil {
-		return fmt.Errorf("engine: save workflow: save connections: %w", err)
-	}
-
-	// Reactivate if it was active before the save.
-	if wasActive {
-		if err := e.ActivateWorkflow(ctx, w.ID); err != nil {
-			return fmt.Errorf("engine: save workflow: reactivate: %w", err)
-		}
-	}
-
-	e.logger.Info().Str("workflow_id", w.ID).Msg("engine: workflow saved")
+	e.logger.Info().Str("workflow_id", w.ID).Int("version", w.Version).Msg("engine: workflow saved")
 	return nil
 }
 
@@ -869,6 +875,10 @@ func (e *WorkflowEngine) checkWorkflowProfile(wf *Workflow) error {
 // engine. Intended to be called once after Start() by a long-running daemon
 // process, so scheduled/webhook triggers survive process restarts. Requires
 // AllowAllProfiles (set via EngineConfig) since it spans every profile.
+//
+// It then fires the schedule ticks missed while no daemon ran, for schedule
+// nodes that opted into catch_up, and starts the trigger reconcile loop that
+// keeps the registrations in step with changes other processes make.
 func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 	if !e.allowAllProfiles {
 		return fmt.Errorf("engine: RestoreActiveWorkflows requires AllowAllProfiles")
@@ -877,7 +887,7 @@ func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("engine: restore active workflows: list: %w", err)
 	}
-	var restored, failed int
+	var restored, failed, caughtUp int
 	for _, wf := range workflows {
 		if !wf.IsActive {
 			continue
@@ -894,8 +904,14 @@ func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 			continue
 		}
 		restored++
+		caughtUp += e.triggerMgr.CatchUp(ctx, full, time.Now())
 	}
-	e.logger.Info().Int("restored", restored).Int("failed", failed).Msg("engine: restored active workflows")
+	e.logger.Info().Int("restored", restored).Int("failed", failed).Int("catch_up_runs", caughtUp).Msg("engine: restored active workflows")
+	loopCtx := e.ctx // the engine's lifetime; ctx when Start was never called
+	if loopCtx == nil {
+		loopCtx = ctx
+	}
+	e.startTriggerReconcile(loopCtx)
 	return nil
 }
 
@@ -918,6 +934,11 @@ func (e *WorkflowEngine) DeleteWorkflow(ctx context.Context, id string) error {
 
 	if err := e.store.DeleteWorkflow(ctx, id); err != nil {
 		return fmt.Errorf("engine: delete workflow: %w", err)
+	}
+	if db := e.store.RawDB(); db != nil {
+		if err := DeleteWorkflowState(ctx, db, id); err != nil {
+			e.logger.Warn().Err(err).Str("workflow_id", id).Msg("engine: delete workflow: state not removed")
+		}
 	}
 
 	e.logger.Info().Str("workflow_id", id).Msg("engine: workflow deleted")
@@ -992,7 +1013,7 @@ func (e *WorkflowEngine) TriggerWorkflow(ctx context.Context, workflowID string,
 	if trigErr := account.Require(ctx); trigErr != nil {
 		return "", trigErr
 	}
-	exec, err := e.newManualExecution(ctx, workflowID, data)
+	exec, err := e.newManualExecution(ctx, workflowID, data, ownerPID())
 	if err != nil {
 		return "", err
 	}
@@ -1026,7 +1047,7 @@ func (e *WorkflowEngine) TriggerWorkflowPersistOnly(ctx context.Context, workflo
 	if persistErr := account.Require(ctx); persistErr != nil {
 		return "", persistErr
 	}
-	exec, err := e.newManualExecution(ctx, workflowID, data)
+	exec, err := e.newManualExecution(ctx, workflowID, data, 0)
 	if err != nil {
 		return "", err
 	}
@@ -1038,9 +1059,9 @@ func (e *WorkflowEngine) TriggerWorkflowPersistOnly(ctx context.Context, workflo
 }
 
 // newManualExecution validates the workflow and persists a QUEUED execution
-// row for a manual trigger. Shared by TriggerWorkflow and
-// TriggerWorkflowPersistOnly.
-func (e *WorkflowEngine) newManualExecution(ctx context.Context, workflowID string, data map[string]interface{}) (*WorkflowExecution, error) {
+// row for a manual trigger, owned by pid (0: left for adoption). Shared by
+// TriggerWorkflow and TriggerWorkflowPersistOnly.
+func (e *WorkflowEngine) newManualExecution(ctx context.Context, workflowID string, data map[string]interface{}, pid int) (*WorkflowExecution, error) {
 	wf, err := e.store.GetWorkflow(ctx, workflowID)
 	if err != nil {
 		return nil, fmt.Errorf("engine: trigger workflow: %w", err)
@@ -1065,6 +1086,7 @@ func (e *WorkflowEngine) newManualExecution(ctx context.Context, workflowID stri
 		Status:      "QUEUED",
 		TriggerType: "trigger.manual",
 		TriggerData: data,
+		PID:         pid,
 	}
 
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
@@ -1159,7 +1181,10 @@ func (e *WorkflowEngine) RetryExecution(ctx context.Context, executionID string)
 		ProfileID:   executionProfileID(wf, e.profileID),
 		Status:      "QUEUED",
 		TriggerType: orig.TriggerType,
-		TriggerData: data,
+		// The retry replays the same trigger, so it fires the same branch.
+		TriggerNodeID: orig.TriggerNodeID,
+		TriggerData:   data,
+		PID:           ownerPID(),
 	}
 
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
@@ -1167,10 +1192,11 @@ func (e *WorkflowEngine) RetryExecution(ctx context.Context, executionID string)
 	}
 
 	req := ExecutionRequest{
-		WorkflowID:  orig.WorkflowID,
-		ExecutionID: exec.ID,
-		TriggerType: orig.TriggerType,
-		TriggerData: data,
+		WorkflowID:    orig.WorkflowID,
+		ExecutionID:   exec.ID,
+		TriggerType:   orig.TriggerType,
+		TriggerNodeID: orig.TriggerNodeID,
+		TriggerData:   data,
 	}
 
 	if err := e.queue.Enqueue(req); err != nil {
@@ -1259,6 +1285,7 @@ func (e *WorkflowEngine) runExecution(ctx context.Context, exec *WorkflowExecuti
 		profileID = e.profileID
 	}
 	ctx = vault.ContextWithProfileID(ctx, profileID)
+	ctx = WithSubWorkflowRunner(ctx, e)
 	return RunExecution(ctx, exec, wf, dag, e.registry, e.store, e.connStore, e.expr, e.logger)
 }
 

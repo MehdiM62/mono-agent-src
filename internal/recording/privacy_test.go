@@ -200,3 +200,21 @@ func TestListHidesIncompleteEmptyRecordings(t *testing.T) {
 		t.Fatalf("hidden recording not findable for delete: %v", err)
 	}
 }
+
+func TestScrubHTMLDropsHandlersAndScriptURLs(t *testing.T) {
+	src := `<div><button type="button" onclick="fetch('/api/items',{headers:{Authorization:'Bearer sekrit-hdr'}})" ONMOUSEOVER='x("sekrit-hover")'>Load</button>` +
+		`<a href="java&#9;script:void('sekrit-link')">Run</a><a href=" JavaScript:alert(1)">x</a>` +
+		`<form action="vbscript:msgbox('sekrit-vb')"></form><svg><a xlink:href="javascript:alert('sekrit-svg')"></a></svg>` +
+		`<a href="https://ok.test/a">Ok</a></div>`
+	got := ScrubHTML(src, false)
+	for _, gone := range []string{"sekrit", "onclick", "ONMOUSEOVER", "onmouseover", "script:", "Authorization"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("%q left in %s", gone, got)
+		}
+	}
+	for _, kept := range []string{`<button type="button">Load</button>`, `href="https://ok.test/a"`, ">Run</a>"} {
+		if !strings.Contains(got, kept) {
+			t.Errorf("%q missing from %s", kept, got)
+		}
+	}
+}

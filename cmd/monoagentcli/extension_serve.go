@@ -40,7 +40,7 @@ import (
 const bridgeAdvice = "\n\nThe bridge only exists while something is running it. To keep the browser wired up " +
 	"(capture shortcut, side panel, recall), run `monoagentcli extension serve` in a terminal and leave it " +
 	"running. `monoagentcli extension status` says whether one is up and whether the extension is attached, " +
-	"and `monoagentcli extension pair` prints the token the extension side panel needs."
+	"and `monoagentcli extension pair --open` pairs the extension in one step (`extension pair` prints the token to paste instead)."
 
 // bridgeLifetimeHint returns the advice above, but only for a bridge this
 // process owns. When the caller is relaying through someone else's bridge
@@ -189,7 +189,7 @@ func runExtensionServe(ctx context.Context, out io.Writer) error {
 
 	fmt.Fprintf(out, "MonoAgent bridge listening on %s\n", addr)
 	fmt.Fprintf(out, "  Extension socket: ws://%s/monoagent\n", addr)
-	fmt.Fprintf(out, "  Pairing token:    monoagentcli extension pair (paste it into the extension side panel)\n")
+	fmt.Fprintf(out, "  Pair a browser:   monoagentcli extension pair --open (or paste the token from `extension pair`)\n")
 	fmt.Fprintf(out, "  Status:           monoagentcli extension status\n")
 	fmt.Fprintf(out, "  Summaries:        %s (--summary-runtime / %s)\n", configuredSummaryRuntime(), summaryRuntimeEnv)
 	fmt.Fprintln(out, "Waiting for the extension. Press Ctrl+C to stop.")
@@ -350,7 +350,7 @@ func newExtensionStatusCmd(cfg *globalConfig) *cobra.Command {
 			"  - no bridge is running at all (start one with `extension serve`);\n" +
 			"  - a bridge is running and the extension is attached;\n" +
 			"  - a bridge is running but turned the extension away for a bad or missing\n" +
-			"    pairing token (run `extension pair`).\n" +
+			"    pairing token (run `extension pair --open`).\n" +
 			"\n" +
 			"An extension that is simply idle shows as \"not connected\": Chrome suspends the\n" +
 			"service worker when nothing is happening and it reconnects on the next event.",
@@ -399,7 +399,7 @@ func runExtensionStatus(out io.Writer, asJSON bool) error {
 		fmt.Fprintf(out, "  Browsers: %d attached — see `monoagentcli extension browsers`\n", st.Browsers)
 	}
 	if st.Status == extension.StatusUnpaired {
-		fmt.Fprintln(out, "  Pair it with: monoagentcli extension pair (paste the token into the extension side panel)")
+		fmt.Fprintln(out, "  Pair it with: monoagentcli extension pair --open (or paste the token from `extension pair`)")
 	}
 	return nil
 }

@@ -173,18 +173,8 @@ func TestRedditNode_SubmitPostRequiresSubredditAndTitle(t *testing.T) {
 	}
 }
 
-func TestRedditNode_SubmitPostSelfRequiresText(t *testing.T) {
-	n := &RedditNode{}
-	_, err := n.Execute(context.Background(), workflow.NodeInput{}, map[string]interface{}{
-		"operation":    "submit_post",
-		"access_token": "test-token",
-		"subreddit":    "golang",
-		"title":        "Hello",
-	})
-	if err == nil {
-		t.Fatal("expected error when text is missing for a self post")
-	}
-}
+// A self post may be title-only (comm.reddit always allowed that), so an
+// empty body is sent rather than rejected; see TestLegacyRedditConfigs.
 
 func TestRedditNode_SubmitPostLinkRequiresURL(t *testing.T) {
 	n := &RedditNode{}
