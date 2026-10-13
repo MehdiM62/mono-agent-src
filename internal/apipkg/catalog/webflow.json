@@ -1,0 +1,285 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "webflow",
+  "node_type": "app.webflow",
+  "title": "Webflow",
+  "description": "Create, read, update and delete CMS collection items in Webflow",
+  "category": "app",
+  "docs_url": "https://developers.webflow.com/data/reference",
+  "n8n_types": [
+    "n8n-nodes-base.webflow"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.webflowTrigger"
+  ],
+  "base_url": "https://api.webflow.com/v2",
+  "credentials": [
+    {
+      "platform": "webflow",
+      "name": "Webflow",
+      "n8n_credential": "webflowOAuth2Api",
+      "n8n_credential_alt": [
+        "webflowApi"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true,
+          "help": "Webflow: Site settings → Apps & integrations → API access"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://webflow.com/oauth/authorize",
+        "token_url": "https://api.webflow.com/oauth/access_token",
+        "scopes": [
+          "cms:read",
+          "cms:write",
+          "sites:read",
+          "forms:read"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "item",
+      "label": "Item"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "item",
+      "operation": "create",
+      "title": "Create an item",
+      "method": "POST",
+      "path": "/collections/{{ p.collectionId }}/items{{ p.live | eq:'true' | then:'/live' }}",
+      "body": {
+        "!fieldData": {
+          "$merge": "{{ p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true,
+          "help": "Not sent; kept for n8n compatibility"
+        },
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "live",
+          "label": "Live",
+          "type": "boolean",
+          "default": false,
+          "help": "Publish the change to the live site right away"
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues"
+          ],
+          "help": "fieldValues: [{fieldId, fieldValue}] rows; fieldId is the field's slug"
+        }
+      ]
+    },
+    {
+      "resource": "item",
+      "operation": "deleteItem",
+      "title": "Delete an item",
+      "method": "DELETE",
+      "path": "/collections/{{ p.collectionId }}/items/{{ p.itemId }}",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true,
+          "help": "Not sent; kept for n8n compatibility"
+        },
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "item",
+      "operation": "delete",
+      "title": "Delete an item (node v1)",
+      "method": "DELETE",
+      "path": "/collections/{{ p.collectionId }}/items/{{ p.itemId }}",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true,
+          "help": "Not sent; kept for n8n compatibility"
+        },
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "item",
+      "operation": "get",
+      "title": "Get an item",
+      "method": "GET",
+      "path": "/collections/{{ p.collectionId }}/items/{{ p.itemId }}",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true,
+          "help": "Not sent; kept for n8n compatibility"
+        },
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "item",
+      "operation": "getAll",
+      "title": "Get many items",
+      "method": "GET",
+      "path": "/collections/{{ p.collectionId }}/items",
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "items"
+      },
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true,
+          "help": "Not sent; kept for n8n compatibility"
+        },
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "item",
+      "operation": "update",
+      "title": "Update an item",
+      "method": "PATCH",
+      "path": "/collections/{{ p.collectionId }}/items/{{ p.itemId }}{{ p.live | eq:'true' | then:'/live' }}",
+      "body": {
+        "!fieldData": {
+          "$merge": "{{ p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true,
+          "help": "Not sent; kept for n8n compatibility"
+        },
+        {
+          "key": "collectionId",
+          "label": "Collection ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "live",
+          "label": "Live",
+          "type": "boolean",
+          "default": false,
+          "help": "Publish the change to the live site right away"
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues"
+          ],
+          "help": "fieldValues: [{fieldId, fieldValue}] rows; fieldId is the field's slug"
+        }
+      ]
+    }
+  ]
+}
