@@ -269,6 +269,9 @@ func checkQuery(t *testing.T, where string, got url.Values, want map[string]any,
 func checkBody(t *testing.T, where string, got captured, want any) {
 	t.Helper()
 	ct, params, _ := mime.ParseMediaType(got.header.Get("Content-Type"))
+	if strings.HasSuffix(ct, "+json") || strings.HasPrefix(ct, "application/x-amz-json") {
+		ct = "application/json" // AWS JSON protocol, vendor +json types
+	}
 	if want == nil {
 		if len(got.body) > 0 && ct != "application/json" {
 			t.Errorf("%s: a %s body was sent but the case has no expect.body", where, ct)
