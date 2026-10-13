@@ -1,4 +1,4 @@
-package main
+package accountgate
 
 import (
 	"context"
@@ -11,8 +11,18 @@ import (
 	"github.com/monoes/mono-agent/internal/account"
 )
 
+// Gate is the CLI gate over a command tree. Its fields are what it needs from the CLI.
+type Gate struct {
+	// NewTree builds a throwaway copy of the command tree the gate judges (AsksForHelp parses
+	// the flags on one).
+	NewTree func() *cobra.Command
+	// LoginRequired is the CLI's error of a gate that refused st: exit 4 and the
+	// login_required fields in --json.
+	LoginRequired func(st account.Status) error
+}
+
 // gateRefusal is what a refused command fails with: exit 4 and the
-// login_required fields of newLoginRequiredError, under the text of
+// login_required fields of Gate.LoginRequired, under the text of
 // account.LoginRequiredError (the fixed first line and, for most reasons, a
 // second one), so the gate says what the other doors say.
 type gateRefusal struct {
@@ -23,30 +33,35 @@ type gateRefusal struct {
 func (e *gateRefusal) Error() string { return e.msg }
 func (e *gateRefusal) Unwrap() error { return e.error }
 
-func newGateRefusal(st account.Status) error {
-	return &gateRefusal{error: newLoginRequiredError(st), msg: (&account.LoginRequiredError{Status: st}).Error()}
+// Refusal is the error the gate fails a command with when st is not allowed.
+func (gt Gate) Refusal(st account.Status) error {
+	return &gateRefusal{error: gt.LoginRequired(st), msg: (&account.LoginRequiredError{Status: st}).Error()}
 }
 
-// gateCommand is the CLI gate. It returns nil to let the command run and the
+// Check is the CLI gate. It returns nil to let the command run and the
 // refusal to fail it. Before it judges, a gated or serving command renews the
 // session when that is due (an offline process pays one 2-second attempt a
 // minute at most). g is nil when no guard could be built; the verdict is then
 // account.CurrentStatus's, which is locked once enforcement is on.
-func gateCommand(ctx context.Context, root *cobra.Command, args []string, g *account.Guard, stderr io.Writer) error {
-	class := invocationClass(root, args)
-	if class == classOpen {
+func (gt Gate) Check(ctx context.Context, root *cobra.Command, args []string, g *account.Guard, stderr io.Writer) error {
+	class := gt.InvocationClass(root, args)
+	if class == ClassOpen {
 		return nil
 	}
-	st := gateStatus(ctx, g)
+	return gt.judge(class, gateStatus(ctx, g), stderr)
+}
+
+// judge is the verdict on a command of class (gated or serve) under st.
+func (gt Gate) judge(class string, st account.Status, stderr io.Writer) error {
 	switch {
 	case st.Allowed():
 		announce(stderr, st)
-	case class == classServe:
+	case class == ClassServe:
 		// It starts anyway and refuses the work itself: say why, once, on
 		// stderr (an MCP server's stdout is its protocol).
-		fmt.Fprintln(stderr, newGateRefusal(st))
+		fmt.Fprintln(stderr, gt.Refusal(st))
 	default:
-		return newGateRefusal(st)
+		return gt.Refusal(st)
 	}
 	return nil
 }
