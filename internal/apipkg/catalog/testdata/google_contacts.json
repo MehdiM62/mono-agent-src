@@ -118,13 +118,20 @@
     }
   },
   "contact.update": {
+    "responses": [
+      {
+        "etag": "e1"
+      },
+      {
+        "resourceName": "people/c1"
+      }
+    ],
     "params": {
       "contactId": "c1",
       "fields": [
         "names"
       ],
       "updateFields": {
-        "etag": "e1",
         "givenName": "Ada",
         "phoneUi": {
           "phoneValues": [
