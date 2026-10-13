@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -303,6 +304,14 @@ func nodePalette(db *sql.DB) map[string][]paletteNode {
 	for _, t := range reg.Types() { // Types() is sorted, so extras append deterministically
 		if !seen[t] {
 			g := groupOf(t)
+			if g == "app" { // API packages carry their own title and description
+				n := mkNode(t, workflow.SchemaTitle(t), g, "")
+				if p, ok := apipkg.ForNodeType(t); ok {
+					n.Description = p.Description
+				}
+				catalog[g] = append(catalog[g], n)
+				continue
+			}
 			catalog[g] = append(catalog[g], mkNode(t, deriveLabel(t), g, ""))
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	ainodes "github.com/monoes/mono-agent/internal/ai/nodes"
+	"github.com/monoes/mono-agent/internal/apipkg"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/nodes"
@@ -79,6 +80,7 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 	// Credential vault nodes (vault.secret_save / vault.secret_get)
 	vaultnodes.RegisterAll(registry)
 	publicationnodes.RegisterAll(registry)
+	apipkg.Register(registry) // declarative API packages: app.* node types
 
 	// AI crawl nodes (natural extraction runs on a local agent)
 	crawlnodes.RegisterAll(registry, cfgpkg.NewAgentGenerator(zerolog.Nop()))

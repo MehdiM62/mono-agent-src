@@ -112,6 +112,7 @@ func newRootCmd() *cobra.Command {
 		newPublicationCmd(cfg),
 		newLibraryCmd(cfg),
 		newAccountCmd(cfg),
+		newIntegrationCmd(cfg),
 	)
 
 	// `workflow run --full-outputs`: skip credential-key redaction of
