@@ -57,6 +57,11 @@ type Credential struct {
 	OAuth         *OAuthSpec        `json:"oauth,omitempty"`
 	Inject        Inject            `json:"inject"`
 	ReusePlatform string            `json:"reuse_platform,omitempty"`
+	// ScopeGroup names the umbrella-connection scope group the package
+	// needs (google: calendar, docs, forms, …; microsoft: mail, files, …).
+	// Before the first request the engine checks the connection grants it
+	// and fails with the exact `connect … --scopes` command when not.
+	ScopeGroup string `json:"scope_group,omitempty"`
 
 	// N8nCredentialAlt are further n8n credential types that map to this
 	// credential (e.g. the OAuth2 variant of an API-key credential).
@@ -76,11 +81,18 @@ type CredentialField struct {
 
 // OAuthSpec configures an OAuth 2.0 authorization-code flow (always PKCE).
 type OAuthSpec struct {
-	AuthURL     string            `json:"auth_url"`
+	AuthURL     string            `json:"auth_url,omitempty"`
 	TokenURL    string            `json:"token_url"`
 	Scopes      []string          `json:"scopes,omitempty"`
 	PKCE        bool              `json:"pkce,omitempty"`
 	ExtraParams map[string]string `json:"extra_params,omitempty"`
+	// Client-credentials grant (method "client_credentials"): which
+	// credential fields hold the client id/secret (default client_id /
+	// client_secret) and how they are sent: "body" (default) or "basic".
+	// token_url and extra_params values are templates over cred.*.
+	ClientIDField     string `json:"client_id_field,omitempty"`
+	ClientSecretField string `json:"client_secret_field,omitempty"`
+	ClientAuth        string `json:"client_auth,omitempty"`
 }
 
 // Inject says how a credential authenticates a request. Every value is a
@@ -127,6 +139,31 @@ type Operation struct {
 	Output      *Output                    `json:"output,omitempty"`
 	Binary      *Binary                    `json:"binary,omitempty"`
 	N8nParamMap map[string]string          `json:"n8n_param_map,omitempty"`
+	// Also are follow-up requests sent after the main one, in order, for
+	// n8n operations that make several calls (e.g. update fields, then
+	// tags). Each may read res (the main response). The node's output is
+	// still the main response.
+	Also []Step `json:"also,omitempty"`
+	// Batch sends ONE request for all input items (n8n batchCreate/
+	// batchUpdate/batchDelete): params come from the first item and the
+	// items root holds every item's JSON.
+	Batch bool `json:"batch,omitempty"`
+	// Before is a request sent first; its decoded response is the pre
+	// root for the main request (e.g. read a sheet's header row).
+	Before *Step `json:"before,omitempty"`
+}
+
+// Step is one follow-up request of an operation. When is a template; an
+// empty result skips the step (e.g. "{{ p.updateFields.tags }}").
+type Step struct {
+	When     string            `json:"when,omitempty"`
+	Method   string            `json:"method"`
+	Path     string            `json:"path"`
+	BaseURL  string            `json:"base_url,omitempty"`
+	Query    map[string]any    `json:"query,omitempty"`
+	Body     any               `json:"body,omitempty"`
+	BodyType string            `json:"body_type,omitempty"`
+	Headers  map[string]string `json:"headers,omitempty"`
 }
 
 // Key is "<resource>.<operation>", or just the operation when the package
@@ -177,6 +214,9 @@ type Pagination struct {
 type Output struct {
 	Path  string `json:"path,omitempty"`
 	Split *bool  `json:"split,omitempty"`
+	// HeaderRow turns a list of value rows into objects keyed by the
+	// first row (Google Sheets values, CSV-like APIs).
+	HeaderRow bool `json:"header_row,omitempty"`
 }
 
 // Binary configures file upload and download.

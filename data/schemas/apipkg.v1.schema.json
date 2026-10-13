@@ -47,12 +47,13 @@
         "n8n_field_map": { "$ref": "#/$defs/stringMap" },
         "methods": {
           "type": "array", "minItems": 1,
-          "items": { "type": "string", "enum": ["api_key", "oauth", "basic", "bearer", "none"] }
+          "items": { "type": "string", "enum": ["api_key", "oauth", "basic", "bearer", "client_credentials", "none"] }
         },
         "fields": { "type": "array", "items": { "$ref": "#/$defs/credentialField" } },
         "oauth": { "$ref": "#/$defs/oauth" },
         "inject": { "$ref": "#/$defs/inject" },
-        "reuse_platform": { "type": "string" }
+        "reuse_platform": { "type": "string" },
+        "scope_group": { "type": "string" }
       }
     },
     "credentialField": {
@@ -69,10 +70,13 @@
     },
     "oauth": {
       "type": "object",
-      "required": ["auth_url", "token_url"],
+      "required": ["token_url"],
       "additionalProperties": false,
       "properties": {
         "auth_url": { "type": "string", "minLength": 1 },
+        "client_id_field": { "type": "string" },
+        "client_secret_field": { "type": "string" },
+        "client_auth": { "type": "string", "enum": ["body", "basic"] },
         "token_url": { "type": "string", "minLength": 1 },
         "scopes": { "type": "array", "items": { "type": "string" } },
         "pkce": { "type": "boolean" },
@@ -126,7 +130,7 @@
         "output": {
           "type": "object",
           "additionalProperties": false,
-          "properties": { "path": { "type": "string" }, "split": { "type": "boolean" } }
+          "properties": { "path": { "type": "string" }, "split": { "type": "boolean" }, "header_row": { "type": "boolean" } }
         },
         "binary": {
           "type": "object",
@@ -140,7 +144,41 @@
             "mime_type": { "type": "string" }
           }
         },
-        "n8n_param_map": { "$ref": "#/$defs/stringMap" }
+        "n8n_param_map": { "$ref": "#/$defs/stringMap" },
+        "batch": { "type": "boolean" },
+        "before": {
+          "type": "object",
+          "required": ["method", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "when": { "type": "string" },
+            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+            "path": { "type": "string", "minLength": 1 },
+            "base_url": { "type": "string" },
+            "query": { "type": "object" },
+            "body": {},
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "headers": { "$ref": "#/$defs/stringMap" }
+          }
+        },
+        "also": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["method", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "when": { "type": "string" },
+              "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+              "path": { "type": "string", "minLength": 1 },
+              "base_url": { "type": "string" },
+              "query": { "type": "object" },
+              "body": {},
+              "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+              "headers": { "$ref": "#/$defs/stringMap" }
+            }
+          }
+        }
       }
     },
     "field": {

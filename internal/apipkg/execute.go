@@ -103,6 +103,23 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 			pkg.ID, pkg.PrimaryPlatform(), pkg.PrimaryPlatform())
 	}
 	credDef := pkg.selectCredential(cred)
+	if credDef != nil && credDef.ScopeGroup != "" && ScopeCheck != nil {
+		if err := ScopeCheck(cred, credDef.ScopeGroup); err != nil {
+			return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+		}
+	}
+	if credDef != nil && credDef.hasMethod("client_credentials") && isEmpty(cred["access_token"]) {
+		tok, err := clientCredentialsToken(ctx, credDef, cred)
+		if err != nil {
+			return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+		}
+		withTok := make(map[string]any, len(cred)+1)
+		for k, v := range cred {
+			withTok[k] = v
+		}
+		withTok["access_token"] = tok
+		cred = withTok
+	}
 	items := input.Items
 	if len(items) == 0 {
 		items = []workflow.Item{{JSON: map[string]any{}}}
@@ -131,11 +148,25 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
+		if op.Batch {
+			all := make([]any, 0, len(items))
+			for _, x := range items {
+				if x.JSON == nil {
+					all = append(all, map[string]any{})
+					continue
+				}
+				all = append(all, x.JSON)
+			}
+			r.scope.Items = all
+		}
 		res, err := r.execute(ctx)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, res...)
+		if op.Batch {
+			break // one request covered every item
+		}
 	}
 	return []workflow.NodeOutput{{Handle: "main", Items: out}}, nil
 }
@@ -220,6 +251,15 @@ func checkRequired(pkg *Package, op *Operation, params map[string]any) error {
 
 // execute sends the request (all pages) and turns the response into items.
 func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
+	if st := r.op.Before; st != nil {
+		resp, err := r.sendStep(ctx, *st, r.scope)
+		if err != nil {
+			return nil, fmt.Errorf("before: %w", err)
+		}
+		if resp != nil && len(strings.TrimSpace(string(resp.body))) > 0 {
+			r.scope.Pre = decodeBody(resp.body)
+		}
+	}
 	if r.op.Pagination != nil {
 		results, truncated, err := r.paginate(ctx)
 		if err != nil {
@@ -237,6 +277,9 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := r.runAlso(ctx, resp); err != nil {
+		return nil, err
+	}
 	if b := r.op.Binary; b != nil && b.Download {
 		return []workflow.Item{r.downloadItem(resp)}, nil
 	}
@@ -246,6 +289,9 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	v := decodeBody(resp.body)
 	if r.op.Output != nil && r.op.Output.Path != "" {
 		v = lookupPath(v, strings.Split(r.op.Output.Path, "."))
+	}
+	if r.op.Output != nil && r.op.Output.HeaderRow {
+		v = rowsToObjects(v)
 	}
 	split := r.op.Output == nil || r.op.Output.Split == nil || *r.op.Output.Split
 	return toItems(v, split), nil
@@ -342,4 +388,50 @@ func asObject(v any) map[string]any {
 		return m
 	}
 	return map[string]any{"data": v}
+}
+
+// runAlso sends the operation's follow-up requests in order, each with res
+// bound to the main response. A step whose "when" renders empty is skipped.
+func (r *opRun) runAlso(ctx context.Context, main *response) error {
+	if len(r.op.Also) == 0 {
+		return nil
+	}
+	var res any
+	if len(strings.TrimSpace(string(main.body))) > 0 {
+		res = decodeBody(main.body)
+	}
+	for i, st := range r.op.Also {
+		sc := r.scope
+		sc.Res = res
+		if _, err := r.sendStep(ctx, st, sc); err != nil {
+			return fmt.Errorf("also[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+// ScopeCheck, when set, checks that a credential grants an umbrella scope
+// group (see Credential.ScopeGroup). It is wired to
+// connections.CheckCredentialScopes by the registry.
+var ScopeCheck func(cred map[string]any, group string) error
+
+// sendStep sends one extra request (before/also) of the operation with
+// scope sc and the operation's auth.
+func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, error) {
+	if st.When != "" {
+		w, err := renderString(st.When, sc)
+		if err != nil {
+			return nil, r.errf("when: %w", err)
+		}
+		if isEmpty(w) || w == false {
+			return nil, nil
+		}
+	}
+	op := *r.op
+	op.Method, op.Path, op.BaseURL = st.Method, st.Path, st.BaseURL
+	op.Query, op.Body, op.BodyType, op.Headers = st.Query, st.Body, st.BodyType, st.Headers
+	op.Pagination, op.Binary, op.Also, op.Before = nil, nil, nil, nil
+	step := *r
+	step.op, step.scope = &op, sc
+	return step.send(ctx, pageParams{})
 }
