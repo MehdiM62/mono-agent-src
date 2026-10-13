@@ -12,6 +12,7 @@ func TestValidateReportsEveryProblem(t *testing.T) {
 		want []string
 	}{
 		"schema": {`{"$schema":"apipkg.v1","id":"Bad","title":"","base_url":"x","quey":1,"operations":[]}`, []string{
+			`$.id: "Bad" does not match`, `$.title: must not be empty`, `unknown key "quey"`,
 		}},
 		"op schema": {pkgJSON(`{"resource":"","operation":"x","title":"X","method":"FETCH","path":"/x","fields":[{"key":"a","label":"A","type":"widget"}],"pagination":{"type":"cursr"}}`), []string{
 			`.method: "FETCH" is not one of`, `.type: "widget" is not one of`, `.pagination.type: "cursr" is not one of`,
