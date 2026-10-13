@@ -6,12 +6,14 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var knownFilters = map[string]bool{
 	"json": true, "csv": true, "int": true, "float": true, "bool": true,
 	"string": true, "lower": true, "upper": true, "default": true, "rl": true,
 	"then": true, "eq": true, "ne": true, "kv": true, "omit": true,
+	"fromjson": true, "epoch_ms": true, "epoch": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -69,6 +71,12 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return stringify(v), nil
 	case "kv":
 		return toKV(v, arg)
+	case "fromjson":
+		return fromJSON(v)
+	case "epoch_ms":
+		return toEpoch(v, true)
+	case "epoch":
+		return toEpoch(v, false)
 	case "omit":
 		return omitKeys(v, arg)
 	case "lower":
@@ -228,4 +236,50 @@ func omitKeys(v, arg any) (any, error) {
 		}
 	}
 	return out, nil
+}
+
+// fromJSON parses a JSON string (n8n's jsonParameters / *Json params);
+// non-strings pass through, an empty string is nil.
+func fromJSON(v any) (any, error) {
+	str, ok := v.(string)
+	if !ok {
+		return v, nil
+	}
+	if strings.TrimSpace(str) == "" {
+		return nil, nil
+	}
+	var out any
+	if err := json.Unmarshal([]byte(str), &out); err != nil {
+		return nil, fmt.Errorf("fromjson: %w", err)
+	}
+	return out, nil
+}
+
+var epochLayouts = []string{
+	time.RFC3339Nano, time.RFC3339, "2006-01-02T15:04:05.000", "2006-01-02T15:04:05",
+	"2006-01-02 15:04:05", "2006-01-02T15:04", "2006-01-02",
+}
+
+// toEpoch turns a date (RFC 3339, n8n's ISO forms, a date, or a number
+// that is already an epoch) into Unix milliseconds or seconds.
+func toEpoch(v any, ms bool) (any, error) {
+	if f, ok := v.(float64); ok {
+		return int64(f), nil
+	}
+	str := strings.TrimSpace(stringify(v))
+	if str == "" {
+		return nil, nil
+	}
+	if n, err := strconv.ParseInt(str, 10, 64); err == nil {
+		return n, nil
+	}
+	for _, l := range epochLayouts {
+		if t, err := time.Parse(l, str); err == nil {
+			if ms {
+				return t.UnixMilli(), nil
+			}
+			return t.Unix(), nil
+		}
+	}
+	return nil, fmt.Errorf("epoch: %q is not a date", str)
 }

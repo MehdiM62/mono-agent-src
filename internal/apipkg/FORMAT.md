@@ -170,6 +170,8 @@ Scopes:
 | `p.<field>` | the op params (node config after workflow expressions; defaults applied) |
 | `cred.<key>` | the credential (the connection's fields, or OAuth tokens) |
 | `item.<path>` | the current input item's JSON |
+| `el.<path>` | the current element inside a `$map` (`el` alone is the element) |
+| `res.<path>` | the main request's decoded response, inside `also` steps |
 
 Paths walk objects by key and arrays by index; `-1` is the last element
 (`p.list.-1.id`). A missing path is `nil`. Only `cred.*` is available in
@@ -211,6 +213,8 @@ through, so an unset param stays unset:
 | `rl` | n8n resource locator → its `value`; other values pass |
 | `eq:'x'`, `ne:'x'` | `true` when the value's string equals (`eq`) / differs from (`ne`) the argument, else nil, so they chain into `then`: `"$merge": "{{ p.dataToSend \| eq:'autoMapInputData' \| then:item }}"` |
 | `kv:'keyField,valueField'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}`. A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
+| `fromjson` | JSON string → value (n8n `jsonParameters` / `*Json` params: `"$merge": "{{ p.additionalFieldsJson \| fromjson }}"`); non-strings pass |
+| `epoch_ms`, `epoch` | date (RFC 3339, `2006-01-02T15:04:05`, `2006-01-02`, …) → Unix milliseconds / seconds; numbers pass |
 | `omit:'a,b'` | object without the listed keys; the argument may be a path to a comma string or list (`omit:p.inputsToIgnore`) |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -221,6 +225,14 @@ through, so an unset param stays unset:
 ] }
 ```
 (`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
+
+**Lists of objects (`$map`, `$concat`).** `{"$map": "{{ p.emailOptions.emailProperties }}", "$to": {"name": "email", "subtype": "{{ el.subtype }}", "value": "{{ el.email }}"}}` renders `$to` once per element (empty results dropped; an empty list is omitted). `{"$concat": [ <template>, … ]}` joins parts into one list (lists are spread, empty parts skipped). Together they build arrays like `properties` from several n8n collections:
+```json
+"properties": { "$concat": [
+  { "$map": "{{ p.emailOptions.emailProperties }}", "$to": { "type": "SYSTEM", "name": "email", "subtype": "{{ el.subtype }}", "value": "{{ el.email }}" } },
+  { "$map": "{{ p.phoneOptions.phoneProperties }}", "$to": { "type": "SYSTEM", "name": "phone", "value": "{{ el.number }}" } }
+] }
+```
 
 **Paths are escaped.** In `path`, each expression's value is URL-escaped
 (`a b/c` → `a%20b%2Fc`). Literals the author wrote as a `then`/`default`
@@ -342,6 +354,15 @@ selects part of the JSON response; `split` (default true) turns an array into
 one item per element. Objects are one item; scalars become `{"data": v}`; a
 non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 `{"success": true}`; a path that resolves to nothing yields no items.
+
+**Follow-up requests (`also`).** Some n8n operations make several calls (update fields, then tags, then star). List them in order under `also`; each runs after the main request with `res` bound to the main response, auth injected the same way, and is skipped when its `when` template renders empty or false. The output is still the main response.
+```json
+"also": [
+  { "when": "{{ p.updateFields.tags }}", "method": "PUT", "path": "/contacts/{{ res.id }}/tags", "body": { "tags": "{{ p.updateFields.tags }}" } },
+  { "when": "{{ p.updateFields.starValue }}", "method": "PUT", "path": "/contacts/{{ res.id }}/star", "body": { "star_value": "{{ p.updateFields.starValue | int }}" } }
+]
+```
+Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
 
 ## 10. Binary data
 
@@ -540,4 +561,6 @@ Optional keys the engine added (the design's keys are unchanged):
 | binary | `property_field`, `multipart_field`, `file_name`, `mime_type` | §10 |
 | inject.aws_sigv4 | `access_key_id`, `secret_access_key`, `session_token` | key templates |
 | templates | filters `float`, `string`, `upper`, `rl`, `then`; `default:<path>`; `$merge` lists | §5 |
+| templates | filters `eq`, `ne`, `kv`, `omit`, `fromjson`, `epoch_ms`, `epoch`; roots `el`, `res`; `$map`/`$to`, `$concat` | §5 |
+| operation | `also` (follow-up requests) | §9 |
 | schema output | `visible_for`, `apipkg`, `extended_by` | exact op visibility; package id; extending packages |

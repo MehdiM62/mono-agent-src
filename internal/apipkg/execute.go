@@ -237,6 +237,9 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := r.runAlso(ctx, resp); err != nil {
+		return nil, err
+	}
 	if b := r.op.Binary; b != nil && b.Download {
 		return []workflow.Item{r.downloadItem(resp)}, nil
 	}
@@ -342,4 +345,39 @@ func asObject(v any) map[string]any {
 		return m
 	}
 	return map[string]any{"data": v}
+}
+
+// runAlso sends the operation's follow-up requests in order, each with res
+// bound to the main response. A step whose "when" renders empty is skipped.
+func (r *opRun) runAlso(ctx context.Context, main *response) error {
+	if len(r.op.Also) == 0 {
+		return nil
+	}
+	var res any
+	if len(strings.TrimSpace(string(main.body))) > 0 {
+		res = decodeBody(main.body)
+	}
+	for i, st := range r.op.Also {
+		sc := r.scope
+		sc.Res = res
+		if st.When != "" {
+			w, err := renderString(st.When, sc)
+			if err != nil {
+				return r.errf("also[%d] when: %w", i, err)
+			}
+			if isEmpty(w) || w == false {
+				continue
+			}
+		}
+		op := *r.op
+		op.Method, op.Path, op.BaseURL = st.Method, st.Path, st.BaseURL
+		op.Query, op.Body, op.BodyType, op.Headers = st.Query, st.Body, st.BodyType, st.Headers
+		op.Pagination, op.Binary, op.Also = nil, nil, nil
+		step := *r
+		step.op, step.scope = &op, sc
+		if _, err := step.send(ctx, pageParams{}); err != nil {
+			return fmt.Errorf("also[%d]: %w", i, err)
+		}
+	}
+	return nil
 }
