@@ -126,6 +126,18 @@ func (a *App) CoderWorkspaceRoot(runtimeID string) string {
 	return a.jsonResult(args...)
 }
 
+// CoderWorkspaceDefault sets up the active profile's own folder as the
+// chat's working folder, with runtimeID's setup files (add-only), and returns
+// {path, profile:{id,name}, source, created, init}. It is the default folder
+// of a new coder chat; the user may pick another.
+func (a *App) CoderWorkspaceDefault(runtimeID string) string {
+	args := []string{"coder", "workspace", "default"}
+	if runtimeID != "" {
+		args = append(args, "--runtime", runtimeID)
+	}
+	return a.jsonResult(args...)
+}
+
 // CoderWorkspaceList returns the folders coder conversations used, newest
 // first.
 func (a *App) CoderWorkspaceList() string { return a.jsonResult("coder", "workspace", "list") }

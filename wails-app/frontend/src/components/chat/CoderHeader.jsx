@@ -101,7 +101,7 @@ export function CoderInitNote({ workspace, runtime = 'claude' }) {
     }}>
       <FolderRoot size={11} color="#00b4d8" style={{ flexShrink: 0, marginTop: 1 }} />
       <span>
-        {workspace?.created ? 'Created coder root ' : 'Working in '}
+        {workspace?.created ? (workspace?.profile ? 'Created profile folder ' : 'Created coder root ') : 'Working in '}
         <span style={{ color: '#e2e8f0' }}>{workspace?.path}</span>
         {created.length > 0 && <> · created {initSummary(created, runtime)}</>}
         {workspace?.git && <> · git repository</>}

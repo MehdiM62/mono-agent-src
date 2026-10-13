@@ -123,6 +123,8 @@ export function CoderStatus():Promise<string>;
 
 export function CoderStopBackground(arg1:string,arg2:string):Promise<string>;
 
+export function CoderWorkspaceDefault(arg1:string):Promise<string>;
+
 export function CoderWorkspaceList():Promise<string>;
 
 export function CoderWorkspaceRoot(arg1:string):Promise<string>;

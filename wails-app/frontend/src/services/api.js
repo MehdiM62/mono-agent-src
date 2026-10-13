@@ -210,6 +210,9 @@ export const api = {
     GoApp.SetChatOrgMode(conversationID, mode).then(parseStreamResult),
   coderStopBackground: (conversationID, turnID) =>
     GoApp.CoderStopBackground(conversationID, turnID).then(parseStreamResult),
+  // The active profile's own folder, set up for the runtime: {path, profile:{id,name}, source, init}.
+  coderWorkspaceDefault: (runtimeID = '') => GoApp.CoderWorkspaceDefault(runtimeID).then(parseStreamResult),
+  getActiveProfile: () => GoApp.GetActiveProfile(),
   coderWorkspaceRoot: (runtimeID = '') => GoApp.CoderWorkspaceRoot(runtimeID).then(parseStreamResult),
   coderWorkspaceList: () => GoApp.CoderWorkspaceList().then(parseStreamResult),
   createCoderConversation: (runtimeID, model, effort, cwd, newWorkspace = false) =>

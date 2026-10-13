@@ -969,6 +969,13 @@
     "scopedTitle": "Claude se ejecutó con el acceso limitado de monomind: sus herramientas se limitan a lo que permite este turno. Todavía no tiene un sandbox propio.",
     "awaitingMonomindTitle": "monomind todavía no puede aislar este entorno de agente (incidencia #396 de monomind), así que el turno se ejecutó sin sandbox. Los turnos de Codex y Grok ya se aíslan."
   },
+  "coderFolder": {
+    "profileDefault": "Carpeta del perfil (predeterminada): {{name}}",
+    "profileDefaultUnnamed": "Carpeta del perfil (predeterminada)",
+    "profileHint": "La carpeta del perfil activo",
+    "chooseAnother": "Elegir otra carpeta…",
+    "chooseHint": "Cualquier carpeta de confianza"
+  },
   "bubbles": {
     "dockLabel": "Chats de código",
     "newChat": "Nuevo chat de código",
