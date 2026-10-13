@@ -25,6 +25,9 @@ type executionResumeState struct {
 	NodeState map[string]json.RawMessage `json:"node_state,omitempty"`
 	// Loops holds the active loop nodes' engine bookkeeping by node ID.
 	Loops map[string]*loopState `json:"loops,omitempty"`
+	// ActiveMs is the run's active (not WAITING) time so far, counted
+	// against the workflow's executionTimeout.
+	ActiveMs int64 `json:"active_ms,omitempty"`
 }
 
 // dbCtx returns a short-lived context for DB persistence operations.

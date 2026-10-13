@@ -57,6 +57,12 @@ type runner struct {
 
 	// parallel is how many independent nodes may run at once (1 = sequential).
 	parallel int
+
+	// activeBefore is the active time of the run's earlier segments (before
+	// a pause); segmentStart is when this segment started. Together they
+	// bound the run by its executionTimeout setting.
+	activeBefore time.Duration
+	segmentStart time.Time
 }
 
 // RunExecution executes a workflow against its DAG. Called by WorkflowEngine.
@@ -144,7 +150,11 @@ func RunExecution(
 		}
 	}
 
-	return r.run()
+	ctx, cancel := r.withExecutionTimeout(r.ctx)
+	defer cancel()
+	r.ctx = ctx
+
+	return r.timeoutErr(r.run())
 }
 
 // restore seeds the working state from a persisted executionResumeState.
@@ -171,6 +181,7 @@ func (r *runner) restore(raw string) error {
 	if rs.Loops != nil {
 		r.loops = rs.Loops
 	}
+	r.activeBefore = time.Duration(rs.ActiveMs) * time.Millisecond
 	return nil
 }
 
@@ -256,6 +267,7 @@ func (r *runner) pause(paused []*nodeTask) error {
 		MergeWaiting:   r.mergeWaiting,
 		NodeState:      r.nodeState,
 		Loops:          r.loops,
+		ActiveMs:       r.activeTime().Milliseconds(),
 	})
 	if mErr != nil {
 		return fmt.Errorf("pause: encode resume state for execution %s: %w", r.exec.ID, mErr)
