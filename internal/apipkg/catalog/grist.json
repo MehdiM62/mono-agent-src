@@ -1,0 +1,405 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "grist",
+  "node_type": "app.grist",
+  "title": "Grist",
+  "description": "Create, read, update, upsert and delete rows in Grist tables",
+  "category": "app",
+  "docs_url": "https://support.getgrist.com/api/",
+  "n8n_types": [
+    "n8n-nodes-base.grist"
+  ],
+  "base_url": "{{ cred.url | default:cred.self_hosted_url | default:(cred.custom_subdomain | prefix:'https://' | suffix:'.getgrist.com') | default:'https://api.getgrist.com' | re:'^(.*?)(?:/api)?/*$' }}/api",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "grist",
+      "name": "Grist",
+      "n8n_credential": "gristApi",
+      "n8n_credential_alt": [
+        "gristOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "apiKey": "access_token",
+        "url": "url",
+        "customSubdomain": "custom_subdomain",
+        "selfHostedUrl": "self_hosted_url"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Grist: Profile settings → API"
+        },
+        {
+          "key": "url",
+          "label": "Server URL",
+          "help": "Default https://api.getgrist.com; a team site (https://team.getgrist.com) or a self-hosted URL"
+        },
+        {
+          "key": "custom_subdomain",
+          "label": "Team subdomain (legacy)"
+        },
+        {
+          "key": "self_hosted_url",
+          "label": "Self-hosted URL (legacy)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "getAll",
+      "title": "Get many rows",
+      "method": "GET",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/records",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "additionalOptions",
+          "label": "Additional options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter",
+            "sort"
+          ],
+          "help": "filter: {\"filterProperties\": [{\"field\", \"values\"}]}; sort: {\"sortProperties\": [{\"field\", \"direction\": asc|desc}]} (up to 6)"
+        }
+      ],
+      "query": {
+        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}",
+        "sort": "{{ p.additionalOptions.sort.sortProperties.0.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.0.field }}{{ p.additionalOptions.sort.sortProperties.1.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.1.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.1.field }}{{ p.additionalOptions.sort.sortProperties.2.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.2.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.2.field }}{{ p.additionalOptions.sort.sortProperties.3.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.3.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.3.field }}{{ p.additionalOptions.sort.sortProperties.4.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.4.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.4.field }}{{ p.additionalOptions.sort.sortProperties.5.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.5.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.5.field }}",
+        "filter": {
+          "$json": {
+            "$entries": "{{ p.additionalOptions.filter.filterProperties }}",
+            "$key": "{{ el.field }}",
+            "$value": [
+              "{{ el.values | numeric }}"
+            ]
+          }
+        }
+      },
+      "output": {
+        "path": "records",
+        "to": {
+          "id": "{{ el.id }}",
+          "$merge": "{{ el.fields }}"
+        }
+      }
+    },
+    {
+      "resource": "",
+      "operation": "create",
+      "title": "Create a row",
+      "method": "POST",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/records",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "defineInNode",
+          "options": [
+            "defineInNode",
+            "autoMapInputs"
+          ]
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated; with autoMapInputs"
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "properties"
+          ],
+          "help": "{\"properties\": [{\"fieldId\": \"Name\", \"fieldValue\": \"Ada\"}]}"
+        }
+      ],
+      "body": {
+        "records": [
+          {
+            "!fields": {
+              "$merge": [
+                "{{ p.dataToSend | eq:'autoMapInputs' | then:(item | omit:p.inputsToIgnore) }}",
+                "{{ p.dataToSend | ne:'autoMapInputs' | then:(p.fieldsToSend.properties | kv:'fieldId,fieldValue') }}"
+              ]
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.records.0.id }}",
+          "$merge": [
+            "{{ p.dataToSend | eq:'autoMapInputs' | then:(item | omit:p.inputsToIgnore) }}",
+            "{{ p.dataToSend | ne:'autoMapInputs' | then:(p.fieldsToSend.properties | kv:'fieldId,fieldValue') }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "",
+      "operation": "delete",
+      "title": "Delete rows",
+      "method": "POST",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/data/delete",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row IDs",
+          "type": "text",
+          "required": true,
+          "help": "One ID or a comma-separated list"
+        }
+      ],
+      "body": {
+        "$map": "{{ p.rowId | string | split }}",
+        "$to": "{{ el | int }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "",
+      "operation": "update",
+      "title": "Update a row",
+      "method": "PATCH",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/records",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "defineInNode",
+          "options": [
+            "defineInNode",
+            "autoMapInputs"
+          ]
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated; with autoMapInputs"
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "properties"
+          ],
+          "help": "{\"properties\": [{\"fieldId\": \"Name\", \"fieldValue\": \"Ada\"}]}"
+        }
+      ],
+      "body": {
+        "records": [
+          {
+            "id": "{{ p.rowId | int }}",
+            "!fields": {
+              "$merge": [
+                "{{ p.dataToSend | eq:'autoMapInputs' | then:(item | omit:p.inputsToIgnore) }}",
+                "{{ p.dataToSend | ne:'autoMapInputs' | then:(p.fieldsToSend.properties | kv:'fieldId,fieldValue') }}"
+              ]
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.rowId }}",
+          "$merge": [
+            "{{ p.dataToSend | eq:'autoMapInputs' | then:(item | omit:p.inputsToIgnore) }}",
+            "{{ p.dataToSend | ne:'autoMapInputs' | then:(p.fieldsToSend.properties | kv:'fieldId,fieldValue') }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "",
+      "operation": "upsert",
+      "title": "Create or update a row",
+      "method": "PUT",
+      "path": "/docs/{{ p.docId }}/tables/{{ p.tableId }}/records",
+      "fields": [
+        {
+          "key": "docId",
+          "label": "Document ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "upsertCriteria",
+          "label": "Match on",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "properties"
+          ],
+          "help": "{\"properties\": [{\"fieldId\", \"fieldValue\"}]}: rows matching all of these are updated"
+        },
+        {
+          "key": "onMany",
+          "label": "When several rows match",
+          "type": "select",
+          "default": "first",
+          "options": [
+            "first",
+            "none",
+            "all"
+          ]
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "defineInNode",
+          "options": [
+            "defineInNode",
+            "autoMapInputs"
+          ]
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Input fields to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated; with autoMapInputs"
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "properties"
+          ],
+          "help": "{\"properties\": [{\"fieldId\": \"Name\", \"fieldValue\": \"Ada\"}]}"
+        }
+      ],
+      "query": {
+        "onmany": "{{ p.onMany | ne:'first' | then:p.onMany }}"
+      },
+      "body": {
+        "records": [
+          {
+            "require": "{{ p.upsertCriteria.properties | kv:'fieldId,fieldValue' }}",
+            "!fields": {
+              "$merge": [
+                "{{ p.dataToSend | eq:'autoMapInputs' | then:(item | omit:p.inputsToIgnore) }}",
+                "{{ p.dataToSend | ne:'autoMapInputs' | then:(p.fieldsToSend.properties | kv:'fieldId,fieldValue') }}"
+              ]
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.recordIds.0.0 }}",
+          "$merge": [
+            "{{ p.dataToSend | eq:'autoMapInputs' | then:(item | omit:p.inputsToIgnore) }}",
+            "{{ p.dataToSend | ne:'autoMapInputs' | then:(p.fieldsToSend.properties | kv:'fieldId,fieldValue') }}"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{
+  "message.create": {
+    "params": {
+      "message": "hi",
+      "additionalFields": {
+        "priority": 5,
+        "title": "T"
+      },
+      "options": {
+        "contentType": "text/markdown",
+        "clickUrl": "https://x.test"
+      }
+    },
+    "credential": {
+      "url": "https://push.test",
+      "app_token": "app",
+      "client_token": "cli"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/message",
+      "headers": {
+        "X-Gotify-Key": "app"
+      },
+      "body": {
+        "message": "hi",
+        "priority": 5,
+        "title": "T",
+        "extras": {
+          "client::display": {
+            "contentType": "text/markdown"
+          },
+          "client::notification": {
+            "click": {
+              "url": "https://x.test"
+            }
+          }
+        }
+      },
+      "items": 1
+    }
+  },
+  "message.delete": {
+    "params": {
+      "messageId": "7"
+    },
+    "credential": {
+      "url": "https://push.test",
+      "app_token": "app",
+      "client_token": "cli"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/message/7",
+      "headers": {
+        "X-Gotify-Key": "cli"
+      }
+    }
+  },
+  "message.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "credential": {
+      "url": "https://push.test",
+      "app_token": "app",
+      "client_token": "cli"
+    },
+    "response": {
+      "messages": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "paging": {
+        "next": ""
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/message",
+      "query": {
+        "limit": "3"
+      },
+      "items": 2
+    }
+  }
+}
