@@ -115,8 +115,8 @@
         "sort": "title:asc",
         "filters[title][$eq]": "Hi",
         "publicationState": "live",
-        "pagination[page]": "1",
-        "pagination[pageSize]": "5"
+        "pagination[start]": "0",
+        "pagination[limit]": "5"
       },
       "items": 1
     }

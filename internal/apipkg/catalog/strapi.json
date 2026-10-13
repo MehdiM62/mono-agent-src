@@ -221,7 +221,6 @@
         }
       },
       "query_style": "brackets",
-      "description": "Strapi v4 pages through all entries; on Strapi v3 only Limit is honoured (no paging)",
       "fields": [
         {
           "key": "contentType",
@@ -263,13 +262,12 @@
         "publicationState": "{{ cred.api_version | eq:'v4' | then:p.options.publicationState }}",
         "_sort": "{{ cred.api_version | ne:'v4' | then:(p.options.sort | csv) }}",
         "_where": "{{ cred.api_version | ne:'v4' | then:(p.options.where | fromjson) }}",
-        "_publicationState": "{{ cred.api_version | ne:'v4' | then:p.options.publicationState }}",
-        "_limit": "{{ cred.api_version | ne:'v4' | then:(p.returnAll | eq:'true' | then:'-1' | default:p.limit) }}"
+        "_publicationState": "{{ cred.api_version | ne:'v4' | then:p.options.publicationState }}"
       },
       "pagination": {
-        "type": "page",
-        "page_param": "pagination[page]",
-        "limit_param": "pagination[pageSize]",
+        "type": "offset",
+        "offset_param": "{{ cred.api_version | eq:'v4' | then:'pagination[start]' | default:'_start' }}",
+        "limit_param": "{{ cred.api_version | eq:'v4' | then:'pagination[limit]' | default:'_limit' }}",
         "page_size": 100
       },
       "output": {
