@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 
@@ -23,7 +24,11 @@ var (
 // IDs in the database.
 func (e *WorkflowEngine) wireWebhookRuns() {
 	e.webhookServer.SetRunner(e.handleWebhookTrigger, e.store)
-	if db := e.store.RawDB(); db != nil {
+	var db *sql.DB
+	if e.store != nil {
+		db = e.store.RawDB()
+	}
+	if db != nil {
 		e.webhookServer.SetDeliveryStore(NewSQLWebhookDeliveries(db))
 	} else {
 		e.webhookServer.SetDeliveryStore(NewMemoryWebhookDeliveries())
