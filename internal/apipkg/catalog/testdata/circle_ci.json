@@ -1,0 +1,60 @@
+{
+  "pipeline.get": {
+    "params": {
+      "vcs": "github",
+      "projectSlug": "acme/app",
+      "pipelineNumber": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/project/github/acme%2Fapp/pipeline/7",
+      "query": {}
+    }
+  },
+  "pipeline.getAll": {
+    "params": {
+      "vcs": "github",
+      "projectSlug": "acme/app",
+      "limit": 2,
+      "filters": {
+        "branch": "main"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        }
+      ],
+      "next_page_token": "t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/project/github/acme%2Fapp/pipeline",
+      "query": {
+        "branch": "main"
+      },
+      "items": 2
+    }
+  },
+  "pipeline.trigger": {
+    "params": {
+      "vcs": "bitbucket",
+      "projectSlug": "acme/app",
+      "additionalFields": {
+        "branch": "dev"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/project/bitbucket/acme%2Fapp/pipeline",
+      "query": {},
+      "body": {
+        "branch": "dev"
+      }
+    }
+  }
+}

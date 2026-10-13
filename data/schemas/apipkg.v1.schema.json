@@ -132,6 +132,9 @@
           "additionalProperties": false,
           "properties": { "path": { "type": "string" }, "split": { "type": "boolean" }, "header_row": { "type": "boolean" },
             "each": { "type": "string" },
+            "to": {},
+            "to_when": { "type": "string" },
+            "firestore": { "type": "string" },
             "expand": {
           "type": "object",
           "required": ["method", "path"],
@@ -160,12 +163,14 @@
             "property_field": { "type": "string" },
             "multipart_field": { "type": "string" },
             "file_name": { "type": "string" },
-            "mime_type": { "type": "string" }
+            "mime_type": { "type": "string" },
+            "download_when": { "type": "string" },
+            "upload_text": { "type": "string" }
           }
         },
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
         "batch": { "type": "boolean" },
-        "before": {
+        "before": { "oneOf": [ {
           "type": "object",
           "required": ["method", "path"],
           "additionalProperties": false,
@@ -179,7 +184,21 @@
             "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
             "headers": { "$ref": "#/$defs/stringMap" }
           }
-        },
+        }, { "type": "array", "items": {
+          "type": "object",
+          "required": ["method", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "when": { "type": "string" },
+            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+            "path": { "type": "string", "minLength": 1 },
+            "base_url": { "type": "string" },
+            "query": { "type": "object" },
+            "body": {},
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "headers": { "$ref": "#/$defs/stringMap" }
+          }
+        } } ] },
         "also": {
           "type": "array",
           "items": {
@@ -236,6 +255,7 @@
         "offset_param": { "type": "string" },
         "limit_param": { "type": "string" },
         "page_param": { "type": "string" },
+        "next_url_prefix": { "type": "string" },
         "next_url_path": { "type": "string" },
         "results_path": { "type": "string" },
         "return_all_field": { "type": "string" },

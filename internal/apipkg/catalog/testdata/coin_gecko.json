@@ -1,0 +1,211 @@
+{
+  "coin.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "response": [
+      {
+        "id": "a"
+      },
+      {
+        "id": "b"
+      },
+      {
+        "id": "c"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/coins/list",
+      "query": {},
+      "items": 2
+    }
+  },
+  "coin.candlestick": {
+    "params": {
+      "baseCurrency": "bitcoin",
+      "quoteCurrency": "usd",
+      "days": "7"
+    },
+    "response": [
+      [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/coins/bitcoin/ohlc",
+      "query": {
+        "vs_currency": "usd",
+        "days": "7"
+      }
+    }
+  },
+  "coin.get": {
+    "params": {
+      "coinId": "bitcoin",
+      "options": {
+        "market_data": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/coins/bitcoin",
+      "query": {
+        "community_data": "false",
+        "developer_data": "false",
+        "localization": "false",
+        "market_data": "true",
+        "sparkline": "false",
+        "tickers": "false"
+      }
+    }
+  },
+  "coin.history": {
+    "params": {
+      "coinId": "bitcoin",
+      "date": "2024-03-05T10:00:00Z",
+      "options": {
+        "localization": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/coins/bitcoin/history",
+      "query": {
+        "date": "05-03-2024",
+        "localization": "false"
+      }
+    }
+  },
+  "coin.market": {
+    "params": {
+      "baseCurrency": "usd",
+      "limit": 10,
+      "options": {
+        "order": "market_cap_desc",
+        "price_change_percentage": [
+          "1h",
+          "24h"
+        ]
+      }
+    },
+    "response": [
+      {
+        "id": "a"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/coins/markets",
+      "query": {
+        "vs_currency": "usd",
+        "order": "market_cap_desc",
+        "price_change_percentage": "1h,24h",
+        "page": "1",
+        "per_page": "10"
+      },
+      "items": 1
+    }
+  },
+  "coin.marketChart": {
+    "params": {
+      "searchBy": "contractAddress",
+      "platformId": "ethereum",
+      "contractAddress": "0xabc",
+      "quoteCurrency": "usd",
+      "days": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/coins/ethereum/contract/0xabc/market_chart",
+      "query": {
+        "vs_currency": "usd",
+        "days": "1"
+      }
+    }
+  },
+  "coin.price": {
+    "params": {
+      "baseCurrencies": [
+        "bitcoin",
+        "ethereum"
+      ],
+      "quoteCurrencies": [
+        "usd",
+        "eur"
+      ],
+      "options": {
+        "include_market_cap": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/simple/price",
+      "query": {
+        "ids": "bitcoin,ethereum",
+        "vs_currencies": "usd,eur",
+        "include_market_cap": "true"
+      }
+    }
+  },
+  "coin.ticker": {
+    "params": {
+      "coinId": "bitcoin",
+      "limit": 1,
+      "options": {
+        "exchange_ids": [
+          "binance"
+        ]
+      }
+    },
+    "response": {
+      "tickers": [
+        {
+          "base": "BTC"
+        },
+        {
+          "base": "x"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/coins/bitcoin/tickers",
+      "query": {
+        "exchange_ids": "binance",
+        "page": "1"
+      },
+      "items": 1
+    }
+  },
+  "event.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "country_code": "US"
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/events",
+      "query": {
+        "country_code": "US",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    }
+  }
+}

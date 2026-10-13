@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"path"
 	"sort"
 	"strings"
 )
@@ -122,7 +124,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 	if contentType != "" && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", contentType)
 	}
-	if req.Header.Get("Accept") == "" && (r.op.Binary == nil || !r.op.Binary.Download) {
+	if req.Header.Get("Accept") == "" && !r.downloads() {
 		req.Header.Set("Accept", "application/json")
 	}
 	if err := injectAuth(req, r.credDef, sc, body); err != nil {
@@ -186,7 +188,7 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 			}
 			ct, _ := renderText(r.op.Binary.MimeType, sc)
 			if ct == "" {
-				ct = "application/octet-stream"
+				ct = r.uploadMime()
 			}
 			return data, ct, nil
 		}
@@ -236,7 +238,7 @@ func (r *opRun) multipartBody(obj map[string]any) ([]byte, string, error) {
 		}
 		ct, _ := renderText(b.MimeType, r.scope)
 		if ct == "" {
-			ct = "application/octet-stream"
+			ct = r.uploadMime()
 		}
 		h := make(textproto.MIMEHeader)
 		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, field, name))
@@ -282,6 +284,15 @@ func (r *opRun) uploadName() string {
 // uploadData finds the bytes to upload: the item's binary property, else a
 // base64 string at item.json[prop] or item.json.binary[prop].data (n8n).
 func (r *opRun) uploadData() ([]byte, error) {
+	if t := r.op.Binary.UploadText; t != "" {
+		txt, err := renderText(t, r.scope)
+		if err != nil {
+			return nil, r.errf("binary.upload_text: %w", err)
+		}
+		if txt != "" {
+			return []byte(txt), nil
+		}
+	}
 	prop := r.uploadProperty()
 	if b, ok := r.item.Binary[prop]; ok {
 		return b, nil
@@ -330,5 +341,40 @@ func addValues(q url.Values, obj map[string]any) {
 			continue
 		}
 		q.Set(k, stringify(v))
+	}
+}
+
+// uploadMime is the upload's MIME type: the binary's own (n8n mimeType or
+// mono's mime_type field), else guessed from the file name, else
+// application/octet-stream.
+func (r *opRun) uploadMime() string {
+	if t := r.op.Binary.UploadText; t != "" {
+		if txt, _ := renderText(t, r.scope); txt != "" {
+			return "text/plain"
+		}
+	}
+	prop := r.uploadProperty()
+	if m, ok := r.item.JSON["binary"].(map[string]any); ok {
+		if meta, ok := m[prop].(map[string]any); ok {
+			if t, _ := meta["mimeType"].(string); t != "" {
+				return t
+			}
+		}
+	}
+	if t, _ := r.item.JSON["mime_type"].(string); t != "" {
+		return t
+	}
+	if t := mime.TypeByExtension(path.Ext(r.uploadName())); t != "" {
+		return t
+	}
+	return "application/octet-stream"
+}
+
+// binMeta describes the upload for the bin template root.
+func (r *opRun) binMeta() map[string]any {
+	name := r.uploadName()
+	return map[string]any{
+		"file_name": name, "mime_type": r.uploadMime(),
+		"file_extension": strings.TrimPrefix(path.Ext(name), "."),
 	}
 }

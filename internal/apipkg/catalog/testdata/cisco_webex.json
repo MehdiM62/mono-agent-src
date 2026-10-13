@@ -1,0 +1,257 @@
+{
+  "message.create": {
+    "params": {
+      "destination": "person",
+      "specifyPersonBy": "email",
+      "toPersonEmail": "a@b.c",
+      "text": "Hi",
+      "additionalFields": {
+        "attachmentsUi": {
+          "attachmentValues": [
+            {
+              "elementsUi": {
+                "elementValues": [
+                  {
+                    "type": "textBlock",
+                    "text": "Card"
+                  }
+                ]
+              },
+              "actionsUi": {
+                "actionValues": [
+                  {
+                    "type": "openUrl",
+                    "title": "Go",
+                    "url": "https://x"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "fileUi": {
+          "fileValue": {
+            "fileLocation": "url",
+            "url": "https://f/a.png"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/messages",
+      "query": {},
+      "body": {
+        "toPersonEmail": "a@b.c",
+        "text": "Hi",
+        "files": "https://f/a.png",
+        "attachments": [
+          {
+            "contentType": "application/vnd.microsoft.card.adaptive",
+            "content": {
+              "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+              "type": "AdaptiveCard",
+              "version": "1.2",
+              "body": [
+                {
+                  "type": "TextBlock",
+                  "text": "Card"
+                }
+              ],
+              "actions": [
+                {
+                  "type": "Action.OpenUrl",
+                  "title": "Go",
+                  "url": "https://x"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "message.delete": {
+    "params": {
+      "messageId": "m1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/messages/m1",
+      "query": {}
+    }
+  },
+  "message.get": {
+    "params": {
+      "messageId": "m1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/messages/m1",
+      "query": {}
+    }
+  },
+  "message.getAll": {
+    "params": {
+      "roomId": "r1",
+      "limit": 5,
+      "filters": {
+        "parentId": "p"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/messages",
+      "query": {
+        "roomId": "r1",
+        "parentId": "p",
+        "max": "5"
+      },
+      "items": 1
+    }
+  },
+  "message.update": {
+    "params": {
+      "messageId": "m1",
+      "text": "edited"
+    },
+    "response": {
+      "roomId": "r9"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/messages/m1",
+      "query": {},
+      "body": {
+        "roomId": "r9",
+        "text": "edited"
+      }
+    }
+  },
+  "meeting.create": {
+    "params": {
+      "title": "Sync",
+      "start": "2024-01-01T10:00:00Z",
+      "end": "2024-01-01T11:00:00Z",
+      "additionalFields": {
+        "agenda": "a",
+        "requireRegistrationInfo": [
+          "requireEmail"
+        ],
+        "inviteesUi": {
+          "inviteeValues": [
+            {
+              "email": "a@b.c"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/meetings",
+      "query": {},
+      "body": {
+        "title": "Sync",
+        "start": "2024-01-01T10:00:00Z",
+        "end": "2024-01-01T11:00:00Z",
+        "agenda": "a",
+        "registration": {
+          "requireEmail": true
+        },
+        "invitees": [
+          {
+            "email": "a@b.c"
+          }
+        ]
+      }
+    }
+  },
+  "meeting.delete": {
+    "params": {
+      "meetingId": "x1",
+      "options": {
+        "sendEmail": true
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/meetings/x1",
+      "query": {
+        "sendEmail": "true"
+      }
+    }
+  },
+  "meeting.get": {
+    "params": {
+      "meetingId": "x1",
+      "options": {
+        "password": "pw"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/meetings/x1",
+      "query": {},
+      "headers": {
+        "password": "pw"
+      }
+    }
+  },
+  "meeting.getAll": {
+    "params": {
+      "filters": {
+        "state": "scheduled"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/meetings",
+      "query": {
+        "state": "scheduled",
+        "max": "50"
+      },
+      "items": 1
+    }
+  },
+  "meeting.update": {
+    "params": {
+      "meetingId": "x1",
+      "updateFields": {
+        "agenda": "new"
+      }
+    },
+    "response": {
+      "title": "T",
+      "password": "P",
+      "start": "S",
+      "end": "E"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/meetings/x1",
+      "query": {},
+      "body": {
+        "agenda": "new",
+        "title": "T",
+        "password": "P",
+        "start": "S",
+        "end": "E"
+      }
+    }
+  }
+}

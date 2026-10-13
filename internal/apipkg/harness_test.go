@@ -33,14 +33,23 @@ type opCase struct {
 	// (default {}); later requests get {} so pagination stops.
 	Response       any `json:"response,omitempty"`
 	ResponseStatus int `json:"response_status,omitempty"`
-	Expect         struct {
-		Method  string            `json:"method"`
-		Path    string            `json:"path"`
-		Query   map[string]any    `json:"query"`
-		Body    any               `json:"body"`
-		Headers map[string]string `json:"headers"`
-		Items   *int              `json:"items"`
-	} `json:"expect"`
+	// Responses answer requests in order (before steps, main, also,
+	// expand…); requests past the list get {}. Overrides Response.
+	Responses []any     `json:"responses,omitempty"`
+	Expect    expectReq `json:"expect"`
+	// ExpectRequests checks every request in order. Without it, Expect
+	// checks the main request (the first one after any before steps).
+	ExpectRequests []expectReq `json:"expect_requests,omitempty"`
+}
+
+// expectReq is what one captured request must look like.
+type expectReq struct {
+	Method  string            `json:"method"`
+	Path    string            `json:"path"`
+	Query   map[string]any    `json:"query"`
+	Body    any               `json:"body"`
+	Headers map[string]string `json:"headers"`
+	Items   *int              `json:"items"`
 }
 
 // captured is one request the mock server saw.
@@ -58,16 +67,21 @@ type mockServer struct {
 	mu    sync.Mutex
 	reqs  []captured
 	first []byte
+	seq   [][]byte
 	code  int
 }
 
-func newMockServer(t *testing.T, response any, status int) *mockServer {
+func newMockServer(t *testing.T, response any, status int, responses ...any) *mockServer {
 	m := &mockServer{code: status}
 	if m.code == 0 {
 		m.code = 200
 	}
 	if response != nil {
 		m.first, _ = json.Marshal(response)
+	}
+	for _, r := range responses {
+		b, _ := json.Marshal(r)
+		m.seq = append(m.seq, b)
 	}
 	m.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
@@ -76,6 +90,14 @@ func newMockServer(t *testing.T, response any, status int) *mockServer {
 		n := len(m.reqs)
 		m.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+		if len(m.seq) > 0 {
+			if n <= len(m.seq) {
+				w.Write(m.seq[n-1])
+				return
+			}
+			w.Write([]byte("{}"))
+			return
+		}
 		if n == 1 {
 			w.WriteHeader(m.code)
 			if m.first != nil {
@@ -151,7 +173,7 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 	if cred == nil {
 		cred = fakeCredential(p)
 	}
-	srv := newMockServer(t, c.Response, c.ResponseStatus)
+	srv := newMockServer(t, c.Response, c.ResponseStatus, c.Responses...)
 	items, err := runPackageOp(p, params, cred, c.Input)
 	if err != nil {
 		t.Fatalf("%s: the op failed: %v\n  (fix the package or the case's params)", where, err)
@@ -160,24 +182,34 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 	if len(reqs) == 0 {
 		t.Fatalf("%s: no request reached the server", where)
 	}
-	got := reqs[0]
-	e := c.Expect
-	if e.Method != "" && got.method != e.Method {
-		t.Errorf("%s: method: got %s, want %s", where, got.method, e.Method)
-	}
-	if got.path != e.Path {
-		t.Errorf("%s: path: got %q, want %q", where, got.path, e.Path)
-	}
 	credDef := p.selectCredential(cred)
-	checkQuery(t, where, got.query, e.Query, credDef)
-	checkBody(t, where, got, e.Body)
-	for k, want := range e.Headers {
-		if g := got.header.Get(k); g != want {
-			t.Errorf("%s: header %s: got %q, want %q", where, k, g, want)
+	check := func(w string, got captured, e expectReq) {
+		if e.Method != "" && got.method != e.Method {
+			t.Errorf("%s: method: got %s, want %s", w, got.method, e.Method)
 		}
+		if got.path != e.Path {
+			t.Errorf("%s: path: got %q, want %q", w, got.path, e.Path)
+		}
+		checkQuery(t, w, got.query, e.Query, credDef)
+		checkBody(t, w, got, e.Body)
+		for k, want := range e.Headers {
+			if g := got.header.Get(k); g != want {
+				t.Errorf("%s: header %s: got %q, want %q", w, k, g, want)
+			}
+		}
+		checkAuth(t, w, got, credDef, cred, params, c.Input)
 	}
-	checkAuth(t, where, got, credDef, cred)
-	if e.Items != nil && len(items) != *e.Items {
+	if len(c.ExpectRequests) > 0 {
+		if len(reqs) < len(c.ExpectRequests) {
+			t.Fatalf("%s: %d requests reached the server, expect_requests lists %d", where, len(reqs), len(c.ExpectRequests))
+		}
+		for i, e := range c.ExpectRequests {
+			check(fmt.Sprintf("%s · request %d", where, i), reqs[i], e)
+		}
+	} else {
+		check(where, reqs[mainRequest(reqs, op, c.Expect)], c.Expect)
+	}
+	if e := c.Expect; e.Items != nil && len(items) != *e.Items {
 		t.Errorf("%s: items: got %d, want %d", where, len(items), *e.Items)
 	}
 }
@@ -217,7 +249,7 @@ func checkQuery(t *testing.T, where string, got url.Values, want map[string]any,
 		}
 		wantM[k] = stringify(v)
 	}
-	if !reflect.DeepEqual(gotM, wantM) {
+	if !reflect.DeepEqual(gotM, anyWildcards(wantM, gotM)) {
 		t.Errorf("%s: query: got %s, want %s (expect.query must list every param sent, auth query params excepted)",
 			where, jsonText(gotM), jsonText(wantM))
 	}
@@ -265,7 +297,7 @@ func checkBody(t *testing.T, where string, got captured, want any) {
 	default:
 		gotV = string(got.body)
 	}
-	if !reflect.DeepEqual(normalize(gotV), normalize(want)) {
+	if !reflect.DeepEqual(normalize(gotV), anyWildcards(normalize(want), normalize(gotV))) {
 		t.Errorf("%s: body: got %s, want %s", where, jsonText(gotV), jsonText(want))
 	}
 }
@@ -278,12 +310,14 @@ func normalize(v any) any {
 	return out
 }
 
-func checkAuth(t *testing.T, where string, got captured, c *Credential, cred map[string]any) {
+func checkAuth(t *testing.T, where string, got captured, c *Credential, cred, params, item map[string]any) {
 	t.Helper()
 	if c == nil {
 		return
 	}
-	sc := Scope{Cred: cred}
+	// inject may read op params (Contentful's token choice), so render it
+	// with the case's params and input item like the engine does.
+	sc := Scope{Cred: cred, P: params, Item: item}
 	for k, tv := range c.Inject.Headers {
 		want, _ := renderText(tv, sc)
 		if g := got.header.Get(k); g != want {
@@ -349,4 +383,51 @@ func sortedCaseKeys(m map[string]opCase) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// mainRequest picks the request expect describes: the first one with the
+// expected method and path (before steps may be skipped by their when),
+// else the one right after the before steps (clipped to the last), so a
+// mismatch is reported against the likeliest candidate.
+func mainRequest(reqs []captured, op *Operation, e expectReq) int {
+	for i, r := range reqs {
+		if r.path == e.Path && (e.Method == "" || r.method == e.Method) {
+			return i
+		}
+	}
+	if i := len(op.Before); i < len(reqs) {
+		return i
+	}
+	return len(reqs) - 1
+}
+
+// anyWildcards replaces each "<any>" in want by got's value at the same
+// place when that value is present and non-empty ({{ uuid }}, timestamps).
+func anyWildcards(want, got any) any {
+	switch w := want.(type) {
+	case string:
+		if w == "<any>" && !isEmpty(got) {
+			return got
+		}
+		return w
+	case map[string]any:
+		g, _ := got.(map[string]any)
+		out := make(map[string]any, len(w))
+		for k, v := range w {
+			out[k] = anyWildcards(v, g[k])
+		}
+		return out
+	case []any:
+		g, _ := got.([]any)
+		out := make([]any, len(w))
+		for i, v := range w {
+			var gv any
+			if i < len(g) {
+				gv = g[i]
+			}
+			out[i] = anyWildcards(v, gv)
+		}
+		return out
+	}
+	return want
 }

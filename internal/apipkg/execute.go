@@ -148,6 +148,9 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
+		if op.Binary != nil && op.Binary.UploadField != "" {
+			r.scope.Bin = r.binMeta()
+		}
 		if op.Batch {
 			all := make([]any, 0, len(items))
 			for _, x := range items {
@@ -251,14 +254,17 @@ func checkRequired(pkg *Package, op *Operation, params map[string]any) error {
 
 // execute sends the request (all pages) and turns the response into items.
 func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
-	if st := r.op.Before; st != nil {
-		resp, err := r.sendStep(ctx, *st, r.scope)
+	for i, st := range r.op.Before {
+		resp, err := r.sendStep(ctx, st, r.scope)
 		if err != nil {
-			return nil, fmt.Errorf("before: %w", err)
+			return nil, fmt.Errorf("before[%d]: %w", i, err)
 		}
+		var v any
 		if resp != nil && len(strings.TrimSpace(string(resp.body))) > 0 {
-			r.scope.Pre = decodeBody(resp.body)
+			v = decodeBody(resp.body)
 		}
+		r.scope.Pres = append(r.scope.Pres, v)
+		r.scope.Pre = v
 	}
 	if r.op.Pagination != nil {
 		results, truncated, err := r.paginate(ctx)
@@ -284,15 +290,15 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	if err := r.runAlso(ctx, resp); err != nil {
 		return nil, err
 	}
-	if b := r.op.Binary; b != nil && b.Download {
+	if r.downloads() {
 		return []workflow.Item{r.downloadItem(resp)}, nil
 	}
 	if len(strings.TrimSpace(string(resp.body))) == 0 {
 		return []workflow.Item{{JSON: map[string]any{"success": true}}}, nil
 	}
 	v := decodeBody(resp.body)
-	if r.op.Output != nil && r.op.Output.Path != "" {
-		v = lookupPath(v, strings.Split(r.op.Output.Path, "."))
+	if path := r.outputPath(); path != "" {
+		v = lookupPath(v, strings.Split(path, "."))
 	}
 	if r.op.Output != nil && r.op.Output.HeaderRow {
 		v = rowsToObjects(v)
@@ -447,12 +453,32 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 // result list.
 func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 	o := r.op.Output
-	list, isList := v.([]any)
-	if o == nil || !isList {
+	if o == nil {
 		return v, nil
 	}
-	if o.Each != "" {
-		path := strings.Split(o.Each, ".")
+	list, isList := v.([]any)
+	if !isList {
+		// A single object is shaped as a one-element list (Coda getRow).
+		if _, isObj := v.(map[string]any); !isObj {
+			return v, nil
+		}
+		shaped, err := r.shapeOutput(ctx, []any{v})
+		if err != nil {
+			return nil, err
+		}
+		if l := shaped.([]any); len(l) == 1 {
+			return l[0], nil
+		} else if len(l) == 0 {
+			return nil, nil
+		}
+		return shaped, nil
+	}
+	each, err := r.renderOutputKey(o.Each)
+	if err != nil {
+		return nil, r.errf("output.each: %w", err)
+	}
+	if each != "" {
+		path := strings.Split(each, ".")
 		out := make([]any, 0, len(list))
 		for _, el := range list {
 			if x := lookupPath(el, path); x != nil {
@@ -502,6 +528,38 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			list = kept
 		}
 	}
+	if o.Firestore != "" {
+		on, err := renderString(o.Firestore, r.scope)
+		if err != nil {
+			return nil, r.errf("output.firestore: %w", err)
+		}
+		if b, _ := toBool(on); b == true {
+			for i, el := range list {
+				list[i] = firestoreDoc(el)
+			}
+		}
+	}
+	if o.To != nil {
+		apply := true
+		if o.ToWhen != "" {
+			w, err := renderString(o.ToWhen, r.scope)
+			if err != nil {
+				return nil, r.errf("output.to_when: %w", err)
+			}
+			apply = !isEmpty(w) && w != false
+		}
+		if apply {
+			for i, el := range list {
+				sc := r.scope
+				sc.El = el
+				x, err := renderValue(o.To, sc)
+				if err != nil {
+					return nil, r.errf("output.to element %d: %w", i, err)
+				}
+				list[i] = x
+			}
+		}
+	}
 	return list, nil
 }
 
@@ -520,4 +578,38 @@ func matchRow(el any, conds []any, colKey, valKey string, or bool) bool {
 		}
 	}
 	return !or
+}
+
+// renderOutputKey renders an output path/each value, which may be a
+// template over p (n8n rawData/simple toggles); empty means none.
+func (r *opRun) renderOutputKey(s string) (string, error) {
+	if !hasTemplate(s) {
+		return s, nil
+	}
+	return renderText(s, r.scope)
+}
+
+// outputPath is the rendered output.path ("" when unset or empty).
+func (r *opRun) outputPath() string {
+	if r.op.Output == nil {
+		return ""
+	}
+	p, err := r.renderOutputKey(r.op.Output.Path)
+	if err != nil {
+		return r.op.Output.Path
+	}
+	return p
+}
+
+// downloads reports whether this run's response is a file.
+func (r *opRun) downloads() bool {
+	b := r.op.Binary
+	if b == nil {
+		return false
+	}
+	if b.DownloadWhen == "" {
+		return b.Download
+	}
+	w, err := renderString(b.DownloadWhen, r.scope)
+	return err == nil && !isEmpty(w) && w != false
 }

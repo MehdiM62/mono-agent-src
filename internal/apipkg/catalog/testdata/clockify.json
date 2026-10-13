@@ -1,0 +1,430 @@
+{
+  "client.create": {
+    "params": {
+      "workspaceId": "w1",
+      "name": "Acme"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/workspaces/w1/clients",
+      "query": {},
+      "body": {
+        "name": "Acme"
+      }
+    }
+  },
+  "client.delete": {
+    "params": {
+      "workspaceId": "w1",
+      "clientId": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/workspaces/w1/clients/c1",
+      "query": {}
+    }
+  },
+  "client.get": {
+    "params": {
+      "workspaceId": "w1",
+      "clientId": "c1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces/w1/clients/c1",
+      "query": {}
+    }
+  },
+  "client.getAll": {
+    "params": {
+      "workspaceId": "w1",
+      "limit": 5,
+      "additionalFields": {
+        "archived": true
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces/w1/clients",
+      "query": {
+        "archived": "true",
+        "page": "1",
+        "page-size": "5"
+      },
+      "items": 1
+    }
+  },
+  "client.update": {
+    "params": {
+      "workspaceId": "w1",
+      "clientId": "c1",
+      "name": "B",
+      "updateFields": {
+        "address": "X"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/workspaces/w1/clients/c1",
+      "query": {},
+      "body": {
+        "name": "B",
+        "address": "X"
+      }
+    }
+  },
+  "project.create": {
+    "params": {
+      "workspaceId": "w1",
+      "name": "P",
+      "additionalFields": {
+        "billable": true,
+        "estimateUi": {
+          "estimateValues": {
+            "estimate": 5,
+            "type": "MANUAL"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/workspaces/w1/projects",
+      "query": {},
+      "body": {
+        "name": "P",
+        "billable": true,
+        "estimate": {
+          "estimate": 5,
+          "type": "MANUAL"
+        }
+      }
+    }
+  },
+  "project.delete": {
+    "params": {
+      "workspaceId": "w1",
+      "projectId": "p1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/workspaces/w1/projects/p1",
+      "query": {}
+    }
+  },
+  "project.get": {
+    "params": {
+      "workspaceId": "w1",
+      "projectId": "p1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces/w1/projects/p1",
+      "query": {}
+    }
+  },
+  "project.getAll": {
+    "params": {
+      "workspaceId": "w1",
+      "additionalFields": {
+        "name": "x",
+        "sort-order": "ASCENDING"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces/w1/projects",
+      "query": {
+        "name": "x",
+        "sort-order": "ASCENDING",
+        "page": "1",
+        "page-size": "50"
+      },
+      "items": 1
+    }
+  },
+  "project.update": {
+    "params": {
+      "workspaceId": "w1",
+      "projectId": "p1",
+      "updateFields": {
+        "note": "n"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/workspaces/w1/projects/p1",
+      "query": {},
+      "body": {
+        "note": "n"
+      }
+    }
+  },
+  "tag.create": {
+    "params": {
+      "workspaceId": "w1",
+      "name": "t"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/workspaces/w1/tags",
+      "query": {},
+      "body": {
+        "name": "t"
+      }
+    }
+  },
+  "tag.delete": {
+    "params": {
+      "workspaceId": "w1",
+      "tagId": "t1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/workspaces/w1/tags/t1",
+      "query": {}
+    }
+  },
+  "tag.getAll": {
+    "params": {
+      "workspaceId": "w1"
+    },
+    "response": [],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces/w1/tags",
+      "query": {
+        "page": "1",
+        "page-size": "50"
+      },
+      "items": 0
+    }
+  },
+  "tag.update": {
+    "params": {
+      "workspaceId": "w1",
+      "tagId": "t1",
+      "updateFields": {
+        "archived": true
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/workspaces/w1/tags/t1",
+      "query": {},
+      "body": {
+        "archived": true
+      }
+    }
+  },
+  "task.create": {
+    "params": {
+      "workspaceId": "w1",
+      "projectId": "p1",
+      "name": "T",
+      "additionalFields": {
+        "estimate": "2:30"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/workspaces/w1/projects/p1/tasks",
+      "query": {},
+      "body": {
+        "name": "T",
+        "estimate": "PT2H30M"
+      }
+    }
+  },
+  "task.delete": {
+    "params": {
+      "workspaceId": "w1",
+      "projectId": "p1",
+      "taskId": "k1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/workspaces/w1/projects/p1/tasks/k1",
+      "query": {}
+    }
+  },
+  "task.get": {
+    "params": {
+      "workspaceId": "w1",
+      "projectId": "p1",
+      "taskId": "k1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces/w1/projects/p1/tasks/k1",
+      "query": {}
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "workspaceId": "w1",
+      "projectId": "p1",
+      "filters": {
+        "is-active": true
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces/w1/projects/p1/tasks",
+      "query": {
+        "is-active": "true",
+        "page": "1",
+        "page-size": "50"
+      },
+      "items": 1
+    }
+  },
+  "task.update": {
+    "params": {
+      "workspaceId": "w1",
+      "projectId": "p1",
+      "taskId": "k1",
+      "updateFields": {
+        "status": "DONE"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/workspaces/w1/projects/p1/tasks/k1",
+      "query": {},
+      "body": {
+        "status": "DONE"
+      }
+    }
+  },
+  "timeEntry.create": {
+    "params": {
+      "workspaceId": "w1",
+      "start": "2024-01-01T09:00:00Z",
+      "additionalFields": {
+        "end": "2024-01-01T10:00:00Z",
+        "customFieldsUi": {
+          "customFieldsValues": [
+            {
+              "customFieldId": "f",
+              "value": "v"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/workspaces/w1/time-entries",
+      "query": {},
+      "body": {
+        "start": "2024-01-01T09:00:00Z",
+        "end": "2024-01-01T10:00:00Z",
+        "customFields": [
+          {
+            "customFieldId": "f",
+            "value": "v"
+          }
+        ]
+      }
+    }
+  },
+  "timeEntry.delete": {
+    "params": {
+      "workspaceId": "w1",
+      "timeEntryId": "e1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/workspaces/w1/time-entries/e1",
+      "query": {}
+    }
+  },
+  "timeEntry.get": {
+    "params": {
+      "workspaceId": "w1",
+      "timeEntryId": "e1",
+      "additionalFields": {
+        "hydrated": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces/w1/time-entries/e1",
+      "query": {
+        "hydrated": "true"
+      }
+    }
+  },
+  "timeEntry.update": {
+    "params": {
+      "workspaceId": "w1",
+      "timeEntryId": "e1",
+      "updateFields": {
+        "description": "d"
+      }
+    },
+    "response": {
+      "timeInterval": {
+        "start": "2024-01-01T08:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/workspaces/w1/time-entries/e1",
+      "query": {},
+      "body": {
+        "start": "2024-01-01T08:00:00Z",
+        "description": "d"
+      }
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "workspaceId": "w1"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces/w1/users",
+      "query": {
+        "page": "1",
+        "page-size": "50"
+      },
+      "items": 1
+    }
+  },
+  "workspace.getAll": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/workspaces",
+      "query": {},
+      "items": 1
+    }
+  }
+}
