@@ -1,4 +1,4 @@
-package main
+package login
 
 import (
 	"bytes"
@@ -9,27 +9,11 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/secrets"
-	"github.com/monoes/mono-agent/internal/storage"
-
-	"github.com/zalando/go-keyring"
 )
 
-func newLoginTestDB(t *testing.T) *storage.Database {
-	t.Helper()
-	keyring.MockInit()
-	db, err := storage.NewDatabase(t.TempDir() + "/login-test.db")
-	if err != nil {
-		t.Fatalf("NewDatabase: %v", err)
-	}
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatalf("ApplyMigrations: %v", err)
-	}
-	t.Cleanup(func() { db.DB.Close() })
-	return db
-}
-
 func TestUpsertSessionRow_CreatesThenUpdatesInPlace(t *testing.T) {
-	db := newLoginTestDB(t)
+	t.Parallel()
+	db, _ := newTestDB(t)
 	ctx := context.Background()
 
 	firstCookies := []byte(`[{"name":"sid","value":"abc"}]`)
@@ -93,16 +77,8 @@ func TestUpsertSessionRow_CreatesThenUpdatesInPlace(t *testing.T) {
 // than relying on autoincrement) and asserts the shorter ID is
 // left-padded to align with the wider one, not left-flush against it.
 func TestLoginStatusTableRightAlignsNumericIDColumn(t *testing.T) {
-	dbPath := t.TempDir() + "/login-status-test.db"
-	keyring.MockInit()
-	db, err := storage.NewDatabase(dbPath)
-	if err != nil {
-		t.Fatalf("NewDatabase: %v", err)
-	}
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatalf("ApplyMigrations: %v", err)
-	}
-	t.Cleanup(func() { db.DB.Close() })
+	t.Parallel()
+	db, dbPath := newTestDB(t)
 	future := time.Now().Add(24 * time.Hour)
 
 	insert := func(id int, username string) {
@@ -117,8 +93,7 @@ func TestLoginStatusTableRightAlignsNumericIDColumn(t *testing.T) {
 	insert(1, "shortid")
 	insert(100, "longid")
 
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: false}
-	cmd := newLoginCmd(cfg)
+	cmd := NewCommand(testDeps(dbPath, "default", false))
 	cmd.SetArgs([]string{"status"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -149,19 +124,10 @@ func TestLoginStatusTableRightAlignsNumericIDColumn(t *testing.T) {
 // `login status --json` uses snake_case keys and prints [] (not null) when
 // there is nothing to report.
 func TestLoginStatusJSONShape(t *testing.T) {
-	keyring.MockInit()
-	t.Setenv("HOME", t.TempDir()) // no installed automations with a login block
-	dbPath := t.TempDir() + "/login-json.db"
-	db, err := storage.NewDatabase(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.DB.Close() })
+	t.Parallel()
+	db, dbPath := newTestDB(t) // and no installed automations with a login block
 	run := func() string {
-		cmd := newLoginCmd(&globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"})
+		cmd := NewCommand(testDeps(dbPath, "default", true))
 		cmd.SetArgs([]string{"status"})
 		var out bytes.Buffer
 		cmd.SetOut(&out)

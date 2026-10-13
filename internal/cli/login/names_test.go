@@ -1,4 +1,4 @@
-package main
+package login
 
 import (
 	"context"
@@ -8,7 +8,8 @@ import (
 // Only sessions saved under the placeholder name are looked up, and a row
 // with no platform is never one of them.
 func TestNamelessListsPlaceholderSessions(t *testing.T) {
-	_, db := newReviewCLITestDB(t)
+	t.Parallel()
+	db, _ := newTestDB(t)
 	for _, r := range [][2]string{{"x", "unknown"}, {"instagram", "mortezanoes"}, {"tiktok", "unknown"}, {"", "unknown"}} {
 		if _, err := db.DB.Exec(`INSERT INTO crawler_sessions (username, platform, cookies_json, expiry, profile_id) VALUES (?, ?, '', '2099-01-01', 'p1')`, r[1], r[0]); err != nil {
 			t.Fatal(err)
