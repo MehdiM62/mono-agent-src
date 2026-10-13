@@ -356,7 +356,7 @@ func (e *expr) evalLit(sc Scope) (any, bool, error) {
 		}
 		switch f.name {
 		case "then":
-			literal = argLit && !isEmpty(before)
+			literal = argLit && !unset(before)
 		case "default":
 			if isEmpty(before) {
 				literal = argLit
