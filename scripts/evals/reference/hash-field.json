@@ -1,0 +1,42 @@
+{
+  "name": "eval-hash-field",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.manual",
+      "name": "trigger",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {}
+    },
+    {
+      "id": "hash",
+      "type": "data.crypto",
+      "name": "hash",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "operation": "hash_sha256",
+        "field": "text",
+        "output_field": "digest",
+        "encoding": "hex"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "hash",
+      "target_handle": "main"
+    }
+  ]
+}

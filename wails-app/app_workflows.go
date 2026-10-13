@@ -332,8 +332,8 @@ func (a *App) ImportWorkflow(jsonOrPath string) (*WorkflowImportResult, error) {
 	out, err := cmd.Output()
 	if err != nil {
 		var ee *exec.ExitError
-		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
-			return nil, fmt.Errorf("workflow import failed: %s", strings.TrimSpace(string(ee.Stderr)))
+		if errors.As(err, &ee) && cliStderr(ee.Stderr) != "" {
+			return nil, fmt.Errorf("workflow import failed: %s", cliStderr(ee.Stderr))
 		}
 		return nil, fmt.Errorf("workflow import failed: %w", err)
 	}

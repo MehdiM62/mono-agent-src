@@ -132,7 +132,11 @@ type ParamMark struct {
 	Name     string `json:"name,omitempty"`
 }
 
-// NetEntry is one network summary line (network.jsonl), no bodies.
+// NetEntry is one network line (network.jsonl): a fetch/XHR call the page
+// made while recording. Only calls answered with JSON carry the request
+// details and a response sample; both are redacted by the recorder and
+// again by ingest (SanitizeNet). Cookies are never seen (the browser adds
+// them), and credential header values are never stored.
 type NetEntry struct {
 	T           int64  `json:"t"`
 	Method      string `json:"method"`
@@ -140,6 +144,26 @@ type NetEntry struct {
 	Status      int    `json:"status"`
 	ContentType string `json:"contentType,omitempty"`
 	AfterEvent  string `json:"afterEvent,omitempty"`
+	// Initiator is "fetch" or "xhr".
+	Initiator      string      `json:"initiator,omitempty"`
+	RequestHeaders []NetHeader `json:"requestHeaders,omitempty"`
+	// RequestType is the request body's content type, RequestBody the
+	// body itself (redacted, capped at MaxNetBodyBytes).
+	RequestType string `json:"requestType,omitempty"`
+	RequestBody string `json:"requestBody,omitempty"`
+	// ResponseSample is the JSON response with long arrays cut to a few
+	// items and long strings shortened, redacted, capped at MaxNetBodyBytes.
+	ResponseSample string `json:"responseSample,omitempty"`
+}
+
+// NetHeader is one request header. A credential header (Authorization,
+// API keys, CSRF and session tokens) keeps its name and, for
+// Authorization, the scheme ("Bearer"); never its value.
+type NetHeader struct {
+	Name       string `json:"name"`
+	Value      string `json:"value,omitempty"`
+	Credential bool   `json:"credential,omitempty"`
+	Scheme     string `json:"scheme,omitempty"`
 }
 
 // Artifact names inside a recording envelope.

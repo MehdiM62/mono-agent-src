@@ -24,6 +24,9 @@ func (n *CryptoNode) Type() string { return "data.crypto" }
 
 func (n *CryptoNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	operation, _ := config["operation"].(string)
+	if cryptoActions[operation] {
+		return n.executeAction(input, config, operation)
+	}
 	field, _ := config["field"].(string)
 	key, _ := config["secret"].(string)
 	if key == "" {

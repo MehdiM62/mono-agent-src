@@ -39,6 +39,7 @@ var Manifest = []ManifestEntry{
 	{NodeType: "core.stop_error", GoFile: "internal/nodes/control/stop_error_schema.go", StructName: "StopErrorNodeSchema"},
 	{NodeType: "core.switch", GoFile: "internal/nodes/control/switch_schema.go", StructName: "SwitchNodeSchema"},
 	{NodeType: "core.wait", GoFile: "internal/nodes/control/wait_schema.go", StructName: "WaitNodeSchema"},
+	{NodeType: "core.execute_workflow", GoFile: "internal/nodes/control/execute_workflow_schema.go", StructName: "ExecuteWorkflowNodeSchema"},
 
 	// --- http.* ---
 	{NodeType: "http.request", GoFile: "internal/nodes/http/request_schema.go", StructName: "RequestNodeSchema"},

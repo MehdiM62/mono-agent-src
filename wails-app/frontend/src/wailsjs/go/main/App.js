@@ -462,6 +462,10 @@ export function GetExecutionDetail(arg1) {
   return window['go']['main']['App']['GetExecutionDetail'](arg1);
 }
 
+export function GetExtensionStatus() {
+  return window['go']['main']['App']['GetExtensionStatus']();
+}
+
 export function GetGlobalOrgSummary(arg1) {
   return window['go']['main']['App']['GetGlobalOrgSummary'](arg1);
 }

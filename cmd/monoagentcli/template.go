@@ -14,9 +14,12 @@ import (
 
 func newTemplateCmd(cfg *globalConfig) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "template",
-		Short: "Manage message templates",
-		Long:  "Create, list, view, and delete message templates used for bulk messaging.",
+		Use:     "message-template",
+		Aliases: []string{"template"},
+		Short:   "Manage message templates (alias: template)",
+		Long: "Create, list, view, and delete message templates used for bulk messaging.\n\n" +
+			"Not workflow templates: those are `monoagentcli workflow templates`. " +
+			"`monoagentcli template` still works as an alias.",
 	}
 
 	cmd.AddCommand(
@@ -33,8 +36,8 @@ func newTemplateListCmd(cfg *globalConfig) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all templates",
-		Example: `  monoagentcli template list
-  monoagentcli template list --json`,
+		Example: `  monoagentcli message-template list
+  monoagentcli message-template list --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := initDB(cfg)
 			if err != nil {
@@ -162,8 +165,8 @@ func newTemplateCreateCmd(cfg *globalConfig) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a new template",
-		Example: `  monoagentcli template create --name "Welcome" --body "Hello {{name}}!" --subject "Welcome aboard"
-  monoagentcli template create --name "Follow-up" --body "Just checking in..."`,
+		Example: `  monoagentcli message-template create --name "Welcome" --body "Hello {{name}}!" --subject "Welcome aboard"
+  monoagentcli message-template create --name "Follow-up" --body "Just checking in..."`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if name == "" {
 				return fmt.Errorf("--name is required")

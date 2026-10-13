@@ -58,4 +58,6 @@ type ShopifyNodeSchema struct {
 	Status string `json:"status" schema:"label=Order Status Filter,type=select,options=any|open|closed|cancelled,default=open,depends_on_key=operation,depends_on_values=list_orders|update_order"`
 
 	CustomerID string `json:"customer_id" schema:"label=Customer ID,type=text,depends_on_key=operation,depends_on_values=get_customer"`
+
+	APIVersion string `json:"api_version" schema:"label=API Version,type=text,default=2026-04,placeholder=2026-04,help=Shopify Admin API version (YYYY-MM or unstable). Leave at the default unless your app needs a specific release."`
 }

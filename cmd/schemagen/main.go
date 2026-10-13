@@ -10,7 +10,7 @@
 //	go run ./cmd/schemagen           # regenerate and write every manifest entry
 //	go run ./cmd/schemagen -check    # exit 1 if regenerating would change any file (CI mode)
 //
-// go:generate directive lives on the manifest itself; run this from the
+// The go:generate directive lives on the manifest itself; run this from the
 // repo root (it locates the repo root via go.mod, so any cwd under the repo
 // works too).
 package main

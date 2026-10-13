@@ -8,9 +8,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-
-	"github.com/monoes/mono-agent/internal/browser"
-	"github.com/rs/zerolog"
 )
 
 // SafeStop reports where safe-mode verification stopped: the first step
@@ -49,12 +46,6 @@ func (ae *ActionExecutor) Resolver() *VariableResolver { return ae.resolver }
 
 // ExecContext returns the mutable state of the current run.
 func (ae *ActionExecutor) ExecContext() *ExecutionContext { return ae.execCtx }
-
-// Page returns the browser page the executor drives (may be nil).
-func (ae *ActionExecutor) Page() browser.PageInterface { return ae.page }
-
-// Logger returns the executor's logger.
-func (ae *ActionExecutor) Logger() zerolog.Logger { return ae.logger }
 
 // RunSteps executes steps with the executor's full step semantics (template
 // resolution, onError, safe mode, domain checks). It is the entry point for

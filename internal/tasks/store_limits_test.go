@@ -3,12 +3,11 @@ package tasks
 import (
 	"errors"
 	"testing"
-	"time"
 )
 
 // These tests pin rules that the tests of store_test.go leave open (found by
 // mutation). Every number below is a literal on purpose: a test that reads
-// AgentTasksPerHour or MaxOpenTasks from the code under test cannot see the
+// MaxOpenTasks from the code under test cannot see the
 // constant change.
 
 func TestLimitsAreTheDocumentedNumbers(t *testing.T) {
@@ -16,7 +15,6 @@ func TestLimitsAreTheDocumentedNumbers(t *testing.T) {
 		name      string
 		got, want int
 	}{
-		{"agent tasks per hour", AgentTasksPerHour, 20},
 		{"open tasks per profile", MaxOpenTasks, 2000},
 		{"source title runes", MaxSourceTitleRunes, 200},
 		{"app name runes", MaxAppRunes, 100},
@@ -33,48 +31,14 @@ func TestLimitsAreTheDocumentedNumbers(t *testing.T) {
 	}
 }
 
-// 20 agent tasks created at one instant stop the agent until an hour has passed: a task exactly an
-// hour old no longer counts, as a lease that ends exactly now has ended. The clock runs in three
-// zones, because the stored text is UTC whatever zone the clock is in.
-func TestHourlyLimitWindowIsOneHourInAnyZone(t *testing.T) {
-	for _, zone := range []*time.Location{time.UTC, time.FixedZone("plus0530", 5*3600+1800), time.FixedZone("minus08", -8*3600)} {
-		t.Run(zone.String(), func(t *testing.T) {
-			s, db, c := newTestStore(t)
-			base := c.t.In(zone)
-			cur := base
-			s.now = func() time.Time { return cur }
-			for i := 0; i < 20; i++ {
-				if _, _, err := s.Add(bg, "default", AddInput{Title: "a"}, bot("b")); err != nil {
-					t.Fatalf("task %d: %v", i+1, err)
-				}
-			}
-			var stored string
-			if err := db.QueryRow(`SELECT created_at FROM tasks LIMIT 1`).Scan(&stored); err != nil || stored != "2026-10-05T12:00:00Z" {
-				t.Fatalf("stored time %q (err %v): the text is the UTC time, not the zone's", stored, err)
-			}
-			for _, step := range []struct {
-				after time.Duration
-				limit bool
-			}{
-				{59*time.Minute + 59*time.Second, true},
-				{time.Hour, false}, // created_at > since: a task exactly an hour old no longer counts
-				{time.Hour + time.Second, false},
-			} {
-				cur = base.Add(step.after)
-				_, _, err := s.Add(bg, "default", AddInput{Title: "a"}, bot("b"))
-				if step.limit != errors.Is(err, ErrLimit) || (!step.limit && err != nil) {
-					t.Errorf("%v after the twentieth: err %v, want limit %v", step.after, err, step.limit)
-				}
-			}
-		})
-	}
-}
-
-func TestOnlyAgentTasksUseUpTheHourlyLimit(t *testing.T) {
-	s, db, _ := newTestStore(t)
-	for i := 0; i < 20; i++ {
+// Agents have no hourly allowance (the user removed it): many agent tasks
+// created at one instant all land, and the operator and captures are not
+// affected either.
+func TestAgentsAddTasksWithoutAnHourlyLimit(t *testing.T) {
+	s, _, _ := newTestStore(t)
+	for i := 0; i < 50; i++ {
 		if _, _, err := s.Add(bg, "default", AddInput{Title: "a"}, bot("b")); err != nil {
-			t.Fatal(err)
+			t.Fatalf("agent task %d in the same instant: %v", i+1, err)
 		}
 	}
 	for _, c := range []struct {
@@ -87,15 +51,8 @@ func TestOnlyAgentTasksUseUpTheHourlyLimit(t *testing.T) {
 		{"os capture", AddInput{Title: "t", SourceKind: SourceOS}, Actor{Kind: Capture, Name: SourceOS}},
 	} {
 		if _, _, err := s.Add(bg, "default", c.in, c.actor); err != nil {
-			t.Errorf("%s while the agents are at their limit: %v", c.name, err)
+			t.Errorf("%s after 50 agent tasks: %v", c.name, err)
 		}
-	}
-	// Archiving an agent's task does not give the agent its quota back: the limit counts creations.
-	if _, err := db.Exec(`UPDATE tasks SET status = 'archived' WHERE source_kind = 'agent'`); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := s.Add(bg, "default", AddInput{Title: "a"}, bot("b")); !errors.Is(err, ErrLimit) {
-		t.Errorf("after archiving the agent's tasks: %v, want ErrLimit", err)
 	}
 }
 

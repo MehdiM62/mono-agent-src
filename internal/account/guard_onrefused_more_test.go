@@ -210,6 +210,7 @@ func TestASlowOnRefusedCallbackBlocksNothing(t *testing.T) {
 	e.g.OnRefused(slow) // first in line
 	e.g.OnRefused(func(account.Status) {
 		held.Lock() // the lock the caller of Status holds while it asks
+		//lint:ignore SA2001 waiting for the lock is the point: the caller of Status holds it
 		held.Unlock()
 		asked <- e.g.Status()
 	})

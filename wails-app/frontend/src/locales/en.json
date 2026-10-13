@@ -237,6 +237,26 @@
       "switchTo": "Switch to {{name}}",
       "chipTitle": "From profile {{name}}",
       "line": "{{active}} active · {{running}} running · {{failed}} failed (24h) · {{waiting}} waiting for you"
+    },
+    "getStarted": {
+      "title": "Get started",
+      "progress": "{{done}} of {{total}} done",
+      "dismiss": "Hide this checklist",
+      "optional": "optional",
+      "done": "Done",
+      "signIn": "Sign in to monoes.me",
+      "signInWhy": "MonoAgent needs a monoes.me account before anything runs.",
+      "signInAction": "Sign in",
+      "firstRun": "Run your first workflow",
+      "firstRunWhy": "Start from a template and press Run.",
+      "firstRunAction": "Pick a template",
+      "extension": "Connect the browser extension",
+      "extensionWhy": "Web automations run in your own browser through the extension.",
+      "extensionWhyUnpaired": "The bridge is running but does not accept this app yet — pair it in Settings.",
+      "extensionAction": "Set up",
+      "daemon": "Keep workflows running in the background",
+      "daemonWhy": "Schedules and webhooks need the background service.",
+      "daemonAction": "Open setup"
     }
   },
   "agentSetup": {

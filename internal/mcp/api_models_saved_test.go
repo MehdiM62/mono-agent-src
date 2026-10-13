@@ -140,7 +140,7 @@ func TestAPIModelsListDescriptionSaysThatSavedSettingsCount(t *testing.T) {
 	var d string
 	for _, tl := range apiTools() {
 		if tl.name == "api_models_list" {
-			d = tl.description
+			d = apiToolText(tl)
 		}
 	}
 	// The classes, and each of the two lists, say where the saved layer stands, and where to see it.

@@ -145,6 +145,10 @@ Safe to run again at any time; it only does what is still missing.`,
 				printManualSteps(out, rep)
 			}
 			if n := rep.RequiredFailures(); n > 0 {
+				if cfg.JSONOutput {
+					// The report above is the one JSON document.
+					return reportedError{errRequiredChecksFailed(n)}
+				}
 				return errRequiredChecksFailed(n)
 			}
 			return nil

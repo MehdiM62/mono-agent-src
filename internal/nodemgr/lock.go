@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // lockFile serialises every change to Root across processes (a GUI click
@@ -21,6 +23,10 @@ var errLocked = errors.New("locked")
 // lock takes the managed Node's lock, waiting (and saying so once) while
 // another monoagent process holds it. The returned func releases it.
 func (m *Manager) lock(ctx context.Context, progress func(string)) (func(), error) {
+	// Root sits in ~/.monoagent; create that private if it is missing.
+	if err := statedir.MkdirAll(filepath.Dir(m.Root)); err != nil {
+		return nil, err
+	}
 	if err := os.MkdirAll(m.Root, 0o755); err != nil {
 		return nil, err
 	}

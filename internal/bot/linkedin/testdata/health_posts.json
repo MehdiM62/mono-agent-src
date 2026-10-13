@@ -1,0 +1,10 @@
+[
+  {"urn": "urn:li:activity:7123456789012345678", "id": "7123456789012345678", "author": "Acme", "authorUrl": "https://www.linkedin.com/company/acme-test/posts",
+   "text": "We are hiring.", "timestamp": "2d", "likes": 29, "comments": 4, "reposts": 1},
+  {"urn": "urn:li:ugcPost:7123456789012345679", "id": "7123456789012345679", "author": "Ann Lee", "authorUrl": "https://www.linkedin.com/in/ann-lee-test/recent-activity/all/",
+   "text": "Shipped it.", "timestamp": "2026-10-01T10:00:00Z", "likes": 0, "comments": 0, "reposts": 0},
+  {"urn": "urn:li:activity:7123456789012345678", "id": "7123456789012345678", "author": "Acme (reshared copy)", "authorUrl": "", "text": "", "timestamp": "", "likes": 0, "comments": 0, "reposts": 0},
+  {"urn": "", "id": "", "author": "no id", "authorUrl": "", "text": "", "timestamp": "", "likes": 0, "comments": 0, "reposts": 0},
+  {"urn": "urn:li:share:7123456789012345680", "id": "7123456789012345680", "author": "Bo Kim", "authorUrl": "https://www.linkedin.com/in/bo-kim-test",
+   "text": "Third post.", "timestamp": "1w", "likes": 1200, "comments": 35, "reposts": 7}
+]

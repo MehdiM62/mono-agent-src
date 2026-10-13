@@ -219,7 +219,7 @@ func wrapActionJSON(file string, reg *automation.Registry) (*automation.Package,
 		m.Site.StartURL = "https://" + m.Site.Domains[0] + "/"
 	}
 	mb, _ := json.MarshalIndent(m, "", "  ")
-	if err := os.MkdirAll(filepath.Join(dir, "actions"), 0o755); err == nil {
+	if err = os.MkdirAll(filepath.Join(dir, "actions"), 0o755); err == nil {
 		err = os.WriteFile(filepath.Join(dir, "automation.json"), mb, 0o644)
 		if err == nil {
 			err = os.WriteFile(filepath.Join(dir, "actions", name+".json"), raw, 0o644)

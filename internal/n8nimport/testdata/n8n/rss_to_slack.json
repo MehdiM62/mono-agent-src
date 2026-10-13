@@ -1,0 +1,16 @@
+{
+  "name": "RSS digest to Slack",
+  "active": true,
+  "nodes": [
+    {"parameters": {"rule": {"interval": [{"field": "hours", "hoursInterval": 2, "triggerAtMinute": 15}]}}, "id": "1f0c", "name": "Every 2 hours", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [0, 0]},
+    {"parameters": {"url": "https://example.com/feed.xml", "options": {}}, "id": "2a1d", "name": "Read feed", "type": "n8n-nodes-base.rssFeedRead", "typeVersion": 1.1, "position": [220, 0]},
+    {"parameters": {"maxItems": 5}, "id": "3b2e", "name": "Top 5", "type": "n8n-nodes-base.limit", "typeVersion": 1, "position": [440, 0]},
+    {"parameters": {"select": "channel", "channelId": {"__rl": true, "value": "C0123456", "mode": "id"}, "text": "=*{{ $json.title }}*\n{{ $json.link }}\nPublished {{ $json.pubDate }}", "otherOptions": {"includeLinkToWorkflow": false, "unfurl_links": true}}, "id": "4c3f", "name": "Post to Slack", "type": "n8n-nodes-base.slack", "typeVersion": 2.2, "position": [660, 0], "credentials": {"slackApi": {"id": "7", "name": "Team Slack"}}, "retryOnFail": true, "maxTries": 4, "waitBetweenTries": 3000}
+  ],
+  "connections": {
+    "Every 2 hours": {"main": [[{"node": "Read feed", "type": "main", "index": 0}]]},
+    "Read feed": {"main": [[{"node": "Top 5", "type": "main", "index": 0}]]},
+    "Top 5": {"main": [[{"node": "Post to Slack", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "timezone": "America/New_York"}
+}

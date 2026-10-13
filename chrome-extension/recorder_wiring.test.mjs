@@ -100,9 +100,35 @@ test("start injects the recorder files into every frame of the tab", async () =>
   const res = await call({ type: "record_start", goal: "demo" });
   assert.equal(res.ok, true, res.error);
   assert.equal(res.state.tabId, 7, "defaults to the active tab");
-  assert.deepEqual(chrome.scripts[0].files, ["recorder_privacy.js", "recorder_selectors.js", "recorder_list.js", "recorder_dom.js", "recorder.js"]);
+  assert.deepEqual(chrome.scripts[0].files, [
+    "recorder_privacy.js", "recorder_selectors.js", "recorder_list.js", "recorder_dom.js", "recorder.js", "recorder_network.js",
+  ]);
   assert.deepEqual(chrome.scripts[0].target, { tabId: 7, allFrames: true });
+  // The fetch/XHR hook goes into the page's own world, then is switched on.
+  const main = chrome.scripts.filter((s) => s.world === "MAIN");
+  assert.deepEqual(main[0].files, ["recorder_network.js"]);
+  assert.equal(typeof main[1].func, "function");
   assert.equal(wire[0].op, "start");
+});
+
+test("captured API calls from the recorded tab become network frames", async () => {
+  const { wire, call, settle } = load();
+  await call({ type: "record_start", tabId: 7 });
+  const entry = { method: "GET", url: "https://api.test/me", status: 200, contentType: "application/json" };
+  await call({ type: "recorder_net", entry }, PAGE(7));
+  await call({ type: "recorder_net", entry }, PAGE(8));
+  await settle();
+  const net = wire.filter((f) => f.op === "network");
+  assert.equal(net.length, 1, "only the recorded tab's calls");
+  assert.equal(net[0].net.url, "https://api.test/me");
+});
+
+test("stopping switches the page hook off", async () => {
+  const { chrome, call } = load();
+  await call({ type: "record_start", tabId: 7 });
+  await call({ type: "record_stop" });
+  const last = chrome.scripts.filter((s) => s.world === "MAIN").at(-1);
+  assert.ok(String(last.func).includes("unhook"));
 });
 
 test("page events, navigation and new documents are routed to the session", async () => {
