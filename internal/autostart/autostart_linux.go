@@ -21,6 +21,11 @@ type linuxInstaller struct{}
 
 const unitName = "monoagent-daemon.service"
 
+// serviceLogHint is where the unit's output goes: the user journal.
+func serviceLogHint() string {
+	return "journalctl --user -u " + unitName
+}
+
 const linuxUnitTemplate = `[Unit]
 Description=MonoAgent daemon (workflow engine + extension bridge)
 After=default.target

@@ -60,6 +60,23 @@ func New() Installer {
 	return newPlatformInstaller()
 }
 
+// ServiceLogHint says where the daemon started by the registered login
+// service logs on this OS: a journalctl command on Linux, the log files
+// launchd or the scheduled task write to on macOS and Windows.
+func ServiceLogHint() string {
+	return serviceLogHint()
+}
+
+// FallbackLogPath is the log of a daemon started without a login service
+// (doctor's detached start): ~/.monoagent/logs/daemon.log.
+func FallbackLogPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "~/.monoagent/logs/daemon.log"
+	}
+	return filepath.Join(home, ".monoagent", "logs", "daemon.log")
+}
+
 // executablePath resolves the absolute, symlink-free path to the running
 // binary. Every backend needs this: a launchd/systemd/Scheduled Task
 // definition has no shell and no PATH to find "monoagentcli" by name.
