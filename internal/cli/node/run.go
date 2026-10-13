@@ -1,4 +1,4 @@
-package main
+package node
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
@@ -28,7 +27,7 @@ import (
 )
 
 // newNodeRunCmd runs a single node type with provided config and input items.
-func newNodeRunCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodeRunCmd() *cobra.Command {
 	var (
 		configJSON   string
 		inputJSON    string
@@ -146,11 +145,11 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 
 			// Open DB so AI nodes are available for execution.
 			var rawDB *sql.DB
-			if db, err := initDB(cfg); err == nil {
+			if db, err := d.OpenDB(); err == nil {
 				rawDB = db.DB
 				defer db.Close()
 			}
-			registry := buildNodeRegistry(cfg.Verbose, rawDB)
+			registry := d.BuildRegistry(rawDB)
 			factory, ok := registry.Get(nodeType)
 			if !ok {
 				// Show close matches
@@ -163,9 +162,9 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 					}
 				}
 				if len(matches) > 0 {
-					return errNotFound("unknown node type %q. Did you mean one of: %s", nodeType, strings.Join(matches, ", "))
+					return d.NotFound("unknown node type %q. Did you mean one of: %s", nodeType, strings.Join(matches, ", "))
 				}
-				return errNotFound("unknown node type %q. Run `monoagentcli node list` to see all types", nodeType)
+				return d.NotFound("unknown node type %q. Run `monoagentcli node list` to see all types", nodeType)
 			}
 
 			// Parse config
@@ -191,7 +190,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 					credKey = nodeTypeToPlatform(nodeType)
 				}
 				if credKey != "" {
-					credData, err := resolveCredentialData(context.Background(), connStore, credKey, cfg.ProfileID)
+					credData, err := d.ResolveCredential(context.Background(), connStore, credKey, d.ProfileID())
 					if err == nil && credData != nil {
 						// Merge credential data into config (access_token, refresh_token, etc.).
 						for k, v := range credData {
@@ -200,7 +199,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 							}
 						}
 						config["credential"] = credData
-						if cfg.Verbose {
+						if d.Verbose() {
 							fmt.Fprintf(os.Stderr, "  Resolved credential for platform %q\n", credKey)
 						}
 					} else if credentialID != "" {
@@ -230,7 +229,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 			}
 
 			logger := logging.Zerolog()
-			if cfg.Verbose {
+			if d.Verbose() {
 				logger = logger.Level(zerolog.TraceLevel)
 			}
 			_ = logger
@@ -239,7 +238,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 			// of run (internal/hilsend); this comes before any browser is touched.
 			guardCtx := context.Background()
 			if rawDB != nil {
-				guardCtx = vault.ContextWithProfileID(vault.ContextWithDB(guardCtx, rawDB), cfg.ProfileID)
+				guardCtx = vault.ContextWithProfileID(vault.ContextWithDB(guardCtx, rawDB), d.ProfileID())
 			}
 			if queued, handled, gerr := workflow.RunExecGuard(guardCtx, nodeType, workflow.NodeInput{Items: inputItems}, config); handled {
 				if gerr != nil {
@@ -253,17 +252,15 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				// Chrome extension only — no Rod/Chromium fallback, sharing
 				// another local process's connection when one already exists.
 				extLogger := logging.Zerolog().With().Str("component", "extension").Logger()
-				if cfg.Verbose {
+				if d.Verbose() {
 					extLogger = extLogger.Level(zerolog.TraceLevel)
 				}
-				extBridge := setupProfileBridge(cfg.ProfileID, extLogger, 3*time.Second)
-				if !extBridge.IsConnected() {
-					// No throwaway automation browser — launch the user's real
-					// Chrome (same mechanism as `login`) so the extension can
-					// attach, then wait.
-					if err := ensureExtensionConnected(extBridge, 30*time.Second); err != nil {
-						return fmt.Errorf("chrome extension bridge: %w", err)
-					}
+				// When it is not connected, no throwaway automation browser:
+				// ConnectBridge launches the user's real Chrome (same mechanism
+				// as `login`) so the extension can attach, then waits.
+				extBridge, err := d.ConnectBridge(d.ProfileID(), extLogger)
+				if err != nil {
+					return fmt.Errorf("chrome extension bridge: %w", err)
 				}
 
 				hybridProvider := &browserpkg.HybridSessionProvider{
@@ -273,17 +270,17 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				defer hybridProvider.Close()
 				defer nodes.CloseHealthObservers()
 				nodes.SetGlobalSessionProvider(hybridProvider)
-				nodes.SetGlobalBotRegistry(&cliBotRegistry{})
+				nodes.SetGlobalBotRegistry(d.BotRegistry)
 				nodes.SetGlobalCredentialStore(connections.NewStore(rawDB))
 
 				// Wire up config manager for selector resolution.
 				cfgLogger := logging.Zerolog()
 				var cfgStore cfgpkg.ConfigStore
-				if cfgDB, err := initDB(cfg); err == nil {
+				if cfgDB, err := d.OpenDB(); err == nil {
 					cfgStore = &cfgpkg.DBConfigStore{DB: cfgDB}
 					defer cfgDB.Close()
 				}
-				rawCfgMgr := cfgpkg.NewConfigManager(expandPath("~/.monoagent/configs"), cfgStore, cfgLogger)
+				rawCfgMgr := cfgpkg.NewConfigManager(d.ConfigDir(), cfgStore, cfgLogger)
 				nodes.SetGlobalConfigMgr(&cfgpkg.ConfigManagerAdapter{Mgr: rawCfgMgr})
 			}
 
@@ -306,7 +303,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 			ctx := context.Background()
 			if rawDB != nil {
 				ctx = vault.ContextWithDB(ctx, rawDB)
-				ctx = vault.ContextWithProfileID(ctx, cfg.ProfileID)
+				ctx = vault.ContextWithProfileID(ctx, d.ProfileID())
 			}
 			// These environment fields are set by monomind for an org role's
 			// local tool process; they are not read from the user's node payload.
@@ -325,8 +322,8 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				}
 				entries := publication.Normalize(publication.CaptureInput{NodeType: nodeType, Config: config, Outputs: pubOutputs,
 					Source: workflow.PublicationSource(ctx, input)})
-				hilsend.Attribute(ctx, rawDB, cfg.ProfileID, entries)
-				publication.Record(ctx, publication.NewStore(rawDB, cfg.ProfileID), entries, func(msg string) { fmt.Fprintln(os.Stderr, "Warning:", msg) })
+				hilsend.Attribute(ctx, rawDB, d.ProfileID(), entries)
+				publication.Record(ctx, publication.NewStore(rawDB, d.ProfileID()), entries, func(msg string) { fmt.Fprintln(os.Stderr, "Warning:", msg) })
 			}
 
 			if err != nil {
@@ -358,7 +355,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 					allItems = append(allItems, o.Items...)
 				}
 				if len(allItems) > 0 {
-					saved, skipped, failed := savePostsToDB(ctx, rawDB, allItems, nodeType, config, cfg.ProfileID)
+					saved, skipped, failed := savePostsToDB(ctx, rawDB, allItems, nodeType, config, d.ProfileID())
 					fmt.Fprintf(os.Stderr, "  Saved %d post(s) to posts table (%d skipped, %d failed)\n", saved, skipped, failed)
 				}
 			}

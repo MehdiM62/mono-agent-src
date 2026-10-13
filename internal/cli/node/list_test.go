@@ -1,4 +1,4 @@
-package main
+package node
 
 import (
 	"encoding/json"
@@ -11,10 +11,14 @@ import (
 
 func runNodeList(t *testing.T, extra ...string) string {
 	t.Helper()
-	root := newRootCmd()
-	root.SetArgs(append([]string{"node", "list", "--db-path", filepath.Join(t.TempDir(), "m.db")}, extra...))
+	jsonOut := len(extra) > 0 && extra[0] == "--json"
+	if jsonOut {
+		extra = extra[1:]
+	}
+	cmd := NewCommand(testDeps(filepath.Join(t.TempDir(), "m.db"), "default", jsonOut))
+	cmd.SetArgs(append([]string{"list"}, extra...))
 	return captureStdout(t, func() {
-		if err := root.Execute(); err != nil {
+		if err := cmd.Execute(); err != nil {
 			t.Fatalf("node list: %v", err)
 		}
 	})
@@ -67,6 +71,7 @@ func TestNodeListIncludesEngineTriggers(t *testing.T) {
 
 // Every trigger node list adds must be one the engine knows: it ships a schema.
 func TestTriggerNodeTypesHaveSchemas(t *testing.T) {
+	t.Parallel()
 	for _, typ := range triggerNodeTypes {
 		if _, ok := workflow.ReadEmbeddedSchema(typ); !ok {
 			t.Errorf("%s has no embedded schema", typ)

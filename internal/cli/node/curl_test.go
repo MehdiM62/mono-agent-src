@@ -1,4 +1,4 @@
-package main
+package node
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 func runNodeCurl(t *testing.T, stdin string, args ...string) (map[string]interface{}, string, error) {
 	t.Helper()
 	var out, errOut strings.Builder
-	cmd := newNodeCmd(&globalConfig{})
+	cmd := NewCommand(testDeps("", "", false))
 	cmd.SetArgs(append([]string{"curl"}, args...))
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
@@ -25,6 +25,7 @@ func runNodeCurl(t *testing.T, stdin string, args ...string) (map[string]interfa
 }
 
 func TestNodeCurlOneArgument(t *testing.T) {
+	t.Parallel()
 	cfg, stderr, err := runNodeCurl(t, "", `curl -k -X POST https://api.example.com/items -H "Content-Type: application/json" -d '{"name":"x"}'`)
 	if err != nil {
 		t.Fatal(err)
@@ -39,6 +40,7 @@ func TestNodeCurlOneArgument(t *testing.T) {
 
 // Words the shell already split (flags included) reach the parser intact.
 func TestNodeCurlSplitArguments(t *testing.T) {
+	t.Parallel()
 	cfg, _, err := runNodeCurl(t, "", "curl", "-u", "ann:pw", "-H", "X-Note: it's", "https://api.example.com/x")
 	if err != nil {
 		t.Fatal(err)
@@ -49,6 +51,7 @@ func TestNodeCurlSplitArguments(t *testing.T) {
 }
 
 func TestNodeCurlStdin(t *testing.T) {
+	t.Parallel()
 	cfg, _, err := runNodeCurl(t, "curl https://api.example.com/a \\\n  -H 'Accept: text/csv'\n", "-")
 	if err != nil {
 		t.Fatal(err)

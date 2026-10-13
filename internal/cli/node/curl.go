@@ -1,4 +1,4 @@
-package main
+package node
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 
 // newNodeCurlCmd converts a curl command line into an http.request node
 // config. Flag parsing is off so the curl options reach the parser as is.
-func newNodeCurlCmd(_ *globalConfig) *cobra.Command {
+func (d Deps) newNodeCurlCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "curl <curl command | ->",
 		Short: "Turn a curl command into an http.request node config",
@@ -28,13 +28,13 @@ Things that could not be carried over are listed on stderr.`,
 			if len(args) == 0 || (len(args) == 1 && (args[0] == "-h" || args[0] == "--help")) {
 				return cmd.Help()
 			}
-			command, err := curlCommandFromArgs(args, cmd.InOrStdin())
+			command, err := d.curlCommandFromArgs(args, cmd.InOrStdin())
 			if err != nil {
 				return err
 			}
 			req, err := httpnodes.ParseCurl(command)
 			if err != nil {
-				return errInvalidInput("%v", err)
+				return d.InvalidInput("%v", err)
 			}
 			out, err := json.MarshalIndent(req.NodeConfig(), "", "  ")
 			if err != nil {
@@ -52,14 +52,14 @@ Things that could not be carried over are listed on stderr.`,
 // curlCommandFromArgs returns the curl command: stdin for "-", the single
 // argument as given, or several arguments re-quoted so the parser sees the
 // words the shell already split.
-func curlCommandFromArgs(args []string, stdin io.Reader) (string, error) {
+func (d Deps) curlCommandFromArgs(args []string, stdin io.Reader) (string, error) {
 	if len(args) == 1 && args[0] == "-" {
 		b, err := io.ReadAll(io.LimitReader(stdin, 1<<20))
 		if err != nil {
 			return "", fmt.Errorf("read stdin: %w", err)
 		}
 		if strings.TrimSpace(string(b)) == "" {
-			return "", errInvalidInput("no curl command on stdin")
+			return "", d.InvalidInput("no curl command on stdin")
 		}
 		return string(b), nil
 	}

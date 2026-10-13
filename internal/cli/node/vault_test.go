@@ -1,12 +1,10 @@
-package main
+package node
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/zalando/go-keyring"
 )
 
 // runNodeSubcmdStdin executes `node run <type> --stdin --output json` with
@@ -14,7 +12,7 @@ import (
 // runWorkflowSubcmd (workflow_test.go) — the same in-process cobra-command
 // pattern — plus os.Stdin swapping, since the --stdin payload is read via
 // io.ReadAll(os.Stdin) directly rather than cmd.InOrStdin().
-func runNodeSubcmdStdin(t *testing.T, cfg *globalConfig, stdin string, args ...string) (string, error) {
+func runNodeSubcmdStdin(t *testing.T, d Deps, stdin string, args ...string) (string, error) {
 	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
@@ -30,7 +28,7 @@ func runNodeSubcmdStdin(t *testing.T, cfg *globalConfig, stdin string, args ...s
 	os.Stdin = r
 	defer func() { os.Stdin = origStdin }()
 
-	cmd := newNodeCmd(cfg)
+	cmd := NewCommand(d)
 	full := append([]string{"run"}, args...)
 	full = append(full, "--stdin", "--output", "json")
 	cmd.SetArgs(full)
@@ -46,16 +44,13 @@ func runNodeSubcmdStdin(t *testing.T, cfg *globalConfig, stdin string, args ...s
 // $HOME override (via keyring.MockInit + t.Setenv), matching every other
 // vault-touching test's isolation pattern in this repo — real migrated
 // SQLite, no touching the actual user's ~/.monoagent.
-func nodeVaultTestCfg(t *testing.T) *globalConfig {
+// nodeVaultTestDB is a temp HOME and the path of a database in it.
+func nodeVaultTestDB(t *testing.T) string {
 	t.Helper()
-	keyring.MockInit()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	return &globalConfig{
-		DBPath:    filepath.Join(t.TempDir(), "node-vault-test.db"),
-		ProfileID: "default",
-	}
+	return filepath.Join(t.TempDir(), "node-vault-test.db")
 }
 
 // TestNodeRun_VaultContextInjected is the CLI-level regression guard for the
@@ -66,7 +61,8 @@ func nodeVaultTestCfg(t *testing.T) *globalConfig {
 // vault.* / image.vault_* node types) failed immediately under `node run`
 // specifically, despite working correctly through a real workflow run.
 func TestNodeRun_VaultContextInjected(t *testing.T) {
-	cfg := nodeVaultTestCfg(t)
+	dbPath := nodeVaultTestDB(t)
+	cfg := testDeps(dbPath, "default", false)
 
 	savePayload := `{"config":{"name":"cli-test-secret","field_keys":["token"]},"input":[{"json":{"token":"FAKE-TOKEN"}}]}`
 	out, err := runNodeSubcmdStdin(t, cfg, savePayload, "vault.secret_save")
@@ -101,7 +97,8 @@ func TestNodeRun_VaultContextInjected(t *testing.T) {
 // (the same shape a saved workflow's JSON file contains before the engine
 // ever touches it). Both must work.
 func TestNodeRun_FieldKeysBothRepresentations(t *testing.T) {
-	cfg := nodeVaultTestCfg(t)
+	dbPath := nodeVaultTestDB(t)
+	cfg := testDeps(dbPath, "default", false)
 
 	arrayPayload := `{"config":{"name":"array-form","field_keys":["token"]},"input":[{"json":{"token":"v1"}}]}`
 	if _, err := runNodeSubcmdStdin(t, cfg, arrayPayload, "vault.secret_save"); err != nil {
@@ -117,7 +114,8 @@ func TestNodeRun_FieldKeysBothRepresentations(t *testing.T) {
 // TestNodeRun_ImageVaultRoundTrip covers the image-vault half of the same
 // underlying context-injection fix.
 func TestNodeRun_ImageVaultRoundTrip(t *testing.T) {
-	cfg := nodeVaultTestCfg(t)
+	dbPath := nodeVaultTestDB(t)
+	cfg := testDeps(dbPath, "default", false)
 
 	imgPath := filepath.Join(t.TempDir(), "pixel.png")
 	if err := os.WriteFile(imgPath, []byte("fake-png-bytes"), 0o644); err != nil {
@@ -161,36 +159,35 @@ func TestNodeRun_ImageVaultRoundTrip(t *testing.T) {
 // found" for anything unregistered — the same behavior every other command
 // gets, not something node run bypasses.
 func TestNodeRun_ProfileScoping(t *testing.T) {
-	cfg := nodeVaultTestCfg(t)
+	dbPath := nodeVaultTestDB(t)
+	cfg := testDeps(dbPath, "default", false)
 
-	for _, name := range []string{"profile-a", "profile-b"} {
-		out := captureStdout(t, func() {
-			createCmd := newProfileCmd(cfg)
-			createCmd.SetArgs([]string{"create", name})
-			if err := createCmd.Execute(); err != nil {
-				t.Fatalf("profile create %s: %v", name, err)
-			}
-		})
-		_ = out
+	db, err := cfg.OpenDB()
+	if err != nil {
+		t.Fatal(err)
 	}
+	for _, name := range []string{"profile-a", "profile-b"} {
+		if _, err := db.DB.Exec(`INSERT INTO profiles (id, name, created_at) VALUES (?, ?, '2026-01-01')`, name, name); err != nil {
+			t.Fatalf("profile %s: %v", name, err)
+		}
+	}
+	db.Close()
 
-	aCfg := *cfg
-	aCfg.ProfileID = "profile-a"
+	aCfg := testDeps(dbPath, "profile-a", false)
 	savePayload := `{"config":{"name":"scoped-secret","field_keys":["token"]},"input":[{"json":{"token":"a-only"}}]}`
-	if _, err := runNodeSubcmdStdin(t, &aCfg, savePayload, "vault.secret_save"); err != nil {
+	if _, err := runNodeSubcmdStdin(t, aCfg, savePayload, "vault.secret_save"); err != nil {
 		t.Fatalf("save under profile-a: %v", err)
 	}
 
-	bCfg := *cfg
-	bCfg.ProfileID = "profile-b"
+	bCfg := testDeps(dbPath, "profile-b", false)
 	getPayload := `{"config":{"name":"scoped-secret"},"input":[{"json":{}}]}`
-	if _, err := runNodeSubcmdStdin(t, &bCfg, getPayload, "vault.secret_get"); err == nil {
+	if _, err := runNodeSubcmdStdin(t, bCfg, getPayload, "vault.secret_get"); err == nil {
 		t.Fatalf("expected profile-b to NOT see profile-a's secret, but the get succeeded")
 	}
 
 	// Same-profile round trip still works — the isolation above is
 	// profile-scoping, not a general regression in secret_get.
-	if _, err := runNodeSubcmdStdin(t, &aCfg, getPayload, "vault.secret_get"); err != nil {
+	if _, err := runNodeSubcmdStdin(t, aCfg, getPayload, "vault.secret_get"); err != nil {
 		t.Fatalf("profile-a should still see its own secret: %v", err)
 	}
 }

@@ -1,4 +1,4 @@
-package main
+package node
 
 import (
 	"bytes"
@@ -10,10 +10,10 @@ import (
 
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
-	"github.com/zalando/go-keyring"
 )
 
 func TestFirstTargetURL(t *testing.T) {
+	t.Parallel()
 	const post = "https://www.instagram.com/p/ABC123/"
 	for _, tc := range []struct {
 		name   string
@@ -46,7 +46,7 @@ func TestFirstTargetURL(t *testing.T) {
 // TestAutoSaveCommentsBothKeys: comments are saved under the post named by
 // either "targets" (form-style) or the legacy "selectedListItems".
 func TestAutoSaveCommentsBothKeys(t *testing.T) {
-	keyring.MockInit()
+	t.Parallel()
 	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "c.db"))
 	if err != nil {
 		t.Fatal(err)
