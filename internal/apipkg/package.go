@@ -278,6 +278,11 @@ type Output struct {
 	// (Gong call transcripts).
 	ExpandMergeKey  string `json:"expand_merge_key,omitempty"`
 	ExpandMergePath string `json:"expand_merge_path,omitempty"`
+	// From (a template over res) replaces the decoded response before
+	// path/split: "{{ res | values }}" for maps keyed by id.
+	From string `json:"from,omitempty"`
+	// Merge folds a list of objects into one object (Hue update results).
+	Merge bool `json:"merge,omitempty"`
 	// Limit applies n8n's returnAll/limit fields to a list that isn't
 	// paginated (client-side slicing).
 	Limit bool `json:"limit,omitempty"`

@@ -25,7 +25,7 @@ var knownFilters = map[string]bool{
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
-	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true,
+	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -133,6 +133,21 @@ func applyFilter(name string, v, arg any) (any, error) {
 			}
 		}
 		return firestoreFields(obj, cols), nil
+	case "values":
+		m, ok := v.(map[string]any)
+		if !ok {
+			return v, nil
+		}
+		keys := make([]string, 0, len(m))
+		for k := range m {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		out := make([]any, 0, len(keys))
+		for _, k := range keys {
+			out = append(out, m[k])
+		}
+		return out, nil
 	case "hex":
 		h := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(stringify(v)), "#"), "0x")
 		if h == "" {

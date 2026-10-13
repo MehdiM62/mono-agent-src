@@ -228,7 +228,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	var probs []string
 	add := func(format string, a ...any) { probs = append(probs, where+": "+fmt.Sprintf(format, a...)) }
 	if !validMethods[strings.ToUpper(o.Method)] && !hasTemplate(o.Method) {
-		add("method %q must be GET, POST, PUT, PATCH, DELETE, HEAD or a template", o.Method)
+		add("method %q must be an HTTP/WebDAV method or a template", o.Method)
 	}
 	fields := map[string]bool{"resource": true, "operation": true}
 	for _, f := range o.Fields {
@@ -281,7 +281,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	for i, st := range o.Also {
 		sw := fmt.Sprintf("%s also[%d]", where, i)
 		if !validMethods[strings.ToUpper(st.Method)] && !hasTemplate(st.Method) {
-			add("also[%d]: method %q must be GET, POST, PUT, PATCH, DELETE, HEAD or a template", i, st.Method)
+			add("also[%d]: method %q must be an HTTP/WebDAV method or a template", i, st.Method)
 		}
 		if st.Path == "" {
 			add("also[%d]: path is required", i)
@@ -334,7 +334,9 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 
 // checkTemplates parses every template string in v and checks that p.X
 // names a field (when fields is set) and cred.X a credential key.
-var validMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true}
+var validMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true,
+	// WebDAV (NextCloud, ownCloud)
+	"MKCOL": true, "MOVE": true, "COPY": true, "PROPFIND": true, "PROPPATCH": true}
 
 func checkTemplates(where string, v any, fields, credKeys map[string]bool) []string {
 	var probs []string
