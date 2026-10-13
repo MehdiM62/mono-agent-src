@@ -1,0 +1,960 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "taiga",
+  "title": "Taiga",
+  "description": "Epics, issues, tasks and user stories in Taiga (cloud or self-hosted)",
+  "category": "app",
+  "docs_url": "https://docs.taiga.io/api.html",
+  "n8n_types": [
+    "n8n-nodes-base.taiga"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.taigaTrigger"
+  ],
+  "base_url": "{{ cred.url | re:'^(.*?)/*$' | default:'https://api.taiga.io' }}/api/v1",
+  "credentials": [
+    {
+      "platform": "taiga",
+      "name": "Taiga",
+      "n8n_credential": "taigaApi",
+      "n8n_field_map": {
+        "username": "username",
+        "password": "password",
+        "url": "url"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "username",
+          "label": "Username",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "url",
+          "label": "Self-hosted URL",
+          "help": "Leave empty for taiga.io cloud"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ pres.0.auth_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "issue",
+      "label": "Issue"
+    },
+    {
+      "value": "epic",
+      "label": "Epic"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "userStory",
+      "label": "User Story"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "issue",
+      "operation": "create",
+      "title": "Create a issue",
+      "method": "POST",
+      "path": "/issues",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "blocked_note",
+            "description",
+            "is_blocked",
+            "milestone",
+            "priority",
+            "severity",
+            "status",
+            "tags",
+            "type"
+          ]
+        }
+      ],
+      "body": {
+        "project": "{{ p.projectId }}",
+        "subject": "{{ p.subject }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "delete",
+      "title": "Delete a issue",
+      "method": "DELETE",
+      "path": "/issues/{{ p.issueId }}",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "get",
+      "title": "Get a issue",
+      "method": "GET",
+      "path": "/issues/{{ p.issueId }}",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "getAll",
+      "title": "Get many issues",
+      "method": "GET",
+      "path": "/issues",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "headers": {
+        "x-disable-pagination": "True"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "orderBy",
+            "owner",
+            "priority",
+            "role",
+            "severity",
+            "status",
+            "tags",
+            "type"
+          ]
+        }
+      ],
+      "query": {
+        "project": "{{ p.projectId }}",
+        "$merge": "{{ p.filters | omit:'orderBy' }}",
+        "order_by": "{{ p.filters.orderBy }}"
+      },
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "update",
+      "title": "Update a issue",
+      "description": "Reads the current version first, as Taiga requires it",
+      "method": "PATCH",
+      "path": "/issues/{{ p.issueId }}",
+      "before": [
+        {
+          "method": "POST",
+          "path": "/auth",
+          "body": {
+            "type": "normal",
+            "username": "{{ cred.username }}",
+            "password": "{{ cred.password }}"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/issues/{{ p.issueId }}"
+        }
+      ],
+      "fields": [
+        {
+          "key": "issueId",
+          "label": "Issue ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "blocked_note",
+            "description",
+            "is_blocked",
+            "milestone",
+            "priority",
+            "severity",
+            "status",
+            "subject",
+            "tags",
+            "type"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}",
+        "version": "{{ pres.1.version }}"
+      }
+    },
+    {
+      "resource": "epic",
+      "operation": "create",
+      "title": "Create a epic",
+      "method": "POST",
+      "path": "/epics",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "blocked_note",
+            "color",
+            "description",
+            "is_blocked",
+            "tags"
+          ]
+        }
+      ],
+      "body": {
+        "project": "{{ p.projectId }}",
+        "subject": "{{ p.subject }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "epic",
+      "operation": "delete",
+      "title": "Delete a epic",
+      "method": "DELETE",
+      "path": "/epics/{{ p.epicId }}",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "epicId",
+          "label": "Epic ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "epic",
+      "operation": "get",
+      "title": "Get a epic",
+      "method": "GET",
+      "path": "/epics/{{ p.epicId }}",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "epicId",
+          "label": "Epic ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "epic",
+      "operation": "getAll",
+      "title": "Get many epics",
+      "method": "GET",
+      "path": "/epics",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "headers": {
+        "x-disable-pagination": "True"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "statusIsClosed"
+          ]
+        }
+      ],
+      "query": {
+        "project": "{{ p.projectId }}",
+        "$merge": "{{ p.filters | omit:'statusIsClosed' }}",
+        "status__is_closed": "{{ p.filters.statusIsClosed }}"
+      },
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "epic",
+      "operation": "update",
+      "title": "Update a epic",
+      "description": "Reads the current version first, as Taiga requires it",
+      "method": "PATCH",
+      "path": "/epics/{{ p.epicId }}",
+      "before": [
+        {
+          "method": "POST",
+          "path": "/auth",
+          "body": {
+            "type": "normal",
+            "username": "{{ cred.username }}",
+            "password": "{{ cred.password }}"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/epics/{{ p.epicId }}"
+        }
+      ],
+      "fields": [
+        {
+          "key": "epicId",
+          "label": "Epic ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "blocked_note",
+            "color",
+            "description",
+            "is_blocked",
+            "subject",
+            "tags"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}",
+        "version": "{{ pres.1.version }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/tasks",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "blocked_note",
+            "description",
+            "is_blocked",
+            "milestone",
+            "status",
+            "tags",
+            "taskboard_order",
+            "user_story",
+            "us_order"
+          ]
+        }
+      ],
+      "body": {
+        "project": "{{ p.projectId }}",
+        "subject": "{{ p.subject }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/tasks/{{ p.taskId }}",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/tasks/{{ p.taskId }}",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/tasks",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "headers": {
+        "x-disable-pagination": "True"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "statusIsClosed",
+            "milestone",
+            "owner",
+            "role",
+            "status",
+            "tags",
+            "userStory"
+          ]
+        }
+      ],
+      "query": {
+        "project": "{{ p.projectId }}",
+        "$merge": "{{ p.filters | omit:'statusIsClosed,userStory' }}",
+        "status__is_closed": "{{ p.filters.statusIsClosed }}",
+        "user_story": "{{ p.filters.userStory }}"
+      },
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "description": "Reads the current version first, as Taiga requires it",
+      "method": "PATCH",
+      "path": "/tasks/{{ p.taskId }}",
+      "before": [
+        {
+          "method": "POST",
+          "path": "/auth",
+          "body": {
+            "type": "normal",
+            "username": "{{ cred.username }}",
+            "password": "{{ cred.password }}"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/tasks/{{ p.taskId }}"
+        }
+      ],
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "blocked_note",
+            "description",
+            "is_blocked",
+            "milestone",
+            "status",
+            "subject",
+            "user_story",
+            "us_order",
+            "tags",
+            "taskboard_order"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}",
+        "version": "{{ pres.1.version }}"
+      }
+    },
+    {
+      "resource": "userStory",
+      "operation": "create",
+      "title": "Create a user story",
+      "method": "POST",
+      "path": "/userstories",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "backlog_order",
+            "blocked_note",
+            "description",
+            "is_blocked",
+            "kanban_order",
+            "milestone",
+            "sprint_order",
+            "status",
+            "tags",
+            "type"
+          ]
+        }
+      ],
+      "body": {
+        "project": "{{ p.projectId }}",
+        "subject": "{{ p.subject }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "userStory",
+      "operation": "delete",
+      "title": "Delete a user story",
+      "method": "DELETE",
+      "path": "/userstories/{{ p.userStoryId }}",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "userStoryId",
+          "label": "User Story ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "userStory",
+      "operation": "get",
+      "title": "Get a user story",
+      "method": "GET",
+      "path": "/userstories/{{ p.userStoryId }}",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "userStoryId",
+          "label": "User Story ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "userStory",
+      "operation": "getAll",
+      "title": "Get many user storys",
+      "method": "GET",
+      "path": "/userstories",
+      "before": {
+        "method": "POST",
+        "path": "/auth",
+        "body": {
+          "type": "normal",
+          "username": "{{ cred.username }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "headers": {
+        "x-disable-pagination": "True"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "epic",
+            "statusIsClosed",
+            "statusIsArchived",
+            "milestone",
+            "role",
+            "status",
+            "tags"
+          ]
+        }
+      ],
+      "query": {
+        "project": "{{ p.projectId }}",
+        "$merge": "{{ p.filters | omit:'statusIsClosed,statusIsArchived' }}",
+        "status__is_closed": "{{ p.filters.statusIsClosed }}",
+        "status__is_archived": "{{ p.filters.statusIsArchived }}"
+      },
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "userStory",
+      "operation": "update",
+      "title": "Update a user story",
+      "description": "Reads the current version first, as Taiga requires it",
+      "method": "PATCH",
+      "path": "/userstories/{{ p.userStoryId }}",
+      "before": [
+        {
+          "method": "POST",
+          "path": "/auth",
+          "body": {
+            "type": "normal",
+            "username": "{{ cred.username }}",
+            "password": "{{ cred.password }}"
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/userstories/{{ p.userStoryId }}"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userStoryId",
+          "label": "User Story ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assigned_to",
+            "backlog_order",
+            "blocked_note",
+            "description",
+            "is_blocked",
+            "kanban_order",
+            "milestone",
+            "subject",
+            "sprint_order",
+            "status",
+            "tags",
+            "type"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}",
+        "version": "{{ pres.1.version }}"
+      }
+    }
+  ]
+}

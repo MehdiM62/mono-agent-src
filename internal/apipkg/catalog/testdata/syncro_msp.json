@@ -1,0 +1,446 @@
+{
+  "contact.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/contacts",
+      "query": {
+        "page": "1",
+        "per_page": "2"
+      },
+      "items": 2
+    },
+    "response": {
+      "contacts": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    }
+  },
+  "contact.create": {
+    "params": {
+      "customerId": "c1",
+      "email": "a@b.c",
+      "additionalFields": {
+        "name": "Ada",
+        "address": {
+          "addressFields": {
+            "address": "Main 1",
+            "city": "X"
+          }
+        }
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/contacts",
+      "body": {
+        "customer_id": "c1",
+        "email": "a@b.c",
+        "name": "Ada",
+        "address": "Main 1",
+        "address1": "Main 1",
+        "city": "X"
+      }
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/contacts/1"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/contacts/1"
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "1",
+      "updateFields": {
+        "phone": "123"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/contacts/1",
+      "body": {
+        "contact_id": "1",
+        "phone": "123"
+      }
+    }
+  },
+  "customer.getAll": {
+    "params": {
+      "returnAll": true,
+      "filters": {
+        "businessName": "Acme",
+        "includeDisabled": true
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/customers",
+      "query": {
+        "business_name": "Acme",
+        "include_disabled": "true",
+        "page": "1",
+        "per_page": "25"
+      },
+      "items": 1
+    },
+    "response": {
+      "customers": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "customer.create": {
+    "params": {
+      "email": "a@b.c",
+      "additionalFields": {
+        "businessName": "Acme",
+        "invoiceCcEmails": [
+          "x@y.z",
+          "q@r.s"
+        ],
+        "noEmail": false
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/customers",
+      "body": {
+        "email": "a@b.c",
+        "business_name": "Acme",
+        "invoice_cc_emails": "x@y.z,q@r.s",
+        "no_email": false
+      },
+      "items": 1
+    },
+    "response": {
+      "customer": {
+        "id": 1
+      }
+    }
+  },
+  "customer.delete": {
+    "params": {
+      "customerId": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/customers/1"
+    }
+  },
+  "customer.get": {
+    "params": {
+      "customerId": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/customers/1",
+      "items": 1
+    },
+    "response": {
+      "customer": {
+        "id": 1
+      }
+    }
+  },
+  "customer.update": {
+    "params": {
+      "customerId": "1",
+      "updateFields": {
+        "lastName": "L"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/customers/1",
+      "body": {
+        "lastname": "L"
+      }
+    },
+    "response": {
+      "customer": {
+        "id": 1
+      }
+    }
+  },
+  "rmm.getAll": {
+    "params": {
+      "limit": 3
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/rmm_alerts",
+      "query": {
+        "status": "all",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 1
+    },
+    "response": {
+      "rmm_alerts": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "rmm.create": {
+    "params": {
+      "customerId": "c1",
+      "assetId": "a1",
+      "description": "Disk",
+      "additionalFields": {
+        "resolved": true
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/rmm_alerts",
+      "body": {
+        "customer_id": "c1",
+        "asset_id": "a1",
+        "description": "Disk",
+        "resolved": true
+      }
+    },
+    "response": {
+      "alert": {
+        "id": 1
+      }
+    }
+  },
+  "rmm.delete": {
+    "params": {
+      "alertId": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/rmm_alerts/1"
+    }
+  },
+  "rmm.get": {
+    "params": {
+      "alertId": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/rmm_alerts/1"
+    },
+    "response": {
+      "rmm_alert": {
+        "id": 1
+      }
+    }
+  },
+  "rmm.mute": {
+    "params": {
+      "alertId": "1",
+      "muteFor": "1-day"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/rmm_alerts/1/mute",
+      "body": {
+        "id": "1",
+        "mute_for": "1-day"
+      }
+    }
+  },
+  "ticket.getAll": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "status": "New"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tickets",
+      "query": {
+        "status": "New",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 1
+    },
+    "response": {
+      "tickets": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "ticket.create": {
+    "params": {
+      "customerId": "c1",
+      "subject": "Help",
+      "additionalFields": {
+        "status": "New",
+        "issueType": "Other"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tickets",
+      "body": {
+        "customer_id": "c1",
+        "subject": "Help",
+        "status": "New",
+        "problem_type": "Other"
+      }
+    },
+    "response": {
+      "ticket": {
+        "id": 1
+      }
+    }
+  },
+  "ticket.delete": {
+    "params": {
+      "ticketId": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/tickets/1"
+    }
+  },
+  "ticket.get": {
+    "params": {
+      "ticketId": "1"
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tickets/1"
+    },
+    "response": {
+      "ticket": {
+        "id": 1
+      }
+    }
+  },
+  "ticket.update": {
+    "params": {
+      "ticketId": "1",
+      "updateFields": {
+        "status": "Resolved",
+        "dueDate": "2026-01-02"
+      }
+    },
+    "credential": {
+      "subdomain": "acme",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v1/tickets/1",
+      "body": {
+        "status": "Resolved",
+        "due_date": "2026-01-02"
+      }
+    },
+    "response": {
+      "ticket": {
+        "id": 1
+      }
+    }
+  }
+}

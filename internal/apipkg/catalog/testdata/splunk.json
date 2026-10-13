@@ -1,0 +1,495 @@
+{
+  "alert.getReport": {
+    "params": {},
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/alerts/fired_alerts",
+      "query": {
+        "output_mode": "json"
+      },
+      "items": 1
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  },
+  "alert.getMetrics": {
+    "params": {},
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/alerts/metric_alerts",
+      "query": {
+        "output_mode": "json"
+      },
+      "items": 1
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  },
+  "report.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "add_orphan_field": true
+      }
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/saved/searches",
+      "query": {
+        "output_mode": "json",
+        "count": "5",
+        "add_orphan_field": "true"
+      },
+      "items": 1
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  },
+  "report.create": {
+    "params": {
+      "searchJobId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "j1"
+      },
+      "name": "R"
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/saved/searches",
+      "query": {
+        "output_mode": "json"
+      },
+      "body": {
+        "name": "R",
+        "search": "search *",
+        "alert_type": "always",
+        "dispatch.earliest_time": "-1h",
+        "is_scheduled": "false"
+      }
+    },
+    "responses": [
+      {
+        "entry": [
+          {
+            "content": {
+              "search": "search *",
+              "earliestTime": "-1h",
+              "isScheduled": false
+            }
+          }
+        ]
+      },
+      {
+        "entry": [
+          {
+            "id": "https://h/services/x/abc",
+            "name": "abc",
+            "links": {},
+            "content": {
+              "k": "v"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "report.deleteReport": {
+    "params": {
+      "reportId": "r1"
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/saved/searches/r1",
+      "query": {
+        "output_mode": "json"
+      },
+      "items": 1
+    }
+  },
+  "report.get": {
+    "params": {
+      "reportId": "r1"
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/saved/searches/r1",
+      "query": {
+        "output_mode": "json"
+      },
+      "items": 1
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  },
+  "search.create": {
+    "params": {
+      "search": "search index=main",
+      "additionalFields": {
+        "exec_mode": "blocking",
+        "earliest_time": "2026-01-02T00:00:00Z"
+      }
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/search/jobs",
+      "query": {
+        "output_mode": "json"
+      },
+      "body": {
+        "search": "search index=main",
+        "exec_mode": "blocking",
+        "earliest_time": "1767312000"
+      },
+      "items": 1
+    },
+    "responses": [
+      {
+        "sid": "s1"
+      },
+      {
+        "entry": [
+          {
+            "id": "https://h/services/x/abc",
+            "name": "abc",
+            "links": {},
+            "content": {
+              "k": "v"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "search.deleteJob": {
+    "params": {
+      "searchJobId": "s1"
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/search/jobs/s1",
+      "query": {
+        "output_mode": "json"
+      }
+    }
+  },
+  "search.get": {
+    "params": {
+      "searchJobId": "s1"
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/search/jobs/s1",
+      "query": {
+        "output_mode": "json"
+      },
+      "items": 1
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  },
+  "search.getAll": {
+    "params": {
+      "returnAll": true,
+      "sort": {
+        "values": {
+          "sort_dir": "desc",
+          "sort_key": "published"
+        }
+      }
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/search/jobs",
+      "query": {
+        "output_mode": "json",
+        "count": "0",
+        "sort_dir": "desc",
+        "sort_key": "published"
+      },
+      "items": 1
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  },
+  "search.getResult": {
+    "params": {
+      "searchJobId": "s1",
+      "filters": {
+        "keyValueMatch": {
+          "keyValuePair": {
+            "key": "host",
+            "value": "web1"
+          }
+        }
+      }
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/search/jobs/s1/results",
+      "query": {
+        "output_mode": "json",
+        "count": "50",
+        "search": "search host=web1"
+      },
+      "items": 1
+    },
+    "response": {
+      "results": [
+        {
+          "a": 1
+        }
+      ]
+    }
+  },
+  "user.create": {
+    "params": {
+      "name": "ada",
+      "password": "pw",
+      "additionalFields": {
+        "email": "a@b.c"
+      }
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/authentication/users",
+      "query": {
+        "output_mode": "json"
+      },
+      "body": {
+        "name": "ada",
+        "roles": "user",
+        "password": "pw",
+        "email": "a@b.c"
+      },
+      "items": 1
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  },
+  "user.deleteUser": {
+    "params": {
+      "userId": "ada"
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/services/authentication/users/ada",
+      "query": {
+        "output_mode": "json"
+      }
+    }
+  },
+  "user.get": {
+    "params": {
+      "userId": "ada"
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/authentication/users/ada",
+      "query": {
+        "output_mode": "json"
+      }
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "limit": 10
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/services/authentication/users",
+      "query": {
+        "output_mode": "json",
+        "count": "10"
+      }
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  },
+  "user.update": {
+    "params": {
+      "userId": "ada",
+      "updateFields": {
+        "realname": "Ada L"
+      }
+    },
+    "credential": {
+      "base_url": "https://splunk.test:8089",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/services/authentication/users/ada",
+      "query": {
+        "output_mode": "json"
+      },
+      "body": {
+        "realname": "Ada L"
+      }
+    },
+    "response": {
+      "entry": [
+        {
+          "id": "https://h/services/x/abc",
+          "name": "abc",
+          "links": {},
+          "content": {
+            "k": "v"
+          }
+        }
+      ]
+    }
+  }
+}

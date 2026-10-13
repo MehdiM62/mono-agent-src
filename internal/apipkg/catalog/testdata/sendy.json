@@ -1,0 +1,140 @@
+{
+  "campaign.create": {
+    "params": {
+      "fromName": "Me",
+      "fromEmail": "me@x.io",
+      "replyTo": "me@x.io",
+      "title": "T",
+      "subject": "S",
+      "htmlText": "<p>x</p>",
+      "brandId": "1",
+      "additionalFields": {
+        "listIds": "a,b",
+        "trackOpens": true
+      }
+    },
+    "credential": {
+      "url": "https://sendy.test",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/campaigns/create.php",
+      "body": {
+        "api_key": "K",
+        "from_name": "Me",
+        "from_email": "me@x.io",
+        "reply_to": "me@x.io",
+        "title": "T",
+        "subject": "S",
+        "send_campaign": "0",
+        "html_text": "<p>x</p>",
+        "brand_id": "1",
+        "list_ids": "a,b",
+        "track_opens": "1"
+      },
+      "items": 1
+    }
+  },
+  "subscriber.add": {
+    "params": {
+      "email": "a@b.c",
+      "listId": "L",
+      "additionalFields": {
+        "name": "Ada",
+        "gdpr": true
+      }
+    },
+    "credential": {
+      "url": "https://sendy.test",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/subscribe",
+      "body": {
+        "api_key": "K",
+        "email": "a@b.c",
+        "list": "L",
+        "name": "Ada",
+        "gdpr": "true"
+      },
+      "items": 1
+    }
+  },
+  "subscriber.count": {
+    "params": {
+      "listId": "L"
+    },
+    "credential": {
+      "url": "https://sendy.test",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/subscribers/active-subscriber-count.php",
+      "body": {
+        "api_key": "K",
+        "list_id": "L"
+      },
+      "items": 1
+    }
+  },
+  "subscriber.delete": {
+    "params": {
+      "email": "a@b.c",
+      "listId": "L"
+    },
+    "credential": {
+      "url": "https://sendy.test",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/subscribers/delete.php",
+      "body": {
+        "api_key": "K",
+        "email": "a@b.c",
+        "list_id": "L"
+      }
+    }
+  },
+  "subscriber.remove": {
+    "params": {
+      "email": "a@b.c",
+      "listId": "L"
+    },
+    "credential": {
+      "url": "https://sendy.test",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/unsubscribe",
+      "body": {
+        "api_key": "K",
+        "email": "a@b.c",
+        "list": "L"
+      }
+    }
+  },
+  "subscriber.status": {
+    "params": {
+      "email": "a@b.c",
+      "listId": "L"
+    },
+    "credential": {
+      "url": "https://sendy.test",
+      "api_key": "K"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/subscribers/subscription-status.php",
+      "body": {
+        "api_key": "K",
+        "email": "a@b.c",
+        "list_id": "L"
+      }
+    }
+  }
+}

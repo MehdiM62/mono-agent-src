@@ -1,0 +1,119 @@
+{
+  "story.get": {
+    "params": {
+      "identifier": "posts/hello"
+    },
+    "credential": {
+      "api_key": "K"
+    },
+    "response": {
+      "story": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/cdn/stories/posts/hello",
+      "items": 1
+    }
+  },
+  "story.getAll": {
+    "params": {
+      "source": "managementApi",
+      "space": "42",
+      "limit": 5,
+      "filters": {
+        "starts_with": "posts/"
+      }
+    },
+    "credential": {
+      "management_token": "M"
+    },
+    "response": {
+      "stories": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/spaces/42/stories",
+      "query": {
+        "starts_with": "posts/",
+        "page": "1",
+        "per_page": "5"
+      },
+      "headers": {
+        "Authorization": "M"
+      },
+      "items": 2
+    }
+  },
+  "story.delete": {
+    "params": {
+      "space": "42",
+      "storyId": "7"
+    },
+    "credential": {
+      "management_token": "M"
+    },
+    "response": {
+      "story": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/spaces/42/stories/7",
+      "items": 1
+    }
+  },
+  "story.publish": {
+    "params": {
+      "space": "42",
+      "storyId": "7",
+      "options": {
+        "language": "de"
+      }
+    },
+    "credential": {
+      "management_token": "M"
+    },
+    "response": {
+      "story": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/spaces/42/stories/7/publish",
+      "query": {
+        "lang": "de"
+      },
+      "items": 1
+    }
+  },
+  "story.unpublish": {
+    "params": {
+      "space": "42",
+      "storyId": "7"
+    },
+    "credential": {
+      "management_token": "M"
+    },
+    "response": {
+      "story": {
+        "id": 7
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/spaces/42/stories/7/unpublish",
+      "items": 1
+    }
+  }
+}
