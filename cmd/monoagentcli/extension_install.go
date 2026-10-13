@@ -228,6 +228,8 @@ func printExtensionLoadSteps(out io.Writer, dir string) {
 	fmt.Fprintln(out, "Load it in your browser (once):")
 	fmt.Fprintln(out, "  1. Open chrome://extensions (Edge: edge://extensions).")
 	fmt.Fprintln(out, "  2. Turn on Developer mode.")
-	fmt.Fprintf(out, "  3. Click Load unpacked and choose %s\n\n", dir)
+	fmt.Fprintf(out, "  3. Click Load unpacked and choose %s\n", dir)
+	fmt.Fprintln(out, "  4. Pair it: monoagentcli extension pair --open")
+	fmt.Fprintln(out)
 	fmt.Fprintln(out, "After an update, run `monoagentcli extension install` again and click Reload on the extension.")
 }

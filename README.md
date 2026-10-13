@@ -581,7 +581,7 @@ Workflow triggers (`trigger.schedule`, `trigger.webhook`) only fire while a proc
 The MonoAgent Bridge browser extension lets workflow nodes drive **your real, already-logged-in Chrome browser** — the same model as consumer RPA tools. No separate automation profile, no re-authenticating for sites (like Google) that invalidate sessions ported into a scripted browser.
 
 - **Loopback by default** — the bridge server binds loopback, and the extension refuses non-loopback servers. A per-session "Allow non-loopback server (unsafe)" checkbox in the side panel overrides this for one save; it is never persisted
-- **Paired channel** — the bridge requires a shared secret (`~/.monoagent/extension.token`) as the first frame on every connection; run `monoagentcli extension pair` and paste the printed token into the extension side panel once. An unpaired connection is rejected and can never replace an already-paired one. Run `monoagentcli extension reset` to revoke and re-pair
+- **Paired channel** — the bridge requires a shared secret (`~/.monoagent/extension.token`) as the first frame on every connection; run `monoagentcli extension pair --open` once (or paste the token `extension pair` prints into the side panel). An unpaired connection is rejected and can never replace an already-paired one. Run `monoagentcli extension reset` to revoke and re-pair
 - **Access to every site** — the extension asks for access to all sites (`<all_urls>`) when you install it, plus `debugger`, `cookies`, `tabs` and `scripting`: it has to read and act on whatever page a workflow or a capture targets, in your own signed-in browser. Its scripts load on every page so it can show your saved highlights there and act when asked; it sends page content only to the bridge on this machine (loopback, paired), and only for a capture, highlight, task or automation you start
 - **Shared connection** — multiple CLI processes share the bridge instead of fighting over the browser
 - **One browser per profile** — every browser profile with the extension connects on its own; bind each to a monoagent profile and that profile's automations run there, in parallel with the others. `monoagentcli extension browsers` lists them and `extension bind <browser> <profile>` binds one (the desktop app: **Settings → Browsers**)
@@ -594,7 +594,7 @@ Install (unpacked, not on the Web Store):
 1. Run `monoagentcli extension install`. It downloads the extension that matches your CLI version, checks it against the release's `SHA256SUMS.txt`, and unpacks it into `~/.monoagent/extension`
 2. Open `chrome://extensions` (Edge: `edge://extensions`) and enable **Developer mode** (top-right toggle)
 3. Click **Load unpacked** and choose `~/.monoagent/extension`
-4. Pair it: run `monoagentcli extension pair` and paste the token it prints into the side panel. (When no bridge is running yet, a command that uses the browser, such as a workflow with a browser node, starts one and opens a pairing page that pairs the extension by itself.)
+4. Pair it: run `monoagentcli extension pair --open`. It opens a one-time pairing page in your browser and the extension pairs itself. (Or run `monoagentcli extension pair` and paste the token it prints into the side panel.)
 
 Run any browser node and look for `Chrome extension connected -- using your browser` in the output. After updating MonoAgent, run `monoagentcli extension install` again and click **Reload** on the extension in `chrome://extensions`.
 

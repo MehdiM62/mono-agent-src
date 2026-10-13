@@ -55,6 +55,7 @@
    */
   const START_COMMAND = "monoagentcli extension serve";
   const PAIR_COMMAND = "monoagentcli extension pair";
+  const PAIR_OPEN_COMMAND = "monoagentcli extension pair --open";
   const PROFILE_COMMAND = "monoagentcli profile create <name>";
   const ACCOUNT_COMMAND = "monoagentcli account login";
 
@@ -186,17 +187,16 @@
         tone: "warn",
         label: rejected ? "Pairing rejected" : "Not paired",
         title: rejected ? "The bridge refused this browser's token" : "This browser isn't paired yet",
-        // Never paired leads with the path that needs nothing typed: a
-        // MonoAgent command that starts the bridge for a browser task opens
-        // the pairing page (pair_bridge.js), and this browser pairs itself.
-        // The token is the fallback for a bridge that is already running,
-        // which opens no page.
+        // Both lead with the path that needs nothing pasted: `pair --open`
+        // asks the running bridge for a one-time pairing page, and
+        // pair_bridge.js pairs this browser from it. The token is the
+        // fallback (an older bridge, a browser the page did not open in).
         body:
           said ||
           (rejected
-            ? "The saved token is no longer the bridge's. Generate a new one and paste it below."
-            : "Usually this happens by itself: when MonoAgent starts its bridge for a browser task, it opens a pairing page and this browser pairs on its own. If no page opened, run this and paste what it prints."),
-        command: PAIR_COMMAND,
+            ? "The saved token is no longer the bridge's. Run this to pair again in one step: it opens a pairing page and this browser pairs itself."
+            : "Run this to pair in one step: it opens a pairing page and this browser pairs itself."),
+        command: PAIR_OPEN_COMMAND,
         action: { id: ACTIONS.PAIR, label: rejected ? "Paste a new token" : "Paste a token instead" },
         queues: true,
       });
@@ -373,6 +373,7 @@
     RECONNECT_GRACE_MS,
     START_COMMAND,
     PAIR_COMMAND,
+    PAIR_OPEN_COMMAND,
     PROFILE_COMMAND,
     ACCOUNT_COMMAND,
     DEFAULT_WS_URL,
