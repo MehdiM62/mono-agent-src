@@ -686,6 +686,9 @@ func executeWithRetry(
 					execErr = fmt.Errorf("node executor panicked: %v\n%s", r, debug.Stack())
 				}
 			}()
+			if out, handled, gerr := RunExecGuard(ctx, executor.Type(), input, config); handled {
+				return out, gerr
+			}
 			return executor.Execute(ctx, input, config)
 		}()
 		for _, observer := range observers {
