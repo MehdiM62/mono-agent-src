@@ -103,6 +103,18 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 			pkg.ID, pkg.PrimaryPlatform(), pkg.PrimaryPlatform())
 	}
 	credDef := pkg.selectCredential(cred)
+	if credDef != nil && credDef.hasMethod("client_credentials") && isEmpty(cred["access_token"]) {
+		tok, err := clientCredentialsToken(ctx, credDef, cred)
+		if err != nil {
+			return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+		}
+		withTok := make(map[string]any, len(cred)+1)
+		for k, v := range cred {
+			withTok[k] = v
+		}
+		withTok["access_token"] = tok
+		cred = withTok
+	}
 	items := input.Items
 	if len(items) == 0 {
 		items = []workflow.Item{{JSON: map[string]any{}}}

@@ -317,6 +317,16 @@ workflows is the node's normal `on_error`.
   `X-Amz-Content-Sha256`.
 - `inject` must not be empty unless the only method is `none`.
 
+**Client-credentials grant (`"methods": ["client_credentials"]`).** For APIs where every call needs a token fetched with the OAuth client-credentials grant (Bitwarden, PayPal, many enterprise APIs). The user's connection holds the client id/secret (fields `client_id` / `client_secret`, or name them with `oauth.client_id_field` / `client_secret_field`). Before the first request the engine POSTs a form `grant_type=client_credentials` (+ `scope` from `oauth.scopes`, + `oauth.extra_params`) to `oauth.token_url`, sends the client id/secret in the form (or as Basic auth with `"client_auth": "basic"`), caches the token until just before `expires_in`, and exposes it as `cred.access_token` to `inject`. `token_url` and `extra_params` are templates over `cred.*` (self-hosted: `"https://{{ cred.domain }}/identity/connect/token"`). `auth_url` is not needed.
+```json
+{ "platform": "bitwarden", "methods": ["client_credentials"],
+  "fields": [ {"key":"client_id","label":"Client ID","required":true}, {"key":"client_secret","label":"Client secret","secret":true,"required":true},
+              {"key":"environment","label":"Domain (self-hosted)","help":"empty for bitwarden.com"} ],
+  "oauth": { "token_url": "https://{{ cred.environment | default:'identity.bitwarden.com' }}/connect/token", "scopes": ["api.organization"],
+             "extra_params": { "deviceName": "mono-agent", "deviceType": "2", "deviceIdentifier": "mono-agent" } },
+  "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } } }
+```
+
 ## 8. Pagination
 
 ```jsonc
@@ -568,6 +578,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | inject.aws_sigv4 | `access_key_id`, `secret_access_key`, `session_token` | key templates |
 | templates | filters `float`, `string`, `upper`, `rl`, `then`; `default:<path>`; `$merge` lists | §5 |
 | templates | filters `eq`, `ne`, `kv`, `omit`, `fromjson`, `epoch_ms`, `epoch`; roots `el`, `res`; `$map`/`$to`, `$concat` | §5 |
+| credential | method `client_credentials`; `oauth.client_id_field`, `client_secret_field`, `client_auth` (`auth_url` optional for it) | §7 |
 | operation | `also` (follow-up requests), `batch` (one request for all items) | §9 |
 | templates | filters `split`, `date`; `kv` key prefix; root `items` | §5 |
 | schema output | `visible_for`, `apipkg`, `extended_by` | exact op visibility; package id; extending packages |
