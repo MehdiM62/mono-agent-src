@@ -149,7 +149,7 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
-		if op.Binary != nil && op.Binary.UploadField != "" {
+		if r.uploads() {
 			r.scope.Bin = r.binMeta()
 		}
 		if op.Batch {
@@ -217,6 +217,21 @@ func (p *Package) resolveOp(params map[string]any) (*Operation, error) {
 		opName = p.DefaultOperation(res)
 	}
 	op, ok := p.Op(res, opName)
+	if rp, _ := params["resource"].(string); !ok && rp == "" {
+		// n8n hides resource for some modes (Discord webhook): an op name
+		// only one resource has is unambiguous.
+		var only *Operation
+		n := 0
+		for i := range p.Operations {
+			if p.Operations[i].Operation == opName {
+				only = &p.Operations[i]
+				n++
+			}
+		}
+		if n == 1 {
+			op, ok = only, true
+		}
+	}
 	if !ok {
 		var have []string
 		for _, o := range p.Operations {

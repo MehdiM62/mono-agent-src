@@ -1,12 +1,22 @@
 package apipkg
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"io"
+	"math/big"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFindFindRowArithmeticColumnsGet(t *testing.T) {
@@ -487,5 +497,132 @@ func TestPollMainRoot(t *testing.T) {
 	}
 	if len(*seen) != 3 || (*seen)[2].URL.Path != "/v1/batch/r9" {
 		t.Errorf("polls: %d, last %s", len(*seen), (*seen)[len(*seen)-1].URL.Path)
+	}
+}
+
+func TestUploadWhenAndTemplatedMultipart(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"POST","title":"P","method":"POST","path":"/node","body_type":"multipart",
+	  "fields":[{"key":"sendBinaryData","label":"S","type":"boolean"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"},{"key":"msg","label":"M","type":"text"}],
+	  "body":{"message":"{{ p.msg }}"},
+	  "binary":{"upload_field":"binaryPropertyName","upload_when":"{{ p.sendBinaryData }}",
+	    "multipart_field":"{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}",
+	    "property":"{{ p.binaryPropertyName | split:':' | get:'-1' }}"}}`))
+	var cts, bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		cts, bodies = append(cts, r.Header.Get("Content-Type")), append(bodies, string(b))
+		w.Write([]byte(`{}`))
+	})
+	in := map[string]any{"pic": "aGk=", "file_name": "a.png"}
+	if _, err := runPackageOp(p, map[string]any{"operation": "POST", "sendBinaryData": true, "binaryPropertyName": "source:pic", "msg": "hi"}, cred, in); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(cts[0], "multipart/form-data") || !strings.Contains(bodies[0], `name="source"; filename="a.png"`) || !strings.Contains(bodies[0], "\r\nhi\r\n") {
+		t.Errorf("upload: %s\n%s", cts[0], bodies[0])
+	}
+	if _, err := runPackageOp(p, map[string]any{"operation": "POST", "msg": "hi"}, cred, in); err != nil {
+		t.Fatal(err)
+	}
+	if cts[1] != "application/json" || bodies[1] != `{"message":"hi"}` {
+		t.Errorf("no upload: %s %s", cts[1], bodies[1])
+	}
+}
+
+func TestPluck(t *testing.T) {
+	sc := Scope{P: map[string]any{"f": map[string]any{"field": []any{map[string]any{"name": "id"}, map[string]any{"name": ""}, map[string]any{"name": "name"}}}}}
+	if got, err := renderString("{{ p.f.field | pluck:'name' | csv }}", sc); err != nil || got != "id,name" {
+		t.Errorf("pluck = %#v, %v", got, err)
+	}
+}
+
+func TestDiscordHelpers(t *testing.T) {
+	sc := Scope{P: map[string]any{"color": "#ff0000", "dur": 60.0}}
+	if got, _ := renderString("{{ p.color | hex }}", sc); got != int64(16711680) {
+		t.Errorf("hex = %#v", got)
+	}
+	got, err := renderString("{{ now | epoch | add:p.dur | date:'YYYY-MM-DDTHH:mm:ssZ' }}", sc)
+	ts, perr := time.Parse(time.RFC3339, stringify(got))
+	if err != nil || perr != nil || ts.Sub(time.Now()) < 50*time.Second || ts.Sub(time.Now()) > 70*time.Second {
+		t.Errorf("now + 60s = %v (%v %v)", got, err, perr)
+	}
+	if got, _ := renderString("{{ p.s | date:'YYYY-MM-DD' }}", Scope{P: map[string]any{"s": int64(1767312000)}}); got != "2026-01-02" {
+		t.Errorf("epoch seconds date = %v", got)
+	}
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"dc","title":"D","base_url":"https://d.test",
+	  "resources":[{"value":"channel","label":"C"},{"value":"message","label":"M"}],
+	  "operations":[{"resource":"channel","operation":"create","title":"C","method":"POST","path":"/c"},
+	    {"resource":"message","operation":"sendLegacy","title":"S","method":"POST","path":"/w"},
+	    {"resource":"message","operation":"create","title":"MC","method":"POST","path":"/m"}]}`)
+	if op, err := p.resolveOp(map[string]any{"operation": "sendLegacy"}); err != nil || op.Path != "/w" {
+		t.Errorf("unique op fallback: %v %v", op, err)
+	}
+	if op, err := p.resolveOp(map[string]any{"operation": "create"}); err != nil || op.Path != "/c" {
+		t.Errorf("default resource still wins: %v %v", op, err)
+	}
+}
+
+func TestTriggerOnlyPackage(t *testing.T) {
+	p, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"eventbrite","title":"Eventbrite","base_url":"https://www.eventbriteapi.com/v3",
+	  "n8n_trigger_types":["n8n-nodes-base.eventbriteTrigger"],"operations":[]}`), "test")
+	if err != nil {
+		t.Fatalf("trigger-only package must validate: %v", err)
+	}
+	if len(p.Operations) != 0 || len(p.N8nTriggerTypes) != 1 {
+		t.Errorf("parsed: %+v", p)
+	}
+	if _, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"empty","title":"E","base_url":"https://e.test","operations":[]}`), "test"); err == nil ||
+		!strings.Contains(err.Error(), "n8n_trigger_types") {
+		t.Errorf("no ops and no triggers must fail: %v", err)
+	}
+}
+
+func TestJWTInjectGhost(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"ghost","title":"Ghost","base_url":"https://blog.test/ghost/api/admin",
+	  "credentials":[{"platform":"ghost","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true}],
+	    "inject":{"jwt":{"prefix":"Ghost ","alg":"HS256","secret":"{{ cred.api_key | split:':' | get:'1' }}","secret_encoding":"hex",
+	      "kid":"{{ cred.api_key | split:':' | get:'0' }}","claims":{"aud":"/admin/"}}}}],
+	  "operations":[{"resource":"","operation":"get","title":"G","method":"GET","path":"/posts/"}]}`)
+	var auth string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		auth = r.Header.Get("Authorization")
+		w.Write([]byte(`{"posts":[]}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "get"}, map[string]any{"api_key": "kid1:00ff"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	tok := strings.TrimPrefix(auth, "Ghost ")
+	parts := strings.Split(tok, ".")
+	if !strings.HasPrefix(auth, "Ghost ") || len(parts) != 3 {
+		t.Fatalf("auth = %q", auth)
+	}
+	hb, _ := base64.RawURLEncoding.DecodeString(parts[0])
+	cb, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	var h, c map[string]any
+	_ = json.Unmarshal(hb, &h)
+	_ = json.Unmarshal(cb, &c)
+	if h["kid"] != "kid1" || h["alg"] != "HS256" || c["aud"] != "/admin/" || c["exp"].(float64)-c["iat"].(float64) != 300 {
+		t.Errorf("header %v claims %v", h, c)
+	}
+	m := hmac.New(sha256.New, []byte{0x00, 0xff})
+	m.Write([]byte(parts[0] + "." + parts[1]))
+	if base64.RawURLEncoding.EncodeToString(m.Sum(nil)) != parts[2] {
+		t.Error("signature mismatch")
+	}
+}
+
+func TestJWTES256(t *testing.T) {
+	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	der, _ := x509.MarshalPKCS8PrivateKey(k)
+	pemKey := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	tok, err := signJWT(&JWTInject{Alg: "ES256", Secret: "{{ cred.key }}", Claims: map[string]any{"aud": "appstoreconnect-v1"}}, Scope{Cred: map[string]any{"key": pemKey}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(tok, ".")
+	sig, _ := base64.RawURLEncoding.DecodeString(parts[2])
+	sum := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
+	r, s := new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])
+	if len(sig) != 64 || !ecdsa.Verify(&k.PublicKey, sum[:], r, s) {
+		t.Error("ES256 signature does not verify")
 	}
 }

@@ -17,8 +17,8 @@ func init() {
 func Register(r *workflow.NodeTypeRegistry) {
 	for _, p := range packages() {
 		t := p.NodeTypeOf()
-		if t == "" || r.Has(t) {
-			continue
+		if t == "" || r.Has(t) || len(p.Operations) == 0 {
+			continue // trigger-only packages register no action node
 		}
 		pkg := p
 		r.Register(t, func() workflow.NodeExecutor { return &Node{pkg: pkg} })

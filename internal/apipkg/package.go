@@ -108,6 +108,21 @@ type Inject struct {
 	Query    map[string]string `json:"query,omitempty"`
 	Basic    *BasicInject      `json:"basic,omitempty"`
 	AWSSigV4 *AWSSigV4Inject   `json:"aws_sigv4,omitempty"`
+	JWT      *JWTInject        `json:"jwt,omitempty"`
+}
+
+// JWTInject signs a short-lived JWT per request (Ghost Admin API, Zoom
+// JWT apps, App Store Connect). Secret and Kid are templates; the claims
+// are templates too; iat and exp (iat + ttl_s, default 300) are added.
+type JWTInject struct {
+	Header         string         `json:"header,omitempty"` // default Authorization
+	Prefix         string         `json:"prefix,omitempty"` // default "Bearer "
+	Alg            string         `json:"alg"`              // HS256/384/512, RS256, ES256
+	Secret         string         `json:"secret"`           // HMAC secret or PEM private key
+	SecretEncoding string         `json:"secret_encoding,omitempty"`
+	Kid            string         `json:"kid,omitempty"`
+	Claims         map[string]any `json:"claims,omitempty"`
+	TTLs           int            `json:"ttl_s,omitempty"`
 }
 
 // BasicInject is HTTP basic authentication.
@@ -286,6 +301,12 @@ type Binary struct {
 	PropertyField string `json:"property_field,omitempty"`
 	// MultipartField is the form field of the file part (default "file").
 	MultipartField string `json:"multipart_field,omitempty"`
+	// UploadWhen (a template) decides per run whether to upload at all
+	// (n8n sendBinaryData); when false the op sends its body (JSON, or
+	// none). Property (a template) overrides the binary property read
+	// from upload_field ("formField:binaryProperty" values).
+	UploadWhen string `json:"upload_when,omitempty"`
+	Property   string `json:"property,omitempty"`
 	// FileName and MimeType are templates for the uploaded part.
 	FileName string `json:"file_name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`

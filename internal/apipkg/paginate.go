@@ -71,7 +71,7 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 	if resultsPath == "" && r.op.Output != nil {
 		resultsPath = r.outputPath()
 	}
-	inBody := pg.paramInBody() && r.op.effectiveBodyType() == BodyJSON
+	inBody := pg.paramInBody() && r.bodyType() == BodyJSON
 
 	var (
 		all    []any
