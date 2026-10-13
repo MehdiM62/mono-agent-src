@@ -247,6 +247,8 @@ var outboundNodes = setOf(
 	"ai.extract_page", "applications.evaluate",
 	"browser.jev", // goal-driven agent in the user's browser
 	"mcp.call",    // calls any tool of an arbitrary MCP server
+	// Runs another workflow, which may contain any outbound node.
+	"core.execute_workflow",
 	"http.ftp", "http.ssh", "system.execute_command",
 	"http.graphql",
 	"data.write_binary_file", // writes any local path
