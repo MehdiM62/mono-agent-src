@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/n8nimport"
+	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -201,4 +202,40 @@ func TestEvaluationAndMCPTriggers(t *testing.T) {
 		t.Errorf("mcpTrigger → %s", n.Type)
 	}
 	wantIssue(t, rep, "workflow_run")
+}
+
+// Imported queue and database trigger workflows pass `workflow validate`:
+// their types are known through their schemas and every config key the
+// importer writes is a schema field.
+func TestQueueTriggerImportsValidate(t *testing.T) {
+	cases := map[string]map[string]interface{}{
+		"n8n-nodes-base.kafkaTrigger": {"topic": "orders", "groupId": "mono",
+			"options": map[string]interface{}{"jsonParseMessage": true, "onlyMessage": true, "returnHeaders": true}},
+		"n8n-nodes-base.rabbitmqTrigger": {"queue": "jobs", "options": map[string]interface{}{"acknowledge": "executionFinishes",
+			"jsonParseBody": true, "binding": map[string]interface{}{"bindings": []interface{}{
+				map[string]interface{}{"exchange": "events", "routingKey": "order.*"}}}}},
+		"n8n-nodes-base.amqpTrigger":     {"sink": "topic://orders", "clientname": "mono", "options": map[string]interface{}{"onlyBody": true}},
+		"n8n-nodes-base.mqttTrigger":     {"topics": "sensors/#", "options": map[string]interface{}{"jsonParseBody": true}},
+		"n8n-nodes-base.redisTrigger":    {"channels": "orders", "options": map[string]interface{}{"onlyMessage": true}},
+		"n8n-nodes-base.postgresTrigger": {"tableName": map[string]interface{}{"__rl": true, "mode": "list", "value": "orders"}, "firesOn": "DELETE"},
+	}
+	known := noderegistry.Build(nil).Has
+	for typ, params := range cases {
+		wf, _ := convertNode(t, typ, 1, params)
+		raw, err := json.Marshal(wf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := workflow.ParseWorkflowFileBytes(raw)
+		if err != nil {
+			t.Fatalf("%s: parse: %v", typ, err)
+		}
+		rep := workflow.ValidateWorkflow(&parsed, workflow.ValidateOptions{KnownNodeType: known})
+		if !rep.Valid || len(rep.Issues) > 0 {
+			t.Errorf("%s: valid=%v errors=%v issues=%+v", typ, rep.Valid, rep.Errors, rep.Issues)
+		}
+	}
+	wf, _ := convertNode(t, "n8n-nodes-base.rabbitmqTrigger", 1, cases["n8n-nodes-base.rabbitmqTrigger"])
+	wantConfig(t, node(t, wf, "Trigger"), map[string]interface{}{
+		"bindings": []interface{}{map[string]interface{}{"exchange": "events", "routing_key": "order.*"}}})
 }

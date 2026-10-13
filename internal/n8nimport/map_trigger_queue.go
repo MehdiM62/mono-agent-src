@@ -33,7 +33,9 @@ func init() {
 
 func mapQueueTrigger(c *MapContext) Mapping {
 	spec := dbnodes.N8nNodeMappings[c.Type]
-	m := mapWithParams(c, paramSpec{Type: spec.MonoType, Params: spec.Params})
+	// n8n names a binding's routing key routingKey; the consumer reads routing_key.
+	lists := map[string]map[string]string{"bindings": {"routingKey": "routing_key"}}
+	m := mapWithParams(c, paramSpec{Type: spec.MonoType, Params: spec.Params, ListFields: lists})
 	for k, v := range spec.Defaults {
 		if _, set := m.Config[k]; !set {
 			m.Config[k] = v
