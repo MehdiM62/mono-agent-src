@@ -1,0 +1,1256 @@
+{
+  "task.getAll": {
+    "params": {
+      "accountId": "123",
+      "limit": 5,
+      "filters": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": 3
+      }
+    },
+    "response": {
+      "tasks": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/tasks",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "query": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "task.create": {
+    "params": {
+      "accountId": "123",
+      "name": "v",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/tasks",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "name": "v",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "task.delete": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/tasks/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "task.get": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/tasks/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "task.update": {
+    "params": {
+      "accountId": "123",
+      "id": "7",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/tasks/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "notes": "n"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "client.getAll": {
+    "params": {
+      "accountId": "123",
+      "limit": 5,
+      "filters": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": 3
+      }
+    },
+    "response": {
+      "clients": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/clients",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "query": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "client.create": {
+    "params": {
+      "accountId": "123",
+      "name": "v",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/clients",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "name": "v",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "client.delete": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/clients/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "client.get": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/clients/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "client.update": {
+    "params": {
+      "accountId": "123",
+      "id": "7",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/clients/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "notes": "n"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "company.get": {
+    "params": {
+      "accountId": "123"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/company",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "accountId": "123",
+      "limit": 5,
+      "filters": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": 3
+      }
+    },
+    "response": {
+      "contacts": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/contacts",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "query": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.create": {
+    "params": {
+      "accountId": "123",
+      "firstName": "v",
+      "clientId": "v",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/contacts",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "first_name": "v",
+        "client_id": "v",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/contacts/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/contacts/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "contact.update": {
+    "params": {
+      "accountId": "123",
+      "id": "7",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/contacts/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "notes": "n"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "estimate.getAll": {
+    "params": {
+      "accountId": "123",
+      "limit": 5,
+      "filters": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": 3
+      }
+    },
+    "response": {
+      "estimates": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/estimates",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "query": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "estimate.create": {
+    "params": {
+      "accountId": "123",
+      "clientId": "v",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/estimates",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "client_id": "v",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "estimate.delete": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/estimates/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "estimate.get": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/estimates/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "estimate.update": {
+    "params": {
+      "accountId": "123",
+      "id": "7",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/estimates/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "notes": "n"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "expense.getAll": {
+    "params": {
+      "accountId": "123",
+      "limit": 5,
+      "filters": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": 3
+      }
+    },
+    "response": {
+      "expenses": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/expenses",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "query": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "expense.create": {
+    "params": {
+      "accountId": "123",
+      "projectId": "v",
+      "expenseCategoryId": "v",
+      "spentDate": "2024-01-02",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/expenses",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "project_id": "v",
+        "expense_category_id": "v",
+        "spent_date": "2024-01-02",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "expense.delete": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/expenses/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "expense.get": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/expenses/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "expense.update": {
+    "params": {
+      "accountId": "123",
+      "id": "7",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/expenses/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "notes": "n"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "invoice.getAll": {
+    "params": {
+      "accountId": "123",
+      "limit": 5,
+      "filters": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": 3,
+        "state": [
+          "open",
+          "paid"
+        ]
+      }
+    },
+    "response": {
+      "invoices": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/invoices",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "query": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": "1",
+        "per_page": "5",
+        "state": "open,paid"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "invoice.create": {
+    "params": {
+      "accountId": "123",
+      "clientId": "v",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/invoices",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "client_id": "v",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "invoice.delete": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/invoices/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "invoice.get": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/invoices/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "invoice.update": {
+    "params": {
+      "accountId": "123",
+      "id": "7",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/invoices/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "notes": "n"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.getAll": {
+    "params": {
+      "accountId": "123",
+      "limit": 5,
+      "filters": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": 3
+      }
+    },
+    "response": {
+      "projects": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/projects",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "query": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.create": {
+    "params": {
+      "accountId": "123",
+      "name": "v",
+      "clientId": "v",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/projects",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "name": "v",
+        "client_id": "v",
+        "is_billable": true,
+        "bill_by": "none",
+        "budget_by": "none",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.delete": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/projects/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.get": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/projects/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "project.update": {
+    "params": {
+      "accountId": "123",
+      "id": "7",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/projects/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "notes": "n"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "timeEntry.getAll": {
+    "params": {
+      "accountId": "123",
+      "limit": 5,
+      "filters": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": 3
+      }
+    },
+    "response": {
+      "time_entries": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/time_entries",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "query": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "timeEntry.createByDuration": {
+    "params": {
+      "accountId": "123",
+      "projectId": "v",
+      "taskId": "v",
+      "spentDate": "2024-01-02",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/time_entries",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "project_id": "v",
+        "task_id": "v",
+        "spent_date": "2024-01-02",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "timeEntry.createByStartEnd": {
+    "params": {
+      "accountId": "123",
+      "projectId": "v",
+      "taskId": "v",
+      "spentDate": "2024-01-02",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/time_entries",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "project_id": "v",
+        "task_id": "v",
+        "spent_date": "2024-01-02",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "timeEntry.delete": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/time_entries/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "timeEntry.deleteExternal": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/time_entries/7/external_reference",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "timeEntry.get": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/time_entries/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "timeEntry.restartTime": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/time_entries/7/restart",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "timeEntry.stopTime": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/time_entries/7/stop",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "timeEntry.update": {
+    "params": {
+      "accountId": "123",
+      "id": "7",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/time_entries/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "notes": "n"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "user.me": {
+    "params": {
+      "accountId": "123"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/users/me",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "accountId": "123",
+      "limit": 5,
+      "filters": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": 3
+      }
+    },
+    "response": {
+      "users": [
+        {
+          "id": 1
+        }
+      ],
+      "next_page": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/users",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "query": {
+        "updated_since": "2024-01-01T00:00:00Z",
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "user.create": {
+    "params": {
+      "accountId": "123",
+      "firstName": "v",
+      "lastName": "v",
+      "email": "v",
+      "additionalFields": {
+        "notes": "x"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/users",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "first_name": "v",
+        "last_name": "v",
+        "email": "v",
+        "notes": "x"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "user.delete": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/users/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "user.get": {
+    "params": {
+      "accountId": "123",
+      "id": "7"
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/users/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  },
+  "user.update": {
+    "params": {
+      "accountId": "123",
+      "id": "7",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": {
+      "id": 7
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/users/7",
+      "headers": {
+        "Harvest-Account-Id": "123"
+      },
+      "body": {
+        "notes": "n"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    }
+  }
+}

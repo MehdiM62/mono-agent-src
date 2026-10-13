@@ -1,0 +1,2609 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "freshservice",
+  "node_type": "app.freshservice",
+  "title": "Freshservice",
+  "description": "Tickets, problems, changes, releases, assets, agents, requesters and more in Freshservice",
+  "category": "app",
+  "docs_url": "https://api.freshservice.com/",
+  "n8n_types": [
+    "n8n-nodes-base.freshservice"
+  ],
+  "base_url": "https://{{ cred.domain }}.freshservice.com/api/v2",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "freshservice",
+      "name": "Freshservice",
+      "n8n_credential": "freshserviceApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "domain": "domain"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Domain",
+          "required": true,
+          "help": "acme for acme.freshservice.com"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Profile settings → Your API key"
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.api_key }}",
+          "password": "X"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "agent",
+      "label": "Agent"
+    },
+    {
+      "value": "agentGroup",
+      "label": "Agent Group"
+    },
+    {
+      "value": "agentRole",
+      "label": "Agent Role"
+    },
+    {
+      "value": "announcement",
+      "label": "Announcement"
+    },
+    {
+      "value": "asset",
+      "label": "Asset"
+    },
+    {
+      "value": "assetType",
+      "label": "Asset Type"
+    },
+    {
+      "value": "change",
+      "label": "Change"
+    },
+    {
+      "value": "department",
+      "label": "Department"
+    },
+    {
+      "value": "location",
+      "label": "Location"
+    },
+    {
+      "value": "problem",
+      "label": "Problem"
+    },
+    {
+      "value": "product",
+      "label": "Product"
+    },
+    {
+      "value": "release",
+      "label": "Release"
+    },
+    {
+      "value": "requester",
+      "label": "Requester"
+    },
+    {
+      "value": "requesterGroup",
+      "label": "Requester Group"
+    },
+    {
+      "value": "software",
+      "label": "Software"
+    },
+    {
+      "value": "ticket",
+      "label": "Ticket"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "agent",
+      "operation": "create",
+      "title": "Create a agent",
+      "method": "POST",
+      "path": "/agents",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "roles",
+          "label": "Roles",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "roleProperties"
+          ],
+          "help": "{\"roleProperties\": [{\"role\": id, \"assignment_scope\": entire_helpdesk|member_groups|specified_groups|assigned_items, \"groups\": [ids]}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "background_information",
+            "department_ids",
+            "job_title",
+            "language",
+            "last_name",
+            "location_id",
+            "member_of",
+            "mobile_phone_number",
+            "observer_of",
+            "scoreboard_level_id",
+            "time_format",
+            "work_phone_number"
+          ]
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "first_name": "{{ p.firstName }}",
+        "roles": {
+          "$map": "{{ p.roles.roleProperties }}",
+          "$to": {
+            "role_id": "{{ el.role }}",
+            "assignment_scope": "{{ el.assignment_scope }}",
+            "groups": "{{ el.assignment_scope | eq:'specified_groups' | then:el.groups }}"
+          }
+        },
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "agent"
+      }
+    },
+    {
+      "resource": "agent",
+      "operation": "delete",
+      "title": "Delete a agent",
+      "method": "DELETE",
+      "path": "/agents/{{ p.agentId }}",
+      "fields": [
+        {
+          "key": "agentId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "agent",
+      "operation": "get",
+      "title": "Get a agent",
+      "method": "GET",
+      "path": "/agents/{{ p.agentId }}",
+      "fields": [
+        {
+          "key": "agentId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "agent"
+      }
+    },
+    {
+      "resource": "agent",
+      "operation": "getAll",
+      "title": "Get many (agent)",
+      "method": "GET",
+      "path": "/agents",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "department_id",
+            "email",
+            "first_name",
+            "job_title",
+            "language",
+            "last_name",
+            "location_id",
+            "mobile_phone_number",
+            "work_phone_number"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "agents"
+      },
+      "query": {
+        "query": {
+          "$join": [
+            "{{ p.filters.department_id | prefix:'department_id:' }}",
+            "{{ p.filters.email | prefix:\"email:'\" | suffix:\"'\" }}",
+            "{{ p.filters.first_name | prefix:\"first_name:'\" | suffix:\"'\" }}",
+            "{{ p.filters.job_title | prefix:\"job_title:'\" | suffix:\"'\" }}",
+            "{{ p.filters.language | prefix:\"language:'\" | suffix:\"'\" }}",
+            "{{ p.filters.last_name | prefix:\"last_name:'\" | suffix:\"'\" }}",
+            "{{ p.filters.location_id | prefix:'location_id:' }}",
+            "{{ p.filters.mobile_phone_number | prefix:\"mobile_phone_number:'\" | suffix:\"'\" }}",
+            "{{ p.filters.work_phone_number | prefix:\"work_phone_number:'\" | suffix:\"'\" }}"
+          ],
+          "$sep": " AND ",
+          "$prefix": "\"",
+          "$suffix": "\""
+        }
+      }
+    },
+    {
+      "resource": "agent",
+      "operation": "update",
+      "title": "Update a agent",
+      "method": "PUT",
+      "path": "/agents/{{ p.agentId }}",
+      "fields": [
+        {
+          "key": "agentId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "background_information",
+            "department_ids",
+            "job_title",
+            "language",
+            "last_name",
+            "location_id",
+            "member_of",
+            "mobile_phone_number",
+            "observer_of",
+            "scoreboard_level_id",
+            "time_format",
+            "work_phone_number",
+            "email",
+            "first_name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "agent"
+      }
+    },
+    {
+      "resource": "agentGroup",
+      "operation": "create",
+      "title": "Create a agentGroup",
+      "method": "POST",
+      "path": "/groups",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "escalate_to",
+            "members",
+            "observers",
+            "unassigned_for"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "group"
+      }
+    },
+    {
+      "resource": "agentGroup",
+      "operation": "delete",
+      "title": "Delete a agentGroup",
+      "method": "DELETE",
+      "path": "/groups/{{ p.agentGroupId }}",
+      "fields": [
+        {
+          "key": "agentGroupId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "agentGroup",
+      "operation": "get",
+      "title": "Get a agentGroup",
+      "method": "GET",
+      "path": "/groups/{{ p.agentGroupId }}",
+      "fields": [
+        {
+          "key": "agentGroupId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "group"
+      }
+    },
+    {
+      "resource": "agentGroup",
+      "operation": "getAll",
+      "title": "Get many (agentGroup)",
+      "method": "GET",
+      "path": "/groups",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "groups"
+      }
+    },
+    {
+      "resource": "agentGroup",
+      "operation": "update",
+      "title": "Update a agentGroup",
+      "method": "PUT",
+      "path": "/groups/{{ p.agentGroupId }}",
+      "fields": [
+        {
+          "key": "agentGroupId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "escalate_to",
+            "members",
+            "observers",
+            "unassigned_for",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "group"
+      }
+    },
+    {
+      "resource": "agentRole",
+      "operation": "get",
+      "title": "Get a agentRole",
+      "method": "GET",
+      "path": "/roles/{{ p.agentRoleId }}",
+      "fields": [
+        {
+          "key": "agentRoleId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "role"
+      }
+    },
+    {
+      "resource": "agentRole",
+      "operation": "getAll",
+      "title": "Get many (agentRole)",
+      "method": "GET",
+      "path": "/roles",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "roles"
+      }
+    },
+    {
+      "resource": "announcement",
+      "operation": "create",
+      "title": "Create a announcement",
+      "method": "POST",
+      "path": "/announcements",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "bodyHtml",
+          "label": "Body (HTML)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "visibility",
+          "label": "Visibility",
+          "type": "select",
+          "default": "everyone",
+          "options": [
+            "agents_only",
+            "grouped_visibility",
+            "everyone"
+          ]
+        },
+        {
+          "key": "visibleFrom",
+          "label": "Visible from",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "additional_emails",
+            "departments",
+            "visible_from",
+            "visible_till"
+          ],
+          "help": "additional_emails: comma-separated"
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "body_html": "{{ p.bodyHtml }}",
+        "visibility": "{{ p.visibility }}",
+        "visible_from": "{{ p.visibleFrom | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "$merge": "{{ p.additionalFields | omit:'additional_emails,visible_till' }}",
+        "additional_emails": "{{ p.additionalFields.additional_emails | split }}",
+        "visible_till": "{{ p.additionalFields.visible_till | date:'YYYY-MM-DDTHH:mm:ssZ' }}"
+      },
+      "output": {
+        "path": "announcement"
+      }
+    },
+    {
+      "resource": "announcement",
+      "operation": "delete",
+      "title": "Delete a announcement",
+      "method": "DELETE",
+      "path": "/announcements/{{ p.announcementId }}",
+      "fields": [
+        {
+          "key": "announcementId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "announcement",
+      "operation": "get",
+      "title": "Get a announcement",
+      "method": "GET",
+      "path": "/announcements/{{ p.announcementId }}",
+      "fields": [
+        {
+          "key": "announcementId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "announcement"
+      }
+    },
+    {
+      "resource": "announcement",
+      "operation": "getAll",
+      "title": "Get many (announcement)",
+      "method": "GET",
+      "path": "/announcements",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "announcements"
+      }
+    },
+    {
+      "resource": "announcement",
+      "operation": "update",
+      "title": "Update a announcement",
+      "method": "PUT",
+      "path": "/announcements/{{ p.announcementId }}",
+      "fields": [
+        {
+          "key": "announcementId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "additional_emails",
+            "body_html",
+            "departments",
+            "title",
+            "visibility",
+            "visible_till"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'additional_emails,visible_till' }}",
+        "additional_emails": "{{ p.updateFields.additional_emails | split }}",
+        "visible_till": "{{ p.updateFields.visible_till | date:'YYYY-MM-DDTHH:mm:ssZ' }}"
+      },
+      "output": {
+        "path": "announcement"
+      }
+    },
+    {
+      "resource": "asset",
+      "operation": "create",
+      "title": "Create a asset",
+      "method": "POST",
+      "path": "/assets",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "assetTypeId",
+          "label": "Asset type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "assetFieldsUi",
+          "label": "Asset fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assetFieldValue"
+          ],
+          "help": "{\"assetFieldValue\": [{\"name\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "asset_type_id": "{{ p.assetTypeId }}",
+        "name": "{{ p.name }}",
+        "type_fields": "{{ p.assetFieldsUi.assetFieldValue | kv:'name,value' }}"
+      },
+      "output": {
+        "path": "asset"
+      }
+    },
+    {
+      "resource": "asset",
+      "operation": "delete",
+      "title": "Delete a asset",
+      "method": "DELETE",
+      "path": "/assets/{{ p.assetDisplayId }}",
+      "fields": [
+        {
+          "key": "assetDisplayId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "asset",
+      "operation": "get",
+      "title": "Get a asset",
+      "method": "GET",
+      "path": "/assets/{{ p.assetDisplayId }}",
+      "fields": [
+        {
+          "key": "assetDisplayId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "asset"
+      }
+    },
+    {
+      "resource": "asset",
+      "operation": "getAll",
+      "title": "Get many (asset)",
+      "method": "GET",
+      "path": "/assets",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent_id",
+            "asset_state",
+            "asset_type_id",
+            "department_id",
+            "location_id",
+            "name"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "assets"
+      },
+      "query": {
+        "query": {
+          "$join": [
+            "{{ p.filters.agent_id | prefix:'agent_id:' }}",
+            "{{ p.filters.asset_state | prefix:\"asset_state:'\" | suffix:\"'\" }}",
+            "{{ p.filters.asset_type_id | prefix:'asset_type_id:' }}",
+            "{{ p.filters.department_id | prefix:'department_id:' }}",
+            "{{ p.filters.location_id | prefix:'location_id:' }}",
+            "{{ p.filters.name | prefix:\"name:'\" | suffix:\"'\" }}"
+          ],
+          "$sep": " AND ",
+          "$prefix": "\"",
+          "$suffix": "\""
+        }
+      }
+    },
+    {
+      "resource": "asset",
+      "operation": "update",
+      "title": "Update a asset",
+      "method": "PUT",
+      "path": "/assets/{{ p.assetDisplayId }}",
+      "fields": [
+        {
+          "key": "assetDisplayId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "assetFieldsUi",
+          "label": "Asset fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assetFieldValue"
+          ],
+          "help": "{\"assetFieldValue\": [{\"name\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "type_fields": "{{ p.assetFieldsUi.assetFieldValue | kv:'name,value' }}"
+      },
+      "output": {
+        "path": "asset"
+      }
+    },
+    {
+      "resource": "assetType",
+      "operation": "create",
+      "title": "Create a assetType",
+      "method": "POST",
+      "path": "/asset_types",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "parent_asset_type_id"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "asset_type"
+      }
+    },
+    {
+      "resource": "assetType",
+      "operation": "delete",
+      "title": "Delete a assetType",
+      "method": "DELETE",
+      "path": "/asset_types/{{ p.assetTypeId }}",
+      "fields": [
+        {
+          "key": "assetTypeId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "assetType",
+      "operation": "get",
+      "title": "Get a assetType",
+      "method": "GET",
+      "path": "/asset_types/{{ p.assetTypeId }}",
+      "fields": [
+        {
+          "key": "assetTypeId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "asset_type"
+      }
+    },
+    {
+      "resource": "assetType",
+      "operation": "getAll",
+      "title": "Get many (assetType)",
+      "method": "GET",
+      "path": "/asset_types",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "asset_types"
+      }
+    },
+    {
+      "resource": "assetType",
+      "operation": "update",
+      "title": "Update a assetType",
+      "method": "PUT",
+      "path": "/asset_types/{{ p.assetTypeId }}",
+      "fields": [
+        {
+          "key": "assetTypeId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "asset_type"
+      }
+    },
+    {
+      "resource": "change",
+      "operation": "create",
+      "title": "Create a change",
+      "method": "POST",
+      "path": "/changes",
+      "fields": [
+        {
+          "key": "requesterId",
+          "label": "Requester ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "plannedStartDate",
+          "label": "Planned start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "plannedEndDate",
+          "label": "Planned end",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent_id",
+            "change_type",
+            "department_id",
+            "description",
+            "group_id",
+            "impact",
+            "priority",
+            "risk",
+            "status",
+            "subject"
+          ]
+        }
+      ],
+      "body": {
+        "requester_id": "{{ p.requesterId }}",
+        "subject": "{{ p.subject }}",
+        "planned_start_date": "{{ p.plannedStartDate }}",
+        "planned_end_date": "{{ p.plannedEndDate }}",
+        "status": 1,
+        "priority": 1,
+        "impact": 1,
+        "risk": 1,
+        "change_type": 1,
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "change"
+      }
+    },
+    {
+      "resource": "change",
+      "operation": "delete",
+      "title": "Delete a change",
+      "method": "DELETE",
+      "path": "/changes/{{ p.changeId }}",
+      "fields": [
+        {
+          "key": "changeId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "change",
+      "operation": "get",
+      "title": "Get a change",
+      "method": "GET",
+      "path": "/changes/{{ p.changeId }}",
+      "fields": [
+        {
+          "key": "changeId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "change"
+      }
+    },
+    {
+      "resource": "change",
+      "operation": "getAll",
+      "title": "Get many (change)",
+      "method": "GET",
+      "path": "/changes",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter",
+            "sort_by",
+            "updated_since"
+          ],
+          "help": "filter: closed, my_open, release_requested, requester_id, unassigned"
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "changes"
+      },
+      "query": {
+        "view": "{{ p.filters.filter }}",
+        "order_type": "{{ p.filters.sort_by }}",
+        "updated_since": "{{ p.filters.updated_since }}"
+      }
+    },
+    {
+      "resource": "change",
+      "operation": "update",
+      "title": "Update a change",
+      "method": "PUT",
+      "path": "/changes/{{ p.changeId }}",
+      "fields": [
+        {
+          "key": "changeId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent_id",
+            "change_type",
+            "department_id",
+            "description",
+            "group_id",
+            "impact",
+            "priority",
+            "risk",
+            "status",
+            "subject",
+            "requester_id"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "change"
+      }
+    },
+    {
+      "resource": "department",
+      "operation": "create",
+      "title": "Create a department",
+      "method": "POST",
+      "path": "/departments",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "domains"
+          ],
+          "help": "domains: comma-separated"
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields | omit:'domains' }}",
+        "domains": "{{ p.additionalFields.domains | split }}"
+      },
+      "output": {
+        "path": "department"
+      }
+    },
+    {
+      "resource": "department",
+      "operation": "delete",
+      "title": "Delete a department",
+      "method": "DELETE",
+      "path": "/departments/{{ p.departmentId }}",
+      "fields": [
+        {
+          "key": "departmentId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "department",
+      "operation": "get",
+      "title": "Get a department",
+      "method": "GET",
+      "path": "/departments/{{ p.departmentId }}",
+      "fields": [
+        {
+          "key": "departmentId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "department"
+      }
+    },
+    {
+      "resource": "department",
+      "operation": "getAll",
+      "title": "Get many (department)",
+      "method": "GET",
+      "path": "/departments",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "departments"
+      },
+      "query": {
+        "query": {
+          "$join": [
+            "{{ p.filters.name | prefix:\"name:'\" | suffix:\"'\" }}"
+          ],
+          "$sep": " AND ",
+          "$prefix": "\"",
+          "$suffix": "\""
+        }
+      }
+    },
+    {
+      "resource": "department",
+      "operation": "update",
+      "title": "Update a department",
+      "method": "PUT",
+      "path": "/departments/{{ p.departmentId }}",
+      "fields": [
+        {
+          "key": "departmentId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "domains",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'domains' }}",
+        "domains": "{{ p.updateFields.domains | split }}"
+      },
+      "output": {
+        "path": "department"
+      }
+    },
+    {
+      "resource": "location",
+      "operation": "create",
+      "title": "Create a location",
+      "method": "POST",
+      "path": "/locations",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address"
+          ],
+          "help": "address: {\"addressFields\": {line1, line2, city, state, country, zipcode}}"
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields | omit:'address' }}",
+        "address": "{{ p.additionalFields.address.addressFields }}"
+      },
+      "output": {
+        "path": "location"
+      }
+    },
+    {
+      "resource": "location",
+      "operation": "delete",
+      "title": "Delete a location",
+      "method": "DELETE",
+      "path": "/locations/{{ p.locationId }}",
+      "fields": [
+        {
+          "key": "locationId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "location",
+      "operation": "get",
+      "title": "Get a location",
+      "method": "GET",
+      "path": "/locations/{{ p.locationId }}",
+      "fields": [
+        {
+          "key": "locationId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "location"
+      }
+    },
+    {
+      "resource": "location",
+      "operation": "getAll",
+      "title": "Get many (location)",
+      "method": "GET",
+      "path": "/locations",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "locations"
+      }
+    },
+    {
+      "resource": "location",
+      "operation": "update",
+      "title": "Update a location",
+      "method": "PUT",
+      "path": "/locations/{{ p.locationId }}",
+      "fields": [
+        {
+          "key": "locationId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "address"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'address' }}",
+        "address": "{{ p.updateFields.address.addressFields }}"
+      },
+      "output": {
+        "path": "location"
+      }
+    },
+    {
+      "resource": "problem",
+      "operation": "create",
+      "title": "Create a problem",
+      "method": "POST",
+      "path": "/problems",
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "requesterId",
+          "label": "Requester ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dueBy",
+          "label": "Due by",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent_id",
+            "department_id",
+            "description",
+            "group_id",
+            "impact",
+            "priority",
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "subject": "{{ p.subject }}",
+        "requester_id": "{{ p.requesterId }}",
+        "due_by": "{{ p.dueBy }}",
+        "status": 1,
+        "priority": 1,
+        "impact": 1,
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "problem"
+      }
+    },
+    {
+      "resource": "problem",
+      "operation": "delete",
+      "title": "Delete a problem",
+      "method": "DELETE",
+      "path": "/problems/{{ p.problemId }}",
+      "fields": [
+        {
+          "key": "problemId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "problem",
+      "operation": "get",
+      "title": "Get a problem",
+      "method": "GET",
+      "path": "/problems/{{ p.problemId }}",
+      "fields": [
+        {
+          "key": "problemId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "problem"
+      }
+    },
+    {
+      "resource": "problem",
+      "operation": "getAll",
+      "title": "Get many (problem)",
+      "method": "GET",
+      "path": "/problems",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "problems"
+      }
+    },
+    {
+      "resource": "problem",
+      "operation": "update",
+      "title": "Update a problem",
+      "method": "PUT",
+      "path": "/problems/{{ p.problemId }}",
+      "fields": [
+        {
+          "key": "problemId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent_id",
+            "department_id",
+            "description",
+            "group_id",
+            "impact",
+            "priority",
+            "status",
+            "due_by",
+            "requester_id",
+            "subject"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "problem"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "create",
+      "title": "Create a product",
+      "method": "POST",
+      "path": "/products",
+      "fields": [
+        {
+          "key": "assetTypeId",
+          "label": "Asset type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "manufacturer",
+            "mode_of_procurement",
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "asset_type_id": "{{ p.assetTypeId }}",
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "product"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "delete",
+      "title": "Delete a product",
+      "method": "DELETE",
+      "path": "/products/{{ p.productId }}",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "get",
+      "title": "Get a product",
+      "method": "GET",
+      "path": "/products/{{ p.productId }}",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "product"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "getAll",
+      "title": "Get many (product)",
+      "method": "GET",
+      "path": "/products",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "products"
+      }
+    },
+    {
+      "resource": "product",
+      "operation": "update",
+      "title": "Update a product",
+      "method": "PUT",
+      "path": "/products/{{ p.productId }}",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "asset_type_id",
+            "description",
+            "manufacturer",
+            "mode_of_procurement",
+            "name",
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "product"
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "create",
+      "title": "Create a release",
+      "method": "POST",
+      "path": "/releases",
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "releaseType",
+          "label": "Release type",
+          "type": "number",
+          "default": 1,
+          "help": "1 minor, 2 standard, 3 major, 4 emergency"
+        },
+        {
+          "key": "priority",
+          "label": "Priority",
+          "type": "number",
+          "default": 1,
+          "help": "1 low … 4 urgent"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "number",
+          "default": 1,
+          "help": "1 open, 2 on hold, 3 in progress, 4 incomplete, 5 completed"
+        },
+        {
+          "key": "plannedStartDate",
+          "label": "Planned start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "plannedEndDate",
+          "label": "Planned end",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "department_id",
+            "description",
+            "group_id"
+          ]
+        }
+      ],
+      "body": {
+        "subject": "{{ p.subject }}",
+        "release_type": "{{ p.releaseType }}",
+        "status": "{{ p.status }}",
+        "priority": "{{ p.priority }}",
+        "planned_start_date": "{{ p.plannedStartDate }}",
+        "planned_end_date": "{{ p.plannedEndDate }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "release"
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "delete",
+      "title": "Delete a release",
+      "method": "DELETE",
+      "path": "/releases/{{ p.releaseId }}",
+      "fields": [
+        {
+          "key": "releaseId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "get",
+      "title": "Get a release",
+      "method": "GET",
+      "path": "/releases/{{ p.releaseId }}",
+      "fields": [
+        {
+          "key": "releaseId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "release"
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "getAll",
+      "title": "Get many (release)",
+      "method": "GET",
+      "path": "/releases",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "releases"
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "update",
+      "title": "Update a release",
+      "method": "PUT",
+      "path": "/releases/{{ p.releaseId }}",
+      "fields": [
+        {
+          "key": "releaseId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "department_id",
+            "description",
+            "group_id",
+            "priority",
+            "release_type",
+            "status",
+            "subject"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "release"
+      }
+    },
+    {
+      "resource": "requester",
+      "operation": "create",
+      "title": "Create a requester",
+      "method": "POST",
+      "path": "/requesters",
+      "fields": [
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "primaryEmail",
+          "label": "Primary email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "background_information",
+            "department_ids",
+            "job_title",
+            "language",
+            "last_name",
+            "location_id",
+            "mobile_phone_number",
+            "secondary_emails",
+            "time_format",
+            "work_phone_number"
+          ]
+        }
+      ],
+      "body": {
+        "first_name": "{{ p.firstName }}",
+        "primary_email": "{{ p.primaryEmail }}",
+        "$merge": "{{ p.additionalFields | omit:'secondary_emails' }}",
+        "secondary_emails": "{{ p.additionalFields.secondary_emails | split }}"
+      },
+      "output": {
+        "path": "requester"
+      }
+    },
+    {
+      "resource": "requester",
+      "operation": "delete",
+      "title": "Delete a requester",
+      "method": "DELETE",
+      "path": "/requesters/{{ p.requesterId }}",
+      "fields": [
+        {
+          "key": "requesterId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "requester",
+      "operation": "get",
+      "title": "Get a requester",
+      "method": "GET",
+      "path": "/requesters/{{ p.requesterId }}",
+      "fields": [
+        {
+          "key": "requesterId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "requester"
+      }
+    },
+    {
+      "resource": "requester",
+      "operation": "getAll",
+      "title": "Get many (requester)",
+      "method": "GET",
+      "path": "/requesters",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "department_id",
+            "first_name",
+            "job_title",
+            "language",
+            "last_name",
+            "location_id",
+            "mobile_phone_number",
+            "primary_email",
+            "work_phone_number"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "requesters"
+      },
+      "query": {
+        "query": {
+          "$join": [
+            "{{ p.filters.department_id | prefix:'department_id:' }}",
+            "{{ p.filters.first_name | prefix:\"first_name:'\" | suffix:\"'\" }}",
+            "{{ p.filters.job_title | prefix:\"job_title:'\" | suffix:\"'\" }}",
+            "{{ p.filters.language | prefix:\"language:'\" | suffix:\"'\" }}",
+            "{{ p.filters.last_name | prefix:\"last_name:'\" | suffix:\"'\" }}",
+            "{{ p.filters.location_id | prefix:'location_id:' }}",
+            "{{ p.filters.mobile_phone_number | prefix:\"mobile_phone_number:'\" | suffix:\"'\" }}",
+            "{{ p.filters.primary_email | prefix:\"primary_email:'\" | suffix:\"'\" }}",
+            "{{ p.filters.work_phone_number | prefix:\"work_phone_number:'\" | suffix:\"'\" }}"
+          ],
+          "$sep": " AND ",
+          "$prefix": "\"",
+          "$suffix": "\""
+        }
+      }
+    },
+    {
+      "resource": "requester",
+      "operation": "update",
+      "title": "Update a requester",
+      "method": "PUT",
+      "path": "/requesters/{{ p.requesterId }}",
+      "fields": [
+        {
+          "key": "requesterId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "background_information",
+            "department_ids",
+            "job_title",
+            "language",
+            "last_name",
+            "location_id",
+            "mobile_phone_number",
+            "secondary_emails",
+            "time_format",
+            "work_phone_number",
+            "first_name",
+            "primary_email"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'secondary_emails' }}",
+        "secondary_emails": "{{ p.updateFields.secondary_emails | split }}"
+      },
+      "output": {
+        "path": "requester"
+      }
+    },
+    {
+      "resource": "requesterGroup",
+      "operation": "create",
+      "title": "Create a requesterGroup",
+      "method": "POST",
+      "path": "/requester_groups",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "requester_group"
+      }
+    },
+    {
+      "resource": "requesterGroup",
+      "operation": "delete",
+      "title": "Delete a requesterGroup",
+      "method": "DELETE",
+      "path": "/requester_groups/{{ p.requesterGroupId }}",
+      "fields": [
+        {
+          "key": "requesterGroupId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "requesterGroup",
+      "operation": "get",
+      "title": "Get a requesterGroup",
+      "method": "GET",
+      "path": "/requester_groups/{{ p.requesterGroupId }}",
+      "fields": [
+        {
+          "key": "requesterGroupId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "requester_group"
+      }
+    },
+    {
+      "resource": "requesterGroup",
+      "operation": "getAll",
+      "title": "Get many (requesterGroup)",
+      "method": "GET",
+      "path": "/requester_groups",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "requester_groups"
+      }
+    },
+    {
+      "resource": "requesterGroup",
+      "operation": "update",
+      "title": "Update a requesterGroup",
+      "method": "PUT",
+      "path": "/requester_groups/{{ p.requesterGroupId }}",
+      "fields": [
+        {
+          "key": "requesterGroupId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "requester_group"
+      }
+    },
+    {
+      "resource": "software",
+      "operation": "create",
+      "title": "Create a software",
+      "method": "POST",
+      "path": "/applications",
+      "fields": [
+        {
+          "key": "applicationType",
+          "label": "Application type",
+          "type": "select",
+          "default": "desktop",
+          "options": [
+            "desktop",
+            "mobile",
+            "saas"
+          ]
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "notes",
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "application": {
+          "application_type": "{{ p.applicationType }}",
+          "name": "{{ p.name }}",
+          "$merge": "{{ p.additionalFields }}"
+        }
+      },
+      "output": {
+        "path": "application"
+      }
+    },
+    {
+      "resource": "software",
+      "operation": "delete",
+      "title": "Delete a software",
+      "method": "DELETE",
+      "path": "/applications/{{ p.softwareId }}",
+      "fields": [
+        {
+          "key": "softwareId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "software",
+      "operation": "get",
+      "title": "Get a software",
+      "method": "GET",
+      "path": "/applications/{{ p.softwareId }}",
+      "fields": [
+        {
+          "key": "softwareId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "application"
+      }
+    },
+    {
+      "resource": "software",
+      "operation": "getAll",
+      "title": "Get many (software)",
+      "method": "GET",
+      "path": "/applications",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "applications"
+      }
+    },
+    {
+      "resource": "software",
+      "operation": "update",
+      "title": "Update a software",
+      "method": "PUT",
+      "path": "/applications/{{ p.softwareId }}",
+      "fields": [
+        {
+          "key": "softwareId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "application_type",
+            "description",
+            "name",
+            "notes",
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "application": {
+          "$merge": "{{ p.updateFields }}"
+        }
+      },
+      "output": {
+        "path": "application"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "create",
+      "title": "Create a ticket",
+      "method": "POST",
+      "path": "/tickets",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Requester email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "description",
+          "label": "Description (HTML)",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "priority",
+          "label": "Priority",
+          "type": "number",
+          "default": 1,
+          "help": "1 low … 4 urgent"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "number",
+          "default": 2,
+          "help": "2 open, 3 pending, 4 resolved, 5 closed"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "cc_emails",
+            "department_id",
+            "group_id",
+            "impact",
+            "name",
+            "requester_id"
+          ]
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "subject": "{{ p.subject }}",
+        "description": "{{ p.description }}",
+        "priority": "{{ p.priority }}",
+        "status": "{{ p.status }}",
+        "$merge": "{{ p.additionalFields | omit:'cc_emails' }}",
+        "cc_emails": "{{ p.additionalFields.cc_emails | split }}"
+      },
+      "output": {
+        "path": "ticket"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "delete",
+      "title": "Delete a ticket",
+      "method": "DELETE",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "get",
+      "title": "Get a ticket",
+      "method": "GET",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "ticket"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "getAll",
+      "title": "Get many (ticket)",
+      "method": "GET",
+      "path": "/tickets{{ p.filters | then:'/filter' }}",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent_id",
+            "group_id",
+            "impact",
+            "priority",
+            "status",
+            "created_at",
+            "due_by"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "tickets"
+      },
+      "query": {
+        "query": {
+          "$join": [
+            "{{ p.filters.agent_id | prefix:'agent_id:' }}",
+            "{{ p.filters.group_id | prefix:'group_id:' }}",
+            "{{ p.filters.impact | prefix:'impact:' }}",
+            "{{ p.filters.priority | prefix:'priority:' }}",
+            "{{ p.filters.status | prefix:'status:' }}",
+            "{{ p.filters.created_at | date:'YYYY-MM-DD' | prefix:\"created_at:'\" | suffix:\"'\" }}",
+            "{{ p.filters.due_by | date:'YYYY-MM-DD' | prefix:\"due_by:'\" | suffix:\"'\" }}"
+          ],
+          "$sep": " AND ",
+          "$prefix": "\"",
+          "$suffix": "\""
+        }
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "update",
+      "title": "Update a ticket",
+      "method": "PUT",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "department_id",
+            "description",
+            "email",
+            "group_id",
+            "impact",
+            "name",
+            "phone",
+            "priority",
+            "status",
+            "subject"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "ticket"
+      }
+    }
+  ]
+}

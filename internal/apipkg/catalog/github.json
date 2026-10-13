@@ -1,0 +1,1966 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "github",
+  "extends": "service.github",
+  "title": "GitHub",
+  "description": "Files, issues, pull requests, releases, repositories, reviews, users, organizations and Actions workflows on GitHub (n8n operations)",
+  "category": "app",
+  "docs_url": "https://docs.github.com/en/rest",
+  "n8n_types": [
+    "n8n-nodes-base.github"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.githubTrigger"
+  ],
+  "base_url": "https://api.github.com",
+  "headers": {
+    "Accept": "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28"
+  },
+  "credentials": [
+    {
+      "platform": "github",
+      "reuse_platform": "github",
+      "name": "GitHub",
+      "n8n_credential": "githubApi",
+      "n8n_credential_alt": [
+        "githubOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "token"
+      },
+      "methods": [
+        "api_key",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "token",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.token | default:cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "issue",
+      "label": "Issue"
+    },
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "organization",
+      "label": "Organization"
+    },
+    {
+      "value": "pullRequest",
+      "label": "Pull Request"
+    },
+    {
+      "value": "release",
+      "label": "Release"
+    },
+    {
+      "value": "repository",
+      "label": "Repository"
+    },
+    {
+      "value": "review",
+      "label": "Review"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "workflow",
+      "label": "Workflow"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "issue",
+      "operation": "create",
+      "title": "Create an issue",
+      "method": "POST",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "labels",
+          "label": "Labels",
+          "type": "json",
+          "default": [],
+          "help": "[{\"label\": \"bug\"}]"
+        },
+        {
+          "key": "assignees",
+          "label": "Assignees",
+          "type": "json",
+          "default": [],
+          "help": "[{\"assignee\": \"octocat\"}]"
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "body": "{{ p.body }}",
+        "labels": "{{ p.labels | pluck:'label' }}",
+        "assignees": "{{ p.assignees | pluck:'assignee' }}"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "createComment",
+      "title": "Comment on an issue",
+      "method": "POST",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.issueNumber }}/comments",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "issueNumber",
+          "label": "Issue number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "body",
+          "label": "Comment",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "body": "{{ p.body }}"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "edit",
+      "title": "Edit an issue",
+      "method": "PATCH",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.issueNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "issueNumber",
+          "label": "Issue number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "editFields",
+          "label": "Edit fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignees",
+            "body",
+            "labels",
+            "state",
+            "state_reason",
+            "title"
+          ],
+          "help": "labels: [{label}]; assignees: [{assignee}]"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.editFields | omit:'labels,assignees' }}",
+        "labels": "{{ p.editFields.labels | pluck:'label' }}",
+        "assignees": "{{ p.editFields.assignees | pluck:'assignee' }}"
+      }
+    },
+    {
+      "resource": "issue",
+      "operation": "get",
+      "title": "Get an issue",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.issueNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "issueNumber",
+          "label": "Issue number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "lock",
+      "title": "Lock an issue",
+      "method": "PUT",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.issueNumber }}/lock",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "issueNumber",
+          "label": "Issue number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "lockReason",
+          "label": "Reason",
+          "type": "select",
+          "default": "resolved",
+          "options": [
+            "off-topic",
+            "too heated",
+            "resolved",
+            "spam"
+          ]
+        }
+      ],
+      "query": {
+        "lock_reason": "{{ p.lockReason }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "create",
+      "title": "Create a file",
+      "method": "PUT",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryData",
+          "label": "Send binary file",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "fileContent",
+          "label": "File content",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "commitMessage",
+          "label": "Commit message",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalParameters",
+          "label": "Additional parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "author",
+            "branch",
+            "committer"
+          ],
+          "help": "author/committer: {name, email}; branch: {\"branch\": \"main\"}"
+        }
+      ],
+      "body": {
+        "author": "{{ p.additionalParameters.author }}",
+        "committer": "{{ p.additionalParameters.committer }}",
+        "branch": "{{ p.additionalParameters.branch.branch }}",
+        "message": "{{ p.commitMessage }}",
+        "content": "{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file",
+      "method": "DELETE",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commitMessage",
+          "label": "Commit message",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalParameters",
+          "label": "Additional parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "author",
+            "branch",
+            "committer"
+          ],
+          "help": "author/committer: {name, email}; branch: {\"branch\": \"main\"}"
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
+        "query": {
+          "ref": "{{ p.additionalParameters.branch.branch }}"
+        }
+      },
+      "body": {
+        "author": "{{ p.additionalParameters.author }}",
+        "committer": "{{ p.additionalParameters.committer }}",
+        "branch": "{{ p.additionalParameters.branch.branch }}",
+        "message": "{{ p.commitMessage }}",
+        "sha": "{{ pre.sha }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "edit",
+      "title": "Edit a file",
+      "method": "PUT",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryData",
+          "label": "Send binary file",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "fileContent",
+          "label": "File content",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "commitMessage",
+          "label": "Commit message",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalParameters",
+          "label": "Additional parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "author",
+            "branch",
+            "committer"
+          ],
+          "help": "author/committer: {name, email}; branch: {\"branch\": \"main\"}"
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
+        "query": {
+          "ref": "{{ p.additionalParameters.branch.branch }}"
+        }
+      },
+      "body": {
+        "author": "{{ p.additionalParameters.author }}",
+        "committer": "{{ p.additionalParameters.committer }}",
+        "branch": "{{ p.additionalParameters.branch.branch }}",
+        "message": "{{ p.commitMessage }}",
+        "content": "{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}",
+        "sha": "{{ pre.sha }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "get",
+      "title": "Get a file",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "asBinaryProperty",
+          "label": "As binary property",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Output binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "additionalParameters",
+          "label": "Additional parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "reference"
+          ]
+        }
+      ],
+      "query": {
+        "ref": "{{ p.additionalParameters.reference }}"
+      },
+      "binary": {
+        "property_field": "binaryPropertyName",
+        "download_when": "{{ p.asBinaryProperty }}",
+        "download_base64": "{{ res.content }}",
+        "file_name": "{{ res.name }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "list",
+      "title": "List files in a folder",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/contents/{{ p.filePath | re:'^(.*?)/*$' }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filePath",
+          "label": "Folder path",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "organization",
+      "operation": "getRepositories",
+      "title": "Get an organization's repositories",
+      "method": "GET",
+      "path": "/orgs/{{ p.owner | rl }}/repos",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Organization",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "organization",
+      "operation": "getMembers",
+      "title": "Get an organization's members",
+      "method": "GET",
+      "path": "/orgs/{{ p.owner | rl }}/members",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Organization",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "create",
+      "title": "Create a pull request",
+      "method": "POST",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "base",
+          "label": "Base branch",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "head",
+          "label": "Head branch",
+          "type": "text",
+          "required": true,
+          "help": "branch or owner:branch"
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "draft",
+          "label": "Draft",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "body": "{{ p.body }}",
+        "head": "{{ p.head }}",
+        "base": "{{ p.base }}",
+        "draft": "{{ p.draft }}"
+      }
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "update",
+      "title": "Update a pull request",
+      "method": "PATCH",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "editFields",
+          "label": "Edit fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "title",
+            "body",
+            "state",
+            "base"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.editFields | pick:'title,body,state,base' }}"
+      }
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "close",
+      "title": "Close a pull request",
+      "method": "PATCH",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        }
+      ],
+      "body": {
+        "state": "closed"
+      }
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "reopen",
+      "title": "Reopen a pull request",
+      "method": "PATCH",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        }
+      ],
+      "body": {
+        "state": "open"
+      }
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "get",
+      "title": "Get a pull request",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        }
+      ]
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "createComment",
+      "title": "Comment on a pull request",
+      "method": "POST",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/{{ p.pullRequestNumber }}/comments",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "body",
+          "label": "Comment",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "body": "{{ p.body }}"
+      }
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "editComment",
+      "title": "Edit a pull request comment",
+      "method": "PATCH",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues/comments/{{ p.commentId }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "body",
+          "label": "Comment",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "body": "{{ p.body }}"
+      }
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "getDiff",
+      "title": "Get a pull request diff",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        }
+      ],
+      "headers": {
+        "Accept": "application/vnd.github.v3.diff"
+      },
+      "output": {
+        "to": {
+          "diff": "{{ el.data }}"
+        }
+      }
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "getPatch",
+      "title": "Get a pull request patch",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        }
+      ],
+      "headers": {
+        "Accept": "application/vnd.github.v3.patch"
+      },
+      "output": {
+        "to": {
+          "patch": "{{ el.data }}"
+        }
+      }
+    },
+    {
+      "resource": "pullRequest",
+      "operation": "merge",
+      "title": "Merge a pull request",
+      "method": "PUT",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}/merge",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "mergeMethod",
+          "label": "Merge method",
+          "type": "select",
+          "default": "merge",
+          "options": [
+            "merge",
+            "squash",
+            "rebase"
+          ]
+        },
+        {
+          "key": "commitTitle",
+          "label": "Commit title",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "commitMessage",
+          "label": "Commit message",
+          "type": "textarea",
+          "default": ""
+        }
+      ],
+      "body": {
+        "commit_title": "{{ p.commitTitle }}",
+        "commit_message": "{{ p.commitMessage }}",
+        "merge_method": "{{ p.mergeMethod }}"
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "create",
+      "title": "Create a release",
+      "method": "POST",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/releases",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "releaseTag",
+          "label": "Tag",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "body",
+            "draft",
+            "prerelease",
+            "target_commitish"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields }}",
+        "tag_name": "{{ p.releaseTag }}"
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "delete",
+      "title": "Delete a release",
+      "method": "DELETE",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/releases/{{ p.release_id }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "release_id",
+          "label": "Release ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "release",
+      "operation": "get",
+      "title": "Get a release",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/releases/{{ p.release_id }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "release_id",
+          "label": "Release ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "release",
+      "operation": "getAll",
+      "title": "Get many releases",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/releases",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "release",
+      "operation": "update",
+      "title": "Update a release",
+      "method": "PATCH",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/releases/{{ p.release_id }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "release_id",
+          "label": "Release ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body",
+            "draft",
+            "name",
+            "prerelease",
+            "tag_name",
+            "target_commitish"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "repository",
+      "operation": "getIssues",
+      "title": "Get a repository's issues",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/issues",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "getRepositoryIssuesFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "creator",
+            "mentioned",
+            "labels",
+            "since",
+            "state",
+            "sort",
+            "direction"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.getRepositoryIssuesFilters }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "repository",
+      "operation": "get",
+      "title": "Get a repository",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "repository",
+      "operation": "getLicense",
+      "title": "Get a repository's license",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/license",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "repository",
+      "operation": "getProfile",
+      "title": "Get a repository's community profile",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/community/profile",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "repository",
+      "operation": "getPullRequests",
+      "title": "Get a repository's pull requests",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "getRepositoryPullRequestsFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "state",
+            "sort",
+            "direction"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.getRepositoryPullRequestsFilters }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "repository",
+      "operation": "listPopularPaths",
+      "title": "List popular paths",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/traffic/popular/paths",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "repository",
+      "operation": "listReferrers",
+      "title": "List top referrers",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/traffic/popular/referrers",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "review",
+      "operation": "create",
+      "title": "Create a review",
+      "method": "POST",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}/reviews",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "event",
+          "label": "Event",
+          "type": "select",
+          "default": "approve",
+          "options": [
+            "approve",
+            "requestChanges",
+            "comment",
+            "pending"
+          ]
+        },
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "commitId"
+          ]
+        }
+      ],
+      "body": {
+        "commit_id": "{{ p.additionalFields.commitId }}",
+        "event": "{{ p.event | replace:'requestChanges','REQUEST_CHANGES' | upper }}",
+        "body": "{{ p.event | eq:'requestChanges' | then:p.body | default:(p.event | eq:'comment' | then:p.body) }}"
+      }
+    },
+    {
+      "resource": "review",
+      "operation": "get",
+      "title": "Get a review",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}/reviews/{{ p.reviewId }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "reviewId",
+          "label": "Review ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "review",
+      "operation": "getAll",
+      "title": "Get many reviews",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}/reviews",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "review",
+      "operation": "update",
+      "title": "Update a review",
+      "method": "PUT",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/pulls/{{ p.pullRequestNumber }}/reviews/{{ p.reviewId }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pullRequestNumber",
+          "label": "Pull request number",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "reviewId",
+          "label": "Review ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "body": "{{ p.body }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getRepositories",
+      "title": "Get a user's repositories",
+      "method": "GET",
+      "path": "/users/{{ p.owner | rl }}/repos",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getUserIssues",
+      "title": "Get the authenticated user's issues",
+      "method": "GET",
+      "path": "/issues",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "getUserIssuesFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "mentioned",
+            "labels",
+            "since",
+            "state",
+            "sort",
+            "direction"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.getUserIssuesFilters }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "invite",
+      "title": "Invite a user to an organization",
+      "method": "POST",
+      "path": "/orgs/{{ p.organization }}/invitations",
+      "fields": [
+        {
+          "key": "organization",
+          "label": "Organization",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}"
+      }
+    },
+    {
+      "resource": "workflow",
+      "operation": "dispatch",
+      "title": "Dispatch a workflow run",
+      "method": "POST",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}/dispatches",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "workflowId",
+          "label": "Workflow ID or file name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "ref",
+          "label": "Branch or tag",
+          "type": "text",
+          "default": "main"
+        },
+        {
+          "key": "inputs",
+          "label": "Inputs (JSON)",
+          "type": "json",
+          "default": "{}"
+        }
+      ],
+      "body": {
+        "ref": "{{ p.ref | rl }}",
+        "!inputs": "{{ p.inputs | fromjson }}"
+      }
+    },
+    {
+      "resource": "workflow",
+      "operation": "disable",
+      "title": "Disable a workflow",
+      "method": "PUT",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}/disable",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "workflowId",
+          "label": "Workflow ID or file name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "enable",
+      "title": "Enable a workflow",
+      "method": "PUT",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}/enable",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "workflowId",
+          "label": "Workflow ID or file name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "get",
+      "title": "Get a workflow",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "workflowId",
+          "label": "Workflow ID or file name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "getUsage",
+      "title": "Get a workflow's billable usage",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}/timing",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "workflowId",
+          "label": "Workflow ID or file name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "list",
+      "title": "List workflows",
+      "method": "GET",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

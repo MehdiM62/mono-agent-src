@@ -1,0 +1,223 @@
+{
+  "call.getAll": {
+    "credential": {
+      "base_url": "https://api.gong.test/",
+      "access_key": "a",
+      "access_key_secret": "s"
+    },
+    "params": {
+      "limit": 2,
+      "filters": {
+        "fromDateTime": "2024-01-01T00:00:00Z",
+        "callIds": "1, 2"
+      },
+      "options": {
+        "properties": [
+          "parties",
+          "topics"
+        ]
+      }
+    },
+    "response": {
+      "calls": [
+        {
+          "metaData": {
+            "id": "1"
+          },
+          "parties": []
+        }
+      ],
+      "records": {}
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/calls/extensive",
+      "body": {
+        "filter": {
+          "fromDateTime": "2024-01-01T00:00:00.000Z",
+          "callIds": [
+            "1",
+            "2"
+          ]
+        },
+        "contentSelector": {
+          "exposedFields": {
+            "parties": true,
+            "content": {
+              "topics": true
+            }
+          }
+        }
+      },
+      "items": 1
+    }
+  },
+  "call.get": {
+    "credential": {
+      "base_url": "https://api.gong.test/",
+      "access_key": "a",
+      "access_key_secret": "s"
+    },
+    "params": {
+      "call": {
+        "__rl": true,
+        "mode": "id",
+        "value": "9"
+      },
+      "options": {
+        "properties": [
+          "brief",
+          "media",
+          "publicComments",
+          "transcript"
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/calls/extensive",
+      "body": {
+        "filter": {
+          "callIds": [
+            "9"
+          ]
+        },
+        "contentSelector": {
+          "exposedFields": {
+            "media": true,
+            "content": {
+              "brief": true
+            },
+            "collaboration": {
+              "publicComments": true
+            }
+          }
+        }
+      },
+      "items": 1
+    },
+    "responses": [
+      {
+        "calls": [
+          {
+            "metaData": {
+              "id": "9"
+            }
+          }
+        ]
+      },
+      {
+        "callTranscripts": [
+          {
+            "transcript": [
+              {
+                "s": 1
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/v2/calls/extensive",
+        "body": {
+          "filter": {
+            "callIds": [
+              "9"
+            ]
+          },
+          "contentSelector": {
+            "exposedFields": {
+              "media": true,
+              "content": {
+                "brief": true
+              },
+              "collaboration": {
+                "publicComments": true
+              }
+            }
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/v2/calls/transcript",
+        "body": {
+          "filter": {
+            "callIds": [
+              "9"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "user.get": {
+    "credential": {
+      "base_url": "https://api.gong.test/",
+      "access_key": "a",
+      "access_key_secret": "s"
+    },
+    "params": {
+      "user": "5"
+    },
+    "response": {
+      "users": [
+        {
+          "id": "5"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/users/extensive",
+      "body": {
+        "filter": {
+          "userIds": [
+            "5"
+          ]
+        }
+      },
+      "items": 1
+    }
+  },
+  "user.getAll": {
+    "credential": {
+      "base_url": "https://api.gong.test/",
+      "access_key": "a",
+      "access_key_secret": "s"
+    },
+    "params": {
+      "returnAll": true,
+      "filters": {
+        "userIds": "5,6"
+      }
+    },
+    "response": {
+      "users": [
+        {
+          "id": "5"
+        },
+        {
+          "id": "6"
+        }
+      ],
+      "records": {}
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/users/extensive",
+      "body": {
+        "filter": {
+          "userIds": [
+            "5",
+            "6"
+          ]
+        }
+      },
+      "items": 2
+    }
+  }
+}

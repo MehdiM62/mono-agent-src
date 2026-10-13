@@ -1,0 +1,133 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "hacker_news",
+  "node_type": "app.hacker_news",
+  "title": "Hacker News",
+  "description": "Search Hacker News and read articles and users through the public Algolia HN API",
+  "category": "app",
+  "docs_url": "https://hn.algolia.com/api",
+  "n8n_types": [
+    "n8n-nodes-base.hackerNews"
+  ],
+  "base_url": "http://hn.algolia.com/api/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "hacker_news",
+      "name": "Hacker News (no auth)",
+      "methods": [
+        "none"
+      ],
+      "fields": []
+    }
+  ],
+  "resources": [
+    {
+      "value": "article",
+      "label": "Article"
+    },
+    {
+      "value": "all",
+      "label": "All"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "article",
+      "operation": "get",
+      "title": "Get an article",
+      "method": "GET",
+      "path": "/items/{{ p.articleId }}",
+      "fields": [
+        {
+          "key": "articleId",
+          "label": "Article ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeComments"
+          ],
+          "help": "includeComments: keep the comment tree (children)"
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'children' }}"
+        },
+        "to_when": "{{ p.additionalFields.includeComments | default:false | ne:'true' }}"
+      }
+    },
+    {
+      "resource": "all",
+      "operation": "getAll",
+      "title": "Search items",
+      "method": "GET",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keyword",
+            "tags"
+          ],
+          "help": "tags: any of ask_hn, comment, front_page, poll, show_hn, story"
+        }
+      ],
+      "query": {
+        "query": "{{ p.additionalFields.keyword }}",
+        "tags": "{{ p.additionalFields.tags | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 0,
+        "limit_param": "hitsPerPage",
+        "page_size": 100,
+        "results_path": "hits"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.username }}",
+      "fields": [
+        {
+          "key": "username",
+          "label": "Username",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

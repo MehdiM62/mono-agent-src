@@ -1,0 +1,313 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "get_response",
+  "node_type": "app.get_response",
+  "title": "GetResponse",
+  "description": "Create, read, update and delete contacts in GetResponse",
+  "category": "app",
+  "docs_url": "https://apireference.getresponse.com/",
+  "n8n_types": [
+    "n8n-nodes-base.getResponse"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.getResponseTrigger"
+  ],
+  "base_url": "https://api.getresponse.com/v3",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "getresponse",
+      "name": "GetResponse API key",
+      "n8n_credential": "getResponseApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "GetResponse: Tools → Integrations and API → API"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Auth-Token": "api-key {{ cred.api_key }}"
+        }
+      }
+    },
+    {
+      "platform": "getresponse_oauth",
+      "name": "GetResponse OAuth",
+      "n8n_credential": "getResponseOAuth2Api",
+      "methods": [
+        "oauth"
+      ],
+      "fields": [],
+      "oauth": {
+        "auth_url": "https://app.getresponse.com/oauth2_authorize.html",
+        "token_url": "https://api.getresponse.com/v3/token",
+        "scopes": []
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: comma-separated list of fields to return"
+        }
+      ],
+      "query": {
+        "fields": "{{ p.options.fields }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "campaignId",
+          "label": "List (campaign) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "dayOfCycle",
+            "ipAddress",
+            "name",
+            "note",
+            "scoring",
+            "tags"
+          ],
+          "help": "customFieldsUi: {\"customFieldValues\": [{\"customFieldId\": \"…\", \"value\": \"…\"}]}; tags: list of tag IDs"
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "campaign": {
+          "campaignId": "{{ p.campaignId }}"
+        },
+        "$merge": "{{ p.additionalFields | omit:'customFieldsUi,tags' }}",
+        "tags": {
+          "$map": "{{ p.additionalFields.tags }}",
+          "$to": {
+            "tagId": "{{ el }}"
+          }
+        },
+        "customFieldValues": {
+          "$map": "{{ p.additionalFields.customFieldsUi.customFieldValues }}",
+          "$to": {
+            "customFieldId": "{{ el.customFieldId }}",
+            "value": "{{ el.value | split }}"
+          }
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ipAddress",
+            "messageId"
+          ]
+        }
+      ],
+      "query": {
+        "ipAddress": "{{ p.options.ipAddress }}",
+        "messageId": "{{ p.options.messageId }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "campaignId",
+            "changeOnFrom",
+            "changeOnTo",
+            "createdOnFrom",
+            "createdOnTo",
+            "exactMatch",
+            "fields",
+            "name",
+            "origin",
+            "sortBy",
+            "sortOrder"
+          ],
+          "help": "sortBy: campaignId, changedOn, createdOn or email; sortOrder: ASC or DESC"
+        }
+      ],
+      "query": {
+        "query[campaignId]": "{{ p.options.campaignId }}",
+        "query[name]": "{{ p.options.name }}",
+        "query[origin]": "{{ p.options.origin }}",
+        "query[createdOn][from]": "{{ p.options.createdOnFrom | date:'YYYY-MM-DDTHH:mm:ssZZ' }}",
+        "query[createdOn][to]": "{{ p.options.createdOnTo | date:'YYYY-MM-DDTHH:mm:ssZZ' }}",
+        "query[changeOn][from]": "{{ p.options.changeOnFrom | date:'YYYY-MM-DDTHH:mm:ssZZ' }}",
+        "query[changeOn][to]": "{{ p.options.changeOnTo | date:'YYYY-MM-DDTHH:mm:ssZZ' }}",
+        "fields": "{{ p.options.fields }}",
+        "additionalFlags": "{{ p.options.exactMatch | eq:'true' | then:'exactMatch' }}",
+        "$merge": [
+          {
+            "$entries": [
+              "{{ p.options.sortBy }}"
+            ],
+            "$key": "sort[{{ el }}]",
+            "$value": "{{ p.options.sortOrder | default:'ASC' }}"
+          }
+        ]
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "perPage",
+        "page_size": 100,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "POST",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "campaignId",
+            "customFieldsUi",
+            "dayOfCycle",
+            "email",
+            "ipAddress",
+            "name",
+            "note",
+            "scoring",
+            "tags"
+          ],
+          "help": "customField values may be comma-separated"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFieldsUi,tags,campaignId' }}",
+        "campaign": {
+          "campaignId": "{{ p.updateFields.campaignId }}"
+        },
+        "tags": {
+          "$map": "{{ p.updateFields.tags }}",
+          "$to": {
+            "tagId": "{{ el }}"
+          }
+        },
+        "customFieldValues": {
+          "$map": "{{ p.updateFields.customFieldsUi.customFieldValues }}",
+          "$to": {
+            "customFieldId": "{{ el.customFieldId }}",
+            "value": "{{ el.value | split }}"
+          }
+        }
+      }
+    }
+  ]
+}
