@@ -1017,3 +1017,74 @@ func TestIdxMatchesInFlatten(t *testing.T) {
 		t.Errorf("flatten = %#v", g)
 	}
 }
+
+func TestUnleashedTwistUprocTheHiveRound(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"ul","title":"U","base_url":"https://u.test","n8n_resource_param":"group",
+	  "resources":[{"value":"sales","label":"S"},{"value":"tools","label":"T"}],
+	  "credentials":[{"platform":"ul","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true}],
+	    "inject":{"hmac":{"header":"api-auth-signature","secret":"{{ cred.api_key }}","message":"{{ req.query }}"}}}],
+	  "operations":[{"resource":"sales","operation":"getAll","title":"G","method":"GET","path":"/SalesOrders/{{ page.pageNumber }}",
+	    "fields":[{"key":"returnAll","label":"A","type":"boolean"}],"query":{"orderStatus":"Placed"},
+	    "pagination":{"type":"page","param_in":"path","page_param":"pageNumber","start_page":1,"page_size":2,"results_path":"Items"}},
+	   {"resource":"tools","operation":"post","title":"P","method":"POST","path":"/msg","body_type":"form",
+	    "fields":[{"key":"files","label":"F","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"},{"key":"cf","label":"C","type":"json"}],
+	    "before":[{"for_each":"{{ p.files | split }}","upload":true,"method":"POST","path":"/attachments/upload"}],
+	    "body":{"attachments":"{{ pre | json }}","$merge":"{{ p.cf | unflatten }}"},
+	    "binary":{"upload_field":"binaryPropertyName","upload_when":"false"},
+	    "pagination":{"type":"offset","param_in":"body","offset_param":"offset","limit_param":"limit","page_size":5,"results_path":"x"}}]}`)
+	var reqs []*http.Request
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		reqs, bodies = append(reqs, r), append(bodies, string(b))
+		switch {
+		case r.URL.Path == "/SalesOrders/1":
+			w.Write([]byte(`{"Items":[{"id":1},{"id":2}]}`))
+		case r.URL.Path == "/SalesOrders/2":
+			w.Write([]byte(`{"Items":[{"id":3}]}`))
+		case r.URL.Path == "/attachments/upload":
+			w.Write([]byte(`{"name":"` + string(b) + `"}`))
+		default:
+			w.Write([]byte(`{"x":[]}`))
+		}
+	})
+	c := map[string]any{"api_key": "S3CR"}
+	items, err := runPackageOp(p, map[string]any{"group": "sales", "operation": "getAll", "returnAll": true}, c, nil)
+	if err != nil || len(items) != 3 {
+		t.Fatalf("unleashed: %v %v", items, err)
+	}
+	m := hmac.New(sha256.New, []byte("S3CR"))
+	m.Write([]byte("orderStatus=Placed"))
+	if reqs[0].Header.Get("api-auth-signature") != base64.StdEncoding.EncodeToString(m.Sum(nil)) || reqs[0].URL.Query().Get("pageNumber") != "" {
+		t.Errorf("hmac/page path: %q %s", reqs[0].Header.Get("api-auth-signature"), reqs[0].URL)
+	}
+	reqs, bodies = nil, nil
+	if _, err := runPackageOp(p, map[string]any{"group": "tools", "operation": "post", "files": "a,b", "cf": map[string]any{"customFields.x": 1.0}}, c,
+		map[string]any{"a": "aGk=", "b": "eW8="}); err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 3 || bodies[0] != "hi" || bodies[1] != "yo" {
+		t.Fatalf("twist uploads: %d reqs %q", len(reqs), bodies)
+	}
+	if got := reqs[2].Header.Get("Content-Type"); got != "application/x-www-form-urlencoded" ||
+		!strings.Contains(bodies[2], "offset=0") || !strings.Contains(bodies[2], "attachments=") || !strings.Contains(bodies[2], "customFields=") {
+		t.Errorf("form paging / collected pres / unflatten: %s %s", got, bodies[2])
+	}
+	if g, _ := renderString("{{ p.cf | unflatten }}", Scope{P: map[string]any{"cf": map[string]any{"a.b": 1.0, "c": 2.0}}}); !reflect.DeepEqual(g, map[string]any{"a": map[string]any{"b": 1.0}, "c": 2.0}) {
+		t.Errorf("unflatten = %#v", g)
+	}
+}
+
+func TestInsecureClientOptIn(t *testing.T) {
+	old := httpClient
+	httpClient = &http.Client{}
+	t.Cleanup(func() { httpClient = old })
+	r := &opRun{scope: Scope{Cred: map[string]any{"allow_unauthorized_certs": true}}}
+	tr, ok := r.client().Transport.(*http.Transport)
+	if !ok || tr.TLSClientConfig == nil || !tr.TLSClientConfig.InsecureSkipVerify {
+		t.Error("allow_unauthorized_certs must skip TLS verification")
+	}
+	if (&opRun{scope: Scope{Cred: map[string]any{}}}).client() != httpClient {
+		t.Error("default client must verify TLS")
+	}
+}

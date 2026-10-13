@@ -40,6 +40,9 @@ type Package struct {
 	// when it isn't "operation" (FileMaker: "action"). A config without
 	// "operation" uses that param's value, so imported nodes run as is.
 	N8nOperationParam string `json:"n8n_operation_param,omitempty"`
+	// N8nResourceParam names the n8n param that selects the resource when
+	// it isn't "resource" (uProc: "group").
+	N8nResourceParam string `json:"n8n_resource_param,omitempty"`
 	// N8nVersionDefaults: per n8n node typeVersion, param defaults the
 	// importer fills in when an exported node omits them (n8n leaves
 	// defaults out; Invoice Ninja v1 meant apiVersion v4).
@@ -121,6 +124,10 @@ type Inject struct {
 	JWT      *JWTInject        `json:"jwt,omitempty"`
 	// Body is merged into JSON/form/multipart bodies (Mandrill's "key").
 	Body map[string]string `json:"body,omitempty"`
+	// HMAC signs each request: header = prefix + encode(HMAC(secret,
+	// message)); message is a template over req (method, path, query,
+	// body) — Unleashed signs the encoded query string.
+	HMAC *HMACInject `json:"hmac,omitempty"`
 }
 
 // JWTInject signs a short-lived JWT per request (Ghost Admin API, Zoom
@@ -477,4 +484,14 @@ type Poll struct {
 	Until      string `json:"until"`
 	IntervalMs int    `json:"interval_ms,omitempty"` // default 1000
 	MaxWaitMs  int    `json:"max_wait_ms,omitempty"` // default 300000
+}
+
+// HMACInject is a per-request HMAC signature header.
+type HMACInject struct {
+	Header   string `json:"header"`
+	Secret   string `json:"secret"`
+	Message  string `json:"message"`
+	Alg      string `json:"alg,omitempty"`      // SHA256 (default), SHA1, SHA512
+	Encoding string `json:"encoding,omitempty"` // base64 (default) or hex
+	Prefix   string `json:"prefix,omitempty"`
 }

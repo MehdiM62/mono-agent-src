@@ -230,6 +230,7 @@ through, so an unset param stays unset:
 | `lines` | text → list of its non-empty trimmed lines |
 | `matches:'regex'` | `true` when the text matches, else nil (chain into `then`; SOQL date literals) |
 | `in:'a,b'` | `true` when the value is one of the listed (comma text, list or path), else nil |
+| `unflatten` | dotted keys → nested objects (`{"customFields.x": 1}` → `{"customFields": {"x": 1}}`; TheHive 5) |
 | `flatten` | lists and objects of lists → one flat list (object keys sorted; Rocket.Chat `{update: […], remove: […]}`) |
 | `snake` | lodash snake_case (`"Due Date"`, `"DueDate"` → `due_date`; Notion `property_*` keys) |
 | `values` | object → list of its values, by sorted key (maps keyed by id: Philips Hue lights) |
@@ -383,6 +384,10 @@ WebDAV methods MKCOL, MOVE, COPY, PROPFIND and PROPPATCH are allowed (NextCloud)
 
 `inject.body: {"key": "{{ cred.api_key }}"}` merges credential values (typed: a single expression keeps booleans/numbers) into JSON/form/multipart bodies (Mandrill sends its key in every body).
 
+**HMAC request signature (`inject.hmac`).** `{"header": "api-auth-signature", "secret": "{{ cred.api_key }}", "message": "{{ req.query }}", "alg": "SHA256", "encoding": "base64", "prefix": ""}` — `req.method`, `req.path`, `req.query` (the encoded query string) and `req.body` describe the built request (Unleashed).
+
+**Self-signed certificates.** A connection field `allow_unauthorized_certs` that is true skips TLS verification for that connection's requests (n8n's credential option; self-hosted Venafi, TheHive).
+
 **Signed JWT per request (`inject.jwt`).** For APIs that want a short-lived token you sign (Ghost Admin, Zoom JWT apps, App Store Connect): `"jwt": {"header": "Authorization", "prefix": "Ghost ", "alg": "HS256", "secret": "{{ cred.api_key | split:':' | get:'1' }}", "secret_encoding": "hex", "kid": "{{ cred.api_key | split:':' | get:'0' }}", "claims": {"aud": "/admin/"}, "ttl_s": 300}`. `alg`: HS256/384/512 (secret as `text` (default), `hex` or `base64`), RS256 or ES256 (secret = a PEM private key). `iat` and `exp` (= iat + ttl_s, default 300) are added; header defaults to Authorization with prefix "Bearer ".
 
 `oauth.token_fields: ["organizer_key", "account_key"]` copies those keys of the token response onto the connection at connect and refresh (readable as `cred.organizer_key`; GoTo Webinar).
@@ -438,6 +443,8 @@ With `"param_in": "body"`, the page param names may be dot paths, nested into th
 
 `pagination.when` (template): when false, the op makes one plain request with no page params (Strapi v3 vs v4: `"when": "{{ cred.api_version | eq:'v4' }}"`). `cursor_param`, `offset_param`, `limit_param` and `page_param` may be templates.
 
+`"param_in": "path"` puts the page params into the path template as `page.<param>` instead of the query (`"path": "/SalesOrders/{{ page.pageNumber }}"`). `param_in: "body"` works with json, form and multipart bodies.
+
 ## 9. Output
 
 `"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)
@@ -457,6 +464,8 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 
 **Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
 `"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.
+
+**Collecting before steps.** A `before` step with `for_each` runs once per element (`el`, `idx`; with `upload: true` and a list of binary property names, each element is uploaded) and its `pres.<i>`/`pre` entry is the LIST of responses (Twist uploads each attachment, then sends `attachments: {{ pre | json }}`).
 
 **Before request(s) (`before`).** One step — or a list of steps run in order, each seeing the earlier responses (`pres.0`, `pres.1`, …; `pre` = the latest) — sent before the main one (same keys as an `also` step); its decoded response is the `pre` root. Google Sheets append reads the header row, then orders the item by it:
 ```json
@@ -551,6 +560,8 @@ When a config has no `resource` and the default resource lacks the operation, an
 **Trigger-only apps** (n8n has only a `…Trigger` node, e.g. Eventbrite, Figma): write a package with `"operations": []` and the app's `n8n_trigger_types` (plus its credentials). It registers no action node; it records the triggers for the importer and the trigger work.
 
 `n8n_version_defaults` (package): `{"1": {"apiVersion": "v4"}}` — per n8n node `typeVersion`, defaults the importer fills in for params an exported node omits (n8n doesn't export defaults, and some changed between node versions).
+
+`n8n_resource_param` (package): the n8n param that selects the resource when it isn't `resource` (uProc: `group`).
 
 ## 13. Testing a package
 

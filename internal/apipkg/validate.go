@@ -184,7 +184,7 @@ func (c *Credential) check(i int) []string {
 		keys[f.Key] = true
 	}
 	in := c.Inject
-	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 {
+	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 && in.HMAC == nil {
 		add("inject is empty: say how the credential authenticates (headers, query, basic or aws_sigv4)")
 	}
 	for k, v := range in.Headers {
@@ -315,8 +315,8 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		if n, ok := need[pg.Type]; ok && (n[0] == "" || strings.HasPrefix(n[0], "|") || strings.HasSuffix(n[0], "|")) {
 			add("pagination %q needs %s", pg.Type, n[1])
 		}
-		if pg.ParamIn == "body" && bt != BodyJSON {
-			add(`pagination param_in "body" needs a json body`)
+		if pg.ParamIn == "body" && bt != BodyJSON && bt != BodyForm && bt != BodyMultipart {
+			add(`pagination param_in "body" needs a json, form or multipart body`)
 		}
 	}
 	if b := o.Binary; b != nil {
@@ -414,11 +414,13 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !fields[e.path[0]] && !fields["*"] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not one of the op's fields", where, e.src, e.path[0])}
 		}
+	case "req":
+		return nil
 	case "cred":
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "idx":
+	case "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "idx", "page":
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}

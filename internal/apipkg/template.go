@@ -37,6 +37,11 @@ type Scope struct {
 	Hdr headerMap
 	// Idx is the element's position inside a $map / $entries.
 	Idx int
+	// Page holds the page params when pagination.param_in is "path"
+	// ({{ page.pageNumber }}); Req describes the built request for
+	// inject.hmac (method, path, query, body).
+	Page map[string]any
+	Req  map[string]any
 }
 
 // headerMap holds response headers; lookupPath matches its keys
@@ -69,6 +74,10 @@ func (s Scope) root(name string) any {
 		return s.Hdr
 	case "idx":
 		return s.Idx
+	case "page":
+		return s.Page
+	case "req":
+		return s.Req
 	case "now":
 		return time.Now().UTC().Format(time.RFC3339)
 	case "uuid":
@@ -251,9 +260,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now", "idx":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now", "idx", "page", "req":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., hdr., pre., pres., bin. or be uuid / now / idx", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., hdr., pre., pres., bin., page., req. or be uuid / now / idx", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
