@@ -1,8 +1,17 @@
 package apipkg
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"io"
+	"math/big"
 	"net/http"
 	"reflect"
 	"strings"
@@ -564,5 +573,56 @@ func TestTriggerOnlyPackage(t *testing.T) {
 	if _, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"empty","title":"E","base_url":"https://e.test","operations":[]}`), "test"); err == nil ||
 		!strings.Contains(err.Error(), "n8n_trigger_types") {
 		t.Errorf("no ops and no triggers must fail: %v", err)
+	}
+}
+
+func TestJWTInjectGhost(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"ghost","title":"Ghost","base_url":"https://blog.test/ghost/api/admin",
+	  "credentials":[{"platform":"ghost","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true}],
+	    "inject":{"jwt":{"prefix":"Ghost ","alg":"HS256","secret":"{{ cred.api_key | split:':' | get:'1' }}","secret_encoding":"hex",
+	      "kid":"{{ cred.api_key | split:':' | get:'0' }}","claims":{"aud":"/admin/"}}}}],
+	  "operations":[{"resource":"","operation":"get","title":"G","method":"GET","path":"/posts/"}]}`)
+	var auth string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		auth = r.Header.Get("Authorization")
+		w.Write([]byte(`{"posts":[]}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "get"}, map[string]any{"api_key": "kid1:00ff"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	tok := strings.TrimPrefix(auth, "Ghost ")
+	parts := strings.Split(tok, ".")
+	if !strings.HasPrefix(auth, "Ghost ") || len(parts) != 3 {
+		t.Fatalf("auth = %q", auth)
+	}
+	hb, _ := base64.RawURLEncoding.DecodeString(parts[0])
+	cb, _ := base64.RawURLEncoding.DecodeString(parts[1])
+	var h, c map[string]any
+	_ = json.Unmarshal(hb, &h)
+	_ = json.Unmarshal(cb, &c)
+	if h["kid"] != "kid1" || h["alg"] != "HS256" || c["aud"] != "/admin/" || c["exp"].(float64)-c["iat"].(float64) != 300 {
+		t.Errorf("header %v claims %v", h, c)
+	}
+	m := hmac.New(sha256.New, []byte{0x00, 0xff})
+	m.Write([]byte(parts[0] + "." + parts[1]))
+	if base64.RawURLEncoding.EncodeToString(m.Sum(nil)) != parts[2] {
+		t.Error("signature mismatch")
+	}
+}
+
+func TestJWTES256(t *testing.T) {
+	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	der, _ := x509.MarshalPKCS8PrivateKey(k)
+	pemKey := string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+	tok, err := signJWT(&JWTInject{Alg: "ES256", Secret: "{{ cred.key }}", Claims: map[string]any{"aud": "appstoreconnect-v1"}}, Scope{Cred: map[string]any{"key": pemKey}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(tok, ".")
+	sig, _ := base64.RawURLEncoding.DecodeString(parts[2])
+	sum := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
+	r, s := new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])
+	if len(sig) != 64 || !ecdsa.Verify(&k.PublicKey, sum[:], r, s) {
+		t.Error("ES256 signature does not verify")
 	}
 }

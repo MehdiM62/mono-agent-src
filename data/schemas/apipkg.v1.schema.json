@@ -90,6 +90,15 @@
       "properties": {
         "headers": { "$ref": "#/$defs/stringMap" },
         "query": { "$ref": "#/$defs/stringMap" },
+        "jwt": {
+          "type": "object", "required": ["alg", "secret"], "additionalProperties": false,
+          "properties": {
+            "header": { "type": "string" }, "prefix": { "type": "string" },
+            "alg": { "type": "string", "enum": ["HS256", "HS384", "HS512", "RS256", "ES256"] },
+            "secret": { "type": "string" }, "secret_encoding": { "type": "string", "enum": ["text", "hex", "base64"] },
+            "kid": { "type": "string" }, "claims": { "type": "object" }, "ttl_s": { "type": "integer" }
+          }
+        },
         "basic": {
           "type": "object",
           "required": ["username", "password"],

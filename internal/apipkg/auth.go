@@ -103,6 +103,20 @@ func injectAuth(req *http.Request, c *Credential, sc Scope, body []byte) error {
 			req.SetBasicAuth(u, pw)
 		}
 	}
+	if j := in.JWT; j != nil {
+		tok, err := signJWT(j, sc)
+		if err != nil {
+			return fmt.Errorf("credential %s: jwt: %w", c.Platform, err)
+		}
+		h, prefix := j.Header, j.Prefix
+		if h == "" {
+			h = "Authorization"
+		}
+		if prefix == "" && h == "Authorization" {
+			prefix = "Bearer "
+		}
+		req.Header.Set(h, prefix+tok)
+	}
 	if s := in.AWSSigV4; s != nil {
 		var p sigV4Params
 		pairs := []struct {
