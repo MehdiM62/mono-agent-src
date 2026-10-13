@@ -1,0 +1,139 @@
+package n8nimport
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+func init() {
+	Register("n8n-nodes-base.splitInBatches", mapSplitInBatches)
+	Register("n8n-nodes-base.wait", mapWait)
+	Register("n8n-nodes-base.stopAndError", mapStopAndError)
+	Register("n8n-nodes-base.noOp", mapNoOp)
+	Register("n8n-nodes-base.code", mapCode)
+	Register("n8n-nodes-base.function", mapFunction)
+	Register("n8n-nodes-base.functionItem", mapFunctionItem)
+	Register("n8n-nodes-base.respondToWebhook", mapRespondToWebhook)
+}
+
+func mapSplitInBatches(c *MapContext) Mapping {
+	def := 10.0
+	if c.version(3) {
+		def = 1
+	}
+	if c.Bool("options.reset", false) {
+		c.Note("reset has no effect: the loop body runs once over all items in mono-agent")
+	}
+	cfg := map[string]interface{}{"batch_size": c.Float("batchSize", def)}
+	switch {
+	case c.version(3):
+		return Mapping{Type: "core.split_in_batches", Config: cfg, Outputs: []string{"done", "batch"}}
+	case c.version(2):
+		return Mapping{Type: "core.split_in_batches", Config: cfg, Outputs: []string{"batch", "done"}}
+	}
+	return Mapping{Type: "core.split_in_batches", Config: cfg, Outputs: []string{"batch"}}
+}
+
+var waitUnitSeconds = map[string]float64{"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}
+
+func mapWait(c *MapContext) Mapping {
+	resume := c.Literal("resume", "timeInterval")
+	switch resume {
+	case "timeInterval":
+		amountDef, unitDef := 1.0, "hours"
+		if c.version(1.1) {
+			amountDef, unitDef = 5, "seconds"
+		}
+		amount := c.Float("amount", amountDef)
+		unit := c.Literal("unit", unitDef)
+		secs := amount * waitUnitSeconds[unit]
+		if secs > 3600 {
+			c.Warn("amount", fmt.Sprintf("%v %s", amount, unit), "mono-agent waits at most 3600 seconds; the wait was shortened to one hour")
+			secs = 3600
+		}
+		if secs < 1 {
+			secs = 1
+		}
+		return Mapping{Type: "core.wait", Config: map[string]interface{}{"duration": secs}}
+	case "webhook", "form":
+		c.Ignore("httpMethod", "responseCode", "responseMode", "responseData", "responseBinaryPropertyName",
+			"options", "formTitle", "formDescription", "formFields", "authentication", "incomingAuthentication")
+		timeout := 0.0
+		if c.Bool("limitWaitTime", false) && c.Literal("limitType", "afterTimeInterval") == "afterTimeInterval" {
+			timeout = c.Float("resumeAmount", 1) * waitUnitSeconds[c.Literal("resumeUnit", "hours")] / 60
+		}
+		c.Ignore("limitType", "resumeAmount", "resumeUnit", "maxDateAndTime")
+		c.Warn("resume", resume, "became a human review step: approve it with `monoagentcli hil approve` instead of calling a resume URL")
+		return Mapping{Type: "core.human_in_loop", Config: map[string]interface{}{"timeout_minutes": timeout}}
+	}
+	c.Ignore("dateTime")
+	c.Warn("resume", resume, "waiting until a date has no mono-agent equivalent; the node waits one second")
+	return Mapping{Type: "core.wait", Config: map[string]interface{}{"duration": 1.0}}
+}
+
+func mapStopAndError(c *MapContext) Mapping {
+	if c.Literal("errorType", "errorMessage") == "errorObject" {
+		c.Note("the error object is used as the error message text")
+		return Mapping{Type: "core.stop_error", Config: map[string]interface{}{"message": c.Str("errorObject", "{}")}}
+	}
+	return Mapping{Type: "core.stop_error", Config: map[string]interface{}{"message": c.Str("errorMessage", "")}}
+}
+
+// mapNoOp passes items through: core.merge re-emits its input unchanged.
+func mapNoOp(_ *MapContext) Mapping {
+	return Mapping{Type: "core.merge", Config: map[string]interface{}{}}
+}
+
+func mapRespondToWebhook(c *MapContext) Mapping {
+	c.Ignore("respondWith", "responseBody", "redirectURL", "payload", "responseDataSource", "inputFieldName", "options", "enableResponseOutput")
+	c.Warn("respondWith", c.Literal("respondWith", "firstIncomingItem"),
+		"mono-agent answers webhooks itself ({\"success\":true}); this node now only passes items on")
+	return Mapping{Type: "core.merge", Config: map[string]interface{}{}}
+}
+
+var awaitKeyword = regexp.MustCompile(`\bawait\s+`)
+
+// importCode prepares n8n JavaScript for core.code and reports what mono's
+// code runtime cannot provide.
+func importCode(c *MapContext, param, code string) string {
+	if strings.HasPrefix(code, "=") {
+		c.Warn(param, code, "code set by an expression cannot be imported")
+		return "throw new Error(\"the n8n code was set by an expression\");"
+	}
+	if awaitKeyword.MatchString(code) {
+		c.Warn(param, nil, "'await' was removed: mono-agent code runs synchronously, so awaited helpers must return plain values")
+		code = awaitKeyword.ReplaceAllString(code, "")
+	}
+	if m := unavailableInCode.FindString(code); m != "" {
+		c.Warn(param, nil, "uses %q, which mono-agent code nodes do not provide (only this node's input items); it fails when that line runs", strings.TrimSpace(m))
+	}
+	return code
+}
+
+func mapCode(c *MapContext) Mapping {
+	lang := c.Literal("language", "javaScript")
+	if lang != "javaScript" {
+		c.Ignore("pythonCode")
+		c.Warn("language", lang, "Python code cannot run in mono-agent (core.code runs JavaScript)")
+		return Mapping{Unmapped: true}
+	}
+	code := importCode(c, "jsCode", fmt.Sprint(c.Raw("jsCode")))
+	if c.Literal("mode", "runOnceForAllItems") == "runOnceForEachItem" {
+		return Mapping{Type: "core.code", Config: codeConfig(wrapPerItem(code))}
+	}
+	return Mapping{Type: "core.code", Config: codeConfig(wrapCode(code))}
+}
+
+func mapFunction(c *MapContext) Mapping {
+	code := importCode(c, "functionCode", fmt.Sprint(c.Raw("functionCode")))
+	return Mapping{Type: "core.code", Config: codeConfig(wrapCode(code))}
+}
+
+// mapFunctionItem runs the code per item with "item" bound to the item's
+// JSON; the code returns the new JSON.
+func mapFunctionItem(c *MapContext) Mapping {
+	code := importCode(c, "functionCode", fmt.Sprint(c.Raw("functionCode")))
+	body := "var item = $json;\nvar __r = (function () {\n" + indentJS(code) + "})();\nreturn __r === undefined ? item : __r;\n"
+	return Mapping{Type: "core.code", Config: codeConfig(wrapPerItem(body))}
+}

@@ -17,7 +17,8 @@
         "get_timeline",
         "get_profile",
         "like_post",
-        "repost"
+        "repost",
+        "get_post_metrics"
       ],
       "required": true,
       "type": "select"
@@ -86,6 +87,19 @@
       "help": "Subject record CID.",
       "key": "cid",
       "label": "Post CID",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_post_metrics"
+        ]
+      },
+      "help": "The post to read like/repost/reply counts for.",
+      "key": "post_uri",
+      "label": "Post URI (at://...)",
       "required": false,
       "type": "text"
     },

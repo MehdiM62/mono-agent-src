@@ -51,8 +51,8 @@ seeded stay installed.`,
 }
 
 // withJSONErrors makes a failing command also print {"error": "…"} on
-// stdout when --json is set (contracts §5). main still prints the error to
-// stderr and exits non-zero.
+// stdout when --json is set (contracts §5), with the extra fields of an
+// install result. main still prints the error to stderr and exits non-zero.
 func withJSONErrors(cfg *globalConfig, cmd *cobra.Command) {
 	run := cmd.RunE
 	if run == nil {
@@ -82,6 +82,8 @@ func withJSONErrors(cfg *globalConfig, cmd *cobra.Command) {
 			}
 			b, _ := json.Marshal(body)
 			fmt.Fprintln(c.OutOrStdout(), string(b))
+			// Printed: main adds no second {"error"} for a reportedError.
+			return reportedError{err}
 		}
 		return err
 	}

@@ -136,6 +136,15 @@
       "label": "Customer ID",
       "required": false,
       "type": "text"
+    },
+    {
+      "default": "2026-04",
+      "help": "Shopify Admin API version (YYYY-MM or unstable). Leave at the default unless your app needs a specific release.",
+      "key": "api_version",
+      "label": "API Version",
+      "placeholder": "2026-04",
+      "required": false,
+      "type": "text"
     }
   ],
   "outputs": [

@@ -114,6 +114,9 @@ func LoadDefaultSchema(nodeType string) (*NodeSchema, error) {
 // here from the node type.
 func resolveSchemaJSON(nodeType string) ([]byte, bool) {
 	data, ok := schemaFile(nodeType)
+	if pd, pok := providedSchema(nodeType, data); pok {
+		data, ok = pd, true
+	}
 	if !ok {
 		gen, ok := generateActionSchema(nodeType)
 		if !ok {

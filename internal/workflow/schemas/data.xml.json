@@ -4,16 +4,26 @@
   "fields": [
     {
       "default": "parse",
+      "help": "parse/generate keep the item and write one field. xml_to_json replaces the item with the parsed document; json_to_xml replaces it with {data_property_name: xml}.",
       "key": "operation",
       "label": "Operation",
       "options": [
         "parse",
-        "generate"
+        "generate",
+        "xml_to_json",
+        "json_to_xml"
       ],
       "required": true,
       "type": "select"
     },
     {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "parse",
+          "generate"
+        ]
+      },
       "key": "field",
       "label": "XML Field",
       "placeholder": "xml_content",
@@ -21,6 +31,13 @@
       "type": "text"
     },
     {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "parse",
+          "generate"
+        ]
+      },
       "help": "Defaults to the XML field, overwriting it.",
       "key": "output_field",
       "label": "Output Field",
@@ -39,6 +56,205 @@
       "label": "Root Element Name",
       "required": false,
       "type": "text"
+    },
+    {
+      "default": "data",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json",
+          "json_to_xml"
+        ]
+      },
+      "help": "xml_to_json: the item property holding the XML. json_to_xml: the property the XML is written to.",
+      "key": "data_property_name",
+      "label": "Property Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "$",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json",
+          "json_to_xml"
+        ]
+      },
+      "help": "Key that holds an element's attributes (when not merged).",
+      "key": "attrkey",
+      "label": "Attribute Key",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "_",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json",
+          "json_to_xml"
+        ]
+      },
+      "help": "Key that holds an element's text when it also has attributes or children.",
+      "key": "charkey",
+      "label": "Character Key",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json"
+        ]
+      },
+      "help": "Always put child elements in an array (otherwise only repeated elements become arrays).",
+      "key": "explicit_array",
+      "label": "Explicit Array",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json"
+        ]
+      },
+      "help": "Keep the root element as the top-level key.",
+      "key": "explicit_root",
+      "label": "Explicit Root",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json"
+        ]
+      },
+      "help": "Drop all XML attributes.",
+      "key": "ignore_attrs",
+      "label": "Ignore Attributes",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json"
+        ]
+      },
+      "help": "Put attributes next to child elements instead of under the attribute key. Ignored when attributes are ignored.",
+      "key": "merge_attrs",
+      "label": "Merge Attributes",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json"
+        ]
+      },
+      "help": "Collapse runs of whitespace inside text and trim it.",
+      "key": "normalize",
+      "label": "Normalize",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json"
+        ]
+      },
+      "help": "Lower-case all tag names.",
+      "key": "normalize_tags",
+      "label": "Normalize Tags",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "xml_to_json"
+        ]
+      },
+      "help": "Trim whitespace at the start and end of text.",
+      "key": "trim",
+      "label": "Trim",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": "root",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json_to_xml"
+        ]
+      },
+      "help": "Root element name. With the default and an item that has exactly one key, that key becomes the root.",
+      "key": "root_name",
+      "label": "Root Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json_to_xml"
+        ]
+      },
+      "help": "Omit the <?xml ...?> declaration.",
+      "key": "headless",
+      "label": "Headless",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json_to_xml"
+        ]
+      },
+      "help": "Wrap text containing & < or > in CDATA sections instead of escaping it.",
+      "key": "cdata",
+      "label": "CDATA",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json_to_xml"
+        ]
+      },
+      "help": "Accepted for n8n compatibility; has no effect.",
+      "key": "allow_surrogate_chars",
+      "label": "Allow Surrogate Chars",
+      "required": false,
+      "type": "boolean"
     }
   ],
   "outputs": [

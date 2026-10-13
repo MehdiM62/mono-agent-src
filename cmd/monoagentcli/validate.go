@@ -158,6 +158,9 @@ func newWorkflowValidateCmd(cfg *globalConfig) *cobra.Command {
 						lines = append(lines, issueLine(is))
 					}
 				}
+				if cfg.JSONOutput {
+					return reportedError{errInvalidInput("%s", strings.Join(lines, "\n"))}
+				}
 				return errInvalidInput("%s", strings.Join(lines, "\n"))
 			}
 			if cfg.JSONOutput {
@@ -196,6 +199,7 @@ func runWorkflowDryRun(cfg *globalConfig, cmd *cobra.Command, workflowID string)
 	if err != nil {
 		if cfg.JSONOutput {
 			_ = json.NewEncoder(cmd.OutOrStdout()).Encode(dryRunJSON{Valid: false, Errors: []string{err.Error()}})
+			return reportedError{errInvalidInput("%v", err)}
 		}
 		return errInvalidInput("%v", err)
 	}

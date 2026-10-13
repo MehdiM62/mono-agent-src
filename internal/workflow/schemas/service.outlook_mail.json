@@ -9,6 +9,44 @@
       "type": "credential_picker"
     },
     {
+      "help": "oauth uses Microsoft Graph (every operation). app_password uses IMAP/SMTP (list_messages and send_message only). Leave empty to follow the selected connection.",
+      "key": "auth",
+      "label": "Authentication",
+      "options": [
+        "oauth",
+        "app_password"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "auth",
+        "values": [
+          "app_password"
+        ]
+      },
+      "help": "App password only. Resolved from the saved connection when omitted.",
+      "key": "email",
+      "label": "Email Address",
+      "placeholder": "you@outlook.com",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "auth",
+        "values": [
+          "app_password"
+        ]
+      },
+      "help": "App password only. Resolved from the saved connection when omitted.",
+      "key": "app_password",
+      "label": "App Password",
+      "required": false,
+      "type": "password"
+    },
+    {
       "default": "list_messages",
       "key": "operation",
       "label": "Operation",
@@ -88,6 +126,7 @@
           "list_messages"
         ]
       },
+      "help": "With an app password the legacy key limit is honoured too.",
       "key": "max_results",
       "label": "Max Results",
       "required": false,
@@ -216,6 +255,46 @@
       ],
       "required": false,
       "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "send_message"
+        ]
+      },
+      "help": "App password send_message only: local files to attach.",
+      "item_type": "text",
+      "key": "attachments",
+      "label": "Attachment File Paths",
+      "required": false,
+      "type": "array"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "send_message"
+        ]
+      },
+      "help": "App password send_message only: the original Message-ID header; threads this as a reply and prefixes the subject with \"Re: \".",
+      "key": "in_reply_to",
+      "label": "In-Reply-To (Message-ID)",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "send_message"
+        ]
+      },
+      "help": "App password send_message only: the thread's References header chain; defaults to In-Reply-To.",
+      "key": "references",
+      "label": "References",
+      "required": false,
+      "type": "text"
     },
     {
       "default": false,

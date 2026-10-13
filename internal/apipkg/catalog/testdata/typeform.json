@@ -1,0 +1,126 @@
+{
+  "form.getAll": {
+    "params": {
+      "returnAll": true,
+      "filters": {
+        "search": "survey"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/forms",
+      "query": {
+        "search": "survey",
+        "page": "1",
+        "page_size": "200"
+      },
+      "items": 2
+    },
+    "response": {
+      "total_items": 2,
+      "page_count": 1,
+      "items": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        }
+      ]
+    }
+  },
+  "form.get": {
+    "params": {
+      "formId": "u6nXL7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/forms/u6nXL7"
+    }
+  },
+  "response.getAll": {
+    "params": {
+      "formId": "u6nXL7",
+      "limit": 10,
+      "options": {
+        "since": "2026-01-01T00:00:00Z",
+        "completed": "true",
+        "fields": [
+          "q1",
+          "q2"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/forms/u6nXL7/responses",
+      "query": {
+        "since": "2026-01-01T00:00:00Z",
+        "completed": "true",
+        "fields": "q1,q2",
+        "page_size": "10"
+      },
+      "items": 2
+    },
+    "response": {
+      "items": [
+        {
+          "token": "t1"
+        },
+        {
+          "token": "t2"
+        }
+      ]
+    }
+  },
+  "response.delete": {
+    "params": {
+      "formId": "u6nXL7",
+      "responseIds": "t1,t2"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/forms/u6nXL7/responses",
+      "query": {
+        "included_response_ids": "t1,t2"
+      }
+    }
+  },
+  "webhook.getAll": {
+    "params": {
+      "formId": "u6nXL7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/forms/u6nXL7/webhooks",
+      "items": 1
+    },
+    "response": {
+      "items": [
+        {
+          "tag": "n8n"
+        }
+      ]
+    }
+  },
+  "webhook.get": {
+    "params": {
+      "formId": "u6nXL7",
+      "tag": "my hook"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/forms/u6nXL7/webhooks/my%20hook"
+    }
+  },
+  "webhook.delete": {
+    "params": {
+      "formId": "u6nXL7",
+      "tag": "n8n"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/forms/u6nXL7/webhooks/n8n"
+    }
+  }
+}

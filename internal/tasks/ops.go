@@ -178,7 +178,7 @@ func (s *Store) placeIn(ctx context.Context, x dbx, profileID string, id int64, 
 // comes back from the archive counts against the limit of open tasks, as an added one does.
 func (s *Store) moveTx(ctx context.Context, x dbx, profileID string, cur Task, to Status, p Placement, actor Actor, kind, note string) error {
 	if cur.Status == StatusArchived && to != StatusArchived {
-		if err := s.checkAddLimits(ctx, x, profileID, SourceCLI); err != nil { // the size check: the hourly limit is the agents'
+		if err := s.checkAddLimits(ctx, x, profileID); err != nil {
 			return err
 		}
 	}

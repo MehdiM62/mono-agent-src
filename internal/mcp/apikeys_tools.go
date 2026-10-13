@@ -21,7 +21,7 @@ func apiTools() []tool {
 	return []tool{
 		{
 			name:        "api_key_list",
-			description: "List the API keys of the active profile, for the OpenAI-compatible API (/v1): [{id, profile_id, name, prefix, context, created_at, last_used_at, revoked_at}]. Metadata only: a key itself is never part of it, because only its SHA-256 is stored and it was shown once, when it was created. Revoked keys are included only with include_revoked.",
+			description: "List the active profile's API keys for the OpenAI-compatible API (/v1): metadata only, never a key, since only its SHA-256 is stored. Revoked keys are included only with include_revoked.",
 			schema: objSchema(map[string]interface{}{
 				"include_revoked": boolParam("Also list revoked keys (default false)"),
 			}),
@@ -29,18 +29,8 @@ func apiTools() []tool {
 			handler:     toolAPIKeyList,
 		},
 		{
-			name: "api_models_list",
-			description: "List the models the OpenAI-compatible API (/v1) would serve, with each one's confinement class (chat-only, sandboxed or unconfined), " +
-				"its capabilities (text; image for a model of a runtime that makes images; tools for a model that serves tool calling: its runtime is in the list below, monomind can apply the sandbox every turn with tools requires, and for a runtime that is not chat-only run it read-only), " +
-				"whether a listener of the given kind serves it, whether a key created with context may use it, whether the auto model may pick it, " +
-				"and whether the auto model works for the active profile: the document of `monoagentcli api models --json`. " +
-				"The policy comes from the arguments, else from MONOAGENT_API_CONFINEMENT, MONOAGENT_API_CONTEXT_CONFINEMENT and MONOAGENT_API_AUTO_CONFINEMENT " +
-				"in this MCP server's environment, else from the settings saved for the server (api_config_get shows them, api_config_set changes them), else the listener's defaults. " +
-				"The runtimes that make images come from MONOAGENT_API_IMAGE_RUNTIMES in this environment, else the saved image_runtimes, else codex and antigravity, " +
-				"and the runtimes that serve tool calling from MONOAGENT_API_TOOL_RUNTIMES, else the saved tool_runtimes, else claude and codex (none switches either off). " +
-				"That is what a server started now would apply, so it can differ from what a running one applies, which is what it read when it started: api_status and api_config_get say what it runs. " +
-				"Loading the models asks every installed agent runtime for its list, which takes a few seconds: calls at once share one load, the list is reused for a minute, " +
-				"and after that the previous one is served at once while a new one is loaded in the background, as the server's own /v1/models does. " + damagedRowNote,
+			name:        "api_models_list",
+			description: "List the models the OpenAI-compatible API (/v1) would serve, with each one's confinement class and capabilities: the document of `monoagentcli api models --json`. The first call takes a few seconds while the installed runtimes are asked for their lists. " + apiToolsDetails,
 			schema: objSchema(map[string]interface{}{
 				"for":                 strParam("loopback (default) or network: the kind of listener to evaluate"),
 				"confinement":         strParam("Strongest class the listener serves: chat-only, sandboxed or any (default: the environment, else the saved confinement, else any on loopback and chat-only on a network listener)"),
@@ -51,19 +41,14 @@ func apiTools() []tool {
 			handler:     toolAPIModelsList,
 		},
 		{
-			name: "api_key_create",
-			description: "Create an API key for the active profile, for the OpenAI-compatible API (/v1). The key is returned ONCE, in the key field of the result: " +
-				"only its SHA-256 is stored, so no tool can show it again. It authenticates /v1 requests as this profile and nothing else. " +
-				"Treat it as a password and give it only to the user: it is now part of this conversation's transcript, which the host may keep " +
-				"(`monoagentcli api key create` writes the key to stdout: run by the user in their own terminal it keeps the key out of any transcript, run by an agent through a shell tool it puts the key in that transcript too). " +
-				"The name rule is the store's: " + apikeys.ErrInvalidName.Error() + ". A name must also be unique among the profile's active keys. " +
-				"With context true, requests made with the key get excerpts of the profile's own knowledge added, and such a key is served only by chat-only models, and is refused tool calling, unless the server raises --context-confinement (and --confinement, on a chat-only listener) above chat-only: " +
-				"the settings context_confinement and confinement, which api_config_get shows (saved, and as the running daemon started with them) and api_config_set changes, a change that reaches further and that the operator must have allowed.",
+			name:        "api_key_create",
+			description: "Create an API key for the active profile, for the OpenAI-compatible API (/v1): the key is returned ONCE, in the key field, and no tool can show it again. Treat it as a password and give it only to the user, since it is now part of this transcript. " + apiToolsDetails,
 			schema: objSchema(map[string]interface{}{
 				"name":    strParam("Key name, unique among the profile's active keys"),
 				"context": boolParam("Add the profile's own knowledge (documents and captures) to requests made with this key (default false)"),
 			}, "name"),
 			annotations: map[string]bool{"readOnlyHint": false},
+			textOnly:    true,
 			mutating:    true,
 			handler:     toolAPIKeyCreate,
 		},

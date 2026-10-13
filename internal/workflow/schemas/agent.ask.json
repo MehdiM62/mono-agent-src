@@ -3,7 +3,7 @@
   "credential_platform": null,
   "fields": [
     {
-      "help": "Locally-installed agent runtime id — claude, codex, kimicode, qwen, … (list: monoagentcli agent scan --installed).",
+      "help": "Locally-installed agent runtime id — claude, codex, kimicode, qwen, … (list: monoagentcli agent scan --installed), or auto to pick a validated one from the agent roster (monoagentcli agent validate).",
       "key": "runtime",
       "label": "Agent Runtime",
       "required": true,
@@ -43,6 +43,33 @@
       "default": 300,
       "key": "timeout",
       "label": "Timeout (seconds)",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "help": "Ask for JSON matching this schema (type, required, properties, items, enum are checked). The parsed value goes under Output Key; a mismatch is re-asked once, then fails the item.",
+      "key": "output_schema",
+      "label": "Output Schema (JSON Schema)",
+      "language": "json",
+      "placeholder": "{\"type\": \"object\", \"required\": [\"category\"], \"properties\": {\"category\": {\"type\": \"string\"}}}",
+      "required": false,
+      "rows": 5,
+      "type": "code"
+    },
+    {
+      "default": false,
+      "help": "With an output schema and an object answer, also copy its fields onto the item.",
+      "key": "merge_output",
+      "label": "Merge Output Into Item",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": 1,
+      "help": "How many items run at once. Output keeps the input order.",
+      "key": "concurrency",
+      "label": "Concurrency",
+      "min": 1,
       "required": false,
       "type": "number"
     }

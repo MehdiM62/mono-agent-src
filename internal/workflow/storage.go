@@ -556,7 +556,9 @@ func (s *SQLiteWorkflowStore) loadWorkflowConnections(ctx context.Context, workf
 // ---------------------------------------------------------------------------
 
 // CreateExecution inserts a new workflow execution record.
-// If e.ID is empty a UUID is generated.
+// If e.ID is empty a UUID is generated. e.PID is the owner: the pid of the
+// process that will run the row, or 0 for a row left for any live engine to
+// adopt (see ListAdoptableExecutions).
 func (s *SQLiteWorkflowStore) CreateExecution(ctx context.Context, e *WorkflowExecution) error {
 	if e.ID == "" {
 		e.ID = newID()
@@ -576,10 +578,10 @@ func (s *SQLiteWorkflowStore) CreateExecution(ctx context.Context, e *WorkflowEx
 	}
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO workflow_executions
-			(id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, error_message, created_at, profile_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, error_message, created_at, profile_id, pid, trigger_node_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		e.ID, e.WorkflowID, e.Status, e.TriggerType, e.TriggerDataRaw,
-		e.StartedAt, e.FinishedAt, e.ErrorMessage, e.CreatedAt, profileID,
+		e.StartedAt, e.FinishedAt, e.ErrorMessage, e.CreatedAt, profileID, e.PID, e.TriggerNodeID,
 	)
 	if err != nil {
 		return fmt.Errorf("creating execution %s: %w", e.ID, err)
@@ -593,11 +595,11 @@ func (s *SQLiteWorkflowStore) GetExecution(ctx context.Context, id string) (*Wor
 	e := &WorkflowExecution{}
 	var createdAt sqliteTime
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), COALESCE(profile_id,'default')
+		SELECT id, workflow_id, status, trigger_type, trigger_data, started_at, finished_at, COALESCE(error_message,''), created_at, COALESCE(resume_state,''), COALESCE(profile_id,'default'), COALESCE(trigger_node_id,'')
 		FROM workflow_executions WHERE id = ?`, id,
 	).Scan(
 		&e.ID, &e.WorkflowID, &e.Status, &e.TriggerType, &e.TriggerDataRaw,
-		newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ResumeState, &e.ProfileID,
+		newSqliteNullTime(&e.StartedAt), newSqliteNullTime(&e.FinishedAt), &e.ErrorMessage, &createdAt, &e.ResumeState, &e.ProfileID, &e.TriggerNodeID,
 	)
 	e.CreatedAt = createdAt.Time
 	if err == sql.ErrNoRows {
@@ -669,6 +671,26 @@ func (s *SQLiteWorkflowStore) UpdateExecutionStatus(ctx context.Context, id stri
 		return fmt.Errorf("updating execution status %s: %w", id, err)
 	}
 	return nil
+}
+
+// StartQueuedExecution is the guarded QUEUED → RUNNING transition every
+// dispatch goes through: it records started_at and this process's pid only
+// when the row is still QUEUED and owned by this process (or unowned). It
+// returns false when another dispatch, engine or a cancel got there first —
+// the caller must then not run the execution, so no body ever runs twice.
+// The resume path qualifies too: ResumeWaitingExecution leaves the row
+// QUEUED and owned by the resuming process.
+func (s *SQLiteWorkflowStore) StartQueuedExecution(ctx context.Context, id string) (bool, error) {
+	self := os.Getpid()
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE workflow_executions SET status = 'RUNNING', started_at = ?, pid = ?
+		 WHERE id = ? AND status = 'QUEUED' AND COALESCE(pid, 0) IN (0, ?)`,
+		time.Now().UTC(), self, id, self)
+	if err != nil {
+		return false, fmt.Errorf("starting queued execution %s: %w", id, err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 // SetExecutionStarted marks an execution as RUNNING and records started_at and the current PID.
@@ -846,25 +868,66 @@ func (s *SQLiteWorkflowStore) loadExecutionNodes(ctx context.Context, executionI
 // engine to claim them; crash-resume residue (QUEUED with resume_state) is
 // excluded — RecoverStaleExecutions flips those back to WAITING for the
 // resume loop instead.
+//
+// A plain QUEUED row whose owner process has died never started (the owner
+// flips it to RUNNING before running anything), so it is released back to
+// pid 0 here and listed too: running it is its first and only run.
 func (s *SQLiteWorkflowStore) ListAdoptableExecutions(ctx context.Context) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id FROM workflow_executions
+		SELECT id, COALESCE(pid, 0) FROM workflow_executions
 		WHERE status = 'QUEUED'
-		  AND COALESCE(pid, 0) = 0
 		  AND COALESCE(resume_state, '') = ''`)
 	if err != nil {
 		return nil, fmt.Errorf("listing adoptable executions: %w", err)
 	}
-	defer rows.Close()
-	var ids []string
+	type row struct {
+		id  string
+		pid int
+	}
+	var all []row
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var r row
+		if err := rows.Scan(&r.id, &r.pid); err != nil {
+			rows.Close()
 			return nil, fmt.Errorf("scanning adoptable execution: %w", err)
 		}
-		ids = append(ids, id)
+		all = append(all, r)
 	}
-	return ids, rows.Err()
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("listing adoptable executions: %w", err)
+	}
+	self := os.Getpid()
+	var ids []string
+	for _, r := range all {
+		if r.pid != 0 {
+			if r.pid == self || processAlive(r.pid) {
+				continue
+			}
+			released, err := s.releaseDeadOwner(ctx, r.id, r.pid)
+			if err != nil {
+				return nil, err
+			}
+			if !released {
+				continue
+			}
+		}
+		ids = append(ids, r.id)
+	}
+	return ids, nil
+}
+
+// releaseDeadOwner hands a dead process's never-started QUEUED row back to
+// pid 0, guarded on the pid it was read with so a concurrent claim wins.
+func (s *SQLiteWorkflowStore) releaseDeadOwner(ctx context.Context, id string, deadPID int) (bool, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE workflow_executions SET pid = 0
+		 WHERE id = ? AND status = 'QUEUED' AND pid = ? AND COALESCE(resume_state, '') = ''`,
+		id, deadPID)
+	if err != nil {
+		return false, fmt.Errorf("releasing queued execution %s: %w", id, err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
 }
 
 // ClaimQueuedExecution atomically claims an unowned QUEUED execution for this
@@ -891,19 +954,19 @@ func (s *SQLiteWorkflowStore) ClaimQueuedExecution(ctx context.Context, id strin
 // FAILED. This should be called once on process startup to handle executions
 // that were interrupted by a previous crash or restart.
 //
-// Two exceptions for QUEUED rows with no pid:
+// QUEUED rows of a dead (or no) owner never started, so they are not failed:
 //   - with a persisted resume_state it is the residue of a crash between the
-//     resume CAS (WAITING → QUEUED) and the enqueue — flipped back to WAITING
+//     resume CAS (WAITING → QUEUED) and the run — flipped back to WAITING
 //     so the resume loop re-enqueues the approved Human-in-Loop run;
-//   - without one it is an unowned row awaiting adoption (`workflow run
-//     --no-wait` persists one and exits). It is left QUEUED — failing it here
-//     would destroy the run before any daemon ever saw it.
+//   - without one it is a row awaiting adoption (`workflow run --no-wait`
+//     persists one and exits; a process that exits with runs still waiting
+//     for a slot leaves its own). It is left QUEUED with pid 0 for a live
+//     engine to claim — failing it here would destroy a run nobody started.
 func (s *SQLiteWorkflowStore) RecoverStaleExecutions(ctx context.Context) error {
 	// Only fail executions whose owning process is no longer alive. A concurrent
 	// engine (e.g. the `daemon` process) may legitimately have RUNNING executions;
-	// blindly failing all RUNNING/QUEUED rows corrupts its in-flight state. QUEUED
-	// rows carry no live worker (pid is only set once RUNNING), so a null/zero/dead
-	// pid means the row is genuinely stale and safe to recover.
+	// blindly failing all RUNNING/QUEUED rows corrupts its in-flight state. A
+	// null/zero/dead pid means the row has no live owner and is safe to recover.
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, status, COALESCE(pid, 0), COALESCE(resume_state, '') FROM workflow_executions WHERE status IN ('RUNNING', 'QUEUED')`)
 	if err != nil {
@@ -914,6 +977,7 @@ func (s *SQLiteWorkflowStore) RecoverStaleExecutions(ctx context.Context) error 
 	self := os.Getpid()
 	var staleIDs []string
 	var resumableIDs []string
+	var releaseIDs []string
 	for rows.Next() {
 		var id, status, resumeState string
 		var pid int
@@ -924,11 +988,14 @@ func (s *SQLiteWorkflowStore) RecoverStaleExecutions(ctx context.Context) error 
 			continue // never fail our own in-flight rows
 		}
 		if !processAlive(pid) {
-			if status == "QUEUED" && pid == 0 {
+			if status == "QUEUED" {
 				if resumeState != "" {
-					// Crashed between resume-CAS and Enqueue: flip back to
+					// Crashed between resume-CAS and the run: flip back to
 					// WAITING so the resume loop re-enqueues the approved run.
 					resumableIDs = append(resumableIDs, id)
+				} else if pid != 0 {
+					// Never started: release it for adoption.
+					releaseIDs = append(releaseIDs, id)
 				}
 				// else: unowned --no-wait row — an adoption candidate, not
 				// stale. Leave it QUEUED for a live engine to claim.
@@ -947,6 +1014,15 @@ func (s *SQLiteWorkflowStore) RecoverStaleExecutions(ctx context.Context) error 
 			SET status = 'WAITING'
 			WHERE id = ? AND status = 'QUEUED'`, id); err != nil {
 			return fmt.Errorf("recovering resumable execution %s: %w", id, err)
+		}
+	}
+
+	for _, id := range releaseIDs {
+		if _, err := s.db.ExecContext(ctx, `
+			UPDATE workflow_executions
+			SET pid = 0
+			WHERE id = ? AND status = 'QUEUED' AND COALESCE(resume_state, '') = ''`, id); err != nil {
+			return fmt.Errorf("releasing queued execution %s: %w", id, err)
 		}
 	}
 
@@ -1041,10 +1117,11 @@ func (s *SQLiteWorkflowStore) CancelQueuedExecution(ctx context.Context, id stri
 
 // ResumeWaitingExecution atomically flips a WAITING execution to QUEUED, so that
 // among concurrent engines sharing the DB exactly one wins the resume (the
-// others get false). Returns whether this caller flipped it.
+// others get false). The winner becomes the owner (pid), which is what lets
+// its dispatch pass StartQueuedExecution. Returns whether this caller flipped it.
 func (s *SQLiteWorkflowStore) ResumeWaitingExecution(ctx context.Context, id string) (bool, error) {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE workflow_executions SET status = 'QUEUED' WHERE id = ? AND status = 'WAITING'`, id)
+		`UPDATE workflow_executions SET status = 'QUEUED', pid = ? WHERE id = ? AND status = 'WAITING'`, os.Getpid(), id)
 	if err != nil {
 		return false, fmt.Errorf("resuming waiting execution %s: %w", id, err)
 	}

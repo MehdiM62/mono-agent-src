@@ -1,0 +1,16 @@
+{
+  "name": "Invoice mail triage",
+  "nodes": [
+    {"parameters": {"mailbox": "Invoices", "postProcessAction": "nothing", "options": {}}, "name": "Email Trigger (IMAP)", "type": "n8n-nodes-base.emailReadImap", "typeVersion": 2, "position": [0, 0], "credentials": {"imap": {"id": "1", "name": "IMAP account"}}},
+    {"parameters": {"conditions": {"options": {"caseSensitive": false, "leftValue": "", "typeValidation": "strict"}, "conditions": [{"leftValue": "={{ $json.subject }}", "rightValue": "invoice", "operator": {"type": "string", "operation": "contains"}}, {"leftValue": "={{ $json.from }}", "rightValue": "", "operator": {"type": "string", "operation": "notEmpty", "singleValue": true}}], "combinator": "and"}, "options": {}}, "name": "Invoices only", "type": "n8n-nodes-base.filter", "typeVersion": 2, "position": [220, 0]},
+    {"parameters": {"fromEmail": "bot@example.com", "toEmail": "finance@example.com", "subject": "=Invoice: {{ $json.subject }}", "html": "=<p>From {{ $json.from }}</p>", "options": {"ccEmail": "audit@example.com"}}, "name": "Send Email", "type": "n8n-nodes-base.emailSend", "typeVersion": 2.1, "position": [440, -100], "credentials": {"smtp": {"id": "2", "name": "SMTP account"}}},
+    {"parameters": {"sendTo": "boss@example.com", "subject": "New invoice", "message": "=Invoice from {{ $json.from }}", "options": {"ccList": "team@example.com"}}, "name": "Gmail", "type": "n8n-nodes-base.gmail", "typeVersion": 2.1, "position": [440, 0], "credentials": {"gmailOAuth2": {"id": "4", "name": "Gmail account"}}},
+    {"parameters": {"toRecipients": "ops@example.com", "subject": "Invoice", "bodyContent": "=Seen: {{ $json.subject }}", "additionalFields": {"bodyContentType": "Text"}}, "name": "Outlook", "type": "n8n-nodes-base.microsoftOutlook", "typeVersion": 2, "position": [440, 100], "credentials": {"microsoftOutlookOAuth2Api": {"id": "6", "name": "Outlook"}}},
+    {"parameters": {"operation": "getAll", "limit": 10, "filters": {"readStatus": "unread", "q": "has:attachment"}}, "name": "Recent mail", "type": "n8n-nodes-base.gmail", "typeVersion": 2.1, "position": [660, 0], "credentials": {"gmailOAuth2": {"id": "4", "name": "Gmail account"}}}
+  ],
+  "connections": {
+    "Email Trigger (IMAP)": {"main": [[{"node": "Invoices only", "type": "main", "index": 0}]]},
+    "Invoices only": {"main": [[{"node": "Send Email", "type": "main", "index": 0}, {"node": "Gmail", "type": "main", "index": 0}, {"node": "Outlook", "type": "main", "index": 0}]]},
+    "Gmail": {"main": [[{"node": "Recent mail", "type": "main", "index": 0}]]}
+  }
+}

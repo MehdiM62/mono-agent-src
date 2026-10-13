@@ -16,15 +16,18 @@ ON CONFLICT(automation_id, selector_key) DO UPDATE SET
     recent = '', rerecorded_at = excluded.rerecorded_at, updated_at = excluded.updated_at`
 
 // ResetSelectorHealth starts a selector's health over after it was
-// re-recorded (`automation rerecord`): counters, last ok/fail and the
-// outcome ring are cleared and rerecorded_at is set, so the status is ok
-// until new failures arrive. The row is created when missing.
+// re-recorded (`automation rerecord`) or repaired from Jev picks
+// (AcceptRepair): counters, last ok/fail and the outcome ring are cleared,
+// rerecorded_at is set and any repair proposal is dropped, so the status
+// is ok until new failures arrive. The row is created when missing.
 //
 // Observations of runs still in flight may land after the reset; they
 // describe the old selector only if that run resolved it before the
 // re-record, which is rare and self-corrects on the next runs.
 func ResetSelectorHealth(db *sql.DB, automationID, key string) error {
 	now := formatHealthTime(time.Now())
-	_, err := db.Exec(healthResetSQL, automationID, key, now, now)
-	return err
+	if _, err := db.Exec(healthResetSQL, automationID, key, now, now); err != nil {
+		return err
+	}
+	return deleteRepairProposal(db, automationID, key)
 }
