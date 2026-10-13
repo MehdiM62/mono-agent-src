@@ -384,3 +384,66 @@ func TestFirestorePickAndBinaryToggles(t *testing.T) {
 		t.Errorf("upload_text: %q %q", bodies[len(bodies)-1], cts[len(cts)-1])
 	}
 }
+
+func TestBigQueryPollAndSchemaRows(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"query","title":"Q","method":"POST","path":"/queries",
+	  "fields":[{"key":"nums","label":"N","type":"boolean"}],
+	  "poll":{"method":"GET","path":"/queries/{{ res.jobReference.jobId }}","until":"{{ res.jobComplete }}","interval_ms":1},
+	  "output":{"path":"rows","schema_rows":"schema.fields","numbers":"{{ p.nums }}"}}`))
+	full := `{"jobComplete":true,"jobReference":{"jobId":"j1"},
+	  "schema":{"fields":[{"name":"n","type":"INTEGER"},{"name":"ok","type":"BOOLEAN"},
+	    {"name":"tags","type":"STRING","mode":"REPEATED"},
+	    {"name":"addr","type":"RECORD","fields":[{"name":"city","type":"STRING"}]}]},
+	  "rows":[{"f":[{"v":"7"},{"v":"true"},{"v":[{"v":"a"},{"v":"b"}]},{"v":{"f":[{"v":"Oslo"}]}}]}]}`
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		if n == 1 {
+			w.Write([]byte(`{"jobComplete":false,"jobReference":{"jobId":"j1"}}`))
+			return
+		}
+		w.Write([]byte(full))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "query", "nums": true}, cred, nil)
+	if err != nil || len(*seen) != 2 || (*seen)[1].URL.Path != "/v1/queries/j1" {
+		t.Fatalf("poll: %v, %d requests", err, len(*seen))
+	}
+	want := map[string]any{"n": 7.0, "ok": true, "tags": []any{"a", "b"}, "addr": map[string]any{"city": "Oslo"}}
+	if len(items) != 1 || !reflect.DeepEqual(items[0].JSON, want) {
+		t.Errorf("rows = %#v", items)
+	}
+}
+
+func TestReplaceAndRe(t *testing.T) {
+	sc := Scope{P: map[string]any{"cid": "123-456-7890", "long": "accounts/1/locations/2/reviews/ABC/reply", "bare": "ABC"}}
+	for in, want := range map[string]any{
+		"{{ p.cid | replace:'-','' }}":               "1234567890",
+		"{{ p.long | re:'reviews/([^/]+)' }}":        "ABC",
+		"{{ p.bare | re:'reviews/([^/]+)' }}":        "ABC",
+		"{{ p.long | re:'locations/[0-9]+' }}":       "locations/2",
+		"{{ p.cid | replace:'-',(p.bare | lower) }}": "123abc456abc7890",
+	} {
+		if got, err := renderString(in, sc); err != nil || got != want {
+			t.Errorf("%s = %#v, %v; want %#v", in, got, err, want)
+		}
+	}
+	if _, err := renderString("{{ p.cid | re:'(' }}", sc); err == nil {
+		t.Error("bad regexp must error")
+	}
+}
+
+func TestGA4ZipRows(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"report","title":"R","method":"POST","path":"/runReport",
+	  "output":{"path":"rows","to":{"$merge":["{{ el.dimensionValues | zip:res.dimensionHeaders,'name','value' }}",
+	    "{{ el.metricValues | zip:res.metricHeaders,'name','value' }}"]}}}`))
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"dimensionHeaders":[{"name":"country"}],"metricHeaders":[{"name":"sessions"},{"name":"users"}],
+		  "rows":[{"dimensionValues":[{"value":"NO"}],"metricValues":[{"value":"10"},{"value":"7"}]}]}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "report"}, cred, nil)
+	want := map[string]any{"country": "NO", "sessions": "10", "users": "7"}
+	if err != nil || len(items) != 1 || !reflect.DeepEqual(items[0].JSON, want) {
+		t.Errorf("ga4 rows = %v, %v", items, err)
+	}
+	if got, _ := renderString("{{ p.v | zip:p.h }}", Scope{P: map[string]any{"h": []any{"a", "b"}, "v": []any{1.0}}}); !reflect.DeepEqual(got, map[string]any{"a": 1.0}) {
+		t.Errorf("plain zip = %#v", got)
+	}
+}

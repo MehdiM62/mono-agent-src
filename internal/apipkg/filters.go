@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,6 +25,7 @@ var knownFilters = map[string]bool{
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
+	"replace": true, "re": true, "zip": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -131,6 +133,33 @@ func applyFilter(name string, v, arg any) (any, error) {
 			}
 		}
 		return firestoreFields(obj, cols), nil
+	case "zip":
+		a := arg.([]any)
+		hk, vk := "", ""
+		if len(a) > 1 {
+			hk = stringify(a[1])
+		}
+		if len(a) > 2 {
+			vk = stringify(a[2])
+		}
+		return zipLists(a[0], v, hk, vk), nil
+	case "replace":
+		a := arg.([]any)
+		return strings.ReplaceAll(stringify(v), stringify(a[0]), stringify(a[1])), nil
+	case "re":
+		re, err := cachedRegexp(stringify(arg))
+		if err != nil {
+			return nil, fmt.Errorf("re: %w", err)
+		}
+		s := stringify(v)
+		m := re.FindStringSubmatch(s)
+		switch {
+		case m == nil:
+			return v, nil
+		case len(m) > 1:
+			return m[1], nil
+		}
+		return m[0], nil
 	case "lines":
 		var out []any
 		for _, ln := range strings.Split(strings.ReplaceAll(stringify(v), "\r\n", "\n"), "\n") {
@@ -761,4 +790,44 @@ func pickKeys(v, arg any) (any, error) {
 		}
 	}
 	return out, nil
+}
+
+var reCache sync.Map // pattern → *regexp.Regexp
+
+func cachedRegexp(p string) (*regexp.Regexp, error) {
+	if v, ok := reCache.Load(p); ok {
+		return v.(*regexp.Regexp), nil
+	}
+	re, err := regexp.Compile(p)
+	if err != nil {
+		return nil, err
+	}
+	reCache.Store(p, re)
+	return re, nil
+}
+
+// zipLists pairs a header list with a value list into an object: key i is
+// headers[i] (or headers[i][headerKey]), value i is values[i] (or
+// values[i][valueKey]). GA4 rows: {{ el.dimensionValues | zip:res.dimensionHeaders,'name','value' }}.
+func zipLists(headers, values any, headerKey, valueKey string) any {
+	hs, _ := headers.([]any)
+	vs, _ := values.([]any)
+	out := map[string]any{}
+	for i, h := range hs {
+		if i >= len(vs) {
+			break
+		}
+		k := h
+		if headerKey != "" {
+			k = lookupPath(h, strings.Split(headerKey, "."))
+		}
+		v := vs[i]
+		if valueKey != "" {
+			v = lookupPath(v, strings.Split(valueKey, "."))
+		}
+		if ks := stringify(k); ks != "" {
+			out[ks] = v
+		}
+	}
+	return out
 }
