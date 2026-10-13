@@ -1,0 +1,188 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "circle_ci",
+  "node_type": "app.circle_ci",
+  "title": "CircleCI",
+  "description": "Pipelines on CircleCI",
+  "category": "app",
+  "docs_url": "https://circleci.com/docs/api/v2/",
+  "n8n_types": [
+    "n8n-nodes-base.circleCi"
+  ],
+  "base_url": "https://circleci.com/api/v2",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "circleci",
+      "name": "CircleCI",
+      "n8n_credential": "circleCiApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "Personal API token",
+          "secret": true,
+          "required": true,
+          "help": "CircleCI: User settings → Personal API tokens"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Circle-Token": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "pipeline",
+      "label": "Pipeline"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "pipeline",
+      "operation": "get",
+      "title": "Get a pipeline",
+      "method": "GET",
+      "path": "/project/{{ p.vcs }}/{{ p.projectSlug }}/pipeline/{{ p.pipelineNumber }}",
+      "fields": [
+        {
+          "key": "vcs",
+          "label": "Provider",
+          "type": "select",
+          "required": true,
+          "options": [
+            "bitbucket",
+            "github"
+          ],
+          "default": ""
+        },
+        {
+          "key": "projectSlug",
+          "label": "Project slug",
+          "type": "text",
+          "required": true,
+          "help": "org/repo, e.g. n8n-io/n8n"
+        },
+        {
+          "key": "pipelineNumber",
+          "label": "Pipeline number",
+          "type": "number",
+          "required": true,
+          "default": 1,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "pipeline",
+      "operation": "getAll",
+      "title": "Get many pipelines",
+      "method": "GET",
+      "path": "/project/{{ p.vcs }}/{{ p.projectSlug }}/pipeline",
+      "query": {
+        "branch": "{{ p.filters.branch }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page-token",
+        "cursor_path": "next_page_token",
+        "results_path": "items"
+      },
+      "fields": [
+        {
+          "key": "vcs",
+          "label": "Provider",
+          "type": "select",
+          "required": true,
+          "options": [
+            "bitbucket",
+            "github"
+          ],
+          "default": ""
+        },
+        {
+          "key": "projectSlug",
+          "label": "Project slug",
+          "type": "text",
+          "required": true,
+          "help": "org/repo, e.g. n8n-io/n8n"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off.",
+          "max": 500
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "branch"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "pipeline",
+      "operation": "trigger",
+      "title": "Trigger a pipeline",
+      "method": "POST",
+      "path": "/project/{{ p.vcs }}/{{ p.projectSlug }}/pipeline",
+      "body": {
+        "branch": "{{ p.additionalFields.branch }}",
+        "tag": "{{ p.additionalFields.tag }}"
+      },
+      "fields": [
+        {
+          "key": "vcs",
+          "label": "Provider",
+          "type": "select",
+          "required": true,
+          "options": [
+            "bitbucket",
+            "github"
+          ],
+          "default": ""
+        },
+        {
+          "key": "projectSlug",
+          "label": "Project slug",
+          "type": "text",
+          "required": true,
+          "help": "org/repo, e.g. n8n-io/n8n"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "branch",
+            "tag"
+          ]
+        }
+      ]
+    }
+  ]
+}
