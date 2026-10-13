@@ -74,7 +74,7 @@
       "operation": "create",
       "title": "Send a message to a room",
       "method": "PUT",
-      "path": "/rooms/{{ p.roomId }}/send/m.room.message/{{ p.transactionId | default:(uuid) }}",
+      "path": "/rooms/{{ p.roomId }}/send/m.room.message/{{ uuid }}",
       "fields": [
         {
           "key": "roomId",
@@ -115,12 +115,6 @@
           "type": "textarea",
           "default": "",
           "help": "Plain-text body for clients without HTML (HTML format only)"
-        },
-        {
-          "key": "transactionId",
-          "label": "Transaction ID",
-          "type": "text",
-          "help": "Optional idempotency key for the send; a random one is used when empty"
         }
       ],
       "body": {
@@ -222,7 +216,7 @@
           "filename": "{{ p.additionalFields.fileName | default:bin.file_name }}"
         }
       },
-      "path": "/rooms/{{ p.roomId }}/send/m.room.message/{{ p.transactionId | default:(uuid) }}",
+      "path": "/rooms/{{ p.roomId }}/send/m.room.message/{{ uuid }}",
       "body_type": "json",
       "fields": [
         {
@@ -258,12 +252,6 @@
           "options": [
             "fileName"
           ]
-        },
-        {
-          "key": "transactionId",
-          "label": "Transaction ID",
-          "type": "text",
-          "help": "Optional idempotency key for the send; a random one is used when empty"
         }
       ],
       "body": {

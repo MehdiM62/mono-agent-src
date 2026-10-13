@@ -401,8 +401,7 @@
           "key": "returnAll",
           "label": "Return all",
           "type": "boolean",
-          "default": false,
-          "help": "Fetches the server's default page; full paging needs engine support for id-keyed results"
+          "default": false
         },
         {
           "key": "limit",
@@ -432,20 +431,20 @@
         "orderBy": "{{ p.options.orderBy | replace:'firstName','firstname' | replace:'lastName','lastname' }}",
         "orderByDir": "{{ p.options.orderByDir }}",
         "publishedOnly": "{{ p.options.publishedOnly }}",
-        "minimal": "{{ p.options.minimal }}",
-        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}",
-        "start": "{{ p.returnAll | ne:'true' | then:'0' }}"
+        "minimal": "{{ p.options.minimal }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "start",
+        "limit_param": "limit",
+        "page_size": 30,
+        "results_path": "contacts",
+        "values": true
       },
       "output": {
         "path": "contacts",
-        "to": {
-          "$concat": [
-            {
-              "$map": "{{ el | entries | pluck:'value' }}",
-              "$to": "{{ p.options.rawData | eq:'false' | then:el.fields.all | default:el }}"
-            }
-          ]
-        }
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.options.rawData | eq:'false' }}"
       }
     },
     {
@@ -710,8 +709,7 @@
           "key": "returnAll",
           "label": "Return all",
           "type": "boolean",
-          "default": false,
-          "help": "Fetches the server's default page; full paging needs engine support for id-keyed results"
+          "default": false
         },
         {
           "key": "limit",
@@ -740,20 +738,20 @@
         }
       ],
       "query": {
-        "$merge": "{{ p.additionalFields }}",
-        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}",
-        "start": "{{ p.returnAll | ne:'true' | then:'0' }}"
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "start",
+        "limit_param": "limit",
+        "page_size": 30,
+        "results_path": "companies",
+        "values": true
       },
       "output": {
         "path": "companies",
-        "to": {
-          "$concat": [
-            {
-              "$map": "{{ el | entries | pluck:'value' }}",
-              "$to": "{{ p.simple | then:el.fields.all | default:el }}"
-            }
-          ]
-        }
+        "to": "{{ el.fields.all }}",
+        "to_when": "{{ p.simple }}"
       }
     },
     {

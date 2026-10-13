@@ -4,8 +4,7 @@
       "roomId": "!r:hs",
       "text": "<b>hi</b>",
       "messageFormat": "org.matrix.custom.html",
-      "fallbackText": "hi",
-      "transactionId": "tx1"
+      "fallbackText": "hi"
     },
     "credential": {
       "access_token": "t",
@@ -16,7 +15,7 @@
     },
     "expect": {
       "method": "PUT",
-      "path": "/_matrix/client/r0/rooms/%21r:hs/send/m.room.message/tx1",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/send/m.room.message/<any>",
       "body": {
         "msgtype": "m.text",
         "body": "hi",
@@ -88,8 +87,7 @@
   },
   "media.upload": {
     "params": {
-      "roomId": "!r:hs",
-      "transactionId": "tx2"
+      "roomId": "!r:hs"
     },
     "credential": {
       "access_token": "t",
@@ -126,7 +124,7 @@
       },
       {
         "method": "PUT",
-        "path": "/_matrix/client/r0/rooms/%21r:hs/send/m.room.message/tx2",
+        "path": "/_matrix/client/r0/rooms/%21r:hs/send/m.room.message/<any>",
         "body": {
           "msgtype": "m.image",
           "body": "a.png",
@@ -136,7 +134,7 @@
     ],
     "expect": {
       "method": "PUT",
-      "path": "/_matrix/client/r0/rooms/%21r:hs/send/m.room.message/tx2",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/send/m.room.message/<any>",
       "body": {
         "msgtype": "m.image",
         "body": "a.png",

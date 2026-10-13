@@ -31,8 +31,8 @@
         }
       ],
       "inject": {
-        "headers": {
-          "X-Mandrill-Key": "{{ cred.api_key }}"
+        "body": {
+          "key": "{{ cred.api_key }}"
         }
       }
     }
@@ -179,7 +179,6 @@
         }
       ],
       "body": {
-        "key": "{{ cred.api_key }}",
         "!template_content": [],
         "message": {
           "html": "{{ p.options.html }}",
@@ -396,7 +395,6 @@
         }
       ],
       "body": {
-        "key": "{{ cred.api_key }}",
         "!template_content": [],
         "message": {
           "html": "{{ p.options.html }}",
