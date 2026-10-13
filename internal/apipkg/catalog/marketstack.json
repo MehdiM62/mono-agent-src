@@ -1,0 +1,151 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "marketstack",
+  "node_type": "app.marketstack",
+  "title": "Marketstack",
+  "description": "Stock market end-of-day data, exchanges and tickers from Marketstack",
+  "category": "app",
+  "docs_url": "https://marketstack.com/documentation",
+  "n8n_types": [
+    "n8n-nodes-base.marketstack"
+  ],
+  "base_url": "http{{ cred.use_https | eq:'true' | then:'s' }}://api.marketstack.com/v1",
+  "credentials": [
+    {
+      "platform": "marketstack",
+      "name": "Marketstack",
+      "n8n_credential": "marketstackApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "useHttps": "use_https"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "Access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "use_https",
+          "label": "Use HTTPS",
+          "help": "true for paid plans that allow HTTPS"
+        }
+      ],
+      "inject": {
+        "query": {
+          "access_key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "endOfDayData",
+      "label": "End-of-Day Data"
+    },
+    {
+      "value": "exchange",
+      "label": "Exchange"
+    },
+    {
+      "value": "ticker",
+      "label": "Ticker"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "endOfDayData",
+      "operation": "getAll",
+      "title": "Get many end-of-day prices",
+      "method": "GET",
+      "description": "Pick one time option: latest, a specific date, or a start and end date",
+      "path": "/eod{{ p.filters.latest | eq:'true' | then:'/latest' }}{{ p.filters.specificDate | then:'/' }}{{ p.filters.specificDate | date:'YYYY-MM-DD' }}",
+      "fields": [
+        {
+          "key": "symbols",
+          "label": "Tickers",
+          "type": "text",
+          "required": true,
+          "help": "One or more comma-separated symbols, e.g. AAPL,MSFT"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dateFrom",
+            "dateTo",
+            "exchange",
+            "latest",
+            "sort",
+            "specificDate"
+          ],
+          "help": "sort: ASC or DESC; dates as YYYY-MM-DD"
+        }
+      ],
+      "query": {
+        "symbols": "{{ p.symbols }}",
+        "exchange": "{{ p.filters.exchange }}",
+        "sort": "{{ p.filters.sort }}",
+        "date_from": "{{ p.filters.dateFrom | date:'YYYY-MM-DD' }}",
+        "date_to": "{{ p.filters.dateTo | date:'YYYY-MM-DD' }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 1000,
+        "results_path": "data"
+      }
+    },
+    {
+      "resource": "exchange",
+      "operation": "get",
+      "title": "Get an exchange",
+      "method": "GET",
+      "path": "/exchanges/{{ p.exchange }}",
+      "fields": [
+        {
+          "key": "exchange",
+          "label": "Exchange (MIC)",
+          "type": "text",
+          "required": true,
+          "placeholder": "XNAS"
+        }
+      ]
+    },
+    {
+      "resource": "ticker",
+      "operation": "get",
+      "title": "Get a ticker",
+      "method": "GET",
+      "path": "/tickers/{{ p.symbol }}",
+      "fields": [
+        {
+          "key": "symbol",
+          "label": "Ticker",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

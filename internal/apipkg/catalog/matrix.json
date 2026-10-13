@@ -1,0 +1,433 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "matrix",
+  "node_type": "app.matrix",
+  "title": "Matrix",
+  "description": "Rooms, messages, media, events and members on a Matrix homeserver",
+  "category": "app",
+  "docs_url": "https://spec.matrix.org/latest/client-server-api/",
+  "n8n_types": [
+    "n8n-nodes-base.matrix"
+  ],
+  "base_url": "{{ cred.homeserver_url | default:'https://matrix-client.matrix.org' }}/_matrix/client/r0",
+  "credentials": [
+    {
+      "platform": "matrix",
+      "name": "Matrix",
+      "n8n_credential": "matrixApi",
+      "n8n_field_map": {
+        "accessToken": "access_token",
+        "homeserverUrl": "homeserver_url"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "homeserver_url",
+          "label": "Homeserver URL",
+          "help": "Default https://matrix-client.matrix.org"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "account",
+      "label": "Account"
+    },
+    {
+      "value": "event",
+      "label": "Event"
+    },
+    {
+      "value": "media",
+      "label": "Media"
+    },
+    {
+      "value": "room",
+      "label": "Room"
+    },
+    {
+      "value": "roomMember",
+      "label": "Room Member"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "create",
+      "title": "Send a message to a room",
+      "method": "PUT",
+      "path": "/rooms/{{ p.roomId }}/send/m.room.message/{{ p.transactionId | default:(uuid) }}",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "messageType",
+          "label": "Message type",
+          "type": "select",
+          "default": "m.text",
+          "options": [
+            "m.emote",
+            "m.notice",
+            "m.text"
+          ]
+        },
+        {
+          "key": "messageFormat",
+          "label": "Format",
+          "type": "select",
+          "default": "plain",
+          "options": [
+            "plain",
+            "org.matrix.custom.html"
+          ]
+        },
+        {
+          "key": "fallbackText",
+          "label": "Fallback text",
+          "type": "textarea",
+          "default": "",
+          "help": "Plain-text body for clients without HTML (HTML format only)"
+        },
+        {
+          "key": "transactionId",
+          "label": "Transaction ID",
+          "type": "text",
+          "help": "Optional idempotency key for the send; a random one is used when empty"
+        }
+      ],
+      "body": {
+        "msgtype": "{{ p.messageType }}",
+        "!body": "{{ p.messageFormat | eq:'org.matrix.custom.html' | then:p.fallbackText | default:p.text }}",
+        "format": "{{ p.messageFormat | eq:'org.matrix.custom.html' | then:p.messageFormat }}",
+        "formatted_body": "{{ p.messageFormat | eq:'org.matrix.custom.html' | then:p.text }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "getAll",
+      "title": "Get many messages of a room",
+      "method": "GET",
+      "path": "/rooms/{{ p.roomId }}/messages",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "otherOptions",
+          "label": "Other options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter"
+          ],
+          "help": "filter: a JSON RoomEventFilter"
+        }
+      ],
+      "query": {
+        "dir": "b",
+        "filter": "{{ p.otherOptions.filter }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "from",
+        "cursor_path": "end",
+        "limit_param": "limit",
+        "results_path": "chunk"
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "me",
+      "title": "Get the current user",
+      "method": "GET",
+      "path": "/account/whoami",
+      "fields": []
+    },
+    {
+      "resource": "event",
+      "operation": "get",
+      "title": "Get an event",
+      "method": "GET",
+      "path": "/rooms/{{ p.roomId }}/event/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "media",
+      "operation": "upload",
+      "title": "Upload media and send it to a room",
+      "method": "PUT",
+      "before": {
+        "upload": true,
+        "method": "POST",
+        "base_url": "{{ cred.homeserver_url | default:'https://matrix-client.matrix.org' }}/_matrix/media/r0",
+        "path": "/upload",
+        "query": {
+          "filename": "{{ p.additionalFields.fileName | default:bin.file_name }}"
+        }
+      },
+      "path": "/rooms/{{ p.roomId }}/send/m.room.message/{{ p.transactionId | default:(uuid) }}",
+      "body_type": "json",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data",
+          "required": true
+        },
+        {
+          "key": "mediaType",
+          "label": "Media type",
+          "type": "select",
+          "default": "image",
+          "options": [
+            "file",
+            "image",
+            "audio",
+            "video"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fileName"
+          ]
+        },
+        {
+          "key": "transactionId",
+          "label": "Transaction ID",
+          "type": "text",
+          "help": "Optional idempotency key for the send; a random one is used when empty"
+        }
+      ],
+      "body": {
+        "msgtype": "m.{{ p.mediaType }}",
+        "body": "{{ p.additionalFields.fileName | default:bin.file_name }}",
+        "url": "{{ pre.content_uri }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName"
+      }
+    },
+    {
+      "resource": "room",
+      "operation": "create",
+      "title": "Create a room",
+      "method": "POST",
+      "path": "/createRoom",
+      "fields": [
+        {
+          "key": "roomName",
+          "label": "Room name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "preset",
+          "label": "Preset",
+          "type": "select",
+          "default": "public_chat",
+          "options": [
+            "private_chat",
+            "public_chat"
+          ]
+        },
+        {
+          "key": "roomAlias",
+          "label": "Room alias",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "body": {
+        "name": "{{ p.roomName }}",
+        "preset": "{{ p.preset }}",
+        "room_alias_name": "{{ p.roomAlias }}"
+      }
+    },
+    {
+      "resource": "room",
+      "operation": "invite",
+      "title": "Invite a user to a room",
+      "method": "POST",
+      "path": "/rooms/{{ p.roomId }}/invite",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "user_id": "{{ p.userId }}"
+      }
+    },
+    {
+      "resource": "room",
+      "operation": "join",
+      "title": "Join a room",
+      "method": "POST",
+      "path": "/rooms/{{ p.roomIdOrAlias }}/join",
+      "fields": [
+        {
+          "key": "roomIdOrAlias",
+          "label": "Room ID or alias",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "room",
+      "operation": "kick",
+      "title": "Kick a user from a room",
+      "method": "POST",
+      "path": "/rooms/{{ p.roomId }}/kick",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "body": {
+        "user_id": "{{ p.userId }}",
+        "reason": "{{ p.reason }}"
+      }
+    },
+    {
+      "resource": "room",
+      "operation": "leave",
+      "title": "Leave a room",
+      "method": "POST",
+      "path": "/rooms/{{ p.roomId }}/leave",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "roomMember",
+      "operation": "getAll",
+      "title": "Get the members of a room",
+      "method": "GET",
+      "path": "/rooms/{{ p.roomId }}/members",
+      "fields": [
+        {
+          "key": "roomId",
+          "label": "Room ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "membership",
+            "notMembership"
+          ],
+          "help": "ban, invite, join or leave"
+        }
+      ],
+      "query": {
+        "membership": "{{ p.filters.membership }}",
+        "not_membership": "{{ p.filters.notMembership }}"
+      },
+      "output": {
+        "path": "chunk"
+      }
+    }
+  ]
+}

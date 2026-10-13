@@ -1,0 +1,261 @@
+{
+  "message.create": {
+    "params": {
+      "roomId": "!r:hs",
+      "text": "<b>hi</b>",
+      "messageFormat": "org.matrix.custom.html",
+      "fallbackText": "hi",
+      "transactionId": "tx1"
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "response": {
+      "event_id": "$e"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/send/m.room.message/tx1",
+      "body": {
+        "msgtype": "m.text",
+        "body": "hi",
+        "format": "org.matrix.custom.html",
+        "formatted_body": "<b>hi</b>"
+      },
+      "items": 1
+    }
+  },
+  "message.getAll": {
+    "params": {
+      "roomId": "!r:hs",
+      "limit": 10
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "response": {
+      "chunk": [
+        {
+          "event_id": "a"
+        }
+      ],
+      "end": "t2"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/messages",
+      "query": {
+        "dir": "b",
+        "limit": "10"
+      },
+      "items": 1
+    }
+  },
+  "account.me": {
+    "params": {},
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "response": {
+      "user_id": "@a:hs"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/_matrix/client/r0/account/whoami",
+      "items": 1
+    }
+  },
+  "event.get": {
+    "params": {
+      "roomId": "!r:hs",
+      "eventId": "$e"
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "response": {
+      "event_id": "$e"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/event/$e",
+      "items": 1
+    }
+  },
+  "media.upload": {
+    "params": {
+      "roomId": "!r:hs",
+      "transactionId": "tx2"
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "fileName": "a.png",
+          "mimeType": "image/png"
+        }
+      }
+    },
+    "responses": [
+      {
+        "content_uri": "mxc://hs/abc"
+      },
+      {
+        "event_id": "$e"
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/_matrix/media/r0/upload",
+        "query": {
+          "filename": "a.png"
+        },
+        "body": "hello",
+        "headers": {
+          "Content-Type": "image/png"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/_matrix/client/r0/rooms/%21r:hs/send/m.room.message/tx2",
+        "body": {
+          "msgtype": "m.image",
+          "body": "a.png",
+          "url": "mxc://hs/abc"
+        }
+      }
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/send/m.room.message/tx2",
+      "body": {
+        "msgtype": "m.image",
+        "body": "a.png",
+        "url": "mxc://hs/abc"
+      }
+    }
+  },
+  "room.create": {
+    "params": {
+      "roomName": "Ops",
+      "roomAlias": "ops"
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "response": {
+      "room_id": "!r"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/_matrix/client/r0/createRoom",
+      "body": {
+        "name": "Ops",
+        "preset": "public_chat",
+        "room_alias_name": "ops"
+      }
+    }
+  },
+  "room.invite": {
+    "params": {
+      "roomId": "!r:hs",
+      "userId": "@b:hs"
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/invite",
+      "body": {
+        "user_id": "@b:hs"
+      }
+    }
+  },
+  "room.join": {
+    "params": {
+      "roomIdOrAlias": "#ops:hs"
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/_matrix/client/r0/rooms/%23ops:hs/join"
+    }
+  },
+  "room.kick": {
+    "params": {
+      "roomId": "!r:hs",
+      "userId": "@b:hs",
+      "reason": "spam"
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/kick",
+      "body": {
+        "user_id": "@b:hs",
+        "reason": "spam"
+      }
+    }
+  },
+  "room.leave": {
+    "params": {
+      "roomId": "!r:hs"
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/leave"
+    }
+  },
+  "roomMember.getAll": {
+    "params": {
+      "roomId": "!r:hs",
+      "filters": {
+        "membership": "join"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "homeserver_url": "https://hs.example"
+    },
+    "response": {
+      "chunk": [
+        {
+          "a": 1
+        },
+        {
+          "b": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/_matrix/client/r0/rooms/%21r:hs/members",
+      "query": {
+        "membership": "join"
+      },
+      "items": 2
+    }
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "receipt.predict": {
+    "params": {},
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "fileName": "r.pdf",
+          "mimeType": "application/pdf"
+        }
+      }
+    },
+    "credential": {
+      "api_key": "k"
+    },
+    "response": {
+      "document": {
+        "id": "d1",
+        "name": "r.pdf",
+        "n_pages": 1,
+        "inference": {
+          "prediction": {
+            "total_amount": {
+              "value": 12.5
+            },
+            "supplier": {
+              "name": null,
+              "raw": "ACME"
+            },
+            "locale": {
+              "value": "en-US",
+              "currency": "USD"
+            },
+            "taxes": [
+              {
+                "amount": 1,
+                "rate": 10
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/products/mindee/expense_receipts/v4/predict",
+      "headers": {
+        "Authorization": "Token k"
+      },
+      "body": {
+        "document": "file:r.pdf:hello"
+      },
+      "items": 1
+    }
+  },
+  "invoice.predict": {
+    "params": {
+      "apiVersion": "3",
+      "rawData": true
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "fileName": "i.pdf",
+          "mimeType": "application/pdf"
+        }
+      }
+    },
+    "credential": {
+      "api_key": "k"
+    },
+    "response": {
+      "document": {
+        "id": "d1",
+        "name": "r.pdf",
+        "n_pages": 1,
+        "inference": {
+          "prediction": {
+            "total_amount": {
+              "value": 12.5
+            },
+            "supplier": {
+              "name": null,
+              "raw": "ACME"
+            },
+            "locale": {
+              "value": "en-US",
+              "currency": "USD"
+            },
+            "taxes": [
+              {
+                "amount": 1,
+                "rate": 10
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/products/mindee/invoices/v3/predict",
+      "body": {
+        "document": "file:i.pdf:hello"
+      },
+      "items": 1
+    }
+  }
+}

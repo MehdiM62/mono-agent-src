@@ -1,0 +1,487 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mandrill",
+  "node_type": "app.mandrill",
+  "title": "Mandrill",
+  "description": "Send transactional email (HTML or templates) through Mailchimp Transactional (Mandrill)",
+  "category": "app",
+  "docs_url": "https://mailchimp.com/developer/transactional/api/",
+  "n8n_types": [
+    "n8n-nodes-base.mandrill"
+  ],
+  "base_url": "https://mandrillapp.com/api/1.0",
+  "credentials": [
+    {
+      "platform": "mandrill",
+      "name": "Mandrill",
+      "n8n_credential": "mandrillApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Sent as the key field of each request body"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Mandrill-Key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "message",
+      "label": "Message"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "message",
+      "operation": "sendTemplate",
+      "title": "Send a template email",
+      "method": "POST",
+      "path": "/messages/send-template.json",
+      "fields": [
+        {
+          "key": "template",
+          "label": "Template slug",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fromEmail",
+          "label": "From email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "toEmail",
+          "label": "To email",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated addresses"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false,
+          "help": "Give headers, metadata, merge vars and attachments as JSON"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "async",
+            "autoHtml",
+            "autoText",
+            "bccAddress",
+            "fromName",
+            "googleAnalyticsCampaign",
+            "googleAnalyticsDomains",
+            "html",
+            "important",
+            "inlineCss",
+            "ipPool",
+            "preserveRecipients",
+            "returnPathDomain",
+            "sendAt",
+            "signingDomain",
+            "subAccount",
+            "subject",
+            "tags",
+            "text",
+            "trackClicks",
+            "trackOpens",
+            "trackingDomain",
+            "urlStripQs",
+            "viewContentLink"
+          ],
+          "help": "sendAt: date; tags and googleAnalyticsDomains: comma-separated"
+        },
+        {
+          "key": "mergeVarsJson",
+          "label": "Merge vars (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "[{\"name\": \"x\", \"content\": \"y\"}]"
+        },
+        {
+          "key": "mergeVarsUi",
+          "label": "Merge vars",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "mergeVarsValues"
+          ],
+          "help": "{\"mergeVarsValues\": [{\"name\", \"content\"}]}"
+        },
+        {
+          "key": "metadataUi",
+          "label": "Metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "metadataValues"
+          ],
+          "help": "{\"metadataValues\": [{\"name\", \"value\"}]}"
+        },
+        {
+          "key": "metadataJson",
+          "label": "Metadata (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "attachmentsJson",
+          "label": "Attachments (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "[{\"type\", \"name\", \"content\" (base64)}]"
+        },
+        {
+          "key": "attachmentsUi",
+          "label": "Attachments",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsBinary",
+            "attachmentsValues"
+          ],
+          "help": "attachmentsValues: [{type, name, content}]; attachmentsBinary: [{property}] (the first property is attached)"
+        },
+        {
+          "key": "headersJson",
+          "label": "Headers (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "headersUi",
+          "label": "Headers",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "headersValues"
+          ],
+          "help": "{\"headersValues\": [{\"name\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "key": "{{ cred.api_key }}",
+        "!template_content": [],
+        "message": {
+          "html": "{{ p.options.html }}",
+          "text": "{{ p.options.text }}",
+          "subject": "{{ p.options.subject }}",
+          "from_email": "{{ p.fromEmail }}",
+          "from_name": "{{ p.options.fromName }}",
+          "to": {
+            "$map": "{{ p.toEmail | split }}",
+            "$to": {
+              "email": "{{ el }}",
+              "type": "to"
+            }
+          },
+          "important": "{{ p.options.important }}",
+          "track_opens": "{{ p.options.trackOpens }}",
+          "track_clicks": "{{ p.options.trackClicks }}",
+          "auto_text": "{{ p.options.autoText }}",
+          "auto_html": "{{ p.options.autoHtml }}",
+          "inline_css": "{{ p.options.inlineCss }}",
+          "url_strip_qs": "{{ p.options.urlStripQs }}",
+          "preserve_recipients": "{{ p.options.preserveRecipients }}",
+          "view_content_link": "{{ p.options.viewContentLink }}",
+          "async": "{{ p.options.async }}",
+          "google_analytics_campaign": "{{ p.options.googleAnalyticsCampaign }}",
+          "google_analytics_domains": "{{ p.options.googleAnalyticsDomains | split }}",
+          "ip_pool": "{{ p.options.ipPool }}",
+          "bcc_address": "{{ p.options.bccAddress }}",
+          "tracking_domain": "{{ p.options.trackingDomain }}",
+          "signing_domain": "{{ p.options.signingDomain }}",
+          "return_path_domain": "{{ p.options.returnPathDomain }}",
+          "tags": "{{ p.options.tags | split }}",
+          "subaccount": "{{ p.options.subAccount | string }}",
+          "headers": {
+            "$merge": [
+              "{{ p.jsonParameters | eq:'true' | then:(p.headersJson | fromjson) }}",
+              "{{ p.jsonParameters | ne:'true' | then:(p.headersUi.headersValues | kv:'name,value') }}"
+            ]
+          },
+          "metadata": {
+            "$merge": [
+              "{{ p.jsonParameters | eq:'true' | then:(p.metadataJson | fromjson) }}",
+              "{{ p.jsonParameters | ne:'true' | then:(p.metadataUi.metadataValues | kv:'name,value') }}"
+            ]
+          },
+          "global_merge_vars": {
+            "$concat": [
+              "{{ p.jsonParameters | eq:'true' | then:(p.mergeVarsJson | fromjson) }}",
+              {
+                "$map": "{{ p.jsonParameters | ne:'true' | then:p.mergeVarsUi.mergeVarsValues }}",
+                "$to": {
+                  "name": "{{ el.name }}",
+                  "content": "{{ el.content }}"
+                }
+              }
+            ]
+          },
+          "attachments": {
+            "$concat": [
+              "{{ p.jsonParameters | eq:'true' | then:(p.attachmentsJson | fromjson) }}",
+              {
+                "$when": "{{ p.jsonParameters | ne:'true' | then:p.attachmentsUi.attachmentsBinary.0.property }}",
+                "name": "{{ bin.file_name }}",
+                "content": "{{ bin.base64 }}",
+                "type": "{{ bin.mime_type }}"
+              },
+              {
+                "$map": "{{ p.jsonParameters | ne:'true' | then:p.attachmentsUi.attachmentsValues }}",
+                "$to": {
+                  "type": "{{ el.type }}",
+                  "name": "{{ el.name }}",
+                  "content": "{{ el.content }}"
+                }
+              }
+            ]
+          }
+        },
+        "send_at": "{{ p.options.sendAt | date:'YYYY-MM-DD HH:mm:ss' }}",
+        "template_name": "{{ p.template }}"
+      },
+      "binary": {
+        "upload_field": "attachmentsUi",
+        "property": "{{ p.attachmentsUi.attachmentsBinary.0.property }}",
+        "upload_when": "{{ p.jsonParameters | ne:'true' | then:p.attachmentsUi.attachmentsBinary.0.property }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "sendHtml",
+      "title": "Send an HTML email",
+      "method": "POST",
+      "path": "/messages/send.json",
+      "fields": [
+        {
+          "key": "fromEmail",
+          "label": "From email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "toEmail",
+          "label": "To email",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated addresses"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false,
+          "help": "Give headers, metadata, merge vars and attachments as JSON"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "async",
+            "autoHtml",
+            "autoText",
+            "bccAddress",
+            "fromName",
+            "googleAnalyticsCampaign",
+            "googleAnalyticsDomains",
+            "html",
+            "important",
+            "inlineCss",
+            "ipPool",
+            "preserveRecipients",
+            "returnPathDomain",
+            "sendAt",
+            "signingDomain",
+            "subAccount",
+            "subject",
+            "tags",
+            "text",
+            "trackClicks",
+            "trackOpens",
+            "trackingDomain",
+            "urlStripQs",
+            "viewContentLink"
+          ],
+          "help": "sendAt: date; tags and googleAnalyticsDomains: comma-separated"
+        },
+        {
+          "key": "mergeVarsJson",
+          "label": "Merge vars (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "[{\"name\": \"x\", \"content\": \"y\"}]"
+        },
+        {
+          "key": "mergeVarsUi",
+          "label": "Merge vars",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "mergeVarsValues"
+          ],
+          "help": "{\"mergeVarsValues\": [{\"name\", \"content\"}]}"
+        },
+        {
+          "key": "metadataUi",
+          "label": "Metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "metadataValues"
+          ],
+          "help": "{\"metadataValues\": [{\"name\", \"value\"}]}"
+        },
+        {
+          "key": "metadataJson",
+          "label": "Metadata (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "attachmentsJson",
+          "label": "Attachments (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "[{\"type\", \"name\", \"content\" (base64)}]"
+        },
+        {
+          "key": "attachmentsUi",
+          "label": "Attachments",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsBinary",
+            "attachmentsValues"
+          ],
+          "help": "attachmentsValues: [{type, name, content}]; attachmentsBinary: [{property}] (the first property is attached)"
+        },
+        {
+          "key": "headersJson",
+          "label": "Headers (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "headersUi",
+          "label": "Headers",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "headersValues"
+          ],
+          "help": "{\"headersValues\": [{\"name\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "key": "{{ cred.api_key }}",
+        "!template_content": [],
+        "message": {
+          "html": "{{ p.options.html }}",
+          "text": "{{ p.options.text }}",
+          "subject": "{{ p.options.subject }}",
+          "from_email": "{{ p.fromEmail }}",
+          "from_name": "{{ p.options.fromName }}",
+          "to": {
+            "$map": "{{ p.toEmail | split }}",
+            "$to": {
+              "email": "{{ el }}",
+              "type": "to"
+            }
+          },
+          "important": "{{ p.options.important }}",
+          "track_opens": "{{ p.options.trackOpens }}",
+          "track_clicks": "{{ p.options.trackClicks }}",
+          "auto_text": "{{ p.options.autoText }}",
+          "auto_html": "{{ p.options.autoHtml }}",
+          "inline_css": "{{ p.options.inlineCss }}",
+          "url_strip_qs": "{{ p.options.urlStripQs }}",
+          "preserve_recipients": "{{ p.options.preserveRecipients }}",
+          "view_content_link": "{{ p.options.viewContentLink }}",
+          "async": "{{ p.options.async }}",
+          "google_analytics_campaign": "{{ p.options.googleAnalyticsCampaign }}",
+          "google_analytics_domains": "{{ p.options.googleAnalyticsDomains | split }}",
+          "ip_pool": "{{ p.options.ipPool }}",
+          "bcc_address": "{{ p.options.bccAddress }}",
+          "tracking_domain": "{{ p.options.trackingDomain }}",
+          "signing_domain": "{{ p.options.signingDomain }}",
+          "return_path_domain": "{{ p.options.returnPathDomain }}",
+          "tags": "{{ p.options.tags | split }}",
+          "subaccount": "{{ p.options.subAccount | string }}",
+          "headers": {
+            "$merge": [
+              "{{ p.jsonParameters | eq:'true' | then:(p.headersJson | fromjson) }}",
+              "{{ p.jsonParameters | ne:'true' | then:(p.headersUi.headersValues | kv:'name,value') }}"
+            ]
+          },
+          "metadata": {
+            "$merge": [
+              "{{ p.jsonParameters | eq:'true' | then:(p.metadataJson | fromjson) }}",
+              "{{ p.jsonParameters | ne:'true' | then:(p.metadataUi.metadataValues | kv:'name,value') }}"
+            ]
+          },
+          "global_merge_vars": {
+            "$concat": [
+              "{{ p.jsonParameters | eq:'true' | then:(p.mergeVarsJson | fromjson) }}",
+              {
+                "$map": "{{ p.jsonParameters | ne:'true' | then:p.mergeVarsUi.mergeVarsValues }}",
+                "$to": {
+                  "name": "{{ el.name }}",
+                  "content": "{{ el.content }}"
+                }
+              }
+            ]
+          },
+          "attachments": {
+            "$concat": [
+              "{{ p.jsonParameters | eq:'true' | then:(p.attachmentsJson | fromjson) }}",
+              {
+                "$when": "{{ p.jsonParameters | ne:'true' | then:p.attachmentsUi.attachmentsBinary.0.property }}",
+                "name": "{{ bin.file_name }}",
+                "content": "{{ bin.base64 }}",
+                "type": "{{ bin.mime_type }}"
+              },
+              {
+                "$map": "{{ p.jsonParameters | ne:'true' | then:p.attachmentsUi.attachmentsValues }}",
+                "$to": {
+                  "type": "{{ el.type }}",
+                  "name": "{{ el.name }}",
+                  "content": "{{ el.content }}"
+                }
+              }
+            ]
+          }
+        },
+        "send_at": "{{ p.options.sendAt | date:'YYYY-MM-DD HH:mm:ss' }}"
+      },
+      "binary": {
+        "upload_field": "attachmentsUi",
+        "property": "{{ p.attachmentsUi.attachmentsBinary.0.property }}",
+        "upload_when": "{{ p.jsonParameters | ne:'true' | then:p.attachmentsUi.attachmentsBinary.0.property }}",
+        "fallback_body_type": "json"
+      }
+    }
+  ]
+}
