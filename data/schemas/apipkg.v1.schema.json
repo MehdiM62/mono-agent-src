@@ -53,7 +53,7 @@
         "n8n_field_map": { "$ref": "#/$defs/stringMap" },
         "methods": {
           "type": "array", "minItems": 1,
-          "items": { "type": "string", "enum": ["api_key", "oauth", "basic", "bearer", "client_credentials", "none"] }
+          "items": { "type": "string", "enum": ["api_key", "oauth", "oauth1", "basic", "bearer", "client_credentials", "none"] }
         },
         "fields": { "type": "array", "items": { "$ref": "#/$defs/credentialField" } },
         "oauth": { "$ref": "#/$defs/oauth" },
@@ -87,7 +87,12 @@
         "token_url": { "type": "string", "minLength": 1 },
         "scopes": { "type": "array", "items": { "type": "string" } },
         "pkce": { "type": "boolean" },
-        "extra_params": { "$ref": "#/$defs/stringMap" }
+        "extra_params": { "$ref": "#/$defs/stringMap" },
+        "connect_fields": { "type": "array", "items": { "type": "string" } },
+        "metadata": { "type": "object", "required": ["url", "fields"], "additionalProperties": false,
+          "properties": { "url": { "type": "string", "minLength": 1 }, "headers": { "$ref": "#/$defs/stringMap" }, "fields": { "$ref": "#/$defs/stringMap" } } },
+        "request_token_url": { "type": "string" },
+        "signature_method": { "type": "string", "enum": ["HMAC-SHA1", "HMAC-SHA256", "HMAC-SHA512", "PLAINTEXT"] }
       }
     },
     "inject": {
@@ -101,6 +106,10 @@
           "properties": { "account": { "type": "string" }, "key": { "type": "string" } } },
         "azure_cosmos": { "type": "object", "required": ["key"], "additionalProperties": false,
           "properties": { "key": { "type": "string" } } },
+        "oauth1": { "type": "object", "additionalProperties": false,
+          "properties": { "consumer_key": { "type": "string" }, "consumer_secret": { "type": "string" }, "token": { "type": "string" },
+            "token_secret": { "type": "string" }, "realm": { "type": "string" },
+            "signature_method": { "type": "string", "enum": ["HMAC-SHA1", "HMAC-SHA256", "HMAC-SHA512", "PLAINTEXT"] } } },
         "hmac": { "type": "object", "required": ["header", "secret", "message"], "additionalProperties": false,
           "properties": { "header": { "type": "string" }, "secret": { "type": "string" }, "message": { "type": "string" },
             "alg": { "type": "string", "enum": ["SHA256", "SHA1", "SHA512"] }, "encoding": { "type": "string", "enum": ["base64", "hex"] }, "prefix": { "type": "string" } } },

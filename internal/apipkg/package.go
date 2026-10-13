@@ -117,6 +117,29 @@ type OAuthSpec struct {
 	ClientIDField     string   `json:"client_id_field,omitempty"`
 	ClientSecretField string   `json:"client_secret_field,omitempty"`
 	ClientAuth        string   `json:"client_auth,omitempty"`
+	// ConnectFields are credential field keys asked before the browser
+	// flow and stored on the connection; auth_url, token_url, scopes and
+	// extra_params may then be templates over them
+	// ("https://{{ cred.subdomain }}.zendesk.com/oauth/tokens").
+	ConnectFields []string `json:"connect_fields,omitempty"`
+	// Metadata is a request sent with a new token, whose response values
+	// are stored on the connection (Mailchimp: the data centre). It also
+	// runs before a node's first request when those keys are missing.
+	Metadata *MetadataSpec `json:"metadata,omitempty"`
+	// OAuth 1.0a (method "oauth1"): the request-token endpoint and the
+	// signature method (default HMAC-SHA1); auth_url is the authorization
+	// page and token_url the access-token endpoint.
+	RequestTokenURL string `json:"request_token_url,omitempty"`
+	SignatureMethod string `json:"signature_method,omitempty"`
+}
+
+// MetadataSpec fetches account details with an OAuth token. URL and
+// header values are templates over cred.* (access_token included); Fields
+// maps a connection key to a path in the JSON response.
+type MetadataSpec struct {
+	URL     string            `json:"url"`
+	Headers map[string]string `json:"headers,omitempty"`
+	Fields  map[string]string `json:"fields"`
 }
 
 // Inject says how a credential authenticates a request. Every value is a
@@ -137,6 +160,21 @@ type Inject struct {
 	AzureSharedKey *AzureSharedKeyInject `json:"azure_shared_key,omitempty"`
 	// AzureCosmos signs Cosmos DB requests with the master key.
 	AzureCosmos *AzureCosmosInject `json:"azure_cosmos,omitempty"`
+	// OAuth1 signs each request with OAuth 1.0a (Trello, Twitter v1.1).
+	OAuth1 *OAuth1Inject `json:"oauth1,omitempty"`
+}
+
+// OAuth1Inject signs requests with OAuth 1.0a. The keys are templates and
+// default to cred.consumer_key, cred.consumer_secret, cred.oauth_token and
+// cred.oauth_token_secret; signature_method defaults to the credential's
+// oauth.signature_method, else HMAC-SHA1.
+type OAuth1Inject struct {
+	ConsumerKey     string `json:"consumer_key,omitempty"`
+	ConsumerSecret  string `json:"consumer_secret,omitempty"`
+	Token           string `json:"token,omitempty"`
+	TokenSecret     string `json:"token_secret,omitempty"`
+	SignatureMethod string `json:"signature_method,omitempty"`
+	Realm           string `json:"realm,omitempty"`
 }
 
 // JWTInject signs a short-lived JWT per request (Ghost Admin API, Zoom

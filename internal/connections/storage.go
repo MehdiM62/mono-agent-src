@@ -336,7 +336,10 @@ func (s *Store) RefreshToken(ctx context.Context, conn *Connection) error {
 		return fmt.Errorf("platform %q has no OAuth config", conn.Platform)
 	}
 
-	cfg := *p.OAuth
+	cfg, err := tailorOAuth(*p.OAuth, conn.Data)
+	if err != nil {
+		return err
+	}
 	cfg.PlatformID = p.ID
 	// Load client credentials from platform_oauth_credentials table (scoped
 	// per profile — two connections for the same platform under different

@@ -124,6 +124,13 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		withTok["access_token"] = tok
 		cred = withTok
 	}
+	cred, err := withAssumedRole(ctx, credDef, cred)
+	if err != nil {
+		return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+	}
+	if cred, err = withMetadata(ctx, credDef, cred); err != nil {
+		return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+	}
 	items := input.Items
 	if len(items) == 0 {
 		items = []workflow.Item{{JSON: map[string]any{}}}
