@@ -278,3 +278,21 @@ func TestNotionDownloadFiles(t *testing.T) {
 		t.Errorf("items = %+v", items)
 	}
 }
+
+func TestSlidesThumbnailDownloadWithoutToken(t *testing.T) {
+	p := catalogPkg(t, "google_slides")
+	m := newMockServer(t, map[string]any{"contentUrl": "https://lh3.googleusercontent.test/thumb1"}, 200)
+	items, err := runPackageOp(p, map[string]any{"resource": "page", "operation": "getThumbnail", "presentationId": "P",
+		"pageObjectId": "p1", "download": true}, map[string]any{"access_token": "tok"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs := m.requests()
+	if len(reqs) != 2 || reqs[0].header.Get("Authorization") != "Bearer tok" || reqs[1].path != "/thumb1" || reqs[1].header.Get("Authorization") != "" {
+		t.Fatalf("requests: %+v", reqs)
+	}
+	meta, _ := items[0].JSON["binary"].(map[string]any)
+	if items[0].Binary["data"] == nil || meta["data"].(map[string]any)["fileName"] != "p1.png" || items[0].JSON["contentUrl"] == nil {
+		t.Errorf("item = %+v", items[0])
+	}
+}
