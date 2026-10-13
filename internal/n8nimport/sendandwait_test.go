@@ -39,15 +39,6 @@ func nodeByName(t *testing.T, wf *workflow.WorkflowFile, name string) workflow.W
 	return workflow.WorkflowFileNode{}
 }
 
-func hasEdge(wf *workflow.WorkflowFile, from, to string) bool {
-	for _, e := range wf.Connections {
-		if e.Source == from && e.Target == to {
-			return true
-		}
-	}
-	return false
-}
-
 func issuesOf(rep *n8nimport.Report, name string) string {
 	var b strings.Builder
 	for _, n := range rep.Nodes {
