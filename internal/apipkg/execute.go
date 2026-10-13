@@ -251,14 +251,17 @@ func checkRequired(pkg *Package, op *Operation, params map[string]any) error {
 
 // execute sends the request (all pages) and turns the response into items.
 func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
-	if st := r.op.Before; st != nil {
-		resp, err := r.sendStep(ctx, *st, r.scope)
+	for i, st := range r.op.Before {
+		resp, err := r.sendStep(ctx, st, r.scope)
 		if err != nil {
-			return nil, fmt.Errorf("before: %w", err)
+			return nil, fmt.Errorf("before[%d]: %w", i, err)
 		}
+		var v any
 		if resp != nil && len(strings.TrimSpace(string(resp.body))) > 0 {
-			r.scope.Pre = decodeBody(resp.body)
+			v = decodeBody(resp.body)
 		}
+		r.scope.Pres = append(r.scope.Pres, v)
+		r.scope.Pre = v
 	}
 	if r.op.Pagination != nil {
 		results, truncated, err := r.paginate(ctx)
@@ -291,8 +294,8 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		return []workflow.Item{{JSON: map[string]any{"success": true}}}, nil
 	}
 	v := decodeBody(resp.body)
-	if r.op.Output != nil && r.op.Output.Path != "" {
-		v = lookupPath(v, strings.Split(r.op.Output.Path, "."))
+	if path := r.outputPath(); path != "" {
+		v = lookupPath(v, strings.Split(path, "."))
 	}
 	if r.op.Output != nil && r.op.Output.HeaderRow {
 		v = rowsToObjects(v)
@@ -451,8 +454,12 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 	if o == nil || !isList {
 		return v, nil
 	}
-	if o.Each != "" {
-		path := strings.Split(o.Each, ".")
+	each, err := r.renderOutputKey(o.Each)
+	if err != nil {
+		return nil, r.errf("output.each: %w", err)
+	}
+	if each != "" {
+		path := strings.Split(each, ".")
 		out := make([]any, 0, len(list))
 		for _, el := range list {
 			if x := lookupPath(el, path); x != nil {
@@ -520,4 +527,25 @@ func matchRow(el any, conds []any, colKey, valKey string, or bool) bool {
 		}
 	}
 	return !or
+}
+
+// renderOutputKey renders an output path/each value, which may be a
+// template over p (n8n rawData/simple toggles); empty means none.
+func (r *opRun) renderOutputKey(s string) (string, error) {
+	if !hasTemplate(s) {
+		return s, nil
+	}
+	return renderText(s, r.scope)
+}
+
+// outputPath is the rendered output.path ("" when unset or empty).
+func (r *opRun) outputPath() string {
+	if r.op.Output == nil {
+		return ""
+	}
+	p, err := r.renderOutputKey(r.op.Output.Path)
+	if err != nil {
+		return r.op.Output.Path
+	}
+	return p
 }

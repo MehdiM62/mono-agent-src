@@ -173,7 +173,8 @@ Scopes:
 | `el.<path>` | the current element inside a `$map` (`el` alone is the element) |
 | `res.<path>` | the main request's decoded response, inside `also` steps |
 | `items` | every input item's JSON as a list, in `batch` operations |
-| `pre.<path>` | the decoded response of the op's `before` request |
+| `pre.<path>` | the decoded response of the op's (last) `before` request |
+| `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
 | `uuid` | a new random UUID each time (e.g. a Calendar conference `requestId`) |
 
 Paths walk objects by key and arrays by index; `-1` is the last element
@@ -219,6 +220,7 @@ through, so an unset param stays unset:
 | `get:'path'` | walk into the value: `{{ pre.payload.headers \| find:'name','Message-ID' \| get:'value' }}` |
 | `add:n`, `sub:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`); whole results are integers |
 | `colnum`, `colname` | spreadsheet column letter ↔ 1-based number (`"C"` ↔ 3, `"AA"` ↔ 27) |
+| `sheetgid` | n8n sheet locator → sheet id text: `"gid=0"` (list mode), `…#gid=123` (url mode), `123` (id mode/expression), or the locator object itself |
 | `gid` | Google file id from a URL (`…/d/<id>/edit`, `…/folders/<id>`, `?id=<id>`); bare ids and non-Google values pass (n8n Docs `documentURL`) |
 | `eq:'x'`, `ne:'x'` | `true` when the value's string equals (`eq`) / differs from (`ne`) the argument, else nil, so they chain into `then`: `"$merge": "{{ p.dataToSend \| eq:'autoMapInputData' \| then:item }}"` |
 | `kv:'keyField,valueField'` / `kv:'keyField,valueField,prefix'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}` (with a prefix: `kv:'fieldId,fieldValue,field_'` → `{"field_12": …}`). A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
@@ -226,7 +228,7 @@ through, so an unset param stays unset:
 | `"$when": "<template>"` (object key) | the object is omitted when the template renders empty/false, and kept even with all other keys empty when it passes (Google Docs `"endOfSegmentLocation": {}`) |
 | `prefix:'x'`, `suffix:'x'` | add text before/after a NON-empty value (empty stays empty → omitted): `{{ p.rrule \| prefix:'RRULE:' }}`, `{{ p.contactId \| prefix:'people/' }}` |
 | `base64`, `base64url` | encode the value's text (`base64url` is unpadded, for Gmail `raw`) |
-| `row:<path>` | object → list of its values ordered by a header list: `{{ item \| row:pre.values }}` (a list of rows uses its first row; missing keys → `""`) |
+| `row:<path>` / `row:<path>,'null'` | object → list of its values ordered by a header list: `{{ item \| row:pre.values }}` (a list of rows uses its first row; missing keys → `""`, or `null` with the second argument, which the Sheets API leaves unchanged on update) |
 | `split` / `split:';'` | `"a, b,c"` → `["a","b","c"]` (default separator `,`; parts trimmed, empty ones dropped; lists pass) |
 | `date:'YYYY-MM-DD'` | date or epoch-ms → formatted text in UTC; tokens `YYYY`/`yyyy`, `YY`, `MM`, `DD`/`dd`, `HH`, `hh`, `mm`, `ss`, `SSS`, `Z` (`Z` for UTC), `ZZ` (`+00:00`), `A`; other characters are literal |
 | `epoch_ms`, `epoch` | date (RFC 3339, `2006-01-02T15:04:05`, `2006-01-02`, …) → Unix milliseconds / seconds; numbers pass |
@@ -250,6 +252,12 @@ through, so an unset param stays unset:
   { "$map": "{{ p.phoneOptions.phoneProperties }}", "$to": { "type": "SYSTEM", "name": "phone", "value": "{{ el.number }}" } }
 ] }
 ```
+
+**Expression arguments.** A filter argument may be a parenthesised expression with its own filters: `{{ pre.sheets | find:'properties.sheetId',(p.sheetName | sheetgid) | get:'properties.title' }}`.
+
+**Credential templates may read params.** `inject` values can use `p.*` (any op field), e.g. Contentful's token choice: `"Authorization": "Bearer {{ p.source | eq:'previewApi' | then:cred.preview_token | default:cred.access_token }}"`.
+
+**Templated output keys.** `output.path` and `output.each` may be templates over `p` (n8n `rawData` / `simple` toggles): `"each": "{{ p.additionalFields.rawData | ne:'true' | then:'fields' }}"` (empty = no unwrap).
 
 **Paths are escaped.** In `path`, each expression's value is URL-escaped
 (`a b/c` → `a%20b%2Fc`). Literals the author wrote as a `then`/`default`
@@ -396,7 +404,7 @@ Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `
 **Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
 `"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.
 
-**Before request (`before`).** One request sent before the main one (same keys as an `also` step); its decoded response is the `pre` root. Google Sheets append reads the header row, then orders the item by it:
+**Before request(s) (`before`).** One step — or a list of steps run in order, each seeing the earlier responses (`pres.0`, `pres.1`, …; `pre` = the latest) — sent before the main one (same keys as an `also` step); its decoded response is the `pre` root. Google Sheets append reads the header row, then orders the item by it:
 ```json
 "before": { "method": "GET", "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ p.sheetName | rl }}!1:1" },
 "body": { "values": [ "{{ item | row:pre.values }}" ] }
@@ -608,6 +616,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | templates | filters `eq`, `ne`, `kv`, `omit`, `fromjson`, `epoch_ms`, `epoch`; roots `el`, `res`; `$map`/`$to`, `$concat` | §5 |
 | credential | `scope_group` (umbrella scope check) | §7 |
 | operation | `before` (pre-request → `pre`); output `header_row`, `each`, `expand`, `match` | §9 |
+| templates | parenthesised expression arguments; filter `sheetgid`; `row` null mode; `p.*` in `inject`; templated `output.path`/`each` | §5 |
 | templates | multi-argument filters `find`, `find_row`; filters `get`, `add`, `sub`, `colnum`, `colname`; `$entries`/`$key`/`$value` | §5 |
 | templates | filters `prefix`, `suffix`, `base64`, `base64url`, `row`; roots `pre`, `uuid` | §5 |
 | credential | method `client_credentials`; `oauth.client_id_field`, `client_secret_field`, `client_auth` (`auth_url` optional for it) | §7 |

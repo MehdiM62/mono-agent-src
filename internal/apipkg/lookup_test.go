@@ -106,3 +106,94 @@ func TestOutputEachMatchExpand(t *testing.T) {
 		t.Errorf("expand: %v %v (%d requests)", items, err, len(*seen))
 	}
 }
+
+// Sheets append with a gid locator: resolve the title, then read its
+// header, then append the item ordered by the header.
+func TestBeforeStepsList(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"append","title":"A","method":"POST",
+	  "path":"/s/values/{{ pres.0.sheets | find:'properties.sheetId',p.gid | get:'properties.title' }}:append",
+	  "fields":[{"key":"gid","label":"G","type":"number","required":true}],
+	  "before":[{"method":"GET","path":"/s","query":{"fields":"sheets.properties"}},
+	            {"method":"GET","path":"/s/values/{{ pre.sheets | find:'properties.sheetId',p.gid | get:'properties.title' }}!1:1"}],
+	  "body":{"values":["{{ item | row:pre.values }}"]}}`))
+	var paths []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		paths = append(paths, r.URL.Path)
+		switch n {
+		case 1:
+			w.Write([]byte(`{"sheets":[{"properties":{"sheetId":0,"title":"Main"}},{"properties":{"sheetId":42,"title":"Leads"}}]}`))
+		case 2:
+			w.Write([]byte(`{"values":[["email","name"]]}`))
+		default:
+			w.Write([]byte(`{}`))
+		}
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "append", "gid": 42.0}, cred, map[string]any{"name": "ada", "email": "a@b"}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/v1/s", "/v1/s/values/Leads!1:1", "/v1/s/values/Leads:append"}
+	if !reflect.DeepEqual(paths, want) {
+		t.Errorf("paths = %v, want %v", paths, want)
+	}
+}
+
+func TestSheetGIDParenArgsAndRowNull(t *testing.T) {
+	sheets := []any{map[string]any{"properties": map[string]any{"sheetId": 0.0, "title": "Main"}},
+		map[string]any{"properties": map[string]any{"sheetId": 123.0, "title": "Leads"}}}
+	sc := Scope{P: map[string]any{"sheets": sheets,
+		"list": map[string]any{"__rl": true, "mode": "list", "value": "gid=0"},
+		"url":  map[string]any{"__rl": true, "mode": "url", "value": "https://docs.google.com/spreadsheets/d/abc/edit#gid=123"},
+		"id":   map[string]any{"__rl": true, "mode": "id", "value": "123"},
+		"num":  123.0},
+		Item: map[string]any{"a": 1.0}, Pre: map[string]any{"values": []any{[]any{"a", "b"}}}}
+	cases := map[string]any{
+		"{{ p.list | sheetgid }}": "0",
+		"{{ p.url | sheetgid }}":  "123",
+		"{{ p.id | sheetgid }}":   "123",
+		"{{ p.num | sheetgid }}":  "123",
+		"{{ p.sheets | find:'properties.sheetId',(p.url | sheetgid) | get:'properties.title' }}":  "Leads",
+		"{{ p.sheets | find:'properties.sheetId',(p.list | sheetgid) | get:'properties.title' }}": "Main",
+		"{{ p.sheets | get:(p.num | sheetgid) }}":                                                 nil,
+	}
+	for in, want := range cases {
+		if got, err := renderString(in, sc); err != nil || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s = %#v, %v; want %#v", in, got, err, want)
+		}
+	}
+	for in, want := range map[string]any{
+		"{{ item | row:pre.values }}":        []any{1.0, ""},
+		"{{ item | row:pre.values,'null' }}": []any{1.0, nil},
+		"{{ item | row:pre.values,null }}":   []any{1.0, nil},
+	} {
+		if got, err := renderString(in, sc); err != nil || !reflect.DeepEqual(got, want) {
+			t.Errorf("%s = %#v, %v; want %#v", in, got, err, want)
+		}
+	}
+}
+
+// Contentful: the token and output shape depend on node params.
+func TestInjectReadsParamsAndTemplatedOutput(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"cf","title":"CF","base_url":"https://cdn.test",
+	  "credentials":[{"platform":"cf","methods":["bearer"],"fields":[{"key":"access_token","label":"T","required":true},{"key":"preview_token","label":"P"}],
+	    "inject":{"headers":{"Authorization":"Bearer {{ p.source | eq:'previewApi' | then:cred.preview_token | default:cred.access_token }}"}}}],
+	  "operations":[{"resource":"","operation":"get","title":"Get","method":"GET","path":"/entries",
+	    "fields":[{"key":"source","label":"S","type":"text"},{"key":"rawData","label":"R","type":"boolean"}],
+	    "output":{"path":"items","each":"{{ p.rawData | ne:'true' | then:'fields' }}"}}]}`)
+	var auths []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		auths = append(auths, r.Header.Get("Authorization"))
+		w.Write([]byte(`{"items":[{"sys":{"id":"e1"},"fields":{"title":"Hi"}}]}`))
+	})
+	c := map[string]any{"access_token": "D", "preview_token": "P"}
+	items, err := runPackageOp(p, map[string]any{"operation": "get", "source": "previewApi"}, c, nil)
+	if err != nil || len(items) != 1 || items[0].JSON["title"] != "Hi" {
+		t.Fatalf("simple: %v %v", items, err)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "get", "rawData": true}, c, nil)
+	if len(items) != 1 || items[0].JSON["fields"] == nil {
+		t.Errorf("rawData: %v", items)
+	}
+	if !reflect.DeepEqual(auths, []string{"Bearer P", "Bearer D"}) {
+		t.Errorf("auth headers = %v", auths)
+	}
+}

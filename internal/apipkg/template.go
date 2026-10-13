@@ -21,8 +21,10 @@ type Scope struct {
 	Res  any
 	// Items is every input item's JSON, set for batch operations.
 	Items []any
-	// Pre is the decoded response of the op's "before" request.
-	Pre any
+	// Pre is the decoded response of the op's (last) "before" request;
+	// Pres holds every before step's response in order.
+	Pre  any
+	Pres []any
 }
 
 func (s Scope) root(name string) any {
@@ -41,6 +43,8 @@ func (s Scope) root(name string) any {
 		return s.Items
 	case "pre":
 		return s.Pre
+	case "pres":
+		return s.Pres
 	case "uuid":
 		return uuid.NewString()
 	}
@@ -77,11 +81,23 @@ type filterCall struct {
 
 // multiArgFilters take comma-separated arguments, passed to applyFilter
 // as a []any.
-var multiArgFilters = map[string]int{"find": 2, "find_row": 2}
+var multiArgFilters = map[string][2]int{"find": {2, 2}, "find_row": {2, 2}, "row": {1, 2}}
 
 type filterArg struct {
 	lit  any   // a quoted string, number, bool or null
 	path *expr // or a path (p.x, cred.y, item.z)
+	sub  *expr // or a parenthesised expression: (p.sheetName | sheetgid)
+}
+
+// argValue evaluates a filter argument.
+func (a *filterArg) argValue(sc Scope) (any, error) {
+	switch {
+	case a.sub != nil:
+		return a.sub.eval(sc)
+	case a.path != nil:
+		return lookupPath(sc.root(a.path.root), a.path.path), nil
+	}
+	return a.lit, nil
 }
 
 var tmplCache sync.Map // string → *tmpl
@@ -141,8 +157,8 @@ func parseExpr(src string) (*expr, error) {
 		fc := filterCall{name: name}
 		if n, multi := multiArgFilters[name]; multi {
 			parts := splitArgs(argSrc)
-			if !hasArg || len(parts) != n {
-				return nil, fmt.Errorf("filter %s needs %d comma-separated arguments", name, n)
+			if !hasArg || len(parts) < n[0] || len(parts) > n[1] {
+				return nil, fmt.Errorf("filter %s needs %d to %d comma-separated arguments", name, n[0], n[1])
 			}
 			for _, ps := range parts {
 				a, err := parseArg(strings.TrimSpace(ps))
@@ -170,7 +186,7 @@ func parseExpr(src string) (*expr, error) {
 func splitPipes(s string) []string {
 	var out []string
 	var quote rune
-	start := 0
+	start, depth := 0, 0
 	for i, r := range s {
 		switch {
 		case quote != 0:
@@ -179,7 +195,11 @@ func splitPipes(s string) []string {
 			}
 		case r == '"' || r == '\'':
 			quote = r
-		case r == '|':
+		case r == '(':
+			depth++
+		case r == ')':
+			depth--
+		case r == '|' && depth == 0:
 			out = append(out, s[start:i])
 			start = i + 1
 		}
@@ -193,9 +213,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "uuid":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "uuid":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., pre. or be uuid", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., pre., pres. or be uuid", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
@@ -208,6 +228,13 @@ func parsePath(s string) (*expr, error) {
 func parseArg(s string) (*filterArg, error) {
 	if s == "" {
 		return nil, fmt.Errorf("empty argument")
+	}
+	if s[0] == '(' && s[len(s)-1] == ')' {
+		e, err := parseExpr(strings.TrimSpace(s[1 : len(s)-1]))
+		if err != nil {
+			return nil, err
+		}
+		return &filterArg{sub: e}, nil
 	}
 	if (s[0] == '"' || s[0] == '\'') && len(s) >= 2 && s[len(s)-1] == s[0] {
 		return &filterArg{lit: s[1 : len(s)-1]}, nil
@@ -247,13 +274,18 @@ func (e *expr) evalLit(sc Scope) (any, bool, error) {
 		if len(f.args) > 0 {
 			vals := make([]any, len(f.args))
 			for i, a := range f.args {
-				if a.path != nil {
-					vals[i] = lookupPath(sc.root(a.path.root), a.path.path)
-				} else {
-					vals[i] = a.lit
+				v, err := a.argValue(sc)
+				if err != nil {
+					return nil, false, err
 				}
+				vals[i] = v
 			}
 			arg = vals
+		} else if f.arg != nil && f.arg.sub != nil {
+			var err error
+			if arg, err = f.arg.sub.eval(sc); err != nil {
+				return nil, false, err
+			}
 		} else if f.arg != nil {
 			if f.arg.path != nil {
 				arg = lookupPath(sc.root(f.arg.path.root), f.arg.path.path)
@@ -565,7 +597,7 @@ func renderConcat(parts any, sc Scope) (any, error) {
 func splitArgs(s string) []string {
 	var out []string
 	var q byte
-	start := 0
+	start, depth := 0, 0
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		switch {
@@ -575,7 +607,11 @@ func splitArgs(s string) []string {
 			}
 		case c == '"' || c == '\'':
 			q = c
-		case c == ',':
+		case c == '(':
+			depth++
+		case c == ')':
+			depth--
+		case c == ',' && depth == 0:
 			out = append(out, s[start:i])
 			start = i + 1
 		}

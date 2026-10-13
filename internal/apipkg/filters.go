@@ -18,7 +18,7 @@ var knownFilters = map[string]bool{
 	"fromjson": true, "epoch_ms": true, "epoch": true, "split": true, "date": true,
 	"prefix": true, "suffix": true, "base64": true, "base64url": true, "row": true,
 	"gid": true, "find": true, "find_row": true,
-	"add": true, "sub": true, "colnum": true, "colname": true, "get": true,
+	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -100,7 +100,11 @@ func applyFilter(name string, v, arg any) (any, error) {
 	case "base64url":
 		return base64.RawURLEncoding.EncodeToString([]byte(stringify(v))), nil
 	case "row":
-		return toRow(v, arg)
+		args := arg.([]any)
+		nullMissing := len(args) > 1 && (args[1] == nil || stringify(args[1]) == "null")
+		return toRow(v, args[0], nullMissing)
+	case "sheetgid":
+		return sheetGID(v), nil
 	case "gid":
 		return googleFileID(v), nil
 	case "add", "sub":
@@ -432,7 +436,7 @@ func formatDate(v, arg any) (any, error) {
 // toRow orders an object's values by a header list (e.g. a sheet's first
 // row): {"b":2,"a":1} with ["a","b","c"] → [1,2,""]. arg may also be a
 // list of rows, whose first row is used.
-func toRow(v, arg any) (any, error) {
+func toRow(v, arg any, nullMissing bool) (any, error) {
 	obj, ok := v.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("row: value is %T, not an object", v)
@@ -450,6 +454,8 @@ func toRow(v, arg any) (any, error) {
 	for i, h := range header {
 		if val, ok := obj[stringify(h)]; ok && val != nil {
 			out[i] = val
+		} else if nullMissing {
+			out[i] = nil // the Sheets API leaves a null cell unchanged
 		} else {
 			out[i] = ""
 		}
@@ -587,4 +593,29 @@ func columnName(n int64) (any, error) {
 		n /= 26
 	}
 	return string(b), nil
+}
+
+var gidRe = regexp.MustCompile(`gid=(\d+)`)
+
+// sheetGID turns an n8n sheet locator into the numeric sheet id text:
+// "gid=0" (list mode, first sheet), ".../edit#gid=123" (url mode) and
+// "123" (id mode / expression) all become the digits. A locator object
+// is read at its value. Anything else passes through.
+func sheetGID(v any) any {
+	if m, ok := v.(map[string]any); ok {
+		if val, ok := m["value"]; ok {
+			v = val
+		}
+	}
+	s, ok := v.(string)
+	if !ok {
+		if f, isNum := v.(float64); isNum {
+			return strconv.FormatInt(int64(f), 10)
+		}
+		return v
+	}
+	if m := gidRe.FindStringSubmatch(s); m != nil {
+		return m[1]
+	}
+	return strings.TrimSpace(s)
 }
