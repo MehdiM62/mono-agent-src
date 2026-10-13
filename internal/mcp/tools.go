@@ -221,6 +221,7 @@ func allTools() []tool {
 	native = append(native, taskTools()...)
 	native = append(native, apiTools()...)
 	native = append(native, publicationTools()...)
+	native = append(native, generateTools()...)
 	return append(native, apiConfigTools()...)
 }
 
