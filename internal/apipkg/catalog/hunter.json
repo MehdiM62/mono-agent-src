@@ -1,0 +1,166 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "hunter",
+  "node_type": "app.hunter",
+  "title": "Hunter",
+  "description": "Find and verify professional email addresses with Hunter",
+  "category": "app",
+  "docs_url": "https://hunter.io/api-documentation/v2",
+  "n8n_types": [
+    "n8n-nodes-base.hunter"
+  ],
+  "base_url": "https://api.hunter.io/v2",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "hunter",
+      "name": "Hunter",
+      "n8n_credential": "hunterApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Hunter dashboard → API"
+        }
+      ],
+      "inject": {
+        "query": {
+          "api_key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "domainSearch",
+      "title": "Find the email addresses of a domain",
+      "method": "GET",
+      "path": "/domain-search",
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "required": true,
+          "placeholder": "stripe.com"
+        },
+        {
+          "key": "onlyEmails",
+          "label": "Only emails",
+          "type": "boolean",
+          "default": true,
+          "help": "Return one item per email address instead of the whole domain record"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "type",
+            "seniority",
+            "department"
+          ],
+          "help": "type: personal | generic; seniority: junior, senior, executive; department: communication, executive, finance, hr, it, legal, management, marketing, sales, support"
+        }
+      ],
+      "query": {
+        "domain": "{{ p.domain }}",
+        "type": "{{ p.filters.type }}",
+        "seniority": "{{ p.filters.seniority | csv }}",
+        "department": "{{ p.filters.department | csv }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 100
+      },
+      "output": {
+        "path": "data{{ p.onlyEmails | eq:'true' | then:'.emails' }}"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "emailFinder",
+      "title": "Find a person's email address",
+      "method": "GET",
+      "path": "/email-finder",
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "required": true,
+          "placeholder": "stripe.com"
+        },
+        {
+          "key": "firstname",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastname",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "domain": "{{ p.domain }}",
+        "first_name": "{{ p.firstname }}",
+        "last_name": "{{ p.lastname }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "emailVerifier",
+      "title": "Verify an email address",
+      "method": "GET",
+      "path": "/email-verifier",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "email": "{{ p.email }}"
+      },
+      "output": {
+        "path": "data"
+      }
+    }
+  ]
+}

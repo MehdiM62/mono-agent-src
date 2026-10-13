@@ -1,0 +1,165 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "humantic_ai",
+  "node_type": "app.humantic_ai",
+  "title": "Humantic AI",
+  "description": "Create, read and refresh personality profiles in Humantic AI",
+  "category": "app",
+  "docs_url": "https://api.humantic.ai/",
+  "n8n_types": [
+    "n8n-nodes-base.humanticAi"
+  ],
+  "base_url": "https://api.humantic.ai/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "humantic_ai",
+      "name": "Humantic AI",
+      "n8n_credential": "humanticAiApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "query": {
+          "apikey": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "profile",
+      "label": "Profile"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "profile",
+      "operation": "create",
+      "title": "Create a profile",
+      "description": "Analyses a LinkedIn URL or email address given as the user ID. To analyse a resume file, use the Update operation with Send resume on.",
+      "method": "GET",
+      "path": "/user-profile/create",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true,
+          "help": "LinkedIn profile URL or email address of the person"
+        },
+        {
+          "key": "sendResume",
+          "label": "Send resume",
+          "type": "boolean",
+          "default": false,
+          "help": "Resume uploads are sent by the Update operation"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "query": {
+        "userid": "{{ p.userId }}"
+      }
+    },
+    {
+      "resource": "profile",
+      "operation": "get",
+      "title": "Get a profile",
+      "method": "GET",
+      "path": "/user-profile",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "persona"
+          ],
+          "help": "persona: list of sales, hiring"
+        }
+      ],
+      "query": {
+        "userid": "{{ p.userId }}",
+        "persona": "{{ p.options.persona | csv }}"
+      },
+      "output": {
+        "path": "results"
+      }
+    },
+    {
+      "resource": "profile",
+      "operation": "update",
+      "title": "Update a profile",
+      "description": "Adds text or a resume file to the analysis of a profile",
+      "method": "POST",
+      "path": "/user-profile/create",
+      "body_type": "multipart",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sendResume",
+          "label": "Send resume",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "default": "",
+          "help": "Text written by the person (used when Send resume is off)"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "query": {
+        "userid": "{{ p.userId }}"
+      },
+      "body": {
+        "text": "{{ p.sendResume | ne:'true' | then:p.text }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.sendResume }}",
+        "multipart_field": "resume"
+      },
+      "output": {
+        "path": "data"
+      }
+    }
+  ]
+}
