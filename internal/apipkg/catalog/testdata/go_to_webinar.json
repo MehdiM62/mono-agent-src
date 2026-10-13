@@ -1,0 +1,526 @@
+{
+  "attendee.get": {
+    "params": {
+      "webinarKey": "w1",
+      "sessionKey": "s1",
+      "registrantKey": "r1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/sessions/s1/attendees/r1"
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "attendee.getAll": {
+    "params": {
+      "webinarKey": "w1",
+      "sessionKey": "s1",
+      "limit": 1
+    },
+    "response": [
+      {
+        "a": 1
+      },
+      {
+        "a": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/sessions/s1/attendees",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "attendee.getDetails": {
+    "params": {
+      "webinarKey": "w1",
+      "sessionKey": "s1",
+      "registrantKey": "r1",
+      "details": "polls"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/sessions/s1/attendees/r1/polls"
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "coorganizer.create": {
+    "params": {
+      "webinarKey": "w1",
+      "isExternal": true,
+      "givenName": "Ann",
+      "email": "a@x"
+    },
+    "response": [
+      {
+        "memberKey": "1"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/coorganizers",
+      "body": [
+        {
+          "external": true,
+          "givenName": "Ann",
+          "email": "a@x"
+        }
+      ]
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "coorganizer.delete": {
+    "params": {
+      "webinarKey": "w1",
+      "coorganizerKey": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/coorganizers/c1",
+      "query": {
+        "external": "false"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "coorganizer.getAll": {
+    "params": {
+      "webinarKey": "w1",
+      "returnAll": true
+    },
+    "response": [
+      {
+        "a": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/coorganizers",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "coorganizer.reinvite": {
+    "params": {
+      "webinarKey": "w1",
+      "coorganizerKey": "c1",
+      "isExternal": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/coorganizers/c1/resendInvitation",
+      "query": {
+        "external": "true"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "panelist.create": {
+    "params": {
+      "webinarKey": "w1",
+      "name": "P",
+      "email": "p@x"
+    },
+    "response": [
+      {
+        "panelistKey": "1"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/panelists",
+      "body": [
+        {
+          "name": "P",
+          "email": "p@x"
+        }
+      ]
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "panelist.delete": {
+    "params": {
+      "webinarKey": "w1",
+      "panelistKey": "p1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/panelists/p1"
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "panelist.getAll": {
+    "params": {
+      "webinarKey": "w1"
+    },
+    "response": [
+      {
+        "a": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/panelists",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "panelist.reinvite": {
+    "params": {
+      "webinarKey": "w1",
+      "panelistKey": "p1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/panelists/p1/resendInvitation"
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "registrant.create": {
+    "params": {
+      "webinarKey": "w1",
+      "firstName": "A",
+      "lastName": "B",
+      "email": "a@x",
+      "additionalFields": {
+        "resendConfirmation": true,
+        "jobTitle": "Eng",
+        "fullAddress": {
+          "details": {
+            "city": "Oslo"
+          }
+        },
+        "simpleResponses": {
+          "details": [
+            {
+              "questionKey": "1",
+              "responseText": "x"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "registrantKey": "1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/registrants",
+      "query": {
+        "resendConfirmation": "true"
+      },
+      "body": {
+        "firstName": "A",
+        "lastName": "B",
+        "email": "a@x",
+        "jobTitle": "Eng",
+        "city": "Oslo",
+        "responses": [
+          {
+            "questionKey": "1",
+            "responseText": "x"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "registrant.delete": {
+    "params": {
+      "webinarKey": "w1",
+      "registrantKey": "r1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/registrants/r1"
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "registrant.get": {
+    "params": {
+      "webinarKey": "w1",
+      "registrantKey": "r1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/registrants/r1"
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "registrant.getAll": {
+    "params": {
+      "webinarKey": "w1"
+    },
+    "response": [
+      {
+        "a": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/registrants",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "session.get": {
+    "params": {
+      "webinarKey": "w1",
+      "sessionKey": "s1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/sessions/s1"
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "session.getAll": {
+    "params": {
+      "limit": 5,
+      "additionalFields": {
+        "webinarKey": "w1",
+        "times": {
+          "timesProperties": {
+            "fromTime": "2024-01-01T00:00:00Z",
+            "toTime": "2024-02-01T00:00:00Z"
+          }
+        }
+      }
+    },
+    "response": {
+      "_embedded": {
+        "sessionInfoResources": [
+          {
+            "a": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/sessions",
+      "query": {
+        "fromTime": "2024-01-01T00:00:00Z",
+        "toTime": "2024-02-01T00:00:00Z",
+        "page": "0",
+        "size": "5"
+      },
+      "headers": {
+        "Accept": "application/vnd.citrix.g2wapi-v1.1+json"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "session.getDetails": {
+    "params": {
+      "webinarKey": "w1",
+      "sessionKey": "s1",
+      "details": "surveys"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1/sessions/s1/surveys"
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "webinar.get": {
+    "params": {
+      "webinarKey": "w1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1"
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "webinar.create": {
+    "params": {
+      "subject": "S",
+      "times": {
+        "timesProperties": [
+          {
+            "startTime": "a",
+            "endTime": "b"
+          }
+        ]
+      },
+      "additionalFields": {
+        "type": "series"
+      }
+    },
+    "response": {
+      "webinarKey": "1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/G2W/rest/v2/organizers/ok/webinars",
+      "body": {
+        "subject": "S",
+        "times": [
+          {
+            "startTime": "a",
+            "endTime": "b"
+          }
+        ],
+        "type": "series"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "webinar.delete": {
+    "params": {
+      "webinarKey": "w1",
+      "additionalFields": {
+        "sendCancellationEmails": true
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1",
+      "query": {
+        "sendCancellationEmails": "true"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "webinar.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "_embedded": {
+        "webinars": [
+          {
+            "a": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/G2W/rest/v2/accounts/ak/webinars",
+      "query": {
+        "fromTime": "<any>",
+        "toTime": "<any>",
+        "page": "0",
+        "size": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  },
+  "webinar.update": {
+    "params": {
+      "webinarKey": "w1",
+      "notifyParticipants": true,
+      "updateFields": {
+        "subject": "N"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/G2W/rest/v2/organizers/ok/webinars/w1",
+      "query": {
+        "notifyParticipants": "true"
+      },
+      "body": {
+        "subject": "N"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "organizer_key": "ok",
+      "account_key": "ak"
+    }
+  }
+}

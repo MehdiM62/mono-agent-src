@@ -1,0 +1,886 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "go_to_webinar",
+  "node_type": "app.go_to_webinar",
+  "title": "GoTo Webinar",
+  "description": "Webinars, sessions, registrants, attendees, panelists and co-organizers in GoTo Webinar",
+  "category": "app",
+  "docs_url": "https://developer.goto.com/GoToWebinarV2",
+  "n8n_types": [
+    "n8n-nodes-base.goToWebinar"
+  ],
+  "base_url": "https://api.getgo.com/G2W/rest/v2",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "gotowebinar",
+      "name": "GoTo Webinar",
+      "n8n_credential": "goToWebinarOAuth2Api",
+      "methods": [
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "organizer_key",
+          "label": "Organizer key",
+          "required": true,
+          "help": "Returned with the OAuth token (organizer_key); also shown in GoTo admin"
+        },
+        {
+          "key": "account_key",
+          "label": "Account key",
+          "required": true,
+          "help": "Returned with the OAuth token (account_key)"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://authentication.logmeininc.com/oauth/authorize",
+        "token_url": "https://authentication.logmeininc.com/oauth/token",
+        "scopes": []
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "attendee",
+      "label": "Attendee"
+    },
+    {
+      "value": "coorganizer",
+      "label": "Coorganizer"
+    },
+    {
+      "value": "panelist",
+      "label": "Panelist"
+    },
+    {
+      "value": "registrant",
+      "label": "Registrant"
+    },
+    {
+      "value": "session",
+      "label": "Session"
+    },
+    {
+      "value": "webinar",
+      "label": "Webinar"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "attendee",
+      "operation": "get",
+      "title": "Get an attendee",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/sessions/{{ p.sessionKey }}/attendees/{{ p.registrantKey }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sessionKey",
+          "label": "Session key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "registrantKey",
+          "label": "Registrant key",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "attendee",
+      "operation": "getAll",
+      "title": "Get many attendees",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/sessions/{{ p.sessionKey }}/attendees",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sessionKey",
+          "label": "Session key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "attendee",
+      "operation": "getDetails",
+      "title": "Get attendee details",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/sessions/{{ p.sessionKey }}/attendees/{{ p.registrantKey }}/{{ p.details }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sessionKey",
+          "label": "Session key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "registrantKey",
+          "label": "Registrant key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "details",
+          "label": "Details",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "polls",
+            "questions",
+            "surveyAnswers"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "coorganizer",
+      "operation": "create",
+      "title": "Add a co-organizer",
+      "method": "POST",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/coorganizers",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "isExternal",
+          "label": "External co-organizer",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "organizerKey",
+          "label": "Organizer key (internal)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "givenName",
+          "label": "Name (external)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "email",
+          "label": "Email (external)",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "body": [
+        {
+          "!external": "{{ p.isExternal | bool }}",
+          "organizerKey": "{{ p.isExternal | eq:'false' | then:p.organizerKey }}",
+          "givenName": "{{ p.isExternal | eq:'true' | then:p.givenName }}",
+          "email": "{{ p.isExternal | eq:'true' | then:p.email }}"
+        }
+      ]
+    },
+    {
+      "resource": "coorganizer",
+      "operation": "delete",
+      "title": "Remove a co-organizer",
+      "method": "DELETE",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/coorganizers/{{ p.coorganizerKey }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "coorganizerKey",
+          "label": "Co-organizer key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "isExternal",
+          "label": "External co-organizer",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "external": "{{ p.isExternal | bool }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "coorganizer",
+      "operation": "getAll",
+      "title": "Get many co-organizers",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/coorganizers",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "coorganizer",
+      "operation": "reinvite",
+      "title": "Resend a co-organizer invitation",
+      "method": "POST",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/coorganizers/{{ p.coorganizerKey }}/resendInvitation",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "coorganizerKey",
+          "label": "Co-organizer key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "isExternal",
+          "label": "External co-organizer",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "external": "{{ p.isExternal | bool }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "panelist",
+      "operation": "create",
+      "title": "Add a panelist",
+      "method": "POST",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/panelists",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": [
+        {
+          "name": "{{ p.name }}",
+          "email": "{{ p.email }}"
+        }
+      ]
+    },
+    {
+      "resource": "panelist",
+      "operation": "delete",
+      "title": "Remove a panelist",
+      "method": "DELETE",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/panelists/{{ p.panelistKey }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "panelistKey",
+          "label": "Panelist key",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "panelist",
+      "operation": "getAll",
+      "title": "Get many panelists",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/panelists",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "panelist",
+      "operation": "reinvite",
+      "title": "Resend a panelist invitation",
+      "method": "POST",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/panelists/{{ p.panelistKey }}/resendInvitation",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "panelistKey",
+          "label": "Panelist key",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "registrant",
+      "operation": "create",
+      "title": "Register someone for a webinar",
+      "method": "POST",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/registrants",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fullAddress",
+            "industry",
+            "jobTitle",
+            "multiChoiceResponses",
+            "numberOfEmployees",
+            "organization",
+            "phone",
+            "purchasingRole",
+            "purchasingTimeFrame",
+            "questionsAndComments",
+            "resendConfirmation",
+            "simpleResponses",
+            "source"
+          ],
+          "help": "fullAddress: {\"details\": {address, city, state, zipCode, country}}; simpleResponses: {\"details\": [{questionKey, responseText}]}; multiChoiceResponses: {\"details\": [{questionKey, AnswerKey}]}"
+        }
+      ],
+      "query": {
+        "resendConfirmation": "{{ p.additionalFields.resendConfirmation | eq:'true' | then:true }}"
+      },
+      "body": {
+        "firstName": "{{ p.firstName }}",
+        "lastName": "{{ p.lastName }}",
+        "email": "{{ p.email }}",
+        "$merge": [
+          "{{ p.additionalFields | omit:'resendConfirmation,fullAddress,simpleResponses,multiChoiceResponses' }}",
+          "{{ p.additionalFields.fullAddress.details }}"
+        ],
+        "!responses": {
+          "$concat": [
+            "{{ p.additionalFields.simpleResponses.details }}",
+            "{{ p.additionalFields.multiChoiceResponses.details }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "registrant",
+      "operation": "delete",
+      "title": "Delete a registrant",
+      "method": "DELETE",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/registrants/{{ p.registrantKey }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "registrantKey",
+          "label": "Registrant key",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "registrant",
+      "operation": "get",
+      "title": "Get a registrant",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/registrants/{{ p.registrantKey }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "registrantKey",
+          "label": "Registrant key",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "registrant",
+      "operation": "getAll",
+      "title": "Get many registrants",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/registrants",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "session",
+      "operation": "get",
+      "title": "Get a session",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/sessions/{{ p.sessionKey }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sessionKey",
+          "label": "Session key",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "session",
+      "operation": "getAll",
+      "title": "Get many sessions",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}{{ p.additionalFields.webinarKey | then:'/webinars/' }}{{ p.additionalFields.webinarKey | rl }}/sessions",
+      "headers": {
+        "Accept": "application/vnd.citrix.g2wapi-v1.1+json"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "times",
+            "webinarKey"
+          ],
+          "help": "times: {\"timesProperties\": {fromTime, toTime}} (default: the last year)"
+        }
+      ],
+      "query": {
+        "fromTime": "{{ p.additionalFields.times.timesProperties.fromTime | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | epoch | sub:31536000 | date:'YYYY-MM-DDTHH:mm:ssZ') }}",
+        "toTime": "{{ p.additionalFields.times.timesProperties.toTime | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | date:'YYYY-MM-DDTHH:mm:ssZ') }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 0,
+        "limit_param": "size",
+        "page_size": 100,
+        "results_path": "_embedded.sessionInfoResources"
+      }
+    },
+    {
+      "resource": "session",
+      "operation": "getDetails",
+      "title": "Get session details",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey | rl }}/sessions/{{ p.sessionKey }}/{{ p.details }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sessionKey",
+          "label": "Session key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "details",
+          "label": "Details",
+          "type": "select",
+          "default": "performance",
+          "options": [
+            "performance",
+            "polls",
+            "questions",
+            "surveys"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "webinar",
+      "operation": "get",
+      "title": "Get a webinar",
+      "method": "GET",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "webinar",
+      "operation": "create",
+      "title": "Create a webinar",
+      "method": "POST",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars",
+      "fields": [
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "times",
+          "label": "Times",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "timesProperties"
+          ],
+          "help": "{\"timesProperties\": [{\"startTime\", \"endTime\"}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "experienceType",
+            "isOnDemand",
+            "isPasswordProtected",
+            "timezone",
+            "type"
+          ]
+        }
+      ],
+      "body": {
+        "subject": "{{ p.subject }}",
+        "!times": "{{ p.times.timesProperties }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "webinar",
+      "operation": "delete",
+      "title": "Cancel a webinar",
+      "method": "DELETE",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sendCancellationEmails"
+          ]
+        }
+      ],
+      "query": {
+        "sendCancellationEmails": "{{ p.additionalFields.sendCancellationEmails | eq:'true' | then:true }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "webinar",
+      "operation": "getAll",
+      "title": "Get many webinars",
+      "method": "GET",
+      "path": "/accounts/{{ cred.account_key }}/webinars",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "times"
+          ],
+          "help": "times: {\"timesProperties\": {fromTime, toTime}} (default: the last year)"
+        }
+      ],
+      "query": {
+        "fromTime": "{{ p.additionalFields.times.timesProperties.fromTime | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | epoch | sub:31536000 | date:'YYYY-MM-DDTHH:mm:ssZ') }}",
+        "toTime": "{{ p.additionalFields.times.timesProperties.toTime | date:'YYYY-MM-DDTHH:mm:ssZ' | default:(now | date:'YYYY-MM-DDTHH:mm:ssZ') }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "start_page": 0,
+        "limit_param": "size",
+        "page_size": 100,
+        "results_path": "_embedded.webinars"
+      }
+    },
+    {
+      "resource": "webinar",
+      "operation": "update",
+      "title": "Update a webinar",
+      "method": "PUT",
+      "path": "/organizers/{{ cred.organizer_key }}/webinars/{{ p.webinarKey }}",
+      "fields": [
+        {
+          "key": "webinarKey",
+          "label": "Webinar key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "notifyParticipants",
+          "label": "Notify participants",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "experienceType",
+            "isOnDemand",
+            "isPasswordProtected",
+            "times",
+            "subject",
+            "timezone",
+            "type"
+          ]
+        }
+      ],
+      "query": {
+        "notifyParticipants": "{{ p.notifyParticipants | bool }}"
+      },
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'times' }}",
+        "times": "{{ p.updateFields.times.timesProperties }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    }
+  ]
+}
