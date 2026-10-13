@@ -47,6 +47,7 @@ func newConnectCmd(cfg *globalConfig) *cobra.Command {
 		newConnectSaveCmd(cfg),
 		newConnectForNodeCmd(cfg),
 		newConnectOAuthCmd(cfg),
+		newConnectShowCmd(cfg),
 		newConnectResourcesCmd(cfg),
 	)
 

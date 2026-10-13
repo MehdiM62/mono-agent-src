@@ -53,6 +53,8 @@ Outlook accounts) — nothing links them beyond both being "outlook".
   monoagentcli connect <platform>               interactive connect (OAuth or API key)
   monoagentcli connect list                     connections for the ACTIVE profile
   monoagentcli connect list --all               every platform this CLI supports, connected or not
+  monoagentcli connect show <platform>          a platform's methods, fields, OAuth connect fields, commands
+  monoagentcli connect oauth <platform>         browser OAuth (2.0, or 1.0a) without prompts; --field key=value
   monoagentcli connect test <id>                verify a connection still works
   monoagentcli connect refresh <id>             force a silent token refresh right now
   monoagentcli connect remove <id>              delete a connection
@@ -135,6 +137,25 @@ that platform yourself and give monoagent its client id, in either way:
 
 The stored per-profile value wins over the environment. A successful
 connect stores the client it used, for silent refresh later.
+
+Some OAuth platforms need a value before the browser opens: a tenant
+subdomain, a Salesforce environment. 'connect show <platform>' lists these
+connect fields; give them to 'connect oauth' as --field key=value (repeat
+the flag). An unknown key is an error naming the allowed ones, and a
+reconnect keeps the earlier values of the ones not given:
+
+  monoagentcli connect oauth salesforce --field environment=sandbox
+
+OAUTH 1.0a (Trello, X/Twitter v1.1, and generic_oauth1 for any other API)
+uses the app's consumer key and secret instead of a client id: 'connect
+oauth <platform>' asks for them on a terminal (the secret without echo),
+or takes them as --field consumer_key=… --field consumer_secret=… (a
+--field value is visible to other local users in the process list).
+generic_oauth1 also takes the API's request_token_url, authorization_url
+and access_token_url (and signature_method, HMAC-SHA1 by default). The
+connection stores oauth_token / oauth_token_secret, and the HTTP Request
+node signs every request with it (n8n's oAuth1Api credential imports as a
+generic_oauth1 connection).
 
 The monoes.me OAuth app is for signing in to monoes.me (see 'ref
 account'), not for connecting integrations. Reusing it for integrations

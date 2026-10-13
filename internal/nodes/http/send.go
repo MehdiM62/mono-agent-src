@@ -162,7 +162,11 @@ func send(ctx context.Context, client *http.Client, ob *outbound, maxBody int64,
 	}
 	ctx = context.WithValue(ctx, redirectPolicyKey{}, pol)
 
-	resp, err := client.Do(buildRequest(ctx, ob, config, itemJSON, ""))
+	req, err := buildRequest(ctx, ob, config, itemJSON, "")
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +178,10 @@ func send(ctx context.Context, client *http.Client, ob *outbound, maxBody int64,
 			if err != nil {
 				return nil, err
 			}
-			if resp, err = client.Do(buildRequest(ctx, ob, config, itemJSON, authz)); err != nil {
+			if req, err = buildRequest(ctx, ob, config, itemJSON, authz); err != nil {
+				return nil, err
+			}
+			if resp, err = client.Do(req); err != nil {
 				return nil, err
 			}
 		}
@@ -199,7 +206,7 @@ func send(ctx context.Context, client *http.Client, ob *outbound, maxBody int64,
 
 // buildRequest assembles the http.Request for ob. digestAuthz, when set,
 // is the Authorization header answering a Digest challenge.
-func buildRequest(ctx context.Context, ob *outbound, config, itemJSON map[string]interface{}, digestAuthz string) *http.Request {
+func buildRequest(ctx context.Context, ob *outbound, config, itemJSON map[string]interface{}, digestAuthz string) (*http.Request, error) {
 	var body io.Reader
 	if ob.hasBody {
 		body = bytes.NewReader(ob.body)
@@ -216,7 +223,9 @@ func buildRequest(ctx context.Context, ob *outbound, config, itemJSON map[string
 		}
 		req.Header.Set(h.Name, stringifyValue(h.Value))
 	}
-	ob.auth.applyToRequest(req)
+	if err := ob.auth.applyToRequest(req, ob.body); err != nil {
+		return nil, err
+	}
 	if digestAuthz != "" {
 		req.Header.Set("Authorization", digestAuthz)
 	}
@@ -224,5 +233,5 @@ func buildRequest(ctx context.Context, ob *outbound, config, itemJSON map[string
 	// back into mono-agent through a webhook the run it starts stays on the
 	// chain. Set after every configured header so none can replace it.
 	setTraceHeader(ctx, req, config, itemJSON)
-	return req
+	return req, nil
 }

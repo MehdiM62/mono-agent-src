@@ -29,6 +29,14 @@ const (
 	OAuth1ConsumerSecret = "consumer_secret"
 	OAuth1Token          = "oauth_token"
 	OAuth1TokenSecret    = "oauth_token_secret"
+	// OAuth1SignatureMethod is stored when it is not HMAC-SHA1, so a
+	// request signer that only sees the connection's data signs alike.
+	OAuth1SignatureMethod = "signature_method"
+	// The endpoints of a generic OAuth 1.0a connection, whose platform has
+	// none of its own.
+	OAuth1RequestTokenURL  = "request_token_url"
+	OAuth1AuthorizationURL = "authorization_url"
+	OAuth1AccessTokenURL   = "access_token_url"
 )
 
 // OAuth1Config holds a platform's OAuth 1.0a endpoints (RFC 5849). The
