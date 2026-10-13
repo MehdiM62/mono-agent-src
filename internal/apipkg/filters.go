@@ -23,6 +23,7 @@ var knownFilters = map[string]bool{
 	"gid": true, "find": true, "find_row": true,
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
+	"firestore_value": true, "firestore_fields": true, "pick": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -114,6 +115,22 @@ func applyFilter(name string, v, arg any) (any, error) {
 			return stringify(v) + stringify(arg), nil
 		}
 		return html.EscapeString(stringify(v)), nil
+	case "firestore_value":
+		return firestoreValue(v), nil
+	case "firestore_fields":
+		obj, ok := v.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("firestore_fields: value is %T, not an object", v)
+		}
+		var cols []string
+		if a := stringify(arg); a != "" {
+			for _, c := range strings.Split(a, ",") {
+				if c = strings.TrimSpace(c); c != "" {
+					cols = append(cols, c)
+				}
+			}
+		}
+		return firestoreFields(obj, cols), nil
 	case "lines":
 		var out []any
 		for _, ln := range strings.Split(strings.ReplaceAll(stringify(v), "\r\n", "\n"), "\n") {
@@ -214,6 +231,8 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return toEpoch(v, false)
 	case "omit":
 		return omitKeys(v, arg)
+	case "pick":
+		return pickKeys(v, arg)
 	case "lower":
 		return strings.ToLower(stringify(v)), nil
 	case "upper":
@@ -715,3 +734,31 @@ func toEntries(v, arg any) (any, error) {
 
 // pathValue is text already escaped for a URL path (the path filter).
 type pathValue string
+
+// pickKeys returns a copy of the object v with only the keys named in arg
+// (a comma-separated string or a list); listed keys v lacks are skipped.
+func pickKeys(v, arg any) (any, error) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("pick: value is %T, not an object", v)
+	}
+	var keys []string
+	switch a := arg.(type) {
+	case []any:
+		for _, x := range a {
+			keys = append(keys, strings.TrimSpace(stringify(x)))
+		}
+	default:
+		keys = strings.Split(stringify(a), ",")
+	}
+	out := map[string]any{}
+	for _, k := range keys {
+		if k = strings.TrimSpace(k); k == "" {
+			continue
+		}
+		if val, ok := m[k]; ok {
+			out[k] = val
+		}
+	}
+	return out, nil
+}

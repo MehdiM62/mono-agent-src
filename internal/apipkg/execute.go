@@ -290,7 +290,7 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	if err := r.runAlso(ctx, resp); err != nil {
 		return nil, err
 	}
-	if b := r.op.Binary; b != nil && b.Download {
+	if r.downloads() {
 		return []workflow.Item{r.downloadItem(resp)}, nil
 	}
 	if len(strings.TrimSpace(string(resp.body))) == 0 {
@@ -528,6 +528,17 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			list = kept
 		}
 	}
+	if o.Firestore != "" {
+		on, err := renderString(o.Firestore, r.scope)
+		if err != nil {
+			return nil, r.errf("output.firestore: %w", err)
+		}
+		if b, _ := toBool(on); b == true {
+			for i, el := range list {
+				list[i] = firestoreDoc(el)
+			}
+		}
+	}
 	if o.To != nil {
 		apply := true
 		if o.ToWhen != "" {
@@ -588,4 +599,17 @@ func (r *opRun) outputPath() string {
 		return r.op.Output.Path
 	}
 	return p
+}
+
+// downloads reports whether this run's response is a file.
+func (r *opRun) downloads() bool {
+	b := r.op.Binary
+	if b == nil {
+		return false
+	}
+	if b.DownloadWhen == "" {
+		return b.Download
+	}
+	w, err := renderString(b.DownloadWhen, r.scope)
+	return err == nil && !isEmpty(w) && w != false
 }
