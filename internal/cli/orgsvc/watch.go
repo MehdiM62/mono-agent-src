@@ -1,4 +1,4 @@
-package main
+package orgsvc
 
 import (
 	"context"
@@ -23,7 +23,7 @@ type orgWatch struct {
 
 // watchOrgFiles keeps one org-file watcher per profile until ctx ends,
 // following the profile list as it changes.
-func (s *orgServices) watchOrgFiles(ctx context.Context) {
+func (s *Services) watchOrgFiles(ctx context.Context) {
 	s.syncWatchers(ctx, false)
 	interval := s.resyncInterval
 	if interval <= 0 {
@@ -49,8 +49,8 @@ func (s *orgServices) watchOrgFiles(ctx context.Context) {
 // profile that is new (or newly moved) is reconciled once first, since
 // edits made there while nothing watched it were never seen. announce logs
 // those changes, which the startup pass does not.
-func (s *orgServices) syncWatchers(ctx context.Context, announce bool) {
-	roots, err := profileRoots(s.db.DB)
+func (s *Services) syncWatchers(ctx context.Context, announce bool) {
+	roots, err := ProfileRoots(s.db.DB)
 	if err != nil {
 		// A transient DB error must not stop every watcher.
 		s.logf("org services: listing profiles: %v", err)
@@ -112,7 +112,7 @@ func (s *orgServices) syncWatchers(ctx context.Context, announce bool) {
 }
 
 // stopWatchers stops every watcher, for shutdown.
-func (s *orgServices) stopWatchers() {
+func (s *Services) stopWatchers() {
 	s.mu.Lock()
 	all := s.watchers
 	s.watchers = nil
@@ -124,7 +124,7 @@ func (s *orgServices) stopWatchers() {
 
 // markSelfWrite tells the profile's watcher that sha is the daemon's own
 // save of org name, so it is not reconciled a second time.
-func (s *orgServices) markSelfWrite(profileID, name, sha string) {
+func (s *Services) markSelfWrite(profileID, name, sha string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if ow := s.watchers[profileID]; ow != nil {

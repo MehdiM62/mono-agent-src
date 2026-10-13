@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/agentroster"
+	"github.com/monoes/mono-agent/internal/cli/orgsvc"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/monomind"
 )
@@ -72,7 +73,7 @@ func appBusy(ctx context.Context, db *sql.DB) (bool, string) {
 			}
 		}
 	}
-	if roots, err := profileRoots(db); err == nil {
+	if roots, err := orgsvc.ProfileRoots(db); err == nil {
 		for _, pr := range roots {
 			if hb, live := monomind.ReadServeHeartbeat(pr.Root); live && len(hb.Running) > 0 {
 				return true, "org run"

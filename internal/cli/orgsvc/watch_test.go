@@ -1,4 +1,4 @@
-package main
+package orgsvc
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
@@ -38,7 +39,7 @@ func providerCommand(t *testing.T, root string) string {
 	return r.ToolProviders[0].Command
 }
 
-func watchedRoot(s *orgServices, profileID string) string {
+func watchedRoot(s *Services, profileID string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if ow := s.watchers[profileID]; ow != nil {
@@ -61,7 +62,7 @@ func TestDaemonWatchersFollowProfiles(t *testing.T) {
 	defer db.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	s := &orgServices{db: db, logf: t.Logf, watchInterval: 20 * time.Millisecond}
+	s := &Services{db: db, openWorkflowStore: openTestWorkflowStore, logf: t.Logf, watchInterval: 20 * time.Millisecond}
 	s.syncWatchers(ctx, false)
 	defer s.stopWatchers()
 	if got := watchedRoot(s, "default"); got != filepath.Clean(f.root) {
@@ -83,14 +84,14 @@ func TestDaemonWatchersFollowProfiles(t *testing.T) {
 	if got := watchedRoot(s, "default"); got != moved {
 		t.Fatalf("after the move, default watched at %q, want %q", got, moved)
 	}
-	if got := providerCommand(t, moved); got != selfExecutable() {
+	if got := providerCommand(t, moved); got != orgenv.SelfExecutable() {
 		t.Fatalf("the moved folder was not reconciled: provider command %q", got)
 	}
 
 	// An edit at the new place is now seen by its watcher.
 	staleProvider(t, moved)
 	deadline := time.Now().Add(5 * time.Second)
-	for providerCommand(t, moved) != selfExecutable() {
+	for providerCommand(t, moved) != orgenv.SelfExecutable() {
 		if time.Now().After(deadline) {
 			t.Fatal("an edit at the moved folder was never reconciled")
 		}
@@ -129,7 +130,7 @@ func TestReconcileWaitsForRowEditInFlight(t *testing.T) {
 	ctx := context.Background()
 	store := orggrant.NewStore(db.DB)
 
-	release, err := lockOrgRows(f.root) // the `org grant add` in flight
+	release, err := orgenv.LockRows(f.root) // the `org grant add` in flight
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +140,7 @@ func TestReconcileWaitsForRowEditInFlight(t *testing.T) {
 	}
 	onDisk := f.load(t) // what the watcher read: the row has no display copy yet
 
-	s := &orgServices{db: db, logf: t.Logf}
+	s := &Services{db: db, openWorkflowStore: openTestWorkflowStore, logf: t.Logf}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -174,7 +175,7 @@ func TestReconcileSkipsAnOrgFileDeletedBeforeTheLock(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s := &orgServices{db: db, logf: t.Logf}
+	s := &Services{db: db, openWorkflowStore: openTestWorkflowStore, logf: t.Logf}
 	res := s.reconcileDoc(context.Background(), orgdecide.ProfileRoot{ProfileID: "default", Root: f.root}, onDisk, true)
 	if res.Error == "" {
 		t.Fatal("reconciling a deleted org file reported no error")

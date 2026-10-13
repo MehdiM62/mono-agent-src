@@ -1,4 +1,4 @@
-package main
+package orgsvc
 
 import (
 	"context"
@@ -28,7 +28,7 @@ func TestAdmitWebhookTraceStopsALoop(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	s := &orgServices{db: db, logf: t.Logf}
+	s := &Services{db: db, openWorkflowStore: openTestWorkflowStore, logf: t.Logf}
 	ctx := context.Background()
 
 	hop := 0
@@ -63,7 +63,7 @@ func TestAdmitWebhookTraceAllowsAFanOut(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	s := &orgServices{db: db, logf: t.Logf}
+	s := &Services{db: db, openWorkflowStore: openTestWorkflowStore, logf: t.Logf}
 	for i := 1; i <= 100; i++ {
 		got, refusal, err := s.admitWebhookTrace(context.Background(), f.plainWF, "chn_fanout", 3)
 		if err != nil || refusal != "" || got != 4 {
@@ -83,7 +83,7 @@ func TestSignedTraceThroughARealWebhook(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	s := &orgServices{db: db, logf: t.Logf}
+	s := &Services{db: db, openWorkflowStore: openTestWorkflowStore, logf: t.Logf}
 
 	hooks := workflow.NewWebhookServer("127.0.0.1:0", zerolog.Nop())
 	hooks.SetTraceAdmitter(s.admitWebhookTrace)
@@ -139,7 +139,7 @@ func TestReplayedTokenIsRateLimited(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	s := &orgServices{db: db, logf: t.Logf}
+	s := &Services{db: db, openWorkflowStore: openTestWorkflowStore, logf: t.Logf}
 	hooks := workflow.NewWebhookServer("127.0.0.1:0", zerolog.Nop())
 	hooks.SetTraceAdmitter(s.admitWebhookTrace)
 	runs := 0
@@ -190,7 +190,7 @@ func TestAdmitWebhookTraceUsesTheChainOrgsMaxHops(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	s := &orgServices{db: db, logf: t.Logf}
+	s := &Services{db: db, openWorkflowStore: openTestWorkflowStore, logf: t.Logf}
 	ctx := context.Background()
 	// growth sent the chain out: a workflow_out crossing it made.
 	if _, err := orgbridge.NewLedger(db.DB).Admit(ctx, orgbridge.Call{ProfileID: "default",
