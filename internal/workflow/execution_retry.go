@@ -41,7 +41,9 @@ func executeWithRetry(
 			if override > 0 {
 				delay = override
 			}
-			if retrySleep(ctx, delay) != nil || ctx.Err() != nil {
+			// Waiting out the back-off is not work: yield the concurrency
+			// slot so other executions run meanwhile.
+			if YieldSlotWhile(ctx, func() error { return retrySleep(ctx, delay) }) != nil || ctx.Err() != nil {
 				return nil, ErrExecutionCancelled
 			}
 		}
