@@ -1,0 +1,279 @@
+{
+  "order.create": {
+    "params": {
+      "limeItemsUi": {
+        "lineItemValues": [
+          {
+            "variantId": "5",
+            "quantity": 2
+          }
+        ]
+      },
+      "additionalFields": {
+        "email": "a@b.c",
+        "billingAddressUi": {
+          "billingAddressValues": {
+            "firstName": "A",
+            "city": "X"
+          }
+        }
+      }
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/admin/api/2024-07/orders.json",
+      "body": {
+        "order": {
+          "test": true,
+          "line_items": [
+            {
+              "variant_id": "5",
+              "quantity": 2
+            }
+          ],
+          "email": "a@b.c",
+          "billing_address": {
+            "first_name": "A",
+            "city": "X"
+          }
+        }
+      },
+      "headers": {
+        "X-Shopify-Access-Token": "T"
+      },
+      "items": 1
+    },
+    "response": {
+      "order": {
+        "id": 1
+      }
+    }
+  },
+  "order.delete": {
+    "params": {
+      "orderId": "1"
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/admin/api/2024-07/orders/1.json"
+    }
+  },
+  "order.get": {
+    "params": {
+      "orderId": "1",
+      "options": {
+        "fields": "id,name"
+      }
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/api/2024-07/orders/1.json",
+      "query": {
+        "fields": "id,name"
+      },
+      "items": 1
+    },
+    "response": {
+      "order": {
+        "id": 1
+      }
+    }
+  },
+  "order.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "status": "any",
+        "sinceId": "9"
+      }
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/api/2024-07/orders.json",
+      "query": {
+        "status": "any",
+        "since_id": "9",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "orders": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "order.update": {
+    "params": {
+      "orderId": "1",
+      "updateFields": {
+        "note": "n"
+      }
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/admin/api/2024-07/orders/1.json",
+      "body": {
+        "order": {
+          "note": "n"
+        }
+      }
+    },
+    "response": {
+      "order": {
+        "id": 1
+      }
+    }
+  },
+  "product.create": {
+    "params": {
+      "title": "Shirt",
+      "additionalFields": {
+        "vendor": "V",
+        "productOptions": {
+          "option": [
+            {
+              "name": "Size",
+              "value": "M"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/admin/api/2024-07/products.json",
+      "body": {
+        "product": {
+          "title": "Shirt",
+          "vendor": "V",
+          "options": {
+            "Size": "M"
+          }
+        }
+      }
+    },
+    "response": {
+      "product": {
+        "id": 1
+      }
+    }
+  },
+  "product.delete": {
+    "params": {
+      "productId": "1"
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/admin/api/2024-07/products/1.json"
+    }
+  },
+  "product.get": {
+    "params": {
+      "productId": "1",
+      "additionalFields": {
+        "fields": "id"
+      }
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/api/2024-07/products/1.json",
+      "query": {
+        "fields": "id"
+      }
+    },
+    "response": {
+      "product": {
+        "id": 1
+      }
+    }
+  },
+  "product.getAll": {
+    "params": {
+      "returnAll": true,
+      "additionalFields": {
+        "vendor": "V"
+      }
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/api/2024-07/products.json",
+      "query": {
+        "vendor": "V",
+        "limit": "250"
+      },
+      "items": 1
+    },
+    "response": {
+      "products": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "product.update": {
+    "params": {
+      "productId": "1",
+      "updateFields": {
+        "title": "T2"
+      }
+    },
+    "credential": {
+      "shop_domain": "acme.myshopify.com",
+      "access_token": "T"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/admin/api/2024-07/products/1.json",
+      "body": {
+        "product": {
+          "title": "T2"
+        }
+      }
+    },
+    "response": {
+      "product": {
+        "id": 1
+      }
+    }
+  }
+}
