@@ -1,0 +1,608 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "border",
+      "help": "What to do with the image. information adds format, size and color details to the item； multi_step runs a list of operations in order.",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "blur",
+        "border",
+        "composite",
+        "create",
+        "crop",
+        "draw",
+        "information",
+        "multi_step",
+        "resize",
+        "rotate",
+        "shear",
+        "text",
+        "transparent"
+      ],
+      "required": true,
+      "type": "select"
+    },
+    {
+      "default": "data",
+      "help": "Item field holding the image as base64 (with file_name / mime_type next to it), or a key of the item's binary data. Not needed for create.",
+      "key": "data_property_name",
+      "label": "Input Binary Field",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Work on a file instead: item field holding a local image path. Leave empty to use the binary field； items that only carry image_path, path, file_path or media_path are read from that path.",
+      "key": "field",
+      "label": "Image Path Field",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 5,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "blur"
+        ]
+      },
+      "help": "Accepted for n8n compatibility； the kernel size follows sigma.",
+      "key": "blur",
+      "label": "Blur Radius",
+      "max": 1000,
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 2,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "blur"
+        ]
+      },
+      "help": "Gaussian blur strength in pixels. 0 leaves the image unchanged.",
+      "key": "sigma",
+      "label": "Sigma",
+      "max": 1000,
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 10,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "border"
+        ]
+      },
+      "help": "Pixels added on the left and right.",
+      "key": "border_width",
+      "label": "Border Width",
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 10,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "border"
+        ]
+      },
+      "help": "Pixels added on the top and bottom.",
+      "key": "border_height",
+      "label": "Border Height",
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "#000000",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "border"
+        ]
+      },
+      "help": "#rrggbb, #rrggbbaa, rgb()/rgba() or a color name.",
+      "key": "border_color",
+      "label": "Border Color",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "composite"
+        ]
+      },
+      "help": "Binary field of the image to lay over this one (in file-path mode: item field holding its path).",
+      "key": "data_property_name_composite",
+      "label": "Overlay Image Field",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "Over",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "composite"
+        ]
+      },
+      "help": "How overlay and image combine. The CMYK operators (CopyBlack, CopyCyan, CopyMagenta, CopyYellow) are rejected on RGB images.",
+      "key": "operator",
+      "label": "Operator",
+      "options": [
+        "Over",
+        "In",
+        "Out",
+        "Atop",
+        "Xor",
+        "Plus",
+        "Add",
+        "Minus",
+        "Subtract",
+        "Multiply",
+        "Difference",
+        "Divide",
+        "Bumpmap",
+        "Copy",
+        "CopyOpacity",
+        "CopyRed",
+        "CopyGreen",
+        "CopyBlue",
+        "CopyBlack",
+        "CopyCyan",
+        "CopyMagenta",
+        "CopyYellow"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "composite",
+          "crop",
+          "text"
+        ]
+      },
+      "help": "Horizontal offset in pixels. Default 0 for composite and crop, 50 for text (measured from the alignment anchor).",
+      "key": "position_x",
+      "label": "Position X",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "composite",
+          "crop",
+          "text"
+        ]
+      },
+      "help": "Vertical offset in pixels. Default 0 for composite and crop, 50 for text.",
+      "key": "position_y",
+      "label": "Position Y",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create",
+          "rotate",
+          "shear"
+        ]
+      },
+      "help": "Canvas color for create (default white) or for areas a rotate or shear exposes (default transparent).",
+      "key": "background_color",
+      "label": "Background Color",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create",
+          "crop",
+          "resize"
+        ]
+      },
+      "help": "Pixels (percent for resize_option=percent). Default 50 for create, 500 for crop and resize.",
+      "key": "width",
+      "label": "Width",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create",
+          "crop",
+          "resize"
+        ]
+      },
+      "help": "Pixels (percent for resize_option=percent). Default 50 for create, 500 for crop and resize.",
+      "key": "height",
+      "label": "Height",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "maximumArea",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "resize"
+        ]
+      },
+      "help": "maximumArea: scale to an area of width×height pixels keeping aspect ratio； minimumArea: cover width and height； ignoreAspectRatio: exact size； onlyIfLarger: shrink to fit only； onlyIfSmaller: enlarge to fit only； percent: scale by percent.",
+      "key": "resize_option",
+      "label": "Resize Option",
+      "options": [
+        "maximumArea",
+        "minimumArea",
+        "ignoreAspectRatio",
+        "onlyIfLarger",
+        "onlyIfSmaller",
+        "percent"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "rectangle",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "draw"
+        ]
+      },
+      "help": "Filled rectangle, filled circle (start = centre, end = a point on the edge) or a one-pixel line.",
+      "key": "primitive",
+      "label": "Primitive",
+      "options": [
+        "rectangle",
+        "circle",
+        "line"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "#ff0000",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "draw",
+          "transparent"
+        ]
+      },
+      "help": "Drawing color, or the color to make transparent.",
+      "key": "color",
+      "label": "Color",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 50,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "draw"
+        ]
+      },
+      "key": "start_position_x",
+      "label": "Start X",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 50,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "draw"
+        ]
+      },
+      "key": "start_position_y",
+      "label": "Start Y",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 250,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "draw"
+        ]
+      },
+      "key": "end_position_x",
+      "label": "End X",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 250,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "draw"
+        ]
+      },
+      "key": "end_position_y",
+      "label": "End Y",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 0,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "draw"
+        ]
+      },
+      "help": "Rounds the rectangle's corners.",
+      "key": "corner_radius",
+      "label": "Corner Radius",
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 0,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "rotate"
+        ]
+      },
+      "help": "Clockwise rotation； any angle. The canvas grows to fit.",
+      "key": "rotate",
+      "label": "Degrees",
+      "max": 360,
+      "min": -360,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 0,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "shear"
+        ]
+      },
+      "key": "degrees_x",
+      "label": "Shear X (degrees)",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 0,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "shear"
+        ]
+      },
+      "key": "degrees_y",
+      "label": "Shear Y (degrees)",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "text"
+        ]
+      },
+      "help": "Text to write. Long lines wrap at line_length characters.",
+      "key": "text",
+      "label": "Text",
+      "required": false,
+      "type": "textarea"
+    },
+    {
+      "default": 18,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "text"
+        ]
+      },
+      "key": "font_size",
+      "label": "Font Size",
+      "min": 1,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "#000000",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "text"
+        ]
+      },
+      "key": "font_color",
+      "label": "Font Color",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "center",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "text"
+        ]
+      },
+      "help": "west = left, east = right.",
+      "key": "horizontal_alignment",
+      "label": "Horizontal Alignment",
+      "options": [
+        "west",
+        "center",
+        "east"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "middle",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "text"
+        ]
+      },
+      "help": "north = top, south = bottom.",
+      "key": "vertical_alignment",
+      "label": "Vertical Alignment",
+      "options": [
+        "north",
+        "middle",
+        "south"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": 80,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "text"
+        ]
+      },
+      "help": "Maximum characters per line before wrapping.",
+      "key": "line_length",
+      "label": "Line Length",
+      "min": 1,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": 0,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "transparent"
+        ]
+      },
+      "help": "Also clear colors within this percent of the color.",
+      "key": "fuzz",
+      "label": "Fuzz (%)",
+      "max": 100,
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "multi_step"
+        ]
+      },
+      "help": "JSON list of steps run in order； each has an operation and that operation's fields. create may only be the first step.",
+      "key": "operations",
+      "label": "Operations",
+      "language": "json",
+      "placeholder": "[{\"operation\": \"resize\", \"width\": 800, \"height\": 600, \"resize_option\": \"onlyIfLarger\"}]",
+      "required": false,
+      "rows": 8,
+      "type": "code"
+    },
+    {
+      "help": "Binary field the result is written to. Defaults to the input binary field.",
+      "key": "destination_key",
+      "label": "Output Binary Field",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Name of the output file.",
+      "key": "file_name",
+      "label": "File Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Output format； defaults to the input format (png for create). webp is written as png (no pure-Go webp encoder).",
+      "key": "format",
+      "label": "Format",
+      "options": [
+        "bmp",
+        "gif",
+        "jpeg",
+        "png",
+        "tiff",
+        "webp"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "JPEG quality 1-100 (default 95).",
+      "key": "quality",
+      "label": "Quality",
+      "max": 100,
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "help": "Path to a TrueType/OpenType font for text. Defaults to the built-in Go Regular font.",
+      "key": "font",
+      "label": "Font File",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "alpha",
+      "help": "alpha: the last hex byte is alpha (ff = opaque, CSS)； opacity: it is opacity as in n8n/GraphicsMagick (00 = opaque).",
+      "key": "hex_alpha",
+      "label": "#rrggbbaa Alpha",
+      "options": [
+        "alpha",
+        "opacity"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "File-path mode: directory for the result (default: the source image's directory； required for create). ~ is expanded.",
+      "key": "output_dir",
+      "label": "Output Directory",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "image_path",
+      "help": "File-path mode: item field the result path is written to.",
+      "key": "output_field",
+      "label": "Output Path Field",
+      "required": false,
+      "type": "text"
+    }
+  ]
+}

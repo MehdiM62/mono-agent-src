@@ -1,0 +1,64 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "help": "Field holding the list to split; several fields comma-separated. Dot paths reach nested fields (user.addresses). Use $binary to split an item's binary files into separate items.",
+      "key": "field_to_split_out",
+      "label": "Fields To Split Out",
+      "placeholder": "items",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "default": "no_other_fields",
+      "help": "Which other fields of the input item to copy onto each new item.",
+      "key": "include",
+      "label": "Include",
+      "options": [
+        "no_other_fields",
+        "all_other_fields",
+        "selected_other_fields"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "include",
+        "values": [
+          "selected_other_fields"
+        ]
+      },
+      "help": "Comma-separated fields copied onto each new item.",
+      "key": "fields_to_include",
+      "label": "Fields To Include",
+      "placeholder": "email, name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Output field for the split values; one per split field, comma-separated. Empty: object elements are merged into the item and other values keep the field name.",
+      "key": "destination_field_name",
+      "label": "Destination Field Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "help": "Treat field names literally instead of as parent.child paths.",
+      "key": "disable_dot_notation",
+      "label": "Disable Dot Notation",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "help": "Copy the input item's binary data onto every new item.",
+      "key": "include_binary",
+      "label": "Include Binary",
+      "required": false,
+      "type": "boolean"
+    }
+  ]
+}

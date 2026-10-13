@@ -17,8 +17,21 @@ type HTMLNode struct{}
 
 func (n *HTMLNode) Type() string { return "data.html" }
 
+// PerItemConfigFields holds back the generate_html_template template and
+// the convert_to_html_table row/cell attributes so they are evaluated
+// against each item rather than only the first.
+func (n *HTMLNode) PerItemConfigFields() []string { return htmlPerItemFields }
+
 func (n *HTMLNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	operation, _ := config["operation"].(string)
+	switch operation {
+	case "extract_html_content":
+		return executeExtractHTMLContent(input, config)
+	case "generate_html_template":
+		return executeGenerateHTMLTemplate(input, config)
+	case "convert_to_html_table":
+		return executeConvertToHTMLTable(input, config)
+	}
 	field, _ := config["field"].(string)
 	selector, _ := config["selector"].(string)
 	attribute, _ := config["attribute"].(string)
