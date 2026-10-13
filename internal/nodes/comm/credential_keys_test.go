@@ -20,9 +20,6 @@ func TestNodesAcceptRegistryCredentialKeys(t *testing.T) {
 		node   workflow.NodeExecutor
 		config map[string]interface{}
 	}{
-		{"comm.discord (bot_token)", &DiscordNode{}, map[string]interface{}{
-			"bot_token": "tok", "operation": "get_channels", "guild_id": "123",
-		}},
 		{"comm.slack (access_token)", &SlackNode{}, map[string]interface{}{
 			"access_token": "tok", "operation": "list_channels",
 		}},

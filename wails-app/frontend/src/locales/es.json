@@ -237,6 +237,26 @@
       "switchTo": "Cambiar a {{name}}",
       "chipTitle": "Del perfil {{name}}",
       "line": "{{active}} activos · {{running}} en curso · {{failed}} fallidos (24 h) · {{waiting}} esperándote"
+    },
+    "getStarted": {
+      "title": "Primeros pasos",
+      "progress": "{{done}} de {{total}} hechos",
+      "dismiss": "Ocultar esta lista",
+      "optional": "opcional",
+      "done": "Hecho",
+      "signIn": "Inicia sesión en monoes.me",
+      "signInWhy": "MonoAgent necesita una cuenta de monoes.me antes de ejecutar nada.",
+      "signInAction": "Iniciar sesión",
+      "firstRun": "Ejecuta tu primer flujo de trabajo",
+      "firstRunWhy": "Empieza con una plantilla y pulsa Ejecutar.",
+      "firstRunAction": "Elegir una plantilla",
+      "extension": "Conecta la extensión del navegador",
+      "extensionWhy": "Las automatizaciones web se ejecutan en tu propio navegador a través de la extensión.",
+      "extensionWhyUnpaired": "El puente está en marcha pero aún no acepta esta app: emparéjalo en Ajustes.",
+      "extensionAction": "Configurar",
+      "daemon": "Mantén los flujos en marcha en segundo plano",
+      "daemonWhy": "Las programaciones y los webhooks necesitan el servicio en segundo plano.",
+      "daemonAction": "Abrir configuración"
     }
   },
   "agentSetup": {

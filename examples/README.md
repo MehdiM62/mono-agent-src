@@ -14,6 +14,7 @@ will succeed — `workflow import` and `--dry-run` work without them.
 | File | What it does | Trigger | Nodes |
 |---|---|---|---|
 | `morning-briefing.json` | Weekday 7am: RSS → filter → AI summary → human review → email digest | `trigger.schedule` | `system.rss_read` → `core.filter` → `agent.ask` → `core.human_in_loop` → `comm.email_send` |
+| `agent-builder-migration.json` | Starter for leaving OpenAI Agent Builder: message in → AI triage → AI draft reply → human approval → email | `trigger.webhook` | `agent.ask` → `agent.ask` → `core.human_in_loop` → `comm.email_send` |
 | `sheets-to-gmail.json` | Read pending rows from a Sheet and send a follow-up email per row | `trigger.manual` | `service.google_sheets` → `core.filter` → `comm.email_send` |
 | `http-to-slack.json` | JSON POST in → formatted message → Slack channel | `trigger.webhook` | `core.set` → `comm.slack` |
 | `github-issues-to-linear.json` | Every 6h: mirror new GitHub issues into Linear | `trigger.schedule` | `service.github` → `service.linear` |

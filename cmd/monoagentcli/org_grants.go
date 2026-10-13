@@ -65,8 +65,7 @@ func orgWorkflowIn(ctx context.Context, db *storage.Database, profileID, id stri
 // the org rows lock first, so the doc it loads is the one the daemon has finished reconciling, and
 // holds the lock until release.
 func loadOrgForRowEdit(env *orgEnv, name string) (db *storage.Database, profileID, root string, doc *orgdesign.Doc, release func(), err error) {
-	db, profileID, root, err = env.Profile()
-	if err != nil {
+	if _, _, root, err = env.Profile(); err != nil {
 		return nil, "", "", nil, nil, err
 	}
 	if release, err = lockOrgRows(root); err != nil {

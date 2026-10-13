@@ -521,8 +521,8 @@ func cliResultJSON(cliBin string, stdout []byte, runErr error) string {
 		}
 	}
 	var ee *exec.ExitError
-	if errors.As(runErr, &ee) && len(ee.Stderr) > 0 {
-		return aiError(fmt.Errorf("%s", strings.TrimSpace(string(ee.Stderr))))
+	if errors.As(runErr, &ee) && cliStderr(ee.Stderr) != "" {
+		return aiError(fmt.Errorf("%s", cliStderr(ee.Stderr)))
 	}
 	return aiError(runErr)
 }

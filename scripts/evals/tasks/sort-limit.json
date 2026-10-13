@@ -1,0 +1,37 @@
+{
+  "id": "sort-limit",
+  "mode": "both",
+  "workflow_name": "eval-sort-limit",
+  "prompt": "Create a workflow named \"eval-sort-limit\", run manually, that fetches\n{{FIXTURE_URL}}/products.json (items under \"items\"), sorts the products by\nprice from highest to lowest (numerically) and keeps only the top 2.",
+  "fixtures": [
+    "products.json"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "core.sort",
+        "core.limit"
+      ]
+    },
+    {
+      "type": "output",
+      "node_type": "core.limit",
+      "path": "[*].name",
+      "equals": [
+        "lamp",
+        "book"
+      ]
+    }
+  ]
+}

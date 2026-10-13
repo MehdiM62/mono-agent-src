@@ -16,7 +16,9 @@
         "submit_post",
         "get_hot",
         "comment",
-        "upvote"
+        "upvote",
+        "list_comments",
+        "get_post_metrics"
       ],
       "required": true,
       "type": "select"
@@ -47,14 +49,13 @@
       "type": "text"
     },
     {
-      "default": "self",
       "depends_on": {
         "key": "operation",
         "values": [
           "submit_post"
         ]
       },
-      "help": "self is a text post (requires text); link is a URL post (requires url).",
+      "help": "self is a text post; link is a URL post (requires url). Empty: link when a URL is set, else self.",
       "key": "kind",
       "label": "Post Kind",
       "options": [
@@ -97,10 +98,12 @@
         "key": "operation",
         "values": [
           "comment",
-          "upvote"
+          "upvote",
+          "list_comments",
+          "get_post_metrics"
         ]
       },
-      "help": "Parent fullname for comment, or target fullname for upvote.",
+      "help": "Parent fullname for comment, target fullname for upvote, or the post (t3_... or bare ID) for list_comments/get_post_metrics.",
       "key": "thing_id",
       "label": "Thing ID (fullname)",
       "placeholder": "e.g. t3_abc123 (post), t1_xyz (comment)",

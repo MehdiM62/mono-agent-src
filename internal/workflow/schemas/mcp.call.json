@@ -1,0 +1,167 @@
+{
+  "credential_platform": null,
+  "fields": [
+    {
+      "help": "Name of a vault secret holding the server as JSON: {\"transport\", \"command\", \"args\", \"env\", \"cwd\", \"url\", \"headers\"}. Fields set on this node override it.",
+      "key": "server",
+      "label": "Saved Server (secret name)",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "stdio spawns the server on this machine; http talks to a Streamable HTTP endpoint. Empty: the saved server's transport, else http when a URL is set.",
+      "key": "transport",
+      "label": "Transport",
+      "options": [
+        "stdio",
+        "http"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "transport",
+        "values": [
+          "stdio"
+        ]
+      },
+      "key": "command",
+      "label": "Command",
+      "placeholder": "npx",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "transport",
+        "values": [
+          "stdio"
+        ]
+      },
+      "item_type": "text",
+      "key": "args",
+      "label": "Arguments",
+      "required": false,
+      "type": "array"
+    },
+    {
+      "depends_on": {
+        "key": "transport",
+        "values": [
+          "stdio"
+        ]
+      },
+      "help": "Extra environment variables. Values may hold @secret:<name> references.",
+      "key": "env",
+      "label": "Environment (JSON)",
+      "language": "json",
+      "placeholder": "{ \"API_TOKEN\": \"@secret:my-token\" }",
+      "required": false,
+      "rows": 3,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "transport",
+        "values": [
+          "stdio"
+        ]
+      },
+      "key": "cwd",
+      "label": "Working Directory",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "transport",
+        "values": [
+          "http"
+        ]
+      },
+      "key": "url",
+      "label": "Server URL",
+      "placeholder": "https://example.com/mcp",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "transport",
+        "values": [
+          "http"
+        ]
+      },
+      "help": "Values may hold @secret:<name> references.",
+      "key": "headers",
+      "label": "Headers (JSON)",
+      "language": "json",
+      "placeholder": "{ \"Authorization\": \"Bearer @secret:zapier\" }",
+      "required": false,
+      "rows": 3,
+      "type": "code"
+    },
+    {
+      "default": "call_tool",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "call_tool",
+        "list_tools"
+      ],
+      "required": true,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "call_tool"
+        ]
+      },
+      "key": "tool",
+      "label": "Tool",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "call_tool"
+        ]
+      },
+      "help": "The tool's arguments, a JSON object. Supports {{$json.field}} placeholders, resolved for each item.",
+      "key": "arguments",
+      "label": "Tool Arguments (JSON)",
+      "language": "json",
+      "placeholder": "{ \"query\": \"{{$json.text}}\" }",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "default": 60,
+      "help": "Seconds to wait for each MCP request.",
+      "key": "timeout",
+      "label": "Timeout (seconds)",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "call_tool"
+        ]
+      },
+      "help": "Off: a tool result marked isError becomes an output item with is_error true instead of failing the node.",
+      "key": "fail_on_tool_error",
+      "label": "Fail on Tool Error",
+      "required": false,
+      "type": "boolean"
+    }
+  ]
+}

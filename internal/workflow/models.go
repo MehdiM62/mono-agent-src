@@ -29,6 +29,9 @@ type NodeInput struct {
 	ExecutionID string
 	NodeID      string
 	NodeName    string
+	// ItemKeys, when set, holds the idempotency key of each item in Items
+	// (see ItemKey). Nil means the keys follow the items' positions.
+	ItemKeys []string
 }
 
 // NodeOutput is returned by NodeExecutor.Execute.
@@ -156,9 +159,10 @@ type WorkflowExecution struct {
 	ProfileID   string `json:"profile_id" db:"profile_id"`
 	Status      string `json:"status" db:"status"` // QUEUED, RUNNING, WAITING, SUCCESS, SUCCESS_WITH_ERRORS, FAILED, REJECTED, CANCELLED
 	TriggerType string `json:"trigger_type" db:"trigger_type"`
-	// TriggerNodeID is the trigger node that fired this run (in-memory only; not
-	// persisted). Empty means every trigger node fires (manual/retry runs).
-	TriggerNodeID  string                 `json:"-" db:"-"`
+	// TriggerNodeID is the trigger node that fired this run, persisted so an
+	// adopted, resumed or retried run still fires only that node's branch.
+	// Empty means every trigger node fires (manual runs).
+	TriggerNodeID  string                 `json:"trigger_node_id,omitempty" db:"trigger_node_id"`
 	TriggerData    map[string]interface{} `json:"trigger_data" db:"-"`
 	TriggerDataRaw string                 `json:"-" db:"trigger_data"`
 	StartedAt      *time.Time             `json:"started_at" db:"started_at"`
@@ -281,6 +285,14 @@ type ExpressionContext struct {
 	WorkflowID  string
 	ExecutionID string
 	Env         map[string]string // env var access
+
+	// Optional — callers may leave these unset.
+	Trigger  map[string]interface{} // $trigger: the execution's trigger data
+	Vars     map[string]interface{} // $vars: workflow variables (never secrets)
+	RunIndex int                    // $runIndex: loop iteration, 0 outside a loop
+	PrevNode string                 // $prevNode: name of the node that fed this one
+
+	base *exprBase // cached derived data; see Prepared
 }
 
 // ValidateConnectionsAgainstNodes checks that every connection's source and

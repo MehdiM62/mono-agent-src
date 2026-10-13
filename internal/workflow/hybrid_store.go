@@ -367,6 +367,10 @@ func (h *HybridWorkflowStore) UpdateExecutionStatus(ctx context.Context, id stri
 	return h.sql.UpdateExecutionStatus(ctx, id, status, errMsg)
 }
 
+func (h *HybridWorkflowStore) StartQueuedExecution(ctx context.Context, id string) (bool, error) {
+	return h.sql.StartQueuedExecution(ctx, id)
+}
+
 func (h *HybridWorkflowStore) SetExecutionStarted(ctx context.Context, id string) error {
 	return h.sql.SetExecutionStarted(ctx, id)
 }

@@ -20,6 +20,10 @@
   const Priv = () => root.MonoRecorderPrivacy;
   const tagOf = (el) => String((el && el.tagName) || "").toLowerCase();
   const attr = (el, name) => (el && el.getAttribute ? el.getAttribute(name) : null);
+  const URL_ATTR = /^(href|src|action|formaction|xlink:href)$/i;
+  // Browsers ignore tabs, newlines and other controls inside a scheme, so
+  // "java\tscript:" runs too; judge the value with all of them removed.
+  const scriptUrl = (v) => /^(javascript|vbscript):/i.test(String(v || "").replace(/[\x00-\x20]+/g, ""));
 
   /** fits is true when an element is small enough to serialise for a snippet. */
   function fits(el) {
@@ -47,9 +51,11 @@
 
   /**
    * cleanHtml serialises a copy of `node` with nothing sensitive left in it:
-   * no scripts or styles, no data-* attributes, no values of secret fields
-   * (password, cc-*, cvv, ever-password...), sanitised href/src/action URLs,
-   * and no card numbers anywhere in the text.
+   * no scripts or styles, no data-* attributes, no inline event handlers
+   * (on*: page code that can carry tokens, e.g. a fetch with an Authorization
+   * header), no values of secret fields (password, cc-*, cvv,
+   * ever-password...), sanitised href/src/action URLs with javascript: ones
+   * removed, and no card numbers anywhere in the text.
    */
   function cleanHtml(node, el, label) {
     const base = (node.ownerDocument && node.ownerDocument.baseURI) || "https://invalid.invalid/";
@@ -73,8 +79,9 @@
       });
       for (const n of [copy].concat(Array.from(copy.querySelectorAll("*")))) {
         for (const a of Array.from(n.attributes || [])) {
-          if (/^data-/i.test(a.name)) n.removeAttribute(a.name);
-          else if (/^(href|src|action|formaction)$/i.test(a.name)) n.setAttribute(a.name, Priv().sanitizeUrl(a.value, base));
+          if (/^(data-|on)/i.test(a.name)) n.removeAttribute(a.name);
+          else if (URL_ATTR.test(a.name) && scriptUrl(a.value)) n.removeAttribute(a.name);
+          else if (URL_ATTR.test(a.name)) n.setAttribute(a.name, Priv().sanitizeUrl(a.value, base));
         }
       }
     }

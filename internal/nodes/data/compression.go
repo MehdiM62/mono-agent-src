@@ -25,6 +25,10 @@ func (n *CompressionNode) Execute(ctx context.Context, input workflow.NodeInput,
 	outputField, _ := config["output_field"].(string)
 	filename, _ := config["filename"].(string)
 
+	if operation == "compress" || operation == "decompress" {
+		return n.executeFiles(input, config, operation)
+	}
+
 	if outputField == "" {
 		outputField = field
 	}

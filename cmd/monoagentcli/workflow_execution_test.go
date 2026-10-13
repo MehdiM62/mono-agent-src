@@ -240,9 +240,6 @@ func TestWorkflowCancelSparesTheDaemon(t *testing.T) {
 // A pid that now belongs to some other program is refused, and the
 // execution is left as it was.
 func TestWorkflowCancelRefusesForeignProcess(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("POSIX signals")
-	}
 	cfg, db := seedExecutionDB(t)
 	sleep := exec.Command("sleep", "30")
 	if err := sleep.Start(); err != nil {

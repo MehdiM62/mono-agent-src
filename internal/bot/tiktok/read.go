@@ -322,6 +322,9 @@ func (b *TikTokBot) GetProfileData(ctx context.Context, page browser.PageInterfa
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	_, _, _ = page.Race([]string{"[data-e2e='user-title']", "[data-e2e='user-subtitle']"}, findTimeout)
 	var data map[string]interface{}
 	if err := evalJS(page, "", jsProfile, &data); err != nil {

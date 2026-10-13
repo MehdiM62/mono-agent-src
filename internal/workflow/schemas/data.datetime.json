@@ -4,6 +4,7 @@
   "fields": [
     {
       "default": "format",
+      "help": "format…now work on a field with Go layouts. The other operations (n8n Date & Time v2) take a date value and write output_field_name.",
       "key": "operation",
       "label": "Operation",
       "options": [
@@ -12,7 +13,14 @@
         "add",
         "subtract",
         "diff",
-        "now"
+        "now",
+        "get_current_date",
+        "add_to_date",
+        "subtract_from_date",
+        "format_date",
+        "round_date",
+        "get_time_between_dates",
+        "extract_date"
       ],
       "required": true,
       "type": "select"
@@ -70,9 +78,12 @@
         "key": "operation",
         "values": [
           "add",
-          "subtract"
+          "subtract",
+          "add_to_date",
+          "subtract_from_date"
         ]
       },
+      "help": "add/subtract: a Go duration (24h, 90m). add_to_date/subtract_from_date: a number of time units.",
       "key": "duration",
       "label": "Duration",
       "placeholder": "24h",
@@ -85,6 +96,319 @@
       "label": "Output Field",
       "required": false,
       "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "format_date",
+          "round_date",
+          "extract_date"
+        ]
+      },
+      "help": "ISO date, Unix timestamp (s or ms) or common date text; evaluated per item.",
+      "key": "date",
+      "label": "Date",
+      "placeholder": "{{ $json.created_at }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "add_to_date",
+          "subtract_from_date"
+        ]
+      },
+      "key": "magnitude",
+      "label": "Date To Change",
+      "placeholder": "{{ $json.created_at }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "days",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "add_to_date",
+          "subtract_from_date"
+        ]
+      },
+      "key": "time_unit",
+      "label": "Time Unit",
+      "options": [
+        "years",
+        "quarters",
+        "months",
+        "weeks",
+        "days",
+        "hours",
+        "minutes",
+        "seconds",
+        "milliseconds"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "MM/dd/yyyy",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "format_date"
+        ]
+      },
+      "help": "Luxon tokens (yyyy MM dd HH mm ss SSS ZZ EEEE …); X = Unix seconds, x = Unix ms.",
+      "key": "format",
+      "label": "Format",
+      "options": [
+        "MM/dd/yyyy",
+        "yyyy/MM/dd",
+        "MMMM dd yyyy",
+        "MM-dd-yyyy",
+        "yyyy-MM-dd",
+        "X",
+        "x",
+        "custom"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "format",
+        "values": [
+          "custom"
+        ]
+      },
+      "key": "custom_format",
+      "label": "Custom Format",
+      "placeholder": "yyyy-MM-dd'T'HH:mm",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "format_date"
+        ]
+      },
+      "help": "Luxon format of the input date when it isn't ISO.",
+      "key": "from_format",
+      "label": "From Format",
+      "placeholder": "yyyyMMdd",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "round_down",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "round_date"
+        ]
+      },
+      "key": "mode",
+      "label": "Mode",
+      "options": [
+        "round_down",
+        "round_up"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "month",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "round_down"
+        ]
+      },
+      "key": "to_nearest",
+      "label": "To Nearest",
+      "options": [
+        "year",
+        "month",
+        "week",
+        "day",
+        "hour",
+        "minute",
+        "second"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "month",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "round_up"
+        ]
+      },
+      "help": "Round up to the start of the next unit.",
+      "key": "to",
+      "label": "To",
+      "options": [
+        "year",
+        "month",
+        "week",
+        "day",
+        "hour",
+        "minute",
+        "second"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_time_between_dates"
+        ]
+      },
+      "key": "start_date",
+      "label": "Start Date",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_time_between_dates"
+        ]
+      },
+      "key": "end_date",
+      "label": "End Date",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "day",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_time_between_dates"
+        ]
+      },
+      "help": "Comma-separated: year, quarter, month, week, day, hour, minute, second, millisecond.",
+      "key": "units",
+      "label": "Units",
+      "placeholder": "day, hour",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_time_between_dates"
+        ]
+      },
+      "key": "iso_string",
+      "label": "Output As ISO Duration",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": "month",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "extract_date"
+        ]
+      },
+      "key": "part",
+      "label": "Part",
+      "options": [
+        "year",
+        "month",
+        "week",
+        "day",
+        "hour",
+        "minute",
+        "second"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_current_date"
+        ]
+      },
+      "key": "include_time",
+      "label": "Include Current Time",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_current_date",
+          "add_to_date",
+          "subtract_from_date",
+          "format_date",
+          "round_date",
+          "get_time_between_dates",
+          "extract_date"
+        ]
+      },
+      "help": "IANA zone for reading dates without an offset and for the output. Default: this machine's zone.",
+      "key": "timezone",
+      "label": "Timezone",
+      "placeholder": "Europe/Berlin",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_current_date",
+          "add_to_date",
+          "subtract_from_date",
+          "format_date",
+          "round_date",
+          "get_time_between_dates",
+          "extract_date"
+        ]
+      },
+      "help": "Defaults to n8n's name for the operation (currentDate, newDate, formattedDate, roundedDate, timeDifference, datePart).",
+      "key": "output_field_name",
+      "label": "Output Field Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_current_date",
+          "add_to_date",
+          "subtract_from_date",
+          "format_date",
+          "round_date",
+          "get_time_between_dates",
+          "extract_date"
+        ]
+      },
+      "key": "include_input_fields",
+      "label": "Include Input Fields",
+      "required": false,
+      "type": "boolean"
     }
   ]
 }

@@ -302,7 +302,7 @@ func newAgentRosterAutoStatusCmd(cfg *globalConfig) *cobra.Command {
 			return printAutoRevalidateStatus(cmd.Context(), cfg, db.DB, !noScan)
 		},
 	}
-	cmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip `agent scan` (the next-run estimate then misses version staleness)")
+	cmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip 'agent scan' (the next-run estimate then misses version staleness)")
 	return cmd
 }
 

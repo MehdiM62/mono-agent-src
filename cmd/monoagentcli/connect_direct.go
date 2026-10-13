@@ -193,7 +193,7 @@ func newConnectForNodeCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 			platform := nodeCredentialPlatform(args[0])
-			conns, err := mgr.List(cmd.Context(), platform, profileOrDefault(cfg))
+			conns, err := mgr.ListUsable(cmd.Context(), platform, profileOrDefault(cfg))
 			if err != nil {
 				return err
 			}
@@ -230,7 +230,8 @@ type oauthProgress struct {
 // desktop app can stream it; the saved connection (no credentials) goes to
 // stdout.
 func newConnectOAuthCmd(cfg *globalConfig) *cobra.Command {
-	return &cobra.Command{
+	var scopeGroups []string
+	cmd := &cobra.Command{
 		Use:   "oauth <platform>",
 		Short: "Connect a platform through its browser OAuth flow, without prompts",
 		Args:  cobra.ExactArgs(1),
@@ -263,7 +264,7 @@ func newConnectOAuthCmd(cfg *globalConfig) *cobra.Command {
 				}
 				fmt.Fprintln(errOut, msg)
 			}
-			conn, err := mgr.ConnectOAuthWithProgress(cmd.Context(), args[0], progress, "", "", profileID)
+			conn, err := mgr.ConnectOAuthWithScopes(cmd.Context(), args[0], progress, "", "", profileID, scopeGroups)
 			if err != nil {
 				_, clientSecret := connections.NewStore(db.DB).GetOAuthClient(cmd.Context(), args[0], profileID)
 				return errAuthConnection("%s", scrubSecrets(err, clientSecret))
@@ -276,4 +277,7 @@ func newConnectOAuthCmd(cfg *globalConfig) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringSliceVar(&scopeGroups, "scopes", nil,
+		"Scope groups to grant an umbrella platform, comma-separated (default: all). "+connections.ScopeGroupsHelp())
+	return cmd
 }

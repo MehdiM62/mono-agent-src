@@ -14,6 +14,7 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 	"github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/statedir"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +25,7 @@ func userCaptureDir() (string, error) {
 		return "", fmt.Errorf("resolve home dir: %w", err)
 	}
 	dir := filepath.Join(home, ".monoagent", "captures")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := statedir.MkdirAll(dir); err != nil {
 		return "", fmt.Errorf("create captures dir: %w", err)
 	}
 	return dir, nil
@@ -114,7 +115,11 @@ func newActionTemplateCaptureCmd() *cobra.Command {
 			}
 
 			html := res.Value.String()
-			if err := os.WriteFile(dest, []byte(html), 0o644); err != nil {
+			perm := os.FileMode(0o644) // --output is the user's own file
+			if outFile == "" {
+				perm = statedir.FilePerm // the capture lands in ~/.monoagent/captures
+			}
+			if err := os.WriteFile(dest, []byte(html), perm); err != nil {
 				return fmt.Errorf("write HTML to %s: %w", dest, err)
 			}
 

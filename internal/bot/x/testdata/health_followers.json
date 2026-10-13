@@ -1,0 +1,21 @@
+{
+  "page1": {
+    "ready": true,
+    "empty": false,
+    "rows": [
+      {"username": "synth_ivy", "full_name": "Ivy", "bio": "Gardener", "is_following": true, "follows_you": true, "is_verified": true, "profile_picture_url": "https://pbs.twimg.com/i.jpg"},
+      {"username": "synth_jon", "full_name": "Jon", "bio": "", "is_following": false, "follows_you": false, "is_verified": false, "profile_picture_url": ""}
+    ]
+  },
+  "page2": {
+    "ready": true,
+    "empty": false,
+    "rows": [
+      {"username": "SYNTH_IVY", "full_name": "Ivy again"},
+      {"username": "synth_kim", "full_name": "Kim"},
+      {"username": "synth_lee", "full_name": "Lee"}
+    ]
+  },
+  "empty": {"ready": true, "empty": true, "rows": []},
+  "not_ready": {"ready": false, "empty": false, "rows": []}
+}

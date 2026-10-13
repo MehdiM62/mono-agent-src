@@ -213,8 +213,8 @@
     const items = modes
       ? modes.menuItems((root.MonoYouTubeVideo && root.MonoYouTubeVideo.MENU_PATTERNS) || ["*://*.youtube.com/watch*"])
       : [
-          { id: MENU_PAGE, title: "Save page to monomind", contexts: ["page"] },
-          { id: MENU_SELECTION, title: "Save selection to monomind", contexts: ["selection"] },
+          { id: MENU_PAGE, title: "Save page to MonoAgent", contexts: ["page"] },
+          { id: MENU_SELECTION, title: "Save selection to MonoAgent", contexts: ["selection"] },
         ];
     chrome.contextMenus.removeAll(() => {
       for (const item of items) chrome.contextMenus.create(item, () => void chrome.runtime.lastError);

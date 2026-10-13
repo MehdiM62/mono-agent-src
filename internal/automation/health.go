@@ -13,6 +13,7 @@ import (
 //	health_promote.go  promoting healed candidates (package or overlay)
 //	health_prune.go    stale rows (keys a new version no longer declares)
 //	health_reset.go    resetting a row after a re-record
+//	health_repair.go   repair proposals and hints from Jev fallback picks
 
 // LoadSelectorHealth returns the health rows of automationID ("" = all),
 // ordered by automation and key, each with its Status set.
