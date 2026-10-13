@@ -158,6 +158,20 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 		} else if v != nil && bt != BodyJSON {
 			return nil, "", r.errf("body: a %s body must be an object", bt)
 		}
+		if c := r.credDef; c != nil && len(c.Inject.Body) > 0 {
+			if obj == nil {
+				obj = map[string]any{}
+			}
+			for k, tv := range c.Inject.Body {
+				v, err := renderText(tv, sc)
+				if err != nil {
+					return nil, "", r.errf("credential %s: inject.body.%s: %w", c.Platform, k, err)
+				}
+				if v != "" {
+					obj[k] = v
+				}
+			}
+		}
 		if pp.inBody && len(pp.values) > 0 {
 			if obj == nil {
 				obj = map[string]any{}

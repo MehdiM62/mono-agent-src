@@ -119,6 +119,8 @@ type Inject struct {
 	Basic    *BasicInject      `json:"basic,omitempty"`
 	AWSSigV4 *AWSSigV4Inject   `json:"aws_sigv4,omitempty"`
 	JWT      *JWTInject        `json:"jwt,omitempty"`
+	// Body is merged into JSON/form/multipart bodies (Mandrill's "key").
+	Body map[string]string `json:"body,omitempty"`
 }
 
 // JWTInject signs a short-lived JWT per request (Ghost Admin API, Zoom
@@ -239,7 +241,11 @@ type Pagination struct {
 	NextURLPath string `json:"next_url_path,omitempty"`
 	// NextURLPrefix (a template) is prepended to a relative next URL whose
 	// base is not the request host (Confluence v2 _links.next).
-	NextURLPrefix  string `json:"next_url_prefix,omitempty"`
+	NextURLPrefix string `json:"next_url_prefix,omitempty"`
+	// Values: the page's results are an object keyed by id (Mautic
+	// {"contacts": {"12": {…}}}); its values are the list (numeric keys in
+	// numeric order, else sorted).
+	Values         bool   `json:"values,omitempty"`
 	ResultsPath    string `json:"results_path,omitempty"`
 	ReturnAllField string `json:"return_all_field,omitempty"`
 	LimitField     string `json:"limit_field,omitempty"`

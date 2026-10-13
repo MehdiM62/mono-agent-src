@@ -829,3 +829,41 @@ func TestValuesFromMergeAndWebDAV(t *testing.T) {
 		t.Errorf("webdav: %v %v %v", items, err, methods)
 	}
 }
+
+func TestPagedValuesInjectBodyAndPathWildcard(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"mt","title":"M","base_url":"https://m.test",
+	  "credentials":[{"platform":"mt","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true}],
+	    "inject":{"body":{"key":"{{ cred.api_key }}"}}}],
+	  "operations":[{"resource":"","operation":"contacts","title":"C","method":"GET","path":"/contacts",
+	    "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	    "pagination":{"type":"offset","offset_param":"start","limit_param":"limit","page_size":2,"results_path":"contacts","values":true}},
+	   {"resource":"","operation":"send","title":"S","method":"POST","path":"/send/{{ uuid }}","body":{"text":"hi"}}]}`)
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		switch r.URL.Query().Get("start") {
+		case "0":
+			w.Write([]byte(`{"total":3,"contacts":{"12":{"id":12},"9":{"id":9}}}`))
+		case "2":
+			w.Write([]byte(`{"total":3,"contacts":{"100":{"id":100}}}`))
+		default:
+			w.Write([]byte(`{"ok":true}`))
+		}
+	})
+	c := map[string]any{"api_key": "K1"}
+	items, err := runPackageOp(p, map[string]any{"operation": "contacts", "returnAll": true}, c, nil)
+	if err != nil || len(items) != 3 || items[0].JSON["id"] != 9.0 || items[2].JSON["id"] != 100.0 {
+		t.Errorf("paged values: %v %v", items, err)
+	}
+	bodies = nil
+	if _, err := runPackageOp(p, map[string]any{"operation": "send"}, c, nil); err != nil {
+		t.Fatal(err)
+	}
+	if bodies[0] != `{"key":"K1","text":"hi"}` {
+		t.Errorf("inject.body: %s", bodies[0])
+	}
+	if !pathMatches("/send/abc-123", "/send/<any>") || pathMatches("/send/", "/send/<any>") || pathMatches("/x/a", "/send/<any>") {
+		t.Error("pathMatches")
+	}
+}

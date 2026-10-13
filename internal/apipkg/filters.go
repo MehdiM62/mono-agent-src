@@ -138,16 +138,7 @@ func applyFilter(name string, v, arg any) (any, error) {
 		if !ok {
 			return v, nil
 		}
-		keys := make([]string, 0, len(m))
-		for k := range m {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		out := make([]any, 0, len(keys))
-		for _, k := range keys {
-			out = append(out, m[k])
-		}
-		return out, nil
+		return objectValues(m), nil
 	case "hex":
 		h := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(stringify(v)), "#"), "0x")
 		if h == "" {

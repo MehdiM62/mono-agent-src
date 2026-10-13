@@ -184,7 +184,7 @@ func (c *Credential) check(i int) []string {
 		keys[f.Key] = true
 	}
 	in := c.Inject
-	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil {
+	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 {
 		add("inject is empty: say how the credential authenticates (headers, query, basic or aws_sigv4)")
 	}
 	for k, v := range in.Headers {
@@ -199,6 +199,9 @@ func (c *Credential) check(i int) []string {
 	if s := in.AWSSigV4; s != nil {
 		probs = append(probs, checkTemplates(where+" inject.aws_sigv4",
 			[]any{s.Service, s.Region, s.AccessKeyID, s.SecretAccessKey, s.SessionToken}, anyField, keys)...)
+	}
+	for k, v := range in.Body {
+		probs = append(probs, checkTemplates(where+" inject.body."+k, v, anyField, keys)...)
 	}
 	if jw := in.JWT; jw != nil {
 		switch jw.Alg {
