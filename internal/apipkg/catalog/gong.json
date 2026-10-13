@@ -1,0 +1,310 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "gong",
+  "node_type": "app.gong",
+  "title": "Gong",
+  "description": "Read calls (with content and transcripts fields) and users from Gong",
+  "category": "app",
+  "docs_url": "https://gong.app.gong.io/settings/api/documentation",
+  "n8n_types": [
+    "n8n-nodes-base.gong"
+  ],
+  "base_url": "{{ cred.base_url | default:'https://api.gong.io' | re:'^(.*?)/*$' }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "gong",
+      "name": "Gong API key",
+      "n8n_credential": "gongApi",
+      "n8n_field_map": {
+        "baseUrl": "base_url",
+        "accessKey": "access_key",
+        "accessKeySecret": "access_key_secret"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "help": "Default https://api.gong.io; use your company's API base URL if Gong gave you one"
+        },
+        {
+          "key": "access_key",
+          "label": "Access key",
+          "required": true
+        },
+        {
+          "key": "access_key_secret",
+          "label": "Access key secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.access_key }}",
+          "password": "{{ cred.access_key_secret }}"
+        }
+      }
+    },
+    {
+      "platform": "gong_oauth",
+      "name": "Gong OAuth",
+      "n8n_credential": "gongOAuth2Api",
+      "n8n_field_map": {
+        "baseUrl": "base_url"
+      },
+      "methods": [
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "help": "The api_base_url_for_customer returned with the token; default https://api.gong.io"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://app.gong.io/oauth2/authorize",
+        "token_url": "https://app.gong.io/oauth2/generate-customer-token",
+        "scopes": [
+          "api:calls:read:extensive",
+          "api:calls:read:transcript",
+          "api:calls:read:media-url",
+          "api:users:read"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "call",
+      "label": "Call"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "call",
+      "operation": "getAll",
+      "title": "Get many calls",
+      "method": "POST",
+      "path": "/v2/calls/extensive",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fromDateTime",
+            "toDateTime",
+            "workspaceId",
+            "callIds",
+            "primaryUserIds"
+          ],
+          "help": "callIds: comma-separated numeric IDs; primaryUserIds: a user ID"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "properties"
+          ],
+          "help": "properties: parties, topics"
+        }
+      ],
+      "body": {
+        "filter": {
+          "fromDateTime": "{{ p.filters.fromDateTime | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+          "toDateTime": "{{ p.filters.toDateTime | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+          "workspaceId": "{{ p.filters.workspaceId }}",
+          "callIds": "{{ p.filters.callIds | string | split }}",
+          "primaryUserIds": [
+            "{{ p.filters.primaryUserIds | rl }}"
+          ]
+        },
+        "contentSelector": {
+          "exposedFields": {
+            "parties": "{{ p.options.properties | zip:p.options.properties | get:'parties' | then:true }}",
+            "content": {
+              "topics": "{{ p.options.properties | zip:p.options.properties | get:'topics' | then:true }}"
+            }
+          }
+        }
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "records.cursor",
+        "param_in": "body",
+        "results_path": "calls"
+      },
+      "output": {
+        "to": {
+          "$merge": [
+            "{{ el.metaData }}",
+            "{{ el | omit:'metaData' }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "call",
+      "operation": "get",
+      "title": "Get a call",
+      "method": "POST",
+      "path": "/v2/calls/extensive",
+      "fields": [
+        {
+          "key": "call",
+          "label": "Call ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "properties"
+          ],
+          "help": "properties: pointsOfInterest, media, brief, publicComments, highlights, keyPoints, callOutcome, outline, parties, structure, topics, trackers (transcript is not fetched; use the Gong transcript endpoint with an HTTP node)"
+        }
+      ],
+      "body": {
+        "filter": {
+          "callIds": [
+            "{{ p.call | rl }}"
+          ]
+        },
+        "contentSelector": {
+          "exposedFields": {
+            "media": "{{ p.options.properties | zip:p.options.properties | get:'media' | then:true }}",
+            "parties": "{{ p.options.properties | zip:p.options.properties | get:'parties' | then:true }}",
+            "content": {
+              "pointsOfInterest": "{{ p.options.properties | zip:p.options.properties | get:'pointsOfInterest' | then:true }}",
+              "brief": "{{ p.options.properties | zip:p.options.properties | get:'brief' | then:true }}",
+              "highlights": "{{ p.options.properties | zip:p.options.properties | get:'highlights' | then:true }}",
+              "keyPoints": "{{ p.options.properties | zip:p.options.properties | get:'keyPoints' | then:true }}",
+              "outline": "{{ p.options.properties | zip:p.options.properties | get:'outline' | then:true }}",
+              "callOutcome": "{{ p.options.properties | zip:p.options.properties | get:'callOutcome' | then:true }}",
+              "structure": "{{ p.options.properties | zip:p.options.properties | get:'structure' | then:true }}",
+              "trackers": "{{ p.options.properties | zip:p.options.properties | get:'trackers' | then:true }}",
+              "topics": "{{ p.options.properties | zip:p.options.properties | get:'topics' | then:true }}"
+            },
+            "collaboration": {
+              "publicComments": "{{ p.options.properties | zip:p.options.properties | get:'publicComments' | then:true }}"
+            }
+          }
+        }
+      },
+      "output": {
+        "path": "calls"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "POST",
+      "path": "/v2/users/extensive",
+      "fields": [
+        {
+          "key": "user",
+          "label": "User ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        }
+      ],
+      "body": {
+        "filter": {
+          "userIds": [
+            "{{ p.user | rl }}"
+          ]
+        }
+      },
+      "output": {
+        "path": "users"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "POST",
+      "path": "/v2/users/extensive",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "createdFromDateTime",
+            "createdToDateTime",
+            "userIds"
+          ],
+          "help": "userIds: comma-separated numeric IDs"
+        }
+      ],
+      "body": {
+        "filter": {
+          "createdFromDateTime": "{{ p.filters.createdFromDateTime | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+          "createdToDateTime": "{{ p.filters.createdToDateTime | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+          "userIds": "{{ p.filters.userIds | string | split }}"
+        }
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "records.cursor",
+        "param_in": "body",
+        "results_path": "users"
+      }
+    }
+  ]
+}

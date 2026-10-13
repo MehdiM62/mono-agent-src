@@ -1,0 +1,487 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "grafana",
+  "node_type": "app.grafana",
+  "title": "Grafana",
+  "description": "Dashboards, teams, team members and organization users in Grafana",
+  "category": "app",
+  "docs_url": "https://grafana.com/docs/grafana/latest/developers/http_api/",
+  "n8n_types": [
+    "n8n-nodes-base.grafana"
+  ],
+  "base_url": "{{ cred.base_url | re:'^(.*?)/*$' }}/api",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "grafana",
+      "name": "Grafana",
+      "n8n_credential": "grafanaApi",
+      "n8n_field_map": {
+        "apiKey": "access_token",
+        "baseUrl": "base_url"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "required": true,
+          "help": "e.g. https://example.grafana.net"
+        },
+        {
+          "key": "access_token",
+          "label": "Service account token / API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "dashboard",
+      "label": "Dashboard"
+    },
+    {
+      "value": "team",
+      "label": "Team"
+    },
+    {
+      "value": "teamMember",
+      "label": "Team Member"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "dashboard",
+      "operation": "create",
+      "title": "Create a dashboard",
+      "method": "POST",
+      "path": "/dashboards/db",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "folderId"
+          ]
+        }
+      ],
+      "body": {
+        "!dashboard": {
+          "!id": null,
+          "title": "{{ p.title }}"
+        },
+        "folderId": "{{ p.additionalFields.folderId }}"
+      }
+    },
+    {
+      "resource": "dashboard",
+      "operation": "delete",
+      "title": "Delete a dashboard",
+      "method": "DELETE",
+      "path": "/dashboards/uid/{{ p.dashboardUidOrUrl | re:'/d/([^/?#]+)' }}",
+      "fields": [
+        {
+          "key": "dashboardUidOrUrl",
+          "label": "Dashboard UID or URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "dashboard",
+      "operation": "get",
+      "title": "Get a dashboard",
+      "method": "GET",
+      "path": "/dashboards/uid/{{ p.dashboardUidOrUrl | re:'/d/([^/?#]+)' }}",
+      "fields": [
+        {
+          "key": "dashboardUidOrUrl",
+          "label": "Dashboard UID or URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "dashboard",
+      "operation": "getAll",
+      "title": "Get many dashboards",
+      "method": "GET",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ]
+        }
+      ],
+      "query": {
+        "type": "dash-db",
+        "query": "{{ p.filters.query }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "limit",
+        "page_size": 1000,
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "dashboard",
+      "operation": "update",
+      "title": "Update a dashboard",
+      "method": "POST",
+      "path": "/dashboards/db",
+      "fields": [
+        {
+          "key": "dashboardUidOrUrl",
+          "label": "Dashboard UID or URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "folderId",
+            "title"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/dashboards/uid/{{ p.dashboardUidOrUrl | re:'/d/([^/?#]+)' }}"
+      },
+      "body": {
+        "overwrite": true,
+        "dashboard": {
+          "uid": "{{ p.dashboardUidOrUrl | re:'/d/([^/?#]+)' }}",
+          "title": "{{ p.updateFields.title | default:pre.dashboard.title }}"
+        },
+        "folderId": "{{ p.updateFields.folderId }}"
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "create",
+      "title": "Create a team",
+      "method": "POST",
+      "path": "/teams",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "email": "{{ p.additionalFields.email }}"
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "delete",
+      "title": "Delete a team",
+      "method": "DELETE",
+      "path": "/teams/{{ p.teamId }}",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "team",
+      "operation": "get",
+      "title": "Get a team",
+      "method": "GET",
+      "path": "/teams/{{ p.teamId }}",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "team",
+      "operation": "getAll",
+      "title": "Get many teams",
+      "method": "GET",
+      "path": "/teams/search",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ]
+        }
+      ],
+      "query": {
+        "name": "{{ p.filters.name }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "perpage",
+        "page_size": 100,
+        "results_path": "teams"
+      }
+    },
+    {
+      "resource": "team",
+      "operation": "update",
+      "title": "Update a team",
+      "method": "PUT",
+      "path": "/teams/{{ p.teamId }}",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "name"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/teams/{{ p.teamId }}"
+      },
+      "body": {
+        "email": "{{ p.updateFields.email | default:pre.email }}",
+        "name": "{{ p.updateFields.name | default:pre.name }}"
+      }
+    },
+    {
+      "resource": "teamMember",
+      "operation": "add",
+      "title": "Add a team member",
+      "method": "POST",
+      "path": "/teams/{{ p.teamId }}/members",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "userId": "{{ p.userId | int }}"
+      }
+    },
+    {
+      "resource": "teamMember",
+      "operation": "getAll",
+      "title": "Get many team members",
+      "method": "GET",
+      "path": "/teams/{{ p.teamId }}/members",
+      "fields": [
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "teamMember",
+      "operation": "remove",
+      "title": "Remove a team member",
+      "method": "DELETE",
+      "path": "/teams/{{ p.teamId }}/members/{{ p.memberId }}",
+      "fields": [
+        {
+          "key": "memberId",
+          "label": "Member (user) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "teamId",
+          "label": "Team ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users in the organization",
+      "method": "GET",
+      "path": "/org/users",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Remove a user from the organization",
+      "method": "DELETE",
+      "path": "/org/users/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user's organization role",
+      "method": "PATCH",
+      "path": "/org/users/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "role"
+          ],
+          "help": "role: Admin, Editor or Viewer"
+        }
+      ],
+      "body": {
+        "role": "{{ p.updateFields.role }}"
+      }
+    }
+  ]
+}

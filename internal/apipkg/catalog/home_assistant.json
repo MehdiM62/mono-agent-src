@@ -1,0 +1,439 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "home_assistant",
+  "node_type": "app.home_assistant",
+  "title": "Home Assistant",
+  "description": "States, services, events, logs, templates, history and camera snapshots on a Home Assistant server",
+  "category": "app",
+  "docs_url": "https://developers.home-assistant.io/docs/api/rest/",
+  "n8n_types": [
+    "n8n-nodes-base.homeAssistant"
+  ],
+  "base_url": "{{ cred.ssl | eq:'true' | then:'https' | default:'http' }}://{{ cred.host }}:{{ cred.port | default:'8123' }}/api",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "home_assistant",
+      "name": "Home Assistant",
+      "n8n_credential": "homeAssistantApi",
+      "n8n_field_map": {
+        "host": "host",
+        "port": "port",
+        "ssl": "ssl",
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "host",
+          "label": "Host",
+          "required": true,
+          "help": "e.g. homeassistant.local"
+        },
+        {
+          "key": "port",
+          "label": "Port",
+          "help": "Default 8123"
+        },
+        {
+          "key": "ssl",
+          "label": "Use HTTPS (true/false)"
+        },
+        {
+          "key": "access_token",
+          "label": "Long-lived access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "config",
+      "label": "Config"
+    },
+    {
+      "value": "cameraProxy",
+      "label": "Camera Proxy"
+    },
+    {
+      "value": "event",
+      "label": "Event"
+    },
+    {
+      "value": "history",
+      "label": "History"
+    },
+    {
+      "value": "log",
+      "label": "Log"
+    },
+    {
+      "value": "service",
+      "label": "Service"
+    },
+    {
+      "value": "state",
+      "label": "State"
+    },
+    {
+      "value": "template",
+      "label": "Template"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "config",
+      "operation": "get",
+      "title": "Get the configuration",
+      "method": "GET",
+      "path": "/config",
+      "fields": []
+    },
+    {
+      "resource": "config",
+      "operation": "check",
+      "title": "Check the configuration",
+      "method": "POST",
+      "path": "/config/core/check_config",
+      "fields": []
+    },
+    {
+      "resource": "cameraProxy",
+      "operation": "getScreenshot",
+      "title": "Get a camera screenshot",
+      "method": "GET",
+      "path": "/camera_proxy/{{ p.cameraEntityId }}",
+      "fields": [
+        {
+          "key": "cameraEntityId",
+          "label": "Camera entity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Output binary property",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName",
+        "file_name": "screenshot.jpg"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "getAll",
+      "title": "Get many event types",
+      "method": "GET",
+      "path": "/events",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "create",
+      "title": "Fire an event",
+      "method": "POST",
+      "path": "/events/{{ p.eventType }}",
+      "fields": [
+        {
+          "key": "eventType",
+          "label": "Event type",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "eventAttributes",
+          "label": "Event attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attributes"
+          ],
+          "help": "{\"attributes\": [{\"name\": \"…\", \"value\": \"…\"}]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.eventAttributes.attributes | kv:'name,value' }}"
+      }
+    },
+    {
+      "resource": "history",
+      "operation": "getAll",
+      "title": "Get state history",
+      "method": "GET",
+      "path": "/history/period{{ p.additionalFields.startTime | then:'/' }}{{ p.additionalFields.startTime }}",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endTime",
+            "entityIds",
+            "minimalResponse",
+            "significantChangesOnly",
+            "startTime"
+          ],
+          "help": "entityIds: comma-separated"
+        }
+      ],
+      "query": {
+        "end_time": "{{ p.additionalFields.endTime }}",
+        "filter_entity_id": "{{ p.additionalFields.entityIds }}",
+        "minimal_response": "{{ p.additionalFields.minimalResponse | eq:'true' | then:true }}",
+        "significant_changes_only": "{{ p.additionalFields.significantChangesOnly | eq:'true' | then:true }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "log",
+      "operation": "getErroLogs",
+      "title": "Get the error log",
+      "method": "GET",
+      "path": "/error_log",
+      "fields": [],
+      "output": {
+        "to": {
+          "errorLog": "{{ el.data }}"
+        }
+      }
+    },
+    {
+      "resource": "log",
+      "operation": "getLogbookEntries",
+      "title": "Get logbook entries",
+      "method": "GET",
+      "path": "/logbook{{ p.additionalFields.startTime | then:'/' }}{{ p.additionalFields.startTime }}",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endTime",
+            "entityId",
+            "startTime"
+          ]
+        }
+      ],
+      "query": {
+        "end_time": "{{ p.additionalFields.endTime }}",
+        "entity": "{{ p.additionalFields.entityId }}"
+      }
+    },
+    {
+      "resource": "service",
+      "operation": "getAll",
+      "title": "Get many services",
+      "method": "GET",
+      "path": "/services",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "service",
+      "operation": "call",
+      "title": "Call a service",
+      "method": "POST",
+      "path": "/services/{{ p.domain }}/{{ p.service }}",
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "required": true,
+          "help": "e.g. light"
+        },
+        {
+          "key": "service",
+          "label": "Service",
+          "type": "text",
+          "required": true,
+          "help": "e.g. turn_on"
+        },
+        {
+          "key": "serviceAttributes",
+          "label": "Service attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attributes"
+          ],
+          "help": "{\"attributes\": [{\"name\": \"…\", \"value\": \"…\"}]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.serviceAttributes.attributes | kv:'name,value' }}"
+      }
+    },
+    {
+      "resource": "state",
+      "operation": "get",
+      "title": "Get an entity state",
+      "method": "GET",
+      "path": "/states/{{ p.entityId }}",
+      "fields": [
+        {
+          "key": "entityId",
+          "label": "Entity ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "state",
+      "operation": "getAll",
+      "title": "Get many entity states",
+      "method": "GET",
+      "path": "/states",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__no_next_page__"
+      }
+    },
+    {
+      "resource": "state",
+      "operation": "upsert",
+      "title": "Create or update an entity state",
+      "method": "POST",
+      "path": "/states/{{ p.entityId }}",
+      "fields": [
+        {
+          "key": "entityId",
+          "label": "Entity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "state",
+          "label": "State",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "stateAttributes",
+          "label": "State attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attributes"
+          ],
+          "help": "{\"attributes\": [{\"name\": \"…\", \"value\": \"…\"}]}"
+        }
+      ],
+      "body": {
+        "state": "{{ p.state }}",
+        "!attributes": {
+          "$merge": "{{ p.stateAttributes.attributes | kv:'name,value' }}"
+        }
+      }
+    },
+    {
+      "resource": "template",
+      "operation": "create",
+      "title": "Render a template",
+      "method": "POST",
+      "path": "/template",
+      "fields": [
+        {
+          "key": "template",
+          "label": "Template",
+          "type": "textarea",
+          "required": true,
+          "help": "Jinja2 template, e.g. {{ states('sun.sun') }}"
+        }
+      ],
+      "body": {
+        "template": "{{ p.template }}"
+      },
+      "output": {
+        "to": {
+          "renderedTemplate": "{{ el.data }}"
+        }
+      }
+    }
+  ]
+}
