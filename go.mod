@@ -5,11 +5,15 @@ go 1.26.0
 toolchain go1.26.9
 
 require (
+	github.com/Azure/go-amqp v1.7.0
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/PuerkitoBio/goquery v1.13.0
-	github.com/bwmarrin/discordgo v0.29.0
+	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/disintegration/imaging v1.6.2
 	github.com/dop251/goja v0.0.0-20260305124333-6a7976c22267
+	github.com/eclipse/paho.mqtt.golang v1.5.1
+	github.com/go-ldap/ldap/v3 v3.4.15
 	github.com/go-rod/rod v0.116.2
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/google/uuid v1.6.0
@@ -17,13 +21,19 @@ require (
 	github.com/jlaffaye/ftp v0.2.4
 	github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0
 	github.com/lib/pq v1.12.3
+	github.com/microsoft/go-mssqldb v1.11.2
 	github.com/mmcdole/gofeed v1.5.0
+	github.com/mochi-mqtt/server/v2 v2.7.9
 	github.com/olekukonko/tablewriter v1.1.5
+	github.com/rabbitmq/amqp091-go v1.15.0
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.35.1
+	github.com/sijms/go-ora/v2 v2.9.0
 	github.com/slack-go/slack v0.30.1
 	github.com/spf13/cobra v1.10.2
+	github.com/twmb/franz-go v1.22.2
+	github.com/twmb/franz-go/pkg/kfake v0.0.0-20261013022759-7b6cac30a57a
 	github.com/yalue/onnxruntime_go v1.36.0
 	github.com/ysmood/gson v0.7.3
 	github.com/yuin/goldmark v1.8.6
@@ -38,24 +48,13 @@ require (
 )
 
 require (
-	github.com/Azure/go-amqp v1.7.0 // indirect
 	github.com/Azure/go-ntlmssp v0.1.1 // indirect
-	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
-	github.com/alicebob/miniredis/v2 v2.40.0 // indirect
-	github.com/eclipse/paho.mqtt.golang v1.5.1 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.8 // indirect
-	github.com/go-ldap/ldap/v3 v3.4.15 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
-	github.com/microsoft/go-mssqldb v1.11.2 // indirect
-	github.com/mochi-mqtt/server/v2 v2.7.9 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
-	github.com/rabbitmq/amqp091-go v1.15.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/sijms/go-ora/v2 v2.9.0 // indirect
-	github.com/twmb/franz-go v1.22.2 // indirect
-	github.com/twmb/franz-go/pkg/kfake v0.0.0-20261013022759-7b6cac30a57a // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.15.0 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 )
@@ -96,7 +95,7 @@ require (
 	github.com/olekukonko/errors v1.2.0 // indirect
 	github.com/olekukonko/ll v0.1.6 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/spf13/pflag v1.0.9
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.2.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

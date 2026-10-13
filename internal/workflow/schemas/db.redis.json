@@ -11,6 +11,7 @@
     },
     {
       "default": "get",
+      "help": "n8n operations (delete/info/llen/pop/publish/push, or any n8n field below) run once per input item.",
       "key": "operation",
       "label": "Operation",
       "options": [
@@ -25,7 +26,13 @@
         "lpush",
         "lrange",
         "keys",
-        "incr"
+        "incr",
+        "delete",
+        "info",
+        "llen",
+        "pop",
+        "publish",
+        "push"
       ],
       "required": true,
       "type": "select"
@@ -34,7 +41,7 @@
       "help": "For 'keys', this is a glob pattern (default '*').",
       "key": "key",
       "label": "Key / Pattern",
-      "required": true,
+      "required": false,
       "type": "text"
     },
     {
@@ -102,6 +109,178 @@
       "label": "Stop Index",
       "required": false,
       "type": "number"
+    },
+    {
+      "help": "Use n8n's per-item behaviour and output shapes for get/set/keys/incr.",
+      "key": "n8n_compat",
+      "label": "n8n Output Format",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get",
+          "pop"
+        ]
+      },
+      "key": "property_name",
+      "label": "Property Name",
+      "placeholder": "propertyName",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get",
+          "set"
+        ]
+      },
+      "key": "key_type",
+      "label": "Key Type",
+      "options": [
+        "automatic",
+        "string",
+        "hash",
+        "list",
+        "sets"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "key_type",
+        "values": [
+          "hash"
+        ]
+      },
+      "key": "value_is_json",
+      "label": "Value Is JSON",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "set",
+          "incr"
+        ]
+      },
+      "key": "expire",
+      "label": "Expire",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "expire",
+        "values": [
+          "true"
+        ]
+      },
+      "key": "ttl",
+      "label": "TTL (seconds)",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "keys"
+        ]
+      },
+      "key": "key_pattern",
+      "label": "Key Pattern",
+      "placeholder": "user:*",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "keys"
+        ]
+      },
+      "help": "Return each key with its value (default on in n8n mode).",
+      "key": "get_values",
+      "label": "Get Values",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "llen",
+          "push",
+          "pop"
+        ]
+      },
+      "key": "list",
+      "label": "List",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "publish"
+        ]
+      },
+      "key": "channel",
+      "label": "Channel",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "publish",
+          "push"
+        ]
+      },
+      "key": "message_data",
+      "label": "Data",
+      "required": false,
+      "rows": 3,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "push",
+          "pop"
+        ]
+      },
+      "help": "Push to / pop from the end of the list.",
+      "key": "tail",
+      "label": "Tail",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get",
+          "pop"
+        ]
+      },
+      "help": "Treat a.b in Property Name as nested (default on).",
+      "key": "dot_notation",
+      "label": "Dot Notation",
+      "required": false,
+      "type": "boolean"
     }
   ]
 }

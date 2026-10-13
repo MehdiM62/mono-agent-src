@@ -152,7 +152,7 @@ func kafkaRecord(cfg map[string]interface{}, item workflow.Item) (*kgo.Record, e
 	if k := cfgString(cfg, "message_key"); k != "" {
 		rec.Key = []byte(k)
 	}
-	headers, err := toMap(cfg["headers"])
+	headers, err := toKVMap(cfg["headers"])
 	if err != nil {
 		return nil, fmt.Errorf("'headers': %w", err)
 	}

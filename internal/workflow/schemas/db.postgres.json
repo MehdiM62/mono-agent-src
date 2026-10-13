@@ -11,7 +11,7 @@
     },
     {
       "default": "select",
-      "help": "Only used to build a query from Table/Data/Where when SQL Query is blank. Ignored otherwise (the query's own verb governs execution).",
+      "help": "Legacy mode: select/insert/update/delete/execute with Table/Data/Where or a raw SQL Query run once. n8n mode (executeQuery/upsert/deleteTable or any n8n field below): runs once per input item.",
       "key": "operation",
       "label": "Operation",
       "options": [
@@ -19,7 +19,10 @@
         "insert",
         "update",
         "delete",
-        "execute"
+        "execute",
+        "executeQuery",
+        "upsert",
+        "deleteTable"
       ],
       "required": false,
       "type": "select"
@@ -79,6 +82,277 @@
       "placeholder": "id = $1",
       "required": false,
       "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "executeQuery"
+        ]
+      },
+      "help": "Values for $1, $2 … (comma-separated or a JSON array). $N works on every database.",
+      "key": "query_replacement",
+      "label": "Query Parameters",
+      "placeholder": "{{ $json.id }}, {{ $json.email }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "select",
+          "insert",
+          "update",
+          "upsert",
+          "delete",
+          "deleteTable"
+        ]
+      },
+      "help": "Optional; a dotted table name (schema.table) works too.",
+      "key": "schema",
+      "label": "Schema",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "insert",
+          "update",
+          "upsert"
+        ]
+      },
+      "help": "auto_map writes the input item's fields as columns; define writes Values below.",
+      "key": "data_mode",
+      "label": "Data Mode",
+      "options": [
+        "auto_map",
+        "define"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "data_mode",
+        "values": [
+          "define"
+        ]
+      },
+      "help": "Column/value pairs (define mode).",
+      "key": "values",
+      "label": "Values (JSON object)",
+      "placeholder": "{\"name\": \"{{ $json.name }}\"}",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "data_mode",
+        "values": [
+          "auto_map"
+        ]
+      },
+      "help": "Only write these item fields (auto_map mode; blank = all fields).",
+      "key": "columns",
+      "label": "Columns",
+      "placeholder": "name, email",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "update",
+          "upsert",
+          "delete"
+        ]
+      },
+      "help": "Key column(s) that identify the row. Comma-separated.",
+      "key": "match_columns",
+      "label": "Column(s) to Match On",
+      "placeholder": "id",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "update",
+          "upsert"
+        ]
+      },
+      "help": "define mode: value for the first match column.",
+      "key": "value_to_match_on",
+      "label": "Value to Match On",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "select",
+          "delete",
+          "deleteTable"
+        ]
+      },
+      "help": "Operators: equal, !=, LIKE, >, <, >=, <=, IS NULL, IS NOT NULL.",
+      "key": "conditions",
+      "label": "Conditions (JSON array)",
+      "placeholder": "[{\"column\": \"status\", \"condition\": \"equal\", \"value\": \"open\"}]",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "select",
+          "delete",
+          "deleteTable"
+        ]
+      },
+      "key": "combine_conditions",
+      "label": "Combine Conditions",
+      "options": [
+        "AND",
+        "OR"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "select"
+        ]
+      },
+      "key": "sort",
+      "label": "Sort (JSON array)",
+      "placeholder": "[{\"column\": \"created_at\", \"direction\": \"DESC\"}]",
+      "required": false,
+      "rows": 2,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "select"
+        ]
+      },
+      "help": "Blank or 0 = no limit.",
+      "key": "limit",
+      "label": "Limit",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "select"
+        ]
+      },
+      "key": "return_all",
+      "label": "Return All",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "help": "Columns to return (blank = all).",
+      "key": "output_columns",
+      "label": "Output Columns",
+      "placeholder": "id, name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "deleteTable"
+        ]
+      },
+      "key": "delete_command",
+      "label": "Command",
+      "options": [
+        "truncate",
+        "delete",
+        "drop"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "deleteTable"
+        ]
+      },
+      "key": "cascade",
+      "label": "Cascade",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "delete_command",
+        "values": [
+          "truncate"
+        ]
+      },
+      "key": "restart_sequences",
+      "label": "Restart Sequences",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "insert"
+        ]
+      },
+      "key": "skip_on_conflict",
+      "label": "Skip on Conflict",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "insert",
+          "update",
+          "upsert"
+        ]
+      },
+      "key": "replace_empty_strings",
+      "label": "Replace Empty Strings with NULL",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "help": "single/transaction: all items in one transaction (blank = single); independently: failures go to the error output.",
+      "key": "query_batching",
+      "label": "Query Batching",
+      "options": [
+        "single",
+        "transaction",
+        "independently"
+      ],
+      "required": false,
+      "type": "select"
     }
   ]
 }

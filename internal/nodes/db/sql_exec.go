@@ -13,7 +13,7 @@ import (
 // and so are resolved once per input item (see workflow.PerItemConfigResolver).
 // Legacy configs resolve them against the first item, which is what the engine
 // did for them before they were declared here.
-var sqlPerItemFields = []string{"query", "params", "data", "where", "query_replacement", "values", "value_to_match_on", "conditions", "bind_params"}
+var sqlPerItemFields = []string{"query", "params", "data", "where", "query_replacement", "values", "value_to_match_on", "conditions", "bind_params", "values_to_send"}
 
 // n8nOnlySQLOps are operation names that only exist in the n8n-compatible mode.
 var n8nOnlySQLOps = map[string]bool{"executeQuery": true, "upsert": true, "deleteTable": true}
@@ -23,7 +23,7 @@ var n8nSQLKeys = []string{
 	"n8n_compat", "data_mode", "values", "columns", "match_columns", "value_to_match_on", "conditions",
 	"combine_conditions", "sort", "limit", "return_all", "output_columns", "query_replacement",
 	"query_params_fields", "query_batching", "schema", "delete_command", "cascade",
-	"restart_sequences", "skip_on_conflict", "replace_empty_strings", "bind_params",
+	"restart_sequences", "skip_on_conflict", "replace_empty_strings", "bind_params", "values_to_send",
 }
 
 // isN8nSQLConfig reports whether a db.postgres / db.mysql config uses the
@@ -368,7 +368,16 @@ func planExecuteQuery(d *sqlDialect, cfg map[string]interface{}, item workflow.I
 		if !ok || cfgString(m, "name") == "" {
 			return sqlStmt{}, fmt.Errorf("'bind_params'[%d]: expected {\"name\": ..., \"value\": ...}", i)
 		}
-		params = append(params, sql.Named(cfgString(m, "name"), m["value"]))
+		val, ok := m["value"]
+		if !ok { // n8n Oracle binds carry a typed value field
+			for _, k := range []string{"valueString", "valueNumber", "valueBoolean", "valueDate", "valueJson"} {
+				if v, has := m[k]; has {
+					val = v
+					break
+				}
+			}
+		}
+		params = append(params, sql.Named(cfgString(m, "name"), val))
 	}
 	return sqlStmt{Query: query, Args: params, Rows: true}, nil
 }
@@ -378,9 +387,14 @@ func planExecuteQuery(d *sqlDialect, cfg map[string]interface{}, item workflow.I
 // when neither is set) takes the item's own fields, narrowed to 'columns'
 // when given. Match columns always come along.
 func buildRow(cfg map[string]interface{}, item workflow.Item) (map[string]interface{}, error) {
-	values, err := toMap(cfg["values"])
+	values, err := toKVMap(cfg["values"])
 	if err != nil {
 		return nil, fmt.Errorf("'values': %w", err)
+	}
+	if values == nil && cfg["values_to_send"] != nil {
+		if values, err = toKVMap(cfg["values_to_send"]); err != nil {
+			return nil, fmt.Errorf("'values_to_send': %w", err)
+		}
 	}
 	if values == nil {
 		if values, err = toMap(cfg["data"]); err != nil {

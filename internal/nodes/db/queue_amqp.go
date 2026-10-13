@@ -142,7 +142,7 @@ func amqp1Message(cfg map[string]interface{}, item workflow.Item) (*amqp1.Messag
 		}
 		msg = amqp1.NewMessage(body)
 	}
-	props, err := toMap(cfg["header_parameters"])
+	props, err := toKVMap(cfg["header_parameters"])
 	if err != nil {
 		return nil, fmt.Errorf("'header_parameters': %w", err)
 	}

@@ -276,3 +276,39 @@ func messagePayload(item workflow.Item, sendInputData bool, message interface{})
 	}
 	return b, nil
 }
+
+// toKVMap accepts a JSON object (or a string holding one) or n8n's list of
+// {key|name|column, value} pairs and returns it as an object.
+func toKVMap(v interface{}) (map[string]interface{}, error) {
+	if m, ok := v.(map[string]interface{}); ok {
+		for _, wrap := range []string{"values", "header", "headerValues", "argument", "attribute"} {
+			if inner, ok := m[wrap].([]interface{}); ok && len(m) == 1 {
+				return toKVMap(inner)
+			}
+		}
+		return m, nil
+	}
+	list, isList := v.([]interface{})
+	if !isList {
+		return toMap(v)
+	}
+	out := make(map[string]interface{}, len(list))
+	for i, e := range list {
+		m, ok := e.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("entry %d: expected {key, value}", i)
+		}
+		k := cfgString(m, "key")
+		if k == "" {
+			k = cfgString(m, "name")
+		}
+		if k == "" {
+			k = cfgString(m, "column")
+		}
+		if k == "" {
+			return nil, fmt.Errorf("entry %d: missing key", i)
+		}
+		out[k] = m["value"]
+	}
+	return out, nil
+}

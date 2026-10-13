@@ -80,7 +80,7 @@ var rabbitDial = func(cfg map[string]interface{}) (rabbitChannel, func(), error)
 }
 
 func amqpTable(v interface{}) (amqp.Table, error) {
-	m, err := toMap(v)
+	m, err := toKVMap(v)
 	if err != nil || len(m) == 0 {
 		return nil, err
 	}

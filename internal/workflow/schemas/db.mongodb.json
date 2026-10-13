@@ -23,6 +23,7 @@
     },
     {
       "default": "find",
+      "help": "delete/insert/update/findOneAndReplace/findOneAndUpdate and the search-index operations (and find/aggregate with Query) run once per input item the way n8n does.",
       "key": "operation",
       "label": "Operation",
       "options": [
@@ -33,7 +34,16 @@
         "update_many",
         "delete_one",
         "delete_many",
-        "aggregate"
+        "aggregate",
+        "delete",
+        "insert",
+        "update",
+        "findOneAndReplace",
+        "findOneAndUpdate",
+        "listSearchIndexes",
+        "createSearchIndex",
+        "dropSearchIndex",
+        "updateSearchIndex"
       ],
       "required": true,
       "type": "select"
@@ -98,6 +108,202 @@
       "label": "Limit",
       "required": false,
       "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "find",
+          "aggregate",
+          "delete"
+        ]
+      },
+      "help": "Filter for find/delete, pipeline array for aggregate. Extended JSON ($oid, $date) works.",
+      "key": "query",
+      "label": "Query (JSON)",
+      "language": "json",
+      "placeholder": "{ \"age\": { \"$gt\": \"$1\" } }",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "find",
+          "aggregate",
+          "delete"
+        ]
+      },
+      "help": "Values for \"$1\", \"$2\" … strings in the query.",
+      "key": "query_parameters",
+      "label": "Query Parameters (JSON array)",
+      "placeholder": "[30]",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "find"
+        ]
+      },
+      "key": "skip",
+      "label": "Skip",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "find"
+        ]
+      },
+      "key": "sort",
+      "label": "Sort (JSON)",
+      "placeholder": "{ \"created\": -1 }",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "find"
+        ]
+      },
+      "key": "projection",
+      "label": "Projection (JSON)",
+      "placeholder": "{ \"name\": 1 }",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "insert",
+          "update",
+          "findOneAndReplace",
+          "findOneAndUpdate"
+        ]
+      },
+      "help": "Item fields to write (blank = all).",
+      "key": "fields",
+      "label": "Fields",
+      "placeholder": "name, email",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "update",
+          "findOneAndReplace",
+          "findOneAndUpdate"
+        ]
+      },
+      "help": "Item field that matches the document to update.",
+      "key": "update_key",
+      "label": "Update Key",
+      "placeholder": "_id",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "update",
+          "findOneAndReplace",
+          "findOneAndUpdate"
+        ]
+      },
+      "key": "upsert",
+      "label": "Upsert",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "insert",
+          "update",
+          "findOneAndReplace",
+          "findOneAndUpdate"
+        ]
+      },
+      "help": "Fields to store as dates (RFC 3339 strings).",
+      "key": "date_fields",
+      "label": "Date Fields",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "insert",
+          "update",
+          "findOneAndReplace",
+          "findOneAndUpdate"
+        ]
+      },
+      "key": "use_dot_notation",
+      "label": "Use Dot Notation",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "listSearchIndexes",
+          "createSearchIndex",
+          "dropSearchIndex",
+          "updateSearchIndex"
+        ]
+      },
+      "key": "index_name",
+      "label": "Index Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "createSearchIndex",
+          "updateSearchIndex"
+        ]
+      },
+      "key": "index_definition",
+      "label": "Index Definition (JSON)",
+      "language": "json",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "createSearchIndex"
+        ]
+      },
+      "key": "index_type",
+      "label": "Index Type",
+      "options": [
+        "search",
+        "vectorSearch"
+      ],
+      "required": false,
+      "type": "select"
     }
   ]
 }
