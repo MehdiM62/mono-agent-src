@@ -763,7 +763,7 @@ func (c *Conductor) execOnce(ctx context.Context, w *worker, m Model, prompt, re
 		opts.BudgetUSD = remaining
 	}
 	c.mu.Unlock()
-	opts.SystemPrompt = workerSystemPrompt(w.staff, dir, w.files, c.spawnsOn(w, m, opts.Access)) + c.worktreeRule(w)
+	opts.SystemPrompt = workerSystemPrompt(w.staff, dir, w.files, c.spawnsOn(w, m, opts.Access)) + profileBlock(ctx) + c.worktreeRule(w)
 	c.workerTools(w, m, &opts)
 	var run monomind.TurnResult
 	ectx, ecancel := context.WithCancel(ctx)

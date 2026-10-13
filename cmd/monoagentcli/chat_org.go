@@ -129,7 +129,7 @@ func startDynamicOrg(ctx context.Context, cfg *globalConfig, journal *turnJourna
 	}
 	lib := &dynorg.MonomindLibrary{Bin: opts.Bin, Cwd: t.cwd}
 	staffer := &dynorg.Staffer{
-		Roster: orgRoster(ctx, db.DB, st, lead), Lead: lead, ModelPicker: settings.OrgModelPicker,
+		Roster: orgRoster(ctx, db.DB, st, lead), Lead: lead, ModelPicker: settings.OrgModelPicker, Router: settings.OrgRouter,
 		Picker: lib, Library: lib,
 	}
 	if q, err := agentroster.LoadQuality(ctx, db.DB, time.Now()); err == nil {
@@ -164,7 +164,7 @@ func startDynamicOrg(ctx context.Context, cfg *globalConfig, journal *turnJourna
 	opts.Tools = dynorg.ToolSpecs()
 	opts.OnToolCall = cond.Handle
 	opts.ToolTimeout = dynorg.ToolTimeout
-	opts.SystemPrompt += dynorg.LeadPrompt(limits)
+	opts.SystemPrompt += dynorg.LeadPrompt(limits) + dynorg.LeadExtras(ctx, settings.OrgRouter)
 	if cond.Isolated() {
 		opts.Tools = append(opts.Tools, dynorg.MergeToolSpec())
 		opts.SystemPrompt += dynorg.IsolatedLeadPrompt

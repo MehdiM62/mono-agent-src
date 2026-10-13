@@ -261,6 +261,25 @@ func TestSetOrgRefusesAssistantConversations(t *testing.T) {
 	}
 }
 
+func TestCoderSetOrgRouter(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	withCoderCaps(t)
+	var st coderStatus
+	out, _ := runCoderCLI(t, dbPath, "status")
+	decodeChatJSON(t, out, &st)
+	if st.OrgRouter != "auto" {
+		t.Fatalf("default router = %q", st.OrgRouter)
+	}
+	out, code := runCoderCLI(t, dbPath, "set", "--org-router", "jev")
+	decodeChatJSON(t, out, &st)
+	if code != 0 || st.OrgRouter != "jev" {
+		t.Fatalf("set router = exit %d %q", code, st.OrgRouter)
+	}
+	if _, code := runCoderCLI(t, dbPath, "set", "--org-router", "dice"); code != 3 {
+		t.Errorf("bad router: exit %d", code)
+	}
+}
+
 func TestCoderSetOrgSettings(t *testing.T) {
 	dbPath := newChatCLITestDB(t)
 	withCoderCaps(t)
