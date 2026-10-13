@@ -494,6 +494,15 @@
           {
             "key": "Name|title",
             "condition": "is_not_empty"
+          },
+          {
+            "key": "Due Date|date",
+            "condition": "past_week"
+          },
+          {
+            "key": "Due Date|date",
+            "condition": "after",
+            "date": "2024-01-01T10:00:00+02:00"
           }
         ]
       },
@@ -571,6 +580,18 @@
               "property": "Name",
               "rich_text": {
                 "is_not_empty": true
+              }
+            },
+            {
+              "property": "Due Date",
+              "date": {
+                "past_week": {}
+              }
+            },
+            {
+              "property": "Due Date",
+              "date": {
+                "after": "2024-01-01T08:00:00Z"
               }
             }
           ]
