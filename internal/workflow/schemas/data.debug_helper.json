@@ -1,0 +1,147 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "throw_error",
+      "help": "do_nothing emits no items; throw_error fails the node; random_data generates fake items.",
+      "key": "category",
+      "label": "Category",
+      "options": [
+        "do_nothing",
+        "throw_error",
+        "random_data"
+      ],
+      "required": true,
+      "type": "select"
+    },
+    {
+      "default": "NodeApiError",
+      "depends_on": {
+        "key": "category",
+        "values": [
+          "throw_error"
+        ]
+      },
+      "key": "throw_error_type",
+      "label": "Error Type",
+      "options": [
+        "NodeApiError",
+        "NodeOperationError",
+        "Error"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "Node has thrown an error",
+      "depends_on": {
+        "key": "category",
+        "values": [
+          "throw_error"
+        ]
+      },
+      "key": "throw_error_message",
+      "label": "Error Message",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "user",
+      "depends_on": {
+        "key": "category",
+        "values": [
+          "random_data"
+        ]
+      },
+      "key": "random_data_type",
+      "label": "Data Type",
+      "options": [
+        "user",
+        "email",
+        "address",
+        "credit_card",
+        "uuid",
+        "mac_address",
+        "ipv4",
+        "ipv6",
+        "lat_long",
+        "semver",
+        "url",
+        "nanoid"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      "depends_on": {
+        "key": "random_data_type",
+        "values": [
+          "nanoid"
+        ]
+      },
+      "key": "nanoid_alphabet",
+      "label": "NanoId Alphabet",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 16,
+      "depends_on": {
+        "key": "random_data_type",
+        "values": [
+          "nanoid"
+        ]
+      },
+      "key": "nanoid_length",
+      "label": "NanoId Length",
+      "max": 1024,
+      "min": 1,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "category",
+        "values": [
+          "random_data"
+        ]
+      },
+      "help": "Same seed = same data. Empty = different every run.",
+      "key": "random_data_seed",
+      "label": "Seed",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 10,
+      "depends_on": {
+        "key": "category",
+        "values": [
+          "random_data"
+        ]
+      },
+      "key": "random_data_count",
+      "label": "Number Of Items",
+      "max": 100000,
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "category",
+        "values": [
+          "random_data"
+        ]
+      },
+      "help": "Emit one item {generatedItems: [...]} instead of one item per record.",
+      "key": "random_data_single_array",
+      "label": "Output As Single Array",
+      "required": false,
+      "type": "boolean"
+    }
+  ]
+}

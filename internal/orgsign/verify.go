@@ -67,8 +67,6 @@ func (s Status) Refused() bool {
 	return false
 }
 
-const signatureVersion = 1
-
 var (
 	unsignedOrgFields  = map[string]bool{"goal": true, "status": true}
 	unsignedRoleFields = map[string]bool{"title": true, "responsibilities": true, "ui": true}

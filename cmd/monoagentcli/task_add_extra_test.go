@@ -272,7 +272,7 @@ func TestTaskABlankAsIsNeverTheOperator(t *testing.T) {
 			t.Errorf("an operator-only add with --as %q: %v", blank, doc)
 		}
 	}
-	// What is not operator-only goes through, as an agent's task: the hourly limit counts it.
+	// What is not operator-only goes through, as an agent's task.
 	var added addedJSON
 	mustTaskJSON(t, db, "default", &added, "", "add", "from nobody", "--as", "")
 	if added.Task.Source.Kind != "agent" || added.Task.Status != "inbox" {

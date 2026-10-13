@@ -262,7 +262,7 @@ func monoagentAdaptedTools() []tool {
 		},
 		{
 			name:        "template_list",
-			description: "List message templates.",
+			description: "List message templates (outreach message texts), not workflow templates: those are workflow_template_list.",
 			schema:      objSchema(nil),
 			annotations: map[string]bool{"readOnlyHint": true},
 			handler:     chatToolHandler("list_templates"),

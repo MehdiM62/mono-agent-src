@@ -33,6 +33,9 @@ type ConnectOptions struct {
 	OAuthTimeout time.Duration
 	FieldValues  map[string]string // pre-filled field values for non-interactive use
 	ProfileID    string            // profile to save the connection under (empty = "default")
+	// Scopes narrows an umbrella platform's (google, microsoft) consent to
+	// these scope groups; empty requests every group. Error elsewhere.
+	Scopes []string
 }
 
 // Connect authenticates to platform and saves the result. Returns saved Connection.
@@ -41,6 +44,12 @@ func (m *Manager) Connect(ctx context.Context, platformID string, opts ConnectOp
 	p, ok := Get(platformID)
 	if !ok {
 		return nil, fmt.Errorf("connect: unknown platform %q", platformID)
+	}
+	// Reject bad --scopes before any prompt or browser round-trip.
+	if len(nonEmpty(opts.Scopes)) > 0 {
+		if err := prepareUmbrellaOAuth(&OAuthConfig{}, platformID, opts.Scopes); err != nil {
+			return nil, fmt.Errorf("connect: %w", err)
+		}
 	}
 
 	// 2. Pick method — use a single reader for all stdin interactions
@@ -75,7 +84,7 @@ func (m *Manager) Connect(ctx context.Context, platformID string, opts ConnectOp
 	// 4. Switch on method
 	switch method {
 	case MethodOAuth:
-		if err := m.connectOAuth(ctx, p, conn, opts.OAuthTimeout); err != nil {
+		if err := m.connectOAuth(ctx, p, conn, opts.OAuthTimeout, opts.Scopes); err != nil {
 			return nil, fmt.Errorf("connect: oauth: %w", err)
 		}
 	case MethodAPIKey, MethodAppPass, MethodConnStr, MethodSSHKey:
@@ -92,6 +101,13 @@ func (m *Manager) Connect(ctx context.Context, platformID string, opts ConnectOp
 	accountID, err := ValidateConnection(ctx, conn)
 	if err != nil {
 		return nil, fmt.Errorf("connect: validate: %w", err)
+	}
+
+	// An umbrella re-consent (e.g. adding a scope group) updates the
+	// profile's existing connection for the same account in place, so
+	// workflows that reference its ID pick up the new scopes.
+	if IsUmbrella(platformID) {
+		m.adoptSameAccountConnection(ctx, conn, accountID)
 	}
 
 	// 6. Set conn.AccountID, conn.Status="active", conn.LastTested=now
@@ -301,8 +317,9 @@ func (m *Manager) Refresh(ctx context.Context, id string, timeout time.Duration)
 		return nil
 	}
 
-	// No refresh_token on file — only path left is a full interactive re-auth.
-	if err := m.connectOAuth(ctx, p, conn, timeout); err != nil {
+	// No refresh_token on file — only path left is a full interactive re-auth
+	// (an umbrella connection asks again for the groups it held).
+	if err := m.connectOAuth(ctx, p, conn, timeout, GrantedGroups(p.ID, getStr(conn.Data, "scope"))); err != nil {
 		return fmt.Errorf("refresh: oauth: %w", err)
 	}
 
@@ -367,6 +384,13 @@ func (m *Manager) pickMethod(p PlatformDef, r *bufio.Reader) AuthMethod {
 // If clientID/clientSecret are non-empty they override env-var lookup.
 // profileID scopes the connection; empty string defaults to "default".
 func (m *Manager) ConnectOAuthWithProgress(ctx context.Context, platformID string, progress func(msg, kind string), clientID, clientSecret, profileID string) (*Connection, error) {
+	return m.ConnectOAuthWithScopes(ctx, platformID, progress, clientID, clientSecret, profileID, nil)
+}
+
+// ConnectOAuthWithScopes is ConnectOAuthWithProgress with the scope groups
+// an umbrella platform (google, microsoft) should request; nil requests
+// every group, and scope groups on any other platform are an error.
+func (m *Manager) ConnectOAuthWithScopes(ctx context.Context, platformID string, progress func(msg, kind string), clientID, clientSecret, profileID string, scopeGroups []string) (*Connection, error) {
 	p, ok := Get(platformID)
 	if !ok {
 		return nil, fmt.Errorf("unknown platform %q", platformID)
@@ -397,6 +421,9 @@ func (m *Manager) ConnectOAuthWithProgress(ctx context.Context, platformID strin
 
 	cfg := *p.OAuth
 	cfg.PlatformID = platformID
+	if err := prepareUmbrellaOAuth(&cfg, platformID, scopeGroups); err != nil {
+		return nil, err
+	}
 	if clientID != "" {
 		cfg.ClientID = clientID
 	}
@@ -404,15 +431,9 @@ func (m *Manager) ConnectOAuthWithProgress(ctx context.Context, platformID strin
 		cfg.ClientSecret = clientSecret
 	}
 	if cfg.ClientID == "" {
-		if dbID, dbSecret := m.store.GetOAuthClient(ctx, platformID, profileID); dbID != "" {
-			cfg.ClientID = dbID
-			cfg.ClientSecret = dbSecret
-		}
+		cfg.ClientID, cfg.ClientSecret = m.store.lookupOAuthClient(ctx, platformID, profileID)
 	}
-	envPrefix := "MONOAGENT_" + strings.ToUpper(strings.ReplaceAll(p.ID, "-", "_")) + "_"
-	if cfg.ClientID == "" {
-		cfg.ClientID = os.Getenv(envPrefix + "CLIENT_ID")
-	}
+	envPrefix := oauthEnvPrefix(p.ID)
 	if cfg.ClientSecret == "" {
 		cfg.ClientSecret = os.Getenv(envPrefix + "CLIENT_SECRET")
 	}
@@ -446,6 +467,7 @@ func (m *Manager) ConnectOAuthWithProgress(ctx context.Context, platformID strin
 	} else {
 		conn.Data["expires_at"] = ""
 	}
+	recordUmbrellaGrant(conn, platformID, cfg.Scopes)
 
 	if progress != nil {
 		progress("Validating your account…", "info")
@@ -485,28 +507,25 @@ func (m *Manager) ConnectOAuthWithProgress(ctx context.Context, platformID strin
 }
 
 // connectOAuth runs the OAuth flow for a platform and populates conn.Data.
-func (m *Manager) connectOAuth(ctx context.Context, p PlatformDef, conn *Connection, timeout time.Duration) error {
+func (m *Manager) connectOAuth(ctx context.Context, p PlatformDef, conn *Connection, timeout time.Duration, scopeGroups []string) error {
 	if p.OAuth == nil {
 		return fmt.Errorf("connectOAuth: platform %q has no OAuth config", p.ID)
 	}
 
 	cfg := *p.OAuth // copy
 	cfg.PlatformID = p.ID
+	if err := prepareUmbrellaOAuth(&cfg, p.ID, scopeGroups); err != nil {
+		return fmt.Errorf("connectOAuth: %w", err)
+	}
 
 	// Stored per-profile credentials first (set via `connect set-oauth-client`
 	// or persisted by a previous successful connect), then env vars
-	// MONOAGENT_{UPPERCASE_PLATFORM}_CLIENT_ID and _CLIENT_SECRET.
-	if dbID, dbSecret := m.store.GetOAuthClient(ctx, p.ID, conn.ProfileID); dbID != "" {
-		cfg.ClientID = dbID
-		cfg.ClientSecret = dbSecret
+	// MONOAGENT_{UPPERCASE_PLATFORM}_CLIENT_ID and _CLIENT_SECRET; umbrella
+	// platforms then fall back to their per-product clients.
+	if id, sec := m.store.lookupOAuthClient(ctx, p.ID, conn.ProfileID); id != "" {
+		cfg.ClientID, cfg.ClientSecret = id, sec
 	}
-	envPrefix := "MONOAGENT_" + strings.ToUpper(strings.ReplaceAll(p.ID, "-", "_")) + "_"
-	if cfg.ClientID == "" {
-		cfg.ClientID = os.Getenv(envPrefix + "CLIENT_ID")
-	}
-	if cfg.ClientSecret == "" {
-		cfg.ClientSecret = os.Getenv(envPrefix + "CLIENT_SECRET")
-	}
+	envPrefix := oauthEnvPrefix(p.ID)
 
 	if cfg.ClientID == "" {
 		return fmt.Errorf("connectOAuth: missing ClientID for platform %q (set %sCLIENT_ID)", p.ID, envPrefix)
@@ -539,6 +558,7 @@ func (m *Manager) connectOAuth(ctx context.Context, p PlatformDef, conn *Connect
 	} else {
 		conn.Data["expires_at"] = ""
 	}
+	recordUmbrellaGrant(conn, p.ID, cfg.Scopes)
 
 	return nil
 }

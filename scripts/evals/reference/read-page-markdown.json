@@ -1,0 +1,40 @@
+{
+  "name": "eval-read-page-markdown",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.manual",
+      "name": "trigger",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {}
+    },
+    {
+      "id": "read",
+      "type": "ai.read_page",
+      "name": "read",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "url": "{{FIXTURE_URL}}/page.html",
+        "render_mode": "static"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "read",
+      "target_handle": "main"
+    }
+  ]
+}

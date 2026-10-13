@@ -215,11 +215,9 @@ func TestTheTaskToolsActAsAnAgent(t *testing.T) {
 	if tk := d["task"].(map[string]any); tk["status"] != "inbox" || tk["source_kind"] != "agent" || tk["profile_id"] != "default" || d["created"] != true {
 		t.Errorf("an agent's task: %v", d)
 	}
-	for i := 2; i <= tasks.AgentTasksPerHour; i++ {
+	// Agents have no hourly allowance: the 21st task of the same instant lands too.
+	for i := 2; i <= 21; i++ {
 		f.doc("task_add", map[string]any{"title": fmt.Sprintf("finding %d", i)})
-	}
-	if _, err := f.call("task_add", map[string]any{"title": "one too many"}); err == nil || !strings.HasPrefix(err.Error(), "limit: ") {
-		t.Errorf("task %d of the hour: %v, want limit", tasks.AgentTasksPerHour+1, err)
 	}
 
 	for _, c := range []struct {

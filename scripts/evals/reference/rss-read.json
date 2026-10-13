@@ -1,0 +1,40 @@
+{
+  "name": "eval-rss-read",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.manual",
+      "name": "trigger",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {}
+    },
+    {
+      "id": "rss",
+      "type": "system.rss_read",
+      "name": "rss",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "url": "{{FIXTURE_URL}}/feed.xml",
+        "limit": 2
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "rss",
+      "target_handle": "main"
+    }
+  ]
+}

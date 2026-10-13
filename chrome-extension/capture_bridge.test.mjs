@@ -171,8 +171,8 @@ test("install offers both a page and a selection context menu (CLIP-04)", () => 
   assert.deepEqual(
     chrome.record.menus.map((m) => [m.title, m.contexts[0]]),
     [
-      ["Save page to monomind", "page"],
-      ["Save selection to monomind", "selection"],
+      ["Save page to MonoAgent", "page"],
+      ["Save selection to MonoAgent", "selection"],
     ]
   );
 });

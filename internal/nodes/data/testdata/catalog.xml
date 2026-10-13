@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog xmlns:dc="http://purl.org/dc/elements/1.1/" updated="2026-10-13">
+  <book id="bk101" lang="en">
+    <title>XML Developer's Guide</title>
+    <author>Gambardella, Matthew</author>
+    <author>Knorr, Stefan</author>
+    <price currency="USD">44.95</price>
+    <dc:subject>Computers</dc:subject>
+    <description>
+      An in-depth   look at creating applications
+      with XML &amp; friends.
+    </description>
+  </book>
+  <book id="bk102">
+    <title>Midnight Rain</title>
+    <author>Ralls, Kim</author>
+    <price currency="EUR">5.95</price>
+    <discontinued/>
+  </book>
+</catalog>

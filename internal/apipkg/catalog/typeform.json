@@ -1,0 +1,280 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "typeform",
+  "node_type": "app.typeform",
+  "title": "Typeform",
+  "description": "Read Typeform forms and responses, and manage form webhooks",
+  "category": "app",
+  "docs_url": "https://www.typeform.com/developers/",
+  "n8n_trigger_types": [
+    "n8n-nodes-base.typeformTrigger"
+  ],
+  "base_url": "https://api.typeform.com",
+  "credentials": [
+    {
+      "platform": "typeform",
+      "name": "Typeform",
+      "n8n_credential": "typeformApi",
+      "n8n_credential_alt": [
+        "typeformOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true,
+          "help": "Typeform: Account → Your settings → Personal tokens"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://api.typeform.com/oauth/authorize",
+        "token_url": "https://api.typeform.com/oauth/token",
+        "scopes": [
+          "forms:read",
+          "responses:read",
+          "webhooks:read",
+          "webhooks:write",
+          "offline"
+        ],
+        "pkce": true
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "form",
+      "label": "Form"
+    },
+    {
+      "value": "response",
+      "label": "Response"
+    },
+    {
+      "value": "webhook",
+      "label": "Webhook"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "form",
+      "operation": "getAll",
+      "title": "Get many forms",
+      "method": "GET",
+      "path": "/forms",
+      "query": {
+        "search": "{{ p.filters.search }}",
+        "workspace_id": "{{ p.filters.workspace_id }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "page_size",
+        "page_size": 200,
+        "results_path": "items"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "search",
+            "workspace_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "form",
+      "operation": "get",
+      "title": "Get a form",
+      "method": "GET",
+      "path": "/forms/{{ p.formId }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "The ID in the form's URL: https://form.typeform.com/to/<formId>"
+        }
+      ]
+    },
+    {
+      "resource": "response",
+      "operation": "getAll",
+      "title": "Get many responses",
+      "method": "GET",
+      "path": "/forms/{{ p.formId }}/responses",
+      "query": {
+        "since": "{{ p.options.since }}",
+        "until": "{{ p.options.until }}",
+        "completed": "{{ p.options.completed | bool }}",
+        "query": "{{ p.options.query }}",
+        "fields": "{{ p.options.fields | csv }}",
+        "sort": "{{ p.options.sort }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "before",
+        "cursor_path": "items.-1.token",
+        "limit_param": "page_size",
+        "page_size": 1000,
+        "results_path": "items"
+      },
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "The ID in the form's URL: https://form.typeform.com/to/<formId>"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "since",
+            "until",
+            "completed",
+            "query",
+            "fields",
+            "sort"
+          ],
+          "help": "since/until are ISO 8601 dates; completed is true or false."
+        }
+      ]
+    },
+    {
+      "resource": "response",
+      "operation": "delete",
+      "title": "Delete responses",
+      "method": "DELETE",
+      "path": "/forms/{{ p.formId }}/responses",
+      "query": {
+        "included_response_ids": "{{ p.responseIds | csv }}"
+      },
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "The ID in the form's URL: https://form.typeform.com/to/<formId>"
+        },
+        {
+          "key": "responseIds",
+          "label": "Response IDs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated response IDs (tokens)."
+        }
+      ]
+    },
+    {
+      "resource": "webhook",
+      "operation": "getAll",
+      "title": "Get a form's webhooks",
+      "method": "GET",
+      "path": "/forms/{{ p.formId }}/webhooks",
+      "output": {
+        "path": "items"
+      },
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "The ID in the form's URL: https://form.typeform.com/to/<formId>"
+        }
+      ]
+    },
+    {
+      "resource": "webhook",
+      "operation": "get",
+      "title": "Get a webhook",
+      "method": "GET",
+      "path": "/forms/{{ p.formId }}/webhooks/{{ p.tag }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "The ID in the form's URL: https://form.typeform.com/to/<formId>"
+        },
+        {
+          "key": "tag",
+          "label": "Webhook tag",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "webhook",
+      "operation": "delete",
+      "title": "Delete a webhook",
+      "method": "DELETE",
+      "path": "/forms/{{ p.formId }}/webhooks/{{ p.tag }}",
+      "fields": [
+        {
+          "key": "formId",
+          "label": "Form ID",
+          "type": "text",
+          "required": true,
+          "help": "The ID in the form's URL: https://form.typeform.com/to/<formId>"
+        },
+        {
+          "key": "tag",
+          "label": "Webhook tag",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

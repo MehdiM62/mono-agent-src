@@ -1,0 +1,33 @@
+{
+  "id": "hil-approval",
+  "mode": "both",
+  "workflow_name": "eval-hil-approval",
+  "prompt": "Create a workflow named \"eval-hil-approval\", run manually, that fetches\n{{FIXTURE_URL}}/products.json and then pauses on a Human-in-Loop node so a\nperson can review the result, with \"price\" as the only editable field, before\nit continues. Only save, validate and dry-run it: do not run it and do not\napprove anything.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "core.human_in_loop",
+        "http.request"
+      ]
+    },
+    {
+      "type": "node_config",
+      "node_type": "core.human_in_loop",
+      "key": "editable_fields",
+      "equals": [
+        "price"
+      ]
+    },
+    {
+      "type": "inactive"
+    }
+  ]
+}

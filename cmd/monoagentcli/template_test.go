@@ -70,3 +70,19 @@ func TestTemplateListTableRightAlignsNumericIDColumn(t *testing.T) {
 		t.Fatalf("expected the single-digit ID to start further right than the 3-digit ID (right-alignment), got ID \"1\" at column %d and \"100\" at column %d\nrow1:   %q\nrow100: %q", pos1, pos100, line1, line100)
 	}
 }
+
+// Message templates are `message-template`, so they do not read as workflow
+// templates; `template` stays an alias (the GUI calls `template list`).
+func TestMessageTemplateCommandKeepsTemplateAlias(t *testing.T) {
+	root := newRootCmd()
+	for _, name := range []string{"message-template", "template"} {
+		sub, _, err := root.Find([]string{name, "list"})
+		if err != nil || sub.Parent() == nil || sub.Parent().Name() != "message-template" {
+			t.Fatalf("%s list: resolved to %v (%v)", name, sub, err)
+		}
+	}
+	sub, _, _ := root.Find([]string{"message-template"})
+	if !strings.Contains(sub.Short, "alias: template") {
+		t.Errorf("Short = %q", sub.Short)
+	}
+}

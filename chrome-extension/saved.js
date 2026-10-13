@@ -120,7 +120,7 @@
   /** savedTitle is the toolbar tooltip: the one line worth reading without
    *  opening anything. */
   function savedTitle(record) {
-    const parts = ["Saved to monomind"];
+    const parts = ["Saved to MonoAgent"];
     if (record.versions > 1) parts.push(`${record.versions} versions`);
     if (record.capturedAt) parts.push(shortDate(record.capturedAt));
     return parts.join(" · ");

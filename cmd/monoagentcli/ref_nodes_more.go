@@ -40,6 +40,34 @@ The bind address is loopback by default; set MONOAGENT_WEBHOOK_ADDR (e.g.
 		Notes:   `The workflow must be activated ("workflow activate <id>") and the daemon running.`,
 	},
 	{
+		Type:     "trigger.execute_workflow",
+		Category: "trigger",
+		Short:    "Start this workflow when another workflow calls it (core.execute_workflow)",
+		Description: `Marks a workflow as callable by core.execute_workflow. Every item the caller
+passes arrives as this trigger's output items, one item per caller item. The
+workflow does not need to be active to be called.`,
+		Config:  `{}`,
+		Inputs:  "none",
+		Outputs: "the items passed by the calling workflow",
+	},
+	{
+		Type:     "core.execute_workflow",
+		Category: "core",
+		Short:    "Run another workflow as a sub-workflow and use its output",
+		Description: `Starts a child execution of another workflow (by ID or exact name) with this
+node's items as its trigger items. While waiting, the parent run pauses without
+holding a concurrency slot and resumes when every child has finished. The output
+is each child's last successful node's items, in input order. A failed child
+fails this node (on_error applies).`,
+		Config: `{
+  "workflowId":         "my-sub-workflow", // required: ID or exact name
+  "mode":               "once",            // once: one child for all items | each: one child per item
+  "waitForSubWorkflow": true               // false: start the children and pass items through
+}`,
+		Inputs:  "any items",
+		Outputs: "the child workflows' output items (or the input items plus child execution ids when not waiting)",
+	},
+	{
 		Type:     "trigger.org",
 		Category: "trigger",
 		Short:    "Run workflow on an agent-org event or message",
@@ -101,18 +129,76 @@ this machine through monomind, and stores the answer on the item. Replaces the
 deprecated ai.chat / ai.extract / ai.classify / ai.transform / ai.agent nodes —
 ask for JSON, a category, or a rewrite in the prompt itself.`,
 		Config: `{
-  "runtime":       "claude",                       // required; see "agent scan --installed"
+  "runtime":       "claude",                       // required; see "agent scan --installed", or "auto"
   "prompt":        "Summarize: {{ $json.text }}",  // required
   "model":         "",                             // empty = runtime default
   "system_prompt": "",
   "output_key":    "agent_response",
-  "timeout":       300                             // seconds
+  "timeout":       300,                            // seconds, per item
+  "output_schema": {"type": "object",              // optional: ask for JSON matching it
+                    "required": ["category"],
+                    "properties": {"category": {"type": "string", "enum": ["lead", "spam"]}}},
+  "merge_output":  false,                          // with output_schema: copy an object's fields onto the item
+  "concurrency":   1                               // items run at once; output keeps input order
 }`,
 		Inputs:  "any items (prompt placeholders read from $json)",
-		Outputs: "input item + <output_key> with the agent's answer",
+		Outputs: "input item + <output_key> with the agent's answer (the parsed JSON value with output_schema)",
 		Notes: `Needs monomind and at least one agent runtime. Check with
 "monoagentcli agent scan --installed" and "monoagentcli agent test <runtime>";
-install one with "monoagentcli agent install <runtime>".`,
+install one with "monoagentcli agent install <runtime>".
+
+runtime "auto" picks a ready (recently validated) model from the agent roster
+("monoagentcli agent validate"): the cheapest measured, then the fastest, then
+claude, codex, antigravity and the rest. A model set alongside narrows it to
+that model. With nothing validated it uses the first installed runtime. The
+item gets _agent_runtime (and _agent_model) saying what ran.
+
+output_schema (a JSON Schema object or a JSON string) appends an instruction
+to the prompt, takes the JSON out of the reply (code fences and surrounding
+prose are stripped) and checks type, required, properties, items, enum and
+const. A mismatch is re-asked once in the same session (a fresh turn when the
+runtime can't resume); a second mismatch fails the node, which follows
+on_error.
+
+Every turn's tokens and cost, when the runtime reports them, are recorded in
+the agent_usage table with the profile, workflow, execution and node ids.`,
+	},
+	{
+		Type:     "mcp.call",
+		Category: "agent",
+		Short:    "Call a tool on any MCP server (stdio or Streamable HTTP)",
+		Description: `An MCP client. Connects to one server per node run (MCP 2025-06-18: initialize,
+notifications/initialized), then lists its tools or calls one tool per input
+item (once when there are no items). stdio spawns the server once, in its own
+process group, reuses it for every item and kills it when the node ends or
+the run is cancelled. http POSTs JSON-RPC to the endpoint, accepts JSON and
+SSE replies, and keeps the Mcp-Session-Id the server issues.`,
+		Config: `{
+  "server":    "",                    // optional: vault secret with the server as JSON
+                                      //   {transport, command, args, env, cwd, url, headers}
+  "transport": "stdio",               // stdio | http (empty: http when url is set)
+  "command":   "npx",                 // stdio
+  "args":      ["-y", "@modelcontextprotocol/server-everything"],
+  "env":       {"API_TOKEN": "@secret:my-token"},
+  "cwd":       "",
+  "url":       "https://example.com/mcp",                 // http
+  "headers":   {"Authorization": "Bearer @secret:zapier"},
+  "operation": "call_tool",           // call_tool | list_tools
+  "tool":      "search",              // call_tool; per item
+  "arguments": {"query": "{{ $json.text }}"},             // per item
+  "timeout":   60,                    // seconds per MCP request
+  "fail_on_tool_error": true          // false: isError results become items
+}`,
+		Inputs: "any items (tool and arguments read from each item's $json)",
+		Outputs: `call_tool: one item per input {tool, result, content, is_error}; result is
+structuredContent when present, else the text content (JSON-parsed when it
+parses). list_tools: one item per tool {tool, title, description,
+input_schema, output_schema, annotations}.`,
+		Notes: `A result with isError fails the node (on_error applies) unless
+fail_on_tool_error is false. @secret:<name> references in env and header
+values are resolved from the vault, also inside a value ("Bearer @secret:x");
+one that does not resolve fails the node rather than being sent. Org grants
+treat mcp.call as outbound.`,
 	},
 	{
 		Type:     "browser.jev",

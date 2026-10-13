@@ -838,8 +838,10 @@ var Registry = map[string]PlatformDef{
 
 // Get returns the PlatformDef for the given ID and a boolean indicating existence.
 func Get(id string) (PlatformDef, bool) {
-	p, ok := Registry[id]
-	return p, ok
+	if p, ok := Registry[id]; ok {
+		return p, ok
+	}
+	return dynamicGet(id)
 }
 
 // All returns all platform definitions as a slice.
@@ -848,13 +850,13 @@ func All() []PlatformDef {
 	for _, p := range Registry {
 		out = append(out, p)
 	}
-	return out
+	return append(out, dynamicAll()...)
 }
 
 // ByCategory returns all platforms in the given category.
 func ByCategory(category string) []PlatformDef {
 	var out []PlatformDef
-	for _, p := range Registry {
+	for _, p := range All() {
 		if p.Category == category {
 			out = append(out, p)
 		}
@@ -865,7 +867,7 @@ func ByCategory(category string) []PlatformDef {
 // ByConnectVia returns all platforms with the given ConnectVia value.
 func ByConnectVia(via string) []PlatformDef {
 	var out []PlatformDef
-	for _, p := range Registry {
+	for _, p := range All() {
 		if p.ConnectVia == via {
 			out = append(out, p)
 		}

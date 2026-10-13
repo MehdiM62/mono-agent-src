@@ -17,23 +17,37 @@ package service
 type StripeNodeSchema struct {
 	CredentialID string `json:"credential_id" schema:"label=Stripe Connection,type=credential_picker,required"`
 
-	Operation string `json:"operation" schema:"label=Operation,type=select,required,options=list_customers|create_customer|get_customer|list_charges|create_charge|list_subscriptions|create_subscription|cancel_subscription|list_products|create_payment_intent,default=list_customers"`
+	Operation string `json:"operation" schema:"label=Operation,type=select,required,options=list_customers|create_customer|get_customer|list_charges|create_charge|list_subscriptions|create_subscription|cancel_subscription|list_products|create_payment_intent|get_payment_intent|list_payment_intents|create_refund|create_checkout_session,default=list_customers,help=create_charge uses Stripe's legacy Charges API and is kept for existing workflows. For new payments use create_payment_intent or create_checkout_session."`
 
-	CustomerID string `json:"customer_id" schema:"label=Customer ID,type=text,depends_on_key=operation,depends_on_values=get_customer|list_charges|create_charge|list_subscriptions|create_subscription|create_payment_intent"`
+	CustomerID string `json:"customer_id" schema:"label=Customer ID,type=text,depends_on_key=operation,depends_on_values=get_customer|list_charges|create_charge|list_subscriptions|create_subscription|create_payment_intent|list_payment_intents|create_checkout_session"`
 
 	Email string `json:"email" schema:"label=Email,type=text,depends_on_key=operation,depends_on_values=create_customer"`
 
 	Name string `json:"name" schema:"label=Name,type=text,depends_on_key=operation,depends_on_values=create_customer"`
 
-	Amount float64 `json:"amount" schema:"label=Amount (cents),type=number,depends_on_key=operation,depends_on_values=create_charge|create_payment_intent"`
+	Amount float64 `json:"amount" schema:"label=Amount (cents),type=number,help=For create_refund: leave empty to refund the full amount.,depends_on_key=operation,depends_on_values=create_charge|create_payment_intent|create_refund"`
 
-	Currency string `json:"currency" schema:"label=Currency,type=text,default=usd,depends_on_key=operation,depends_on_values=create_charge|create_payment_intent"`
+	Currency string `json:"currency" schema:"label=Currency,type=text,default=usd,help=For create_checkout_session this is only sent in setup mode (prices carry their own currency).,depends_on_key=operation,depends_on_values=create_charge|create_payment_intent|create_checkout_session"`
 
 	Source string `json:"source" schema:"label=Source Token,type=text,depends_on_key=operation,depends_on_values=create_charge"`
 
 	PriceID string `json:"price_id" schema:"label=Price ID,type=text,placeholder=price_...,depends_on_key=operation,depends_on_values=create_subscription"`
 
 	SubscriptionID string `json:"subscription_id" schema:"label=Subscription ID,type=text,depends_on_key=operation,depends_on_values=cancel_subscription"`
+
+	PaymentIntentID string `json:"payment_intent_id" schema:"label=Payment Intent ID,type=text,placeholder=pi_...,help=For create_refund: the payment to refund (or use Charge ID).,depends_on_key=operation,depends_on_values=get_payment_intent|create_refund"`
+
+	ChargeID string `json:"charge_id" schema:"label=Charge ID,type=text,placeholder=ch_...,help=Refund a legacy charge instead of a payment intent.,depends_on_key=operation,depends_on_values=create_refund"`
+
+	Reason string `json:"reason" schema:"label=Refund Reason,type=select,options=duplicate|fraudulent|requested_by_customer,help=Optional.,depends_on_key=operation,depends_on_values=create_refund"`
+
+	Mode string `json:"mode" schema:"label=Checkout Mode,type=select,options=payment|subscription|setup,default=payment,depends_on_key=operation,depends_on_values=create_checkout_session"`
+
+	SuccessURL string `json:"success_url" schema:"label=Success URL,type=text,placeholder=https://example.com/thanks?session_id={CHECKOUT_SESSION_ID},depends_on_key=operation,depends_on_values=create_checkout_session"`
+
+	CancelURL string `json:"cancel_url" schema:"label=Cancel URL,type=text,placeholder=https://example.com/cart,depends_on_key=operation,depends_on_values=create_checkout_session"`
+
+	LineItems string `json:"line_items" schema:"label=Line Items (JSON),type=code,language=json,rows=4,placeholder=[{\"price\": \"price_...\"， \"quantity\": 1}],help=A list of {price， quantity} objects. Required in payment and subscription mode.,depends_on_key=operation,depends_on_values=create_checkout_session"`
 
 	Limit float64 `json:"limit" schema:"label=Max Results,type=number,default=10"`
 }

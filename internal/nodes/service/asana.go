@@ -8,7 +8,8 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-const asanaBaseURL = "https://app.asana.com/api/1.0"
+// asanaBaseURL is a var (not const) so tests can point it at an httptest server.
+var asanaBaseURL = "https://app.asana.com/api/1.0"
 
 // AsanaNode interacts with the Asana REST API.
 // Type: "service.asana"

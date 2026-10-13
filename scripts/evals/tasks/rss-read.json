@@ -1,0 +1,42 @@
+{
+  "id": "rss-read",
+  "mode": "both",
+  "workflow_name": "eval-rss-read",
+  "prompt": "Create a workflow named \"eval-rss-read\", run manually, that reads the RSS feed\nat {{FIXTURE_URL}}/feed.xml and keeps only the first 2 entries.",
+  "fixtures": [
+    "feed.xml"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "mcp_validate_ok"
+    },
+    {
+      "type": "mcp_run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "system.rss_read"
+      ]
+    },
+    {
+      "type": "output",
+      "path": "[*].title",
+      "equals": [
+        "Alpha release",
+        "Beta notes"
+      ]
+    }
+  ]
+}

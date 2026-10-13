@@ -15,6 +15,14 @@
       "label": "Max Items",
       "required": false,
       "type": "number"
+    },
+    {
+      "default": false,
+      "help": "Emit only entries this node has not seen in an earlier run: a new guid/link not dated before the newest entry already seen. The first run emits the whole feed. Remembered per node and feed URL; Max Items applies after this filter and entries it cuts are not emitted later.",
+      "key": "since_last_run",
+      "label": "Only New Since Last Run",
+      "required": false,
+      "type": "boolean"
     }
   ]
 }

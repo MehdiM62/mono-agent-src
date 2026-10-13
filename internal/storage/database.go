@@ -45,6 +45,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 		"file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)&_pragma=synchronous(NORMAL)",
 		absPath,
 	)
+	created := isNewFile(absPath)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
@@ -55,6 +56,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 		db.Close()
 		return nil, fmt.Errorf("pinging database: %w", err)
 	}
+	privatizeNewDB(created, absPath)
 
 	return &Database{DB: db, dbPath: absPath}, nil
 }
@@ -131,6 +133,9 @@ func (d *Database) ApplyMigrations() error {
 	for _, m := range migrations {
 		currentFile[m.version] = m.filename
 	}
+	binaryVersion := highestEmbeddedVersion(migrations)
+	applied := map[int]bool{}
+	lastApplied := 0
 	recRows, err := conn.QueryContext(ctx, `SELECT version, filename FROM schema_migrations`)
 	if err != nil {
 		return fmt.Errorf("reading schema_migrations: %w", err)
@@ -142,11 +147,18 @@ func (d *Database) ApplyMigrations() error {
 			recRows.Close()
 			return fmt.Errorf("scanning schema_migrations: %w", err)
 		}
+		applied[version] = true
+		if version > lastApplied {
+			lastApplied = version
+		}
 		if !filename.Valid || filename.String == "" {
 			continue
 		}
 		cur, ok := currentFile[version]
 		switch {
+		case !ok && version > binaryVersion:
+			// Not aliasing: a newer monoagent migrated this database;
+			// reported once below.
 		case !ok:
 			log.Printf("WARN: schema_migrations version %d recorded as %q but no migration file with that version exists anymore — version aliasing suspected", version, filename.String)
 		case cur != filename.String:
@@ -156,6 +168,21 @@ func (d *Database) ApplyMigrations() error {
 	recRows.Close()
 	if err := recRows.Err(); err != nil {
 		return fmt.Errorf("iterating schema_migrations: %w", err)
+	}
+
+	// A database migrated by a newer binary: say so clearly, but keep
+	// running (no new restrictions) — doctor reports it too.
+	if lastApplied > binaryVersion {
+		d.noticeSchemaAhead(lastApplied, binaryVersion)
+	}
+
+	// Snapshot before changing the schema of a database that has data, so
+	// a bad migration (or an irreversible DROP) can be rolled back by hand.
+	for _, m := range migrations {
+		if !applied[m.version] {
+			d.snapshotBeforeMigrate(ctx, conn, lastApplied)
+			break
+		}
 	}
 
 	for _, m := range migrations {
