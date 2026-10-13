@@ -175,6 +175,7 @@ Scopes:
 | `items` | every input item's JSON as a list, in `batch` operations |
 | `pre.<path>` | the decoded response of the op's (last) `before` request |
 | `bin.file_name`, `bin.mime_type`, `bin.file_extension`, `bin.base64`, `bin.file_size` | the uploaded binary's name and type (ops with `binary.upload_field`); raw/multipart uploads default their Content-Type to it |
+| `hdr.<Header-Name>` | the main response's headers, case-insensitive (`{{ hdr.Location }}`, `{{ hdr.Resource-ID }}`); with an empty body, `output.to`/`expand` still run on `{}` so 201-with-headers ops can return `{id, uri}` |
 | `main.<path>` | the main request's response, unchanged while `poll` repeats rebind `res` (also set in `also` steps) |
 | `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
 | `now` | the current UTC time (RFC 3339): `{{ now \| epoch \| add:p.duration \| date:'YYYY-MM-DDTHH:mm:ssZ' }}` |
@@ -307,6 +308,8 @@ status is an error carrying up to 64 KiB of the body:
 `apipkg todoist task.get: HTTP 404: {"error":"…"}`. Error handling in
 workflows is the node's normal `on_error`.
 
+`method` may be a template (`"{{ p.sendResume | then:'POST' | default:'GET' }}"`), upper-cased and checked at run time. A `path` that is a single expression yielding an absolute `http(s)://` URL is used unescaped.
+
 ## 7. Credentials and auth injection
 
 ```jsonc
@@ -361,6 +364,8 @@ workflows is the node's normal `on_error`.
 **Scope groups (`scope_group`).** A credential on an umbrella connection (`"reuse_platform": "google"` / `"microsoft"`) names the scope group it needs: `"scope_group": "calendar"` (google: sheets, gmail, drive, youtube, calendar, docs, forms, tasks, contacts; microsoft: mail, calendar, files, sites, teams). Before the first request the engine checks the connection grants it and otherwise fails with the exact `monoagentcli connect google --scopes …` command.
 
 **Signed JWT per request (`inject.jwt`).** For APIs that want a short-lived token you sign (Ghost Admin, Zoom JWT apps, App Store Connect): `"jwt": {"header": "Authorization", "prefix": "Ghost ", "alg": "HS256", "secret": "{{ cred.api_key | split:':' | get:'1' }}", "secret_encoding": "hex", "kid": "{{ cred.api_key | split:':' | get:'0' }}", "claims": {"aud": "/admin/"}, "ttl_s": 300}`. `alg`: HS256/384/512 (secret as `text` (default), `hex` or `base64`), RS256 or ES256 (secret = a PEM private key). `iat` and `exp` (= iat + ttl_s, default 300) are added; header defaults to Authorization with prefix "Bearer ".
+
+`oauth.token_fields: ["organizer_key", "account_key"]` copies those keys of the token response onto the connection at connect and refresh (readable as `cred.organizer_key`; GoTo Webinar).
 
 **Client-credentials grant (`"methods": ["client_credentials"]`).** For APIs where every call needs a token fetched with the OAuth client-credentials grant (Bitwarden, PayPal, many enterprise APIs). The user's connection holds the client id/secret (fields `client_id` / `client_secret`, or name them with `oauth.client_id_field` / `client_secret_field`). Before the first request the engine POSTs a form `grant_type=client_credentials` (+ `scope` from `oauth.scopes`, + `oauth.extra_params`) to `oauth.token_url`, sends the client id/secret in the form (or as Basic auth with `"client_auth": "basic"`), caches the token until just before `expires_in`, and exposes it as `cred.access_token` to `inject`. `token_url` and `extra_params` are templates over `cred.*` (self-hosted: `"https://{{ cred.domain }}/identity/connect/token"`). `auth_url` is not needed.
 ```json
@@ -422,7 +427,7 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
   { "when": "{{ p.updateFields.starValue }}", "method": "PUT", "path": "/contacts/{{ res.id }}/star", "body": { "star_value": "{{ p.updateFields.starValue | int }}" } }
 ]
 ```
-`"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). Step keys: `when`, `for_each`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
+`"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). A step with `"upload": true` sends the op's binary (`binary.upload_field`/`property`) as its raw body with the binary's Content-Type (LinkedIn: register an upload, PUT the bytes to `{{ pre.value.uploadUrl }}`, then create the post). Step keys: `when`, `for_each`, `upload`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
 
 **Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
 `"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.
@@ -438,6 +443,8 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - In `to`, `match` and `expand` templates `res` is the whole decoded response (the first page for paginated ops), so per-row shaping can read response-level headers.
 - `"schema_rows": "schema.fields"` (a path in the WHOLE response) turns BigQuery rows `{f: [{v}]}` at `output.path` into objects keyed by the schema's field names (RECORD recurses, REPEATED → list, BOOLEAN → bool); `"numbers": "{{ p.options.returnAsNumbers }}"` casts INTEGER/NUMERIC/FLOAT.
 - `"firestore": "{{ p.simple }}"` decodes Firestore documents into n8n's simple shape `{_name, _id, _createTime, _updateTime, …fields}` (use `"each": "found"` / `"document"` first for batchGet / runQuery).
+- `"limit": true` applies n8n's `returnAll`/`limit` params to a list the API returns whole (client-side slicing; replaces the `__no_next_page__` pagination trick).
+- `expand` with `"expand_merge_key": "transcript", "expand_merge_path": "callTranscripts.0.transcript"` sets that key on the element instead of replacing it.
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
 - `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept.
 
@@ -475,6 +482,8 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 `binary.upload_when` (template) decides per run whether to upload (n8n `sendBinaryData`); without the upload a multipart op sends its `body` as JSON (or nothing). `binary.multipart_field` may be a template, and `binary.property` (template) overrides the property read from `upload_field` — n8n's `"formField:binaryProperty"` values: `"multipart_field": "{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}"`, `"property": "{{ p.binaryPropertyName | split:':' | get:'-1' }}"`.
 
 **Files inside JSON.** Upload: `bin.base64` is the upload's bytes base64-encoded, for APIs that take file content in a JSON body (GitHub/GitLab `"content": "{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"` with `upload_when: "{{ p.binaryData }}"`). Download: `binary.download_base64` (template over `res`, e.g. `"{{ res.content }}"`) decodes a base64 file from the JSON response onto the item's binary (property from `property_field`, name from the `file_name` template, MIME type from `mime_type` or the name) and keeps the JSON as the item; gate it with `download_when`.
+
+`binary.fallback_body_type` (json/form/multipart/raw/none) is the body type when `upload_when` turns the upload off (LINE Notify stays a form without an image).
 
 ## 11. `extends` (apps with a native Go node)
 

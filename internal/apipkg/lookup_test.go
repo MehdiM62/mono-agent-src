@@ -672,3 +672,59 @@ func TestBase64InJSONUploadAndDownload(t *testing.T) {
 		t.Errorf("no download: %v", items)
 	}
 }
+
+func TestRoundHelpScoutLinkedInHumantic(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"create","title":"C","method":"POST","path":"/conversations",
+	  "fields":[{"key":"resolveData","label":"R","type":"boolean","default":true}],"body":{"x":1},
+	  "output":{"to":{"id":"{{ hdr.Resource-ID }}","uri":"{{ hdr.location }}"}}},
+	  {"resource":"","operation":"post","title":"P","method":"POST","path":"/rest/posts",
+	   "fields":[{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	   "before":[{"method":"POST","path":"/rest/images","query":{"action":"initializeUpload"}},
+	             {"upload":true,"method":"PUT","path":"{{ pre.value.uploadUrl }}"}],
+	   "body":{"media":"{{ pres.0.value.image }}"},"binary":{"upload_field":"binaryPropertyName","upload_when":"false"}},
+	  {"resource":"","operation":"profile","title":"H","method":"{{ p.resume | then:'post' | default:'GET' }}","path":"/user-profile/create",
+	   "fields":[{"key":"resume","label":"R","type":"text"}]},
+	  {"resource":"","operation":"list","title":"L","method":"GET","path":"/list",
+	   "fields":[{"key":"returnAll","label":"A","type":"boolean"},{"key":"limit","label":"L","type":"number"}],"output":{"limit":true}}`))
+	var reqs []*http.Request
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		reqs, bodies = append(reqs, r), append(bodies, string(b))
+		switch r.URL.Path {
+		case "/v1/conversations":
+			w.Header().Set("Resource-ID", "77")
+			w.Header().Set("Location", "https://api.test/conversations/77")
+			w.WriteHeader(201)
+		case "/v1/rest/images":
+			w.Write([]byte(`{"value":{"uploadUrl":"https://up.test/u1","image":"urn:li:image:1"}}`))
+		case "/v1/list":
+			w.Write([]byte(`[1,2,3,4]`))
+		default:
+			w.Write([]byte(`{}`))
+		}
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "create"}, cred, nil)
+	if err != nil || items[0].JSON["id"] != "77" || items[0].JSON["uri"] != "https://api.test/conversations/77" {
+		t.Errorf("hdr: %v %v", items, err)
+	}
+	reqs, bodies = nil, nil
+	if _, err := runPackageOp(p, map[string]any{"operation": "post"}, cred, map[string]any{"data": "aGk=", "file_name": "a.png"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 3 || reqs[1].Method != "PUT" || reqs[1].URL.Path != "/u1" || bodies[1] != "hi" || reqs[1].Header.Get("Content-Type") != "image/png" ||
+		bodies[2] != `{"media":"urn:li:image:1"}` {
+		t.Errorf("linkedin upload chain: %d reqs, bodies %q, step %s %s ct=%q", len(reqs), bodies, reqs[1].Method, reqs[1].URL.Path, reqs[1].Header.Get("Content-Type"))
+	}
+	reqs = nil
+	runPackageOp(p, map[string]any{"operation": "profile", "resume": "x"}, cred, nil)
+	runPackageOp(p, map[string]any{"operation": "profile"}, cred, nil)
+	if reqs[0].Method != "POST" || reqs[1].Method != "GET" {
+		t.Errorf("templated method: %s %s", reqs[0].Method, reqs[1].Method)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "list", "limit": 2}, cred, nil)
+	all, _ := runPackageOp(p, map[string]any{"operation": "list", "returnAll": true, "limit": 2}, cred, nil)
+	if len(items) != 2 || len(all) != 4 {
+		t.Errorf("output.limit: %d / %d", len(items), len(all))
+	}
+}

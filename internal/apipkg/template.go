@@ -32,7 +32,14 @@ type Scope struct {
 	// Main is the main request's decoded response, unchanged while poll
 	// repeats rebind res (Dropcontact: the id only the first reply has).
 	Main any
+	// Hdr is the main response's headers (first value each); lookups are
+	// case-insensitive (hdr.Location, hdr.Resource-ID).
+	Hdr headerMap
 }
+
+// headerMap holds response headers; lookupPath matches its keys
+// case-insensitively.
+type headerMap map[string]any
 
 func (s Scope) root(name string) any {
 	switch name {
@@ -56,6 +63,8 @@ func (s Scope) root(name string) any {
 		return s.Bin
 	case "main":
 		return s.Main
+	case "hdr":
+		return s.Hdr
 	case "now":
 		return time.Now().UTC().Format(time.RFC3339)
 	case "uuid":
@@ -226,9 +235,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "uuid", "now":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., pre., pres., bin. or be uuid / now", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., hdr., pre., pres., bin. or be uuid / now", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
@@ -327,6 +336,15 @@ func (e *expr) evalLit(sc Scope) (any, bool, error) {
 func lookupPath(v any, path []string) any {
 	for _, seg := range path {
 		switch c := v.(type) {
+		case headerMap:
+			var hit any
+			for k, x := range c {
+				if strings.EqualFold(k, seg) {
+					hit = x
+					break
+				}
+			}
+			v = hit
 		case map[string]any:
 			v = c[seg]
 		case []any:

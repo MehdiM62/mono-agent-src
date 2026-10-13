@@ -314,6 +314,12 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	if err := r.runAlso(ctx, resp); err != nil {
 		return nil, err
 	}
+	r.scope.Hdr = headerMap{}
+	for k, vs := range resp.header {
+		if len(vs) > 0 {
+			r.scope.Hdr[k] = vs[0]
+		}
+	}
 	if r.downloads() {
 		if b := r.op.Binary; b.DownloadBase64 != "" {
 			return r.downloadBase64Item(resp)
@@ -321,6 +327,15 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		return []workflow.Item{r.downloadItem(resp)}, nil
 	}
 	if len(strings.TrimSpace(string(resp.body))) == 0 {
+		// An empty body (201 + Location/Resource-ID headers) can still be
+		// shaped from hdr by output.to / output.expand.
+		if o := r.op.Output; o != nil && (o.To != nil || o.Expand != nil) {
+			shaped, err := r.shapeOutput(ctx, map[string]any{})
+			if err != nil {
+				return nil, err
+			}
+			return toItems(shaped, true), nil
+		}
 		return []workflow.Item{{JSON: map[string]any{"success": true}}}, nil
 	}
 	v := decodeBody(resp.body)
@@ -500,7 +515,14 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 	op := *r.op
 	op.Method, op.Path, op.BaseURL = st.Method, st.Path, st.BaseURL
 	op.Query, op.Body, op.BodyType, op.Headers = st.Query, st.Body, st.BodyType, st.Headers
-	op.Pagination, op.Binary, op.Also, op.Before = nil, nil, nil, nil
+	op.Pagination, op.Also, op.Before = nil, nil, nil
+	if st.Upload && r.op.Binary != nil && r.op.Binary.UploadField != "" {
+		b := *r.op.Binary
+		b.UploadWhen, b.DownloadWhen, b.Download, b.DownloadBase64 = "", "", false, ""
+		op.Binary, op.Body, op.BodyType = &b, nil, BodyRaw
+	} else {
+		op.Binary = nil
+	}
 	step := *r
 	step.op, step.scope = &op, sc
 	return step.send(ctx, pageParams{})
@@ -552,8 +574,19 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			if err != nil {
 				return nil, fmt.Errorf("output.expand element %d: %w", i, err)
 			}
-			if resp != nil && len(strings.TrimSpace(string(resp.body))) > 0 {
-				list[i] = decodeBody(resp.body)
+			if resp == nil || len(strings.TrimSpace(string(resp.body))) == 0 {
+				continue
+			}
+			got := decodeBody(resp.body)
+			if o.ExpandMergeKey == "" {
+				list[i] = got
+				continue
+			}
+			if o.ExpandMergePath != "" {
+				got = lookupPath(got, strings.Split(o.ExpandMergePath, "."))
+			}
+			if m, ok := el.(map[string]any); ok {
+				m[o.ExpandMergeKey] = got
 			}
 		}
 	}
@@ -595,6 +628,9 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 				list[i] = firestoreDoc(el)
 			}
 		}
+	}
+	if o.Limit {
+		list = r.clientLimit(list)
 	}
 	if o.To != nil {
 		apply := true
@@ -814,4 +850,17 @@ func (r *opRun) downloadBase64Item(resp *response) ([]workflow.Item, error) {
 	}
 	obj["binary_property"], obj["file_name"], obj["mime_type"], obj["size"] = prop, name, mt, len(data)
 	return []workflow.Item{{JSON: obj, Binary: map[string][]byte{prop: data}}}, nil
+}
+
+// clientLimit honours the op's returnAll/limit params on a list the API
+// returned whole (n8n slices client-side).
+func (r *opRun) clientLimit(list []any) []any {
+	if b, _ := toBool(r.params["returnAll"]); b == true {
+		return list
+	}
+	n, _ := toInt(r.params["limit"])
+	if l, ok := n.(int64); ok && l > 0 && int(l) < len(list) {
+		return list[:l]
+	}
+	return list
 }
