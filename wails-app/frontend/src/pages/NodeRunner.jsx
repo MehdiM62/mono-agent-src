@@ -3,11 +3,11 @@ import {
   Play, Square, RotateCcw, ZoomIn, ZoomOut, Trash2, Search,
   ChevronDown, ChevronRight, X, Settings2, Copy, RefreshCw,
   AlertCircle, CheckCircle, Clock, Loader, Plus,
-  Save, FolderOpen, ToggleLeft, ToggleRight, List,
+  Save, FolderOpen, ToggleLeft, ToggleRight, List, LayoutTemplate,
   Braces, LayoutDashboard, Upload, UploadCloud,
 } from 'lucide-react'
 import * as WailsApp from '../wailsjs/go/main/App'
-import { api, notify, subscribeEvent } from '../services/api.js'
+import { api, notify, reportRunFailure, subscribeEvent } from '../services/api.js'
 import { confirm } from '../components/ConfirmDialog.jsx'
 import ResourcePickerField from '../components/ResourcePickerField.jsx'
 import ImagePickerModal from '../components/ImagePickerModal'
@@ -21,7 +21,9 @@ import WorkflowImportDialog from './WorkflowImportDialog.jsx'
 import PublishToMonoesDialog from '../components/library/PublishToMonoesDialog.jsx'
 import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom } from './nodeInspectorRules.js'
 import { onAutomationsChanged } from '../lib/appEvents.js'
-import { paletteCategoryLabel, paletteSectionOf, splitPaletteSections } from './paletteSections.js'
+import { arrangePaletteCategories, DEPRECATED, paletteCategoryLabel, paletteSectionOf, splitPaletteSections } from './paletteSections.js'
+import { runProblem } from '../lib/runFailure.js'
+import RunProblemPanel from '../components/RunProblemPanel.jsx'
 import { rememberTriggerInput, rememberedTriggerInput } from './triggerInput.js'
 import { usePageVisibleRef } from '../lib/usePageVisible.js'
 import { isAgentNotSetup, withoutAgentSetupMarker } from '../lib/agentSetup.js'
@@ -253,20 +255,20 @@ function CanvasNode({ node, selected, zoom, onHeaderMouseDown, onOutputPortMouse
 // ── Save workflow modal ───────────────────────────────────────────────────────
 
 // ── Node palette sidebar ──────────────────────────────────────────────────────
-function Palette({ categories, onAdd, onNodeMouseDown }) {
+function Palette({ categories, onAdd, onNodeMouseDown, onBrowseAutomations }) {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nr2-palette-open') || '{}') } catch { return {} }
   })
 
-  const toggle = (id) => setOpen(prev => {
-    const next = { ...prev, [id]: !prev[id] }
+  const toggle = (id, wasOpen) => setOpen(prev => {
+    const next = { ...prev, [id]: !wasOpen }
     try { localStorage.setItem('nr2-palette-open', JSON.stringify(next)) } catch {}
     return next
   })
 
   const q = search.toLowerCase()
-  const filtered = categories.map(cat => ({
+  const filtered = arrangePaletteCategories(categories).map(cat => ({
     ...cat,
     nodes: q ? cat.nodes.filter(n => n.label.toLowerCase().includes(q) || n.subtype.toLowerCase().includes(q) || cat.label.toLowerCase().includes(q)) : cat.nodes,
   })).filter(cat => cat.nodes.length > 0)
@@ -309,16 +311,22 @@ function Palette({ categories, onAdd, onNodeMouseDown }) {
             </div>
             {sec.categories.length === 0 && (
               <div style={{ padding: '2px 10px 8px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                {search ? 'No matches' : 'None installed — install web automations from the monoes.me library'}
+                {search ? 'No matches' : <>
+                  None installed —{' '}
+                  <button onClick={onBrowseAutomations} style={{
+                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                    fontFamily: 'var(--font-mono)', fontSize: 10, color: '#00b4d8', textDecoration: 'underline', textAlign: 'left',
+                  }}>browse and install web automations</button>
+                </>}
               </div>
             )}
         {sec.categories.map(cat => {
-          const isOpen = search ? true : (open[cat.id] !== false)
-          const color = catColor(cat.id)
+          const isOpen = search ? true : (open[cat.id] ?? !cat.collapsedByDefault)
+          const color = cat.id === DEPRECATED ? '#6b7280' : catColor(cat.id)
           return (
             <div key={cat.id}>
               <div
-                onClick={() => !search && toggle(cat.id)}
+                onClick={() => !search && toggle(cat.id, isOpen)}
                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 10px 5px', cursor: search ? 'default' : 'pointer', userSelect: 'none' }}
               >
                 {!search && (isOpen ? <ChevronDown size={9} color={color} /> : <ChevronRight size={9} color={color} />)}
@@ -329,8 +337,8 @@ function Palette({ categories, onAdd, onNodeMouseDown }) {
               {isOpen && cat.nodes.map(n => (
                 <div
                   key={n.subtype}
-                  onMouseDown={e => { e.preventDefault(); onNodeMouseDown(e, { ...n, category: cat.id }) }}
-                  onClick={() => onAdd({ ...n, category: cat.id })}
+                  onMouseDown={e => { e.preventDefault(); onNodeMouseDown(e, { ...n, category: n.category || cat.id }) }}
+                  onClick={() => onAdd({ ...n, category: n.category || cat.id })}
                   title={`Click or drag to add ${n.label}`}
                   style={{
                     padding: '5px 14px 5px 20px',
@@ -1026,7 +1034,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const [wfActive, setWfActive] = useState(false)
   const [saving,        setSaving]       = useState(false)
   const [saveMsg,       setSaveMsg]       = useState(null) // { ok: bool, text: string }
-  const [showWfModal,   setShowWfModal]   = useState(false)
+  const [showWfModal,   setShowWfModal]   = useState(false) // false | 'saved' | 'templates'
   const [showImport,    setShowImport]    = useState(false)
   const [showPublish,   setShowPublish]   = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
@@ -1046,19 +1054,26 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const [jsonView, setJsonView] = useState(false)
 
   // ── Execution overlay ───────────────────────────────────────────────────
-  const [execOverlay, setExecOverlay] = useState(null) // { id, status, nodes: [] }
+  const [execOverlay, setExecOverlay] = useState(null) // { id, status, nodes: [], problem }
+  const [problemHidden, setProblemHidden] = useState(false) // the user closed the error panel
   const pollRef = useRef(null) // setInterval id for execution polling
   const pageVisibleRef = usePageVisibleRef() // gates poll ticks while hidden
 
   // Shared: map execution detail → node badges
   const applyExecDetail = (detail) => {
     if (!detail) return
-    setExecOverlay({ id: detail.id, status: detail.status, nodes: detail.nodes || [], hint: detail.hint || null, error: detail.error || '' })
+    // Why a run failed: the execution's error plus each failed node's, with
+    // the node an engine-level error names (e.g. an unknown node type that
+    // never got to execute) marked on the canvas too.
+    const problem = runProblem(detail, nodesRef.current || [])
+    const inferred = new Map((problem?.failed || []).filter(f => f.inferred).map(f => [f.id, f.error]))
+    setExecOverlay({ id: detail.id, status: detail.status, nodes: detail.nodes || [], hint: detail.hint || null, error: detail.error || '', problem })
     setNodes(prev => {
       const byId = {}; const byName = {}
       ;(detail.nodes || []).forEach(en => { byId[en.node_id] = en; byName[en.node_name] = en })
       return prev.map(n => {
         const en = byId[n.id] || byName[n.label]
+        if (!en && inferred.has(n.id)) return { ...n, runStatus: 'error', runError: inferred.get(n.id), runDuration: null, runOutputItems: 0, runInputItems: null, runOutputs: null }
         if (!en) return { ...n, runStatus: null, runError: null, runDuration: null, runOutputItems: 0, runInputItems: null, runOutputs: null }
         const s = (en.status || '').toUpperCase()
         let runStatus = null
@@ -1171,6 +1186,9 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     })()
     return () => { cancelled = true }
   }, [navData?.workflowId, navData?.executionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The dashboard's "Get started" sends { openTemplates: true }.
+  useEffect(() => { if (navData?.openTemplates) setShowWfModal('templates') }, [navData])
 
   // When arriving from Dashboard with an executionId, load workflow + overlay
   useEffect(() => {
@@ -1510,6 +1528,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     setRunning(true)
     setGlobalStatus(null)
     setExecOverlay(null)
+    setProblemHidden(false)
     setNodes(prev => prev.map(n => ({ ...n, runStatus: null, runInputItems: null, runOutputs: null, runOutputItems: 0, runDuration: null, runError: null })))
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
 
@@ -1531,34 +1550,71 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       // Listen for the execution ID via Wails event — emitted when CLI prints
       // "Execution started: <id>". subscribeEvent returns a cancel fn that
       // removes only this listener (EventsOff would kill all of them).
+      // A process that exits before naming an execution (workflow:complete
+      // first) resolves null at once instead of waiting out the timeout.
       let offEvent = () => {}
+      let offComplete = () => {}
       let cancelTimeout = () => {}
       const execIdPromise = new Promise((resolve) => {
         offEvent = subscribeEvent('workflow:exec-started', (data) => {
           if (runTokenRef.current !== runToken) return // stale run's listener
           if (data?.execution_id) resolve(data.execution_id)
         })
+        offComplete = subscribeEvent('workflow:complete', (data) => {
+          if (runTokenRef.current !== runToken) return
+          if (data?.workflow_id === currentWfId) resolve(null)
+        })
         const t = setTimeout(() => resolve(null), 60000)
         cancelTimeout = () => clearTimeout(t)
       })
 
       try {
-        await api.runWorkflowWithInput(currentWfId, inputJSON)
+        // A refused run (inactive, already running, bad input) answers at
+        // once: reset the button and say why instead of waiting for an
+        // execution that will never start.
+        const started = await api.runWorkflowWithInput(currentWfId, inputJSON)
+        if (!started?.ok) {
+          if (runTokenRef.current === runToken) setRunning(false)
+          reportRunFailure(started?.error || 'Run failed', {
+            activateAndRun: () => activateAndRun(currentWfId, inputJSON),
+          })
+          return
+        }
         rememberTriggerInput(currentWfId, inputJSON)
         const execId = await execIdPromise
         if (runTokenRef.current !== runToken) return // superseded by a newer run
-        if (!execId) { setRunning(false); return }
+        if (!execId) {
+          setRunning(false)
+          notify('run workflow', 'The run stopped before it started — open Live Logs for the output.')
+          return
+        }
 
         // Start polling execution detail — simple setInterval, no React effects
         startExecPoll(execId)
       } finally {
         cancelTimeout()
         offEvent()
+        offComplete()
       }
     } catch (err) {
       console.error('Run failed', err)
       setRunning(false)
     }
+  }
+  const startRunRef = useRef(startRun)
+  startRunRef.current = startRun
+
+  // The "Activate & run" toast action: the user's click switches the
+  // workflow on, then the same run starts again.
+  const activateAndRun = async (id, inputJSON) => {
+    try {
+      await SetWorkflowActive(id, true)
+    } catch (e) {
+      notify('activate workflow', e?.message || e)
+      return
+    }
+    setWfActive(true)
+    startRunRef.current(inputJSON)
   }
 
   // ── Save workflow ─────────────────────────────────────────────────────────
@@ -1612,7 +1668,9 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   }, [saving, wfId, wfName, nodes, edges, setShowSaveModal])
 
   // ── Load workflow ─────────────────────────────────────────────────────────
-  const handleLoad = useCallback(async (id) => {
+  // keepModal: the mount-time restore must not close a Templates dialog the
+  // dashboard just asked for.
+  const handleLoad = useCallback(async (id, { keepModal = false } = {}) => {
     // Guard the dirty canvas: Load (modal), template creation and AI-created
     // workflows all funnel through here.
     if (isDirty && !(await confirm('Discard unsaved changes?', { title: 'Load Workflow', confirmLabel: 'Discard & Load' }))) return
@@ -1664,7 +1722,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       setGlobalStatus(null)
       setIsDirty(false)
       setCamera({ x: 60, y: 60, zoom: 1 })
-      setShowWfModal(false)
+      if (!keepModal) setShowWfModal(false)
     } catch (e) {
       console.error('Load failed', e)
     }
@@ -1672,7 +1730,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
 
   // ── Auto-load last workflow on mount ──────────────────────────────────────
   useEffect(() => {
-    if (wfId && nodes.length === 0) handleLoad(wfId)
+    if (wfId && nodes.length === 0) handleLoad(wfId, { keepModal: true })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Refresh: force-reload the currently open workflow from the backend ────
@@ -1862,14 +1920,24 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
             {(execOverlay.status === 'COMPLETED' || execOverlay.status === 'SUCCESS') && <CheckCircle size={10} color="#10b981" />}
             {execOverlay.status === 'FAILED' && <AlertCircle size={10} color="#ef4444" />}
             {execOverlay.status === 'CANCELLED' && <X size={10} color="#6b7280" />}
-            <span style={{
-              fontFamily: 'var(--font-mono)', fontSize: 9,
-              color: execOverlay.status === 'RUNNING' ? 'var(--cyan)' :
-                     execOverlay.status === 'WAITING' ? '#f59e0b' :
-                     execOverlay.status === 'COMPLETED' || execOverlay.status === 'SUCCESS' ? '#10b981' :
-                     execOverlay.status === 'FAILED' ? '#ef4444' : '#6b7280',
-              textTransform: 'uppercase',
-            }}>
+            {execOverlay.status === 'SUCCESS_WITH_ERRORS' && <AlertCircle size={10} color="#fbbf24" />}
+            <span
+              role={execOverlay.problem ? 'button' : undefined}
+              tabIndex={execOverlay.problem ? 0 : undefined}
+              onClick={execOverlay.problem ? () => setProblemHidden(h => !h) : undefined}
+              onKeyDown={execOverlay.problem ? (e) => { if (e.key === 'Enter' || e.key === ' ') setProblemHidden(h => !h) } : undefined}
+              title={execOverlay.problem ? (problemHidden ? 'Show why' : 'Hide the error') : undefined}
+              style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9,
+                color: execOverlay.status === 'RUNNING' ? 'var(--cyan)' :
+                       execOverlay.status === 'WAITING' ? '#f59e0b' :
+                       execOverlay.status === 'COMPLETED' || execOverlay.status === 'SUCCESS' ? '#10b981' :
+                       execOverlay.status === 'FAILED' ? '#ef4444' :
+                       execOverlay.status === 'SUCCESS_WITH_ERRORS' ? '#fbbf24' : '#6b7280',
+                textTransform: 'uppercase',
+                cursor: execOverlay.problem ? 'pointer' : 'default',
+                textDecoration: execOverlay.problem && problemHidden ? 'underline' : 'none',
+              }}>
               Execution: {execOverlay.status}
             </span>
             {execOverlay.status === 'FAILED' && isAgentNotSetup(execOverlay.error) && <AgentSetupLink onNavigate={onNavigate} compact />}
@@ -1910,7 +1978,12 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         <button style={tbBtn} onClick={handleNew} title="New workflow"><Plus size={13} /></button>
 
         {/* Load */}
-        <button style={tbBtn} onClick={() => setShowWfModal(true)} title="Open saved workflow"><FolderOpen size={13} /></button>
+        <button style={tbBtn} onClick={() => setShowWfModal('saved')} title="Open saved workflow"><FolderOpen size={13} /></button>
+
+        {/* Templates: labelled, so starting from one needs no hunting */}
+        <button style={{ ...tbBtn, gap: 5, fontFamily: 'var(--font-mono)', fontSize: 10 }} onClick={() => setShowWfModal('templates')} title="Start from a template">
+          <LayoutTemplate size={13} /> Templates
+        </button>
 
         {/* Import a workflow file (CLI `workflow import`) */}
         <button style={tbBtn} onClick={() => setShowImport(true)} title="Import workflow" aria-label="Import workflow"><Upload size={13} /></button>
@@ -2051,6 +2124,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
 
       {showWfModal && (
         <WorkflowsModal
+          initialTab={showWfModal === 'templates' ? 'templates' : 'saved'}
           currentId={wfId}
           onLoad={handleLoad}
           onLibraryInstalled={() => { onWorkflowsChanged?.(); loadCatalog() }}
@@ -2068,11 +2142,20 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         />
       )}
 
+      {execOverlay?.problem && !problemHidden && (
+        <RunProblemPanel
+          problem={execOverlay.problem}
+          onSelectNode={(id) => { setSelectedId(id); setInspectorOpen(true) }}
+          onClose={() => setProblemHidden(true)}
+        />
+      )}
+
       {/* ── MAIN LAYOUT ── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
         {/* Palette */}
-        <Palette categories={categories} onAdd={addNode} onNodeMouseDown={onPaletteNodeMouseDown} />
+        <Palette categories={categories} onAdd={addNode} onNodeMouseDown={onPaletteNodeMouseDown}
+          onBrowseAutomations={() => onNavigate?.('connections')} />
 
         {/* Canvas / JSON view */}
         {jsonView ? (
@@ -2149,8 +2232,11 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
                 pointerEvents: 'none',
               }}>
                 <Plus size={32} style={{ opacity: 0.1 }} />
+                <button className="btn btn-secondary btn-sm" style={{ pointerEvents: 'auto', gap: 6 }} onClick={() => setShowWfModal('templates')}>
+                  <LayoutTemplate size={13} /> Start from a template
+                </button>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.8 }}>
-                  Click or drag nodes from the left panel<br />
+                  or click or drag nodes from the left panel<br />
                   Connect output → input ports to chain them<br />
                   Press <kbd style={{ background: 'rgba(0,180,216,0.1)', border: '1px solid rgba(0,180,216,0.2)', borderRadius: 3, padding: '1px 5px' }}>RUN</kbd> to execute
                 </div>
