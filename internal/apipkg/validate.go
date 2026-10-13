@@ -202,6 +202,21 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	for k, v := range o.Headers {
 		probs = append(probs, checkTemplates(where+" headers."+k, v, fields, credKeys)...)
 	}
+	for i, st := range o.Also {
+		sw := fmt.Sprintf("%s also[%d]", where, i)
+		if !validMethods[st.Method] {
+			add("also[%d]: method %q must be GET, POST, PUT, PATCH, DELETE or HEAD", i, st.Method)
+		}
+		if st.Path == "" {
+			add("also[%d]: path is required", i)
+		}
+		for _, v := range []any{st.When, st.BaseURL, st.Path, st.Query, st.Body} {
+			probs = append(probs, checkTemplates(sw, v, fields, credKeys)...)
+		}
+		for k, v := range st.Headers {
+			probs = append(probs, checkTemplates(sw+" headers."+k, v, fields, credKeys)...)
+		}
+	}
 	bt := o.effectiveBodyType()
 	if (bt == BodyForm || bt == BodyMultipart) && o.Body != nil {
 		if _, ok := o.Body.(map[string]any); !ok {
@@ -243,6 +258,8 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 
 // checkTemplates parses every template string in v and checks that p.X
 // names a field (when fields is set) and cred.X a credential key.
+var validMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true}
+
 func checkTemplates(where string, v any, fields, credKeys map[string]bool) []string {
 	var probs []string
 	var walk func(any)
@@ -302,9 +319,9 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item":
+	case "item", "el", "res":
 		if fields == nil {
-			return []string{fmt.Sprintf("%s: {{ %s }}: item.* is not available here (only cred.*)", where, e.src)}
+			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}
 	}
 	return nil

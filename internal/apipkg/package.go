@@ -127,6 +127,24 @@ type Operation struct {
 	Output      *Output                    `json:"output,omitempty"`
 	Binary      *Binary                    `json:"binary,omitempty"`
 	N8nParamMap map[string]string          `json:"n8n_param_map,omitempty"`
+	// Also are follow-up requests sent after the main one, in order, for
+	// n8n operations that make several calls (e.g. update fields, then
+	// tags). Each may read res (the main response). The node's output is
+	// still the main response.
+	Also []Step `json:"also,omitempty"`
+}
+
+// Step is one follow-up request of an operation. When is a template; an
+// empty result skips the step (e.g. "{{ p.updateFields.tags }}").
+type Step struct {
+	When     string            `json:"when,omitempty"`
+	Method   string            `json:"method"`
+	Path     string            `json:"path"`
+	BaseURL  string            `json:"base_url,omitempty"`
+	Query    map[string]any    `json:"query,omitempty"`
+	Body     any               `json:"body,omitempty"`
+	BodyType string            `json:"body_type,omitempty"`
+	Headers  map[string]string `json:"headers,omitempty"`
 }
 
 // Key is "<resource>.<operation>", or just the operation when the package
