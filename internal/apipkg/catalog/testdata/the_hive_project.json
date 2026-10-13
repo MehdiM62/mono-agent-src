@@ -1,0 +1,1959 @@
+{
+  "alert.create": {
+    "params": {
+      "alertFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "title": "T",
+          "type": "ext",
+          "source": "s",
+          "sourceRef": "r",
+          "date": "2024-01-01T00:00:00Z",
+          "tags": "a,b"
+        }
+      },
+      "observableUi": {
+        "values": [
+          {
+            "dataType": "ip",
+            "data": "1.2.3.4",
+            "tags": "x"
+          }
+        ]
+      }
+    },
+    "response": {
+      "_id": "~1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/alert",
+      "body": {
+        "title": "T",
+        "type": "ext",
+        "source": "s",
+        "sourceRef": "r",
+        "date": 1704067200000,
+        "tags": [
+          "a",
+          "b"
+        ],
+        "observables": [
+          {
+            "dataType": "ip",
+            "data": "1.2.3.4",
+            "tags": [
+              "x"
+            ]
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "alert.deleteAlert": {
+    "params": {
+      "alertId": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://hive.example.com/alerts/~123/details"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/alert/~123"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "alert.executeResponder": {
+    "params": {
+      "id": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://hive.example.com/alerts/~123/details"
+      },
+      "responder": "r1"
+    },
+    "responses": [
+      {
+        "cortexId": "cx",
+        "objectId": "o1",
+        "startDate": 1,
+        "status": "Waiting"
+      },
+      [
+        {
+          "status": "Success"
+        }
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/connector/cortex/action",
+        "body": {
+          "responderId": "r1",
+          "objectId": "~123",
+          "objectType": "alert"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "cx"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "o1"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/connector/cortex/action",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "alert.get": {
+    "params": {
+      "alertId": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://hive.example.com/alerts/~123/details"
+      },
+      "options": {
+        "includeSimilarAlerts": true
+      }
+    },
+    "responses": [
+      {
+        "_id": "~123"
+      },
+      [
+        {
+          "_id": "~9"
+        }
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/v1/alert/~123"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/query",
+        "body": {
+          "query": [
+            {
+              "_name": "getAlert",
+              "idOrName": "~123"
+            },
+            {
+              "_name": "similarAlerts"
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/alert/~123",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "alert.merge": {
+    "params": {
+      "alertId": "~1",
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/alert/~1/merge/~456"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "alert.promote": {
+    "params": {
+      "alertId": "~1",
+      "options": {
+        "caseTemplate": "tpl"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/alert/~1/case",
+      "body": {
+        "caseTemplate": "tpl"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "alert.search": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "values": [
+          {
+            "field": "title",
+            "operator": "_like",
+            "value": "x"
+          },
+          {
+            "field": "severity",
+            "operator": "_in",
+            "values": "2,3"
+          }
+        ]
+      },
+      "sort": {
+        "fields": [
+          {
+            "field": "_createdAt",
+            "direction": "desc"
+          }
+        ]
+      }
+    },
+    "response": [
+      {
+        "_id": "a"
+      },
+      {
+        "_id": "b"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "listAlert"
+          },
+          {
+            "_name": "filter",
+            "_and": [
+              {
+                "_like": {
+                  "_field": "title",
+                  "_value": "x"
+                }
+              },
+              {
+                "_in": {
+                  "_field": "severity",
+                  "_values": [
+                    "2",
+                    "3"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "_name": "sort",
+            "_fields": [
+              {
+                "_createdAt": "desc"
+              }
+            ]
+          },
+          {
+            "_name": "page",
+            "from": 0,
+            "to": 5
+          }
+        ]
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "alert.update": {
+    "params": {
+      "alertUpdateFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "title": "T",
+          "tags": "a, b",
+          "severity": 3
+        },
+        "matchingColumns": [
+          "title"
+        ]
+      }
+    },
+    "responses": [
+      [
+        {
+          "_id": "~1"
+        },
+        {
+          "_id": "~2"
+        }
+      ],
+      {}
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/alert/_bulk",
+      "body": {
+        "tags": [
+          "a",
+          "b"
+        ],
+        "severity": 3,
+        "ids": [
+          "~1",
+          "~2"
+        ]
+      }
+    },
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/v1/query",
+        "body": {
+          "query": [
+            {
+              "_name": "listAlert"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_eq": {
+                    "_field": "title",
+                    "_value": "T"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/alert/_bulk",
+        "body": {
+          "tags": [
+            "a",
+            "b"
+          ],
+          "severity": 3,
+          "ids": [
+            "~1",
+            "~2"
+          ]
+        }
+      }
+    ],
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "alert.status": {
+    "params": {
+      "alertId": "~1",
+      "status": "Ignored"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/alert/~1",
+      "body": {
+        "status": "Ignored"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.create": {
+    "params": {
+      "caseFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "title": "C",
+          "description": "d",
+          "startDate": "2024-01-01T00:00:00Z"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/case",
+      "body": {
+        "title": "C",
+        "description": "d",
+        "startDate": 1704067200000
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.addAttachment": {
+    "params": {
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      },
+      "attachmentsUi": {
+        "values": [
+          {
+            "field": "data"
+          }
+        ]
+      }
+    },
+    "input": {
+      "data": "aGk="
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/case/~456/attachments",
+      "body": {
+        "canRename": "false",
+        "attachments": "file:data:hi"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.deleteAttachment": {
+    "params": {
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      },
+      "attachmentId": "at1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/case/~456/attachment/at1"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.deleteCase": {
+    "params": {
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/case/~456"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.executeResponder": {
+    "params": {
+      "id": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      },
+      "responder": "r1"
+    },
+    "responses": [
+      {
+        "cortexId": "cx",
+        "objectId": "o1",
+        "startDate": 1,
+        "status": "Waiting"
+      },
+      [
+        {
+          "status": "Success"
+        }
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/connector/cortex/action",
+        "body": {
+          "responderId": "r1",
+          "objectId": "~456",
+          "objectType": "case"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "cx"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "o1"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/connector/cortex/action",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.get": {
+    "params": {
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      }
+    },
+    "response": [
+      {
+        "_id": "~456"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "query": {
+        "name": "get-case-~456"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "getCase",
+            "idOrName": "~456"
+          },
+          {
+            "_name": "page",
+            "from": 0,
+            "to": 10,
+            "extraData": [
+              "attachmentCount"
+            ]
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.getAttachment": {
+    "params": {
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      },
+      "attachmentId": "at1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/case/~456/attachment/at1/download"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.getTimeline": {
+    "params": {
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/case/~456/timeline"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.search": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "values": [
+          {
+            "field": "title",
+            "operator": "_like",
+            "value": "x"
+          },
+          {
+            "field": "severity",
+            "operator": "_in",
+            "values": "2,3"
+          }
+        ]
+      },
+      "sort": {
+        "fields": [
+          {
+            "field": "_createdAt",
+            "direction": "desc"
+          }
+        ]
+      }
+    },
+    "response": [
+      {
+        "_id": "a"
+      },
+      {
+        "_id": "b"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "listCase"
+          },
+          {
+            "_name": "filter",
+            "_and": [
+              {
+                "_like": {
+                  "_field": "title",
+                  "_value": "x"
+                }
+              },
+              {
+                "_in": {
+                  "_field": "severity",
+                  "_values": [
+                    "2",
+                    "3"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "_name": "sort",
+            "_fields": [
+              {
+                "_createdAt": "desc"
+              }
+            ]
+          },
+          {
+            "_name": "page",
+            "from": 0,
+            "to": 5
+          }
+        ]
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "case.update": {
+    "params": {
+      "caseUpdateFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "id": "~456",
+          "title": "New"
+        },
+        "matchingColumns": [
+          "id"
+        ]
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/case/~456",
+      "body": {
+        "title": "New"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "comment.add": {
+    "params": {
+      "addTo": "case",
+      "id": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://h/cases/~7/details"
+      },
+      "message": "hi"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/case/~7/comment",
+      "body": {
+        "message": "hi"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "comment.deleteComment": {
+    "params": {
+      "commentId": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/comment/c1"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "comment.search": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "values": [
+          {
+            "field": "title",
+            "operator": "_like",
+            "value": "x"
+          },
+          {
+            "field": "severity",
+            "operator": "_in",
+            "values": "2,3"
+          }
+        ]
+      },
+      "sort": {
+        "fields": [
+          {
+            "field": "_createdAt",
+            "direction": "desc"
+          }
+        ]
+      },
+      "searchIn": "case",
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      }
+    },
+    "response": [
+      {
+        "_id": "a"
+      },
+      {
+        "_id": "b"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "getCase",
+            "idOrName": "~456"
+          },
+          {
+            "_name": "comments"
+          },
+          {
+            "_name": "filter",
+            "_and": [
+              {
+                "_like": {
+                  "_field": "title",
+                  "_value": "x"
+                }
+              },
+              {
+                "_in": {
+                  "_field": "severity",
+                  "_values": [
+                    "2",
+                    "3"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "_name": "sort",
+            "_fields": [
+              {
+                "_createdAt": "desc"
+              }
+            ]
+          },
+          {
+            "_name": "page",
+            "from": 0,
+            "to": 5
+          }
+        ]
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "comment.update": {
+    "params": {
+      "commentId": "c1",
+      "message": "m"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/comment/c1",
+      "body": {
+        "message": "m"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "log.create": {
+    "params": {
+      "taskId": "t1",
+      "logFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "message": "did it"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/task/t1/log",
+      "body": {
+        "message": "did it"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "log.addAttachment": {
+    "params": {
+      "logId": "l1",
+      "attachmentsUi": {
+        "values": [
+          {
+            "field": "data"
+          }
+        ]
+      }
+    },
+    "input": {
+      "data": "aGk="
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/log/l1/attachments",
+      "body": {
+        "attachments": "file:data:hi"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "log.deleteLog": {
+    "params": {
+      "logId": "l1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/log/l1"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "log.deleteAttachment": {
+    "params": {
+      "logId": "l1",
+      "attachmentId": "a1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/log/l1/attachments/a1"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "log.executeResponder": {
+    "params": {
+      "id": "l1",
+      "responder": "r1"
+    },
+    "responses": [
+      {
+        "cortexId": "cx",
+        "objectId": "o1",
+        "startDate": 1,
+        "status": "Waiting"
+      },
+      [
+        {
+          "status": "Success"
+        }
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/connector/cortex/action",
+        "body": {
+          "responderId": "r1",
+          "objectId": "l1",
+          "objectType": "case_task_log"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "cx"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "o1"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/connector/cortex/action",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "log.get": {
+    "params": {
+      "logId": "l1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "getLog",
+            "idOrName": "l1"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "log.search": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "values": [
+          {
+            "field": "title",
+            "operator": "_like",
+            "value": "x"
+          },
+          {
+            "field": "severity",
+            "operator": "_in",
+            "values": "2,3"
+          }
+        ]
+      },
+      "sort": {
+        "fields": [
+          {
+            "field": "_createdAt",
+            "direction": "desc"
+          }
+        ]
+      }
+    },
+    "response": [
+      {
+        "_id": "a"
+      },
+      {
+        "_id": "b"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "listLog"
+          },
+          {
+            "_name": "filter",
+            "_and": [
+              {
+                "_like": {
+                  "_field": "title",
+                  "_value": "x"
+                }
+              },
+              {
+                "_in": {
+                  "_field": "severity",
+                  "_values": [
+                    "2",
+                    "3"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "_name": "sort",
+            "_fields": [
+              {
+                "_createdAt": "desc"
+              }
+            ]
+          },
+          {
+            "_name": "page",
+            "from": 0,
+            "to": 5
+          }
+        ]
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "observable.create": {
+    "params": {
+      "createIn": "alert",
+      "id": "~1",
+      "dataType": "domain",
+      "data": "example.com",
+      "observableFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "tlp": 2,
+          "tags": "a"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/alert/~1/observable",
+      "body": {
+        "dataType": "domain",
+        "data": "example.com",
+        "tlp": 2,
+        "tags": [
+          "a"
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "observable.deleteObservable": {
+    "params": {
+      "observableId": "o1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/observable/o1"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "observable.executeAnalyzer": {
+    "params": {
+      "observableId": "o1",
+      "dataType": "ip",
+      "analyzers": [
+        "Abuse_1_0::cortex1"
+      ]
+    },
+    "responses": [
+      {
+        "id": "j1",
+        "status": "Waiting"
+      },
+      {
+        "id": "j1",
+        "status": "Success"
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/connector/cortex/job",
+        "body": {
+          "analyzerId": "Abuse_1_0",
+          "cortexId": "cortex1",
+          "artifactId": "o1"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/connector/cortex/job/j1",
+        "query": {
+          "name": "observable-jobs"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/connector/cortex/job",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "observable.executeResponder": {
+    "params": {
+      "id": "o1",
+      "responder": "r1"
+    },
+    "responses": [
+      {
+        "cortexId": "cx",
+        "objectId": "o1",
+        "startDate": 1,
+        "status": "Waiting"
+      },
+      [
+        {
+          "status": "Success"
+        }
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/connector/cortex/action",
+        "body": {
+          "responderId": "r1",
+          "objectId": "o1",
+          "objectType": "case_artifact"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "cx"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "o1"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/connector/cortex/action",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "observable.get": {
+    "params": {
+      "observableId": "o1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "query": {
+        "name": "get-observable-o1"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "getObservable",
+            "idOrName": "o1"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "observable.search": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "values": [
+          {
+            "field": "title",
+            "operator": "_like",
+            "value": "x"
+          },
+          {
+            "field": "severity",
+            "operator": "_in",
+            "values": "2,3"
+          }
+        ]
+      },
+      "sort": {
+        "fields": [
+          {
+            "field": "_createdAt",
+            "direction": "desc"
+          }
+        ]
+      },
+      "options": {
+        "extraData": [
+          "seen"
+        ]
+      }
+    },
+    "response": [
+      {
+        "_id": "a"
+      },
+      {
+        "_id": "b"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "listObservable"
+          },
+          {
+            "_name": "filter",
+            "_and": [
+              {
+                "_like": {
+                  "_field": "title",
+                  "_value": "x"
+                }
+              },
+              {
+                "_in": {
+                  "_field": "severity",
+                  "_values": [
+                    "2",
+                    "3"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "_name": "sort",
+            "_fields": [
+              {
+                "_createdAt": "desc"
+              }
+            ]
+          },
+          {
+            "_name": "page",
+            "from": 0,
+            "to": 5,
+            "extraData": [
+              "seen"
+            ]
+          }
+        ]
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "observable.update": {
+    "params": {
+      "observableUpdateFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "title": "T",
+          "tags": "a, b",
+          "severity": 3
+        },
+        "matchingColumns": [
+          "title"
+        ]
+      }
+    },
+    "responses": [
+      [
+        {
+          "_id": "~1"
+        },
+        {
+          "_id": "~2"
+        }
+      ],
+      {}
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/observable/_bulk",
+      "body": {
+        "tags": [
+          "a",
+          "b"
+        ],
+        "severity": 3,
+        "ids": [
+          "~1",
+          "~2"
+        ]
+      }
+    },
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/v1/query",
+        "body": {
+          "query": [
+            {
+              "_name": "listObservable"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_eq": {
+                    "_field": "title",
+                    "_value": "T"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/observable/_bulk",
+        "body": {
+          "tags": [
+            "a",
+            "b"
+          ],
+          "severity": 3,
+          "ids": [
+            "~1",
+            "~2"
+          ]
+        }
+      }
+    ],
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "page.create": {
+    "params": {
+      "location": "knowledgeBase",
+      "title": "T",
+      "category": "C",
+      "content": "x"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/page",
+      "body": {
+        "title": "T",
+        "category": "C",
+        "content": "x"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "page.deletePage": {
+    "params": {
+      "location": "case",
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      },
+      "pageId": "p1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/case/~456/page/p1"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "page.search": {
+    "params": {
+      "returnAll": true,
+      "options": {
+        "returnCount": true
+      }
+    },
+    "response": 7,
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "listOrganisationPage"
+          },
+          {
+            "_name": "count"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "page.update": {
+    "params": {
+      "caseId": "~4",
+      "pageId": "p1",
+      "content": "new",
+      "options": {
+        "title": "T2"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/case/~4/page/p1",
+      "body": {
+        "title": "T2",
+        "content": "new"
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "query.executeQuery": {
+    "params": {
+      "queryJson": "[{\"_name\":\"listOrganisation\"}]"
+    },
+    "response": [
+      {
+        "name": "admin"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "listOrganisation"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "task.create": {
+    "params": {
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      },
+      "taskFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "title": "T",
+          "dueDate": "2024-01-01T00:00:00Z"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/case/~456/task",
+      "body": {
+        "title": "T",
+        "dueDate": 1704067200000
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "task.deleteTask": {
+    "params": {
+      "taskId": "t1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/task/t1"
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "task.executeResponder": {
+    "params": {
+      "id": "t1",
+      "responder": "r1"
+    },
+    "responses": [
+      {
+        "cortexId": "cx",
+        "objectId": "o1",
+        "startDate": 1,
+        "status": "Waiting"
+      },
+      [
+        {
+          "status": "Success"
+        }
+      ]
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/connector/cortex/action",
+        "body": {
+          "responderId": "r1",
+          "objectId": "t1",
+          "objectType": "case_task"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "cx"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "o1"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/connector/cortex/action",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "task.get": {
+    "params": {
+      "taskId": "t1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "query": {
+        "name": "get-task-t1"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "getTask",
+            "idOrName": "t1"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "task.search": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "values": [
+          {
+            "field": "title",
+            "operator": "_like",
+            "value": "x"
+          },
+          {
+            "field": "severity",
+            "operator": "_in",
+            "values": "2,3"
+          }
+        ]
+      },
+      "sort": {
+        "fields": [
+          {
+            "field": "_createdAt",
+            "direction": "desc"
+          }
+        ]
+      },
+      "allCases": false,
+      "caseId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "~456"
+      }
+    },
+    "response": [
+      {
+        "_id": "a"
+      },
+      {
+        "_id": "b"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/query",
+      "body": {
+        "query": [
+          {
+            "_name": "getCase",
+            "idOrName": "~456"
+          },
+          {
+            "_name": "tasks"
+          },
+          {
+            "_name": "filter",
+            "_and": [
+              {
+                "_like": {
+                  "_field": "title",
+                  "_value": "x"
+                }
+              },
+              {
+                "_in": {
+                  "_field": "severity",
+                  "_values": [
+                    "2",
+                    "3"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "_name": "sort",
+            "_fields": [
+              {
+                "_createdAt": "desc"
+              }
+            ]
+          },
+          {
+            "_name": "page",
+            "from": 0,
+            "to": 5
+          }
+        ]
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  },
+  "task.update": {
+    "params": {
+      "taskUpdateFields": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "title": "T",
+          "tags": "a, b",
+          "severity": 3
+        },
+        "matchingColumns": [
+          "title"
+        ]
+      }
+    },
+    "responses": [
+      [
+        {
+          "_id": "~1"
+        },
+        {
+          "_id": "~2"
+        }
+      ],
+      {}
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/task/_bulk",
+      "body": {
+        "tags": [
+          "a",
+          "b"
+        ],
+        "severity": 3,
+        "ids": [
+          "~1",
+          "~2"
+        ]
+      }
+    },
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/v1/query",
+        "body": {
+          "query": [
+            {
+              "_name": "listTask"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_eq": {
+                    "_field": "title",
+                    "_value": "T"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v1/task/_bulk",
+        "body": {
+          "tags": [
+            "a",
+            "b"
+          ],
+          "severity": 3,
+          "ids": [
+            "~1",
+            "~2"
+          ]
+        }
+      }
+    ],
+    "credential": {
+      "url": "https://hive.example.com",
+      "api_key": "k"
+    }
+  }
+}

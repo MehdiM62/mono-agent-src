@@ -1,0 +1,384 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "venafi_tls_protect_cloud",
+  "node_type": "app.venafi_tls_protect_cloud",
+  "title": "Venafi TLS Protect Cloud",
+  "description": "Certificates and certificate requests in Venafi TLS Protect Cloud",
+  "category": "app",
+  "docs_url": "https://developer.venafi.com/tlsprotectcloud/reference",
+  "n8n_types": [
+    "n8n-nodes-base.venafiTlsProtectCloud"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.venafiTlsProtectCloudTrigger"
+  ],
+  "base_url": "https://api.venafi.{{ cred.region | default:'cloud' }}",
+  "credentials": [
+    {
+      "platform": "venafi_tls_protect_cloud",
+      "name": "Venafi TLS Protect Cloud",
+      "n8n_credential": "venafiTlsProtectCloudApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "cloud (US, default) or eu"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "tppl-api-key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "certificateRequest",
+      "label": "Certificate request"
+    },
+    {
+      "value": "certificate",
+      "label": "Certificate"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "certificateRequest",
+      "operation": "create",
+      "title": "Create a certificate request",
+      "method": "POST",
+      "path": "/outagedetection/v1/certificaterequests",
+      "body": {
+        "applicationId": "{{ p.applicationId }}",
+        "certificateIssuingTemplateId": "{{ p.certificateIssuingTemplateId }}",
+        "isVaaSGenerated": "{{ p.generateCsr | eq:'true' | default:false }}",
+        "certificateSigningRequest": "{{ p.generateCsr | ne:'true' | then:p.certificateSigningRequest }}",
+        "csrAttributes": {
+          "$when": "{{ p.generateCsr | eq:'true' }}",
+          "commonName": "{{ p.commonName }}",
+          "organization": "{{ p.additionalFields.organization }}",
+          "organizationalUnits": "{{ p.additionalFields.organizationalUnits | split }}",
+          "locality": "{{ p.additionalFields.locality }}",
+          "state": "{{ p.additionalFields.state }}",
+          "country": "{{ p.additionalFields.country }}",
+          "keyTypeParameters": {
+            "keyType": "{{ p.additionalFields.keyType }}",
+            "keyCurve": "{{ p.additionalFields.keyCurve }}",
+            "keyLength": "{{ p.additionalFields.keyLength }}"
+          },
+          "subjectAlternativeNamesByType": {
+            "dnsNames": {
+              "$map": "{{ p.additionalFields.SubjectAltNamesUi.SubjectAltNamesValues }}",
+              "$to": "{{ el.Typename | default:'dnsNames' | eq:'dnsNames' | then:el.name }}"
+            }
+          }
+        },
+        "$merge": "{{ p.options }}"
+      },
+      "output": {
+        "path": "certificateRequests"
+      },
+      "fields": [
+        {
+          "key": "applicationId",
+          "label": "Application ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "certificateIssuingTemplateId",
+          "label": "Issuing template ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "generateCsr",
+          "label": "Generate CSR in Venafi",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "commonName",
+          "label": "Common name",
+          "type": "text",
+          "default": "n8n.io"
+        },
+        {
+          "key": "certificateSigningRequest",
+          "label": "CSR (PEM)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keyType",
+            "keyCurve",
+            "keyLength",
+            "organization",
+            "organizationalUnits",
+            "locality",
+            "state",
+            "country",
+            "SubjectAltNamesUi"
+          ],
+          "help": "SubjectAltNamesUi.SubjectAltNamesValues: [{Typename, name}] (DNS names are sent)"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "validityPeriod"
+          ],
+          "help": "validityPeriod: ISO 8601 duration, e.g. P1Y"
+        }
+      ]
+    },
+    {
+      "resource": "certificateRequest",
+      "operation": "get",
+      "title": "Get a certificate request",
+      "method": "GET",
+      "path": "/outagedetection/v1/certificaterequests/{{ p.certificateRequestId }}",
+      "fields": [
+        {
+          "key": "certificateRequestId",
+          "label": "Certificate request ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "certificateRequest",
+      "operation": "getMany",
+      "title": "Get many certificate requests",
+      "method": "GET",
+      "path": "/outagedetection/v1/certificaterequests",
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.0.Next",
+        "results_path": "certificateRequests"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "delete",
+      "title": "Delete a certificate",
+      "method": "POST",
+      "path": "/outagedetection/v1/certificates/deletion",
+      "body": {
+        "certificateIds": [
+          "{{ p.certificateId }}"
+        ]
+      },
+      "output": {
+        "path": "certificates"
+      },
+      "fields": [
+        {
+          "key": "certificateId",
+          "label": "Certificate ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "download",
+      "title": "Download a certificate",
+      "method": "GET",
+      "path": "/outagedetection/v1/certificates/{{ p.certificateId }}/contents",
+      "query": {
+        "$merge": "{{ p.options }}"
+      },
+      "headers": {
+        "Accept": "*/*"
+      },
+      "binary": {
+        "download": true,
+        "property_field": "binaryProperty",
+        "file_name": "{{ hdr.Content-Disposition | re:'filename=\"([^\"]+)\"' }}"
+      },
+      "fields": [
+        {
+          "key": "certificateId",
+          "label": "Certificate ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "downloadItem",
+          "label": "Download",
+          "type": "select",
+          "default": "certificate",
+          "options": [
+            "certificate"
+          ],
+          "help": "Keystore downloads are not supported yet"
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Output binary property",
+          "type": "text",
+          "required": true,
+          "default": "data"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "chainOrder",
+            "format"
+          ],
+          "help": "chainOrder: EE_FIRST, EE_ONLY or ROOT_FIRST; format: PEM or DER"
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "get",
+      "title": "Get a certificate",
+      "method": "GET",
+      "path": "/outagedetection/v1/certificates/{{ p.certificateId }}",
+      "fields": [
+        {
+          "key": "certificateId",
+          "label": "Certificate ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "getMany",
+      "title": "Get many certificates",
+      "method": "GET",
+      "path": "/outagedetection/v1/certificates",
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.0.Next",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "certificates"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "subject"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "renew",
+      "title": "Renew a certificate",
+      "method": "POST",
+      "path": "/outagedetection/v1/certificaterequests",
+      "body": {
+        "certificateSigningRequest": "{{ p.certificateSigningRequest }}",
+        "certificateIssuingTemplateId": "{{ p.certificateIssuingTemplateId }}",
+        "applicationId": "{{ p.applicationId }}",
+        "existingCertificateId": "{{ p.existingCertificateId }}",
+        "$merge": "{{ p.options }}"
+      },
+      "output": {
+        "path": "certificateRequests"
+      },
+      "fields": [
+        {
+          "key": "applicationId",
+          "label": "Application ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "existingCertificateId",
+          "label": "Existing certificate ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "certificateIssuingTemplateId",
+          "label": "Issuing template ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "certificateSigningRequest",
+          "label": "CSR (PEM)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "validityPeriod"
+          ]
+        }
+      ]
+    }
+  ]
+}

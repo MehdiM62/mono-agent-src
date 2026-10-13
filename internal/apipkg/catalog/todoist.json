@@ -72,6 +72,10 @@
     {
       "value": "label",
       "label": "Label"
+    },
+    {
+      "value": "reminder",
+      "label": "Reminder"
     }
   ],
   "operations": [
@@ -878,6 +882,188 @@
             "order",
             "is_favorite"
           ]
+        }
+      ]
+    },
+    {
+      "resource": "reminder",
+      "operation": "create",
+      "title": "Create a reminder",
+      "method": "POST",
+      "path": "/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_add",
+            "uuid": "{{ uuid }}",
+            "temp_id": "{{ uuid }}",
+            "args": {
+              "item_id": "{{ p.itemId }}",
+              "due": {
+                "string": "{{ p.dueDateType | default:'natural_language' | eq:'natural_language' | then:p.natural_language_representation }}",
+                "date": "{{ p.dueDateType | default:'natural_language' | eq:'full_day' | then:p.date }}",
+                "datetime": "{{ p.dueDateType | default:'natural_language' | eq:'floating_time' | then:p.datetime | default:(p.dueDateType | default:'natural_language' | eq:'fixed_timezone' | then:p.datetime) }}",
+                "timezone": "{{ p.dueDateType | default:'natural_language' | eq:'fixed_timezone' | then:p.timezone }}"
+              },
+              "$merge": "{{ p.reminderOptions }}"
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "itemId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dueDateType",
+          "label": "Due date type",
+          "type": "select",
+          "default": "natural_language",
+          "options": [
+            "natural_language",
+            "full_day",
+            "floating_time",
+            "fixed_timezone"
+          ]
+        },
+        {
+          "key": "natural_language_representation",
+          "label": "When (natural language)",
+          "type": "text",
+          "default": "",
+          "help": "e.g. tomorrow at 9am"
+        },
+        {
+          "key": "date",
+          "label": "Date",
+          "type": "text",
+          "default": "",
+          "help": "YYYY-MM-DD"
+        },
+        {
+          "key": "datetime",
+          "label": "Date and time",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "timezone",
+          "label": "Timezone",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "reminderOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "type",
+            "minute_offset",
+            "notify_uid"
+          ],
+          "help": "type: absolute or relative; minute_offset: minutes before the due time (relative)"
+        }
+      ]
+    },
+    {
+      "resource": "reminder",
+      "operation": "delete",
+      "title": "Delete a reminder",
+      "method": "POST",
+      "path": "/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_delete",
+            "uuid": "{{ uuid }}",
+            "args": {
+              "id": "{{ p.reminderId }}"
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "reminderId",
+          "label": "Reminder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "reminder",
+      "operation": "getAll",
+      "title": "Get many reminders",
+      "method": "POST",
+      "path": "/sync",
+      "body": {
+        "sync_token": "*",
+        "resource_types": [
+          "reminders"
+        ]
+      },
+      "output": {
+        "path": "reminders"
+      },
+      "fields": []
+    },
+    {
+      "resource": "reminder",
+      "operation": "update",
+      "title": "Update a reminder",
+      "method": "POST",
+      "path": "/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_update",
+            "uuid": "{{ uuid }}",
+            "args": {
+              "id": "{{ p.reminderId }}",
+              "$merge": "{{ p.reminderUpdateFields }}"
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "reminderId",
+          "label": "Reminder ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "reminderUpdateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "due",
+            "type",
+            "minute_offset",
+            "notify_uid"
+          ],
+          "help": "due: {string, date, datetime, timezone}"
         }
       ]
     }
