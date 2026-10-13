@@ -728,3 +728,39 @@ func TestRoundHelpScoutLinkedInHumantic(t *testing.T) {
 		t.Errorf("output.limit: %d / %d", len(items), len(all))
 	}
 }
+
+func TestBracketQueryStyle(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"list","title":"L","method":"GET","path":"/products","query_style":"brackets",
+	  "fields":[{"key":"filters","label":"F","type":"json"},{"key":"returnAll","label":"A","type":"boolean"},{"key":"limit","label":"L","type":"number","default":5}],
+	  "query":{"search_criteria":{"filter_groups":[{"filters":"{{ p.filters }}"}]}},
+	  "pagination":{"type":"page","page_param":"search_criteria[current_page]","limit_param":"search_criteria[page_size]","page_size":5,"start_page":1,"results_path":"items"}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"items":[{"sku":"a"}]}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "list", "filters": []any{map[string]any{"field": "sku", "value": "x", "condition_type": "eq"}}}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	q := (*seen)[0].URL.Query()
+	if q.Get("search_criteria[filter_groups][0][filters][0][field]") != "sku" || q.Get("search_criteria[filter_groups][0][filters][0][condition_type]") != "eq" ||
+		q.Get("search_criteria[current_page]") != "1" || q.Get("search_criteria[page_size]") != "5" {
+		t.Errorf("query = %v", q)
+	}
+}
+
+func TestJoinBuilder(t *testing.T) {
+	sc := Scope{P: map[string]any{"name": "Ada", "dep": 5.0, "none": "",
+		"sort": []any{map[string]any{"field": "a", "direction": "desc"}, map[string]any{"field": "b"}}}}
+	join := map[string]any{"$join": []any{"{{ p.name | prefix:\"name:'\" | suffix:\"'\" }}", "{{ p.none | prefix:'x:' }}", "{{ p.dep | prefix:'department_id:' }}"},
+		"$sep": " AND ", "$prefix": "\"", "$suffix": "\""}
+	if got, err := renderValue(join, sc); err != nil || got != `"name:'Ada' AND department_id:5"` {
+		t.Errorf("join = %#v, %v", got, err)
+	}
+	empty := map[string]any{"$join": []any{"{{ p.none }}"}, "$sep": ",", "$prefix": "\""}
+	if got, _ := renderValue(empty, sc); got != nil {
+		t.Errorf("empty join = %#v", got)
+	}
+	grist := map[string]any{"$join": map[string]any{"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}
+	if got, _ := renderValue(grist, sc); got != "-a,b" {
+		t.Errorf("grist = %#v", got)
+	}
+}

@@ -261,6 +261,8 @@ through, so an unset param stays unset:
 ```
 (`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
 
+**Joined text (`$join`).** `{"$join": [ <template>, … ] | <template/builder giving a list>, "$sep": " AND ", "$prefix": "\"", "$suffix": "\""}` renders the parts, drops empty ones, joins the rest with `$sep` and wraps them in `$prefix`/`$suffix`; nothing left → omitted. Freshservice filters `"name:'Ada' AND department_id:5"`; Grist sort `{"$join": {"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}`.
+
 **JSON text of a built value (`$json`).** `{"$json": { … }}` renders the inner template (with `$concat`, `$map`, …) and returns it as a JSON string (Confluence ADF bodies).
 
 **Objects with built keys (`$entries`).** `{"$entries": "{{ p.filters.date }}", "$key": "date[{{ el.operation }}]", "$value": "{{ el.value | epoch }}"}` → `{"date[after]": 1704067200}`; empty keys/values are skipped (works inside `query`, `body` and `$merge`).
@@ -283,6 +285,8 @@ through, so an unset param stays unset:
 (`a b/c` → `a%20b%2Fc`). Literals the author wrote as a `then`/`default`
 argument are not, so an optional path suffix works:
 `"/tasks{{ p.filters.filter | then:'/filter' }}"`.
+
+**Bracket query style.** `"query_style": "brackets"` (on the package or an op) encodes nested query and form values PHP-style — `search_criteria[filter_groups][0][filters][0][field]=sku` (Magento); lists are indexed, empty values dropped. Pagination params may be such flat bracket keys (`"page_param": "search_criteria[current_page]"`).
 
 **Query encoding.** Arrays repeat the key (`tags=a&tags=b`; use `| csv` for
 `tags=a,b`), objects are sent as JSON, everything else as its string.
