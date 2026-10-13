@@ -867,3 +867,41 @@ func TestPagedValuesInjectBodyAndPathWildcard(t *testing.T) {
 		t.Error("pathMatches")
 	}
 }
+
+func TestMultiFileUploadsAndTypedInjectBody(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"mg","title":"MG","base_url":"https://mg.test",
+	  "credentials":[{"platform":"mg","methods":["api_key"],"fields":[{"key":"api_key","label":"K","secret":true,"required":true},{"key":"sandbox","label":"S"}],
+	    "inject":{"body":{"key":"{{ cred.api_key }}","SandboxMode":"{{ cred.sandbox | bool }}"}}}],
+	  "operations":[{"resource":"","operation":"send","title":"S","method":"POST","path":"/messages","body_type":"multipart",
+	    "fields":[{"key":"attachments","label":"A","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	    "body":{"to":"a@b"},
+	    "binary":{"upload_field":"binaryPropertyName","properties":"{{ p.attachments }}","multipart_field":"attachment[{{ el.index }}]"}},
+	   {"resource":"","operation":"json","title":"J","method":"POST","path":"/json",
+	    "fields":[{"key":"attachments","label":"A","type":"text"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	    "body":{"attachments":{"$map":"{{ bin.files }}","$to":{"name":"{{ el.file_name }}","content":"{{ el.base64 }}"}}},
+	    "binary":{"upload_field":"binaryPropertyName","properties":"{{ p.attachments }}"}}]}`)
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		w.Write([]byte(`{}`))
+	})
+	in := map[string]any{"a": "aGk=", "b": "eW8=", "file_name": "f.txt"}
+	c := map[string]any{"api_key": "K", "sandbox": "true"}
+	if _, err := runPackageOp(p, map[string]any{"operation": "send", "attachments": "a, b"}, c, in); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(bodies[0], `name="attachment[0]"`) || !strings.Contains(bodies[0], `name="attachment[1]"`) ||
+		!strings.Contains(bodies[0], "\r\nhi\r\n") || !strings.Contains(bodies[0], "\r\nyo\r\n") {
+		t.Errorf("multipart: %s", bodies[0])
+	}
+	if _, err := runPackageOp(p, map[string]any{"operation": "json", "attachments": "a,b"}, c, in); err != nil {
+		t.Fatal(err)
+	}
+	var j map[string]any
+	_ = json.Unmarshal([]byte(bodies[1]), &j)
+	at, _ := j["attachments"].([]any)
+	if len(at) != 2 || at[1].(map[string]any)["content"] != "eW8=" || j["SandboxMode"] != true || j["key"] != "K" {
+		t.Errorf("json files / typed inject: %s", bodies[1])
+	}
+}

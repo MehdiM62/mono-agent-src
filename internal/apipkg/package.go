@@ -343,6 +343,10 @@ type Binary struct {
 	// off (default: json when the op has a body, else none).
 	FallbackBodyType string `json:"fallback_body_type,omitempty"`
 	Property         string `json:"property,omitempty"`
+	// Properties (a template giving a list or comma text) uploads several
+	// binary properties: one multipart part each (el = {property, index}
+	// in multipart_field), and bin.files lists them for JSON bodies.
+	Properties string `json:"properties,omitempty"`
 	// FileName and MimeType are templates for the uploaded part.
 	FileName string `json:"file_name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`

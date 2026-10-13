@@ -92,6 +92,8 @@ type opRun struct {
 	item    workflow.Item
 	credDef *Credential
 	scope   Scope
+	// prop overrides the upload property (one of binary.properties).
+	prop string
 }
 
 func (r *opRun) errf(format string, a ...any) error {
