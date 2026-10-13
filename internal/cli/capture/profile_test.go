@@ -1,4 +1,4 @@
-package main
+package capturecli
 
 import (
 	"database/sql"
@@ -17,7 +17,7 @@ import (
 
 // profileFixture builds a disposable home with a monoagent database holding
 // two profiles, and returns the config a capture command would run with.
-func profileFixture(t *testing.T) (*globalConfig, string) {
+func profileFixture(t *testing.T) (*testConfig, string) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -45,7 +45,7 @@ func profileFixture(t *testing.T) (*globalConfig, string) {
 	}
 	db.Close()
 
-	return &globalConfig{DBPath: dbPath}, home
+	return &testConfig{DBPath: dbPath}, home
 }
 
 // seedProfileCapture writes one capture through the profile routing, so the
@@ -247,7 +247,7 @@ func TestCaptureListDefaultUnchanged(t *testing.T) {
 	seedProfileCapture(t, "", "https://example.com/plain", "Plain Page", "2026-09-21T10:00:00Z")
 	seedProfileCapture(t, "p-work", "https://example.com/work", "Work Page", "2026-09-21T08:00:00Z")
 
-	out, err := runCaptureCmd(t, &globalConfig{}, "list")
+	out, err := runCaptureCmd(t, &testConfig{}, "list")
 	if err != nil {
 		t.Fatalf("capture list: %v", err)
 	}

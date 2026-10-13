@@ -1,4 +1,4 @@
-package main
+package capturecli
 
 import (
 	"bytes"
@@ -240,7 +240,7 @@ func TestCaptureClassifyCmdNeedsSurfaceOrForce(t *testing.T) {
 	srv := jevtest.NewServer(t, jevtest.Fixed(map[string]string{"kind": "person_profile"}))
 	dir := writeTestEnvelope(t, t.TempDir(), "a", "")
 
-	cmd := newCaptureClassifyCmd(&globalConfig{DBPath: dbPath})
+	cmd := testDeps(&testConfig{DBPath: dbPath}).newCaptureClassifyCmd()
 	cmd.SetArgs([]string{dir})
 	cmd.SetOut(&bytes.Buffer{})
 	err := cmd.Execute()
@@ -252,7 +252,7 @@ func TestCaptureClassifyCmdNeedsSurfaceOrForce(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	cmd = newCaptureClassifyCmd(&globalConfig{DBPath: dbPath})
+	cmd = testDeps(&testConfig{DBPath: dbPath}).newCaptureClassifyCmd()
 	cmd.SetArgs([]string{dir, "--force"})
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -279,7 +279,7 @@ func TestCaptureListSuggested(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	cmd := newCaptureListCmd(&globalConfig{JSONOutput: true})
+	cmd := testDeps(&testConfig{JSONOutput: true}).newCaptureListCmd()
 	cmd.SetArgs([]string{"--out", inbox, "--suggested"})
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {

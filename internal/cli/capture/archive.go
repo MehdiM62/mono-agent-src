@@ -1,4 +1,4 @@
-package main
+package capturecli
 
 import (
 	"encoding/json"
@@ -16,18 +16,18 @@ import (
 )
 
 // captureGlueCmds are the capture subcommands that connect the inbox to
-// everything outside it: a portable archive of the library (GLU-08) and a
-// task made from one capture (GLU-03). They live in their own files so the
-// capture group itself stays one short list.
-func captureGlueCmds(cfg *globalConfig) []*cobra.Command {
+// everything outside it: a portable archive of the library (GLU-08). A task
+// made from one capture (GLU-03, `capture task`) stays in the CLI, which adds
+// it to the group. They live in their own files so the capture group itself
+// stays one short list.
+func (d Deps) captureGlueCmds() []*cobra.Command {
 	return []*cobra.Command{
-		newCaptureExportCmd(cfg),
-		newCaptureImportCmd(cfg),
-		newCaptureTaskCmd(cfg),
+		d.newCaptureExportCmd(),
+		d.newCaptureImportCmd(),
 	}
 }
 
-func newCaptureExportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newCaptureExportCmd() *cobra.Command {
 	var (
 		out        string
 		since      string
@@ -54,7 +54,7 @@ func newCaptureExportCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sinceAt, err := captureexport.ParseSince(since)
 			if err != nil {
-				return errInvalidInput("%s", err.Error())
+				return d.InvalidInput("%s", err.Error())
 			}
 			src := expandPath(inbox)
 			if src == "" {
@@ -98,7 +98,7 @@ func newCaptureExportCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 			reportSkipped(cmd, man)
-			if cfg != nil && cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]any{"archive": dest, "manifest": man})
@@ -188,7 +188,7 @@ func defaultArchiveName(now time.Time) string {
 	return "captures-" + now.UTC().Format("20060102-150405") + ".tar.gz"
 }
 
-func newCaptureImportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newCaptureImportCmd() *cobra.Command {
 	var (
 		inbox     string
 		collision string
@@ -213,7 +213,7 @@ func newCaptureImportCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mode, err := captureexport.ParseCollision(collision)
 			if err != nil {
-				return errInvalidInput("%s", err.Error())
+				return d.InvalidInput("%s", err.Error())
 			}
 			dest := expandPath(inbox)
 			if dest == "" {
@@ -226,7 +226,7 @@ func newCaptureImportCmd(cfg *globalConfig) *cobra.Command {
 				f, err := os.Open(path)
 				if err != nil {
 					if os.IsNotExist(err) {
-						return errNotFound("no such archive: %s", path)
+						return d.NotFound("no such archive: %s", path)
 					}
 					return fmt.Errorf("open %s: %w", path, err)
 				}
@@ -238,15 +238,15 @@ func newCaptureImportCmd(cfg *globalConfig) *cobra.Command {
 				Inbox: dest, OnCollision: mode, DryRun: dryRun,
 			})
 			if err != nil {
-				return errInvalidInput("%s", err.Error())
+				return d.InvalidInput("%s", err.Error())
 			}
 
-			if cfg != nil && cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(res)
 			}
-			return printImportResult(cmd, res, dest)
+			return d.printImportResult(cmd, res, dest)
 		},
 	}
 	cmd.Flags().StringVar(&inbox, "inbox", "", "Inbox to restore into (default: ~/.monomind/inbox)")
@@ -256,7 +256,7 @@ func newCaptureImportCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func printImportResult(cmd *cobra.Command, res *captureexport.ImportResult, inbox string) error {
+func (d Deps) printImportResult(cmd *cobra.Command, res *captureexport.ImportResult, inbox string) error {
 	stderr := cmd.ErrOrStderr()
 	for _, s := range res.Skipped {
 		fmt.Fprintf(stderr, "skipped %s — %s\n", s.Name, s.Reason)
@@ -265,7 +265,7 @@ func printImportResult(cmd *cobra.Command, res *captureexport.ImportResult, inbo
 		fmt.Fprintf(cmd.OutOrStdout(), "Nothing imported into %s\n", inbox)
 		return nil
 	}
-	table := newPlainTable(cmd.OutOrStdout(), []string{"TITLE", "URL", "SIZE", "PATH"}, nil)
+	table := d.NewTable(cmd.OutOrStdout(), []string{"TITLE", "URL", "SIZE", "PATH"})
 	var total int64
 	for _, i := range res.Imported {
 		total += i.Bytes

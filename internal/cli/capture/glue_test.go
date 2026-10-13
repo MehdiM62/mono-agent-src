@@ -1,4 +1,4 @@
-package main
+package capturecli
 
 import (
 	"bytes"
@@ -18,12 +18,12 @@ import (
 // runGlueCmd executes a `capture` subcommand, returning stdout and stderr
 // separately: the machine-readable answer goes to stdout, the commentary to
 // stderr, and a test that conflates them cannot tell.
-func runGlueCmd(t *testing.T, cfg *globalConfig, args ...string) (string, string, error) {
+func runGlueCmd(t *testing.T, cfg *testConfig, args ...string) (string, string, error) {
 	t.Helper()
 	if cfg == nil {
-		cfg = &globalConfig{}
+		cfg = &testConfig{}
 	}
-	cmd := newCaptureCmd(cfg)
+	cmd := NewCommand(testDeps(cfg))
 	cmd.SetArgs(args)
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
@@ -121,6 +121,7 @@ func byDirName(entries []capture.Entry) map[string]capture.Entry {
 }
 
 func TestCaptureExportImportRoundTripThroughTheCLI(t *testing.T) {
+	t.Parallel()
 	src := seedGlueInbox(t,
 		capture.Meta{URL: "https://example.com/a", Title: "A", CapturedAt: "2026-09-20T10:00:00Z"},
 		capture.Meta{URL: "https://example.com/b", Title: "B", CapturedAt: "2026-09-21T10:00:00Z"},
@@ -179,6 +180,7 @@ func sortedKeysOf(m map[string]capture.Entry) []string {
 }
 
 func TestCaptureExportFiltersAndJSON(t *testing.T) {
+	t.Parallel()
 	src := seedGlueInbox(t,
 		capture.Meta{URL: "https://example.com/old", Title: "Old", CapturedAt: "2026-09-01T10:00:00Z"},
 		capture.Meta{URL: "https://example.com/new", Title: "New", CapturedAt: "2026-09-20T10:00:00Z",
@@ -186,7 +188,7 @@ func TestCaptureExportFiltersAndJSON(t *testing.T) {
 	)
 	archive := filepath.Join(t.TempDir(), "research.tar.gz")
 
-	stdout, stderr, err := runGlueCmd(t, &globalConfig{JSONOutput: true},
+	stdout, stderr, err := runGlueCmd(t, &testConfig{JSONOutput: true},
 		"export", "--inbox", src, "--out", archive, "--collection", "research", "--since", "2026-09-10")
 	if err != nil {
 		t.Fatalf("capture export: %v\n%s", err, stderr)
@@ -231,6 +233,7 @@ func TestCaptureExportRejectsABadDate(t *testing.T) {
 }
 
 func TestCaptureImportCollisionModes(t *testing.T) {
+	t.Parallel()
 	src := seedGlueInbox(t, capture.Meta{URL: "https://example.com/a", Title: "A", CapturedAt: "2026-09-20T10:00:00Z"})
 	archive := filepath.Join(t.TempDir(), "one.tar.gz")
 	if _, stderr, err := runGlueCmd(t, nil, "export", "--inbox", src, "--out", archive); err != nil {
@@ -295,6 +298,7 @@ func TestCaptureImportCollisionModes(t *testing.T) {
 }
 
 func TestCaptureImportDryRun(t *testing.T) {
+	t.Parallel()
 	src := seedGlueInbox(t, capture.Meta{URL: "https://example.com/a", Title: "A", CapturedAt: "2026-09-20T10:00:00Z"})
 	archive := filepath.Join(t.TempDir(), "one.tar.gz")
 	if _, _, err := runGlueCmd(t, nil, "export", "--inbox", src, "--out", archive); err != nil {
@@ -315,6 +319,7 @@ func TestCaptureImportDryRun(t *testing.T) {
 }
 
 func TestCaptureImportMissingArchive(t *testing.T) {
+	t.Parallel()
 	_, _, err := runGlueCmd(t, nil, "import", filepath.Join(t.TempDir(), "nope.tar.gz"))
 	if err == nil {
 		t.Fatal("a missing archive should be an error")
@@ -325,6 +330,7 @@ func TestCaptureImportMissingArchive(t *testing.T) {
 }
 
 func TestDefaultArchiveNameIsSortable(t *testing.T) {
+	t.Parallel()
 	got := defaultArchiveName(time.Date(2026, 9, 21, 12, 30, 45, 0, time.UTC))
 	if got != "captures-20260921-123045.tar.gz" {
 		t.Errorf("defaultArchiveName = %q", got)
@@ -352,12 +358,13 @@ func (f *failAfter) Write(p []byte) (int, error) {
 // thing this can do is say so, loudly, rather than let a truncated stream
 // be mistaken for an archive.
 func TestCaptureExportToStdoutSaysWhenTheStreamIsTruncated(t *testing.T) {
+	t.Parallel()
 	src := seedGlueInbox(t,
 		capture.Meta{URL: "https://example.com/a", Title: "A", CapturedAt: "2026-09-20T10:00:00Z"},
 		capture.Meta{URL: "https://example.com/b", Title: "B", CapturedAt: "2026-09-21T10:00:00Z"},
 	)
 
-	cmd := newCaptureCmd(&globalConfig{})
+	cmd := NewCommand(testDeps(&testConfig{}))
 	cmd.SetArgs([]string{"export", "--inbox", src, "--out", "-"})
 	var stderr bytes.Buffer
 	cmd.SetOut(&failAfter{n: 1})
