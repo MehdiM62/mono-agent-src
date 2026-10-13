@@ -449,6 +449,8 @@ With `"param_in": "body"`, the page param names may be dot paths, nested into th
 
 `"type": "header_cursor"`: the cursor comes from the response header named by `cursor_path` and is sent back as the request header named by `cursor_param` (Cosmos DB `x-ms-continuation`).
 
+With `param_in: "body"`, a cursor that is an object or list goes back unchanged (DynamoDB `LastEvaluatedKey` → `ExclusiveStartKey`).
+
 ## 9. Output
 
 `"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)

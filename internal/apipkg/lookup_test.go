@@ -1192,3 +1192,27 @@ func TestStepWithoutAuth(t *testing.T) {
 		t.Errorf("auth headers: %q %q", (*seen)[0].Header.Get("Authorization"), (*seen)[1].Header.Get("Authorization"))
 	}
 }
+
+func TestObjectCursorInBody(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"scan","title":"S","method":"POST","path":"/","body":{"TableName":"t"},
+	  "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	  "pagination":{"type":"cursor","param_in":"body","cursor_param":"ExclusiveStartKey","cursor_path":"LastEvaluatedKey","results_path":"Items"}}`))
+	var bodies []map[string]any
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		var b map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&b)
+		bodies = append(bodies, b)
+		if n == 1 {
+			w.Write([]byte(`{"Items":[{"id":{"S":"1"}}],"LastEvaluatedKey":{"id":{"S":"1"}}}`))
+			return
+		}
+		w.Write([]byte(`{"Items":[{"id":{"S":"2"}}]}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "scan", "returnAll": true}, cred, nil)
+	if err != nil || len(items) != 2 {
+		t.Fatalf("%v %v", items, err)
+	}
+	if !reflect.DeepEqual(bodies[1]["ExclusiveStartKey"], map[string]any{"id": map[string]any{"S": "1"}}) || bodies[0]["ExclusiveStartKey"] != nil {
+		t.Errorf("start keys: %v / %v", bodies[0], bodies[1])
+	}
+}
