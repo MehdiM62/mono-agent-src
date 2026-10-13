@@ -384,3 +384,30 @@ func TestFirestorePickAndBinaryToggles(t *testing.T) {
 		t.Errorf("upload_text: %q %q", bodies[len(bodies)-1], cts[len(cts)-1])
 	}
 }
+
+func TestBigQueryPollAndSchemaRows(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"query","title":"Q","method":"POST","path":"/queries",
+	  "fields":[{"key":"nums","label":"N","type":"boolean"}],
+	  "poll":{"method":"GET","path":"/queries/{{ res.jobReference.jobId }}","until":"{{ res.jobComplete }}","interval_ms":1},
+	  "output":{"path":"rows","schema_rows":"schema.fields","numbers":"{{ p.nums }}"}}`))
+	full := `{"jobComplete":true,"jobReference":{"jobId":"j1"},
+	  "schema":{"fields":[{"name":"n","type":"INTEGER"},{"name":"ok","type":"BOOLEAN"},
+	    {"name":"tags","type":"STRING","mode":"REPEATED"},
+	    {"name":"addr","type":"RECORD","fields":[{"name":"city","type":"STRING"}]}]},
+	  "rows":[{"f":[{"v":"7"},{"v":"true"},{"v":[{"v":"a"},{"v":"b"}]},{"v":{"f":[{"v":"Oslo"}]}}]}]}`
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		if n == 1 {
+			w.Write([]byte(`{"jobComplete":false,"jobReference":{"jobId":"j1"}}`))
+			return
+		}
+		w.Write([]byte(full))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "query", "nums": true}, cred, nil)
+	if err != nil || len(*seen) != 2 || (*seen)[1].URL.Path != "/v1/queries/j1" {
+		t.Fatalf("poll: %v, %d requests", err, len(*seen))
+	}
+	want := map[string]any{"n": 7.0, "ok": true, "tags": []any{"a", "b"}, "addr": map[string]any{"city": "Oslo"}}
+	if len(items) != 1 || !reflect.DeepEqual(items[0].JSON, want) {
+		t.Errorf("rows = %#v", items)
+	}
+}
