@@ -1,0 +1,298 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "calendly",
+  "node_type": "app.calendly",
+  "title": "Calendly",
+  "description": "Scheduled events, event types and invitees on Calendly",
+  "category": "app",
+  "docs_url": "https://developer.calendly.com/api-docs",
+  "n8n_trigger_types": [
+    "n8n-nodes-base.calendlyTrigger"
+  ],
+  "base_url": "https://api.calendly.com",
+  "credentials": [
+    {
+      "platform": "calendly",
+      "name": "Calendly",
+      "n8n_credential": "calendlyApi",
+      "n8n_credential_alt": [
+        "calendlyOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true,
+          "help": "Calendly: Integrations → API & Webhooks → Personal access tokens"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://auth.calendly.com/oauth/authorize",
+        "token_url": "https://auth.calendly.com/oauth/token",
+        "pkce": true
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "scheduledEvent",
+      "label": "Scheduled event"
+    },
+    {
+      "value": "eventType",
+      "label": "Event type"
+    },
+    {
+      "value": "invitee",
+      "label": "Invitee"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "scheduledEvent",
+      "operation": "getAll",
+      "title": "Get many scheduled events",
+      "method": "GET",
+      "path": "/scheduled_events",
+      "query": {
+        "user": "{{ p.user }}",
+        "organization": "{{ p.organization }}",
+        "status": "{{ p.filters.status }}",
+        "min_start_time": "{{ p.filters.min_start_time }}",
+        "max_start_time": "{{ p.filters.max_start_time }}",
+        "invitee_email": "{{ p.filters.invitee_email }}",
+        "sort": "{{ p.filters.sort }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page_token",
+        "cursor_path": "pagination.next_page_token",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "collection"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User URI",
+          "type": "text",
+          "help": "e.g. https://api.calendly.com/users/AAAA… — from User → Get current user. Give a user or an organization."
+        },
+        {
+          "key": "organization",
+          "label": "Organization URI",
+          "type": "text"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status",
+            "min_start_time",
+            "max_start_time",
+            "invitee_email",
+            "sort"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "scheduledEvent",
+      "operation": "get",
+      "title": "Get a scheduled event",
+      "method": "GET",
+      "path": "/scheduled_events/{{ p.eventUuid }}",
+      "output": {
+        "path": "resource"
+      },
+      "fields": [
+        {
+          "key": "eventUuid",
+          "label": "Event UUID",
+          "type": "text",
+          "required": true,
+          "help": "The last part of the event's URI: https://api.calendly.com/scheduled_events/<uuid>"
+        }
+      ]
+    },
+    {
+      "resource": "scheduledEvent",
+      "operation": "cancel",
+      "title": "Cancel a scheduled event",
+      "method": "POST",
+      "path": "/scheduled_events/{{ p.eventUuid }}/cancellation",
+      "body": {
+        "reason": "{{ p.reason }}"
+      },
+      "output": {
+        "path": "resource"
+      },
+      "fields": [
+        {
+          "key": "eventUuid",
+          "label": "Event UUID",
+          "type": "text",
+          "required": true,
+          "help": "The last part of the event's URI: https://api.calendly.com/scheduled_events/<uuid>"
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "type": "textarea"
+        }
+      ]
+    },
+    {
+      "resource": "eventType",
+      "operation": "getAll",
+      "title": "Get many event types",
+      "method": "GET",
+      "path": "/event_types",
+      "query": {
+        "user": "{{ p.user }}",
+        "organization": "{{ p.organization }}",
+        "active": "{{ p.filters.active | bool }}",
+        "sort": "{{ p.filters.sort }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page_token",
+        "cursor_path": "pagination.next_page_token",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "collection"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User URI",
+          "type": "text",
+          "help": "e.g. https://api.calendly.com/users/AAAA… — from User → Get current user. Give a user or an organization."
+        },
+        {
+          "key": "organization",
+          "label": "Organization URI",
+          "type": "text"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "sort"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "invitee",
+      "operation": "getAll",
+      "title": "Get an event's invitees",
+      "method": "GET",
+      "path": "/scheduled_events/{{ p.eventUuid }}/invitees",
+      "query": {
+        "status": "{{ p.filters.status }}",
+        "email": "{{ p.filters.email }}",
+        "sort": "{{ p.filters.sort }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page_token",
+        "cursor_path": "pagination.next_page_token",
+        "limit_param": "count",
+        "page_size": 100,
+        "results_path": "collection"
+      },
+      "fields": [
+        {
+          "key": "eventUuid",
+          "label": "Event UUID",
+          "type": "text",
+          "required": true,
+          "help": "The last part of the event's URI: https://api.calendly.com/scheduled_events/<uuid>"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status",
+            "email",
+            "sort"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getCurrent",
+      "title": "Get current user",
+      "method": "GET",
+      "path": "/users/me",
+      "output": {
+        "path": "resource"
+      }
+    }
+  ]
+}

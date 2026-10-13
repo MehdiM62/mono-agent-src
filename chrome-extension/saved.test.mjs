@@ -73,6 +73,7 @@ test("a saved page badges the tab and carries its record", async () => {
   const badge = h.lastBadge();
   assert.equal(badge.tabId, 7);
   assert.equal(badge.text, "✓");
+  assert.match(badge.title, /^Saved to MonoAgent · /);
   assert.match(badge.title, /3 versions/);
   assert.match(badge.title, /2026-09-20/);
 });

@@ -136,9 +136,9 @@ func TestAPIMutatingToolAnnotations(t *testing.T) {
 // The description tells the model the rule of a name, in the store's own words, so
 // that it cannot drift from what the store refuses.
 func TestAPIKeyCreateDescriptionCarriesTheStoresNameRule(t *testing.T) {
-	for _, def := range toolDefinitions(true) {
-		if def["name"] == "api_key_create" {
-			if d, _ := def["description"].(string); !strings.Contains(d, apikeys.ErrInvalidName.Error()) {
+	for _, tl := range apiTools() {
+		if tl.name == "api_key_create" {
+			if d := apiToolText(tl); !strings.Contains(d, apikeys.ErrInvalidName.Error()) {
 				t.Errorf("the description of api_key_create lacks the store's name rule %q", apikeys.ErrInvalidName.Error())
 			}
 			return

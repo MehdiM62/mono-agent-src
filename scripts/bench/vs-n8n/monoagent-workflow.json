@@ -1,0 +1,31 @@
+{
+  "name": "bench-webhook-set",
+  "description": "Benchmark: webhook trigger -> set one field -> done.",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.webhook",
+      "name": "Webhook",
+      "position": { "x": 0, "y": 0 },
+      "disabled": false,
+      "config": { "path": "bench", "method": "POST" }
+    },
+    {
+      "id": "set",
+      "type": "core.set",
+      "name": "Set",
+      "position": { "x": 320, "y": 0 },
+      "disabled": false,
+      "config": {
+        "assignments": [
+          { "field": "greeting", "value": "hello {{ $json.n }}", "type": "string" }
+        ]
+      }
+    }
+  ],
+  "connections": [
+    { "id": "trigger-to-set", "source": "trigger", "source_handle": "main", "target": "set", "target_handle": "main" }
+  ]
+}

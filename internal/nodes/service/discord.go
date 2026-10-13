@@ -7,24 +7,41 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// DiscordNode sends messages, reads messages, adds reactions, and lists
-// channels via the Discord Bot API.
+// DiscordNode sends messages and embeds, reads messages, adds reactions, and
+// lists channels via the Discord API, authenticated either as a bot or
+// through a channel webhook.
 // Type: "service.discord"
 //
 // Config fields:
 //
-//	"operation"   (string, required): "send_message" | "list_messages" | "add_reaction" | "list_channels"
-//	"bot_token"   (string, required): Discord bot token (sent as "Authorization: Bot <token>")
-//	"channel_id"  (string, required for send_message, list_messages, add_reaction)
-//	"text"        (string, required for send_message): message content
-//	"limit"       (int, optional, default 50): list_messages page size
-//	"message_id"  (string, required for add_reaction)
-//	"emoji"       (string, required for add_reaction)
-//	"guild_id"    (string, required for list_channels)
+//	"auth"              (string, optional): "bot" (default) | "webhook"
+//	"operation"         (string, optional, default "send_message"):
+//	                    bot: "send_message" | "send_embed" | "list_messages" | "add_reaction" | "list_channels"
+//	                    webhook: "send_message" | "send_embed"
+//	"bot_token"         (string, required for auth=bot): sent as "Authorization: Bot <token>";
+//	                    "token" is accepted too and a leading "Bot " is stripped
+//	"webhook_url"       (string, required for auth=webhook): https://discord.com/api/webhooks/{id}/{token}
+//	"username"          (string, optional, webhook): overrides the webhook's display name
+//	"avatar_url"        (string, optional, webhook): overrides the webhook's avatar
+//	"channel_id"        (string, required for bot send_message, send_embed, list_messages, add_reaction)
+//	"text"              (string, required for send_message): message content ("content" is accepted too)
+//	"embed_title"       (string, send_embed): embed title
+//	"embed_description" (string, send_embed): embed description
+//	"embed_color"       (int, send_embed): embed color as a decimal integer
+//	"limit"             (int, optional, default 50): list_messages page size
+//	"message_id"        (string, required for add_reaction)
+//	"emoji"             (string, required for add_reaction)
+//	"guild_id"          (string, required for list_channels)
+//
+// It is also the runtime for the legacy "comm.discord" type (registered as an
+// alias): its "token"/"content" keys, its default send_message operation and
+// its "get_channels" operation (run as list_channels) keep working, and send
+// results keep their "message_id" field.
 type DiscordNode struct{}
 
 func (n *DiscordNode) Type() string { return "service.discord" }
@@ -33,20 +50,35 @@ func (n *DiscordNode) Type() string { return "service.discord" }
 var discordBaseURL = "https://discord.com/api/v10"
 
 func (n *DiscordNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
-	botToken := strVal(config, "bot_token")
+	config = withFallback(config, "text", "content")
+	operation := strVal(config, "operation")
+	if operation == "" {
+		operation = "send_message"
+	}
+
+	switch auth := strVal(config, "auth"); auth {
+	case "webhook":
+		return n.executeWebhook(ctx, operation, config)
+	case "", "bot":
+	default:
+		return nil, fmt.Errorf("service.discord: unknown auth %q (want bot or webhook)", auth)
+	}
+
+	botToken := strings.TrimPrefix(strVal(withFallback(config, "bot_token", "token"), "bot_token"), "Bot ")
 	if botToken == "" {
 		return nil, fmt.Errorf("service.discord: 'bot_token' is required")
 	}
-	operation := strVal(config, "operation")
 
 	switch operation {
 	case "send_message":
 		return n.sendMessage(ctx, botToken, config)
+	case "send_embed":
+		return n.sendEmbed(ctx, botToken, config)
 	case "list_messages":
 		return n.listMessages(ctx, botToken, config)
 	case "add_reaction":
 		return n.addReaction(ctx, botToken, config)
-	case "list_channels":
+	case "list_channels", "get_channels": // get_channels: legacy comm.discord name
 		return n.listChannels(ctx, botToken, config)
 	default:
 		return nil, fmt.Errorf("service.discord: unknown operation %q", operation)
@@ -59,13 +91,29 @@ func (n *DiscordNode) sendMessage(ctx context.Context, botToken string, config m
 	if channelID == "" || text == "" {
 		return nil, fmt.Errorf("service.discord: 'channel_id' and 'text' are required for send_message")
 	}
+	return n.postToChannel(ctx, botToken, channelID, "send_message", map[string]interface{}{"content": text})
+}
 
+func (n *DiscordNode) sendEmbed(ctx context.Context, botToken string, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	channelID := strVal(config, "channel_id")
+	if channelID == "" {
+		return nil, fmt.Errorf("service.discord: 'channel_id' is required for send_embed")
+	}
+	body, err := discordEmbedBody(config)
+	if err != nil {
+		return nil, err
+	}
+	return n.postToChannel(ctx, botToken, channelID, "send_embed", body)
+}
+
+// postToChannel creates a message in a channel as the bot.
+func (n *DiscordNode) postToChannel(ctx context.Context, botToken, channelID, op string, body map[string]interface{}) ([]workflow.NodeOutput, error) {
 	endpoint := discordBaseURL + "/channels/" + url.PathEscape(channelID) + "/messages"
-	body := map[string]interface{}{"content": text}
 	result, err := discordRequest(ctx, "POST", endpoint, botToken, body)
 	if err != nil {
-		return nil, fmt.Errorf("service.discord send_message: %w", err)
+		return nil, fmt.Errorf("service.discord %s: %w", op, err)
 	}
+	result["message_id"] = result["id"]
 	// Discord message responses may omit guild_id. Resolve channel metadata
 	// after success so private messages never enter publication history. A
 	// metadata failure cannot turn a sent message into a retryable failure.

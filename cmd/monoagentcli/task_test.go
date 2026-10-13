@@ -233,17 +233,16 @@ func TestTaskAddReadyRefusalsSayWhoRefusedAndWhatToDo(t *testing.T) {
 	}
 }
 
-// An agent context is an agent: its tasks count against the hourly limit, a name
-// chosen on the spot does not start a new allowance, and --source os does not
-// escape it. The operator is not limited.
-func TestTaskAddByAnAgentIsLimitedPerHourWhateverItsNameOrSource(t *testing.T) {
+// An agent context is an agent: it has no hourly allowance (past the twentieth
+// task it still adds), whatever its name, and --source os is not open to it.
+func TestTaskAddByAnAgentIsNotLimitedPerHourWhateverItsName(t *testing.T) {
 	db := newTaskTestDB(t)
 	raw, err := storage.NewDatabase(db)
 	if err != nil {
 		t.Fatal(err)
 	}
 	store := tasks.NewStore(raw.DB)
-	for i := 1; i <= tasks.AgentTasksPerHour; i++ {
+	for i := 1; i <= 20; i++ {
 		in := tasks.AddInput{Title: fmt.Sprintf("agent task %d", i)}
 		if _, _, err := store.Add(context.Background(), "default", in, tasks.Actor{Kind: tasks.Agent, Name: "seed"}); err != nil {
 			t.Fatalf("agent task %d: %v", i, err)
@@ -251,20 +250,22 @@ func TestTaskAddByAnAgentIsLimitedPerHourWhateverItsNameOrSource(t *testing.T) {
 	}
 	raw.Close()
 	t.Setenv("CLAUDECODE", "1") // an agent context, with no --as
-	if doc := failedTaskJSON(t, db, "default", 3, "add", "one more"); doc["code"] != "limit" {
-		t.Errorf("an agent context past the limit: %v", doc)
+	var added addedJSON
+	mustTaskJSON(t, db, "default", &added, "", "add", "one more")
+	if !added.Created || added.Task.Source.Kind != "agent" {
+		t.Errorf("an agent context's 21st task of the hour: %+v", added)
 	}
-	if doc := failedTaskJSON(t, db, "default", 3, "add", "one more", "--as", "someone-else"); doc["code"] != "limit" {
-		t.Errorf("another name does not start a new allowance: %v", doc)
+	mustTaskJSON(t, db, "default", &added, "", "add", "and another", "--as", "someone-else")
+	if !added.Created || added.Task.Source.Kind != "agent" {
+		t.Errorf("another name's task: %+v", added)
 	}
 	if doc := failedTaskJSON(t, db, "default", 3, "add", "one more", "--source", "os"); doc["code"] != "invalid_input" {
-		t.Errorf("--source os does not escape the limit: %v", doc)
+		t.Errorf("--source os is not open to an agent: %v", doc)
 	}
 	t.Setenv("CLAUDECODE", "")
-	var added addedJSON
-	mustTaskJSON(t, db, "default", &added, "", "add", "the operator is not limited")
+	mustTaskJSON(t, db, "default", &added, "", "add", "the operator")
 	if !added.Created || added.Task.Source.Kind != "cli" {
-		t.Errorf("the operator past the agents' limit: %+v", added)
+		t.Errorf("the operator's task: %+v", added)
 	}
 }
 

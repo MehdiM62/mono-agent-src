@@ -14,7 +14,7 @@ import (
 //
 // Config fields:
 //
-//	"operation"    (string, required): "create_post" | "get_timeline" | "get_profile" | "like_post" | "repost"
+//	"operation"    (string, required): "create_post" | "get_timeline" | "get_profile" | "like_post" | "repost" | "get_post_metrics"
 //	"identifier"   (string, required): Bluesky handle (e.g. "monoes_me.bsky.social")
 //	"app_password" (string, required): app password from account settings
 //	"text"         (string, required for create_post)
@@ -22,6 +22,10 @@ import (
 //	"actor"        (string, required for get_profile): handle or DID to fetch
 //	"uri"          (string, required for like_post, repost): subject record URI
 //	"cid"          (string, required for like_post, repost): subject record CID
+//	"post_uri"     (string, required for get_post_metrics): at:// URI of the post ("uri" is accepted too)
+//
+// It is also the runtime for the legacy "comm.bluesky" type (registered as an
+// alias), whose create_post / get_post_metrics configs run unchanged.
 type BlueskyNode struct{}
 
 func (n *BlueskyNode) Type() string { return "service.bluesky" }
@@ -53,6 +57,8 @@ func (n *BlueskyNode) Execute(ctx context.Context, input workflow.NodeInput, con
 		return n.likePost(ctx, accessJwt, did, config)
 	case "repost":
 		return n.repost(ctx, accessJwt, did, config)
+	case "get_post_metrics":
+		return n.getPostMetrics(ctx, accessJwt, config)
 	default:
 		return nil, fmt.Errorf("service.bluesky: unknown operation %q", operation)
 	}
@@ -175,4 +181,36 @@ func (n *BlueskyNode) repost(ctx context.Context, accessJwt, did string, config 
 		return nil, fmt.Errorf("service.bluesky repost: %w", err)
 	}
 	return []workflow.NodeOutput{{Handle: "main", Items: []workflow.Item{workflow.NewItem(result)}}}, nil
+}
+
+// getPostMetrics reads one post's like/repost/reply counts from
+// app.bsky.feed.getPostThread (depth 0, no replies fetched).
+func (n *BlueskyNode) getPostMetrics(ctx context.Context, accessJwt string, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	postURI := strVal(config, "post_uri")
+	if postURI == "" {
+		postURI = strVal(config, "uri")
+	}
+	if postURI == "" {
+		return nil, fmt.Errorf("service.bluesky: 'post_uri' is required for get_post_metrics")
+	}
+	endpoint := blueskyBaseURL + "/app.bsky.feed.getPostThread?depth=0&uri=" + url.QueryEscape(postURI)
+	result, err := apiRequest(ctx, "GET", endpoint, accessJwt, nil)
+	if err != nil {
+		return nil, fmt.Errorf("service.bluesky get_post_metrics: %w", err)
+	}
+	thread, _ := result["thread"].(map[string]interface{})
+	post, _ := thread["post"].(map[string]interface{})
+	metrics := map[string]interface{}{
+		"uri":          post["uri"],
+		"like_count":   blueskyCount(post["likeCount"]),
+		"repost_count": blueskyCount(post["repostCount"]),
+		"reply_count":  blueskyCount(post["replyCount"]),
+	}
+	return []workflow.NodeOutput{{Handle: "main", Items: []workflow.Item{workflow.NewItem(metrics)}}}, nil
+}
+
+// blueskyCount normalises an optional count field (absent means zero) to float64.
+func blueskyCount(v interface{}) float64 {
+	f, _ := v.(float64)
+	return f
 }

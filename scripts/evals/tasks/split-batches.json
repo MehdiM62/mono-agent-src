@@ -1,0 +1,38 @@
+{
+  "id": "split-batches",
+  "mode": "both",
+  "workflow_name": "eval-split-batches",
+  "prompt": "Create a workflow named \"eval-split-batches\", run manually. A Code node emits\nseven items {\"n\":1} ... {\"n\":7}. Split them into batches of 3 with the Split In\nBatches node, and on each batch set the field \"processed\" to true. Finally\ncount the processed items with an Aggregate node (count) into the field\n\"processed_count\".",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "core.split_in_batches",
+        "core.aggregate"
+      ]
+    },
+    {
+      "type": "node_config",
+      "node_type": "core.split_in_batches",
+      "key": "batch_size",
+      "equals": 3
+    },
+    {
+      "type": "output",
+      "node_type": "core.aggregate",
+      "path": "[0].processed_count",
+      "equals": 7
+    }
+  ]
+}
