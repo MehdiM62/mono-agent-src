@@ -1,4 +1,4 @@
-package main
+package apiconfig
 
 import (
 	"strings"
@@ -10,9 +10,11 @@ import (
 // that sets the title or clears the screen (S3 of the security review of phase 6). `set` refuses such a value now;
 // this is the other side of it, for a row that is already there.
 func TestAPIConfigShowTextWritesControlCharactersAsEscapes(t *testing.T) {
-	db := configTest(t)
+	t.Parallel()
+	f := configTest(t)
+	db := f.db
 	saveAt(t, db, "tls_cert_file=/x\x1b]0;PWNED\x07", "tls_key_file=/k\u009b2J", "max_concurrent=3\nforged")
-	text, _, err := runAPI(t, db, "default", false, "config", "show")
+	text, _, err := f.run(t, false, "show")
 	if err != nil {
 		t.Fatalf("a saved value that fails its rule must not stop show: %v", err)
 	}
@@ -25,9 +27,10 @@ func TestAPIConfigShowTextWritesControlCharactersAsEscapes(t *testing.T) {
 		}
 	}
 	// A path of the person's own, in any script, is shown as it is.
-	db = configTest(t)
+	f = configTest(t)
+	db = f.db
 	saveAt(t, db, "tls_cert_file=/home/مرتضی/my certs/c.pem", "tls_key_file=/home/مرتضی/my certs/k.pem")
-	text, _, err = runAPI(t, db, "default", false, "config", "show")
+	text, _, err = f.run(t, false, "show")
 	if err != nil || !strings.Contains(text, "/home/مرتضی/my certs/c.pem") {
 		t.Errorf("a path with letters of another script and a space: %v\n%s", err, text)
 	}
@@ -36,9 +39,11 @@ func TestAPIConfigShowTextWritesControlCharactersAsEscapes(t *testing.T) {
 // JSON writes a control character as an escape of its own, so the document stays one document that holds the
 // value as it is stored.
 func TestAPIConfigShowJSONKeepsTheStoredValue(t *testing.T) {
-	db := configTest(t)
+	t.Parallel()
+	f := configTest(t)
+	db := f.db
 	saveAt(t, db, "tls_cert_file=/x\x1b[2J", "tls_key_file=/k.pem")
-	out, _, err := runAPI(t, db, "default", true, "config", "show")
+	out, _, err := f.run(t, true, "show")
 	if err != nil {
 		t.Fatal(err)
 	}

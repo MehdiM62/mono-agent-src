@@ -1,4 +1,4 @@
-package main
+package apiconfig
 
 import (
 	"os"
@@ -14,20 +14,21 @@ import (
 // the settings are applied (C1 of the correctness review of phase 6): it says that the listener is not up, in
 // the JSON as a state and in the text as words and a note.
 func TestAPIConfigShowSaysWhenTheDedicatedListenerIsNotUp(t *testing.T) {
-	db := configTest(t)
-	useInstaller(t, &fakeAutostart{installed: true})
-	t.Setenv("MONOAGENT_DAEMON_HEARTBEAT", filepath.Join(t.TempDir(), "hb.json"))
+	t.Parallel()
+	f := configTest(t)
+	db := f.db
+	f.useInstaller(&fakeAutostart{installed: true})
 	cert, key := filepath.Join(t.TempDir(), "c.pem"), filepath.Join(t.TempDir(), "k.pem")
 	saveAt(t, db, "v1_addr=0.0.0.0:9443", "tls_cert_file="+cert, "tls_key_file="+key)
 	running := map[string]daemonhb.APISetting{
 		"v1_addr": {Value: "0.0.0.0:9443", Source: "saved"}, "tls_cert_file": {Value: cert, Source: "saved"},
 		"tls_key_file": {Value: key, Source: "saved"}, "max_concurrent": {Value: "4", Source: "default"},
 	}
-	if err := daemonhb.Write(daemonhb.Heartbeat{PID: os.Getpid(), APISettings: running}); err != nil { // no V1Addr: it did not come up
+	if err := f.beat(daemonhb.Heartbeat{PID: os.Getpid(), APISettings: running}); err != nil { // no V1Addr: it did not come up
 		t.Fatal(err)
 	}
 
-	out, _, err := runAPI(t, db, "default", true, "config", "show")
+	out, _, err := f.run(t, true, "show")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +46,7 @@ func TestAPIConfigShowSaysWhenTheDedicatedListenerIsNotUp(t *testing.T) {
 		t.Errorf("max_concurrent %q, restart needed %v: only the listener's settings are not serving, and a restart is not what cures it", states["max_concurrent"], r.RestartNeeded)
 	}
 
-	text, _, err := runAPI(t, db, "default", false, "config", "show")
+	text, _, err := f.run(t, false, "show")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,10 +60,10 @@ func TestAPIConfigShowSaysWhenTheDedicatedListenerIsNotUp(t *testing.T) {
 	}
 
 	// The same daemon with its listener up: applied, and no note.
-	if err := daemonhb.Write(daemonhb.Heartbeat{PID: os.Getpid(), APISettings: running, V1Addr: "[::]:9443"}); err != nil {
+	if err := f.beat(daemonhb.Heartbeat{PID: os.Getpid(), APISettings: running, V1Addr: "[::]:9443"}); err != nil {
 		t.Fatal(err)
 	}
-	out, _, err = runAPI(t, db, "default", true, "config", "show")
+	out, _, err = f.run(t, true, "show")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func TestAPIConfigShowSaysWhenTheDedicatedListenerIsNotUp(t *testing.T) {
 			t.Errorf("%s with the listener up: %q, want applied", row.Key, row.State)
 		}
 	}
-	if text, _, _ := runAPI(t, db, "default", false, "config", "show"); strings.Contains(text, "is not up") {
+	if text, _, _ := f.run(t, false, "show"); strings.Contains(text, "is not up") {
 		t.Errorf("the note is for a listener that is not up:\n%s", text)
 	}
 }
