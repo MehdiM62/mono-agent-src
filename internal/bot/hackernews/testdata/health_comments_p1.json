@@ -1,0 +1,10 @@
+{
+  "comments": [
+    {"id": "101", "author": "alice", "text": "Top-level comment", "depth": 0, "parentId": "100", "age": "2026-10-01T10:00:00", "deleted": false},
+    {"id": "102", "author": "bob", "text": "A reply to alice\n\nwith a second paragraph", "depth": 1, "parentId": "101", "age": "2026-10-01T10:05:00", "deleted": false},
+    {"id": "103", "author": "", "text": "", "depth": 0, "parentId": "100", "age": "2026-10-01T10:06:00", "deleted": true}
+  ],
+  "stack": ["103"],
+  "next": "https://news.ycombinator.com/item?id=100&p=2",
+  "found": true
+}
