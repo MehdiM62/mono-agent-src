@@ -158,6 +158,8 @@ Every field is resolved **per input item** from workflow expressions
 (`{{ $json.id }}` in the node config), so one node run makes one request per
 item.
 
+**Conditions.** `when`, `*_when`, `until`, `$when` and `to_when` are true unless the value is empty, `false`, `0` or the text `"false"`/`"0"`/`"no"`/`"off"`; any other value (an id, a mode name) is true.
+
 ## 5. Template language
 
 Strings in `base_url`, `headers`, `path`, `query`, `body`, `binary.file_name`,
@@ -370,7 +372,7 @@ WebDAV methods MKCOL, MOVE, COPY, PROPFIND and PROPPATCH are allowed (NextCloud)
 
 **Scope groups (`scope_group`).** A credential on an umbrella connection (`"reuse_platform": "google"` / `"microsoft"`) names the scope group it needs: `"scope_group": "calendar"` (google: sheets, gmail, drive, youtube, calendar, docs, forms, tasks, contacts; microsoft: mail, calendar, files, sites, teams). Before the first request the engine checks the connection grants it and otherwise fails with the exact `monoagentcli connect google --scopes …` command.
 
-`inject.body: {"key": "{{ cred.api_key }}"}` merges credential values into JSON/form/multipart bodies (Mandrill sends its key in every body).
+`inject.body: {"key": "{{ cred.api_key }}"}` merges credential values (typed: a single expression keeps booleans/numbers) into JSON/form/multipart bodies (Mandrill sends its key in every body).
 
 **Signed JWT per request (`inject.jwt`).** For APIs that want a short-lived token you sign (Ghost Admin, Zoom JWT apps, App Store Connect): `"jwt": {"header": "Authorization", "prefix": "Ghost ", "alg": "HS256", "secret": "{{ cred.api_key | split:':' | get:'1' }}", "secret_encoding": "hex", "kid": "{{ cred.api_key | split:':' | get:'0' }}", "claims": {"aud": "/admin/"}, "ttl_s": 300}`. `alg`: HS256/384/512 (secret as `text` (default), `hex` or `base64`), RS256 or ES256 (secret = a PEM private key). `iat` and `exp` (= iat + ttl_s, default 300) are added; header defaults to Authorization with prefix "Bearer ".
 
@@ -440,7 +442,7 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
   { "when": "{{ p.updateFields.starValue }}", "method": "PUT", "path": "/contacts/{{ res.id }}/star", "body": { "star_value": "{{ p.updateFields.starValue | int }}" } }
 ]
 ```
-`"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). A step with `"upload": true` sends the op's binary (`binary.upload_field`/`property`) as its raw body with the binary's Content-Type (LinkedIn: register an upload, PUT the bytes to `{{ pre.value.uploadUrl }}`, then create the post). Step keys: `when`, `for_each`, `upload`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
+`"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). A step with `"upload": true` and `"body_type": "multipart"` sends its `body` fields plus the file part (S3-style presigned POST: request a slot with `{{ bin.file_name }}`/`{{ bin.mime_type }}` — `bin` is filled for every step when the op declares `binary.upload_field` — then upload, then create; set `binary.upload_when: "false"` so only the step uploads). A step with `"upload": true` sends the op's binary (`binary.upload_field`/`property`) as its raw body with the binary's Content-Type (LinkedIn: register an upload, PUT the bytes to `{{ pre.value.uploadUrl }}`, then create the post). Step keys: `when`, `for_each`, `upload`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
 
 **Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
 `"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.
@@ -499,6 +501,8 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 **Files inside JSON.** Upload: `bin.base64` is the upload's bytes base64-encoded, for APIs that take file content in a JSON body (GitHub/GitLab `"content": "{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"` with `upload_when: "{{ p.binaryData }}"`). Download: `binary.download_base64` (template over `res`, e.g. `"{{ res.content }}"`) decodes a base64 file from the JSON response onto the item's binary (property from `property_field`, name from the `file_name` template, MIME type from `mime_type` or the name) and keeps the JSON as the item; gate it with `download_when`.
 
 `binary.fallback_body_type` (json/form/multipart/raw/none) is the body type when `upload_when` turns the upload off (LINE Notify stays a form without an image).
+
+**Several files.** `binary.properties` (a template giving a list or comma text, e.g. n8n's `"attachments": "data,data2"`) uploads each property: in a multipart body one part per file, with `el = {property, index}` in the `multipart_field` template (`"attachment[{{ el.index }}]"`); for JSON bodies `bin.files` is the list of `{property, file_name, mime_type, file_extension, base64, file_size}` (`{"$map": "{{ bin.files }}", "$to": {"name": "{{ el.file_name }}", "content": "{{ el.base64 }}"}}`).
 
 ## 11. `extends` (apps with a native Go node)
 

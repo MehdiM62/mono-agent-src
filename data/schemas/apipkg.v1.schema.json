@@ -192,6 +192,7 @@
             "fallback_body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
             "download_base64": { "type": "string" },
             "property": { "type": "string" },
+            "properties": { "type": "string" },
             "upload_text": { "type": "string" }
           }
         },
