@@ -111,6 +111,16 @@ func injectAuth(req *http.Request, c *Credential, sc Scope, body []byte) error {
 			req.SetBasicAuth(u, pw)
 		}
 	}
+	if a := in.AzureSharedKey; a != nil {
+		if err := signAzureSharedKey(req, a, sc); err != nil {
+			return fmt.Errorf("credential %s: %w", c.Platform, err)
+		}
+	}
+	if a := in.AzureCosmos; a != nil {
+		if err := signAzureCosmos(req, a, sc); err != nil {
+			return fmt.Errorf("credential %s: %w", c.Platform, err)
+		}
+	}
 	if h := in.HMAC; h != nil {
 		hsc := sc
 		hsc.Req = map[string]any{"method": req.Method, "path": req.URL.EscapedPath(), "query": req.URL.RawQuery, "body": string(body)}

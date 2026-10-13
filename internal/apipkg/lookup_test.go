@@ -13,6 +13,7 @@ import (
 	"io"
 	"math/big"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -1097,6 +1098,68 @@ func TestThenTreatsFalseAsUnset(t *testing.T) {
 	} {
 		if got, _ := renderString(in, sc); got != want {
 			t.Errorf("%s = %#v, want %#v", in, got, want)
+		}
+	}
+}
+
+func TestAzureSigners(t *testing.T) {
+	old := azureNow
+	t.Cleanup(func() { azureNow = old })
+	azureNow = func() time.Time { return time.Date(2017, 4, 27, 0, 51, 12, 0, time.UTC) }
+	// Cosmos: Microsoft's published example (GET dbs/ToDoList).
+	req, _ := http.NewRequest("GET", "https://acct.documents.azure.com/dbs/ToDoList", nil)
+	key := "dsZQi3KtZmCv1ljt3VNWNm7sQUF1y5rJfC6kv5JiwvW0EndXdDku/dkKBp8/ufDToSxLzR4y+O/0H/t4bQtVNw=="
+	if err := signAzureCosmos(req, &AzureCosmosInject{Key: "{{ cred.key }}"}, Scope{Cred: map[string]any{"key": key}}); err != nil {
+		t.Fatal(err)
+	}
+	tok, _ := url.QueryUnescape(req.Header.Get("authorization"))
+	if tok != "type=master&ver=1.0&sig=c09PEVJrgp2uQRkr934kFbTqhByc7TVr3OHyqlu+c+c=" || req.Header.Get("x-ms-date") != "Thu, 27 Apr 2017 00:51:12 GMT" {
+		t.Errorf("cosmos token = %q", tok)
+	}
+	if typ, link := cosmosResource("/dbs/db1/colls/c1/docs"); typ != "docs" || link != "dbs/db1/colls/c1" {
+		t.Errorf("list link: %s %s", typ, link)
+	}
+	if typ, link := cosmosResource("/dbs/db1/colls/c1/docs/d1"); typ != "docs" || link != "dbs/db1/colls/c1/docs/d1" {
+		t.Errorf("item link: %s %s", typ, link)
+	}
+	// Storage SharedKey: the canonical string built independently.
+	sreq, _ := http.NewRequest("GET", "https://acct.blob.core.windows.net/cont?restype=container&comp=list", nil)
+	sreq.Header.Set("x-ms-version", "2021-08-06")
+	skey := base64.StdEncoding.EncodeToString([]byte("secret-key"))
+	if err := signAzureSharedKey(sreq, &AzureSharedKeyInject{Account: "acct", Key: skey}, Scope{}); err != nil {
+		t.Fatal(err)
+	}
+	canon := "GET\n\n\n\n\n\n\n\n\n\n\n\nx-ms-date:Thu, 27 Apr 2017 00:51:12 GMT\nx-ms-version:2021-08-06\n/acct/cont\ncomp:list\nrestype:container"
+	m := hmac.New(sha256.New, []byte("secret-key"))
+	m.Write([]byte(canon))
+	if want := "SharedKey acct:" + base64.StdEncoding.EncodeToString(m.Sum(nil)); sreq.Header.Get("Authorization") != want {
+		t.Errorf("shared key = %q, want %q", sreq.Header.Get("Authorization"), want)
+	}
+}
+
+func TestHeaderCursorPagination(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"docs","title":"D","method":"GET","path":"/docs",
+	  "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	  "pagination":{"type":"header_cursor","cursor_param":"x-ms-continuation","cursor_path":"x-ms-continuation","results_path":"Documents"}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		if n == 1 {
+			w.Header().Set("x-ms-continuation", "tok1")
+			w.Write([]byte(`{"Documents":[{"id":1}]}`))
+			return
+		}
+		w.Write([]byte(`{"Documents":[{"id":2}]}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "docs", "returnAll": true}, cred, nil)
+	if err != nil || len(items) != 2 || (*seen)[1].Header.Get("x-ms-continuation") != "tok1" || (*seen)[0].Header.Get("x-ms-continuation") != "" {
+		t.Errorf("header cursor: %v %v", items, err)
+	}
+}
+
+func TestDottedKeyLookup(t *testing.T) {
+	doc := map[string]any{"@odata.nextLink": "https://graph.test/next", "@odata.count": 3.0, "a": map[string]any{"b.c": map[string]any{"d": 1.0}}, "x": map[string]any{"y": 2.0}}
+	for path, want := range map[string]any{"@odata.nextLink": "https://graph.test/next", "@odata.count": 3.0, "a.b.c.d": 1.0, "x.y": 2.0, "x.z": nil} {
+		if got := lookupPath(doc, strings.Split(path, ".")); got != want {
+			t.Errorf("%s = %#v, want %#v", path, got, want)
 		}
 	}
 }
