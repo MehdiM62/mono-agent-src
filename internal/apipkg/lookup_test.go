@@ -1163,3 +1163,13 @@ func TestDottedKeyLookup(t *testing.T) {
 		}
 	}
 }
+
+func TestFlattenNested(t *testing.T) {
+	sc := Scope{P: map[string]any{"docs": []any{
+		map[string]any{"SummaryFields": []any{map[string]any{"a": 1.0}}},
+		map[string]any{"SummaryFields": []any{map[string]any{"b": 2.0}, map[string]any{"c": 3.0}}}}}}
+	got, _ := renderString("{{ p.docs | pluck:'SummaryFields' | flatten }}", sc)
+	if l, ok := got.([]any); !ok || len(l) != 3 || l[2].(map[string]any)["c"] != 3.0 {
+		t.Errorf("nested flatten = %#v", got)
+	}
+}
