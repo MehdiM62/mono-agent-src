@@ -1,0 +1,796 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_cloud_storage",
+  "node_type": "app.google_cloud_storage",
+  "title": "Google Cloud Storage",
+  "description": "Buckets and objects in Google Cloud Storage",
+  "category": "app",
+  "docs_url": "https://cloud.google.com/storage/docs/json_api/v1",
+  "n8n_types": [
+    "n8n-nodes-base.googleCloudStorage"
+  ],
+  "base_url": "https://storage.googleapis.com/storage/v1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Cloud Storage)",
+      "n8n_credential": "googleCloudStorageOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "bucket",
+      "label": "Bucket"
+    },
+    {
+      "value": "object",
+      "label": "Object"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "bucket",
+      "operation": "getAll",
+      "title": "Get many buckets",
+      "method": "GET",
+      "path": "/b",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID (v1)",
+          "type": "text"
+        },
+        {
+          "key": "projectRLC",
+          "label": "Project",
+          "type": "text",
+          "help": "Google Cloud project ID (resource locator accepted)."
+        },
+        {
+          "key": "prefix",
+          "label": "Prefix",
+          "type": "text"
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "full",
+            "noAcl"
+          ],
+          "default": "noAcl"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "project": "{{ p.projectRLC | rl | default:p.projectId }}",
+        "prefix": "{{ p.prefix }}",
+        "projection": "{{ p.projection }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 200,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "bucket",
+      "operation": "create",
+      "title": "Create a bucket",
+      "method": "POST",
+      "path": "/b",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID (v1)",
+          "type": "text"
+        },
+        {
+          "key": "projectRLC",
+          "label": "Project",
+          "type": "text",
+          "help": "Google Cloud project ID (resource locator accepted)."
+        },
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "full",
+            "noAcl"
+          ],
+          "default": "noAcl"
+        },
+        {
+          "key": "createAcl",
+          "label": "ACL",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "predefinedAcl",
+            "predefinedDefaultObjectAcl"
+          ]
+        },
+        {
+          "key": "createBody",
+          "label": "Bucket settings",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "acl",
+            "billing",
+            "cors",
+            "customPlacementConfig",
+            "dataLocations",
+            "defaultObjectAcl",
+            "encryption",
+            "iamConfiguration",
+            "labels",
+            "lifecycle",
+            "logging",
+            "retentionPolicy",
+            "versioning",
+            "website",
+            "defaultEventBasedHold",
+            "location",
+            "rpo",
+            "storageClass"
+          ],
+          "help": "JSON-valued settings (acl, cors, labels, lifecycle, …) are JSON text as in n8n."
+        }
+      ],
+      "query": {
+        "project": "{{ p.projectRLC | rl | default:p.projectId }}",
+        "projection": "{{ p.projection }}",
+        "predefinedAcl": "{{ p.createAcl.predefinedAcl }}",
+        "predefinedDefaultObjectAcl": "{{ p.createAcl.predefinedDefaultObjectAcl }}"
+      },
+      "body": {
+        "name": "{{ p.bucketName }}",
+        "acl": "{{ p.createBody.acl | fromjson }}",
+        "billing": "{{ p.createBody.billing | fromjson }}",
+        "cors": "{{ p.createBody.cors | fromjson }}",
+        "customPlacementConfig": "{{ p.createBody.customPlacementConfig | fromjson }}",
+        "dataLocations": "{{ p.createBody.dataLocations | fromjson }}",
+        "defaultObjectAcl": "{{ p.createBody.defaultObjectAcl | fromjson }}",
+        "encryption": "{{ p.createBody.encryption | fromjson }}",
+        "iamConfiguration": "{{ p.createBody.iamConfiguration | fromjson }}",
+        "labels": "{{ p.createBody.labels | fromjson }}",
+        "lifecycle": "{{ p.createBody.lifecycle | fromjson }}",
+        "logging": "{{ p.createBody.logging | fromjson }}",
+        "retentionPolicy": "{{ p.createBody.retentionPolicy | fromjson }}",
+        "versioning": "{{ p.createBody.versioning | fromjson }}",
+        "website": "{{ p.createBody.website | fromjson }}",
+        "defaultEventBasedHold": "{{ p.createBody.defaultEventBasedHold }}",
+        "location": "{{ p.createBody.location }}",
+        "rpo": "{{ p.createBody.rpo }}",
+        "storageClass": "{{ p.createBody.storageClass }}"
+      }
+    },
+    {
+      "resource": "bucket",
+      "operation": "delete",
+      "title": "Delete a bucket",
+      "method": "DELETE",
+      "path": "/b/{{ p.bucketName }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "getFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ifMetagenerationMatch",
+            "ifMetagenerationNotMatch"
+          ]
+        }
+      ],
+      "query": {
+        "ifMetagenerationMatch": "{{ p.getFilters.ifMetagenerationMatch }}",
+        "ifMetagenerationNotMatch": "{{ p.getFilters.ifMetagenerationNotMatch }}"
+      }
+    },
+    {
+      "resource": "bucket",
+      "operation": "get",
+      "title": "Get a bucket",
+      "method": "GET",
+      "path": "/b/{{ p.bucketName }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "full",
+            "noAcl"
+          ],
+          "default": "noAcl"
+        },
+        {
+          "key": "getFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ifMetagenerationMatch",
+            "ifMetagenerationNotMatch"
+          ]
+        }
+      ],
+      "query": {
+        "projection": "{{ p.projection }}",
+        "ifMetagenerationMatch": "{{ p.getFilters.ifMetagenerationMatch }}",
+        "ifMetagenerationNotMatch": "{{ p.getFilters.ifMetagenerationNotMatch }}"
+      }
+    },
+    {
+      "resource": "bucket",
+      "operation": "update",
+      "title": "Update a bucket",
+      "method": "PATCH",
+      "path": "/b/{{ p.bucketName }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "full",
+            "noAcl"
+          ],
+          "default": "noAcl"
+        },
+        {
+          "key": "getFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ifMetagenerationMatch",
+            "ifMetagenerationNotMatch"
+          ]
+        },
+        {
+          "key": "createAcl",
+          "label": "ACL",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "predefinedAcl",
+            "predefinedDefaultObjectAcl"
+          ]
+        },
+        {
+          "key": "createBody",
+          "label": "Bucket settings",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "acl",
+            "billing",
+            "cors",
+            "customPlacementConfig",
+            "dataLocations",
+            "defaultObjectAcl",
+            "encryption",
+            "iamConfiguration",
+            "labels",
+            "lifecycle",
+            "logging",
+            "retentionPolicy",
+            "versioning",
+            "website",
+            "defaultEventBasedHold",
+            "location",
+            "rpo",
+            "storageClass"
+          ]
+        }
+      ],
+      "query": {
+        "projection": "{{ p.projection }}",
+        "ifMetagenerationMatch": "{{ p.getFilters.ifMetagenerationMatch }}",
+        "ifMetagenerationNotMatch": "{{ p.getFilters.ifMetagenerationNotMatch }}",
+        "predefinedAcl": "{{ p.createAcl.predefinedAcl }}",
+        "predefinedDefaultObjectAcl": "{{ p.createAcl.predefinedDefaultObjectAcl }}"
+      },
+      "body": {
+        "acl": "{{ p.createBody.acl | fromjson }}",
+        "billing": "{{ p.createBody.billing | fromjson }}",
+        "cors": "{{ p.createBody.cors | fromjson }}",
+        "customPlacementConfig": "{{ p.createBody.customPlacementConfig | fromjson }}",
+        "dataLocations": "{{ p.createBody.dataLocations | fromjson }}",
+        "defaultObjectAcl": "{{ p.createBody.defaultObjectAcl | fromjson }}",
+        "encryption": "{{ p.createBody.encryption | fromjson }}",
+        "iamConfiguration": "{{ p.createBody.iamConfiguration | fromjson }}",
+        "labels": "{{ p.createBody.labels | fromjson }}",
+        "lifecycle": "{{ p.createBody.lifecycle | fromjson }}",
+        "logging": "{{ p.createBody.logging | fromjson }}",
+        "retentionPolicy": "{{ p.createBody.retentionPolicy | fromjson }}",
+        "versioning": "{{ p.createBody.versioning | fromjson }}",
+        "website": "{{ p.createBody.website | fromjson }}",
+        "defaultEventBasedHold": "{{ p.createBody.defaultEventBasedHold }}",
+        "location": "{{ p.createBody.location }}",
+        "rpo": "{{ p.createBody.rpo }}",
+        "storageClass": "{{ p.createBody.storageClass }}"
+      }
+    },
+    {
+      "resource": "object",
+      "operation": "getAll",
+      "title": "Get many objects",
+      "method": "GET",
+      "path": "/b/{{ p.bucketName }}/o",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "full",
+            "noAcl"
+          ],
+          "default": "noAcl"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "maxResults",
+          "label": "Max results",
+          "type": "number",
+          "default": 100
+        },
+        {
+          "key": "listFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "delimiter",
+            "endOffset",
+            "includeTrailingDelimiter",
+            "prefix",
+            "startOffset",
+            "versions"
+          ]
+        }
+      ],
+      "query": {
+        "projection": "{{ p.projection }}",
+        "$merge": "{{ p.listFilters }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 1000,
+        "results_path": "items",
+        "limit_field": "maxResults"
+      }
+    },
+    {
+      "resource": "object",
+      "operation": "create",
+      "title": "Create an object",
+      "method": "POST",
+      "base_url": "https://storage.googleapis.com/upload/storage/v1",
+      "path": "/b/{{ p.bucketName }}/o",
+      "description": "Uploads the input binary as the object, then applies the metadata in createData. Creating from text (createFromBinary off) is not supported yet.",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "objectName",
+          "label": "Object name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateProjection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "full",
+            "noAcl"
+          ],
+          "default": "full"
+        },
+        {
+          "key": "createFromBinary",
+          "label": "From binary",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "createBinaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "createContent",
+          "label": "Content",
+          "type": "textarea"
+        },
+        {
+          "key": "createData",
+          "label": "Object metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "crc32c",
+            "md5Hash",
+            "storageClass",
+            "acl",
+            "cacheControl",
+            "contentDisposition",
+            "contentEncoding",
+            "contentLanguage",
+            "contentType",
+            "customTime",
+            "eventBasedHold",
+            "metadata",
+            "temporaryHold"
+          ]
+        },
+        {
+          "key": "createQuery",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contentEncoding",
+            "kmsKeyName"
+          ]
+        },
+        {
+          "key": "encryptionHeaders",
+          "label": "Encryption headers",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "X-Goog-Encryption-Algorithm",
+            "X-Goog-Encryption-Key",
+            "X-Goog-Encryption-Key-Sha256"
+          ],
+          "help": "Customer-supplied encryption key headers."
+        }
+      ],
+      "query": {
+        "uploadType": "media",
+        "name": "{{ p.objectName }}",
+        "projection": "{{ p.updateProjection }}",
+        "contentEncoding": "{{ p.createQuery.contentEncoding }}",
+        "kmsKeyName": "{{ p.createQuery.kmsKeyName }}"
+      },
+      "headers": {
+        "X-Goog-Encryption-Algorithm": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Algorithm' }}",
+        "X-Goog-Encryption-Key": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key' }}",
+        "X-Goog-Encryption-Key-Sha256": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key-Sha256' }}"
+      },
+      "binary": {
+        "upload_field": "createBinaryPropertyName"
+      },
+      "also": [
+        {
+          "when": "{{ p.createData }}",
+          "method": "PATCH",
+          "path": "/b/{{ p.bucketName }}/o/{{ p.objectName }}",
+          "body": {
+            "cacheControl": "{{ p.createData.cacheControl }}",
+            "contentDisposition": "{{ p.createData.contentDisposition }}",
+            "contentEncoding": "{{ p.createData.contentEncoding }}",
+            "contentLanguage": "{{ p.createData.contentLanguage }}",
+            "contentType": "{{ p.createData.contentType }}",
+            "customTime": "{{ p.createData.customTime }}",
+            "eventBasedHold": "{{ p.createData.eventBasedHold }}",
+            "temporaryHold": "{{ p.createData.temporaryHold }}",
+            "storageClass": "{{ p.createData.storageClass }}",
+            "crc32c": "{{ p.createData.crc32c }}",
+            "md5Hash": "{{ p.createData.md5Hash }}",
+            "acl": "{{ p.createData.acl | fromjson }}",
+            "metadata": "{{ p.createData.metadata | fromjson }}"
+          },
+          "headers": {
+            "X-Goog-Encryption-Algorithm": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Algorithm' }}",
+            "X-Goog-Encryption-Key": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key' }}",
+            "X-Goog-Encryption-Key-Sha256": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key-Sha256' }}"
+          }
+        }
+      ]
+    },
+    {
+      "resource": "object",
+      "operation": "delete",
+      "title": "Delete an object",
+      "method": "DELETE",
+      "path": "/b/{{ p.bucketName }}/o/{{ p.objectName }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "objectName",
+          "label": "Object name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "getParameters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "generation",
+            "ifGenerationMatch",
+            "ifGenerationNotMatch",
+            "ifMetagenerationMatch",
+            "ifMetagenerationNotMatch"
+          ]
+        }
+      ],
+      "query": {
+        "generation": "{{ p.getParameters.generation | ne:'-1' | then:p.getParameters.generation }}",
+        "ifGenerationMatch": "{{ p.getParameters.ifGenerationMatch | ne:'-1' | then:p.getParameters.ifGenerationMatch }}",
+        "ifGenerationNotMatch": "{{ p.getParameters.ifGenerationNotMatch | ne:'-1' | then:p.getParameters.ifGenerationNotMatch }}",
+        "ifMetagenerationMatch": "{{ p.getParameters.ifMetagenerationMatch | ne:'-1' | then:p.getParameters.ifMetagenerationMatch }}",
+        "ifMetagenerationNotMatch": "{{ p.getParameters.ifMetagenerationNotMatch | ne:'-1' | then:p.getParameters.ifMetagenerationNotMatch }}"
+      }
+    },
+    {
+      "resource": "object",
+      "operation": "get",
+      "title": "Get object metadata",
+      "method": "GET",
+      "path": "/b/{{ p.bucketName }}/o/{{ p.objectName }}",
+      "description": "Returns the object's metadata; downloading the data (alt=media) is not supported yet.",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "objectName",
+          "label": "Object name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "full",
+            "noAcl"
+          ],
+          "default": "noAcl"
+        },
+        {
+          "key": "alt",
+          "label": "Return",
+          "type": "select",
+          "options": [
+            "json",
+            "media"
+          ],
+          "default": "json"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "getParameters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "generation",
+            "ifGenerationMatch",
+            "ifGenerationNotMatch",
+            "ifMetagenerationMatch",
+            "ifMetagenerationNotMatch"
+          ]
+        },
+        {
+          "key": "encryptionHeaders",
+          "label": "Encryption headers",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "X-Goog-Encryption-Algorithm",
+            "X-Goog-Encryption-Key",
+            "X-Goog-Encryption-Key-Sha256"
+          ],
+          "help": "Customer-supplied encryption key headers."
+        }
+      ],
+      "query": {
+        "projection": "{{ p.projection }}",
+        "generation": "{{ p.getParameters.generation | ne:'-1' | then:p.getParameters.generation }}",
+        "ifGenerationMatch": "{{ p.getParameters.ifGenerationMatch | ne:'-1' | then:p.getParameters.ifGenerationMatch }}",
+        "ifGenerationNotMatch": "{{ p.getParameters.ifGenerationNotMatch | ne:'-1' | then:p.getParameters.ifGenerationNotMatch }}",
+        "ifMetagenerationMatch": "{{ p.getParameters.ifMetagenerationMatch | ne:'-1' | then:p.getParameters.ifMetagenerationMatch }}",
+        "ifMetagenerationNotMatch": "{{ p.getParameters.ifMetagenerationNotMatch | ne:'-1' | then:p.getParameters.ifMetagenerationNotMatch }}"
+      },
+      "headers": {
+        "X-Goog-Encryption-Algorithm": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Algorithm' }}",
+        "X-Goog-Encryption-Key": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key' }}",
+        "X-Goog-Encryption-Key-Sha256": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key-Sha256' }}"
+      }
+    },
+    {
+      "resource": "object",
+      "operation": "update",
+      "title": "Update an object",
+      "method": "PATCH",
+      "path": "/b/{{ p.bucketName }}/o/{{ p.objectName }}",
+      "fields": [
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "objectName",
+          "label": "Object name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateProjection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "full",
+            "noAcl"
+          ],
+          "default": "full"
+        },
+        {
+          "key": "updateData",
+          "label": "Object metadata",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "acl",
+            "cacheControl",
+            "contentDisposition",
+            "contentEncoding",
+            "contentLanguage",
+            "contentType",
+            "customTime",
+            "eventBasedHold",
+            "metadata",
+            "temporaryHold"
+          ]
+        },
+        {
+          "key": "metagenAndAclQuery",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "generation",
+            "ifGenerationMatch",
+            "ifGenerationNotMatch",
+            "ifMetagenerationMatch",
+            "ifMetagenerationNotMatch",
+            "predefinedAcl"
+          ]
+        },
+        {
+          "key": "encryptionHeaders",
+          "label": "Encryption headers",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "X-Goog-Encryption-Algorithm",
+            "X-Goog-Encryption-Key",
+            "X-Goog-Encryption-Key-Sha256"
+          ],
+          "help": "Customer-supplied encryption key headers."
+        }
+      ],
+      "query": {
+        "projection": "{{ p.updateProjection }}",
+        "generation": "{{ p.metagenAndAclQuery.generation | ne:'-1' | then:p.metagenAndAclQuery.generation }}",
+        "ifGenerationMatch": "{{ p.metagenAndAclQuery.ifGenerationMatch | ne:'-1' | then:p.metagenAndAclQuery.ifGenerationMatch }}",
+        "ifGenerationNotMatch": "{{ p.metagenAndAclQuery.ifGenerationNotMatch | ne:'-1' | then:p.metagenAndAclQuery.ifGenerationNotMatch }}",
+        "ifMetagenerationMatch": "{{ p.metagenAndAclQuery.ifMetagenerationMatch | ne:'-1' | then:p.metagenAndAclQuery.ifMetagenerationMatch }}",
+        "ifMetagenerationNotMatch": "{{ p.metagenAndAclQuery.ifMetagenerationNotMatch | ne:'-1' | then:p.metagenAndAclQuery.ifMetagenerationNotMatch }}",
+        "predefinedAcl": "{{ p.metagenAndAclQuery.predefinedAcl }}"
+      },
+      "headers": {
+        "X-Goog-Encryption-Algorithm": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Algorithm' }}",
+        "X-Goog-Encryption-Key": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key' }}",
+        "X-Goog-Encryption-Key-Sha256": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key-Sha256' }}"
+      },
+      "body": {
+        "cacheControl": "{{ p.updateData.cacheControl }}",
+        "contentDisposition": "{{ p.updateData.contentDisposition }}",
+        "contentEncoding": "{{ p.updateData.contentEncoding }}",
+        "contentLanguage": "{{ p.updateData.contentLanguage }}",
+        "contentType": "{{ p.updateData.contentType }}",
+        "customTime": "{{ p.updateData.customTime }}",
+        "eventBasedHold": "{{ p.updateData.eventBasedHold }}",
+        "temporaryHold": "{{ p.updateData.temporaryHold }}",
+        "storageClass": "{{ p.updateData.storageClass }}",
+        "crc32c": "{{ p.updateData.crc32c }}",
+        "md5Hash": "{{ p.updateData.md5Hash }}",
+        "acl": "{{ p.updateData.acl | fromjson }}",
+        "metadata": "{{ p.updateData.metadata | fromjson }}"
+      }
+    }
+  ]
+}
