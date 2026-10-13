@@ -190,7 +190,7 @@ a JSON array. Anything else is string-interpolated: `"Bearer {{ cred.token }}"`;
 **Omit empty.** In `query` and `body` objects a key whose value resolves to
 `nil`, `""`, `[]` or `{}` is left out. `0` and `false` are kept. A nested
 object that ends up empty is left out too. Array elements that resolve
-empty are dropped. Write `"!key"` to send the value even when empty
+empty are dropped. Write `"!key"` to send the value even when empty (a `$map`/`$concat` under `"!key"` sends `[]`)
 (`"!description": "{{ p.description }}"` sends `""`/`null`).
 
 **`$merge`.** `"$merge": "{{ p.additionalFields }}"` spreads an object into
