@@ -1,6 +1,7 @@
 package n8nimport
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 )
@@ -68,19 +69,71 @@ type AppMapper struct {
 	CredentialPlatform map[string]string
 	// DefaultResource and DefaultOperation are filled in when the n8n
 	// export omits them (n8n leaves out parameters equal to their default).
-	DefaultResource  string
-	DefaultOperation string
+	// DefaultOperations, when set, gives the default operation per
+	// resource and wins over DefaultOperation.
+	DefaultResource   string
+	DefaultOperation  string
+	DefaultOperations map[string]string
+	// OperationParam is the n8n parameter that selects the operation when
+	// it is not "operation" (e.g. "action"). The parameter is copied under
+	// its own name, which the package reads.
+	OperationParam string
 	// ParamMap renames n8n parameters per operation, keyed
 	// "resource.operation" (or "operation" when there is no resource):
 	// n8n parameter name → package field name. Only for names that differ.
 	ParamMap map[string]map[string]string
+	// CredentialHints is the report hint per n8n credential type (how to
+	// create the connection, which n8n fields become which of ours).
+	CredentialHints map[string]string
+	// Trigger marks an n8n trigger type the package lists but cannot run
+	// yet: it converts to a placeholder with a clear message.
+	Trigger bool
+	// PackageID names the API package, for report messages.
+	PackageID string
 }
 
 var (
 	regMu   sync.RWMutex
 	mappers = map[string]Mapper{}
 	apps    = map[string]AppMapper{}
+	// srcApps holds the AppMappers of the app sources, refreshed on every
+	// Convert so packages installed meanwhile are seen. apps wins.
+	srcApps    = map[string]AppMapper{}
+	appSources []func() []AppMapper
 )
+
+// RegisterAppSource adds a function listing AppMappers (the declarative
+// API packages). It is called at the start of every Convert, so the
+// importer always sees the currently installed packages without importing
+// them; a type registered with RegisterApp wins over a source's.
+func RegisterAppSource(f func() []AppMapper) {
+	regMu.Lock()
+	defer regMu.Unlock()
+	appSources = append(appSources, f)
+}
+
+// refreshAppSources rebuilds srcApps from the app sources.
+func refreshAppSources() {
+	regMu.RLock()
+	sources := append([]func() []AppMapper(nil), appSources...)
+	regMu.RUnlock()
+	if len(sources) == 0 {
+		return
+	}
+	next := map[string]AppMapper{}
+	for _, f := range sources {
+		for _, a := range f() {
+			for _, t := range a.N8nTypes {
+				if _, ok := next[t]; !ok {
+					next[t] = a
+				}
+			}
+		}
+	}
+	regMu.Lock()
+	srcApps = next
+	regMu.Unlock()
+}
 
 // Register installs the Mapper for an n8n node type (the full type string,
 // e.g. "n8n-nodes-base.slack"). A later registration replaces an earlier one.
@@ -111,21 +164,29 @@ func lookup(n8nType string) (Mapper, bool) {
 func lookupApp(n8nType string) (AppMapper, bool) {
 	regMu.RLock()
 	defer regMu.RUnlock()
-	a, ok := apps[n8nType]
+	if a, ok := apps[n8nType]; ok {
+		return a, ok
+	}
+	a, ok := srcApps[n8nType]
 	return a, ok
 }
 
 // SupportedTypes lists the n8n node types with a native Mapper and those
-// handled by an AppMapper, both sorted.
+// handled by an AppMapper (triggers left out), both sorted.
 func SupportedTypes() (native, app []string) {
+	refreshAppSources()
 	regMu.RLock()
 	defer regMu.RUnlock()
 	for t := range mappers {
 		native = append(native, t)
 	}
-	for t := range apps {
-		if _, ok := mappers[t]; !ok {
-			app = append(app, t)
+	seen := map[string]bool{}
+	for _, m := range []map[string]AppMapper{apps, srcApps} {
+		for t, a := range m {
+			if _, ok := mappers[t]; !ok && !a.Trigger && !seen[t] {
+				seen[t] = true
+				app = append(app, t)
+			}
 		}
 	}
 	sort.Strings(native)
@@ -135,18 +196,31 @@ func SupportedTypes() (native, app []string) {
 
 // mapApp is the generic AppMapper conversion.
 func mapApp(a AppMapper, c *MapContext) Mapping {
+	if a.Trigger {
+		c.issues = append(c.issues, Issue{Severity: SevError,
+			Message: fmt.Sprintf("n8n trigger %s (API package %s) is not supported yet; start the workflow with a schedule or webhook trigger instead", c.Type, a.PackageID)})
+		return Mapping{Unmapped: true}
+	}
 	nodeType := a.NodeType
 	if nodeType == "" {
 		nodeType = a.Extends
 	}
+	opParam := a.OperationParam
+	if opParam == "" {
+		opParam = "operation"
+	}
 	cfg := map[string]interface{}{}
 	resource := c.Literal("resource", a.DefaultResource)
-	operation := c.Literal("operation", a.DefaultOperation)
+	defOp := a.DefaultOperation
+	if d, ok := a.DefaultOperations[resource]; ok {
+		defOp = d
+	}
+	operation := c.Literal(opParam, defOp)
 	if resource != "" {
 		cfg["resource"] = resource
 	}
 	if operation != "" {
-		cfg["operation"] = operation
+		cfg[opParam] = operation
 	}
 	key := operation
 	if resource != "" {
@@ -154,7 +228,7 @@ func mapApp(a AppMapper, c *MapContext) Mapping {
 	}
 	rename := a.ParamMap[key]
 	for k := range c.Params {
-		if k == "resource" || k == "operation" {
+		if k == "resource" || k == opParam {
 			continue
 		}
 		dst := k
@@ -168,14 +242,25 @@ func mapApp(a AppMapper, c *MapContext) Mapping {
 		credTypes = append(credTypes, t)
 	}
 	sort.Strings(credTypes)
+	used := ""
 	for _, t := range credTypes {
-		if _, used := c.Credentials[t]; used {
-			cfg["credential_id"] = c.Credential(a.CredentialPlatform[t], t)
+		if _, ok := c.Credentials[t]; ok {
+			used = t
 			break
 		}
 	}
-	if _, ok := cfg["credential_id"]; !ok && len(credTypes) > 0 {
-		cfg["credential_id"] = c.Credential(a.CredentialPlatform[credTypes[0]])
+	if used == "" && len(credTypes) > 0 {
+		used = credTypes[0]
+	}
+	if used != "" {
+		if _, inNode := c.Credentials[used]; inNode {
+			cfg["credential_id"] = c.Credential(a.CredentialPlatform[used], used)
+		} else {
+			cfg["credential_id"] = c.Credential(a.CredentialPlatform[used])
+		}
+		if h := a.CredentialHints[used]; h != "" {
+			c.creds[len(c.creds)-1].Hint = h
+		}
 	}
 	return Mapping{Type: nodeType, Config: cfg}
 }

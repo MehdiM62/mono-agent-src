@@ -36,6 +36,10 @@ var corpusExpect = map[string]struct {
 	"schedules_and_shops.json": {0, []string{"service.shopify", "service.stripe", "service.youtube", "service.google_drive"}},
 	"llm_chains.json":          {0, []string{"agent.ask", "core.if", "core.switch"}},
 	"merge_modes.json":         {0, []string{"core.merge"}},
+	"todoist_app.json":         {0, []string{"app.todoist"}},
+	"split_out_summarize.json": {0, []string{"data.split_out", "data.summarize"}},
+	"vector_rag.json":          {0, []string{"vector.load_document", "vector.store"}},
+	"http_graphql.json":        {0, []string{"http.request", "http.graphql"}},
 }
 
 func TestCorpusConvertsAndValidates(t *testing.T) {

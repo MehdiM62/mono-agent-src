@@ -12,9 +12,6 @@ func init() {
 	Register("n8n-nodes-base.emailSend", mapEmailSend)
 	Register("n8n-nodes-base.spreadsheetFile", mapSpreadsheetFile)
 	Register("n8n-nodes-base.writeBinaryFile", mapWriteBinaryFile)
-	Register("n8n-nodes-base.readWriteFile", mapReadWriteFile)
-	Register("n8n-nodes-base.convertToFile", mapConvertToFile)
-	Register("n8n-nodes-base.extractFromFile", mapExtractFromFile)
 }
 
 // exitCodeStep adds n8n's exitCode field next to mono's exit_code.
@@ -191,40 +188,7 @@ func spreadsheetMapping(c *MapContext, monoOp string, write bool) Mapping {
 	return Mapping{Type: "data.spreadsheet", Config: cfg}
 }
 
-func mapConvertToFile(c *MapContext) Mapping {
-	op := c.Literal("operation", "csv")
-	monoOp, ok := spreadsheetOp(c, true, op)
-	if !ok {
-		c.Ignore("mode", "sourceProperty", "options")
-		return c.OperationUnsupported("", op)
-	}
-	return spreadsheetMapping(c, monoOp, true)
-}
-
-func mapExtractFromFile(c *MapContext) Mapping {
-	op := c.Literal("operation", "csv")
-	monoOp, ok := spreadsheetOp(c, false, op)
-	if !ok {
-		c.Ignore("destinationKey", "options")
-		return c.OperationUnsupported("", op)
-	}
-	return spreadsheetMapping(c, monoOp, false)
-}
-
 func mapWriteBinaryFile(c *MapContext) Mapping {
-	if c.Bool("options.append", false) {
-		c.Unsupported("options.append")
-	}
-	field := c.Literal("dataPropertyName", "data")
-	c.Warn("dataPropertyName", field, "data.write_binary_file writes base64 text from an item field, not n8n binary data")
-	return Mapping{Type: "data.write_binary_file", Config: map[string]interface{}{"file_path": c.Str("fileName", ""), "field": field, "encoding": "base64"}}
-}
-
-func mapReadWriteFile(c *MapContext) Mapping {
-	if c.Literal("operation", "read") != "write" {
-		c.Ignore("fileSelector", "options")
-		return c.OperationUnsupported("", "read")
-	}
 	if c.Bool("options.append", false) {
 		c.Unsupported("options.append")
 	}
