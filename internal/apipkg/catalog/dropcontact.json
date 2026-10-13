@@ -107,7 +107,7 @@
       },
       "poll": {
         "method": "GET",
-        "path": "/batch/{{ res.request_id }}",
+        "path": "/batch/{{ main.request_id }}",
         "until": "{{ p.simplify | eq:'true' | default:(res.data | then:true) }}",
         "interval_ms": 5000,
         "max_wait_ms": 600000
