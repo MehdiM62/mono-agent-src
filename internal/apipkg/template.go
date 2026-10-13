@@ -8,12 +8,15 @@ import (
 	"sync"
 )
 
-// Scope is what templates read: p (the op params), cred (the credential)
-// and item (the current input item's JSON).
+// Scope is what templates read: p (the op params), cred (the credential),
+// item (the current input item's JSON), el (the element a $map is on) and
+// res (the main request's decoded response, in "also" requests).
 type Scope struct {
 	P    map[string]any
 	Cred map[string]any
 	Item map[string]any
+	El   any
+	Res  any
 }
 
 func (s Scope) root(name string) any {
@@ -24,6 +27,10 @@ func (s Scope) root(name string) any {
 		return s.Cred
 	case "item":
 		return s.Item
+	case "el":
+		return s.El
+	case "res":
+		return s.Res
 	}
 	return nil
 }
@@ -154,9 +161,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item":
+	case "p", "cred", "item", "el", "res":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred. or item.", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., el. or res.", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
@@ -308,6 +315,12 @@ func renderValue(v any, sc Scope) (any, error) {
 	case string:
 		return renderString(t, sc)
 	case map[string]any:
+		if src, ok := t["$map"]; ok {
+			return renderMap(src, t["$to"], sc)
+		}
+		if parts, ok := t["$concat"]; ok {
+			return renderConcat(parts, sc)
+		}
 		return renderObject(t, sc)
 	case []any:
 		out := make([]any, 0, len(t))
@@ -416,4 +429,69 @@ func stringify(v any) string {
 		return fmt.Sprint(v)
 	}
 	return string(b)
+}
+
+// renderMap renders "$to" once per element of the list "$map" resolves to,
+// with el bound to the element. Empty results are dropped; an empty or
+// missing list renders nil (so the key is omitted).
+func renderMap(src, to any, sc Scope) (any, error) {
+	if to == nil {
+		return nil, fmt.Errorf("$map needs a $to template")
+	}
+	list, err := renderValue(src, sc)
+	if err != nil {
+		return nil, fmt.Errorf("$map: %w", err)
+	}
+	if isEmpty(list) {
+		return nil, nil
+	}
+	arr, ok := list.([]any)
+	if !ok {
+		return nil, fmt.Errorf("$map: %v is %T, not a list", src, list)
+	}
+	out := make([]any, 0, len(arr))
+	for i, el := range arr {
+		esc := sc
+		esc.El = el
+		r, err := renderValue(to, esc)
+		if err != nil {
+			return nil, fmt.Errorf("$map element %d: %w", i, err)
+		}
+		if !isEmpty(r) {
+			out = append(out, r)
+		}
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+// renderConcat renders each part and joins them into one list: list parts
+// are spread, other non-empty values appended, empty parts skipped.
+func renderConcat(parts any, sc Scope) (any, error) {
+	arr, ok := parts.([]any)
+	if !ok {
+		return nil, fmt.Errorf("$concat must be a list of templates")
+	}
+	var out []any
+	for i, part := range arr {
+		r, err := renderValue(part, sc)
+		if err != nil {
+			return nil, fmt.Errorf("$concat part %d: %w", i, err)
+		}
+		switch t := r.(type) {
+		case nil:
+		case []any:
+			out = append(out, t...)
+		default:
+			if !isEmpty(t) {
+				out = append(out, t)
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
