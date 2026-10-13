@@ -15,4 +15,10 @@ func RegisterAll(r *workflow.NodeTypeRegistry) {
 	r.Register("db.timescaledb", NewTimescaleDBNode)
 	r.Register("db.cratedb", NewCrateDBNode)
 	r.Register("db.questdb", NewQuestDBNode)
+	r.Register("db.ldap", func() workflow.NodeExecutor { return &LDAPNode{} })
+
+	r.Register("queue.kafka", func() workflow.NodeExecutor { return &KafkaNode{} })
+	r.Register("queue.rabbitmq", func() workflow.NodeExecutor { return &RabbitMQNode{} })
+	r.Register("queue.amqp", func() workflow.NodeExecutor { return &AMQPNode{} })
+	r.Register("queue.mqtt", func() workflow.NodeExecutor { return &MQTTNode{} })
 }

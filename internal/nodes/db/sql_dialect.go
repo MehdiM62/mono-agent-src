@@ -19,11 +19,11 @@ const (
 type upsertStyle int
 
 const (
-	upsertOnConflict    upsertStyle = iota // INSERT ... ON CONFLICT (k) DO UPDATE (Postgres family)
-	upsertOnDuplicate                      // INSERT ... ON DUPLICATE KEY UPDATE (MySQL/MariaDB)
-	upsertMerge                            // MERGE INTO ... USING (SELECT ...) (SQL Server, Snowflake)
-	upsertMergeDual                        // MERGE INTO ... USING (SELECT ... FROM dual) (Oracle)
-	upsertUnsupported                      // no portable upsert (QuestDB)
+	upsertOnConflict  upsertStyle = iota // INSERT ... ON CONFLICT (k) DO UPDATE (Postgres family)
+	upsertOnDuplicate                    // INSERT ... ON DUPLICATE KEY UPDATE (MySQL/MariaDB)
+	upsertMerge                          // MERGE INTO ... USING (SELECT ...) (SQL Server, Snowflake)
+	upsertMergeDual                      // MERGE INTO ... USING (SELECT ... FROM dual) (Oracle)
+	upsertUnsupported                    // no portable upsert (QuestDB)
 )
 
 // sqlDialect captures everything the statement builder needs to know about
@@ -31,14 +31,14 @@ const (
 // LIMIT, RETURNING, TRUNCATE and upsert.
 type sqlDialect struct {
 	name        string
-	quoteChar   string                // opening quote; closing is quoteClose (or quoteChar)
-	quoteClose  string                // "" = same as quoteChar
-	foldPlain   bool                  // leave plain identifiers unquoted (Oracle/Snowflake fold them to upper case)
-	placeholder func(n int) string    // 1-based bind placeholder
-	reorderArgs bool                  // placeholders are positional by appearance ("?"), so $N must be expanded in order
-	returning   bool                  // supports INSERT/UPDATE ... RETURNING
-	limit       limitStyle            //
-	upsert      upsertStyle           //
+	quoteChar   string             // opening quote; closing is quoteClose (or quoteChar)
+	quoteClose  string             // "" = same as quoteChar
+	foldPlain   bool               // leave plain identifiers unquoted (Oracle/Snowflake fold them to upper case)
+	placeholder func(n int) string // 1-based bind placeholder
+	reorderArgs bool               // placeholders are positional by appearance ("?"), so $N must be expanded in order
+	returning   bool               // supports INSERT/UPDATE ... RETURNING
+	limit       limitStyle         //
+	upsert      upsertStyle        //
 	truncate    func(t string, cascade, restart bool) string
 	drop        func(t string, cascade bool) string
 }
@@ -112,7 +112,7 @@ func pgDrop(t string, cascade bool) string {
 	return q
 }
 
-func plainTruncate(t string, _, _ bool) string { return "TRUNCATE TABLE " + t }
+func plainTruncate(t string, _, _ bool) string  { return "TRUNCATE TABLE " + t }
 func plainDropIfExists(t string, _ bool) string { return "DROP TABLE IF EXISTS " + t }
 
 var (

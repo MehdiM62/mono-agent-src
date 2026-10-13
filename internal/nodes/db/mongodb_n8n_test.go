@@ -71,7 +71,9 @@ func withFakeMongo(t *testing.T, docs []map[string]interface{}) *[]mongoCall {
 	calls := &[]mongoCall{}
 	prev := mongoOpen
 	mongoOpen = func(context.Context, string) (func(string, string) mongoCollection, func(), error) {
-		return func(db, coll string) mongoCollection { return fakeMongo{coll: db + "." + coll, calls: calls, docs: docs} }, func() {}, nil
+		return func(db, coll string) mongoCollection {
+			return fakeMongo{coll: db + "." + coll, calls: calls, docs: docs}
+		}, func() {}, nil
 	}
 	t.Cleanup(func() { mongoOpen = prev })
 	return calls
