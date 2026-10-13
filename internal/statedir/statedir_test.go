@@ -115,7 +115,7 @@ func TestFindExposedAndRepair(t *testing.T) {
 	}
 	for p, wantMode := range map[string]fs.FileMode{
 		dir: 0o700, db: 0o600, db + "-wal": 0o600, filepath.Join(dir, "release-state.json"): 0o600,
-		filepath.Join(dir, "helper.sh"): 0o700, // the owner keeps execute
+		filepath.Join(dir, "helper.sh"):       0o700, // the owner keeps execute
 		filepath.Join(dir, "extension.token"): 0o600, outside: 0o600,
 		nested: 0o644, // below the top level: unreachable once dir is 0700
 	} {
