@@ -259,7 +259,7 @@ func newAgentRosterCmd(cfg *globalConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&readyOnly, "ready-only", false, "Only ready models")
-	cmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip `agent scan` (no version or install checks)")
+	cmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip 'agent scan' (no version or install checks)")
 	cmd.Flags().StringSliceVar(&runtimes, "runtime", nil, "Only these runtimes")
 	cmd.Flags().DurationVar(&maxAge, "max-age", agentroster.DefaultMaxAge, "How long a passing result counts as ready")
 	cmd.AddCommand(newAgentRosterAddCmd(cfg), newAgentRosterRemoveCmd(cfg), newAgentRosterAutoCmd(cfg))

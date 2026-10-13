@@ -6,6 +6,7 @@ const handlers = {}
 vi.mock('../../services/api.js', () => ({
   api: {
     getSummary: vi.fn(() => Promise.resolve({ v: 1, hil: { total: 2 } })),
+    getExtensionStatus: vi.fn(() => Promise.resolve(null)),
     getOrgSummary: vi.fn(fast => Promise.resolve(fast
       ? { v: 1, fast: true, orgs: [{ name: 'acme', needs_you: null }], totals: { orgs: 1 } }
       : { v: 1, fast: false, orgs: [{ name: 'acme', needs_you: 3 }], totals: { orgs: 1, needs_you: 3 } })),

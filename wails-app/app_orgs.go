@@ -99,8 +99,8 @@ func (a *App) runOrgCLI(args ...string) string {
 	elapsed := time.Since(startedAt).Round(time.Millisecond)
 	if err != nil {
 		var ee *exec.ExitError
-		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
-			stderr := strings.TrimSpace(string(ee.Stderr))
+		if errors.As(err, &ee) && cliStderr(ee.Stderr) != "" {
+			stderr := cliStderr(ee.Stderr)
 			a.emitLog("ORG", "ERROR", fmt.Sprintf("org %s failed after %s: %s", strings.Join(args, " "), elapsed, stderr))
 			return aiError(fmt.Errorf("%s", stderr))
 		}

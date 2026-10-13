@@ -1,0 +1,110 @@
+{
+  "scheduledEvent.getAll": {
+    "params": {
+      "user": "https://api.calendly.com/users/AAAA",
+      "returnAll": true,
+      "filters": {
+        "status": "active",
+        "min_start_time": "2026-01-01T00:00:00Z"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/scheduled_events",
+      "query": {
+        "user": "https://api.calendly.com/users/AAAA",
+        "status": "active",
+        "min_start_time": "2026-01-01T00:00:00Z",
+        "count": "100"
+      },
+      "items": 1
+    },
+    "response": {
+      "collection": [
+        {
+          "uri": "e1"
+        }
+      ],
+      "pagination": {
+        "next_page_token": null
+      }
+    }
+  },
+  "scheduledEvent.get": {
+    "params": {
+      "eventUuid": "EV1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/scheduled_events/EV1",
+      "items": 1
+    },
+    "response": {
+      "resource": {
+        "uri": "e1",
+        "name": "Intro"
+      }
+    }
+  },
+  "scheduledEvent.cancel": {
+    "params": {
+      "eventUuid": "EV1",
+      "reason": "Double booked"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/scheduled_events/EV1/cancellation",
+      "body": {
+        "reason": "Double booked"
+      }
+    }
+  },
+  "eventType.getAll": {
+    "params": {
+      "organization": "https://api.calendly.com/organizations/ORG",
+      "limit": 5,
+      "filters": {
+        "active": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/event_types",
+      "query": {
+        "organization": "https://api.calendly.com/organizations/ORG",
+        "active": "true",
+        "count": "5"
+      }
+    }
+  },
+  "invitee.getAll": {
+    "params": {
+      "eventUuid": "EV1",
+      "filters": {
+        "email": "a@example.com"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/scheduled_events/EV1/invitees",
+      "query": {
+        "email": "a@example.com",
+        "count": "50"
+      }
+    }
+  },
+  "user.getCurrent": {
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/users/me",
+      "items": 1
+    },
+    "response": {
+      "resource": {
+        "uri": "https://api.calendly.com/users/AAAA",
+        "name": "Ada"
+      }
+    }
+  }
+}

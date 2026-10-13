@@ -111,7 +111,7 @@ func TestAPIConfigApplyDescriptionSaysWhatItInterrupts(t *testing.T) {
 	var d string
 	for _, tl := range apiConfigTools() {
 		if tl.name == "api_config_apply" {
-			d = tl.description
+			d = apiToolText(tl)
 		}
 	}
 	for _, want := range []string{"daemon restart --json", "interrupts", "workflows", "org runs", "api_config_set", "api_config_get", "pending_restart", "not registered"} {

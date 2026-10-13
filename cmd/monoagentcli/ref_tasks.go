@@ -235,7 +235,7 @@ WHO MAY DO WHAT
   unarchive, board, and comment on any task. To start or end work on a task the
   operator moves the card by hand: claim, finish and release are the agent's.
   An AI agent may list tasks (the ready, in_progress and review ones, unless it names
-  other columns) and show one by its id; add to the Inbox (20 tasks an hour); work
+  other columns) and show one by its id; add to the Inbox; work
   through next, claim, comment (on a task it holds), finish and release; and run
   digest, which has no gate: it runs the same in any context, so a session-start hook
   can call it.
@@ -292,7 +292,7 @@ WHO MAY DO WHAT
                     as ready).
   Limits: a profile holds 2,000 open tasks (every task that is not archived, Done ones
   included: archive some to make room; one that comes back from the archive counts
-  again), and agents add 20 tasks an hour to it. A title is 200 characters,
+  again). A title is 200 characters,
   notes are 64 KiB, a comment, result, question or note 8 KiB: longer text is cut,
   not refused. A task with 500 events takes no more comments, and one with
   2,000 events no more claims. A call that would pass a limit answers limit, and so

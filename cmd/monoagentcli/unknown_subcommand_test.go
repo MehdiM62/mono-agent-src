@@ -76,30 +76,31 @@ func TestRejectUnknownSubcommandsLeavesRunnableCommandsAlone(t *testing.T) {
 	}
 }
 
-// wantsJSONError must look past the *values* of global flags: the GUI builds
-// `--profile p --json org …`, where a naive "first non-dash arg" scan reads
-// the profile id as the subcommand and the failure never reaches the page as
-// JSON (wails-app/app_org_unification.go orgCLIArgs).
-func TestWantsJSONErrorSkipsGlobalFlagValues(t *testing.T) {
+// argsWantJSON must look past the *values* of global flags: the GUI builds
+// `--profile p --json org …`, and `--profile --json` names a profile called
+// "--json" (wails-app/app_org_unification.go orgCLIArgs). Any command with
+// --json gets the JSON error document, not only org and status.
+func TestArgsWantJSONSkipsGlobalFlagValues(t *testing.T) {
 	yes := [][]string{
 		{"--json", "org", "list"},
 		{"--profile", "p1", "--json", "org", "autonomy", "needs-you", "acme"},
 		{"--profile=p1", "--json", "status"},
 		{"--db-path", "/tmp/x.db", "--lang", "en", "--json", "status"},
 		{"--workers", "2", "--json", "org", "list"},
+		{"--json", "workflow", "run", "x"},
+		{"--profile", "org", "workflow", "list", "--json"},
 	}
 	for _, args := range yes {
-		if !wantsJSONError(args) {
+		if !argsWantJSON(args) {
 			t.Fatalf("%v: want JSON error output", args)
 		}
 	}
 	no := [][]string{
-		{"org", "list"},                                    // no --json
-		{"--json", "workflow", "run", "x"},                 // not an org/status command
-		{"--profile", "org", "workflow", "list", "--json"}, // a profile literally named "org"
+		{"org", "list"},                        // no --json
+		{"--profile", "--json", "org", "list"}, // a profile literally named "--json"
 	}
 	for _, args := range no {
-		if wantsJSONError(args) {
+		if argsWantJSON(args) {
 			t.Fatalf("%v: want no JSON error output", args)
 		}
 	}

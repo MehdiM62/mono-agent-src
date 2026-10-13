@@ -155,6 +155,10 @@ type Env struct {
 	FreeBytes         func(path string) (uint64, error)
 	LatestVersion     func(ctx context.Context) (string, error)
 
+	// SchemaAhead reports the database's newest recorded migration, this
+	// binary's newest embedded one, and whether the database is ahead.
+	SchemaAhead func(ctx context.Context) (dbVersion, binaryVersion int, ahead bool, err error)
+
 	// Node.js: the first node on PATH that isn't monoagent's managed one,
 	// the active managed version, and installing a managed one.
 	SystemNode  func(ctx context.Context) (path, version string, found bool)

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strings"
@@ -19,6 +20,7 @@ import (
 // Usage: monoagentcli connect <platform>
 // Also has subcommands: list, test, remove, refresh
 func newConnectCmd(cfg *globalConfig) *cobra.Command {
+	var scopeGroups []string
 	cmd := &cobra.Command{
 		Use:     "connect <platform>",
 		Short:   i18n.T("connect.short"),
@@ -29,9 +31,11 @@ func newConnectCmd(cfg *globalConfig) *cobra.Command {
 			if len(args) == 0 {
 				return cmd.Help()
 			}
-			return runConnectPlatform(cmd, cfg, args[0])
+			return runConnectPlatform(cmd, cfg, args[0], scopeGroups)
 		},
 	}
+	cmd.Flags().StringSliceVar(&scopeGroups, "scopes", nil,
+		"Scope groups to grant an umbrella platform, comma-separated (default: all). "+connections.ScopeGroupsHelp())
 
 	cmd.AddCommand(
 		newConnectListCmd(cfg),
@@ -120,7 +124,7 @@ func newConnectSetOAuthClientCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func runConnectPlatform(cmd *cobra.Command, cfg *globalConfig, platformID string) error {
+func runConnectPlatform(cmd *cobra.Command, cfg *globalConfig, platformID string, scopeGroups []string) error {
 	db, err := initDB(cfg)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
@@ -135,6 +139,7 @@ func runConnectPlatform(cmd *cobra.Command, cfg *globalConfig, platformID string
 	conn, err := mgr.Connect(cmd.Context(), platformID, connections.ConnectOptions{
 		OAuthTimeout: 5 * time.Minute,
 		ProfileID:    cfg.ProfileID,
+		Scopes:       scopeGroups,
 	})
 	if err != nil {
 		return err
@@ -183,7 +188,7 @@ func newConnectListCmd(cfg *globalConfig) *cobra.Command {
 		Short: "List saved connections (or all supported platforms with --all)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if all {
-				return printAllPlatforms(jsonOut || cfg.JSONOutput)
+				return printAllPlatforms(cmd.OutOrStdout(), jsonOut || cfg.JSONOutput)
 			}
 
 			db, err := initDB(cfg)
@@ -372,11 +377,25 @@ func formatLastTested(s string) string {
 	return t.Format("2006-01-02 15:04")
 }
 
-// printAllPlatforms prints all supported platforms sorted by category then name.
-func printAllPlatforms(jsonOut bool) error {
+// printAllPlatforms prints all supported platforms: umbrella platforms first,
+// then by category and name.
+func printAllPlatforms(out io.Writer, jsonOut bool) error {
 	platforms := connections.All()
 
+	// Umbrella platforms (one connection for every Google / Microsoft
+	// product) come first, then category and name.
+	umbrellaRank := map[string]int{}
+	for i, id := range connections.UmbrellaPlatforms() {
+		umbrellaRank[id] = i + 1
+	}
 	sort.Slice(platforms, func(i, j int) bool {
+		ri, rj := umbrellaRank[platforms[i].ID], umbrellaRank[platforms[j].ID]
+		if ri != rj {
+			if ri == 0 || rj == 0 {
+				return rj == 0
+			}
+			return ri < rj
+		}
 		if platforms[i].Category != platforms[j].Category {
 			return platforms[i].Category < platforms[j].Category
 		}
@@ -384,12 +403,12 @@ func printAllPlatforms(jsonOut bool) error {
 	})
 
 	if jsonOut {
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(platforms)
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(w, "ID\tNAME\tCATEGORY\tMETHODS\tCONNECT VIA")
 	for _, p := range platforms {
 		methods := make([]string, len(p.Methods))

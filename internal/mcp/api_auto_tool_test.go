@@ -266,7 +266,7 @@ func TestAPIAutoSetDescriptionSaysWhatItDoesAndDoesNot(t *testing.T) {
 	var d string
 	for _, tl := range apiAutoTools() {
 		if tl.name == "api_auto_set" {
-			d = tl.description
+			d = apiToolText(tl)
 		}
 	}
 	for _, want := range []string{"jev enable|disable api_auto", "acknowledge_egress", "--allow-api-exposure", "TypeSafe", "4,000 characters", "never creates", "Jev key", "not an access control", "auto_confinement", "api_status"} {

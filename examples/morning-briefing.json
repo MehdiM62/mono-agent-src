@@ -76,7 +76,7 @@
         "to": "you@example.com",
         "subject": "Morning briefing",
         "body": "{{ $json.text }}",
-        "html": false
+        "body_type": "text"
       }
     }
   ],

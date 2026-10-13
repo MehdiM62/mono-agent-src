@@ -179,7 +179,6 @@ func TestWithNothingInDoubtTheLastAttemptFollowsTheClockBack(t *testing.T) {
 			if _, err := e.g.EnsureFresh(ctx); err != nil {
 				t.Fatal(err)
 			}
-			calls := e.ref.calls.Load()
 			back := e.session().LastAttempt.Add(-10 * time.Minute)
 			e.f.Clock.Set(back)
 			if _, err := c.pass(e).EnsureFresh(ctx); err != nil { // due: a stored time after the clock holds nothing off
@@ -188,7 +187,7 @@ func TestWithNothingInDoubtTheLastAttemptFollowsTheClockBack(t *testing.T) {
 			if sess := e.session(); !sess.LastAttempt.Equal(back) || e.rawPending() != "" {
 				t.Fatalf("stored session = %s, want the second attempt recorded on the clock that went back, %v, and no marker", describe(sess), back)
 			}
-			calls = e.ref.calls.Load()
+			calls := e.ref.calls.Load()
 			e.f.Clock.Advance(10 * time.Second)
 			if _, err := e.newGuard(0).EnsureFresh(ctx); err != nil {
 				t.Fatal(err)

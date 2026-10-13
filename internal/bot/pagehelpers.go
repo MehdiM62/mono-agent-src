@@ -370,8 +370,7 @@ var scrollSettle = 800 * time.Millisecond
 
 // PageScrollAndCollect scrolls the page until at least max elements match sel
 // (max <= 0: until the list stops growing) or three scrolls in a row add
-// nothing, and returns the matches (at most max). It is the PageInterface
-// counterpart of the Rod ScrollAndCollect in humanize.go.
+// nothing, and returns the matches (at most max).
 func PageScrollAndCollect(ctx context.Context, p browser.PageInterface, sel string, max int) ([]browser.ElementHandle, error) {
 	const maxStale = 3
 	var collected []browser.ElementHandle

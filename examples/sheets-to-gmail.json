@@ -51,7 +51,7 @@
         "to": "{{ $json.email }}",
         "subject": "Following up",
         "body": "Hi {{ $json.name }},\n\nJust following up on our last conversation.",
-        "html": false
+        "body_type": "text"
       }
     }
   ],

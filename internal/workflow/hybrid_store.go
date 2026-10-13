@@ -188,6 +188,7 @@ func (h *HybridWorkflowStore) mirrorToSQL(ctx context.Context, w *Workflow) erro
 		w.Name, w.Description, boolToInt(w.IsActive), time.Now().UTC(), w.ID); err != nil {
 		return fmt.Errorf("mirror workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, h.sql.db, w)
 	nodes := append([]WorkflowNode(nil), w.Nodes...)
 	if err := h.sql.SaveWorkflowNodes(ctx, w.ID, nodes); err != nil {
 		return fmt.Errorf("mirror workflow %s nodes: %w", w.ID, err)
@@ -377,6 +378,10 @@ func (h *HybridWorkflowStore) ListExecutions(ctx context.Context, workflowID str
 
 func (h *HybridWorkflowStore) UpdateExecutionStatus(ctx context.Context, id string, status string, errMsg string) error {
 	return h.sql.UpdateExecutionStatus(ctx, id, status, errMsg)
+}
+
+func (h *HybridWorkflowStore) StartQueuedExecution(ctx context.Context, id string) (bool, error) {
+	return h.sql.StartQueuedExecution(ctx, id)
 }
 
 func (h *HybridWorkflowStore) SetExecutionStarted(ctx context.Context, id string) error {

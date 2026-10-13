@@ -1,0 +1,22 @@
+{
+  "name": "eval-schedule-only",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "weekday",
+      "type": "trigger.schedule",
+      "name": "weekday",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {
+        "cron": "0 30 7 * * 1-5",
+        "timezone": "Europe/Berlin"
+      }
+    }
+  ],
+  "connections": []
+}

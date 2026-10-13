@@ -534,7 +534,7 @@ func TestSecretRm_CascadesToLinkedConnectionRow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PutSystemEntry: %v", err)
 	}
-	if _, err := db.DB.Exec(`INSERT INTO connections (id, platform, profile_id, vault_ref) VALUES ('conn-1', 'github', 'default', ?)`, vaultID); err != nil {
+	if _, err := db.DB.Exec(`INSERT INTO connections (id, platform, method, label, profile_id, vault_ref, created_at, updated_at) VALUES ('conn-1', 'github', 'oauth', 'GitHub', 'default', ?, 't', 't')`, vaultID); err != nil {
 		t.Fatalf("seeding connections row: %v", err)
 	}
 

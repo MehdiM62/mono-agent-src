@@ -55,6 +55,10 @@ func ValidateConnection(ctx context.Context, c *Connection) (accountID string, e
 		return validateGoogle(ctx, c)
 	case "youtube":
 		return validateYouTube(ctx, c)
+	case "google":
+		return validateGoogleAccount(ctx, c)
+	case "microsoft":
+		return validateMicrosoftAccount(ctx, c)
 	case "outlook":
 		if c.Method == MethodOAuth {
 			return validateOutlookOAuth(ctx, c)

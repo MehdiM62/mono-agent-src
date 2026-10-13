@@ -1,0 +1,144 @@
+{
+ "v": 1,
+ "label": "nvidia/nemotron-3-super-120b-a12b:free",
+ "binary": "/home/monoes/scratch/rw-evals-bin/monoagentcli",
+ "started": "20261013-154603",
+ "seconds": 161.6,
+ "results": [
+  {
+   "task": "http-filter-csv",
+   "mode": "cli",
+   "checks": [
+    {
+     "check": "validate_ok",
+     "type": "validate_ok",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "dry_run_ok",
+     "type": "dry_run_ok",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "run_status",
+     "type": "run_status",
+     "pass": false,
+     "detail": "status FAILED, want SUCCESS; non-success nodes: n4:FAILED"
+    },
+    {
+     "check": "node_types",
+     "type": "node_types",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "file",
+     "type": "file",
+     "pass": false,
+     "detail": "cannot read /home/monoes/scratch/monoagent-evals-20261013-154603/http-filter-csv-cli-k6vu5m84/out/expensive.csv: No such file or directory"
+    }
+   ],
+   "steps": 16,
+   "seconds": 72.9,
+   "finished": true,
+   "agent_error": "",
+   "transcript": "/home/monoes/scratch/monoagent-evals-20261013-154603/transcripts/http-filter-csv-cli.json"
+  },
+  {
+   "task": "rss-read",
+   "mode": "cli",
+   "checks": [
+    {
+     "check": "validate_ok",
+     "type": "validate_ok",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "dry_run_ok",
+     "type": "dry_run_ok",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "run_status",
+     "type": "run_status",
+     "pass": false,
+     "detail": "status FAILED, want SUCCESS; non-success nodes: n3:FAILED"
+    },
+    {
+     "check": "mcp_validate_ok",
+     "type": "mcp_validate_ok",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "mcp_run_status",
+     "type": "mcp_run_status",
+     "pass": false,
+     "detail": "status FAILED: \"{\\n  \\\"error\\\": \\\"node n3 (Keep First 2): limit: 'max_items' config is required\\\",\\n  \\\"execution_id\\\": \\\"0f603f9f-0b99-40d7-88e3-eeb995722711\\\",\\n  \\\"nodes\\\":..."
+    },
+    {
+     "check": "node_types",
+     "type": "node_types",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "output",
+     "type": "output",
+     "pass": false,
+     "detail": "got [\"Alpha release\", \"Beta notes\", \"Gamma launch\"], want [\"Alpha release\", \"Beta notes\"]"
+    }
+   ],
+   "steps": 9,
+   "seconds": 47.8,
+   "finished": true,
+   "agent_error": "",
+   "transcript": "/home/monoes/scratch/monoagent-evals-20261013-154603/transcripts/rss-read-cli.json"
+  },
+  {
+   "task": "schedule-daily",
+   "mode": "cli",
+   "checks": [
+    {
+     "check": "validate_ok",
+     "type": "validate_ok",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "dry_run_ok",
+     "type": "dry_run_ok",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "node_types",
+     "type": "node_types",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "node_config",
+     "type": "node_config",
+     "pass": true,
+     "detail": ""
+    },
+    {
+     "check": "inactive",
+     "type": "inactive",
+     "pass": true,
+     "detail": ""
+    }
+   ],
+   "steps": 7,
+   "seconds": 21.3,
+   "finished": true,
+   "agent_error": "",
+   "transcript": "/home/monoes/scratch/monoagent-evals-20261013-154603/transcripts/schedule-daily-cli.json"
+  }
+ ]
+}

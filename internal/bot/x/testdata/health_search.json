@@ -1,0 +1,21 @@
+{
+  "page1": {
+    "rows": [
+      {"ad": true, "id": "9999", "url": "https://x.com/brand/status/9999", "author_username": "brand", "text": "Buy now"},
+      {"ad": false, "id": "2001", "url": "https://x.com/synth_erin/status/2001", "created_at": "2026-09-20T10:00:00.000Z", "author_name": "Synth Erin", "author_username": "synth_erin", "text": "Quiet morning", "reply_count": "5", "repost_count": "2", "like_count": "1.2K", "liked": false},
+      {"ad": false, "id": "", "url": "", "author_username": "", "text": "no timestamp link"},
+      {"ad": false, "id": "2002", "url": "https://x.com/synth_finn/status/2002", "author_name": "Synth Finn", "author_username": "synth_finn", "text": "Second", "reply_count": "", "repost_count": "3,456", "like_count": "12M", "liked": true}
+    ],
+    "empty": false
+  },
+  "page2": {
+    "rows": [
+      {"ad": false, "id": "2002", "url": "https://x.com/synth_finn/status/2002", "author_username": "synth_finn", "text": "Second"},
+      {"ad": false, "id": "2003", "url": "https://x.com/synth_gus/status/2003", "author_username": "", "author_name": "", "text": "No author", "like_count": "Like"},
+      {"ad": false, "id": "2004", "url": "https://x.com/synth_hal/status/2004", "author_username": "synth_hal", "text": "Fourth"}
+    ],
+    "empty": false
+  },
+  "empty": {"rows": [], "empty": true},
+  "blank": {"rows": [], "empty": false}
+}

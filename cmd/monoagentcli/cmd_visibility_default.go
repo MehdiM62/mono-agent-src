@@ -8,5 +8,5 @@ package main
 // listings); the compiled-in behavior is unchanged, so existing scripts
 // keep working. login/crawl/connect/people are intentionally NOT hidden.
 func hideLegacySocialCommands() []string {
-	return []string{"list", "template"}
+	return []string{"list", "message-template"}
 }
