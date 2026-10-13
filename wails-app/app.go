@@ -23,7 +23,6 @@ import (
 	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/profiledir"
-	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	_ "modernc.org/sqlite"
 )
@@ -105,16 +104,15 @@ func (a *App) startup(ctx context.Context) {
 	if err := os.MkdirAll(filepath.Dir(a.dbPath), 0o700); err != nil {
 		runtime.LogErrorf(ctx, "data folder error: %v", err)
 	}
-	sdb, err := storage.NewDatabase(a.dbPath)
+	db, err := openReadOnlyDB(a.dbPath)
 	if err != nil {
 		runtime.LogErrorf(ctx, "DB open error: %v", err)
 		return
 	}
-	db := sdb.DB
 	a.db = db
 	// The CLI owns the schema: `db migrate` applies pending migrations and
 	// the per-profile folder and vault migrations (app_db_prepare.go); this
-	// handle only serves what the app still reads itself.
+	// read-only handle only serves what the app still reads itself.
 	a.prepareDatabase()
 
 	// os.UserHomeDir (not $HOME) so vault/workflow dirs resolve on Windows too.
