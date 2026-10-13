@@ -27,6 +27,7 @@ import (
 	httpnodes "github.com/monoes/mono-agent/internal/nodes/http"
 	imagenodes "github.com/monoes/mono-agent/internal/nodes/image"
 	matchingnodes "github.com/monoes/mono-agent/internal/nodes/matching"
+	mcpnodes "github.com/monoes/mono-agent/internal/nodes/mcp"
 	orgnodes "github.com/monoes/mono-agent/internal/nodes/org"
 	peoplenodes "github.com/monoes/mono-agent/internal/nodes/people"
 	publicationnodes "github.com/monoes/mono-agent/internal/nodes/publication"
@@ -59,6 +60,7 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 
 	// Local AI agent nodes (monomind delegation) — no store needed.
 	agentnodes.RegisterAll(registry)
+	mcpnodes.RegisterAll(registry) // mcp.call: MCP client (stdio / Streamable HTTP)
 
 	// Goal-driven browser agent (TypeSafe Jev) in the user's own browser.
 	browserjev.RegisterAll(registry)
