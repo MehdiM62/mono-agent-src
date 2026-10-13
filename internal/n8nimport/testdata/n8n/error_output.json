@@ -1,0 +1,16 @@
+{
+  "name": "Fetch with error branch",
+  "nodes": [
+    {"parameters": {}, "id": "m", "name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0]},
+    {"parameters": {"url": "=https://api.example.com/users/{{ $json.id || 1 }}", "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth", "sendQuery": true, "queryParameters": {"parameters": [{"name": "expand", "value": "profile"}]}, "sendHeaders": true, "headerParameters": {"parameters": [{"name": "Accept", "value": "application/json"}]}, "options": {"response": {"response": {"responseFormat": "json"}}}},
+      "id": "h", "name": "Get user", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [220, 0], "onError": "continueErrorOutput", "credentials": {"httpHeaderAuth": {"id": "5", "name": "API key header"}}},
+    {"parameters": {"assignments": {"assignments": [{"id": "1", "name": "name", "value": "={{ $json.name }}", "type": "string"}]}, "includeOtherFields": true, "options": {}}, "id": "ok", "name": "Use user", "type": "n8n-nodes-base.set", "typeVersion": 3.4, "position": [440, -100]},
+    {"parameters": {"errorMessage": "=Lookup failed: {{ $json.error.message }}"}, "id": "err", "name": "Fail loudly", "type": "n8n-nodes-base.stopAndError", "typeVersion": 1, "position": [440, 100]},
+    {"parameters": {}, "id": "n", "name": "Old step", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [660, -100], "disabled": true, "notes": "Kept for reference", "continueOnFail": true}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "Get user", "type": "main", "index": 0}]]},
+    "Get user": {"main": [[{"node": "Use user", "type": "main", "index": 0}], [{"node": "Fail loudly", "type": "main", "index": 0}]]},
+    "Use user": {"main": [[{"node": "Old step", "type": "main", "index": 0}]]}
+  }
+}

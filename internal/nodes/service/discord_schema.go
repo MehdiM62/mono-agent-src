@@ -10,13 +10,27 @@ package service
 //
 // credential_platform: discord
 type DiscordNodeSchema struct {
-	CredentialID string `json:"credential_id" schema:"label=Discord Connection,type=credential_picker,required"`
+	Auth string `json:"auth" schema:"label=Authentication,type=select,options=bot|webhook,default=bot,help=bot uses the Discord connection's bot token (all operations); webhook posts through a channel webhook URL (send_message and send_embed only)."`
 
-	Operation string `json:"operation" schema:"label=Operation,type=select,required,options=send_message|list_messages|add_reaction|list_channels,default=send_message"`
+	CredentialID string `json:"credential_id" schema:"label=Discord Connection,type=credential_picker,help=Bot connection. Not needed with webhook authentication.,depends_on_key=auth,depends_on_values=bot"`
 
-	ChannelID string `json:"channel_id" schema:"label=Channel ID,type=text,depends_on_key=operation,depends_on_values=send_message|list_messages|add_reaction"`
+	WebhookURL string `json:"webhook_url" schema:"label=Webhook URL,type=text,placeholder=https://discord.com/api/webhooks/...,help=Channel settings → Integrations → Webhooks → Copy Webhook URL.,depends_on_key=auth,depends_on_values=webhook"`
 
-	Text string `json:"text" schema:"label=Message,type=textarea,rows=3,depends_on_key=operation,depends_on_values=send_message"`
+	Operation string `json:"operation" schema:"label=Operation,type=select,required,options=send_message|send_embed|list_messages|add_reaction|list_channels,default=send_message"`
+
+	ChannelID string `json:"channel_id" schema:"label=Channel ID,type=text,help=Not used with webhook authentication (the webhook decides the channel).,depends_on_key=operation,depends_on_values=send_message|send_embed|list_messages|add_reaction"`
+
+	Text string `json:"text" schema:"label=Message,type=textarea,rows=3,help=Required for send_message; optional text above the embed for send_embed.,depends_on_key=operation,depends_on_values=send_message|send_embed"`
+
+	EmbedTitle string `json:"embed_title" schema:"label=Embed Title,type=text,depends_on_key=operation,depends_on_values=send_embed"`
+
+	EmbedDescription string `json:"embed_description" schema:"label=Embed Description,type=textarea,rows=3,depends_on_key=operation,depends_on_values=send_embed"`
+
+	EmbedColor float64 `json:"embed_color" schema:"label=Embed Color,type=number,help=Decimal color， e.g. 5814783 for #5865F2.,depends_on_key=operation,depends_on_values=send_embed"`
+
+	Username string `json:"username" schema:"label=Display Name Override,type=text,help=Webhook only: post under this name.,depends_on_key=auth,depends_on_values=webhook"`
+
+	AvatarURL string `json:"avatar_url" schema:"label=Avatar URL Override,type=text,help=Webhook only: post with this avatar.,depends_on_key=auth,depends_on_values=webhook"`
 
 	Limit float64 `json:"limit" schema:"label=Limit,type=number,default=50,depends_on_key=operation,depends_on_values=list_messages"`
 

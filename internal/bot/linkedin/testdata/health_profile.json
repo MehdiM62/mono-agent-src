@@ -1,0 +1,14 @@
+{
+  "name": "Ann Lee",
+  "headline": "Staff Engineer at Acme",
+  "location": "Berlin, Germany",
+  "about": "Builds reliable things.",
+  "aboutSection": true,
+  "connections": "500+",
+  "followers": "1,234",
+  "degree": "2nd",
+  "picture": "https://media.licdn.com/dms/image/profile-displayphoto.jpg",
+  "banner": "https://media.licdn.com/dms/image/profile-displaybackgroundimage.jpg",
+  "isSelf": false,
+  "url": "https://www.linkedin.com/in/ann-lee-test/?miniProfileUrn=urn%3Ali%3Afs#about"
+}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -18,7 +17,7 @@ import (
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/health"
 	"github.com/monoes/mono-agent/internal/monomind"
-	"github.com/monoes/mono-agent/internal/nodemgr"
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // addServiceHooks wires the browser, services and integrations checks to
@@ -100,8 +99,10 @@ func addServiceHooks(env *health.Env, cfg *globalConfig) {
 
 	env.ClaudeSkills = claudeSkillsState
 	env.InstallClaudeSkills = func() error { return installClaudeSkill(false) }
-	env.MCPRegistration = claudeMCPRegistration
-	env.RegisterMCP = registerClaudeMCP
+	// Every installed coding-agent runtime (Claude Code, Codex, Gemini CLI,
+	// opencode), registered with --allow-mutations (agent_integrations.go).
+	env.MCPRegistration = agentsMCPRegistration
+	env.RegisterMCP = registerAgentsMCP
 }
 
 // startDaemon starts `monoagentcli daemon` through its login service when
@@ -130,11 +131,11 @@ func startDaemon(ctx context.Context, args []string, as autostart.Installer, pro
 	}
 	home, _ := os.UserHomeDir()
 	logDir := filepath.Join(home, ".monoagent", "logs")
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	if err := statedir.MkdirAll(logDir); err != nil {
 		return err
 	}
 	logPath := filepath.Join(logDir, "daemon.log")
-	logf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	logf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, statedir.FilePerm)
 	if err != nil {
 		return err
 	}
@@ -452,50 +453,4 @@ func unitFromCgroup(cgroup string) string {
 		}
 	}
 	return ""
-}
-
-// claudeMCPRegistration looks for a user-scope MCP server in
-// ~/.claude.json that runs `monoagentcli mcp`.
-func claudeMCPRegistration() (claudeFound, registered bool, where string) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return false, false, ""
-	}
-	path := filepath.Join(home, ".claude.json")
-	b, err := os.ReadFile(path)
-	if err != nil {
-		_, derr := os.Stat(filepath.Join(home, ".claude"))
-		return derr == nil, false, ""
-	}
-	var cfg struct {
-		MCPServers map[string]struct {
-			Command string   `json:"command"`
-			Args    []string `json:"args"`
-		} `json:"mcpServers"`
-	}
-	if err := json.Unmarshal(b, &cfg); err != nil {
-		return true, false, ""
-	}
-	for name, s := range cfg.MCPServers {
-		base := strings.TrimSuffix(filepath.Base(s.Command), ".exe")
-		if base == "monoagentcli" && len(s.Args) > 0 && s.Args[0] == "mcp" {
-			return true, true, fmt.Sprintf("%q in %s", name, path)
-		}
-	}
-	return true, false, ""
-}
-
-// registerClaudeMCP runs `claude mcp add --scope user monoagent -- <this
-// binary> mcp`.
-func registerClaudeMCP(ctx context.Context, progress func(string)) error {
-	claude, err := exec.LookPath("claude")
-	if err != nil {
-		return fmt.Errorf("the claude CLI is not on PATH — install Claude Code first (monoagentcli agent install claude)")
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	cmd := exec.CommandContext(ctx, claude, "mcp", "add", "--scope", "user", "monoagent", "--", exe, "mcp")
-	return nodemgr.StreamCmd(cmd, progress)
 }

@@ -355,11 +355,6 @@ func (s *Store) findAutomationGrant(ctx context.Context, profileID, org, role, a
 	return nil, ErrNotFound
 }
 
-// FindAutomationGrant returns the live grant for (profile, org, role, alias).
-func (s *Store) FindAutomationGrant(ctx context.Context, profileID, org, role, alias string) (*Grant, error) {
-	return s.findAutomationGrant(ctx, profileID, org, role, alias)
-}
-
 // RevokeGrant revokes the live grant for (profile, org, role, alias).
 func (s *Store) RevokeGrant(ctx context.Context, profileID, org, role, alias string) error {
 	g, err := s.findAutomationGrant(ctx, profileID, org, role, alias)

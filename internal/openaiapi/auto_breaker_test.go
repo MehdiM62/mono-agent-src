@@ -74,8 +74,10 @@ func TestAutoBreakerStopsAskingAfterConsecutiveFailures(t *testing.T) {
 	if got := b.record(true); got != breakerClosed {
 		t.Errorf("a probe that Jev answers closes it, got %v", got)
 	}
-	if !b.allow() || !b.allow() {
-		t.Error("closed again: every question goes out")
+	for i := 0; i < 2; i++ {
+		if !b.allow() {
+			t.Errorf("closed again: every question goes out, question %d was held back", i+1)
+		}
 	}
 }
 

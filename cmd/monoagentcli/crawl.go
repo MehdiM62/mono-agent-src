@@ -11,6 +11,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
+	"github.com/monoes/mono-agent/internal/statedir"
 	"github.com/spf13/cobra"
 )
 
@@ -62,7 +63,7 @@ For the full guide:  monoagent ref crawling`,
 				return fmt.Errorf("resolve home dir: %w", err)
 			}
 			captureDir := filepath.Join(home, ".monoagent", "captures")
-			if err := os.MkdirAll(captureDir, 0o755); err != nil {
+			if err := statedir.MkdirAll(captureDir); err != nil {
 				return fmt.Errorf("create capture dir: %w", err)
 			}
 			htmlFile := filepath.Join(captureDir, fmt.Sprintf("%s_%s.html", domain, timestamp))
@@ -98,7 +99,7 @@ For the full guide:  monoagent ref crawling`,
 			}
 
 			html := res.Value.String()
-			if err := os.WriteFile(htmlFile, []byte(html), 0o644); err != nil {
+			if err := os.WriteFile(htmlFile, []byte(html), statedir.FilePerm); err != nil {
 				return fmt.Errorf("save HTML: %w", err)
 			}
 

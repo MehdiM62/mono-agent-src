@@ -1,0 +1,34 @@
+{
+  "id": "html-extract",
+  "mode": "both",
+  "workflow_name": "eval-html-extract",
+  "prompt": "Create a workflow named \"eval-html-extract\", run manually, that downloads\n{{FIXTURE_URL}}/page.html with an HTTP GET and extracts the text of its <h1>\nheading into a field named \"heading\" with the HTML node.",
+  "fixtures": [
+    "page.html"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "http.request",
+        "data.html"
+      ]
+    },
+    {
+      "type": "output",
+      "node_type": "data.html",
+      "path": "[0].heading",
+      "equals": "Quarterly Report"
+    }
+  ]
+}

@@ -16,18 +16,8 @@ import (
 // enable|disable api_auto` does, for the MCP server's profile.
 func apiAutoTools() []tool {
 	return []tool{{
-		name: "api_auto_set",
-		description: "Switch the auto model of the OpenAI-compatible API (the Jev surface api_auto) on or off for the active profile, as `monoagentcli jev enable|disable api_auto` does: " +
-			"the document of that command's --json (profile_id, surface, enabled and, when switching on, threshold and egress) plus auto, what api_status says of the auto model after the change " +
-			"(available, or what it is missing: the surface, a Jev key). enabled is required. " +
-			"Switching on needs two things, because while it is on the first 4,000 characters of the last user message of each request for the model auto (of an image request, its prompt) " +
-			"and the names, descriptions and validated cost and latency of the models the server serves go to TypeSafe: the operator must have started this MCP server with --allow-api-exposure " +
-			"(or MONOAGENT_MCP_ALLOW_API_EXPOSURE=1), which no argument of this tool can set, since the model sets the arguments, and acknowledge_egress: true. Without the first the call is refused and nothing changes " +
-			"(the user can run `monoagentcli jev enable api_auto` or use the desktop app, Settings › Jev); without the second it is refused, shows exactly what would be sent, and nothing changes. " +
-			"acknowledge_egress is set by the caller: like --yes of the command it makes the data visible before it moves, and it is not an access control. Switching off needs neither. " +
-			"This tool never creates, stores, uses or shows the Jev key (the user stores it with `monoagentcli jev key set` in their own terminal, or TYPESAFE_API_KEY is set where the server runs): " +
-			"with no key the surface is on and auto stays unavailable, which auto says. " +
-			"It changes nothing else: the profile's threshold, its other Jev surfaces and other profiles are untouched. Which models auto may pick is auto_confinement (api_config_set), not this.",
+		name:        "api_auto_set",
+		description: "Switch the auto model of the OpenAI-compatible API (the Jev surface api_auto) on or off for the active profile, as `monoagentcli jev enable|disable api_auto`. Switching on sends request text to TypeSafe, so it needs the operator's --allow-api-exposure and acknowledge_egress: true. " + apiToolsDetails,
 		schema: objSchema(map[string]interface{}{
 			"enabled":            boolParam("true switches the auto model on for the active profile, false switches it off"),
 			"acknowledge_egress": boolParam("Needed with enabled true, on a server whose operator started it with --allow-api-exposure: says that the user knows what is sent to TypeSafe while it is on (the refusal lists it). Not needed to switch off"),

@@ -112,7 +112,6 @@ const (
 	MaxEventsPerTask    = 500
 	MaxEventsToClaim    = 2000
 	MaxOpenTasks        = 2000
-	AgentTasksPerHour   = 20
 	DefaultListLimit    = 500
 	MaxListLimit        = 2000
 	DefaultLease        = 30 * time.Minute

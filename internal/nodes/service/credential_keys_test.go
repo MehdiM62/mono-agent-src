@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -16,6 +18,14 @@ import (
 // node proceeds to attempt a network call (any error NOT mentioning "required")
 // instead of failing immediately on a missing required field.
 func TestNodesAcceptRegistryCredentialKeys(t *testing.T) {
+	// Keep the test offline: every request fails at the transport, which is
+	// still "past validation" for the assertion below.
+	orig := httpClient
+	httpClient = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("offline test transport")
+	})}
+	t.Cleanup(func() { httpClient = orig })
+
 	cases := []struct {
 		name   string
 		node   workflow.NodeExecutor
@@ -69,3 +79,7 @@ func TestNodesAcceptRegistryCredentialKeys(t *testing.T) {
 		}
 	}
 }
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

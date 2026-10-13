@@ -23,4 +23,6 @@ type SalesforceNodeSchema struct {
 	SOQL string `json:"soql" schema:"label=SOQL Query,type=code,depends_on_key=operation,depends_on_values=query"`
 
 	Fields string `json:"fields" schema:"label=Fields (JSON),type=textarea,rows=5,depends_on_key=operation,depends_on_values=create_record|update_record"`
+
+	APIVersion string `json:"api_version" schema:"label=API Version,type=text,default=66.0,placeholder=66.0,help=Salesforce REST API version such as 66.0 or v66.0. Leave at the default unless your org needs an older release."`
 }

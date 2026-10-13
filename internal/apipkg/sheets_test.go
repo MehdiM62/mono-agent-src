@@ -83,9 +83,29 @@ func TestScopeGroupCheck(t *testing.T) {
 	old := ScopeCheck
 	t.Cleanup(func() { ScopeCheck = old })
 	var gotGroup string
-	ScopeCheck = func(_ map[string]any, g string) error { gotGroup = g; return errors.New("missing scope: connect google --scopes calendar") }
+	ScopeCheck = func(_ map[string]any, g string) error {
+		gotGroup = g
+		return errors.New("missing scope: connect google --scopes calendar")
+	}
 	_, err := runPackageOp(p, map[string]any{"operation": "get"}, map[string]any{"access_token": "t"}, nil)
 	if err == nil || gotGroup != "calendar" || !strings.Contains(err.Error(), "--scopes calendar") {
 		t.Errorf("scope check: group %q, err %v", gotGroup, err)
+	}
+}
+
+func TestWhenGatesObjects(t *testing.T) {
+	sc := Scope{P: map[string]any{"loc": "endOfSegmentLocation", "seg": ""}}
+	in := map[string]any{"insertText": map[string]any{
+		"text":                 "hi",
+		"endOfSegmentLocation": map[string]any{"$when": "{{ p.loc | eq:'endOfSegmentLocation' }}", "segmentId": "{{ p.seg }}"},
+		"location":             map[string]any{"$when": "{{ p.loc | eq:'location' }}", "index": 1.0},
+	}}
+	got, err := renderValue(in, sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"insertText": map[string]any{"text": "hi", "endOfSegmentLocation": map[string]any{}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %#v, want %#v", got, want)
 	}
 }

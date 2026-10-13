@@ -25,8 +25,6 @@ const (
 	markerTools = `"tools":[{"type":"function","function":{"name":"` + markerName + `","description":"d","parameters":{"type":"object","properties":{}}}}]`
 )
 
-var raisedContext = Policy{Max: Unconfined, ContextMax: Sandboxed}
-
 // contextCounts is a gateway that counts what a refused request must not cost: a turn,
 // a knowledge search and a Jev question.
 type contextCounts struct {

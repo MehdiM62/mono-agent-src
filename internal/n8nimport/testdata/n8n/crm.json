@@ -1,0 +1,20 @@
+{
+  "name": "New customer fan-out",
+  "nodes": [
+    {"parameters": {"httpMethod": "POST", "path": "new-customer", "options": {}}, "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, 0]},
+    {"parameters": {"email": "={{ $json.body.email }}", "additionalFields": {"firstName": "={{ $json.body.first }}", "lastName": "={{ $json.body.last }}", "lifeCycleStage": "customer"}}, "name": "HubSpot", "type": "n8n-nodes-base.hubspot", "typeVersion": 2, "position": [220, -300], "credentials": {"hubspotAppToken": {"id": "1", "name": "HubSpot"}}},
+    {"parameters": {"company": "={{ $json.body.company }}", "lastname": "={{ $json.body.last }}", "additionalFields": {"email": "={{ $json.body.email }}", "firstname": "={{ $json.body.first }}"}}, "name": "Salesforce", "type": "n8n-nodes-base.salesforce", "typeVersion": 1, "position": [220, -200], "credentials": {"salesforceOAuth2Api": {"id": "2", "name": "SF"}}},
+    {"parameters": {"resource": "databasePage", "databaseId": {"__rl": true, "value": "db123", "mode": "id"}, "propertiesUi": {"propertyValues": [{"key": "Name|title", "title": "={{ $json.body.company }}"}, {"key": "Email|email", "emailValue": "={{ $json.body.email }}"}, {"key": "Seats|number", "numberValue": 5}, {"key": "Stage|select", "selectValue": "Won"}]}, "options": {}}, "name": "Notion", "type": "n8n-nodes-base.notion", "typeVersion": 2.2, "position": [220, -100], "credentials": {"notionApi": {"id": "3", "name": "Notion"}}},
+    {"parameters": {"operation": "create", "base": {"__rl": true, "value": "appXYZ", "mode": "id"}, "table": {"__rl": true, "value": "tblCustomers", "mode": "id"}, "columns": {"mappingMode": "defineBelow", "value": {"Company": "={{ $json.body.company }}", "Email": "={{ $json.body.email }}"}, "matchingColumns": [], "schema": []}, "options": {}}, "name": "Airtable", "type": "n8n-nodes-base.airtable", "typeVersion": 2.1, "position": [220, 0], "credentials": {"airtableTokenApi": {"id": "4", "name": "Airtable"}}},
+    {"parameters": {"teamId": "TEAM1", "title": "=Onboard {{ $json.body.company }}", "additionalFields": {"description": "Kick-off call", "priorityId": 2}}, "name": "Linear", "type": "n8n-nodes-base.linear", "typeVersion": 1, "position": [220, 100], "credentials": {"linearApi": {"id": "5", "name": "Linear"}}},
+    {"parameters": {"project": {"__rl": true, "value": "OPS", "mode": "id"}, "issueType": {"__rl": true, "value": "Task", "mode": "id"}, "summary": "=Provision {{ $json.body.company }}", "additionalFields": {"description": "Auto-created"}}, "name": "Jira", "type": "n8n-nodes-base.jira", "typeVersion": 1, "position": [220, 200], "credentials": {"jiraSoftwareCloudApi": {"id": "6", "name": "Jira"}}},
+    {"parameters": {"workspace": "111", "name": "=Welcome pack for {{ $json.body.company }}", "otherProperties": {"due_on": "2026-12-01", "notes": "Send swag", "projects": ["222"]}}, "name": "Asana", "type": "n8n-nodes-base.asana", "typeVersion": 1, "position": [220, 300], "credentials": {"asanaApi": {"id": "7", "name": "Asana"}}},
+    {"parameters": {"owner": {"__rl": true, "value": "acme", "mode": "name"}, "repository": {"__rl": true, "value": "customers", "mode": "name"}, "title": "=New customer {{ $json.body.company }}", "body": "Track onboarding", "labels": [{"label": "onboarding"}]}, "name": "GitHub", "type": "n8n-nodes-base.github", "typeVersion": 1, "position": [220, 400], "credentials": {"githubApi": {"id": "8", "name": "GitHub"}}}
+  ],
+  "connections": {
+    "Webhook": {"main": [[
+      {"node": "HubSpot", "type": "main", "index": 0}, {"node": "Salesforce", "type": "main", "index": 0}, {"node": "Notion", "type": "main", "index": 0},
+      {"node": "Airtable", "type": "main", "index": 0}, {"node": "Linear", "type": "main", "index": 0}, {"node": "Jira", "type": "main", "index": 0},
+      {"node": "Asana", "type": "main", "index": 0}, {"node": "GitHub", "type": "main", "index": 0}]]}
+  }
+}

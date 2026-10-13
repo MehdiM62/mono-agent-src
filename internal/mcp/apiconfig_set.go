@@ -76,25 +76,8 @@ func apiConfigSetSchema() map[string]interface{} {
 
 func apiConfigSetTool() tool {
 	return tool{
-		name: "api_config_set",
-		description: "Save settings of the OpenAI-compatible API's server, or remove saved ones, in the database: the document of `monoagentcli api config set|unset --json`, which is api_config_get's document for the state after the change " +
-			"plus applied, changed (the keys whose saved value is different now) and widening ([{key, reason}]). " +
-			"Give set, an object of setting keys to values in the syntax of the setting's environment variable (the keys and what each accepts are in the schema), and/or unset, a list of keys or the single word all. " +
-			"Only what is given changes. The checks are the command's, the same code: a value that fails its rule is refused naming the setting and the rule, an empty value is refused (use unset), " +
-			"tls_cert_file and tls_key_file must end up together and be absolute paths (the daemon starts in another folder), no value may contain a control character, and nothing is saved from a call that is refused in any part. A value that holds an API key (sk-ma-) is refused: nothing here takes one, and api_config_get shows what is saved. " +
-			"A saved setting takes effect when the server starts, never while it runs: this tool restarts nothing (api_config_apply does, which interrupts what the daemon is running), " +
-			"and a flag or variable the daemon was given overrides a saved value (api_config_get says which). " +
-			"A change that makes the server reach further than it did is refused, and nothing is saved, unless the operator started this MCP server with --allow-api-exposure: " +
-			"a dedicated listener beyond this machine, or moved to another host beyond it or to every interface (an empty host, 0.0.0.0 or [::]), " +
-			"a higher confinement class (of a listener, of a key created with context or of the auto model), " +
-			"a runtime list that gains a runtime it did not have (one of the default list that a saved list left out counts when it comes back), tool calling or image generation switched on again, which includes removing a confinement of chat-only or an image_runtimes of none or of codex, " +
-			"and removing saved settings that cannot be read (unset all), since what they limited cannot be told. " +
-			"No argument can allow it, because the model sets the arguments and only the operator sets that flag. When it refuses it says which setting and why, without any address (api_config_get shows what is saved), " +
-			"and that the user can make the change with `monoagentcli api config set ... --yes` (or unset) or in the desktop app. " +
-			"When the operator allowed it, the reasons are in widening. Narrowing, max_concurrent, turn_timeout and the TLS files never need it. " +
-			"While the saved settings are damaged (a row that cannot be read) every other change fails with a message that starts `the saved settings are damaged`: tell the user, " +
-			"who can run `monoagentcli api config unset --all --yes`, or allow this call to remove the row (unset all, with --allow-api-exposure), and the result then says removed_unreadable_row; " +
-			"a row that a newer version saved fails too, and nothing here removes it. Two calls at once both land.",
+		name:        "api_config_set",
+		description: "Save settings of the OpenAI-compatible API's server (set: {key: value}) or remove saved ones (unset: keys, or all), as `monoagentcli api config set|unset --json`; they take effect when the server next starts (api_config_apply). A change that makes the server reach further is refused unless the operator started this MCP server with --allow-api-exposure, which no argument can replace. " + apiToolsDetails,
 		schema:      apiConfigSetSchema(),
 		annotations: map[string]bool{"readOnlyHint": false},
 		mutating:    true,

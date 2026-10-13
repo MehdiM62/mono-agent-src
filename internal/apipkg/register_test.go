@@ -110,8 +110,13 @@ func TestInstalledPackagesOverrideAndErrors(t *testing.T) {
 	if len(p.Operations) != 1 || !strings.HasSuffix(p.Source, "package.json") {
 		t.Errorf("an installed package replaces the catalog one: %s %d", p.Source, len(p.Operations))
 	}
-	if len(pkgs) != 3 { // todoist (installed), typeform, calendly; dupe and broken left out
-		t.Errorf("packages: %d", len(pkgs))
+	// The catalog grows with every catalog PR: check membership, not a count.
+	ids := map[string]bool{}
+	for _, p := range pkgs {
+		ids[p.ID] = true
+	}
+	if !ids["todoist"] || !ids["typeform"] || !ids["calendly"] || ids["dupe"] || ids["broken"] {
+		t.Errorf("packages: %v (want todoist/typeform/calendly, not dupe/broken)", ids)
 	}
 	if !strings.HasSuffix(InstallDir(), ".monoagent/apipkgs") {
 		t.Error(InstallDir())
