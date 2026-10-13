@@ -1173,3 +1173,22 @@ func TestFlattenNested(t *testing.T) {
 		t.Errorf("nested flatten = %#v", got)
 	}
 }
+
+func TestStepWithoutAuth(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"get","title":"G","method":"GET","path":"/job",
+	  "output":{"expand":{"method":"GET","path":"{{ el.uri }}","auth":false}}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		if n == 1 {
+			w.Write([]byte(`{"uri":"https://bucket.s3.test/t.json?X-Amz-Signature=abc"}`))
+			return
+		}
+		w.Write([]byte(`{"transcript":"hi"}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "get"}, cred, nil)
+	if err != nil || items[0].JSON["transcript"] != "hi" {
+		t.Fatalf("%v %v", items, err)
+	}
+	if (*seen)[0].Header.Get("Authorization") != "Bearer T" || (*seen)[1].Header.Get("Authorization") != "" {
+		t.Errorf("auth headers: %q %q", (*seen)[0].Header.Get("Authorization"), (*seen)[1].Header.Get("Authorization"))
+	}
+}
