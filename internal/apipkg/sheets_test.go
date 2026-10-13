@@ -89,3 +89,20 @@ func TestScopeGroupCheck(t *testing.T) {
 		t.Errorf("scope check: group %q, err %v", gotGroup, err)
 	}
 }
+
+func TestWhenGatesObjects(t *testing.T) {
+	sc := Scope{P: map[string]any{"loc": "endOfSegmentLocation", "seg": ""}}
+	in := map[string]any{"insertText": map[string]any{
+		"text": "hi",
+		"endOfSegmentLocation": map[string]any{"$when": "{{ p.loc | eq:'endOfSegmentLocation' }}", "segmentId": "{{ p.seg }}"},
+		"location":             map[string]any{"$when": "{{ p.loc | eq:'location' }}", "index": 1.0},
+	}}
+	got, err := renderValue(in, sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"insertText": map[string]any{"text": "hi", "endOfSegmentLocation": map[string]any{}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %#v, want %#v", got, want)
+	}
+}
