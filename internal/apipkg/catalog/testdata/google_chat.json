@@ -1,0 +1,117 @@
+{
+  "message.create": {
+    "params": {
+      "spaceId": "spaces/AAA",
+      "messageUi": {
+        "text": "Hi"
+      },
+      "additionalFields": {
+        "threadKey": "t1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/spaces%2FAAA/messages",
+      "query": {
+        "threadKey": "t1"
+      },
+      "body": {
+        "text": "Hi"
+      }
+    }
+  },
+  "message.delete": {
+    "params": {
+      "messageId": "spaces/AAA/messages/BBB"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/spaces%2FAAA%2Fmessages%2FBBB"
+    }
+  },
+  "message.get": {
+    "params": {
+      "messageId": "spaces/AAA/messages/BBB"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/spaces%2FAAA%2Fmessages%2FBBB"
+    }
+  },
+  "message.update": {
+    "params": {
+      "messageId": "spaces/AAA/messages/BBB",
+      "jsonParameters": true,
+      "updateFieldsJson": "{\"text\":\"Edited\"}"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/spaces%2FAAA%2Fmessages%2FBBB",
+      "query": {
+        "updateMask": "text"
+      },
+      "body": {
+        "text": "Edited"
+      }
+    }
+  },
+  "member.get": {
+    "params": {
+      "memberId": "spaces/AAA/members/1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/spaces%2FAAA%2Fmembers%2F1"
+    }
+  },
+  "member.getAll": {
+    "params": {
+      "spaceId": "spaces/AAA",
+      "limit": 10
+    },
+    "response": {
+      "memberships": [
+        {
+          "name": "m"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/spaces%2FAAA/members",
+      "query": {
+        "pageSize": "10"
+      },
+      "items": 1
+    }
+  },
+  "space.get": {
+    "params": {
+      "spaceId": "spaces/AAA"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/spaces%2FAAA"
+    }
+  },
+  "space.getAll": {
+    "params": {
+      "limit": 10
+    },
+    "response": {
+      "spaces": [
+        {
+          "name": "s"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/spaces",
+      "query": {
+        "pageSize": "10"
+      },
+      "items": 1
+    }
+  }
+}
