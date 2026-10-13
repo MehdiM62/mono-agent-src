@@ -80,7 +80,10 @@ func (e *WorkflowEngine) handleWebhookTrigger(workflowID, nodeID string, items [
 		ProfileID:   executionProfileID(wf, e.profileID),
 		Status:      "QUEUED",
 		TriggerType: triggerType,
-		TriggerData: triggerData,
+		// Persisted once the trigger_node_id column lands, so an adopted,
+		// resumed or retried run fires only this trigger's branch.
+		TriggerNodeID: nodeID,
+		TriggerData:   triggerData,
 	}
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
 		return "", fmt.Errorf("create execution: %w", err)
