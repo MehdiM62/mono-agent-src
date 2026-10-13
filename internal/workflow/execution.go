@@ -773,12 +773,16 @@ func buildExpressionContext(
 	}
 }
 
-// buildTriggerItems wraps trigger data as a single Item.
+// buildTriggerItems wraps trigger data as a single Item, or expands a
+// sub-workflow call's SubWorkflowItemsKey into its items.
 // If triggerData is nil or empty, a single empty Item is returned so
 // trigger nodes always receive at least one item to process.
 func buildTriggerItems(triggerData map[string]interface{}) []Item {
 	if triggerData == nil {
 		triggerData = make(map[string]interface{})
+	}
+	if items, ok := subWorkflowTriggerItems(triggerData); ok {
+		return items
 	}
 	return []Item{NewItem(triggerData)}
 }

@@ -733,6 +733,7 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 // forever — the CLI wait hangs and the next startup's recovery marks it
 // FAILED. A failed write is logged at error level and retried once.
 func (e *WorkflowEngine) persistExecutionFinished(log zerolog.Logger, executionID, status, errMsg string) {
+	defer e.onExecutionFinished(executionID) // wakes a parent waiting on this sub-workflow run
 	persistCtx := context.WithoutCancel(context.Background())
 	err := e.store.SetExecutionFinished(persistCtx, executionID, status, errMsg)
 	if err == nil {
@@ -1259,6 +1260,7 @@ func (e *WorkflowEngine) runExecution(ctx context.Context, exec *WorkflowExecuti
 		profileID = e.profileID
 	}
 	ctx = vault.ContextWithProfileID(ctx, profileID)
+	ctx = WithSubWorkflowRunner(ctx, e)
 	return RunExecution(ctx, exec, wf, dag, e.registry, e.store, e.connStore, e.expr, e.logger)
 }
 
