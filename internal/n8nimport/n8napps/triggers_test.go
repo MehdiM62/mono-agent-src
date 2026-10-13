@@ -56,7 +56,9 @@ func TestPollingTriggersUsePackageOperations(t *testing.T) {
 			ops[m.PackageID] = m.Operations
 		}
 	}
-	rl := func(v string) map[string]interface{} { return map[string]interface{}{"__rl": true, "mode": "id", "value": v} }
+	rl := func(v string) map[string]interface{} {
+		return map[string]interface{}{"__rl": true, "mode": "id", "value": v}
+	}
 	cases := map[string]map[string]interface{}{
 		"gmailTrigger":                 {"filters": map[string]interface{}{"q": "invoice"}},
 		"googleSheetsTrigger":          {"documentId": rl("doc"), "sheetName": rl("Sheet1"), "options": map[string]interface{}{"valueRender": "FORMATTED_VALUE"}},
