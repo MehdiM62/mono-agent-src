@@ -99,7 +99,7 @@
       "output": {
         "path": "data",
         "split": false,
-        "to_when": "{{ p.simple | bool | then:(p.type | eq:'monthly') }}",
+        "to_when": "{{ p.simple | bool | eq:'true' | then:(p.type | eq:'monthly') }}",
         "to": {
           "$merge": {
             "$entries": "{{ el | entries }}",

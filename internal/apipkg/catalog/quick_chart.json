@@ -104,7 +104,7 @@
       "query": {
         "chart": {
           "$json": {
-            "type": "{{ p.chartOptions.horizontal | bool | then:(p.chartType | eq:'bar' | then:'horizontalBar') | default:p.chartType }}",
+            "type": "{{ p.chartOptions.horizontal | bool | eq:'true' | then:(p.chartType | eq:'bar' | then:'horizontalBar') | default:p.chartType }}",
             "data": {
               "labels": "{{ p.labelsMode | eq:'array' | then:(p.labelsArray | fromjson) | default:(p.labelsUi.labelsValues | pluck:'label') }}",
               "datasets": [
@@ -113,7 +113,7 @@
                   "data": "{{ p.data | fromjson }}",
                   "backgroundColor": "{{ p.datasetOptions.backgroundColor }}",
                   "borderColor": "{{ p.datasetOptions.borderColor }}",
-                  "type": "{{ p.chartOptions.horizontal | bool | then:(p.chartType | eq:'bar' | then:'horizontalBar') | default:p.chartType }}",
+                  "type": "{{ p.chartOptions.horizontal | bool | eq:'true' | then:(p.chartType | eq:'bar' | then:'horizontalBar') | default:p.chartType }}",
                   "fill": "{{ p.datasetOptions.fill }}",
                   "pointStyle": "{{ p.datasetOptions.pointStyle }}"
                 }

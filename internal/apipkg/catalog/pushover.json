@@ -115,7 +115,7 @@
         "retry": "{{ p.priority | eq:'2' | then:p.retryInterval }}",
         "expire": "{{ p.priority | eq:'2' | then:p.expire }}",
         "device": "{{ p.additionalFields.device }}",
-        "html": "{{ p.additionalFields.html | bool | then:'1' }}",
+        "html": "{{ p.additionalFields.html | bool | eq:'true' | then:'1' }}",
         "sound": "{{ p.additionalFields.sound }}",
         "timestamp": "{{ p.additionalFields.timestamp | epoch }}",
         "title": "{{ p.additionalFields.title }}",

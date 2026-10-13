@@ -101,7 +101,7 @@
         "userId": "{{ p.userId }}",
         "anonymousId": "{{ p.userId | default:'__none__' | eq:'__none__' | then:uuid }}",
         "context": {
-          "active": "{{ p.context.contextUi.active | bool | then:true }}",
+          "active": "{{ p.context.contextUi.active | bool | eq:'true' | then:true }}",
           "ip": "{{ p.context.contextUi.ip }}",
           "locate": "{{ p.context.contextUi.locate }}",
           "page": "{{ p.context.contextUi.page }}",
@@ -127,8 +127,8 @@
           }
         },
         "integrations": {
-          "all": "{{ p.integrations.integrationsUi.all | bool | then:true }}",
-          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | then:true }}"
+          "all": "{{ p.integrations.integrationsUi.all | bool | eq:'true' | then:true }}",
+          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | eq:'true' | then:true }}"
         },
         "traits": "{{ p.traits.traitsUi | kv:'key,value' }}"
       }
@@ -188,7 +188,7 @@
         "userId": "{{ p.userId }}",
         "anonymousId": "{{ p.userId | default:'__none__' | eq:'__none__' | then:uuid }}",
         "context": {
-          "active": "{{ p.context.contextUi.active | bool | then:true }}",
+          "active": "{{ p.context.contextUi.active | bool | eq:'true' | then:true }}",
           "ip": "{{ p.context.contextUi.ip }}",
           "locate": "{{ p.context.contextUi.locate }}",
           "page": "{{ p.context.contextUi.page }}",
@@ -214,8 +214,8 @@
           }
         },
         "integrations": {
-          "all": "{{ p.integrations.integrationsUi.all | bool | then:true }}",
-          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | then:true }}"
+          "all": "{{ p.integrations.integrationsUi.all | bool | eq:'true' | then:true }}",
+          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | eq:'true' | then:true }}"
         },
         "groupId": "{{ p.groupId }}",
         "traits": "{{ p.traits.traitsUi | kv:'key,value' }}"
@@ -276,7 +276,7 @@
         "userId": "{{ p.userId }}",
         "anonymousId": "{{ p.userId | default:'__none__' | eq:'__none__' | then:uuid }}",
         "context": {
-          "active": "{{ p.context.contextUi.active | bool | then:true }}",
+          "active": "{{ p.context.contextUi.active | bool | eq:'true' | then:true }}",
           "ip": "{{ p.context.contextUi.ip }}",
           "locate": "{{ p.context.contextUi.locate }}",
           "page": "{{ p.context.contextUi.page }}",
@@ -302,8 +302,8 @@
           }
         },
         "integrations": {
-          "all": "{{ p.integrations.integrationsUi.all | bool | then:true }}",
-          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | then:true }}"
+          "all": "{{ p.integrations.integrationsUi.all | bool | eq:'true' | then:true }}",
+          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | eq:'true' | then:true }}"
         },
         "event": "{{ p.event }}",
         "properties": "{{ p.properties.propertiesUi | kv:'key,value' }}"
@@ -364,7 +364,7 @@
         "userId": "{{ p.userId }}",
         "anonymousId": "{{ p.userId | default:'__none__' | eq:'__none__' | then:uuid }}",
         "context": {
-          "active": "{{ p.context.contextUi.active | bool | then:true }}",
+          "active": "{{ p.context.contextUi.active | bool | eq:'true' | then:true }}",
           "ip": "{{ p.context.contextUi.ip }}",
           "locate": "{{ p.context.contextUi.locate }}",
           "page": "{{ p.context.contextUi.page }}",
@@ -390,8 +390,8 @@
           }
         },
         "integrations": {
-          "all": "{{ p.integrations.integrationsUi.all | bool | then:true }}",
-          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | then:true }}"
+          "all": "{{ p.integrations.integrationsUi.all | bool | eq:'true' | then:true }}",
+          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | eq:'true' | then:true }}"
         },
         "name": "{{ p.name }}",
         "properties": "{{ p.properties.propertiesUi | kv:'key,value' }}"
