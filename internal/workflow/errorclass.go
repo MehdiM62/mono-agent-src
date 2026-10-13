@@ -40,8 +40,9 @@ var AllErrorClasses = []ErrorClass{
 
 // ErrRejected is wrapped by a node whose item a person turned down
 // (core.human_in_loop with no `rejected` edge wired). The engine finishes
-// such a run as REJECTED, not FAILED.
-var ErrRejected = errors.New("workflow: item rejected by human reviewer")
+// such a run as REJECTED, not FAILED. Its text stays the message a
+// rejection always had ("human_in_loop: item rejected by human reviewer").
+var ErrRejected = errors.New("item rejected by human reviewer")
 
 // StatusRejected is the terminal status of a run a human reviewer stopped.
 const StatusRejected = "REJECTED"
