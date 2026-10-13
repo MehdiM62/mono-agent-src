@@ -3,7 +3,8 @@ import { List, X, Trash2, Library } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import * as WailsApp from '../wailsjs/go/main/App'
 import { notify } from '../services/api.js'
-import { parseTriggerInput } from './triggerInput.js'
+import { formFromJSON, jsonFromForm, parseTriggerInput } from './triggerInput.js'
+import { templateBlurb } from './templateText.js'
 import LibraryModal from '../components/library/LibraryModal.jsx'
 import LogInToMonoesButton from '../components/library/LogInToMonoesButton.jsx'
 
@@ -77,8 +78,8 @@ export function SaveModal({ initialName, onConfirm, onClose }) {
 }
 
 // ── Workflows modal ───────────────────────────────────────────────────────────
-export function WorkflowsModal({ currentId, onLoad, onDelete, onClose, onLibraryInstalled }) {
-  const [tab, setTab]         = useState('saved') // 'saved' | 'templates'
+export function WorkflowsModal({ initialTab = 'saved', currentId, onLoad, onDelete, onClose, onLibraryInstalled }) {
+  const [tab, setTab]         = useState(initialTab) // 'saved' | 'templates'
   const [list, setList]       = useState([])
   const [loading, setLoading] = useState(true)
   const [templates, setTemplates] = useState([])
@@ -199,7 +200,7 @@ export function WorkflowsModal({ currentId, onLoad, onDelete, onClose, onLibrary
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: '#e2e8f0' }}>{t.name}</div>
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 2, whiteSpace: 'normal' }}>
-                    {t.description}
+                    {templateBlurb(t)}
                   </div>
                 </div>
                 <button
@@ -276,15 +277,54 @@ export function WorkflowsModal({ currentId, onLoad, onDelete, onClose, onLibrary
 // reporting success.
 export function TriggerInputModal({ fields, initialValue, onRun, onClose }) {
   const [text, setText] = useState(initialValue || '{}')
+  // A labelled field per key the workflow reads; "Raw JSON" is today's box.
+  const [form, setForm] = useState(() => formFromJSON(initialValue || '{}', fields))
+  const [raw, setRaw] = useState(() => form === null)
   const [error, setError] = useState('')
   const areaRef = useRef(null)
-  useEffect(() => { areaRef.current?.focus(); areaRef.current?.select() }, [])
+  useEffect(() => { areaRef.current?.focus(); if (raw) areaRef.current?.select() }, [raw])
+
+  const currentText = () => {
+    if (raw) return { ok: true, text }
+    return jsonFromForm(form, fields)
+  }
 
   const submit = () => {
-    const parsed = parseTriggerInput(text)
+    const cur = currentText()
+    if (!cur.ok) { setError(cur.error); return }
+    const parsed = parseTriggerInput(cur.text)
     if (!parsed.ok) { setError(parsed.error); return }
     onRun(parsed.value)
   }
+
+  const toggleRaw = () => {
+    setError('')
+    if (raw) {
+      const next = formFromJSON(text, fields)
+      if (!next) { setError('Fix the JSON before switching to the form.'); return }
+      setForm(next)
+      setRaw(false)
+      return
+    }
+    const cur = jsonFromForm(form, fields)
+    if (!cur.ok) { setError(cur.error); return }
+    setText(cur.text)
+    setRaw(true)
+  }
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') onClose()
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit()
+  }
+  const boxStyle = {
+    width: '100%', boxSizing: 'border-box', resize: 'vertical',
+    background: '#020509',
+    border: `1px solid ${error ? 'rgba(239,68,68,0.5)' : 'rgba(0,180,216,0.2)'}`,
+    borderRadius: 6, padding: '8px 10px',
+    color: '#e2e8f0', fontFamily: 'var(--font-mono)', fontSize: 12,
+    outline: 'none',
+  }
+  const labelStyle = { fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6, display: 'block' }
 
   return (
     <div style={{
@@ -293,7 +333,7 @@ export function TriggerInputModal({ fields, initialValue, onRun, onClose }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div role="dialog" aria-modal="true" aria-label="Run with input" style={{
-        width: 440,
+        width: 440, maxHeight: '85vh', overflowY: 'auto',
         background: '#080d16',
         border: '1px solid rgba(0,180,216,0.25)',
         borderRadius: 12,
@@ -301,8 +341,14 @@ export function TriggerInputModal({ fields, initialValue, onRun, onClose }) {
         boxShadow: '0 24px 60px rgba(0,0,0,.85)',
         display: 'flex', flexDirection: 'column', gap: 14,
       }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#e2e8f0', letterSpacing: 1 }}>
-          RUN WITH INPUT
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#e2e8f0', letterSpacing: 1 }}>
+            RUN WITH INPUT
+          </div>
+          <button onClick={toggleRaw} aria-pressed={raw} style={{
+            background: raw ? 'rgba(0,180,216,0.15)' : 'transparent', border: '1px solid rgba(0,180,216,0.2)', borderRadius: 5,
+            padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 10, color: raw ? '#00b4d8' : 'var(--text-muted)',
+          }}>Raw JSON</button>
         </div>
 
         <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
@@ -316,35 +362,46 @@ export function TriggerInputModal({ fields, initialValue, onRun, onClose }) {
           {' '}Without them it runs but does nothing.
         </div>
 
-        <div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6 }}>
-            Trigger Data (JSON)
+        {raw ? (
+          <div>
+            <label htmlFor="trigger-raw" style={labelStyle}>Trigger Data (JSON)</label>
+            <textarea
+              id="trigger-raw"
+              ref={areaRef}
+              value={text}
+              onChange={e => { setText(e.target.value); if (error) setError('') }}
+              onKeyDown={onKeyDown}
+              spellCheck={false}
+              rows={7}
+              style={boxStyle}
+            />
           </div>
-          <textarea
-            ref={areaRef}
-            value={text}
-            onChange={e => { setText(e.target.value); if (error) setError('') }}
-            onKeyDown={e => {
-              if (e.key === 'Escape') onClose()
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit()
-            }}
-            spellCheck={false}
-            rows={7}
-            style={{
-              width: '100%', boxSizing: 'border-box', resize: 'vertical',
-              background: '#020509',
-              border: `1px solid ${error ? 'rgba(239,68,68,0.5)' : 'rgba(0,180,216,0.2)'}`,
-              borderRadius: 6, padding: '8px 10px',
-              color: '#e2e8f0', fontFamily: 'var(--font-mono)', fontSize: 12,
-              outline: 'none',
-            }}
-          />
-          {error && (
-            <div role="alert" style={{ marginTop: 6, fontSize: 10, color: '#f87171', fontFamily: 'var(--font-mono)' }}>
-              {error}
-            </div>
-          )}
-        </div>
+        ) : fields.map((f, i) => (
+          <div key={f.name}>
+            <label htmlFor={`trigger-${f.name}`} style={labelStyle}>{f.name}</label>
+            <textarea
+              id={`trigger-${f.name}`}
+              ref={i === 0 ? areaRef : undefined}
+              value={form.values[f.name]}
+              onChange={e => { const v = e.target.value; setForm(prev => ({ ...prev, values: { ...prev.values, [f.name]: v } })); if (error) setError('') }}
+              onKeyDown={onKeyDown}
+              spellCheck={!form.asJSON[f.name]}
+              rows={form.asJSON[f.name] ? 5 : 3}
+              placeholder={f.examples?.[0] || ''}
+              style={boxStyle}
+            />
+            {form.asJSON[f.name] && (
+              <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                JSON array, e.g. [&quot;first&quot;, &quot;second&quot;]
+              </div>
+            )}
+          </div>
+        ))}
+        {error && (
+          <div role="alert" style={{ marginTop: -6, fontSize: 10, color: '#f87171', fontFamily: 'var(--font-mono)' }}>
+            {error}
+          </div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button
