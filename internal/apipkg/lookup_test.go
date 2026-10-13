@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFindFindRowArithmeticColumnsGet(t *testing.T) {
@@ -445,5 +446,108 @@ func TestGA4ZipRows(t *testing.T) {
 	}
 	if got, _ := renderString("{{ p.v | zip:p.h }}", Scope{P: map[string]any{"h": []any{"a", "b"}, "v": []any{1.0}}}); !reflect.DeepEqual(got, map[string]any{"a": 1.0}) {
 		t.Errorf("plain zip = %#v", got)
+	}
+}
+
+func TestOperationParamForEachAndSessionAuthHarness(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"fm","title":"FM","base_url":"https://fm.test","n8n_operation_param":"action",
+	  "credentials":[{"platform":"fm","methods":["basic"],"fields":[{"key":"user","label":"U","required":true},{"key":"pass","label":"P","secret":true,"required":true}],
+	    "inject":{"headers":{"Authorization":"{{ pre.response.token | prefix:'Bearer ' | default:'none' }}"}}}],
+	  "operations":[{"resource":"","operation":"find","title":"F","method":"POST","path":"/find",
+	    "before":[{"method":"POST","path":"/sessions"}],
+	    "fields":[{"key":"tagIds","label":"T","type":"json"}],
+	    "also":[{"for_each":"{{ p.tagIds }}","method":"POST","path":"/tags/{{ el }}"}]},
+	    {"resource":"","operation":"other","title":"O","method":"GET","path":"/o"}]}`)
+	var c opCase
+	_ = json.Unmarshal([]byte(`{"params":{"action":"find","operation":"","tagIds":["a","b"]},
+	  "responses":[{"response":{"token":"T1"}},{},{},{}],
+	  "expect_requests":[{"method":"POST","path":"/sessions"},{"method":"POST","path":"/find"},
+	    {"method":"POST","path":"/tags/a"},{"method":"POST","path":"/tags/b"}]}`), &c)
+	checkCase(t, p, &p.Operations[0], c)
+	// n8n_operation_param picks the op when "operation" is absent.
+	if op, err := p.resolveOp(map[string]any{"action": "other"}); err != nil || op.Operation != "other" {
+		t.Errorf("action param: %v %v", op, err)
+	}
+}
+
+func TestPollMainRoot(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"enrich","title":"E","method":"POST","path":"/batch",
+	  "poll":{"method":"GET","path":"/batch/{{ main.request_id }}","until":"{{ res.success }}","interval_ms":1}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		switch n {
+		case 1:
+			w.Write([]byte(`{"request_id":"r9"}`))
+		case 2:
+			w.Write([]byte(`{"success":false}`))
+		default:
+			w.Write([]byte(`{"success":true,"data":[1]}`))
+		}
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "enrich"}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(*seen) != 3 || (*seen)[2].URL.Path != "/v1/batch/r9" {
+		t.Errorf("polls: %d, last %s", len(*seen), (*seen)[len(*seen)-1].URL.Path)
+	}
+}
+
+func TestUploadWhenAndTemplatedMultipart(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"POST","title":"P","method":"POST","path":"/node","body_type":"multipart",
+	  "fields":[{"key":"sendBinaryData","label":"S","type":"boolean"},{"key":"binaryPropertyName","label":"B","type":"text","default":"data"},{"key":"msg","label":"M","type":"text"}],
+	  "body":{"message":"{{ p.msg }}"},
+	  "binary":{"upload_field":"binaryPropertyName","upload_when":"{{ p.sendBinaryData }}",
+	    "multipart_field":"{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}",
+	    "property":"{{ p.binaryPropertyName | split:':' | get:'-1' }}"}}`))
+	var cts, bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		cts, bodies = append(cts, r.Header.Get("Content-Type")), append(bodies, string(b))
+		w.Write([]byte(`{}`))
+	})
+	in := map[string]any{"pic": "aGk=", "file_name": "a.png"}
+	if _, err := runPackageOp(p, map[string]any{"operation": "POST", "sendBinaryData": true, "binaryPropertyName": "source:pic", "msg": "hi"}, cred, in); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(cts[0], "multipart/form-data") || !strings.Contains(bodies[0], `name="source"; filename="a.png"`) || !strings.Contains(bodies[0], "\r\nhi\r\n") {
+		t.Errorf("upload: %s\n%s", cts[0], bodies[0])
+	}
+	if _, err := runPackageOp(p, map[string]any{"operation": "POST", "msg": "hi"}, cred, in); err != nil {
+		t.Fatal(err)
+	}
+	if cts[1] != "application/json" || bodies[1] != `{"message":"hi"}` {
+		t.Errorf("no upload: %s %s", cts[1], bodies[1])
+	}
+}
+
+func TestPluck(t *testing.T) {
+	sc := Scope{P: map[string]any{"f": map[string]any{"field": []any{map[string]any{"name": "id"}, map[string]any{"name": ""}, map[string]any{"name": "name"}}}}}
+	if got, err := renderString("{{ p.f.field | pluck:'name' | csv }}", sc); err != nil || got != "id,name" {
+		t.Errorf("pluck = %#v, %v", got, err)
+	}
+}
+
+func TestDiscordHelpers(t *testing.T) {
+	sc := Scope{P: map[string]any{"color": "#ff0000", "dur": 60.0}}
+	if got, _ := renderString("{{ p.color | hex }}", sc); got != int64(16711680) {
+		t.Errorf("hex = %#v", got)
+	}
+	got, err := renderString("{{ now | epoch | add:p.dur | date:'YYYY-MM-DDTHH:mm:ssZ' }}", sc)
+	ts, perr := time.Parse(time.RFC3339, stringify(got))
+	if err != nil || perr != nil || ts.Sub(time.Now()) < 50*time.Second || ts.Sub(time.Now()) > 70*time.Second {
+		t.Errorf("now + 60s = %v (%v %v)", got, err, perr)
+	}
+	if got, _ := renderString("{{ p.s | date:'YYYY-MM-DD' }}", Scope{P: map[string]any{"s": int64(1767312000)}}); got != "2026-01-02" {
+		t.Errorf("epoch seconds date = %v", got)
+	}
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"dc","title":"D","base_url":"https://d.test",
+	  "resources":[{"value":"channel","label":"C"},{"value":"message","label":"M"}],
+	  "operations":[{"resource":"channel","operation":"create","title":"C","method":"POST","path":"/c"},
+	    {"resource":"message","operation":"sendLegacy","title":"S","method":"POST","path":"/w"},
+	    {"resource":"message","operation":"create","title":"MC","method":"POST","path":"/m"}]}`)
+	if op, err := p.resolveOp(map[string]any{"operation": "sendLegacy"}); err != nil || op.Path != "/w" {
+		t.Errorf("unique op fallback: %v %v", op, err)
+	}
+	if op, err := p.resolveOp(map[string]any{"operation": "create"}); err != nil || op.Path != "/c" {
+		t.Errorf("default resource still wins: %v %v", op, err)
 	}
 }

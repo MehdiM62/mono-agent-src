@@ -25,7 +25,7 @@ var knownFilters = map[string]bool{
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
-	"replace": true, "re": true, "zip": true,
+	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -133,6 +133,32 @@ func applyFilter(name string, v, arg any) (any, error) {
 			}
 		}
 		return firestoreFields(obj, cols), nil
+	case "hex":
+		h := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(stringify(v)), "#"), "0x")
+		if h == "" {
+			return nil, nil
+		}
+		n, err := strconv.ParseInt(h, 16, 64)
+		if err != nil {
+			return nil, fmt.Errorf("hex: %q is not hex", stringify(v))
+		}
+		return n, nil
+	case "pluck":
+		l, ok := v.([]any)
+		if !ok {
+			return nil, fmt.Errorf("pluck: value is %T, not a list", v)
+		}
+		path := strings.Split(stringify(arg), ".")
+		var out []any
+		for _, el := range l {
+			if x := lookupPath(el, path); !isEmpty(x) {
+				out = append(out, x)
+			}
+		}
+		if len(out) == 0 {
+			return nil, nil
+		}
+		return out, nil
 	case "zip":
 		a := arg.([]any)
 		hk, vk := "", ""
@@ -511,7 +537,11 @@ func formatDate(v, arg any) (any, error) {
 	var t time.Time
 	switch x := v.(type) {
 	case float64:
-		t = time.UnixMilli(int64(x))
+		t = epochTime(int64(x))
+	case int64:
+		t = epochTime(x)
+	case int:
+		t = epochTime(int64(x))
 	default:
 		str := strings.TrimSpace(stringify(v))
 		if str == "" {
@@ -830,4 +860,13 @@ func zipLists(headers, values any, headerKey, valueKey string) any {
 		}
 	}
 	return out
+}
+
+// epochTime reads a Unix time in seconds or, from 1e11 up (after 1973 in
+// ms), milliseconds.
+func epochTime(n int64) time.Time {
+	if n >= 1e11 || n <= -1e11 {
+		return time.UnixMilli(n)
+	}
+	return time.Unix(n, 0)
 }

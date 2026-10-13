@@ -183,7 +183,13 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 		t.Fatalf("%s: no request reached the server", where)
 	}
 	credDef := p.selectCredential(cred)
-	check := func(w string, got captured, e expectReq) {
+	// Requests after the before steps authenticate with their responses
+	// (session tokens: "Bearer {{ pre.response.token }}").
+	var pres []any
+	for i := 0; i < len(op.Before) && i < len(c.Responses); i++ {
+		pres = append(pres, normalize(c.Responses[i]))
+	}
+	check := func(w string, got captured, e expectReq, idx int) {
 		if e.Method != "" && got.method != e.Method {
 			t.Errorf("%s: method: got %s, want %s", w, got.method, e.Method)
 		}
@@ -197,17 +203,22 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 				t.Errorf("%s: header %s: got %q, want %q", w, k, g, want)
 			}
 		}
-		checkAuth(t, w, got, credDef, cred, params, c.Input)
+		var pp []any
+		if idx >= len(op.Before) {
+			pp = pres
+		}
+		checkAuth(t, w, got, credDef, cred, params, c.Input, pp)
 	}
 	if len(c.ExpectRequests) > 0 {
 		if len(reqs) < len(c.ExpectRequests) {
 			t.Fatalf("%s: %d requests reached the server, expect_requests lists %d", where, len(reqs), len(c.ExpectRequests))
 		}
 		for i, e := range c.ExpectRequests {
-			check(fmt.Sprintf("%s · request %d", where, i), reqs[i], e)
+			check(fmt.Sprintf("%s · request %d", where, i), reqs[i], e, i)
 		}
 	} else {
-		check(where, reqs[mainRequest(reqs, op, c.Expect)], c.Expect)
+		mi := mainRequest(reqs, op, c.Expect)
+		check(where, reqs[mi], c.Expect, mi)
 	}
 	if e := c.Expect; e.Items != nil && len(items) != *e.Items {
 		t.Errorf("%s: items: got %d, want %d", where, len(items), *e.Items)
@@ -310,14 +321,17 @@ func normalize(v any) any {
 	return out
 }
 
-func checkAuth(t *testing.T, where string, got captured, c *Credential, cred, params, item map[string]any) {
+func checkAuth(t *testing.T, where string, got captured, c *Credential, cred, params, item map[string]any, pres []any) {
 	t.Helper()
 	if c == nil {
 		return
 	}
 	// inject may read op params (Contentful's token choice), so render it
 	// with the case's params and input item like the engine does.
-	sc := Scope{Cred: cred, P: params, Item: item}
+	sc := Scope{Cred: cred, P: params, Item: item, Pres: pres}
+	if len(pres) > 0 {
+		sc.Pre = pres[len(pres)-1]
+	}
 	for k, tv := range c.Inject.Headers {
 		want, _ := renderText(tv, sc)
 		if g := got.header.Get(k); g != want {
