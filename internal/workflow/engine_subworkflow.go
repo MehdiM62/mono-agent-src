@@ -36,7 +36,7 @@ func (e *WorkflowEngine) StartSubWorkflow(ctx context.Context, req SubWorkflowSt
 
 	raw := make([]interface{}, 0, len(req.Items))
 	for _, it := range req.Items {
-		raw = append(raw, it.JSON)
+		raw = append(raw, subWorkflowItemData(it))
 	}
 	data := map[string]interface{}{
 		SubWorkflowItemsKey: raw,

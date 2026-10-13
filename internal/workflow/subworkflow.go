@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -21,6 +22,11 @@ const (
 	// a child execution starts with; buildTriggerItems expands it into one
 	// trigger item per entry.
 	SubWorkflowItemsKey = "_items"
+
+	// SubWorkflowBinaryKey is the reserved key of a SubWorkflowItemsKey entry
+	// holding the item's binary data, base64 by name, so it survives the
+	// child's persisted trigger data.
+	SubWorkflowBinaryKey = "_binary"
 
 	// SubWorkflowParentKey is the reserved trigger-data key recording the
 	// calling execution and the chain depth.
@@ -108,9 +114,48 @@ func subWorkflowTriggerItems(triggerData map[string]interface{}) (items []Item, 
 		if m == nil {
 			m = map[string]interface{}{}
 		}
-		items = append(items, NewItem(m))
+		items = append(items, subWorkflowItem(m))
 	}
 	return items, true
+}
+
+// subWorkflowItemData is it as an entry of SubWorkflowItemsKey.
+func subWorkflowItemData(it Item) interface{} {
+	if len(it.Binary) == 0 {
+		return it.JSON
+	}
+	m := make(map[string]interface{}, len(it.JSON)+1)
+	for k, v := range it.JSON {
+		m[k] = v
+	}
+	bin := make(map[string]interface{}, len(it.Binary))
+	for name, b := range it.Binary {
+		bin[name] = base64.StdEncoding.EncodeToString(b)
+	}
+	m[SubWorkflowBinaryKey] = bin
+	return m
+}
+
+// subWorkflowItem is the item subWorkflowItemData encoded as m; m itself is
+// left as it is.
+func subWorkflowItem(m map[string]interface{}) Item {
+	bin, ok := m[SubWorkflowBinaryKey].(map[string]interface{})
+	if !ok {
+		return NewItem(m)
+	}
+	it := Item{JSON: make(map[string]interface{}, len(m)-1), Binary: make(map[string][]byte, len(bin))}
+	for k, v := range m {
+		if k != SubWorkflowBinaryKey {
+			it.JSON[k] = v
+		}
+	}
+	for name, v := range bin {
+		s, _ := v.(string)
+		if b, err := base64.StdEncoding.DecodeString(s); err == nil {
+			it.Binary[name] = b
+		}
+	}
+	return it
 }
 
 // subWorkflowDepth is the chain depth recorded in a run's trigger data (0
