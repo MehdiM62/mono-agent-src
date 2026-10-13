@@ -134,7 +134,7 @@ func TestValidateWorkflowIssues(t *testing.T) {
 		{
 			name:  "empty account picker is a warning (bound per machine)",
 			w:     vwf(trig, vnode("o", "service.outlook_mail", "Mail", map[string]interface{}{"credential_id": ""})),
-			want:  []wantIssue{{"o", "credential_id", IssueMissingRequired, "warning"}},
+			want:  []wantIssue{{"o", "credential_id", IssueNeedsSetup, "warning"}},
 			valid: true,
 		},
 		{
@@ -231,5 +231,43 @@ func TestBundledTemplatesValidate(t *testing.T) {
 		for _, is := range rep.Issues {
 			t.Logf("template %s: %s %s %s", tm.ID, is.Code, is.NodeID, is.Message)
 		}
+	}
+}
+
+// A schema with one operation field per resource (n8n-style) checks the
+// value only against the field whose depends_on holds, once per key.
+func TestOptionIssuesFollowDependsOn(t *testing.T) {
+	s := &NodeSchema{Fields: []NodeSchemaField{
+		{Key: "resource", Type: "select", Options: []string{"record", "base"}},
+		{Key: "operation", Type: "select", Options: []string{"create", "get"}, DependsOn: &FieldDependency{Key: "resource", Values: []string{"record"}}},
+		{Key: "operation", Type: "select", Options: []string{"getMany", "getSchema"}, DependsOn: &FieldDependency{Key: "resource", Values: []string{"base"}}},
+		{Key: "credential_id", Type: "credential_picker", Required: true},
+	}}
+	ok := vnode("a", "x.y", "A", map[string]interface{}{"resource": "record", "operation": "create"})
+	for _, is := range fieldIssues(ok, s) {
+		if is.Code == IssueInvalidOption {
+			t.Fatalf("valid operation for its resource reported: %+v", is)
+		}
+	}
+	bad := vnode("b", "x.y", "B", map[string]interface{}{"resource": "base", "operation": "create"})
+	var opts, setup int
+	for _, is := range fieldIssues(bad, s) {
+		switch is.Code {
+		case IssueInvalidOption:
+			opts++
+			if !strings.Contains(is.Hint, "getMany") || strings.Contains(is.Hint, "get,") {
+				t.Errorf("hint should list only the applicable options: %q", is.Hint)
+			}
+		case IssueNeedsSetup:
+			setup++
+			if is.Severity != "warning" {
+				t.Errorf("needs_setup must be a warning: %+v", is)
+			}
+		case IssueMissingRequired:
+			t.Errorf("a missing account must be needs_setup, not missing_required: %+v", is)
+		}
+	}
+	if opts != 1 || setup != 1 {
+		t.Fatalf("want 1 invalid_option and 1 needs_setup, got %d and %d", opts, setup)
 	}
 }
