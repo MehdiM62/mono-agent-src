@@ -130,18 +130,28 @@ func loadAll(dir string) ([]*Package, error) {
 		put(p)
 	}
 
-	// Two packages may not claim one node type or extend one native node.
-	var out []*Package
+	// Two packages may not claim one node type or extend one native node,
+	// except that an installed package replaces a built-in catalog one
+	// (as it does for the same id): a user can override the catalog.
 	claimed := map[string]string{}
 	for _, id := range order {
 		p := byID[id]
 		t := p.TargetType()
 		if other, ok := claimed[t]; ok {
+			if byID[other].Source == "catalog" && p.Source != "catalog" {
+				claimed[t] = id
+				continue
+			}
 			errs = append(errs, fmt.Errorf("apipkg: %s (%s) and %s both claim %s; %s is left out", other, byID[other].Source, id, t, id))
 			continue
 		}
 		claimed[t] = id
-		out = append(out, p)
+	}
+	var out []*Package
+	for _, id := range order {
+		if claimed[byID[id].TargetType()] == id {
+			out = append(out, byID[id])
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, errors.Join(errs...)
@@ -184,11 +194,14 @@ func ForNodeType(nodeType string) (*Package, bool) {
 }
 
 // extensionFor returns the package extending nativeType, or nil.
+// The last match wins: installed packages load after the built-in
+// catalog, so a user-installed extension replaces the catalog one.
 func extensionFor(nativeType string) *Package {
+	var found *Package
 	for _, p := range packages() {
 		if p.Extends == nativeType {
-			return p
+			found = p
 		}
 	}
-	return nil
+	return found
 }

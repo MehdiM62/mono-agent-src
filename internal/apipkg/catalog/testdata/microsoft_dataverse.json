@@ -1,0 +1,196 @@
+{
+  "row.getAll": {
+    "params": {
+      "entitySet": {
+        "__rl": true,
+        "mode": "id",
+        "value": "accounts"
+      },
+      "limit": 20,
+      "getAllOptions": {
+        "select": [
+          "name",
+          "revenue"
+        ],
+        "filter": "statecode eq 0",
+        "orderbyColumn": "name",
+        "orderbyDirection": "desc"
+      }
+    },
+    "credential": {
+      "environment_url": "https://org.crm.dynamics.com/",
+      "tenant_id": "t",
+      "client_id": "c",
+      "client_secret": "s",
+      "access_token": "tok"
+    },
+    "response": {
+      "value": [
+        {
+          "accountid": "a"
+        },
+        {
+          "accountid": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/data/v9.2/accounts",
+      "query": {
+        "$select": "name,revenue",
+        "$filter": "statecode eq 0",
+        "$orderby": "name desc",
+        "$top": "20"
+      },
+      "items": 2
+    }
+  },
+  "row.create": {
+    "params": {
+      "entitySet": "contacts",
+      "fieldsJson": "{\"firstname\":\"Ada\",\"parentcustomerid_account@odata.bind\":\"/accounts(1)\"}",
+      "createOptions": {
+        "returnFullMetadata": true
+      }
+    },
+    "response": {
+      "contactid": "c1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/data/v9.2/contacts",
+      "headers": {
+        "Prefer": "return=representation,odata.include-annotations=\"*\""
+      },
+      "body": {
+        "firstname": "Ada",
+        "parentcustomerid_account@odata.bind": "/accounts(1)"
+      },
+      "items": 1
+    },
+    "credential": {
+      "environment_url": "https://org.crm.dynamics.com",
+      "tenant_id": "t",
+      "client_id": "c",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "row.upsert": {
+    "params": {
+      "entitySet": "accounts",
+      "identifierType": "alternateKey",
+      "alternateKey": "accountnumber='ACC-1'",
+      "inputMode": "fields",
+      "fieldsCollection": {
+        "field": [
+          {
+            "name": "name",
+            "value": "Contoso"
+          }
+        ]
+      },
+      "upsertOptions": {
+        "behavior": "createOnly"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/data/v9.2/accounts(accountnumber=%27ACC-1%27)",
+      "headers": {
+        "Prefer": "return=representation",
+        "If-None-Match": "*"
+      },
+      "body": {
+        "name": "Contoso"
+      }
+    },
+    "credential": {
+      "environment_url": "https://org.crm.dynamics.com",
+      "tenant_id": "t",
+      "client_id": "c",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "row.delete": {
+    "params": {
+      "entitySet": "accounts",
+      "recordId": "a1",
+      "deleteOptions": {
+        "partitionId": "p1"
+      }
+    },
+    "response_status": 204,
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/data/v9.2/accounts(a1)",
+      "query": {
+        "partitionId": "p1"
+      },
+      "items": 1
+    },
+    "credential": {
+      "environment_url": "https://org.crm.dynamics.com",
+      "tenant_id": "t",
+      "client_id": "c",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "row.get": {
+    "params": {
+      "entitySet": "accounts",
+      "recordId": "a1",
+      "getOptions": {
+        "select": [
+          "name"
+        ],
+        "expand": "primarycontactid($select=fullname)"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/data/v9.2/accounts(a1)",
+      "query": {
+        "$select": "name",
+        "$expand": "primarycontactid($select=fullname)"
+      }
+    },
+    "credential": {
+      "environment_url": "https://org.crm.dynamics.com",
+      "tenant_id": "t",
+      "client_id": "c",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "row.update": {
+    "params": {
+      "entitySet": "accounts",
+      "recordId": "a1",
+      "fieldsJson": {
+        "name": "New"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/data/v9.2/accounts(a1)",
+      "headers": {
+        "If-Match": "*",
+        "Prefer": "return=representation"
+      },
+      "body": {
+        "name": "New"
+      }
+    },
+    "credential": {
+      "environment_url": "https://org.crm.dynamics.com",
+      "tenant_id": "t",
+      "client_id": "c",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  }
+}

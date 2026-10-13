@@ -1,0 +1,504 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "azure_cosmos_db",
+  "node_type": "app.azure_cosmos_db",
+  "title": "Azure Cosmos DB",
+  "description": "Containers and items in an Azure Cosmos DB (NoSQL) database",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/rest/api/cosmos-db/",
+  "n8n_types": [
+    "n8n-nodes-base.azureCosmosDb"
+  ],
+  "base_url": "https://{{ cred.account }}.documents.azure.com/dbs/{{ cred.database }}",
+  "headers": {
+    "x-ms-version": "2018-12-31",
+    "Cache-Control": "no-cache"
+  },
+  "credentials": [
+    {
+      "platform": "azure_cosmos_db",
+      "name": "Azure Cosmos DB (account key)",
+      "n8n_credential": "microsoftAzureCosmosDbSharedKeyApi",
+      "n8n_field_map": {
+        "account": "account",
+        "key": "key",
+        "database": "database"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "account",
+          "label": "Account name",
+          "required": true,
+          "help": "The part before .documents.azure.com."
+        },
+        {
+          "key": "key",
+          "label": "Primary or secondary key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "database",
+          "label": "Database ID",
+          "required": true
+        }
+      ],
+      "inject": {
+        "azure_cosmos": {
+          "key": "{{ cred.key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "container",
+      "label": "Container"
+    },
+    {
+      "value": "item",
+      "label": "Item"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "container",
+      "operation": "getAll",
+      "title": "Get many containers",
+      "method": "GET",
+      "path": "/colls",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Drop Cosmos system properties (_rid, _self, _etag, _ts, …)."
+        }
+      ],
+      "headers": {
+        "x-ms-max-item-count": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+      },
+      "pagination": {
+        "type": "header_cursor",
+        "cursor_param": "x-ms-continuation",
+        "cursor_path": "x-ms-continuation",
+        "results_path": "DocumentCollections"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'_rid,_self,_etag,_attachments,_ts,_lsn,_docs,_sprocs,_triggers,_udfs,_conflicts' }}"
+        },
+        "to_when": "{{ p.simple }}",
+        "path": "DocumentCollections"
+      }
+    },
+    {
+      "resource": "container",
+      "operation": "create",
+      "title": "Create a container",
+      "method": "POST",
+      "path": "/colls",
+      "fields": [
+        {
+          "key": "containerCreate",
+          "label": "Container ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "partitionKey",
+          "label": "Partition key",
+          "type": "json",
+          "required": true,
+          "default": "{\n\t\"paths\": [\n\t\t\"/id\"\n\t],\n\t\"kind\": \"Hash\",\n\t\"version\": 2\n}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "indexingPolicy",
+            "maxThroughput",
+            "offerThroughput"
+          ],
+          "help": "indexingPolicy: JSON; maxThroughput: autoscale RU/s; offerThroughput: manual RU/s."
+        }
+      ],
+      "headers": {
+        "x-ms-cosmos-offer-autopilot-setting": "{{ p.additionalFields.maxThroughput | prefix:'{\"maxThroughput\":' | suffix:'}' }}",
+        "x-ms-offer-throughput": "{{ p.additionalFields.offerThroughput }}"
+      },
+      "body": {
+        "id": "{{ p.containerCreate }}",
+        "partitionKey": "{{ p.partitionKey | fromjson }}",
+        "indexingPolicy": "{{ p.additionalFields.indexingPolicy | fromjson }}"
+      }
+    },
+    {
+      "resource": "container",
+      "operation": "delete",
+      "title": "Delete a container",
+      "method": "DELETE",
+      "path": "/colls/{{ p.container | rl }}",
+      "fields": [
+        {
+          "key": "container",
+          "label": "Container ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "deleted": true
+        }
+      }
+    },
+    {
+      "resource": "container",
+      "operation": "get",
+      "title": "Get a container",
+      "method": "GET",
+      "path": "/colls/{{ p.container | rl }}",
+      "fields": [
+        {
+          "key": "container",
+          "label": "Container ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Drop Cosmos system properties (_rid, _self, _etag, _ts, …)."
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'_rid,_self,_etag,_attachments,_ts,_lsn,_docs,_sprocs,_triggers,_udfs,_conflicts' }}"
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "getAll",
+      "title": "Get many items",
+      "method": "GET",
+      "path": "/colls/{{ p.container | rl }}/docs",
+      "fields": [
+        {
+          "key": "container",
+          "label": "Container ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Drop Cosmos system properties (_rid, _self, _etag, _ts, …)."
+        }
+      ],
+      "headers": {
+        "x-ms-max-item-count": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+      },
+      "pagination": {
+        "type": "header_cursor",
+        "cursor_param": "x-ms-continuation",
+        "cursor_path": "x-ms-continuation",
+        "results_path": "Documents"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'_rid,_self,_etag,_attachments,_ts,_lsn,_docs,_sprocs,_triggers,_udfs,_conflicts' }}"
+        },
+        "to_when": "{{ p.simple }}",
+        "path": "Documents"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "create",
+      "title": "Create (upsert) an item",
+      "method": "POST",
+      "path": "/colls/{{ p.container | rl }}/docs",
+      "fields": [
+        {
+          "key": "container",
+          "label": "Container ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "customProperties",
+          "label": "Item contents",
+          "type": "json",
+          "required": true,
+          "default": "{\n\t\"id\": \"replace_with_new_document_id\"\n}",
+          "help": "The document as JSON; it must contain the container's partition key property."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/colls/{{ p.container | rl }}"
+      },
+      "headers": {
+        "x-ms-documentdb-is-upsert": "True",
+        "x-ms-documentdb-partitionkey": "[\"{{ p.customProperties | fromjson | get:(pre.partitionKey.paths.0 | replace:'/','') }}\"]"
+      },
+      "body": {
+        "$merge": "{{ p.customProperties | fromjson }}"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "delete",
+      "title": "Delete an item",
+      "method": "DELETE",
+      "path": "/colls/{{ p.container | rl }}/docs/{{ p.item | rl }}",
+      "fields": [
+        {
+          "key": "container",
+          "label": "Container ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "item",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "partitionKey"
+          ],
+          "help": "partitionKey: the item's partition key value (not needed when the container is partitioned by /id)."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/colls/{{ p.container | rl }}"
+      },
+      "headers": {
+        "x-ms-documentdb-partitionkey": "[\"{{ pre.partitionKey.paths.0 | eq:'/id' | then:(p.item | rl) | default:p.additionalFields.partitionKey }}\"]"
+      },
+      "output": {
+        "to": {
+          "deleted": true
+        }
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "get",
+      "title": "Get an item",
+      "method": "GET",
+      "path": "/colls/{{ p.container | rl }}/docs/{{ p.item | rl }}",
+      "fields": [
+        {
+          "key": "container",
+          "label": "Container ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "item",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Drop Cosmos system properties (_rid, _self, _etag, _ts, …)."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "partitionKey"
+          ],
+          "help": "partitionKey: the item's partition key value (not needed when the container is partitioned by /id)."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/colls/{{ p.container | rl }}"
+      },
+      "headers": {
+        "x-ms-documentdb-is-upsert": "True",
+        "x-ms-documentdb-partitionkey": "[\"{{ pre.partitionKey.paths.0 | eq:'/id' | then:(p.item | rl) | default:p.additionalFields.partitionKey }}\"]"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'_rid,_self,_etag,_attachments,_ts,_lsn,_docs,_sprocs,_triggers,_udfs,_conflicts' }}"
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "query",
+      "title": "Execute a query",
+      "method": "POST",
+      "path": "/colls/{{ p.container | rl }}/docs",
+      "fields": [
+        {
+          "key": "container",
+          "label": "Container ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "query",
+          "label": "Query",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "SELECT * FROM c WHERE c.name = $1",
+          "help": "Cosmos SQL; $1, $2 … refer to the query parameters."
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Drop Cosmos system properties (_rid, _self, _etag, _ts, …)."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "queryOptions"
+          ],
+          "help": "queryOptions: {queryParameters: comma-separated values, or queryParametersJson: a JSON array}."
+        }
+      ],
+      "headers": {
+        "Content-Type": "application/query+json",
+        "x-ms-documentdb-isquery": "True",
+        "x-ms-documentdb-query-enablecrosspartition": "True"
+      },
+      "body": {
+        "query": "{{ p.query | replace:'$','@Param' }}",
+        "!parameters": {
+          "$map": "{{ p.options.queryOptions.queryParametersJson | fromjson | default:(p.options.queryOptions.queryParameters | split) }}",
+          "$to": {
+            "name": "@Param{{ idx | add:1 }}",
+            "!value": "{{ el }}"
+          }
+        }
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | omit:'_rid,_self,_etag,_attachments,_ts,_lsn,_docs,_sprocs,_triggers,_udfs,_conflicts' }}"
+        },
+        "to_when": "{{ p.simple }}",
+        "path": "Documents"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "update",
+      "title": "Replace an item",
+      "method": "PUT",
+      "path": "/colls/{{ p.container | rl }}/docs/{{ p.item | rl }}",
+      "fields": [
+        {
+          "key": "container",
+          "label": "Container ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "item",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "customProperties",
+          "label": "Item contents",
+          "type": "json",
+          "required": true,
+          "default": "{}",
+          "help": "The new document (it replaces the stored one)."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "partitionKey"
+          ],
+          "help": "partitionKey: the item's partition key value (not needed when the container is partitioned by /id)."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/colls/{{ p.container | rl }}"
+      },
+      "headers": {
+        "Content-Type": "application/json-patch+json",
+        "x-ms-documentdb-partitionkey": "[\"{{ pre.partitionKey.paths.0 | eq:'/id' | then:(p.item | rl) | default:p.additionalFields.partitionKey }}\"]"
+      },
+      "body": {
+        "$merge": [
+          "{{ p.customProperties | fromjson }}",
+          {
+            "$entries": "{{ pre.partitionKey.paths.0 | replace:'/','' | split }}",
+            "$key": "{{ el }}",
+            "$value": "{{ pre.partitionKey.paths.0 | eq:'/id' | then:(p.item | rl) | default:p.additionalFields.partitionKey }}"
+          }
+        ],
+        "id": "{{ p.item | rl }}"
+      }
+    }
+  ]
+}
