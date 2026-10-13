@@ -954,17 +954,6 @@ func All() []PlatformDef {
 	return append(out, dynamicAll()...)
 }
 
-// ByCategory returns all platforms in the given category.
-func ByCategory(category string) []PlatformDef {
-	var out []PlatformDef
-	for _, p := range All() {
-		if p.Category == category {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
 // ByConnectVia returns all platforms with the given ConnectVia value.
 func ByConnectVia(via string) []PlatformDef {
 	var out []PlatformDef

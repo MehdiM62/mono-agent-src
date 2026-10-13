@@ -133,9 +133,6 @@ func NewStore(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
-// DB returns the underlying *sql.DB.
-func (s *Store) DB() *sql.DB { return s.db }
-
 // EnsureTable creates the connections table and indices if they do not exist.
 func (s *Store) EnsureTable(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, createConnectionsTable); err != nil {
@@ -451,10 +448,6 @@ func (s *Store) tryAcquireRefreshLock(ctx context.Context, connID string) (bool,
 // process or another) doesn't have to wait out refreshLockStaleAfter.
 func (s *Store) releaseRefreshLock(ctx context.Context, connID string) {
 	_, _ = s.db.ExecContext(ctx, `DELETE FROM oauth_refresh_locks WHERE connection_id = ?`, connID)
-}
-
-func envLookup(key string) string {
-	return os.Getenv(key)
 }
 
 // GetOAuthClient returns the OAuth app client_id/client_secret stored for
