@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
 	"context"
@@ -14,6 +14,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/cli/apiruntime"
+	"github.com/monoes/mono-agent/internal/cli/bridge"
+	"github.com/monoes/mono-agent/internal/cli/capturehooks"
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/cli/orgsvc"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/httpapi"
@@ -22,16 +26,16 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// newDaemonCmd runs the workflow engine as a long-running foreground process,
+// NewCommand is `daemon`: it runs the workflow engine as a long-running foreground process,
 // keeping every active workflow's triggers (schedule, webhook) alive across
 // all profiles until interrupted. Without this, `workflow activate` only
 // registers a trigger for the lifetime of that one CLI invocation — the
 // engine deactivates all triggers on Stop(), which happens as soon as the
 // activating command exits.
-func newDaemonCmd(cfg *globalConfig) *cobra.Command {
+func NewCommand(d Deps) *cobra.Command {
 	var apiOn, allowMutations, bridgeOn bool
 	var apiAddr string
-	var api apiFlags
+	var api apiruntime.Flags
 	c := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run the workflow engine in the foreground, keeping scheduled/webhook triggers alive",
@@ -69,7 +73,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 			}
 			defer releaseLock()
 
-			engine, closeBrowsers, err := buildEngine(cfg, true)
+			engine, closeBrowsers, err := d.BuildEngine()
 			if err != nil {
 				return fmt.Errorf("build engine: %w", err)
 			}
@@ -95,7 +99,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 			sigCh := make(chan os.Signal, 2)
 			signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 			defer signal.Stop(sigCh)
-			var forcedExitAPI atomic.Pointer[apiRuntime] // set once the API runtime exists
+			var forcedExitAPI atomic.Pointer[apiruntime.Runtime] // set once the API runtime exists
 			go func() {
 				<-sigCh // first signal — also observed by the NotifyContext above
 				select {
@@ -110,13 +114,13 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 			}()
 			defer close(shutdownDone)
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
-			orgs := orgsvc.New(db, engine, openWorkflowStore)
-			apiRT, err := daemonAPIRuntime(db.DB, api, func(format string, args ...any) { orgs.Logf("api: "+format, args...) })
+			orgs := orgsvc.New(db, engine, d.OpenWorkflowStore)
+			apiRT, err := apiruntime.NewForDaemon(db.DB, api, func(format string, args ...any) { orgs.Logf("api: "+format, args...) }, d.API)
 			if err != nil {
 				return err
 			}
@@ -137,7 +141,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 
 			servingAddr := ""
 			if apiOn {
-				addr, err := startDaemonAPI(ctx, cfg, db, engine, orgs, apiRT, apiAddr, allowMutations)
+				addr, err := startDaemonAPI(ctx, d, db, engine, orgs, apiRT, apiAddr, allowMutations)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warning: HTTP API not served: %v\n", err)
 				} else {
@@ -152,7 +156,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 
 			bridgeServingAddr := ""
 			if bridgeOn {
-				addr, closeBridge, err := startDaemonBridge(ctx)
+				addr, closeBridge, err := startDaemonBridge(ctx, d)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warning: extension bridge not served: %v\n", err)
 				} else {
@@ -168,7 +172,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 			go newAccountSupervisor(orgs, engine).run(ctx)
 			// Automatic roster re-validation (#230): off unless the user
 			// turned it on; waited for so a run stops before the db closes.
-			defer startAutoRevalidation(ctx, db.DB, orgs.Logf)()
+			defer d.StartAutoRevalidation(ctx, db.DB, orgs.Logf)()
 
 			msg := daemonRunningLine(account.CurrentStatus())
 			if servingAddr != "" {
@@ -194,12 +198,12 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 	c.Flags().BoolVar(&allowMutations, "allow-mutations", false, "Serve mutating HTTP API endpoints (the endpoint receiver is served either way)")
 	api.Bind(c)
 	c.Flags().BoolVar(&bridgeOn, "bridge", true, "Hold the Chrome extension bridge open in this process (same bridge 'extension serve' runs standalone)")
-	c.AddCommand(newDaemonInstallCmd(), newDaemonUninstallCmd(), newDaemonRestartCmd(cfg))
-	return servingCommand(c)
+	c.AddCommand(newDaemonInstallCmd(), newDaemonUninstallCmd(), NewRestartCommand(d))
+	return c
 }
 
 // startDaemonBridge starts the Chrome extension bridge (see
-// extension_serve.go) so the MonoAgent Bridge extension stays connected for
+// internal/cli/bridge) so the MonoAgent Bridge extension stays connected for
 // as long as the daemon runs, instead of needing a separate
 // `monoagentcli extension serve` left open in another terminal —
 // setupExtensionBridge's own comment already named "the daemon" as one of
@@ -213,22 +217,22 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 // already defers every other component's shutdown in the order it started
 // them (engine, db, scheduler), and the bridge fits that same pattern rather
 // than inventing a second shutdown path.
-func startDaemonBridge(ctx context.Context) (addr string, closeFn func(), err error) {
-	if st, base, ok := findRunningBridge(); ok {
-		return bridgeAddr(st, base), func() {}, nil
+func startDaemonBridge(ctx context.Context, d Deps) (addr string, closeFn func(), err error) {
+	if st, base, ok := bridge.FindRunning(context.Background(), d.ProbeAddrs()); ok {
+		return bridge.Addr(st, base), func() {}, nil
 	}
 
-	logger := newBridgeServeLogger()
-	srv := newExtensionServer(logger)
-	summaries := installCaptureSummaries(srv, loggerLogf(logger))
-	summaries.SweepIndexAfter(ctx, captureIndexStartupDelay)
+	logger := bridge.NewServeLogger()
+	srv := d.NewExtensionServer(logger)
+	summaries := d.InstallCaptureHooks(srv, bridge.LoggerLogf(logger))
+	summaries.SweepIndexAfter(ctx, capturehooks.IndexStartupDelay)
 	closeFn = func() {
 		summaries.Close()
 		srv.Close() //nolint:errcheck
 	}
 
 	errCh := srv.StartAsync(ctx)
-	addr, err = waitForBridgeBind(ctx, srv, errCh)
+	addr, err = bridge.WaitForBind(ctx, srv, errCh)
 	if err != nil {
 		closeFn()
 		return "", func() {}, err
@@ -238,13 +242,13 @@ func startDaemonBridge(ctx context.Context) (addr string, closeFn func(), err er
 
 // startDaemonAPI binds the HTTP API over the daemon's own database and
 // engine, records the address for endpoint URLs, and serves until ctx ends.
-func startDaemonAPI(ctx context.Context, cfg *globalConfig, db *storage.Database, engine *workflow.WorkflowEngine, orgs *orgsvc.Services, api *apiRuntime, addr string, allowMutations bool) (string, error) {
+func startDaemonAPI(ctx context.Context, d Deps, db *storage.Database, engine *workflow.WorkflowEngine, orgs *orgsvc.Services, api *apiruntime.Runtime, addr string, allowMutations bool) (string, error) {
 	srv, err := httpapi.NewServer(httpapi.Options{
-		DB: db, Store: openWorkflowStore(db), Engine: engine, Profile: cfg.ProfileID,
-		Addr: addr, AllowMutations: allowMutations, Version: getVersion(),
+		DB: db, Store: d.OpenWorkflowStore(db), Engine: engine, Profile: d.ProfileID(),
+		Addr: addr, AllowMutations: allowMutations, Version: d.API.Version(),
 		// The server has one ExtraRoutes slot: the org receiver and the
 		// OpenAI-compatible API both ride it.
-		ExtraRoutes: daemonRoutes(orgs.RegisterRoutes, api, addr),
+		ExtraRoutes: apiruntime.DaemonRoutes(orgs.RegisterRoutes, api, addr),
 	})
 	if err != nil {
 		api.ReleaseUnused() // the routes above built the gateway, which nothing serves now
@@ -255,7 +259,7 @@ func startDaemonAPI(ctx context.Context, cfg *globalConfig, db *storage.Database
 		api.ReleaseUnused()
 		return "", fmt.Errorf("listen on %s: %w (is another daemon or `monoagentcli httpapi` using it?)", srv.Addr(), err)
 	}
-	if _, err := db.DB.Exec(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, daemonAPIAddrSetting, srv.Addr()); err != nil {
+	if _, err := db.DB.Exec(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, orgenv.DaemonAPIAddrSetting, srv.Addr()); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: recording API address: %v\n", err)
 	}
 	go func() {
