@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"encoding/json"
@@ -19,7 +19,7 @@ func runProfileJSON(t *testing.T, dbPath string, args ...string) (string, error)
 	var runErr error
 	var buf strings.Builder
 	out := captureStdout(t, func() {
-		cmd := newProfileCmd(&globalConfig{DBPath: dbPath, JSONOutput: true})
+		cmd := NewCommand(testDeps(&testConfig{DBPath: dbPath, JSONOutput: true}))
 		cmd.SetArgs(args)
 		cmd.SetOut(&buf)
 		runErr = cmd.Execute()
@@ -48,7 +48,7 @@ func exitCodeOf(t *testing.T, err error) int {
 }
 
 func TestProfileCreateListGetSwitch(t *testing.T) {
-	dbPath := newApplicationCLITestDB(t)
+	dbPath := newProfileDocsCLITestDB(t)
 	custom := filepath.Join(t.TempDir(), "work-folder")
 
 	var created profileCreateResult
@@ -117,7 +117,7 @@ func TestProfileCreateListGetSwitch(t *testing.T) {
 
 // An exact id wins over another profile's name.
 func TestProfileSwitchPrefersIDOverName(t *testing.T) {
-	dbPath := newApplicationCLITestDB(t)
+	dbPath := newProfileDocsCLITestDB(t)
 	var a profileCreateResult
 	mustProfileJSON(t, dbPath, &a, "create", "Alpha")
 	var b profileCreateResult
@@ -131,7 +131,7 @@ func TestProfileSwitchPrefersIDOverName(t *testing.T) {
 }
 
 func TestProfileFolderEnsuresLayout(t *testing.T) {
-	dbPath := newApplicationCLITestDB(t)
+	dbPath := newProfileDocsCLITestDB(t)
 	var got map[string]string
 	mustProfileJSON(t, dbPath, &got, "folder", "default")
 	want := profiledir.Root(nil, "default")
@@ -144,7 +144,7 @@ func TestProfileFolderEnsuresLayout(t *testing.T) {
 }
 
 func TestProfileMoveMovesVaultAndMonomind(t *testing.T) {
-	dbPath := newApplicationCLITestDB(t)
+	dbPath := newProfileDocsCLITestDB(t)
 	db, err := storage.NewDatabase(dbPath)
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +222,7 @@ func TestProfileMoveMovesVaultAndMonomind(t *testing.T) {
 }
 
 func TestProfileProjectsSuggestsUnusedMonomindProjects(t *testing.T) {
-	dbPath := newApplicationCLITestDB(t)
+	dbPath := newProfileDocsCLITestDB(t)
 	base := t.TempDir()
 	free := filepath.Join(base, "free-project")
 	taken := filepath.Join(base, "taken-project")

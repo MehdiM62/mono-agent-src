@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"path/filepath"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestProfileDocumentsGetAndCapture(t *testing.T) {
-	dbPath := newApplicationCLITestDB(t)
+	dbPath := newProfileDocsCLITestDB(t)
 	capDir := writeCapture(t, map[string]string{
 		"meta.json":      `{"title":"Search Results","url":"https://x.test/","capturedAt":"2026-09-22T11:00:08Z","wordCount":3}`,
 		"readable.md":    "# Hello",

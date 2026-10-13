@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"bytes"
@@ -9,13 +9,11 @@ import (
 
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/vault"
-
-	"github.com/spf13/cobra"
 )
 
-func runFolderSync(t *testing.T, cfg *globalConfig, newCmd func(*globalConfig) *cobra.Command, args ...string) folderSyncResult {
+func runFolderSync(t *testing.T, cfg *testConfig, args ...string) folderSyncResult {
 	t.Helper()
-	cmd := newCmd(cfg)
+	cmd := NewCommand(testDeps(cfg))
 	cmd.SetArgs(args)
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -70,9 +68,9 @@ func TestProfileDocumentsSync(t *testing.T) {
 	writeFile(t, filepath.Join(root, ".monomind", "x.md"), "internal") // dot-folder
 	writeFile(t, filepath.Join(home, ".monoagent", "profiles", "home", "other.md"), "other profile")
 
-	work := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "work"}
+	work := &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "work"}
 	sync := func() folderSyncResult {
-		return runFolderSync(t, work, newProfileCmd, "documents", "sync")
+		return runFolderSync(t, work, "documents", "sync")
 	}
 
 	r := sync()

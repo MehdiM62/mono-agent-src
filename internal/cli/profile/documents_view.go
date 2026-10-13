@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"encoding/base64"
@@ -36,29 +36,29 @@ type documentJSON struct {
 
 // getProfileDocument loads id scoped to the active profile, or a not-found
 // error (exit code 2).
-func getProfileDocument(cmd *cobra.Command, cfg *globalConfig, id string) (*vault.DocumentEntry, error) {
-	db, err := initDB(cfg)
+func (d Deps) getProfileDocument(cmd *cobra.Command, id string) (*vault.DocumentEntry, error) {
+	db, err := d.OpenDB()
 	if err != nil {
 		return nil, fmt.Errorf("initializing database: %w", err)
 	}
 	defer db.DB.Close()
-	doc, err := vault.GetDocument(cmd.Context(), db.DB, cfg.ProfileID, id)
+	doc, err := vault.GetDocument(cmd.Context(), db.DB, d.ProfileID(), id)
 	if err != nil {
 		return nil, err
 	}
 	if doc == nil {
-		return nil, errNotFound("document %s not found", id)
+		return nil, d.NotFound("document %s not found", id)
 	}
 	return doc, nil
 }
 
-func newProfileDocumentsGetCmd(cfg *globalConfig) *cobra.Command {
+func (deps Deps) newProfileDocumentsGetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <id>",
 		Short: "Show one profile document",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := getProfileDocument(cmd, cfg, args[0])
+			d, err := deps.getProfileDocument(cmd, args[0])
 			if err != nil {
 				return err
 			}
@@ -69,7 +69,7 @@ func newProfileDocumentsGetCmd(cfg *globalConfig) *cobra.Command {
 				URL: d.URL, CaptureDir: d.CaptureDir,
 				SummaryStatus: capturesummary.StateOf(d.CaptureDir, time.Now()),
 			}
-			if cfg.JSONOutput {
+			if deps.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(out)
@@ -118,24 +118,24 @@ const (
 	maxCaptureScreenshotBytes = 25 * 1024 * 1024
 )
 
-func newProfileDocumentsCaptureCmd(cfg *globalConfig) *cobra.Command {
+func (deps Deps) newProfileDocumentsCaptureCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "capture <id>",
 		Short: "Show a browser capture's parts: readable text, screenshot, summary, transcript",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := getProfileDocument(cmd, cfg, args[0])
+			d, err := deps.getProfileDocument(cmd, args[0])
 			if err != nil {
 				return err
 			}
 			if d.CaptureDir == "" {
-				return errInvalidInput("document %q is not a browser capture", args[0])
+				return deps.InvalidInput("document %q is not a browser capture", args[0])
 			}
 			v, err := readCaptureView(d.CaptureDir)
 			if err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
+			if deps.JSONOutput() {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(v)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "%s\n%s\n\n%s\n", v.Title, v.URL, v.Readable)

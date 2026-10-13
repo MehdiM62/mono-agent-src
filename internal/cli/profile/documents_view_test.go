@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"os"
@@ -22,6 +22,7 @@ func writeCapture(t *testing.T, files map[string]string) string {
 }
 
 func TestReadCaptureViewReadsAllParts(t *testing.T) {
+	t.Parallel()
 	dir := writeCapture(t, map[string]string{
 		"meta.json":      `{"title":"Search Results","url":"https://www.google.com/search?q=x","capturedAt":"2026-09-22T11:00:08Z","wordCount":42}`,
 		"readable.md":    "# Gastown\n\nThe original settlement.",
@@ -45,6 +46,7 @@ func TestReadCaptureViewReadsAllParts(t *testing.T) {
 // A page with no readable text (a claude.ai artifact, an app) still has a
 // screenshot, and that alone must be enough to preview it.
 func TestReadCaptureViewToleratesMissingParts(t *testing.T) {
+	t.Parallel()
 	dir := writeCapture(t, map[string]string{
 		"meta.json":      `{"title":"Jev Picker Plan","url":"https://claude.ai/artifact/x","wordCount":0}`,
 		"screenshot.png": "\x89PNG fake",
@@ -61,6 +63,7 @@ func TestReadCaptureViewToleratesMissingParts(t *testing.T) {
 // A "Save video summary" capture: the summary, the transcript and where
 // the summary came from all reach the viewer.
 func TestReadCaptureViewReadsSummaryAndTranscript(t *testing.T) {
+	t.Parallel()
 	dir := writeCapture(t, map[string]string{
 		"meta.json":     `{"title":"Me at the zoo","url":"https://www.youtube.com/watch?v=jNQXAC9IVRw"}`,
 		"readable.md":   "# Me at the zoo",
@@ -82,6 +85,7 @@ func TestReadCaptureViewReadsSummaryAndTranscript(t *testing.T) {
 
 // A summary that failed says why; one never asked for has no status at all.
 func TestReadCaptureViewSummaryStatus(t *testing.T) {
+	t.Parallel()
 	failed := writeCapture(t, map[string]string{
 		"meta.json":    `{"title":"x","url":"https://x.test/"}`,
 		"readable.md":  "x",
@@ -106,6 +110,7 @@ func TestReadCaptureViewSummaryStatus(t *testing.T) {
 }
 
 func TestReadCaptureViewNeedsMeta(t *testing.T) {
+	t.Parallel()
 	dir := writeCapture(t, map[string]string{"readable.md": "text"})
 	if _, err := readCaptureView(dir); err == nil {
 		t.Fatal("a folder without meta.json was read as a capture")

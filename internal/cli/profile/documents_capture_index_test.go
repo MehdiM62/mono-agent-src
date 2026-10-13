@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"bytes"
@@ -30,8 +30,8 @@ func newCaptureTestProfile(t *testing.T, dbPath, name string) string {
 
 func runProfileCmdAs(t *testing.T, dbPath, profileID string, args ...string) (string, error) {
 	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: profileID}
-	cmd := newProfileCmd(cfg)
+	cfg := &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: profileID}
+	cmd := NewCommand(testDeps(cfg))
 	cmd.SetArgs(args)
 	var out bytes.Buffer
 	cmd.SetOut(&out)
