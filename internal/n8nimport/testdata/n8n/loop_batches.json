@@ -1,0 +1,18 @@
+{
+  "name": "Enrich contacts in batches",
+  "nodes": [
+    {"parameters": {}, "id": "m", "name": "Start", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0]},
+    {"parameters": {"jsCode": "const ids = [1, 2, 3, 4, 5];\nreturn ids.map(id => ({ json: { id, email: `user${id}@example.com` } }));"}, "id": "g", "name": "Generate", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [200, 0]},
+    {"parameters": {"batchSize": 2, "options": {}}, "id": "l", "name": "Loop Over Items", "type": "n8n-nodes-base.splitInBatches", "typeVersion": 3, "position": [400, 0]},
+    {"parameters": {"method": "POST", "url": "https://api.example.com/enrich", "sendBody": true, "specifyBody": "json", "jsonBody": "={\n  \"email\": \"{{ $json.email }}\"\n}", "options": {"timeout": 20000}}, "id": "h", "name": "Enrich", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [600, 100]},
+    {"parameters": {"amount": 2}, "id": "w", "name": "Pause", "type": "n8n-nodes-base.wait", "typeVersion": 1.1, "position": [800, 100], "webhookId": "w-1"},
+    {"parameters": {"fieldsToAggregate": {"fieldToAggregate": [{"fieldToAggregate": "email"}]}, "options": {}}, "id": "a", "name": "Collect", "type": "n8n-nodes-base.aggregate", "typeVersion": 1, "position": [600, -100]}
+  ],
+  "connections": {
+    "Start": {"main": [[{"node": "Generate", "type": "main", "index": 0}]]},
+    "Generate": {"main": [[{"node": "Loop Over Items", "type": "main", "index": 0}]]},
+    "Loop Over Items": {"main": [[{"node": "Collect", "type": "main", "index": 0}], [{"node": "Enrich", "type": "main", "index": 0}]]},
+    "Enrich": {"main": [[{"node": "Pause", "type": "main", "index": 0}]]},
+    "Pause": {"main": [[{"node": "Loop Over Items", "type": "main", "index": 0}]]}
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Merge modes",
+  "nodes": [
+    {"parameters": {}, "name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0]},
+    {"parameters": {"jsCode": "return [{json: {id: 1, a: 'x'}}, {json: {id: 2, a: 'y'}}];"}, "name": "Left", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [200, -100]},
+    {"parameters": {"jsCode": "return [{json: {id: 2, b: 'z'}}, {json: {id: 3, b: 'w'}}];"}, "name": "Right", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [200, 100]},
+    {"parameters": {"mode": "combine", "combineBy": "combineByPosition", "options": {}}, "name": "By position", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [400, -200]},
+    {"parameters": {"mode": "combine", "advanced": true, "mergeByFields": {"values": [{"field1": "id", "field2": "id"}]}, "joinMode": "keepEverything", "options": {}}, "name": "Outer join", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [400, 0]},
+    {"parameters": {"mode": "chooseBranch", "useDataOfInput": 2}, "name": "Choose", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [400, 200]},
+    {"parameters": {"mode": "combine", "combinationMode": "multiplex", "options": {}}, "name": "Cross", "type": "n8n-nodes-base.merge", "typeVersion": 2.1, "position": [400, 400]},
+    {"parameters": {"mode": "combineBySql", "query": "SELECT * FROM input1"}, "name": "SQL", "type": "n8n-nodes-base.merge", "typeVersion": 3, "position": [400, 600]}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "Left", "type": "main", "index": 0}, {"node": "Right", "type": "main", "index": 0}]]},
+    "Left": {"main": [[{"node": "By position", "type": "main", "index": 0}, {"node": "Outer join", "type": "main", "index": 0}, {"node": "Choose", "type": "main", "index": 0}, {"node": "Cross", "type": "main", "index": 0}, {"node": "SQL", "type": "main", "index": 0}]]},
+    "Right": {"main": [[{"node": "By position", "type": "main", "index": 1}, {"node": "Outer join", "type": "main", "index": 1}, {"node": "Choose", "type": "main", "index": 1}, {"node": "Cross", "type": "main", "index": 1}, {"node": "SQL", "type": "main", "index": 1}]]}
+  }
+}

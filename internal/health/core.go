@@ -41,6 +41,7 @@ func coreChecks() []Check {
 		{ID: CheckCLI, Group: GroupCore, Title: "monoagentcli", Run: checkCLI},
 		{ID: CheckHome, Group: GroupCore, Title: "Data folder", Required: true, Run: checkHome},
 		{ID: CheckDB, Group: GroupCore, Title: "Database", Required: true, DependsOn: []string{CheckHome}, Run: checkDB},
+		permsCheck(),
 		{ID: CheckProfile, Group: GroupCore, Title: "Active profile", Required: true, DependsOn: []string{CheckDB}, Run: checkProfile},
 		{ID: CheckVault, Group: GroupCore, Title: "Secrets vault", Features: []string{"credentials", "connections"}, DependsOn: []string{CheckProfile}, Run: checkVault},
 		{ID: CheckPath, Group: GroupCore, Title: "Login shell PATH", Features: []string{"tools installed via nvm/Homebrew/mise"}, Run: checkPath},
@@ -53,6 +54,7 @@ func coreFixes() []Fix {
 	return []Fix{
 		{FixInfo: FixInfo{ID: FixHomeCreate, Label: "Create data folder", Safety: SafetyAuto}, Apply: fixHomeCreate},
 		{FixInfo: FixInfo{ID: FixDBMigrate, Label: "Create / migrate database", Safety: SafetyAuto}, Apply: fixDBMigrate},
+		permsFix(),
 		{FixInfo: FixInfo{ID: FixProfileLayout, Label: "Create profile folder", Safety: SafetyAuto}, Apply: fixProfileLayout},
 		{FixInfo: FixInfo{ID: FixUpdate, Label: "Update monoagentcli", Safety: SafetyConfirm, Command: "monoagentcli update"}, Apply: fixUpdate},
 	}

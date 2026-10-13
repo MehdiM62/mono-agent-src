@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // crashReportOptIn enables GitHub crash filing via the sibling `monomind`
@@ -79,13 +80,13 @@ func saveCrashLocally(title, body string) {
 		return
 	}
 	crashDir := filepath.Join(home, ".monoagent", "crashes")
-	if err := os.MkdirAll(crashDir, 0o755); err != nil {
+	if err := statedir.MkdirAll(crashDir); err != nil {
 		return
 	}
 	path := filepath.Join(crashDir, fmt.Sprintf("crash-%d.log", time.Now().Unix()))
 	record := fmt.Sprintf("timestamp: %s\nversion: %s (built %s)\ntitle: %s\n\n%s\n",
 		time.Now().UTC().Format(time.RFC3339), version, buildDate, title, body)
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, statedir.FilePerm)
 	if err != nil {
 		return
 	}

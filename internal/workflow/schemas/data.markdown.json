@@ -3,11 +3,67 @@
   "credential_platform": null,
   "fields": [
     {
-      "help": "Converts Markdown to HTML.",
+      "help": "Leave unset for the original behaviour: convert the Input Field from Markdown to HTML with GitHub-flavoured Markdown.",
+      "key": "mode",
+      "label": "Mode",
+      "options": [
+        "markdown_to_html",
+        "html_to_markdown"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "help": "Markdown to convert; evaluated per item. Leave empty to read the Input Field.",
+      "key": "markdown",
+      "label": "Markdown",
+      "placeholder": "{{ $json.body }}",
+      "required": false,
+      "rows": 6,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "help": "HTML to convert; evaluated per item. Leave empty to read the Input Field.",
+      "key": "html",
+      "label": "HTML",
+      "placeholder": "{{ $json.html }}",
+      "required": false,
+      "rows": 6,
+      "type": "textarea"
+    },
+    {
+      "help": "Item field holding the source text. Required without a mode; with a mode it is used when the Markdown/HTML value is empty.",
       "key": "field",
-      "label": "Input Field (Markdown)",
+      "label": "Input Field",
       "placeholder": "content",
-      "required": true,
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html",
+          "html_to_markdown"
+        ]
+      },
+      "help": "Dot path the result is written to (e.g. level1.level2.key). Defaults to the Output Field, then the Input Field, then data.",
+      "key": "destination_key",
+      "label": "Destination Key",
+      "placeholder": "data",
+      "required": false,
       "type": "text"
     },
     {
@@ -18,11 +74,408 @@
       "type": "text"
     },
     {
-      "default": false,
+      "help": "Pass raw HTML in the Markdown through. Default: off without a mode, on for markdown_to_html (like n8n).",
       "key": "unsafe",
       "label": "Allow Raw HTML",
       "required": false,
       "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "key": "tables",
+      "label": "Tables Support",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "help": "~~text~~",
+      "key": "strikethrough",
+      "label": "Strikethrough",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "key": "tasklists",
+      "label": "GitHub Task Lists",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "help": "Render single line breaks as <br>.",
+      "key": "simple_line_breaks",
+      "label": "Simple Line Breaks",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "key": "simplified_auto_link",
+      "label": "Automatic Linking to URLs",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "help": "Do not add id attributes to headings.",
+      "key": "no_header_id",
+      "label": "No Header ID",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "help": "Use text in curly braces at the end of a heading as its id: # Title {my-id}",
+      "key": "customized_header_id",
+      "label": "Customized Header ID",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "key": "gh_compatible_header_id",
+      "label": "GitHub Compatible Header IDs",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "help": "Only replace spaces and quotes with dashes in heading ids.",
+      "key": "raw_header_id",
+      "label": "Raw Header ID",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "key": "prefix_header_id",
+      "label": "Prefix Header ID",
+      "placeholder": "section",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "help": "Add the prefix after the id is cleaned up, unchanged.",
+      "key": "raw_prefix_header_id",
+      "label": "Raw Prefix Header ID",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": 1,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "key": "header_level_start",
+      "label": "Header Level Start",
+      "max": 6,
+      "min": 1,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "help": "Add target=\"_blank\" to links.",
+      "key": "open_links_in_new_window",
+      "label": "Add Blank To Links",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "markdown_to_html"
+        ]
+      },
+      "help": "Wrap the result in <html><head><body>.",
+      "key": "complete_html_document",
+      "label": "Complete HTML Document",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": "*",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "key": "bullet_marker",
+      "label": "Bullet Marker",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "fence",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "key": "code_block_style",
+      "label": "Style For Code Block",
+      "options": [
+        "fence",
+        "indented"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "```",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "key": "code_fence",
+      "label": "Code Block Fence",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "_",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "key": "em_delimiter",
+      "label": "Emphasis Delimiter",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "**",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "key": "strong_delimiter",
+      "label": "Strong Delimiter",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "atx",
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "help": "setext underlines h1/h2; deeper headings stay atx.",
+      "key": "heading_style",
+      "label": "Heading Style",
+      "options": [
+        "atx",
+        "setext"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "help": "Comma-separated elements dropped with their content.",
+      "key": "ignore",
+      "label": "Ignored Elements",
+      "placeholder": "nav, footer",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "help": "Comma-separated elements surrounded with blank lines.",
+      "key": "block_elements",
+      "label": "Treat As Blocks",
+      "placeholder": "span, custom-tag",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "help": "Keep images whose src is a data: URI.",
+      "key": "keep_data_images",
+      "label": "Keep Images With Data",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": 3,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "key": "max_consecutive_newlines",
+      "label": "Max Consecutive New Lines",
+      "min": 1,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "help": "Write links as [text][n] with the URLs listed at the end.",
+      "key": "use_link_reference_definitions",
+      "label": "Place URLs At The Bottom",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "help": "Regex replacements applied to text content. Replacements use $1 / $& like JavaScript.",
+      "key": "text_replace",
+      "label": "Text Replacement Patterns (JSON)",
+      "language": "json",
+      "placeholder": "[{\"pattern\": \"foo\", \"replacement\": \"bar\"}]",
+      "required": false,
+      "rows": 3,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "help": "Overrides the built-in escaping of Markdown syntax at the start of a line.",
+      "key": "line_start_escape",
+      "label": "Line Start Escape Pattern (JSON)",
+      "language": "json",
+      "placeholder": "{\"pattern\": \"^#\", \"replacement\": \"\\\\#\"}",
+      "required": false,
+      "rows": 2,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "mode",
+        "values": [
+          "html_to_markdown"
+        ]
+      },
+      "help": "Overrides the built-in escaping of Markdown characters in text.",
+      "key": "global_escape",
+      "label": "Global Escape Pattern (JSON)",
+      "language": "json",
+      "placeholder": "{\"pattern\": \"[*_]\", \"replacement\": \"\\\\$&\"}",
+      "required": false,
+      "rows": 2,
+      "type": "code"
     }
   ]
 }

@@ -1,0 +1,40 @@
+{
+  "id": "http-filter-csv",
+  "mode": "both",
+  "workflow_name": "eval-http-filter-csv",
+  "prompt": "Create a workflow named \"eval-http-filter-csv\" that, when run manually, fetches\n{{FIXTURE_URL}}/products.json with an HTTP GET (the response is\n{\"items\":[{\"name\",\"price\",\"category\",\"qty\"}, ...]}), keeps only the products\nwhose price is greater than 10, and writes them as a CSV file with a header row\nto {{OUT_DIR}}/expensive.csv.",
+  "fixtures": [
+    "products.json"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "http.request"
+      ]
+    },
+    {
+      "type": "file",
+      "path": "{{OUT_DIR}}/expensive.csv",
+      "contains": [
+        "book",
+        "lamp",
+        "name"
+      ],
+      "not_contains": [
+        "pen",
+        "cup"
+      ]
+    }
+  ]
+}

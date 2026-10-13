@@ -1,12 +1,8 @@
 package httpnodes
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -34,130 +30,59 @@ func (n *RequestNode) Type() string { return "http.request" }
 // duplicate that for no realistic benefit.
 var requestPerItemFields = []string{"url", "query_params", "body", "headers"}
 
-// PerItemConfigFields declares requestPerItemFields — see its doc comment.
-func (n *RequestNode) PerItemConfigFields() []string { return requestPerItemFields }
+// paginationTemplateFields are held back from the engine's resolution
+// too, but resolved per page (they read $response and $pageCount).
+var paginationTemplateFields = []string{"pagination_next_url", "pagination_complete_expression", "pagination_parameters"}
+
+// PerItemConfigFields declares requestPerItemFields and the pagination
+// templates — see their doc comments.
+func (n *RequestNode) PerItemConfigFields() []string {
+	return append(append([]string{}, requestPerItemFields...), paginationTemplateFields...)
+}
+
+// requestRun is one execution of the node: settings parsed once, shared
+// by every item.
+type requestRun struct {
+	method        string
+	client        *http.Client
+	copts         clientOptions
+	ropts         responseOptions
+	pag           paginationOptions
+	arrayFormat   string
+	keepCreds     bool
+	batchSize     int
+	batchInterval time.Duration
+	engine        *workflow.ExpressionEngine
+	input         workflow.NodeInput
+}
 
 func (n *RequestNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
-	method, _ := config["method"].(string)
-	if method == "" {
-		method = "GET"
-	}
-	method = strings.ToUpper(method)
-
-	rawURL, _ := config["url"].(string)
-	if rawURL == "" {
+	if strings.TrimSpace(configString(config, "url")) == "" {
 		return nil, fmt.Errorf("http.request: 'url' is required")
 	}
-
-	timeoutSecs := 30
-	if v, ok := config["timeout"].(float64); ok {
-		timeoutSecs = int(v)
-	} else if v, ok := config["timeout_seconds"].(float64); ok {
-		timeoutSecs = int(v)
+	r, err := newRequestRun(config, input)
+	if err != nil {
+		return nil, err
 	}
-
-	followRedirects := true
-	if v, ok := config["follow_redirects"].(bool); ok {
-		followRedirects = v
-	}
-
-	responseFormat, _ := config["response_format"].(string)
-	if responseFormat == "" {
-		responseFormat = "json"
-	}
-
-	bodyType, _ := config["body_type"].(string)
-	if bodyType == "" {
-		bodyType = "none"
-	}
-
-	authType, _ := config["auth_type"].(string)
-	if authType == "" {
-		authType = "none"
-	}
-
-	paginationType, _ := config["pagination_type"].(string)
-	if paginationType == "" {
-		paginationType = "none"
-	}
-
-	// Response bodies are read through a LimitReader bounded by
-	// max_body_mb (default 64MB) so a huge or hostile response cannot
-	// exhaust memory.
-	maxBodyMB := 64
-	if v, ok := config["max_body_mb"].(float64); ok && v > 0 {
-		maxBodyMB = int(v)
-	}
-	maxBodyBytes := int64(maxBodyMB) << 20
-
-	pageSize := 100
-	if v, ok := config["page_size"].(float64); ok {
-		pageSize = int(v)
-	}
-	pageField, _ := config["page_field"].(string)
-	if pageField == "" {
-		pageField = "page"
-	}
-
-	transport := &http.Transport{}
-	// Close idle keep-alive connections when the node finishes; otherwise a
-	// fresh transport per execution leaks pooled connections and their goroutines.
-	defer transport.CloseIdleConnections()
-	client := &http.Client{
-		Timeout:   time.Duration(timeoutSecs) * time.Second,
-		Transport: transport,
-	}
-	if !followRedirects {
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}
-	} else if sensitiveHeaders := sensitiveRedirectHeaders(config, authType); len(sensitiveHeaders) > 0 {
-		// Go strips Authorization/Cookie-class headers on cross-host redirects
-		// but forwards custom headers (e.g. an API key header) verbatim. Strip
-		// our own credential-bearing headers when the redirect leaves the host.
-		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 10 {
-				return fmt.Errorf("stopped after 10 redirects")
-			}
-			if len(via) > 0 && req.URL.Host != via[0].URL.Host {
-				for _, h := range sensitiveHeaders {
-					req.Header.Del(h)
-				}
-			}
-			return nil
-		}
-	}
+	var closeIdle func()
+	r.client, closeIdle = newHTTPClient(r.copts)
+	defer closeIdle()
 
 	items := input.Items
 	if len(items) == 0 {
 		items = []workflow.Item{{JSON: map[string]interface{}{}}}
 	}
 
-	var mainItems []workflow.Item
-	var errorItems []workflow.Item
-
-	engine := workflow.NewExpressionEngine()
-
-	for _, item := range items {
-		itemConfig, err := n.resolvePerItemConfig(ctx, engine, config, item, input)
-		if err != nil {
-			errorItems = append(errorItems, workflow.NewItem(map[string]interface{}{"error": err.Error()}))
-			continue
-		}
-		itemURL, _ := itemConfig["url"].(string)
-
-		if paginationType == "offset" {
-			pageItems, pageErrors := n.executePaginated(ctx, client, method, itemURL, itemConfig, authType, bodyType, responseFormat, pageField, pageSize, maxBodyBytes, item)
-			mainItems = append(mainItems, pageItems...)
-			errorItems = append(errorItems, pageErrors...)
-		} else {
-			resp, errItem := n.executeRequest(ctx, client, method, itemURL, itemConfig, authType, bodyType, responseFormat, item, -1, maxBodyBytes)
-			if errItem != nil {
-				errorItems = append(errorItems, *errItem)
-			} else {
-				mainItems = append(mainItems, resp)
+	var mainItems, errorItems []workflow.Item
+	for i, item := range items {
+		if i > 0 && r.batchSize > 0 && r.batchInterval > 0 && i%r.batchSize == 0 {
+			if err := sleepCtx(ctx, r.batchInterval); err != nil {
+				return nil, err
 			}
 		}
+		m, e := r.runItem(ctx, config, item)
+		mainItems = append(mainItems, m...)
+		errorItems = append(errorItems, e...)
 	}
 
 	var outputs []workflow.NodeOutput
@@ -170,18 +95,173 @@ func (n *RequestNode) Execute(ctx context.Context, input workflow.NodeInput, con
 	return outputs, nil
 }
 
-// resolvePerItemConfig resolves requestPerItemFields against one item's own
-// JSON and returns a copy of base with those fields overlaid by the result —
-// base itself is never mutated, since it's shared across every item in the
-// batch. Mirrors the resolution pipeline RunExecution normally applies once
-// for the whole config (internal/workflow/execution.go): expression
-// templates, then @img-NNN vault refs, then @secret:<name> refs. Only
-// requestPerItemFields go through this — every other field (including the
-// auth_* ones) already went through that same pipeline once, batch-wide, in
-// RunExecution before Execute was called.
-func (n *RequestNode) resolvePerItemConfig(ctx context.Context, engine *workflow.ExpressionEngine, base map[string]interface{}, item workflow.Item, input workflow.NodeInput) (map[string]interface{}, error) {
-	overlay := make(map[string]interface{}, len(requestPerItemFields))
-	for _, k := range requestPerItemFields {
+func newRequestRun(config map[string]interface{}, input workflow.NodeInput) (*requestRun, error) {
+	r := &requestRun{engine: workflow.NewExpressionEngine(), input: input}
+	r.method = strings.ToUpper(strings.TrimSpace(configString(config, "method")))
+	if r.method == "" {
+		r.method = http.MethodGet
+	}
+	if strings.ContainsAny(r.method, " \t\r\n/:()<>@,;\"[]?={}") {
+		return nil, fmt.Errorf("http.request: method: %q is not an HTTP method", r.method)
+	}
+	var err error
+	if r.copts, err = parseClientOptions(config, "http.request"); err != nil {
+		return nil, err
+	}
+	if r.ropts, err = parseResponseOptions(config, "http.request"); err != nil {
+		return nil, err
+	}
+	if r.pag, err = parsePaginationOptions(config, "http.request"); err != nil {
+		return nil, err
+	}
+	if r.arrayFormat, err = oneOf(config, "query_array_format", "repeat", []string{"repeat", "brackets", "indices"}, nil); err != nil {
+		return nil, fmt.Errorf("http.request: %w", err)
+	}
+	if r.keepCreds, err = configBool(config, "send_credentials_on_redirect", false); err != nil {
+		return nil, fmt.Errorf("http.request: %w", err)
+	}
+	if n, ok, err := configNumber(config, "batch_size"); err != nil {
+		return nil, fmt.Errorf("http.request: %w", err)
+	} else if ok && n > 0 {
+		r.batchSize = int(n)
+	}
+	if n, ok, err := configNumber(config, "batch_interval_ms"); err != nil {
+		return nil, fmt.Errorf("http.request: %w", err)
+	} else if ok && n > 0 {
+		r.batchInterval = time.Duration(n) * time.Millisecond
+	}
+	return r, nil
+}
+
+// runItem makes the request (or the pages of it) for one input item.
+func (r *requestRun) runItem(ctx context.Context, config map[string]interface{}, item workflow.Item) (mainItems, errItems []workflow.Item) {
+	itemConfig, err := resolveItemFields(ctx, r.engine, config, requestPerItemFields, item, r.input, "http.request")
+	if err != nil {
+		return nil, []workflow.Item{errorItem(err)}
+	}
+	auth, err := buildAuthPlan(itemConfig, "http.request")
+	if err != nil {
+		return nil, []workflow.Item{errorItem(err)}
+	}
+	switch r.pag.mode {
+	case "offset":
+		return r.paginateOffset(ctx, itemConfig, item, auth)
+	case "update_parameter", "next_url":
+		return r.paginate(ctx, itemConfig, item, auth)
+	}
+	ob, err := r.prepare(ctx, itemConfig, item, auth, pageOverrides{}, -1)
+	if err != nil {
+		return nil, []workflow.Item{errorItem(err)}
+	}
+	f, err := send(ctx, r.client, ob, r.copts.maxBodyBytes, itemConfig, item.JSON)
+	if err != nil {
+		return nil, []workflow.Item{errorItem(err)}
+	}
+	items, failed := shapeResponse(f, r.ropts)
+	if failed {
+		return nil, items
+	}
+	return items, nil
+}
+
+func errorItem(err error) workflow.Item {
+	return workflow.NewItem(map[string]interface{}{"error": err.Error()})
+}
+
+// pageOverrides are what a pagination step changes on the base request.
+type pageOverrides struct {
+	url, base string
+	query     map[string]interface{}
+	headers   map[string]interface{}
+	body      map[string]interface{}
+}
+
+func (o *pageOverrides) set(in, name, value string) {
+	target := &o.query
+	switch in {
+	case "header":
+		target = &o.headers
+	case "body":
+		target = &o.body
+	}
+	if *target == nil {
+		*target = map[string]interface{}{}
+	}
+	(*target)[name] = value
+}
+
+// prepare builds the request for one item (and page). legacyPage >= 0 adds
+// the offset mode's page_field / per_page query parameters.
+func (r *requestRun) prepare(ctx context.Context, itemConfig map[string]interface{}, item workflow.Item, auth authPlan, ov pageOverrides, legacyPage int) (*outbound, error) {
+	u, err := resolveRequestURL(configString(itemConfig, "url"), itemConfig, "url")
+	if err != nil {
+		return nil, fmt.Errorf("http.request: %w", err)
+	}
+	skip := map[string]bool{}
+	if ov.url != "" {
+		base := u
+		if ov.base != "" {
+			if b, err := url.Parse(ov.base); err == nil {
+				base = b
+			}
+		}
+		next, err := base.Parse(ov.url)
+		if err != nil || (next.Scheme != "http" && next.Scheme != "https") {
+			return nil, fmt.Errorf("http.request: pagination_next_url: %q is not a valid URL", ov.url)
+		}
+		u = next
+		for k := range u.Query() {
+			skip[k] = true
+		}
+	}
+
+	params, err := parseNameValues(itemConfig["query_params"], "query_params")
+	if err != nil {
+		return nil, fmt.Errorf("http.request: %w", err)
+	}
+	if len(params) > 0 || len(ov.query) > 0 || legacyPage >= 0 || auth.qName != "" {
+		q := u.Query()
+		applyQuery(q, params, r.arrayFormat, skip)
+		for k, v := range ov.query {
+			q.Set(k, stringifyValue(v))
+		}
+		if legacyPage >= 0 {
+			q.Set(r.pag.pageField, fmt.Sprintf("%d", legacyPage))
+			q.Set("per_page", fmt.Sprintf("%d", r.pag.pageSize))
+		}
+		auth.applyToQuery(q)
+		u.RawQuery = q.Encode()
+	}
+
+	headers, err := parseNameValues(itemConfig["headers"], "headers")
+	if err != nil {
+		return nil, fmt.Errorf("http.request: %w", err)
+	}
+	extra, _ := parseNameValues(ov.headers, "pagination_parameters")
+	headers = append(headers, extra...)
+
+	body, err := buildBody(ctx, r.method, itemConfig, item, ov.body)
+	if err != nil {
+		return nil, fmt.Errorf("http.request: %w", err)
+	}
+	return &outbound{
+		method: r.method, u: u, headers: headers,
+		body: body.data, hasBody: body.present, contentType: body.contentType,
+		auth: auth, keepCreds: r.keepCreds,
+	}, nil
+}
+
+// resolveItemFields resolves fields against one item's own JSON and
+// returns a copy of base with those fields overlaid by the result — base
+// itself is never mutated, since it's shared across every item in the
+// batch. Mirrors the resolution pipeline RunExecution normally applies
+// once for the whole config (internal/workflow/execution.go): expression
+// templates, then @img-NNN vault refs, then @secret:<name> refs. Every
+// other field (including the auth_* ones) already went through that same
+// pipeline once, batch-wide, in RunExecution before Execute was called.
+func resolveItemFields(ctx context.Context, engine *workflow.ExpressionEngine, base map[string]interface{}, fields []string, item workflow.Item, input workflow.NodeInput, node string) (map[string]interface{}, error) {
+	overlay := make(map[string]interface{}, len(fields))
+	for _, k := range fields {
 		if v, ok := base[k]; ok {
 			overlay[k] = v
 		}
@@ -195,7 +275,7 @@ func (n *RequestNode) resolvePerItemConfig(ctx context.Context, engine *workflow
 	}
 	resolved, err := engine.ResolveConfig(overlay, exprCtx)
 	if err != nil {
-		return nil, fmt.Errorf("http.request: resolve per-item config: %w", err)
+		return nil, fmt.Errorf("%s: resolve per-item config: %w", node, err)
 	}
 
 	if vaultDB := vault.DBFromContext(ctx); vaultDB != nil {
@@ -211,287 +291,6 @@ func (n *RequestNode) resolvePerItemConfig(ctx context.Context, engine *workflow
 		itemConfig[k] = v
 	}
 	return itemConfig, nil
-}
-
-// sensitiveRedirectHeaders returns the names of request headers this node sets
-// that may carry credentials and must not follow a cross-host redirect: the
-// signed chain token, the configured API-key header, and any explicitly
-// supplied custom headers.
-func sensitiveRedirectHeaders(config map[string]interface{}, authType string) []string {
-	// The signed chain token never follows a redirect to another host.
-	names := []string{tracesig.Header}
-	if authType == "api_key" {
-		if in, _ := config["auth_api_key_in"].(string); in == "header" {
-			if name, _ := config["auth_api_key_name"].(string); name != "" {
-				names = append(names, name)
-			}
-		}
-	}
-	if headers, ok := config["headers"].(map[string]interface{}); ok {
-		for k := range headers {
-			names = append(names, k)
-		}
-	}
-	return names
-}
-
-func (n *RequestNode) executePaginated(
-	ctx context.Context,
-	client *http.Client,
-	method, rawURL string,
-	config map[string]interface{},
-	authType, bodyType, responseFormat string,
-	pageField string,
-	pageSize int,
-	maxBodyBytes int64,
-	inputItem workflow.Item,
-) ([]workflow.Item, []workflow.Item) {
-	var allMain []workflow.Item
-	var allErrors []workflow.Item
-
-	// Default cap prevents an infinite loop against a misbehaving API; override via "max_pages" config.
-	maxPages := 1000
-	if v, ok := config["max_pages"].(float64); ok && v > 0 {
-		maxPages = int(v)
-	}
-
-outer:
-	for page := 0; page < maxPages; page++ {
-		resp, errItem := n.executeRequest(ctx, client, method, rawURL, config, authType, bodyType, responseFormat, inputItem, page, maxBodyBytes)
-		if errItem != nil {
-			allErrors = append(allErrors, *errItem)
-			break
-		}
-
-		// Check if body is empty array
-		body, ok := resp.JSON["body"]
-		if !ok {
-			break
-		}
-		switch v := body.(type) {
-		case []interface{}:
-			if len(v) == 0 {
-				break outer
-			}
-			for _, elem := range v {
-				m, ok2 := elem.(map[string]interface{})
-				if !ok2 {
-					m = map[string]interface{}{"value": elem}
-				}
-				allMain = append(allMain, workflow.NewItem(m))
-			}
-			if len(v) < pageSize {
-				return allMain, allErrors
-			}
-		default:
-			allMain = append(allMain, resp)
-			return allMain, allErrors
-		}
-	}
-	return allMain, allErrors
-}
-
-func (n *RequestNode) executeRequest(
-	ctx context.Context,
-	client *http.Client,
-	method, rawURL string,
-	config map[string]interface{},
-	authType, bodyType, responseFormat string,
-	inputItem workflow.Item,
-	page int,
-	maxBodyBytes int64,
-) (workflow.Item, *workflow.Item) {
-	// Build URL
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		errItem := workflow.NewItem(map[string]interface{}{"error": err.Error()})
-		return workflow.Item{}, &errItem
-	}
-
-	// Query params
-	q := u.Query()
-	if qp, ok := config["query_params"].(map[string]interface{}); ok {
-		for k, v := range qp {
-			q.Set(k, fmt.Sprintf("%v", v))
-		}
-	}
-	// API key in query
-	if authType == "api_key" {
-		apiKeyIn, _ := config["auth_api_key_in"].(string)
-		apiKeyName, _ := config["auth_api_key_name"].(string)
-		apiKeyValue, _ := config["auth_api_key_value"].(string)
-		if apiKeyIn == "query" && apiKeyName != "" {
-			q.Set(apiKeyName, apiKeyValue)
-		}
-	}
-	// Pagination offset
-	if page >= 0 {
-		pageSize := 100
-		if v, ok := config["page_size"].(float64); ok {
-			pageSize = int(v)
-		}
-		pageField, _ := config["page_field"].(string)
-		if pageField == "" {
-			pageField = "page"
-		}
-		q.Set(pageField, fmt.Sprintf("%d", page))
-		q.Set("per_page", fmt.Sprintf("%d", pageSize))
-		_ = pageField
-	}
-	u.RawQuery = q.Encode()
-
-	// Build body
-	var bodyReader io.Reader
-	var contentType string
-
-	bodyVal := config["body"]
-	if bodyType != "none" && bodyVal != nil {
-		switch bodyType {
-		case "json":
-			var bodyBytes []byte
-			if s, ok := bodyVal.(string); ok {
-				bodyBytes = []byte(s)
-			} else {
-				bodyBytes, err = json.Marshal(bodyVal)
-				if err != nil {
-					errItem := workflow.NewItem(map[string]interface{}{"error": "failed to marshal body: " + err.Error()})
-					return workflow.Item{}, &errItem
-				}
-			}
-			bodyReader = bytes.NewReader(bodyBytes)
-			contentType = "application/json"
-		case "form":
-			form := url.Values{}
-			if m, ok := bodyVal.(map[string]interface{}); ok {
-				for k, v := range m {
-					form.Set(k, fmt.Sprintf("%v", v))
-				}
-			} else if s, ok := bodyVal.(string); ok {
-				bodyReader = strings.NewReader(s)
-				contentType = "application/x-www-form-urlencoded"
-				break
-			}
-			bodyReader = strings.NewReader(form.Encode())
-			contentType = "application/x-www-form-urlencoded"
-		case "text":
-			if s, ok := bodyVal.(string); ok {
-				bodyReader = strings.NewReader(s)
-			} else {
-				b, _ := json.Marshal(bodyVal)
-				bodyReader = bytes.NewReader(b)
-			}
-			contentType = "text/plain"
-		}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
-	if err != nil {
-		errItem := workflow.NewItem(map[string]interface{}{"error": err.Error()})
-		return workflow.Item{}, &errItem
-	}
-
-	// Set content type
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-
-	// Custom headers
-	if headers, ok := config["headers"].(map[string]interface{}); ok {
-		for k, v := range headers {
-			req.Header.Set(k, fmt.Sprintf("%v", v))
-		}
-	}
-
-	// Auth
-	switch authType {
-	case "basic":
-		username, _ := config["auth_username"].(string)
-		password, _ := config["auth_password"].(string)
-		req.SetBasicAuth(username, password)
-	case "bearer":
-		token, _ := config["auth_token"].(string)
-		req.Header.Set("Authorization", "Bearer "+token)
-	case "api_key":
-		apiKeyIn, _ := config["auth_api_key_in"].(string)
-		apiKeyName, _ := config["auth_api_key_name"].(string)
-		apiKeyValue, _ := config["auth_api_key_value"].(string)
-		if apiKeyIn == "header" && apiKeyName != "" {
-			req.Header.Set(apiKeyName, apiKeyValue)
-		}
-	}
-
-	// A run on a chain passes it on, signed, so that if this request comes
-	// back into mono-agent through a webhook the run it starts stays on the
-	// chain and the hop limit still applies (U10). Set after every header
-	// the workflow configures (custom and auth), so none can replace it.
-	setTraceHeader(ctx, req, config, inputItem.JSON)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		errItem := workflow.NewItem(map[string]interface{}{"error": err.Error()})
-		return workflow.Item{}, &errItem
-	}
-	defer resp.Body.Close()
-
-	// Read response body, bounded by maxBodyBytes. Read at most one byte
-	// past the cap so an over-limit body is detected without slurping the
-	// whole thing; the unread remainder is dropped when the body closes.
-	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes+1))
-	if err != nil {
-		errItem := workflow.NewItem(map[string]interface{}{"error": "failed to read response: " + err.Error()})
-		return workflow.Item{}, &errItem
-	}
-	if int64(len(respBytes)) > maxBodyBytes {
-		detail := ""
-		if resp.ContentLength >= 0 {
-			detail = fmt.Sprintf(" (content-length: %d)", resp.ContentLength)
-		}
-		errItem := workflow.NewItem(map[string]interface{}{
-			"error": fmt.Sprintf("response body exceeds max_body_mb (%d): use max_body_mb to raise%s", maxBodyBytes>>20, detail),
-		})
-		return workflow.Item{}, &errItem
-	}
-
-	// Collect response headers
-	respHeaders := make(map[string]interface{})
-	for k, vals := range resp.Header {
-		if len(vals) == 1 {
-			respHeaders[k] = vals[0]
-		} else {
-			ivals := make([]interface{}, len(vals))
-			for i, v := range vals {
-				ivals[i] = v
-			}
-			respHeaders[k] = ivals
-		}
-	}
-
-	// Parse response body
-	var parsedBody interface{}
-	switch responseFormat {
-	case "json":
-		if err := json.Unmarshal(respBytes, &parsedBody); err != nil {
-			// Fall back to text
-			parsedBody = string(respBytes)
-		}
-	case "binary":
-		parsedBody = base64.StdEncoding.EncodeToString(respBytes)
-	default: // "text"
-		parsedBody = string(respBytes)
-	}
-
-	resultItem := workflow.NewItem(map[string]interface{}{
-		"status":  resp.StatusCode,
-		"headers": respHeaders,
-		"body":    parsedBody,
-	})
-
-	// Non-2xx goes to error handle
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return workflow.Item{}, &resultItem
-	}
-
-	return resultItem, nil
 }
 
 // setTraceHeader adds the run's chain as a signed X-Monoagent-Trace header

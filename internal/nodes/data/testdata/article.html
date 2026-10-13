@@ -1,0 +1,36 @@
+<html>
+<head><title>Ignored</title><script>var x = 1;</script></head>
+<body>
+<h1>Release <em>notes</em></h1>
+<p>This release adds <strong>three</strong> features and fixes a <a href="https://example.com/bugs/42" title="Bug 42">nasty bug</a>.
+   Whitespace   is collapsed.</p>
+<h2>Highlights</h2>
+<ul>
+  <li>Faster <code>parse()</code></li>
+  <li>New nodes
+    <ol>
+      <li>XML</li>
+      <li>HTML</li>
+    </ol>
+  </li>
+  <li><del>Old API</del> removed</li>
+</ul>
+<h3>Example</h3>
+<pre><code class="language-go">func main() {
+	fmt.Println("*not emphasis*")
+}
+</code></pre>
+<blockquote><p>Quoted text.</p><p>Second line of the quote.</p></blockquote>
+<p>Stars * and _underscores_ and [brackets] are escaped.<br>After a break.</p>
+<p># not a heading</p>
+<hr>
+<table>
+  <thead><tr><th>Node</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>data.xml</td><td>done</td></tr>
+    <tr><td>data.html</td><td>a | b</td></tr>
+  </tbody>
+</table>
+<p><img src="https://example.com/logo.png" alt="Logo"> <img src="data:image/png;base64,iVBORw0KGgo=" alt="inline"></p>
+</body>
+</html>

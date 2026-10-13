@@ -20,6 +20,7 @@ import (
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/nodemgr"
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 // addServiceHooks wires the browser, services and integrations checks to
@@ -131,14 +132,14 @@ func startDaemon(ctx context.Context, args []string, as autostart.Installer, pro
 	}
 	home, _ := os.UserHomeDir()
 	logDir := filepath.Join(home, ".monoagent", "logs")
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	if err := statedir.MkdirAll(logDir); err != nil {
 		return err
 	}
 	logPath := filepath.Join(logDir, "daemon.log")
 	if _, err := logging.RotateDaemonLog(logPath); err != nil {
 		progress(fmt.Sprintf("could not rotate %s: %v", logPath, err))
 	}
-	logf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	logf, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, statedir.FilePerm)
 	if err != nil {
 		return err
 	}

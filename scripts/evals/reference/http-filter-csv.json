@@ -1,0 +1,99 @@
+{
+  "name": "eval-http-filter-csv",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.manual",
+      "name": "trigger",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {}
+    },
+    {
+      "id": "fetch",
+      "type": "http.request",
+      "name": "fetch",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "url": "{{FIXTURE_URL}}/products.json",
+        "method": "GET"
+      }
+    },
+    {
+      "id": "items",
+      "type": "core.code",
+      "name": "items",
+      "position": {
+        "x": 520,
+        "y": 0
+      },
+      "config": {
+        "language": "javascript",
+        "code": "$json.body.items"
+      }
+    },
+    {
+      "id": "filter",
+      "type": "core.filter",
+      "name": "filter",
+      "position": {
+        "x": 780,
+        "y": 0
+      },
+      "config": {
+        "condition": "{{ gt (toFloat $json.price) 10.0 }}"
+      }
+    },
+    {
+      "id": "write",
+      "type": "data.spreadsheet",
+      "name": "write",
+      "position": {
+        "x": 1040,
+        "y": 0
+      },
+      "config": {
+        "operation": "write_csv",
+        "file_path": "{{OUT_DIR}}/expensive.csv"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "fetch",
+      "target_handle": "main"
+    },
+    {
+      "id": "c2",
+      "source": "fetch",
+      "source_handle": "main",
+      "target": "items",
+      "target_handle": "main"
+    },
+    {
+      "id": "c3",
+      "source": "items",
+      "source_handle": "main",
+      "target": "filter",
+      "target_handle": "main"
+    },
+    {
+      "id": "c4",
+      "source": "filter",
+      "source_handle": "main",
+      "target": "write",
+      "target_handle": "main"
+    }
+  ]
+}

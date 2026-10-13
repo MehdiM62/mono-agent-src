@@ -1,0 +1,19 @@
+{
+  "first": {
+    "rows": [
+      {"url": "https://x.com/messages/1-2", "name": "Ivy", "preview": "hey there", "unread": true, "last_from_me": false}
+    ],
+    "cells": 1, "empty": false, "locked": false
+  },
+  "full": {
+    "rows": [
+      {"url": "https://x.com/messages/1-2", "name": "Ivy", "preview": "hey there", "unread": true, "last_from_me": false},
+      {"url": "https://x.com/messages/1-3", "name": "Jon", "preview": "You: see you", "unread": false, "last_from_me": true},
+      {"url": "https://x.com/i/chat/1-4", "name": "Kim", "preview": "ok", "unread": false, "last_from_me": false},
+      {"url": "https://x.com/i/chat/g55", "name": "Group", "preview": "new pic", "unread": true, "last_from_me": false}
+    ],
+    "cells": 4, "empty": false, "locked": false
+  },
+  "locked": {"rows": [], "cells": 0, "empty": false, "locked": true},
+  "cells_only": {"rows": [], "cells": 3, "empty": false, "locked": false}
+}

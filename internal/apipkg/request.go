@@ -1,0 +1,334 @@
+package apipkg
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/textproto"
+	"net/url"
+	"sort"
+	"strings"
+)
+
+// Body types.
+const (
+	BodyJSON      = "json"
+	BodyForm      = "form"
+	BodyMultipart = "multipart"
+	BodyRaw       = "raw"
+	BodyNone      = "none"
+)
+
+// effectiveBodyType is body_type, defaulting to json when a body is set, raw
+// for a binary upload without a body, else none.
+func (o *Operation) effectiveBodyType() string {
+	if o.BodyType != "" {
+		return o.BodyType
+	}
+	if o.Body != nil {
+		return BodyJSON
+	}
+	if o.Binary != nil && o.Binary.UploadField != "" {
+		return BodyRaw
+	}
+	return BodyNone
+}
+
+// pageParams are the pagination params one page request adds.
+type pageParams struct {
+	values map[string]any
+	inBody bool
+	url    string // absolute next-page URL (link_header, next_url)
+}
+
+// built is a request ready to send, with the body bytes SigV4 needs.
+type built struct {
+	req  *http.Request
+	body []byte
+}
+
+// buildRequest builds op's request for one item.
+func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error) {
+	sc := r.scope
+	rawURL := pp.url
+	if rawURL == "" {
+		base := r.op.BaseURL
+		if base == "" {
+			base = r.pkg.BaseURL
+		}
+		b, err := renderText(base, sc)
+		if err != nil {
+			return nil, r.errf("base_url: %w", err)
+		}
+		path, err := renderPath(r.op.Path, sc)
+		if err != nil {
+			return nil, r.errf("path: %w", err)
+		}
+		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+			rawURL = path
+		} else {
+			rawURL = strings.TrimRight(b, "/") + path
+		}
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, r.errf("url %q: %w", rawURL, err)
+	}
+	if pp.url == "" && r.op.Query != nil {
+		qv, err := renderObject(r.op.Query, sc)
+		if err != nil {
+			return nil, r.errf("query: %w", err)
+		}
+		q := u.Query()
+		addValues(q, qv)
+		u.RawQuery = q.Encode()
+	}
+	if len(pp.values) > 0 && !pp.inBody {
+		q := u.Query()
+		for k, v := range pp.values {
+			q.Set(k, stringify(v))
+		}
+		u.RawQuery = q.Encode()
+	}
+
+	body, contentType, err := r.buildBody(pp)
+	if err != nil {
+		return nil, err
+	}
+	var rd io.Reader
+	if body != nil {
+		rd = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, strings.ToUpper(r.op.Method), u.String(), rd)
+	if err != nil {
+		return nil, r.errf("request: %w", err)
+	}
+	for _, hs := range []map[string]string{r.pkg.Headers, r.op.Headers} {
+		for k, tv := range hs {
+			v, err := renderText(tv, sc)
+			if err != nil {
+				return nil, r.errf("header %s: %w", k, err)
+			}
+			if v != "" {
+				req.Header.Set(k, v)
+			}
+		}
+	}
+	if contentType != "" && req.Header.Get("Content-Type") == "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	if req.Header.Get("Accept") == "" && (r.op.Binary == nil || !r.op.Binary.Download) {
+		req.Header.Set("Accept", "application/json")
+	}
+	if err := injectAuth(req, r.credDef, sc, body); err != nil {
+		return nil, r.errf("%w", err)
+	}
+	return &built{req: req, body: body}, nil
+}
+
+// buildBody renders the body for the op's body type.
+func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
+	sc := r.scope
+	bt := r.op.effectiveBodyType()
+	var obj map[string]any
+	if bt == BodyJSON || bt == BodyForm || bt == BodyMultipart {
+		v, err := renderValue(r.op.Body, sc)
+		if err != nil {
+			return nil, "", r.errf("body: %w", err)
+		}
+		if m, ok := v.(map[string]any); ok {
+			obj = m
+		} else if v != nil && bt != BodyJSON {
+			return nil, "", r.errf("body: a %s body must be an object", bt)
+		}
+		if pp.inBody && len(pp.values) > 0 {
+			if obj == nil {
+				obj = map[string]any{}
+			}
+			for k, val := range pp.values {
+				obj[k] = val
+			}
+		}
+		if bt == BodyJSON {
+			var out any = obj
+			if obj == nil {
+				out = v
+			}
+			if out == nil {
+				out = map[string]any{}
+			}
+			b, err := json.Marshal(out)
+			if err != nil {
+				return nil, "", r.errf("body: %w", err)
+			}
+			return b, "application/json", nil
+		}
+	}
+	switch bt {
+	case BodyNone:
+		return nil, "", nil
+	case BodyForm:
+		q := url.Values{}
+		addValues(q, obj)
+		return []byte(q.Encode()), "application/x-www-form-urlencoded", nil
+	case BodyMultipart:
+		return r.multipartBody(obj)
+	case BodyRaw:
+		if r.op.Binary != nil && r.op.Binary.UploadField != "" {
+			data, err := r.uploadData()
+			if err != nil {
+				return nil, "", err
+			}
+			ct, _ := renderText(r.op.Binary.MimeType, sc)
+			if ct == "" {
+				ct = "application/octet-stream"
+			}
+			return data, ct, nil
+		}
+		v, err := renderValue(r.op.Body, sc)
+		if err != nil {
+			return nil, "", r.errf("body: %w", err)
+		}
+		if v == nil {
+			return nil, "", nil
+		}
+		return []byte(stringify(v)), "text/plain; charset=utf-8", nil
+	}
+	return nil, "", r.errf("unknown body_type %q", bt)
+}
+
+func (r *opRun) multipartBody(obj map[string]any) ([]byte, string, error) {
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		vals := []any{obj[k]}
+		if arr, ok := obj[k].([]any); ok {
+			vals = arr
+		}
+		for _, v := range vals {
+			if err := w.WriteField(k, stringify(v)); err != nil {
+				return nil, "", r.errf("body: %w", err)
+			}
+		}
+	}
+	if b := r.op.Binary; b != nil && b.UploadField != "" {
+		data, err := r.uploadData()
+		if err != nil {
+			return nil, "", err
+		}
+		field := b.MultipartField
+		if field == "" {
+			field = "file"
+		}
+		name, _ := renderText(b.FileName, r.scope)
+		if name == "" {
+			name = r.uploadName()
+		}
+		ct, _ := renderText(b.MimeType, r.scope)
+		if ct == "" {
+			ct = "application/octet-stream"
+		}
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name=%q; filename=%q`, field, name))
+		h.Set("Content-Type", ct)
+		part, err := w.CreatePart(h)
+		if err != nil {
+			return nil, "", r.errf("body: %w", err)
+		}
+		if _, err := part.Write(data); err != nil {
+			return nil, "", r.errf("body: %w", err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		return nil, "", r.errf("body: %w", err)
+	}
+	return buf.Bytes(), w.FormDataContentType(), nil
+}
+
+// uploadProperty is the input item's binary property to upload.
+func (r *opRun) uploadProperty() string {
+	prop := stringify(r.params[r.op.Binary.UploadField])
+	if prop == "" {
+		prop = "data"
+	}
+	return prop
+}
+
+func (r *opRun) uploadName() string {
+	prop := r.uploadProperty()
+	if m, ok := r.item.JSON["binary"].(map[string]any); ok {
+		if meta, ok := m[prop].(map[string]any); ok {
+			if n, _ := meta["fileName"].(string); n != "" {
+				return n
+			}
+		}
+	}
+	if n, _ := r.item.JSON["file_name"].(string); n != "" {
+		return n
+	}
+	return prop
+}
+
+// uploadData finds the bytes to upload: the item's binary property, else a
+// base64 string at item.json[prop] or item.json.binary[prop].data (n8n).
+func (r *opRun) uploadData() ([]byte, error) {
+	prop := r.uploadProperty()
+	if b, ok := r.item.Binary[prop]; ok {
+		return b, nil
+	}
+	if s, ok := r.item.JSON[prop].(string); ok && s != "" {
+		if b, err := base64.StdEncoding.DecodeString(s); err == nil {
+			return b, nil
+		}
+	}
+	if m, ok := r.item.JSON["binary"].(map[string]any); ok {
+		if meta, ok := m[prop].(map[string]any); ok {
+			if s, _ := meta["data"].(string); s != "" {
+				if b, err := base64.StdEncoding.DecodeString(s); err == nil {
+					return b, nil
+				}
+			}
+		}
+	}
+	return nil, r.errf("field %q: the input item has no binary property %q to upload", r.op.Binary.UploadField, prop)
+}
+
+// renderPath renders a path template, URL-escaping each expression value.
+func renderPath(s string, sc Scope) (string, error) {
+	if !hasTemplate(s) {
+		return s, nil
+	}
+	t, err := parseTemplate(s)
+	if err != nil {
+		return "", err
+	}
+	v, err := t.render(sc, url.PathEscape)
+	if err != nil {
+		return "", err
+	}
+	return v.(string), nil
+}
+
+// addValues adds rendered values to q: arrays repeat the key, objects are
+// JSON, everything else is stringified.
+func addValues(q url.Values, obj map[string]any) {
+	for k, v := range obj {
+		if arr, ok := v.([]any); ok {
+			for _, el := range arr {
+				q.Add(k, stringify(el))
+			}
+			continue
+		}
+		q.Set(k, stringify(v))
+	}
+}
