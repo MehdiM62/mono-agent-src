@@ -78,9 +78,7 @@
           "proxy": "{{ p.proxy | eq:'integrated' | then:p.proxyConfig | default:p.proxyUrl | default:false }}",
           "solveCaptcha": "{{ p.additionalFields.solveCaptcha | bool | default:false }}",
           "record": "{{ p.record }}",
-          "extensionIds": [
-            "{{ p.additionalFields.extensionIds }}"
-          ]
+          "extensionIds": "{{ p.additionalFields.extensionIds | split }}"
         }
       },
       "fields": [

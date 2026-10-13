@@ -5,7 +5,7 @@
       "proxy": "integrated",
       "additionalFields": {
         "solveCaptcha": true,
-        "extensionIds": "abc"
+        "extensionIds": "abc, def"
       }
     },
     "expect": {
@@ -22,7 +22,8 @@
           "solveCaptcha": true,
           "record": false,
           "extensionIds": [
-            "abc"
+            "abc",
+            "def"
           ]
         }
       }

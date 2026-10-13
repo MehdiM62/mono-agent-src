@@ -231,7 +231,7 @@
       "updateFields": {
         "name": "New",
         "parentId": "5",
-        "tags": "a"
+        "tags": "a, b"
       }
     },
     "expect": {
@@ -244,7 +244,8 @@
           "id": "5"
         },
         "tags": [
-          "a"
+          "a",
+          "b"
         ]
       }
     }

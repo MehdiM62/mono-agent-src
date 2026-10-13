@@ -640,9 +640,7 @@
         "parent": {
           "id": "{{ p.updateFields.parentId }}"
         },
-        "tags": [
-          "{{ p.updateFields.tags }}"
-        ]
+        "tags": "{{ p.updateFields.tags | split }}"
       },
       "fields": [
         {
@@ -667,7 +665,7 @@
             "shared_link",
             "tags"
           ],
-          "help": "tags: a single tag (comma lists are not split)"
+          "help": "tags: comma-separated"
         }
       ]
     }

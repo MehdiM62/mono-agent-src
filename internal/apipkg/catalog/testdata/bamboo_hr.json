@@ -76,6 +76,7 @@
       "synced": true,
       "department": "Ops",
       "exempt": "non-exempt",
+      "hireDate": "2024-03-05T10:00:00Z",
       "updateFields": {
         "workPhone": "1"
       }
@@ -86,6 +87,7 @@
       "body": {
         "workPhone": "1",
         "department": "Ops",
+        "hireDate": "2024-03-05",
         "exempt": "Non Exempt"
       }
     }
