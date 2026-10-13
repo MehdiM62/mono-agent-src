@@ -77,7 +77,7 @@ func TestAPIKeyCreateDescriptionPointsAtTheSettingsThatDecideWhatAContextKeyMayU
 	var d string
 	for _, tl := range apiTools() {
 		if tl.name == "api_key_create" {
-			d = tl.description
+			d = apiToolText(tl)
 		}
 	}
 	for _, want := range []string{"context_confinement", "confinement", "api_config_get", "api_config_set", "tool calling", "--context-confinement"} {
@@ -92,7 +92,7 @@ func TestAPIModelsListDescriptionSaysWhatADamagedRowMeans(t *testing.T) {
 	var d string
 	for _, tl := range apiTools() {
 		if tl.name == "api_models_list" {
-			d = tl.description
+			d = apiToolText(tl)
 		}
 	}
 	for _, want := range []string{"the saved settings are damaged", "monoagentcli api config unset --all --yes", "--allow-api-exposure", "newer version"} {
@@ -107,7 +107,7 @@ func TestAPIModelsListDescriptionSaysWhatADamagedRowMeans(t *testing.T) {
 func TestAPIConfigToolDescriptionsSayWhatTheyDoNot(t *testing.T) {
 	descriptions := map[string]string{}
 	for _, tl := range apiConfigTools() {
-		descriptions[tl.name] = tl.description
+		descriptions[tl.name] = apiToolText(tl)
 	}
 	// What a model tells the user when the saved settings cannot be read, in every tool that reads them.
 	damaged := []string{"the saved settings are damaged", "monoagentcli api config unset --all --yes", "--allow-api-exposure", "newer version"}
