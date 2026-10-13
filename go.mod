@@ -36,6 +36,8 @@ require (
 	modernc.org/sqlite v1.60.1
 )
 
+require github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0 // indirect
+
 require (
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/go-mysql-org/go-mysql v1.16.0
