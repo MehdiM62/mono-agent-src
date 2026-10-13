@@ -76,11 +76,18 @@ type CredentialField struct {
 
 // OAuthSpec configures an OAuth 2.0 authorization-code flow (always PKCE).
 type OAuthSpec struct {
-	AuthURL     string            `json:"auth_url"`
+	AuthURL     string            `json:"auth_url,omitempty"`
 	TokenURL    string            `json:"token_url"`
 	Scopes      []string          `json:"scopes,omitempty"`
 	PKCE        bool              `json:"pkce,omitempty"`
 	ExtraParams map[string]string `json:"extra_params,omitempty"`
+	// Client-credentials grant (method "client_credentials"): which
+	// credential fields hold the client id/secret (default client_id /
+	// client_secret) and how they are sent: "body" (default) or "basic".
+	// token_url and extra_params values are templates over cred.*.
+	ClientIDField     string `json:"client_id_field,omitempty"`
+	ClientSecretField string `json:"client_secret_field,omitempty"`
+	ClientAuth        string `json:"client_auth,omitempty"`
 }
 
 // Inject says how a credential authenticates a request. Every value is a
@@ -132,6 +139,10 @@ type Operation struct {
 	// tags). Each may read res (the main response). The node's output is
 	// still the main response.
 	Also []Step `json:"also,omitempty"`
+	// Batch sends ONE request for all input items (n8n batchCreate/
+	// batchUpdate/batchDelete): params come from the first item and the
+	// items root holds every item's JSON.
+	Batch bool `json:"batch,omitempty"`
 }
 
 // Step is one follow-up request of an operation. When is a template; an

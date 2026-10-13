@@ -130,10 +130,24 @@ func (c *Credential) check(i int) []string {
 		if m != "none" {
 			onlyNone = false
 		}
-		if m == "oauth" && c.OAuth == nil && c.ReusePlatform == "" {
+		if m == "oauth" && c.ReusePlatform == "" && (c.OAuth == nil || c.OAuth.AuthURL == "") {
 			add(`method "oauth" needs an "oauth" block (auth_url, token_url)`)
 		}
-		if (m == "api_key" || m == "bearer" || m == "basic") && len(c.Fields) == 0 && c.ReusePlatform == "" {
+		if m == "client_credentials" {
+			if c.OAuth == nil || c.OAuth.TokenURL == "" {
+				add(`method "client_credentials" needs oauth.token_url`)
+			} else {
+				idf, secf := c.OAuth.clientFields()
+				have := map[string]bool{}
+				for _, f := range c.Fields {
+					have[f.Key] = true
+				}
+				if !have[idf] || !have[secf] {
+					add("method \"client_credentials\" needs fields %q and %q (or set oauth.client_id_field / client_secret_field)", idf, secf)
+				}
+			}
+		}
+		if (m == "api_key" || m == "bearer" || m == "basic" || m == "client_credentials") && len(c.Fields) == 0 && c.ReusePlatform == "" {
 			add("method %q needs fields[] (what the user types in)", m)
 		}
 	}
@@ -319,7 +333,7 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item", "el", "res":
+	case "item", "el", "res", "items":
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}

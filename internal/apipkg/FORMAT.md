@@ -172,6 +172,7 @@ Scopes:
 | `item.<path>` | the current input item's JSON |
 | `el.<path>` | the current element inside a `$map` (`el` alone is the element) |
 | `res.<path>` | the main request's decoded response, inside `also` steps |
+| `items` | every input item's JSON as a list, in `batch` operations |
 
 Paths walk objects by key and arrays by index; `-1` is the last element
 (`p.list.-1.id`). A missing path is `nil`. Only `cred.*` is available in
@@ -212,8 +213,10 @@ through, so an unset param stays unset:
 | `then:'x'` | `x` when the value is non-empty, else nil |
 | `rl` | n8n resource locator → its `value`; other values pass |
 | `eq:'x'`, `ne:'x'` | `true` when the value's string equals (`eq`) / differs from (`ne`) the argument, else nil, so they chain into `then`: `"$merge": "{{ p.dataToSend \| eq:'autoMapInputData' \| then:item }}"` |
-| `kv:'keyField,valueField'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}`. A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
+| `kv:'keyField,valueField'` / `kv:'keyField,valueField,prefix'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}` (with a prefix: `kv:'fieldId,fieldValue,field_'` → `{"field_12": …}`). A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
 | `fromjson` | JSON string → value (n8n `jsonParameters` / `*Json` params: `"$merge": "{{ p.additionalFieldsJson \| fromjson }}"`); non-strings pass |
+| `split` / `split:';'` | `"a, b,c"` → `["a","b","c"]` (default separator `,`; parts trimmed, empty ones dropped; lists pass) |
+| `date:'YYYY-MM-DD'` | date or epoch-ms → formatted text in UTC; tokens `YYYY`/`yyyy`, `YY`, `MM`, `DD`/`dd`, `HH`, `hh`, `mm`, `ss`, `SSS`, `Z` (`Z` for UTC), `ZZ` (`+00:00`), `A`; other characters are literal |
 | `epoch_ms`, `epoch` | date (RFC 3339, `2006-01-02T15:04:05`, `2006-01-02`, …) → Unix milliseconds / seconds; numbers pass |
 | `omit:'a,b'` | object without the listed keys; the argument may be a path to a comma string or list (`omit:p.inputsToIgnore`) |
 
@@ -314,6 +317,16 @@ workflows is the node's normal `on_error`.
   `X-Amz-Content-Sha256`.
 - `inject` must not be empty unless the only method is `none`.
 
+**Client-credentials grant (`"methods": ["client_credentials"]`).** For APIs where every call needs a token fetched with the OAuth client-credentials grant (Bitwarden, PayPal, many enterprise APIs). The user's connection holds the client id/secret (fields `client_id` / `client_secret`, or name them with `oauth.client_id_field` / `client_secret_field`). Before the first request the engine POSTs a form `grant_type=client_credentials` (+ `scope` from `oauth.scopes`, + `oauth.extra_params`) to `oauth.token_url`, sends the client id/secret in the form (or as Basic auth with `"client_auth": "basic"`), caches the token until just before `expires_in`, and exposes it as `cred.access_token` to `inject`. `token_url` and `extra_params` are templates over `cred.*` (self-hosted: `"https://{{ cred.domain }}/identity/connect/token"`). `auth_url` is not needed.
+```json
+{ "platform": "bitwarden", "methods": ["client_credentials"],
+  "fields": [ {"key":"client_id","label":"Client ID","required":true}, {"key":"client_secret","label":"Client secret","secret":true,"required":true},
+              {"key":"environment","label":"Domain (self-hosted)","help":"empty for bitwarden.com"} ],
+  "oauth": { "token_url": "https://{{ cred.environment | default:'identity.bitwarden.com' }}/connect/token", "scopes": ["api.organization"],
+             "extra_params": { "deviceName": "mono-agent", "deviceType": "2", "deviceIdentifier": "mono-agent" } },
+  "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } } }
+```
+
 ## 8. Pagination
 
 ```jsonc
@@ -363,6 +376,9 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 ]
 ```
 Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
+
+**Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
+`"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.
 
 ## 10. Binary data
 
@@ -562,5 +578,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | inject.aws_sigv4 | `access_key_id`, `secret_access_key`, `session_token` | key templates |
 | templates | filters `float`, `string`, `upper`, `rl`, `then`; `default:<path>`; `$merge` lists | §5 |
 | templates | filters `eq`, `ne`, `kv`, `omit`, `fromjson`, `epoch_ms`, `epoch`; roots `el`, `res`; `$map`/`$to`, `$concat` | §5 |
-| operation | `also` (follow-up requests) | §9 |
+| credential | method `client_credentials`; `oauth.client_id_field`, `client_secret_field`, `client_auth` (`auth_url` optional for it) | §7 |
+| operation | `also` (follow-up requests), `batch` (one request for all items) | §9 |
+| templates | filters `split`, `date`; `kv` key prefix; root `items` | §5 |
 | schema output | `visible_for`, `apipkg`, `extended_by` | exact op visibility; package id; extending packages |

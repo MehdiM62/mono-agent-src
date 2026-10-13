@@ -103,6 +103,18 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 			pkg.ID, pkg.PrimaryPlatform(), pkg.PrimaryPlatform())
 	}
 	credDef := pkg.selectCredential(cred)
+	if credDef != nil && credDef.hasMethod("client_credentials") && isEmpty(cred["access_token"]) {
+		tok, err := clientCredentialsToken(ctx, credDef, cred)
+		if err != nil {
+			return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+		}
+		withTok := make(map[string]any, len(cred)+1)
+		for k, v := range cred {
+			withTok[k] = v
+		}
+		withTok["access_token"] = tok
+		cred = withTok
+	}
 	items := input.Items
 	if len(items) == 0 {
 		items = []workflow.Item{{JSON: map[string]any{}}}
@@ -131,11 +143,25 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
+		if op.Batch {
+			all := make([]any, 0, len(items))
+			for _, x := range items {
+				if x.JSON == nil {
+					all = append(all, map[string]any{})
+					continue
+				}
+				all = append(all, x.JSON)
+			}
+			r.scope.Items = all
+		}
 		res, err := r.execute(ctx)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, res...)
+		if op.Batch {
+			break // one request covered every item
+		}
 	}
 	return []workflow.NodeOutput{{Handle: "main", Items: out}}, nil
 }

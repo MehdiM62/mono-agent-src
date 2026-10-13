@@ -76,7 +76,7 @@ func platformDef(p *Package, c *Credential) (connections.PlatformDef, bool) {
 	}
 	for _, m := range c.Methods {
 		switch m {
-		case "api_key", "bearer":
+		case "api_key", "bearer", "client_credentials":
 			add(connections.MethodAPIKey)
 		case "basic":
 			add(connections.MethodAppPass)
