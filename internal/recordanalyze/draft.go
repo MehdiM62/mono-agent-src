@@ -224,8 +224,6 @@ func WriteDraft(dir string, out *Output, env *Env, m *automation.Manifest, d *Dr
 	return nil
 }
 
-// writeFile writes a draft file privately (statedir: 0700 folders, 0600
-// files); a draft holds what the user did on a site.
 func writeFile(path string, b []byte) error {
 	return statedir.WriteFile(path, b)
 }
