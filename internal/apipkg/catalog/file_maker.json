@@ -1,0 +1,761 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "file_maker",
+  "node_type": "app.file_maker",
+  "title": "FileMaker",
+  "description": "Records, finds and scripts through the FileMaker Data API",
+  "category": "app",
+  "docs_url": "https://help.claris.com/en/data-api-guide/",
+  "n8n_types": [
+    "n8n-nodes-base.filemaker"
+  ],
+  "base_url": "https://{{ cred.host }}/fmi/data/v1",
+  "credentials": [
+    {
+      "platform": "filemaker",
+      "name": "FileMaker",
+      "n8n_credential": "fileMaker",
+      "n8n_field_map": {
+        "host": "host",
+        "db": "db",
+        "login": "login",
+        "password": "password"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "host",
+          "label": "Host",
+          "required": true,
+          "help": "Server host name, without https://"
+        },
+        {
+          "key": "db",
+          "label": "Database",
+          "required": true
+        },
+        {
+          "key": "login",
+          "label": "Account name",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ pre.response.token | prefix:'Bearer ' | default:(cred.login | suffix:':' | suffix:cred.password | base64 | prefix:'Basic ') }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "record",
+      "title": "Get a record by ID",
+      "method": "GET",
+      "path": "/databases/{{ cred.db }}/layouts/{{ p.layout }}/records/{{ p.recid }}",
+      "fields": [
+        {
+          "key": "layout",
+          "label": "Layout",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "recid",
+          "label": "Record ID",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "getPortals",
+          "label": "Get portals",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "portals",
+          "label": "Portals",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Portal names to include"
+        },
+        {
+          "key": "setScriptBefore",
+          "label": "Run a script before the request",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "scriptBefore",
+          "label": "Script (before the request)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "scriptBeforeParam",
+          "label": "Script parameter (before the request)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "setScriptSort",
+          "label": "Run a script before sorting",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "scriptSort",
+          "label": "Script (before sorting)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "scriptSortParam",
+          "label": "Script parameter (before sorting)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "setScriptAfter",
+          "label": "Run a script after the request",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "scriptAfter",
+          "label": "Script (after the request)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "scriptAfterParam",
+          "label": "Script parameter (after the request)",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "n8n_param_map": {
+        "action": "operation"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/databases/{{ cred.db }}/sessions",
+        "body": {
+          "$when": "{{ cred.db }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ pre.response.token }}",
+          "method": "DELETE",
+          "path": "/databases/{{ cred.db }}/sessions/{{ pre.response.token }}"
+        }
+      ],
+      "query": {
+        "portal": "{{ p.getPortals | then:p.portals | json | default:'[]' }}",
+        "script": "{{ p.setScriptAfter | then:p.scriptAfter }}",
+        "script.param": "{{ p.setScriptAfter | then:p.scriptAfterParam }}",
+        "script.prerequest": "{{ p.setScriptBefore | then:p.scriptBefore }}",
+        "script.prerequest.param": "{{ p.setScriptBefore | then:p.scriptBeforeParam }}",
+        "script.presort": "{{ p.setScriptSort | then:p.scriptSort }}",
+        "script.presort.param": "{{ p.setScriptSort | then:p.scriptSortParam }}"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "login",
+      "title": "Log in (open a session)",
+      "method": "POST",
+      "path": "/databases/{{ cred.db }}/sessions",
+      "fields": [],
+      "n8n_param_map": {
+        "action": "operation"
+      },
+      "body": {
+        "$when": "{{ cred.db }}"
+      },
+      "description": "Returns the Data API session token"
+    },
+    {
+      "resource": "",
+      "operation": "logout",
+      "title": "Log out (close a session)",
+      "method": "DELETE",
+      "path": "/databases/{{ cred.db }}/sessions/{{ p.token }}",
+      "fields": [
+        {
+          "key": "token",
+          "label": "Session token",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "n8n_param_map": {
+        "action": "operation"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "create",
+      "title": "Create a record",
+      "method": "POST",
+      "path": "/databases/{{ cred.db }}/layouts/{{ p.layout }}/records",
+      "fields": [
+        {
+          "key": "layout",
+          "label": "Layout",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fieldsParametersUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "{\"fields\": [{\"name\", \"value\"}]}"
+        }
+      ],
+      "n8n_param_map": {
+        "action": "operation"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/databases/{{ cred.db }}/sessions",
+        "body": {
+          "$when": "{{ cred.db }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ pre.response.token }}",
+          "method": "DELETE",
+          "path": "/databases/{{ cred.db }}/sessions/{{ pre.response.token }}"
+        }
+      ],
+      "body": {
+        "fieldData": "{{ p.fieldsParametersUi | kv:'name,value' }}",
+        "!portalData": {}
+      }
+    },
+    {
+      "resource": "",
+      "operation": "delete",
+      "title": "Delete a record",
+      "method": "DELETE",
+      "path": "/databases/{{ cred.db }}/layouts/{{ p.layout }}/records/{{ p.recid }}",
+      "fields": [
+        {
+          "key": "layout",
+          "label": "Layout",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "recid",
+          "label": "Record ID",
+          "type": "number",
+          "required": true
+        }
+      ],
+      "n8n_param_map": {
+        "action": "operation"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/databases/{{ cred.db }}/sessions",
+        "body": {
+          "$when": "{{ cred.db }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ pre.response.token }}",
+          "method": "DELETE",
+          "path": "/databases/{{ cred.db }}/sessions/{{ pre.response.token }}"
+        }
+      ]
+    },
+    {
+      "resource": "",
+      "operation": "duplicate",
+      "title": "Duplicate a record",
+      "method": "POST",
+      "path": "/databases/{{ cred.db }}/layouts/{{ p.layout }}/records/{{ p.recid }}",
+      "fields": [
+        {
+          "key": "layout",
+          "label": "Layout",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "recid",
+          "label": "Record ID",
+          "type": "number",
+          "required": true
+        }
+      ],
+      "n8n_param_map": {
+        "action": "operation"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/databases/{{ cred.db }}/sessions",
+        "body": {
+          "$when": "{{ cred.db }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ pre.response.token }}",
+          "method": "DELETE",
+          "path": "/databases/{{ cred.db }}/sessions/{{ pre.response.token }}"
+        }
+      ],
+      "body": {
+        "!fieldData": {}
+      }
+    },
+    {
+      "resource": "",
+      "operation": "edit",
+      "title": "Edit a record",
+      "method": "PATCH",
+      "path": "/databases/{{ cred.db }}/layouts/{{ p.layout }}/records/{{ p.recid }}",
+      "fields": [
+        {
+          "key": "layout",
+          "label": "Layout",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "recid",
+          "label": "Record ID",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "modId",
+          "label": "Mod ID",
+          "type": "number",
+          "help": "Only edit when the record's modification ID still matches"
+        },
+        {
+          "key": "fieldsParametersUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "{\"fields\": [{\"name\", \"value\"}]}"
+        }
+      ],
+      "n8n_param_map": {
+        "action": "operation"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/databases/{{ cred.db }}/sessions",
+        "body": {
+          "$when": "{{ cred.db }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ pre.response.token }}",
+          "method": "DELETE",
+          "path": "/databases/{{ cred.db }}/sessions/{{ pre.response.token }}"
+        }
+      ],
+      "body": {
+        "fieldData": "{{ p.fieldsParametersUi | kv:'name,value' }}",
+        "!portalData": {},
+        "modId": "{{ p.modId | string }}"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "find",
+      "title": "Find records",
+      "method": "POST",
+      "path": "/databases/{{ cred.db }}/layouts/{{ p.layout }}/_find",
+      "fields": [
+        {
+          "key": "layout",
+          "label": "Layout",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "offset",
+          "label": "Offset",
+          "type": "number",
+          "default": 1,
+          "min": 1
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "getPortals",
+          "label": "Get portals",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "portals",
+          "label": "Portals",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Portal names to include"
+        },
+        {
+          "key": "responseLayout",
+          "label": "Response layout",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "queries",
+          "label": "Queries",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query"
+          ],
+          "help": "{\"query\": [{\"fields\": {\"field\": [{\"name\", \"value\"}]}, \"omit\": false}]}"
+        },
+        {
+          "key": "setSort",
+          "label": "Sort",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "sortParametersUi",
+          "label": "Sort rules",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rules"
+          ],
+          "help": "{\"rules\": [{\"name\": field, \"value\": ascend|descend}]}"
+        },
+        {
+          "key": "setScriptBefore",
+          "label": "Run a script before the request",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "scriptBefore",
+          "label": "Script (before the request)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "scriptBeforeParam",
+          "label": "Script parameter (before the request)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "setScriptSort",
+          "label": "Run a script before sorting",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "scriptSort",
+          "label": "Script (before sorting)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "scriptSortParam",
+          "label": "Script parameter (before sorting)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "setScriptAfter",
+          "label": "Run a script after the request",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "scriptAfter",
+          "label": "Script (after the request)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "scriptAfterParam",
+          "label": "Script parameter (after the request)",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "n8n_param_map": {
+        "action": "operation"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/databases/{{ cred.db }}/sessions",
+        "body": {
+          "$when": "{{ cred.db }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ pre.response.token }}",
+          "method": "DELETE",
+          "path": "/databases/{{ cred.db }}/sessions/{{ pre.response.token }}"
+        }
+      ],
+      "body": {
+        "query": {
+          "$map": "{{ p.queries.query }}",
+          "$to": {
+            "$merge": "{{ el.fields | kv:'name,value' }}",
+            "omit": "{{ el.omit | eq:'true' | then:'true' | default:'false' }}"
+          }
+        },
+        "offset": "{{ p.offset }}",
+        "limit": "{{ p.limit }}",
+        "layout.response": "{{ p.responseLayout }}",
+        "portal": "{{ p.getPortals | then:p.portals }}",
+        "sort": {
+          "$map": "{{ p.setSort | then:p.sortParametersUi.rules }}",
+          "$to": {
+            "fieldName": "{{ el.name }}",
+            "sortOrder": "{{ el.value }}"
+          }
+        },
+        "script": "{{ p.setScriptAfter | then:p.scriptAfter }}",
+        "script.param": "{{ p.setScriptAfter | then:p.scriptAfterParam }}",
+        "script.prerequest": "{{ p.setScriptBefore | then:p.scriptBefore }}",
+        "script.prerequest.param": "{{ p.setScriptBefore | then:p.scriptBeforeParam }}",
+        "script.presort": "{{ p.setScriptSort | then:p.scriptSort }}",
+        "script.presort.param": "{{ p.setScriptSort | then:p.scriptSortParam }}"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "records",
+      "title": "Get records",
+      "method": "GET",
+      "path": "/databases/{{ cred.db }}/layouts/{{ p.layout }}/records",
+      "fields": [
+        {
+          "key": "layout",
+          "label": "Layout",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "offset",
+          "label": "Offset",
+          "type": "number",
+          "default": 1,
+          "min": 1
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "getPortals",
+          "label": "Get portals",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "portals",
+          "label": "Portals",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "Portal names to include"
+        },
+        {
+          "key": "setSort",
+          "label": "Sort",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "sortParametersUi",
+          "label": "Sort rules",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "rules"
+          ],
+          "help": "{\"rules\": [{\"name\": field, \"value\": ascend|descend}]}"
+        },
+        {
+          "key": "setScriptBefore",
+          "label": "Run a script before the request",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "scriptBefore",
+          "label": "Script (before the request)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "scriptBeforeParam",
+          "label": "Script parameter (before the request)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "setScriptSort",
+          "label": "Run a script before sorting",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "scriptSort",
+          "label": "Script (before sorting)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "scriptSortParam",
+          "label": "Script parameter (before sorting)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "setScriptAfter",
+          "label": "Run a script after the request",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "scriptAfter",
+          "label": "Script (after the request)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "scriptAfterParam",
+          "label": "Script parameter (after the request)",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "n8n_param_map": {
+        "action": "operation"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/databases/{{ cred.db }}/sessions",
+        "body": {
+          "$when": "{{ cred.db }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ pre.response.token }}",
+          "method": "DELETE",
+          "path": "/databases/{{ cred.db }}/sessions/{{ pre.response.token }}"
+        }
+      ],
+      "query": {
+        "_offset": "{{ p.offset }}",
+        "_limit": "{{ p.limit }}",
+        "portal": "{{ p.getPortals | then:p.portals | json | default:'[]' }}",
+        "_sort": {
+          "$json": {
+            "$map": "{{ p.setSort | then:p.sortParametersUi.rules }}",
+            "$to": {
+              "fieldName": "{{ el.name }}",
+              "sortOrder": "{{ el.value }}"
+            }
+          }
+        },
+        "script": "{{ p.setScriptAfter | then:p.scriptAfter }}",
+        "script.param": "{{ p.setScriptAfter | then:p.scriptAfterParam }}",
+        "script.prerequest": "{{ p.setScriptBefore | then:p.scriptBefore }}",
+        "script.prerequest.param": "{{ p.setScriptBefore | then:p.scriptBeforeParam }}",
+        "script.presort": "{{ p.setScriptSort | then:p.scriptSort }}",
+        "script.presort.param": "{{ p.setScriptSort | then:p.scriptSortParam }}"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "performscript",
+      "title": "Run a script",
+      "method": "GET",
+      "path": "/databases/{{ cred.db }}/layouts/{{ p.layout }}/script/{{ p.script }}",
+      "fields": [
+        {
+          "key": "layout",
+          "label": "Layout",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "script",
+          "label": "Script",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "scriptParam",
+          "label": "Script parameter",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "n8n_param_map": {
+        "action": "operation"
+      },
+      "before": {
+        "method": "POST",
+        "path": "/databases/{{ cred.db }}/sessions",
+        "body": {
+          "$when": "{{ cred.db }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ pre.response.token }}",
+          "method": "DELETE",
+          "path": "/databases/{{ cred.db }}/sessions/{{ pre.response.token }}"
+        }
+      ],
+      "query": {
+        "script.param": "{{ p.scriptParam }}"
+      }
+    }
+  ]
+}
