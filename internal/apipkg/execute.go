@@ -509,6 +509,27 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			list = kept
 		}
 	}
+	if o.To != nil {
+		apply := true
+		if o.ToWhen != "" {
+			w, err := renderString(o.ToWhen, r.scope)
+			if err != nil {
+				return nil, r.errf("output.to_when: %w", err)
+			}
+			apply = !isEmpty(w) && w != false
+		}
+		if apply {
+			for i, el := range list {
+				sc := r.scope
+				sc.El = el
+				x, err := renderValue(o.To, sc)
+				if err != nil {
+					return nil, r.errf("output.to element %d: %w", i, err)
+				}
+				list[i] = x
+			}
+		}
+	}
 	return list, nil
 }
 

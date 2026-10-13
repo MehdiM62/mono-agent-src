@@ -1,6 +1,7 @@
 package apipkg
 
 import (
+	"encoding/json"
 	"net/http"
 	"reflect"
 	"strings"
@@ -196,4 +197,48 @@ func TestInjectReadsParamsAndTemplatedOutput(t *testing.T) {
 	if !reflect.DeepEqual(auths, []string{"Bearer P", "Bearer D"}) {
 		t.Errorf("auth headers = %v", auths)
 	}
+}
+
+func TestEntriesFilterAndOutputTo(t *testing.T) {
+	sc := Scope{P: map[string]any{"keyName": "row"}, Item: map[string]any{"row": map[string]any{"B": 2.0, "A": "x"}}}
+	got, err := renderString("{{ item | get:p.keyName | entries:'column,value' }}", sc)
+	want := []any{map[string]any{"column": "A", "value": "x"}, map[string]any{"column": "B", "value": 2.0}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("entries = %#v, %v", got, err)
+	}
+	if got, _ := renderString("{{ item.row | entries }}", sc); len(got.([]any)) != 2 || got.([]any)[0].(map[string]any)["key"] != "A" {
+		t.Errorf("default entries = %#v", got)
+	}
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"rows","title":"R","method":"GET","path":"/rows",
+	  "fields":[{"key":"rawData","label":"R","type":"boolean"}],
+	  "output":{"path":"items","to":{"id":"{{ el.id }}","$merge":"{{ el.values }}"},"to_when":"{{ p.rawData | ne:'true' }}"}}`))
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"items":[{"id":"r1","values":{"Name":"ada"}}]}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "rows"}, cred, nil)
+	if err != nil || items[0].JSON["Name"] != "ada" || items[0].JSON["id"] != "r1" {
+		t.Errorf("to: %v %v", items, err)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "rows", "rawData": true}, cred, nil)
+	if items[0].JSON["values"] == nil {
+		t.Errorf("to_when false keeps raw: %v", items)
+	}
+}
+
+// The harness itself: responses answer in order and expect_requests /
+// the default main-request check see past before steps.
+func TestHarnessMultiRequestCases(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"append","title":"A","method":"POST","path":"/s/v/Main:append",
+	  "before":[{"method":"GET","path":"/s/v/Main!1:1"}],
+	  "body":{"values":["{{ item | row:pre.values }}"]}}`))
+	op := &p.Operations[0]
+	var c opCase
+	if err := json.Unmarshal([]byte(`{"input":{"name":"ada"},
+	  "responses":[{"values":[["name","email"]]},{"updates":{}}],
+	  "expect":{"method":"POST","path":"/v1/s/v/Main:append","body":{"values":[["ada",""]]}}}`), &c); err != nil {
+		t.Fatal(err)
+	}
+	checkCase(t, p, op, c)
+	c.ExpectRequests = []expectReq{{Method: "GET", Path: "/v1/s/v/Main!1:1"}, c.Expect}
+	checkCase(t, p, op, c)
 }

@@ -220,6 +220,7 @@ through, so an unset param stays unset:
 | `get:'path'` | walk into the value: `{{ pre.payload.headers \| find:'name','Message-ID' \| get:'value' }}` |
 | `add:n`, `sub:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`); whole results are integers |
 | `colnum`, `colname` | spreadsheet column letter ↔ 1-based number (`"C"` ↔ 3, `"AA"` ↔ 27) |
+| `entries` / `entries:'column,value'` | object → `[{key, value}, …]` sorted by key (names optional): Coda `"cells": "{{ el \| entries:'column,value' }}"`; `get:p.keyName` picks a key named by a param |
 | `sheetgid` | n8n sheet locator → sheet id text: `"gid=0"` (list mode), `…#gid=123` (url mode), `123` (id mode/expression), or the locator object itself |
 | `gid` | Google file id from a URL (`…/d/<id>/edit`, `…/folders/<id>`, `?id=<id>`); bare ids and non-Google values pass (n8n Docs `documentURL`) |
 | `eq:'x'`, `ne:'x'` | `true` when the value's string equals (`eq`) / differs from (`ne`) the argument, else nil, so they chain into `then`: `"$merge": "{{ p.dataToSend \| eq:'autoMapInputData' \| then:item }}"` |
@@ -412,6 +413,7 @@ Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `
 **Output shaping** (applied in this order, also to paginated results):
 - `"each": "invoice"` replaces each element by its value at that path (Chargebee `[{"invoice": {…}}]` → the invoices).
 - `"expand": {method, path, query, …}` sends one request per element (`el` = the element) and replaces it with the response (Gmail lists ids, then GETs each message with `format`).
+- `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
 - `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept.
 
 **Header-row output.** `"output": {"path": "values", "header_row": true}` turns `[[h1,h2],[v1,v2],…]` into one item per row keyed by the first row.
@@ -508,6 +510,16 @@ leaves the machine. The server answers the first request with `response`
 and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
+
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one after any `before` steps. To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
+```json
+"values.append": {
+  "params": { "documentId": "abc", "sheetName": "Main" },
+  "input": { "name": "ada" },
+  "responses": [ { "values": [["name", "email"]] }, { "updates": {} } ],
+  "expect": { "method": "POST", "path": "/v4/spreadsheets/abc/values/Main:append", "body": { "values": [["ada", ""]] } }
+}
+```
 
 ## 14. Worked example
 
@@ -616,6 +628,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | templates | filters `eq`, `ne`, `kv`, `omit`, `fromjson`, `epoch_ms`, `epoch`; roots `el`, `res`; `$map`/`$to`, `$concat` | §5 |
 | credential | `scope_group` (umbrella scope check) | §7 |
 | operation | `before` (pre-request → `pre`); output `header_row`, `each`, `expand`, `match` | §9 |
+| templates | filter `entries`; output `to`/`to_when` | §5, §9 |
 | templates | parenthesised expression arguments; filter `sheetgid`; `row` null mode; `p.*` in `inject`; templated `output.path`/`each` | §5 |
 | templates | multi-argument filters `find`, `find_row`; filters `get`, `add`, `sub`, `colnum`, `colname`; `$entries`/`$key`/`$value` | §5 |
 | templates | filters `prefix`, `suffix`, `base64`, `base64url`, `row`; roots `pre`, `uuid` | §5 |
