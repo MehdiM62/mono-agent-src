@@ -40,6 +40,10 @@ type Package struct {
 	// when it isn't "operation" (FileMaker: "action"). A config without
 	// "operation" uses that param's value, so imported nodes run as is.
 	N8nOperationParam string `json:"n8n_operation_param,omitempty"`
+	// N8nVersionDefaults: per n8n node typeVersion, param defaults the
+	// importer fills in when an exported node omits them (n8n leaves
+	// defaults out; Invoice Ninja v1 meant apiVersion v4).
+	N8nVersionDefaults map[string]map[string]any `json:"n8n_version_defaults,omitempty"`
 	// QueryStyle "brackets" encodes nested query/form values PHP-style
 	// (a[b][0][c]=v); an op's own query_style overrides it.
 	QueryStyle string `json:"query_style,omitempty"`
