@@ -1,0 +1,1280 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "misp",
+  "node_type": "app.misp",
+  "title": "MISP",
+  "description": "Attributes, events, feeds, galaxies, tags, users and more in a MISP threat-sharing instance",
+  "category": "app",
+  "docs_url": "https://www.misp-project.org/openapi/",
+  "n8n_types": [
+    "n8n-nodes-base.misp"
+  ],
+  "base_url": "{{ cred.base_url }}",
+  "credentials": [
+    {
+      "platform": "misp",
+      "name": "MISP",
+      "n8n_credential": "mispApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "baseUrl": "base_url"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "required": true,
+          "help": "e.g. https://misp.example.com"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "attribute",
+      "label": "Attribute"
+    },
+    {
+      "value": "event",
+      "label": "Event"
+    },
+    {
+      "value": "eventTag",
+      "label": "EventTag"
+    },
+    {
+      "value": "feed",
+      "label": "Feed"
+    },
+    {
+      "value": "galaxy",
+      "label": "Galaxy"
+    },
+    {
+      "value": "noticelist",
+      "label": "Noticelist"
+    },
+    {
+      "value": "object",
+      "label": "Object"
+    },
+    {
+      "value": "organisation",
+      "label": "Organisation"
+    },
+    {
+      "value": "tag",
+      "label": "Tag"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "warninglist",
+      "label": "Warninglist"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "attribute",
+      "operation": "create",
+      "title": "Create an attribute",
+      "method": "POST",
+      "path": "/attributes/add/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "default": "text",
+          "options": [
+            "text",
+            "url",
+            "comment"
+          ]
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "distribution",
+            "sharing_group_id"
+          ],
+          "help": "distribution: 0 (your organisation) … 5 (inherit); sharing_group_id is needed with distribution 4"
+        }
+      ],
+      "body": {
+        "type": "{{ p.type }}",
+        "value": "{{ p.value }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "Attribute"
+      }
+    },
+    {
+      "resource": "attribute",
+      "operation": "delete",
+      "title": "Delete an attribute",
+      "method": "DELETE",
+      "path": "/attributes/delete/{{ p.attributeId }}",
+      "fields": [
+        {
+          "key": "attributeId",
+          "label": "Attribute ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "attribute",
+      "operation": "get",
+      "title": "Get an attribute",
+      "method": "GET",
+      "path": "/attributes/view/{{ p.attributeId }}",
+      "fields": [
+        {
+          "key": "attributeId",
+          "label": "Attribute ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Attribute"
+      }
+    },
+    {
+      "resource": "attribute",
+      "operation": "getAll",
+      "title": "Get many attributes",
+      "method": "GET",
+      "path": "/attributes",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "attribute",
+      "operation": "search",
+      "title": "Search attributes",
+      "method": "POST",
+      "path": "/attributes/restSearch",
+      "fields": [
+        {
+          "key": "useJson",
+          "label": "Use JSON",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "jsonOutput",
+          "label": "Search (JSON)",
+          "type": "json",
+          "default": "{\"value\": \"search value\", \"type\": \"text\"}"
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "category",
+            "deleted",
+            "published",
+            "searchall",
+            "tags",
+            "type"
+          ],
+          "help": "tags: comma-separated"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.useJson | eq:'true' | then:(p.jsonOutput | fromjson) }}",
+          "{{ p.useJson | ne:'true' | then:(p.additionalFields | omit:'tags') }}"
+        ],
+        "value": "{{ p.useJson | ne:'true' | then:p.value }}",
+        "tags": "{{ p.useJson | ne:'true' | then:(p.additionalFields.tags | split) }}"
+      },
+      "output": {
+        "path": "response.Attribute"
+      }
+    },
+    {
+      "resource": "attribute",
+      "operation": "update",
+      "title": "Update an attribute",
+      "method": "PUT",
+      "path": "/attributes/edit/{{ p.attributeId }}",
+      "fields": [
+        {
+          "key": "attributeId",
+          "label": "Attribute ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "distribution",
+            "sharing_group_id"
+          ],
+          "help": "distribution: 0 (your organisation) … 5 (inherit); sharing_group_id is needed with distribution 4"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "Attribute"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "create",
+      "title": "Create an event",
+      "method": "POST",
+      "path": "/events",
+      "fields": [
+        {
+          "key": "org_id",
+          "label": "Organisation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "information",
+          "label": "Information",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "analysis",
+            "distribution",
+            "sharing_group_id",
+            "threat_level_id"
+          ],
+          "help": "analysis: 0 initial, 1 ongoing, 2 completed; threat_level_id: 1 high … 4 undefined; distribution: 0 (your organisation) … 5 (inherit); sharing_group_id is needed with distribution 4"
+        }
+      ],
+      "body": {
+        "org_id": "{{ p.org_id }}",
+        "info": "{{ p.information }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "Event",
+        "to": "{{ el | omit:'Attribute' }}"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "delete",
+      "title": "Delete an event",
+      "method": "DELETE",
+      "path": "/events/delete/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "event",
+      "operation": "get",
+      "title": "Get an event",
+      "method": "GET",
+      "path": "/events/view/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Event",
+        "to": "{{ el | omit:'Attribute' }}"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "getAll",
+      "title": "Get many events",
+      "method": "GET",
+      "path": "/events",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "publish",
+      "title": "Publish an event",
+      "method": "POST",
+      "path": "/events/publish/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "event",
+      "operation": "search",
+      "title": "Search events",
+      "method": "POST",
+      "path": "/events/restSearch",
+      "fields": [
+        {
+          "key": "useJson",
+          "label": "Use JSON",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "jsonOutput",
+          "label": "Search (JSON)",
+          "type": "json",
+          "default": "{\"value\": \"search value\", \"type\": \"text\"}"
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "category",
+            "deleted",
+            "published",
+            "searchall",
+            "tags",
+            "type"
+          ],
+          "help": "tags: comma-separated"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.useJson | eq:'true' | then:(p.jsonOutput | fromjson) }}",
+          "{{ p.useJson | ne:'true' | then:(p.additionalFields | omit:'tags') }}"
+        ],
+        "value": "{{ p.useJson | ne:'true' | then:p.value }}",
+        "tags": "{{ p.useJson | ne:'true' | then:(p.additionalFields.tags | split) }}"
+      },
+      "output": {
+        "path": "response",
+        "each": "Event"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "unpublish",
+      "title": "Unpublish an event",
+      "method": "POST",
+      "path": "/events/unpublish/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "event",
+      "operation": "update",
+      "title": "Update an event",
+      "method": "PUT",
+      "path": "/events/edit/{{ p.eventId }}",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "analysis",
+            "distribution",
+            "information",
+            "sharing_group_id",
+            "threat_level_id"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'information' }}",
+        "info": "{{ p.updateFields.information }}"
+      },
+      "output": {
+        "path": "Event",
+        "to": "{{ el | omit:'Attribute' }}"
+      }
+    },
+    {
+      "resource": "eventTag",
+      "operation": "add",
+      "title": "Add a tag to an event",
+      "method": "POST",
+      "path": "/events/addTag",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "event": "{{ p.eventId }}",
+        "tag": "{{ p.tagId }}"
+      }
+    },
+    {
+      "resource": "eventTag",
+      "operation": "remove",
+      "title": "Remove a tag from an event",
+      "method": "POST",
+      "path": "/events/removeTag/{{ p.eventId }}/{{ p.tagId }}",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "feed",
+      "operation": "create",
+      "title": "Create a feed",
+      "method": "POST",
+      "path": "/feeds/add",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "provider",
+          "label": "Provider",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "distribution",
+            "json"
+          ],
+          "help": "json: rules as JSON"
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "provider": "{{ p.provider }}",
+        "url": "{{ p.url }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "Feed"
+      }
+    },
+    {
+      "resource": "feed",
+      "operation": "disable",
+      "title": "Disable a feed",
+      "method": "POST",
+      "path": "/feeds/disable/{{ p.feedId }}",
+      "fields": [
+        {
+          "key": "feedId",
+          "label": "Feed ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "feed",
+      "operation": "enable",
+      "title": "Enable a feed",
+      "method": "POST",
+      "path": "/feeds/enable/{{ p.feedId }}",
+      "fields": [
+        {
+          "key": "feedId",
+          "label": "Feed ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "feed",
+      "operation": "get",
+      "title": "Get a feed",
+      "method": "GET",
+      "path": "/feeds/view/{{ p.feedId }}",
+      "fields": [
+        {
+          "key": "feedId",
+          "label": "Feed ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Feed"
+      }
+    },
+    {
+      "resource": "feed",
+      "operation": "getAll",
+      "title": "Get many feeds",
+      "method": "GET",
+      "path": "/feeds",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true,
+        "each": "Feed"
+      }
+    },
+    {
+      "resource": "feed",
+      "operation": "update",
+      "title": "Update a feed",
+      "method": "PUT",
+      "path": "/feeds/edit/{{ p.feedId }}",
+      "fields": [
+        {
+          "key": "feedId",
+          "label": "Feed ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "distribution",
+            "name",
+            "provider",
+            "rules",
+            "url"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "Feed"
+      }
+    },
+    {
+      "resource": "galaxy",
+      "operation": "get",
+      "title": "Get a galaxy",
+      "method": "GET",
+      "path": "/galaxies/view/{{ p.galaxyId }}",
+      "fields": [
+        {
+          "key": "galaxyId",
+          "label": "Galaxy ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Galaxy"
+      }
+    },
+    {
+      "resource": "galaxy",
+      "operation": "delete",
+      "title": "Delete a galaxy",
+      "method": "DELETE",
+      "path": "/galaxies/delete/{{ p.galaxyId }}",
+      "fields": [
+        {
+          "key": "galaxyId",
+          "label": "Galaxy ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "galaxy",
+      "operation": "getAll",
+      "title": "Get many galaxies",
+      "method": "GET",
+      "path": "/galaxies",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true,
+        "each": "Galaxy"
+      }
+    },
+    {
+      "resource": "noticelist",
+      "operation": "get",
+      "title": "Get a noticelist",
+      "method": "GET",
+      "path": "/noticelists/view/{{ p.noticelistId }}",
+      "fields": [
+        {
+          "key": "noticelistId",
+          "label": "Noticelist ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Noticelist"
+      }
+    },
+    {
+      "resource": "noticelist",
+      "operation": "getAll",
+      "title": "Get many noticelists",
+      "method": "GET",
+      "path": "/noticelists",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true,
+        "each": "Noticelist"
+      }
+    },
+    {
+      "resource": "object",
+      "operation": "search",
+      "title": "Search objects",
+      "method": "POST",
+      "path": "/objects/restSearch",
+      "fields": [
+        {
+          "key": "useJson",
+          "label": "Use JSON",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "jsonOutput",
+          "label": "Search (JSON)",
+          "type": "json",
+          "default": "{\"value\": \"search value\", \"type\": \"text\"}"
+        },
+        {
+          "key": "value",
+          "label": "Value",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "category",
+            "deleted",
+            "published",
+            "searchall",
+            "tags",
+            "type"
+          ],
+          "help": "tags: comma-separated"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.useJson | eq:'true' | then:(p.jsonOutput | fromjson) }}",
+          "{{ p.useJson | ne:'true' | then:(p.additionalFields | omit:'tags') }}"
+        ],
+        "value": "{{ p.useJson | ne:'true' | then:p.value }}",
+        "tags": "{{ p.useJson | ne:'true' | then:(p.additionalFields.tags | split) }}"
+      },
+      "output": {
+        "path": "response",
+        "each": "Object"
+      }
+    },
+    {
+      "resource": "organisation",
+      "operation": "create",
+      "title": "Create an organisation",
+      "method": "POST",
+      "path": "/admin/organisations/add",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "created_by_email",
+            "description",
+            "nationality",
+            "sector",
+            "type",
+            "usercount"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "Organisation"
+      }
+    },
+    {
+      "resource": "organisation",
+      "operation": "delete",
+      "title": "Delete an organisation",
+      "method": "DELETE",
+      "path": "/admin/organisations/delete/{{ p.organisationId }}",
+      "fields": [
+        {
+          "key": "organisationId",
+          "label": "Organisation ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "organisation",
+      "operation": "get",
+      "title": "Get an organisation",
+      "method": "GET",
+      "path": "/organisations/view/{{ p.organisationId }}",
+      "fields": [
+        {
+          "key": "organisationId",
+          "label": "Organisation ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Organisation"
+      }
+    },
+    {
+      "resource": "organisation",
+      "operation": "getAll",
+      "title": "Get many organisations",
+      "method": "GET",
+      "path": "/organisations",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true,
+        "each": "Organisation"
+      }
+    },
+    {
+      "resource": "organisation",
+      "operation": "update",
+      "title": "Update an organisation",
+      "method": "PUT",
+      "path": "/admin/organisations/edit/{{ p.organisationId }}",
+      "fields": [
+        {
+          "key": "organisationId",
+          "label": "Organisation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "name",
+            "nationality",
+            "sector",
+            "type"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "Organisation"
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "create",
+      "title": "Create a tag",
+      "method": "POST",
+      "path": "/tags/add",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "colour"
+          ],
+          "help": "colour: hex, # optional"
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "colour": "{{ p.additionalFields.colour | replace:'#','' | prefix:'#' }}"
+      },
+      "output": {
+        "path": "Tag"
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "delete",
+      "title": "Delete a tag",
+      "method": "POST",
+      "path": "/tags/delete/{{ p.tagId }}",
+      "fields": [
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "tag",
+      "operation": "getAll",
+      "title": "Get many tags",
+      "method": "GET",
+      "path": "/tags",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true,
+        "path": "Tag"
+      }
+    },
+    {
+      "resource": "tag",
+      "operation": "update",
+      "title": "Update a tag",
+      "method": "POST",
+      "path": "/tags/edit/{{ p.tagId }}",
+      "fields": [
+        {
+          "key": "tagId",
+          "label": "Tag ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "colour",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.updateFields.name }}",
+        "colour": "{{ p.updateFields.colour | replace:'#','' | prefix:'#' }}"
+      },
+      "output": {
+        "path": "Tag"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/admin/users/add",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "role_id",
+          "label": "Role ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "gpgkey",
+            "invited_by",
+            "org_id"
+          ]
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "role_id": "{{ p.role_id }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "User"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/admin/users/delete/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/admin/users/view/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "User"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/admin/users",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true,
+        "each": "User"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "PUT",
+      "path": "/admin/users/edit/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "gpgkey",
+            "invited_by",
+            "org_id"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "User"
+      }
+    },
+    {
+      "resource": "warninglist",
+      "operation": "get",
+      "title": "Get a warninglist",
+      "method": "GET",
+      "path": "/warninglists/view/{{ p.warninglistId }}",
+      "fields": [
+        {
+          "key": "warninglistId",
+          "label": "Warninglist ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Warninglist"
+      }
+    },
+    {
+      "resource": "warninglist",
+      "operation": "getAll",
+      "title": "Get many warninglists",
+      "method": "GET",
+      "path": "/warninglists",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "output": {
+        "limit": true,
+        "path": "Warninglists",
+        "each": "Warninglist"
+      }
+    }
+  ]
+}

@@ -1,0 +1,162 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "mailgun",
+  "node_type": "app.mailgun",
+  "title": "Mailgun",
+  "description": "Send email through Mailgun",
+  "category": "app",
+  "docs_url": "https://documentation.mailgun.com/docs/mailgun/api-reference/",
+  "n8n_types": [
+    "n8n-nodes-base.mailgun"
+  ],
+  "base_url": "https://{{ cred.api_domain | default:'api.mailgun.net' }}/v3/{{ cred.email_domain }}",
+  "credentials": [
+    {
+      "platform": "mailgun",
+      "name": "Mailgun",
+      "n8n_credential": "mailgunApi",
+      "n8n_field_map": {
+        "apiDomain": "api_domain",
+        "emailDomain": "email_domain",
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "api_domain",
+          "label": "API host",
+          "help": "api.mailgun.net (US) or api.eu.mailgun.net (EU)"
+        },
+        {
+          "key": "email_domain",
+          "label": "Sending domain",
+          "required": true
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "api",
+          "password": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "send",
+      "title": "Send an email",
+      "description": "Attachments: the first binary property named in attachments is sent",
+      "method": "POST",
+      "path": "/messages",
+      "body_type": "multipart",
+      "fields": [
+        {
+          "key": "fromEmail",
+          "label": "From",
+          "type": "text",
+          "required": true,
+          "placeholder": "Team <team@example.com>"
+        },
+        {
+          "key": "toEmail",
+          "label": "To",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated addresses"
+        },
+        {
+          "key": "ccEmail",
+          "label": "Cc",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "bccEmail",
+          "label": "Bcc",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "replyTo",
+          "label": "Reply-To",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "customHeaders",
+          "label": "Custom headers",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "headers"
+          ],
+          "help": "{\"headers\": [{\"name\": \"X-Thing\", \"value\": \"v\"}]}; the h: prefix is added for you"
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated"
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "text",
+          "label": "Text body",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "html",
+          "label": "HTML body",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "attachments",
+          "label": "Attachment binary properties",
+          "type": "text",
+          "default": "",
+          "help": "Binary property holding the file to attach"
+        }
+      ],
+      "body": {
+        "from": "{{ p.fromEmail }}",
+        "to": "{{ p.toEmail }}",
+        "cc": "{{ p.ccEmail }}",
+        "bcc": "{{ p.bccEmail }}",
+        "h:Reply-To": "{{ p.replyTo }}",
+        "subject": "{{ p.subject }}",
+        "text": "{{ p.text }}",
+        "html": "{{ p.html }}",
+        "o:tag": "{{ p.tags | split }}",
+        "$merge": {
+          "$entries": "{{ p.customHeaders.headers }}",
+          "$key": "{{ el.name | then:'h:' }}{{ el.name }}",
+          "$value": "{{ el.value }}"
+        }
+      },
+      "binary": {
+        "upload_field": "attachments",
+        "property": "{{ p.attachments | split | get:'0' }}",
+        "upload_when": "{{ p.attachments }}",
+        "multipart_field": "attachment",
+        "fallback_body_type": "multipart"
+      }
+    }
+  ]
+}

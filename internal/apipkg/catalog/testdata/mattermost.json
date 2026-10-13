@@ -1,0 +1,450 @@
+{
+  "channel.create": {
+    "params": {
+      "teamId": "t1",
+      "displayName": "Ops",
+      "channel": "ops",
+      "type": "private"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/channels",
+      "body": {
+        "team_id": "t1",
+        "display_name": "Ops",
+        "name": "ops",
+        "type": "P"
+      }
+    }
+  },
+  "channel.addUser": {
+    "params": {
+      "channelId": "c1",
+      "userId": "u1"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/channels/c1/members",
+      "body": {
+        "user_id": "u1"
+      }
+    }
+  },
+  "channel.delete": {
+    "params": {
+      "channelId": "c1"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v4/channels/c1"
+    }
+  },
+  "channel.members": {
+    "params": {
+      "channelId": "c1",
+      "returnAll": false,
+      "limit": 5
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/channels/c1/members",
+      "query": {
+        "page": "0",
+        "per_page": "5"
+      },
+      "items": 1
+    },
+    "responses": [
+      [
+        {
+          "user_id": "u1"
+        }
+      ],
+      {
+        "id": "u1",
+        "username": "ada"
+      }
+    ]
+  },
+  "channel.restore": {
+    "params": {
+      "channelId": "c1"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/channels/c1/restore"
+    }
+  },
+  "channel.search": {
+    "params": {
+      "teamId": "t1",
+      "term": "op",
+      "limit": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/teams/t1/channels/search",
+      "body": {
+        "term": "op"
+      },
+      "items": 1
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ]
+  },
+  "channel.statistics": {
+    "params": {
+      "channelId": "c1"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/channels/c1/stats",
+      "items": 1
+    },
+    "response": {
+      "member_count": 3
+    }
+  },
+  "message.post": {
+    "params": {
+      "channelId": "c1",
+      "message": "hi",
+      "otherOptions": {
+        "root_id": "r1"
+      },
+      "attachments": [
+        {
+          "title": "A",
+          "fields": {
+            "item": [
+              {
+                "title": "k",
+                "value": "v",
+                "short": true
+              }
+            ]
+          },
+          "actions": {
+            "item": [
+              {
+                "type": "button",
+                "name": "Go",
+                "integration": {
+                  "item": {
+                    "url": "https://x.io",
+                    "context": {
+                      "property": [
+                        {
+                          "name": "a",
+                          "value": "1"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/posts",
+      "body": {
+        "channel_id": "c1",
+        "message": "hi",
+        "root_id": "r1",
+        "props": {
+          "attachments": [
+            {
+              "title": "A",
+              "fields": [
+                {
+                  "title": "k",
+                  "value": "v",
+                  "short": true
+                }
+              ],
+              "actions": [
+                {
+                  "name": "Go",
+                  "integration": {
+                    "url": "https://x.io",
+                    "context": {
+                      "a": "1"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "message.delete": {
+    "params": {
+      "postId": "p1"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v4/posts/p1"
+    }
+  },
+  "message.postEphemeral": {
+    "params": {
+      "userId": "u1",
+      "channelId": "c1",
+      "message": "psst"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/posts/ephemeral",
+      "body": {
+        "user_id": "u1",
+        "post": {
+          "channel_id": "c1",
+          "message": "psst"
+        }
+      }
+    }
+  },
+  "reaction.create": {
+    "params": {
+      "userId": "u1",
+      "postId": "p1",
+      "emojiName": ":smile:"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/reactions",
+      "body": {
+        "user_id": "u1",
+        "post_id": "p1",
+        "emoji_name": "smile",
+        "create_at": "<any>"
+      }
+    }
+  },
+  "reaction.delete": {
+    "params": {
+      "userId": "u1",
+      "postId": "p1",
+      "emojiName": ":smile:"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v4/users/u1/posts/p1/reactions/smile"
+    }
+  },
+  "reaction.getAll": {
+    "params": {
+      "postId": "p1",
+      "returnAll": false,
+      "limit": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/posts/p1/reactions",
+      "items": 1
+    },
+    "response": [
+      {
+        "a": 1
+      },
+      {
+        "a": 2
+      }
+    ]
+  },
+  "user.create": {
+    "params": {
+      "username": "ada",
+      "authService": "email",
+      "email": "a@x.io",
+      "password": "pw",
+      "additionalFields": {
+        "first_name": "Ada",
+        "notificationUi": {
+          "notificationValues": {
+            "push": "all"
+          }
+        }
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/users",
+      "body": {
+        "auth_service": "email",
+        "username": "ada",
+        "email": "a@x.io",
+        "password": "pw",
+        "first_name": "Ada",
+        "notify_props": {
+          "push": "all"
+        }
+      }
+    }
+  },
+  "user.deactive": {
+    "params": {
+      "userId": "u1"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v4/users/u1"
+    }
+  },
+  "user.getByEmail": {
+    "params": {
+      "email": "a@x.io"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/users/email/a@x.io"
+    }
+  },
+  "user.getById": {
+    "params": {
+      "userIds": "u1,u2",
+      "additionalFields": {
+        "since": "2024-01-01T00:00:00Z"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/users/ids",
+      "body": [
+        "u1",
+        "u2"
+      ],
+      "query": {
+        "since": "1704067200000"
+      }
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "returnAll": false,
+      "limit": 10,
+      "additionalFields": {
+        "inTeam": "t1",
+        "sort": "lastActivityAt"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v4/users",
+      "query": {
+        "in_team": "t1",
+        "sort": "last_activity_at",
+        "page": "0",
+        "per_page": "10"
+      },
+      "items": 1
+    },
+    "response": [
+      {
+        "id": "u1"
+      }
+    ]
+  },
+  "user.invite": {
+    "params": {
+      "teamId": "t1",
+      "emails": "a@x.io,b@x.io"
+    },
+    "credential": {
+      "access_token": "t",
+      "base_url": "https://mm.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v4/teams/t1/invite/email",
+      "body": [
+        "a@x.io",
+        "b@x.io"
+      ]
+    }
+  }
+}

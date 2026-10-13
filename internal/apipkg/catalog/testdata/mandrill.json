@@ -1,0 +1,122 @@
+{
+  "message.sendTemplate": {
+    "params": {
+      "template": "welcome",
+      "fromEmail": "a@x.io",
+      "toEmail": "b@x.io,c@x.io",
+      "options": {
+        "subject": "Hi",
+        "tags": "t1,t2",
+        "trackOpens": true,
+        "sendAt": "2026-01-02T03:04:05Z"
+      },
+      "mergeVarsUi": {
+        "mergeVarsValues": [
+          {
+            "name": "fname",
+            "content": "Ada"
+          }
+        ]
+      },
+      "headersUi": {
+        "headersValues": [
+          {
+            "name": "X-A",
+            "value": "1"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "api_key": "k"
+    },
+    "response": [
+      {
+        "email": "b@x.io",
+        "status": "sent"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/1.0/messages/send-template.json",
+      "items": 1,
+      "body": {
+        "key": "k",
+        "template_name": "welcome",
+        "template_content": [],
+        "send_at": "2026-01-02 03:04:05",
+        "message": {
+          "subject": "Hi",
+          "from_email": "a@x.io",
+          "to": [
+            {
+              "email": "b@x.io",
+              "type": "to"
+            },
+            {
+              "email": "c@x.io",
+              "type": "to"
+            }
+          ],
+          "track_opens": true,
+          "tags": [
+            "t1",
+            "t2"
+          ],
+          "headers": {
+            "X-A": "1"
+          },
+          "global_merge_vars": [
+            {
+              "name": "fname",
+              "content": "Ada"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "message.sendHtml": {
+    "params": {
+      "fromEmail": "a@x.io",
+      "toEmail": "b@x.io",
+      "jsonParameters": true,
+      "options": {
+        "html": "<p>x</p>"
+      },
+      "metadataJson": "{\"user\":\"1\"}",
+      "attachmentsJson": "[{\"type\":\"text/plain\",\"name\":\"a.txt\",\"content\":\"eA==\"}]"
+    },
+    "credential": {
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/1.0/messages/send.json",
+      "body": {
+        "key": "k",
+        "template_content": [],
+        "message": {
+          "html": "<p>x</p>",
+          "from_email": "a@x.io",
+          "to": [
+            {
+              "email": "b@x.io",
+              "type": "to"
+            }
+          ],
+          "metadata": {
+            "user": "1"
+          },
+          "attachments": [
+            {
+              "type": "text/plain",
+              "name": "a.txt",
+              "content": "eA=="
+            }
+          ]
+        }
+      }
+    }
+  }
+}

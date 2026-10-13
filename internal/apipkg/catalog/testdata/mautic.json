@@ -1,0 +1,498 @@
+{
+  "contact.create": {
+    "params": {
+      "email": "a@x.io",
+      "firstName": "Ada",
+      "additionalFields": {
+        "addressUi": {
+          "addressValues": {
+            "city": "Paris"
+          }
+        },
+        "hasPurchased": true,
+        "tags": [
+          "vip"
+        ],
+        "customFieldsUi": {
+          "customFieldValues": [
+            {
+              "fieldId": "score2",
+              "fieldValue": "9"
+            }
+          ]
+        }
+      },
+      "options": {
+        "rawData": false
+      }
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/contacts/new",
+      "body": {
+        "email": "a@x.io",
+        "firstname": "Ada",
+        "city": "Paris",
+        "haspurchased": true,
+        "tags": [
+          "vip"
+        ],
+        "score2": "9"
+      },
+      "items": 1
+    },
+    "response": {
+      "contact": {
+        "id": 1,
+        "fields": {
+          "all": {
+            "id": 1,
+            "email": "a@x.io"
+          }
+        }
+      }
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "1"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/contacts/1/delete",
+      "items": 1
+    },
+    "response": {
+      "contact": {
+        "id": 1,
+        "fields": {
+          "all": {
+            "id": 1,
+            "email": "a@x.io"
+          }
+        }
+      }
+    }
+  },
+  "contact.editContactPoint": {
+    "params": {
+      "contactId": "1",
+      "action": "remove",
+      "points": 5
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/contacts/1/points/minus/5"
+    }
+  },
+  "contact.editDoNotContactList": {
+    "params": {
+      "contactId": "1",
+      "action": "add",
+      "channel": "sms",
+      "additionalFields": {
+        "reason": "3",
+        "comments": "x"
+      }
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/contacts/1/dnc/sms/add",
+      "body": {
+        "reason": "3",
+        "comments": "x"
+      }
+    },
+    "response": {
+      "contact": {
+        "id": 1,
+        "fields": {
+          "all": {
+            "id": 1,
+            "email": "a@x.io"
+          }
+        }
+      }
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "1"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/contacts/1",
+      "items": 1
+    },
+    "response": {
+      "contact": {
+        "id": 1,
+        "fields": {
+          "all": {
+            "id": 1,
+            "email": "a@x.io"
+          }
+        }
+      }
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "limit": 2,
+      "options": {
+        "search": "ada",
+        "rawData": false
+      }
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/contacts",
+      "query": {
+        "search": "ada",
+        "limit": "2",
+        "start": "0"
+      },
+      "items": 2
+    },
+    "response": {
+      "total": 2,
+      "contacts": {
+        "1": {
+          "id": 1,
+          "fields": {
+            "all": {
+              "id": 1
+            }
+          }
+        },
+        "2": {
+          "id": 2,
+          "fields": {
+            "all": {
+              "id": 2
+            }
+          }
+        }
+      }
+    }
+  },
+  "contact.sendEmail": {
+    "params": {
+      "contactId": "1",
+      "campaignEmailId": "7"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/emails/7/contact/1/send"
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "1",
+      "updateFields": {
+        "lastName": "L",
+        "stage": "s1"
+      }
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/contacts/1/edit",
+      "body": {
+        "lastname": "L",
+        "stage": "s1"
+      }
+    },
+    "response": {
+      "contact": {
+        "id": 1,
+        "fields": {
+          "all": {
+            "id": 1,
+            "email": "a@x.io"
+          }
+        }
+      }
+    }
+  },
+  "company.create": {
+    "params": {
+      "name": "Acme",
+      "additionalFields": {
+        "industry": "Tech",
+        "numberOfEmpoyees": 0,
+        "isPublished": true
+      }
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/companies/new",
+      "body": {
+        "companyname": "Acme",
+        "companyindustry": "Tech",
+        "isPublished": true
+      },
+      "items": 1
+    },
+    "response": {
+      "company": {
+        "fields": {
+          "all": {
+            "id": 3
+          }
+        }
+      }
+    }
+  },
+  "company.delete": {
+    "params": {
+      "companyId": "3"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/companies/3/delete"
+    },
+    "response": {
+      "company": {
+        "fields": {
+          "all": {
+            "id": 3
+          }
+        }
+      }
+    }
+  },
+  "company.get": {
+    "params": {
+      "companyId": "3"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/companies/3",
+      "items": 1
+    },
+    "response": {
+      "company": {
+        "fields": {
+          "all": {
+            "id": 3
+          }
+        }
+      }
+    }
+  },
+  "company.getAll": {
+    "params": {
+      "limit": 5,
+      "additionalFields": {
+        "orderBy": "companyname"
+      }
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/companies",
+      "query": {
+        "orderBy": "companyname",
+        "limit": "5",
+        "start": "0"
+      },
+      "items": 1
+    },
+    "response": {
+      "companies": {
+        "3": {
+          "fields": {
+            "all": {
+              "id": 3
+            }
+          }
+        }
+      }
+    }
+  },
+  "company.update": {
+    "params": {
+      "companyId": "3",
+      "updateFields": {
+        "name": "B",
+        "phone": "1"
+      }
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/companies/3/edit",
+      "body": {
+        "companyname": "B",
+        "companyphone": "1"
+      }
+    }
+  },
+  "campaignContact.add": {
+    "params": {
+      "contactId": "1",
+      "campaignId": "2"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/campaigns/2/contact/1/add"
+    }
+  },
+  "campaignContact.remove": {
+    "params": {
+      "contactId": "1",
+      "campaignId": "2"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/campaigns/2/contact/1/remove"
+    }
+  },
+  "companyContact.add": {
+    "params": {
+      "contactId": "1",
+      "companyId": "2"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/companies/2/contact/1/add"
+    }
+  },
+  "companyContact.remove": {
+    "params": {
+      "contactId": "1",
+      "companyId": "2"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/companies/2/contact/1/remove"
+    }
+  },
+  "contactSegment.add": {
+    "params": {
+      "contactId": "1",
+      "segmentId": "2"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/segments/2/contact/1/add"
+    }
+  },
+  "contactSegment.remove": {
+    "params": {
+      "contactId": "1",
+      "segmentId": "2"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/segments/2/contact/1/remove"
+    }
+  },
+  "segmentEmail.send": {
+    "params": {
+      "segmentEmailId": "4"
+    },
+    "credential": {
+      "url": "https://m.example",
+      "username": "u",
+      "password": "p"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/emails/4/send"
+    }
+  }
+}
