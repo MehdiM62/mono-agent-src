@@ -942,6 +942,11 @@ func (e *WorkflowEngine) DeleteWorkflow(ctx context.Context, id string) error {
 	if err := e.store.DeleteWorkflow(ctx, id); err != nil {
 		return fmt.Errorf("engine: delete workflow: %w", err)
 	}
+	if db := e.store.RawDB(); db != nil {
+		if err := DeleteWorkflowState(ctx, db, id); err != nil {
+			e.logger.Warn().Err(err).Str("workflow_id", id).Msg("engine: delete workflow: state not removed")
+		}
+	}
 
 	e.logger.Info().Str("workflow_id", id).Msg("engine: workflow deleted")
 	return nil

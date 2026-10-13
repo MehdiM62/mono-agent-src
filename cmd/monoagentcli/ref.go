@@ -49,8 +49,9 @@ var nodeDocs = []nodeDoc{
 		Description: `Downloads and parses an RSS or Atom feed, emitting one item per entry.
 Commonly used to pull news, blog posts, or podcast episodes.`,
 		Config: `{
-  "url":   "https://rss.dw.com/rdf/rss-en-all",
-  "limit": 15
+  "url":            "https://rss.dw.com/rdf/rss-en-all",
+  "limit":          15,
+  "since_last_run": false   // true: emit only entries newer than the previous run saw
 }`,
 		Inputs:  "none (URL comes from config)",
 		Outputs: "title, description, link, pubDate, guid, author, categories",
@@ -159,10 +160,21 @@ Use to build prompts, format strings, or reshape data before the next node.`,
 	{
 		Type:     "core.remove_duplicates",
 		Category: "core",
-		Short:    "Deduplicate items by a field",
-		Config:   `{ "field": "url" }`,
-		Inputs:   "items possibly containing duplicates",
-		Outputs:  "items with duplicates removed",
+		Short:    "Deduplicate items by a field, within a run or across runs",
+		Description: `operation "removeDuplicateInputItems" (default) drops duplicates within this
+run's input. "removeItemsRepeatedWithinPreviousExecutions" keeps only items
+whose dedupeValue no earlier run of this workflow saw (history stored per node,
+or per workflow with scope "workflow"; historySize caps the stored values).
+"clearDeduplicationHistory" empties that history and passes items through.`,
+		Config: `{
+  "field":       "url",                                          // within-run key
+  "operation":   "removeItemsRepeatedWithinPreviousExecutions",  // optional
+  "dedupeValue": "{{ $json.url }}",                              // across runs: value to remember
+  "scope":       "node",                                         // node | workflow
+  "historySize": 10000
+}`,
+		Inputs:  "items possibly containing duplicates",
+		Outputs: "items with duplicates removed",
 	},
 	{
 		Type:     "core.sort",
