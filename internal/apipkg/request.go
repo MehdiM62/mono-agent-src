@@ -434,7 +434,7 @@ func (r *opRun) uploads() bool {
 		return true
 	}
 	w, err := renderString(b.UploadWhen, r.scope)
-	return err == nil && !isEmpty(w) && w != false
+	return err == nil && truthy(w)
 }
 
 // bodyType is the op's body type for this run: without an upload, an op

@@ -475,7 +475,7 @@ func renderObject(m map[string]any, sc Scope) (map[string]any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("$when: %w", err)
 		}
-		if isEmpty(w) || w == false {
+		if !truthy(w) {
 			return nil, nil
 		}
 	}
