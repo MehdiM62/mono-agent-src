@@ -342,7 +342,13 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		if err != nil {
 			return nil, err
 		}
-		shaped, err := r.shapeOutput(ctx, results)
+		var all any = results
+		if o := r.op.Output; o != nil && o.Walk != nil {
+			if all, err = r.walk(ctx, results, results); err != nil {
+				return nil, err
+			}
+		}
+		shaped, err := r.shapeOutput(ctx, all)
 		if err != nil {
 			return nil, err
 		}

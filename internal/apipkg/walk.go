@@ -11,7 +11,8 @@ import (
 // endpoint only reaches a fixed depth, so records at that depth are
 // expanded again until the tree is exhausted or Max records are kept.
 //
-// Start (a template, res = the main response) gives the root id or ids.
+// Start (a template or builder; res = the main response, or the list of
+// results on a paginated op) gives the root id or ids.
 // Request is sent once per frontier id (el = the id), paged with
 // Pagination when set (results at ResultsPath). Per record (el = the
 // record): ID gives its id (default el.id; empty or already seen records
@@ -22,7 +23,7 @@ import (
 // chunks of ids.
 type Walk struct {
 	When        string      `json:"when,omitempty"`
-	Start       string      `json:"start"`
+	Start       any         `json:"start"`
 	Request     Step        `json:"request"`
 	Pagination  *Pagination `json:"pagination,omitempty"`
 	ResultsPath string      `json:"results_path,omitempty"`
@@ -76,7 +77,7 @@ func (r *opRun) walk(ctx context.Context, doc, v any) (any, error) {
 			max = int(n.(int64))
 		}
 	}
-	sv, err := renderString(w.Start, sc)
+	sv, err := renderValue(w.Start, sc)
 	if err != nil {
 		return nil, r.errf("output.walk.start: %w", err)
 	}
@@ -260,15 +261,11 @@ func walkFlag(tpl string, def bool, sc Scope) (bool, error) {
 	return truthy(v), nil
 }
 
-// check validates output.walk (paged ops are not walked: the walk runs on
-// a single main response).
-func (w *Walk) check(where string, paged bool, fields, credKeys map[string]bool) []string {
+// check validates output.walk.
+func (w *Walk) check(where string, fields, credKeys map[string]bool) []string {
 	var probs []string
 	add := func(format string, a ...any) { probs = append(probs, where+": "+fmt.Sprintf(format, a...)) }
-	if paged {
-		add("cannot be combined with the op's pagination")
-	}
-	if w.Start == "" {
+	if isEmpty(w.Start) {
 		add("start is required")
 	}
 	steps := []Step{w.Request}

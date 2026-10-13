@@ -242,7 +242,7 @@
               "additionalProperties": false,
               "properties": {
                 "when": { "type": "string" },
-                "start": { "type": "string", "minLength": 1 },
+                "start": {},
                 "request": { "$ref": "#/$defs/walkStep" },
                 "pagination": { "$ref": "#/$defs/pagination" },
                 "results_path": { "type": "string" },

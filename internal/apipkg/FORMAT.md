@@ -584,10 +584,10 @@ no `for_each`) plus `files`, `property`, `file_name`, `mime_type`.
   "max": "{{ p.maxPages | sub:1 }}",
   "fetch": { "method": "GET", "path": "/wiki/api/v2/pages", "query": { "id": "{{ el | csv }}" }, "chunk": 250, "results_path": "results" } } }
 ```
-- `start` (`res` = the main response) gives the first frontier: an id or a list of ids. Each round sends `request` once per frontier id (`el` = the id), every page of it when `pagination` is set (any §8 type; `results_path` says where the records are). `request` and `fetch` take a step's `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers` and `auth`.
+- `start` (a template or builder; `res` = the main response, or on a paginated op the list of every result) gives the first frontier: an id or a list of ids. Outlook folders with children: `{"$map": "{{ res }}", "$to": "{{ el.childFolderCount | ne:'0' | then:el.childFolderCount | then:el.id }}"}`. Each round sends `request` once per frontier id (`el` = the id), every page of it when `pagination` is set (any §8 type; `results_path` says where the records are). `request` and `fetch` take a step's `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers` and `auth`.
 - Per record (`el` = the record): `id` (default `{{ el.id }}`) — records with an empty or already seen id are skipped (start ids count as seen, so cycles end); `descend` — its id joins the next round's frontier; `keep` (default true) — it is collected. The walk ends when a round finds nothing to descend into or `max` records are kept; it stops mid-page at the cap. `max` empty = no cap; `0` or less walks nothing.
 - `fetch` (optional) replaces the kept records by full objects: the ids go out in chunks of `chunk` (default 100) with `el` = the chunk's list of ids, the objects at its `results_path` are matched back by `key` (default `{{ el.id }}`), in walk order; ids the API does not return are dropped.
-- The walked records go through the rest of `output` (`each`, `to`, …) with the main result. A walk can't be combined with the op's own `pagination`.
+- The walked records go through the rest of `output` (`each`, `to`, …) with the main result.
 
 **Header-row output.** `"output": {"path": "values", "header_row": true}` turns `[[h1,h2],[v1,v2],…]` into one item per row keyed by the first row.
 

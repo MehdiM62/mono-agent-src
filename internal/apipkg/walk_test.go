@@ -147,20 +147,19 @@ func TestWalkWithoutPaginationOrFetch(t *testing.T) {
 
 func TestWalkValidation(t *testing.T) {
 	_, err := Parse([]byte(pkgJSON(`{"resource":"","operation":"tree","title":"T","method":"GET","path":"/n",
-	  "pagination":{"type":"page","page_param":"page"},
-	  "output":{"walk":{"start":"{{ res.id }}","request":{"method":"GET","path":"/x/{{ p.nope }}"},
+	  "output":{"walk":{"start":"","request":{"method":"GET","path":"/x/{{ p.nope }}"},
 	    "fetch":{"method":"GET","path":"/y","chunk":-1}}}}`)), "demo")
 	if err == nil {
 		t.Fatal("bad walk validated")
 	}
-	for _, want := range []string{"cannot be combined with the op's pagination", "fetch.chunk must not be negative", `"nope"`} {
+	for _, want := range []string{"start is required", "fetch.chunk must not be negative", `"nope"`} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error lacks %q: %v", want, err)
 		}
 	}
 	_, err = Parse([]byte(pkgJSON(`{"resource":"","operation":"tree","title":"T","method":"GET","path":"/n",
-	  "output":{"walk":{"start":"","request":{"method":"GET","path":"/x","when":"x"}}}}`)), "demo")
-	if err == nil || !strings.Contains(err.Error(), `unknown key "when"`) || !strings.Contains(err.Error(), "walk.start") {
+	  "output":{"walk":{"start":"{{ res.id }}","request":{"method":"GET","path":"/x","when":"x"}}}}`)), "demo")
+	if err == nil || !strings.Contains(err.Error(), `unknown key "when"`) {
 		t.Errorf("schema errors: %v", err)
 	}
 }
