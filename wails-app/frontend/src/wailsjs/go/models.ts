@@ -739,6 +739,22 @@ export namespace main {
 	        this.active = source["active"];
 	    }
 	}
+	export class CurlImport {
+	    config: Record<string, any>;
+	    notes: string[];
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CurlImport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.config = source["config"];
+	        this.notes = source["notes"];
+	        this.error = source["error"];
+	    }
+	}
 	export class DaemonRestartResult {
 	    restarted: boolean;
 	    via: string;
