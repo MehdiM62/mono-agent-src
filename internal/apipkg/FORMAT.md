@@ -174,7 +174,7 @@ Scopes:
 | `res.<path>` | the main request's decoded response, inside `also` steps |
 | `items` | every input item's JSON as a list, in `batch` operations |
 | `pre.<path>` | the decoded response of the op's (last) `before` request |
-| `bin.file_name`, `bin.mime_type`, `bin.file_extension` | the uploaded binary's name and type (ops with `binary.upload_field`); raw/multipart uploads default their Content-Type to it |
+| `bin.file_name`, `bin.mime_type`, `bin.file_extension`, `bin.base64`, `bin.file_size` | the uploaded binary's name and type (ops with `binary.upload_field`); raw/multipart uploads default their Content-Type to it |
 | `main.<path>` | the main request's response, unchanged while `poll` repeats rebind `res` (also set in `also` steps) |
 | `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
 | `now` | the current UTC time (RFC 3339): `{{ now \| epoch \| add:p.duration \| date:'YYYY-MM-DDTHH:mm:ssZ' }}` |
@@ -473,6 +473,8 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 `binary.download_when` (template) decides per run whether the response is a file (GCS `alt=media`, Slides thumbnail download); it overrides `download`. `binary.upload_text` (template): when it renders non-empty, that text (Content-Type text/plain) is uploaded instead of the item's binary (GCS create from text).
 
 `binary.upload_when` (template) decides per run whether to upload (n8n `sendBinaryData`); without the upload a multipart op sends its `body` as JSON (or nothing). `binary.multipart_field` may be a template, and `binary.property` (template) overrides the property read from `upload_field` — n8n's `"formField:binaryProperty"` values: `"multipart_field": "{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}"`, `"property": "{{ p.binaryPropertyName | split:':' | get:'-1' }}"`.
+
+**Files inside JSON.** Upload: `bin.base64` is the upload's bytes base64-encoded, for APIs that take file content in a JSON body (GitHub/GitLab `"content": "{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"` with `upload_when: "{{ p.binaryData }}"`). Download: `binary.download_base64` (template over `res`, e.g. `"{{ res.content }}"`) decodes a base64 file from the JSON response onto the item's binary (property from `property_field`, name from the `file_name` template, MIME type from `mime_type` or the name) and keeps the JSON as the item; gate it with `download_when`.
 
 ## 11. `extends` (apps with a native Go node)
 

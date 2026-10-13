@@ -179,6 +179,7 @@
             "mime_type": { "type": "string" },
             "download_when": { "type": "string" },
             "upload_when": { "type": "string" },
+            "download_base64": { "type": "string" },
             "property": { "type": "string" },
             "upload_text": { "type": "string" }
           }

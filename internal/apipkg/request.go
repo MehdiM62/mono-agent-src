@@ -378,10 +378,17 @@ func (r *opRun) uploadMime() string {
 // binMeta describes the upload for the bin template root.
 func (r *opRun) binMeta() map[string]any {
 	name := r.uploadName()
-	return map[string]any{
+	m := map[string]any{
 		"file_name": name, "mime_type": r.uploadMime(),
 		"file_extension": strings.TrimPrefix(path.Ext(name), "."),
 	}
+	// base64 for JSON-body uploads (GitHub/GitLab file content); a missing
+	// binary leaves it unset so the error comes from the op that needs it.
+	if data, err := r.uploadData(); err == nil {
+		m["base64"] = base64.StdEncoding.EncodeToString(data)
+		m["file_size"] = len(data)
+	}
+	return m
 }
 
 // uploads reports whether this run uploads the item's binary.

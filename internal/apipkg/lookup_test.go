@@ -638,3 +638,37 @@ func TestExtendsCannotShadowNativeOps(t *testing.T) {
 		t.Errorf("a new resourceless op is fine: %v", err)
 	}
 }
+
+func TestBase64InJSONUploadAndDownload(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"put","title":"P","method":"PUT","path":"/contents/{{ p.path }}",
+	  "fields":[{"key":"path","label":"P","type":"text"},{"key":"binaryData","label":"B","type":"boolean"},{"key":"fileContent","label":"C","type":"text"},
+	    {"key":"binaryPropertyName","label":"N","type":"text","default":"data"}],
+	  "body":{"content":"{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"},
+	  "binary":{"upload_field":"binaryPropertyName","upload_when":"{{ p.binaryData }}"}},
+	  {"resource":"","operation":"get","title":"G","method":"GET","path":"/contents/{{ p.path }}",
+	  "fields":[{"key":"path","label":"P","type":"text"},{"key":"asBinaryProperty","label":"A","type":"boolean"}],
+	  "binary":{"download_when":"{{ p.asBinaryProperty }}","download_base64":"{{ res.content }}","file_name":"{{ res.name }}"}}`))
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		w.Write([]byte(`{"name":"a.txt","sha":"s1","content":"aGVs\nbG8="}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "put", "path": "a.txt", "binaryData": true}, cred, map[string]any{"data": "aGk="}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runPackageOp(p, map[string]any{"operation": "put", "path": "a.txt", "fileContent": "yo"}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	if bodies[0] != `{"content":"aGk="}` || bodies[1] != `{"content":"eW8="}` {
+		t.Errorf("bodies = %v", bodies)
+	}
+	items, err := runPackageOp(p, map[string]any{"operation": "get", "path": "a.txt", "asBinaryProperty": true}, cred, nil)
+	if err != nil || string(items[0].Binary["data"]) != "hello" || items[0].JSON["sha"] != "s1" || items[0].JSON["file_name"] != "a.txt" || items[0].JSON["mime_type"] != "text/plain; charset=utf-8" {
+		t.Errorf("download: %v %v", items, err)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "get", "path": "a.txt"}, cred, nil)
+	if items[0].Binary != nil || items[0].JSON["content"] == nil {
+		t.Errorf("no download: %v", items)
+	}
+}

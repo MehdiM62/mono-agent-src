@@ -316,6 +316,10 @@ type Binary struct {
 	// UploadText (a template): when it renders non-empty, its text is the
 	// upload instead of the input item's binary (GCS create from text).
 	UploadText string `json:"upload_text,omitempty"`
+	// DownloadBase64 (a template over res): when the response carries the
+	// file base64-encoded in JSON (GitHub contents), decode it onto the
+	// item's binary and keep the JSON response as the item's json.
+	DownloadBase64 string `json:"download_base64,omitempty"`
 }
 
 // NodeTypeOf is the node type a package registers ("" for extends).
