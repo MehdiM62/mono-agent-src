@@ -12,12 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/orgbridge"
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
 	"github.com/monoes/mono-agent/internal/orggroup"
-	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -154,15 +154,7 @@ func (s *orgServices) start(ctx context.Context, engine *workflow.WorkflowEngine
 
 // orgReconcileOutcome is what reconciling one org file did — the daemon
 // logs it, `org reconcile` prints it.
-type orgReconcileOutcome struct {
-	Org      string             `json:"org"`
-	Saved    bool               `json:"saved"`
-	Findings []orggrant.Finding `json:"findings"`
-	Error    string             `json:"error,omitempty"`
-	// Signature is what the save did to the org's operator signature
-	// (monomind 2.21+): re-signed, or left for review with a notice.
-	Signature *orgsign.Outcome `json:"signature,omitempty"`
-}
+type orgReconcileOutcome = orgenv.ReconcileOutcome
 
 // reconcileProfile reconciles every org of a profile at startup, so grants,
 // providers, approvalTools, and autonomy agree with the enforcement rows

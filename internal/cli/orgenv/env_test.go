@@ -36,6 +36,7 @@ func profileEnv(t *testing.T) (*Env, *storage.Database, string) {
 	e := New(Deps{
 		OpenDB:    func() (*storage.Database, error) { opened++; return db, nil },
 		ProfileID: func() string { return "work" },
+		Project:   func() string { return "" },
 	})
 	t.Cleanup(func() {
 		if opened > 1 {
@@ -62,8 +63,10 @@ func TestRootIsTheProfileRoot(t *testing.T) {
 
 func TestProjectFlagWinsWithoutOpeningTheDB(t *testing.T) {
 	t.Parallel()
-	e := New(Deps{OpenDB: func() (*storage.Database, error) { t.Fatal("OpenDB called"); return nil, nil }})
-	e.ProjectFlag = "/some/project"
+	e := New(Deps{
+		OpenDB:  func() (*storage.Database, error) { t.Fatal("OpenDB called"); return nil, nil },
+		Project: func() string { return "/some/project" },
+	})
 	if got := e.Root(); got != "/some/project" {
 		t.Fatalf("Root() = %q", got)
 	}
@@ -73,11 +76,12 @@ func TestProjectFlagWinsWithoutOpeningTheDB(t *testing.T) {
 func TestProfileRefusesAnotherProject(t *testing.T) {
 	t.Parallel()
 	e, _, root := profileEnv(t)
-	e.ProjectFlag = root
+	project := root
+	e.Project = func() string { return project }
 	if _, _, _, err := e.Profile(); err != nil {
 		t.Fatalf("--project at the profile root: %v", err)
 	}
-	e.ProjectFlag = t.TempDir()
+	project = t.TempDir()
 	_, _, _, err := e.Profile()
 	if err == nil || !strings.Contains(err.Error(), `is not the org root of profile "work"`) {
 		t.Fatalf("--project elsewhere: %v", err)
@@ -90,6 +94,7 @@ func TestRootFallsBackWhenTheDBFails(t *testing.T) {
 		e := New(Deps{
 			OpenDB:    func() (*storage.Database, error) { return nil, errors.New("no db") },
 			ProfileID: func() string { return pid },
+			Project:   func() string { return "" },
 		})
 		want := pid
 		if want == "" {
@@ -111,6 +116,7 @@ func TestBadProfileIDIsRefused(t *testing.T) {
 	e := New(Deps{
 		OpenDB:    func() (*storage.Database, error) { return db, nil },
 		ProfileID: func() string { return "../x" },
+		Project:   func() string { return "" },
 	})
 	_, _, _, err := e.Profile()
 	if err == nil || !strings.HasPrefix(err.Error(), `preparing profile folder for "../x": `) {

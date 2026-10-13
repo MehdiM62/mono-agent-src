@@ -31,18 +31,15 @@ type orgEnv struct {
 }
 
 func (e *orgEnv) env() *orgenv.Env {
-	e.once.Do(func() { e.e = orgenv.New(orgEnvDeps(e.cfg)) })
-	e.e.ProjectFlag = e.projectFlag
+	e.once.Do(func() {
+		e.e = orgenv.New(orgenv.Deps{
+			OpenDB:            func() (*storage.Database, error) { return initDB(e.cfg) },
+			ProfileID:         func() string { return e.cfg.ProfileID },
+			OpenWorkflowStore: openWorkflowStore,
+			Project:           func() string { return e.projectFlag },
+		})
+	})
 	return e.e
-}
-
-// orgEnvDeps is orgenv.Deps on cfg.
-func orgEnvDeps(cfg *globalConfig) orgenv.Deps {
-	return orgenv.Deps{
-		OpenDB:            func() (*storage.Database, error) { return initDB(cfg) },
-		ProfileID:         func() string { return cfg.ProfileID },
-		OpenWorkflowStore: openWorkflowStore,
-	}
 }
 
 func (e *orgEnv) Root() string { return e.env().Root() }

@@ -19,6 +19,7 @@ import (
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
+	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -33,6 +34,8 @@ type Deps struct {
 	ProfileID func() string
 	// OpenWorkflowStore opens the workflow store granted workflows load from.
 	OpenWorkflowStore func(*storage.Database) *workflow.HybridWorkflowStore
+	// Project is --project ("" when not given); read on every call.
+	Project func() string
 }
 
 // Env resolves the org project root and, for DB-backed org commands, the
@@ -40,8 +43,6 @@ type Deps struct {
 // explicit --project never touch it.
 type Env struct {
 	Deps
-	// ProjectFlag is --project; read on every call.
-	ProjectFlag string
 
 	once    sync.Once
 	db      *storage.Database
@@ -71,8 +72,8 @@ func (e *Env) open() {
 // it falls back to the default per-profile folder rather than failing a
 // read-only observe command.
 func (e *Env) Root() string {
-	if e.ProjectFlag != "" {
-		return expandPath(e.ProjectFlag)
+	if p := e.Project(); p != "" {
+		return expandPath(p)
 	}
 	e.open()
 	if e.dbErr != nil {
@@ -95,9 +96,9 @@ func (e *Env) Profile() (*storage.Database, string, string, error) {
 	if e.dbErr != nil {
 		return nil, "", "", e.dbErr
 	}
-	if e.ProjectFlag != "" {
+	if p := e.Project(); p != "" {
 		want, _ := filepath.Abs(e.rootDir)
-		got, _ := filepath.Abs(expandPath(e.ProjectFlag))
+		got, _ := filepath.Abs(expandPath(p))
 		if filepath.Clean(want) != filepath.Clean(got) {
 			return nil, "", "", fmt.Errorf("--project %s is not the org root of profile %q (%s); grants and autonomy belong to a profile — drop --project or pass --profile", got, e.ProfileID(), want)
 		}
@@ -215,6 +216,18 @@ func ReconcileRows(ctx context.Context, db *storage.Database, profileID string, 
 		rep.Findings = append(rep.Findings, orggrant.Finding{Kind: "autonomy_raise_ignored", Detail: auto.Ignored})
 	}
 	return rep, nil
+}
+
+// ReconcileOutcome is what reconciling one org file did — the daemon
+// logs it, `org reconcile` prints it.
+type ReconcileOutcome struct {
+	Org      string             `json:"org"`
+	Saved    bool               `json:"saved"`
+	Findings []orggrant.Finding `json:"findings"`
+	Error    string             `json:"error,omitempty"`
+	// Signature is what the save did to the org's operator signature
+	// (monomind 2.21+): re-signed, or left for review with a notice.
+	Signature *orgsign.Outcome `json:"signature,omitempty"`
 }
 
 // RowsLockWait bounds how long a writer waits for the org rows lock; a holder keeps it for one
