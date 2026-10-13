@@ -210,6 +210,26 @@ export const api = {
     GoApp.SetChatOrgMode(conversationID, mode).then(parseStreamResult),
   coderStopBackground: (conversationID, turnID) =>
     GoApp.CoderStopBackground(conversationID, turnID).then(parseStreamResult),
+  // The active profile's own folder, set up for the runtime: {path, profile:{id,name}, source, init}.
+  coderWorkspaceDefault: (runtimeID = '') => GoApp.CoderWorkspaceDefault(runtimeID).then(parseStreamResult),
+  getActiveProfile: () => GoApp.GetActiveProfile(),
+  // Send approval (coder-bubble-v2 point 3): an agent's outbound send waits as a
+  // HIL item of kind "send" (also in getHILItems as item.send). Payload shape:
+  // internal/hilsend/types.go. hilSendResolve performs the previewed payload
+  // once on approve (editText/editSubject/alwaysAllow optional).
+  hilSendList:         (state = '') => GoApp.HilSendList(state).then(parseStreamResult),
+  hilSendShow:         (id) => GoApp.HilSendShow(id).then(parseStreamResult),
+  hilSendEdit:         (id, text = '', subject = '') => GoApp.HilSendEdit(id, text, subject).then(parseStreamResult),
+  hilSendResolve:      (id, approve, { editText = '', editSubject = '', alwaysAllow = false } = {}) =>
+    GoApp.HilSendResolve(id, approve, editText, editSubject, alwaysAllow).then(parseStreamResult),
+  hilSendAttachment:     (id, n) => GoApp.HilSendAttachment(id, n).then(parseStreamResult),
+  hilSendAttachmentData: (id, n) => GoApp.HilSendAttachmentData(id, n),
+  hilSendRecipient:    (id) => GoApp.HilSendRecipient(id).then(parseStreamResult),
+  hilSendAllowList:    () => GoApp.HilSendAllowList().then(parseStreamResult),
+  hilSendAllowAdd:     (action, platform, account, recipient) =>
+    GoApp.HilSendAllowAdd(action, platform, account, recipient).then(parseStreamResult),
+  hilSendAllowRemove:  (ruleID) => GoApp.HilSendAllowRemove(ruleID).then(parseStreamResult),
+  hilSendSetApproval:  (on) => GoApp.HilSendSetApproval(on).then(parseStreamResult),
   coderWorkspaceRoot: (runtimeID = '') => GoApp.CoderWorkspaceRoot(runtimeID).then(parseStreamResult),
   coderWorkspaceList: () => GoApp.CoderWorkspaceList().then(parseStreamResult),
   createCoderConversation: (runtimeID, model, effort, cwd, newWorkspace = false) =>
@@ -252,6 +272,10 @@ export const api = {
   dismissOrgChat:     (org, questionID, reason = '') => GoApp.DismissOrgChat(org, questionID, reason).then(s => JSON.parse(s)).catch(asError),
   resolveOrgChat:     (org, ref, approve, note = '') => GoApp.ResolveOrgChat(org, ref, approve, note).then(s => JSON.parse(s)).catch(asError),
   controlOrg:         (org, verb) => GoApp.ControlOrg(org, verb).then(s => JSON.parse(s)).catch(asError),
+  // Bubble asks (`monoagentcli hil …`, app_hil_ui.go): only services/hilApi.js calls these.
+  hilList:            () => GoApp.HILList().then(s => JSON.parse(s)).catch(asError),
+  hilResolve:         (id, { approve, editText = '', data } = {}) => GoApp.HILResolve(id, !!approve, editText || '', data ? JSON.stringify(data) : '').then(s => JSON.parse(s)).catch(asError),
+  hilAttachment:      (id, n) => GoApp.HILAttachment(id, n).then(s => JSON.parse(s)).catch(asError),
   // Org Designer — direct config-file read/write, distinct from the org
   // observe/action surface above (which proxies `monoagentcli org <sub>`,
   // read-only + question/gate actions). See wails-app/app_orgs_design.go.

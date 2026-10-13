@@ -58,9 +58,9 @@ function rolesMap(roles) {
 // initialOrgBubble is an empty adapter state for org. roles are the org's
 // roles as `org chat history` lists them ({id, title, type, reports_to,
 // runtime, model}); boss is the root role's id.
-export function initialOrgBubble({ org, boss = '', roles = [] } = {}) {
+export function initialOrgBubble({ org, boss = '', roles = [], prejoin = false } = {}) {
   const byId = rolesMap(roles)
-  return {
+  const s = {
     org: org || '',
     boss,
     roles: byId,
@@ -80,6 +80,21 @@ export function initialOrgBubble({ org, boss = '', roles = [] } = {}) {
     calls: {},
     callIds: {},
   }
+  return prejoin ? { ...prejoinRoles(s), prejoined: true } : s
+}
+
+// prejoinRoles puts every role on the stage as idle, parents first, so the
+// whole team is visible before anyone has spoken (the expanded bubble shows
+// ALL roles; the plain adapter lets them pop in lazily). It returns a new
+// state and leaves s alone.
+function prejoinRoles(state) {
+  const s = { ...state }
+  const out = emitter(s, {})
+  for (const role of Object.keys(s.roles)) join(s, out, role)
+  const { stage, seq } = out.done()
+  s.stage = stage
+  s.seq = seq
+  return s
 }
 
 function nodeIdOf(s, role) {
@@ -322,6 +337,7 @@ export function applyOrgBusEvent(state, ev) {
   // A new run on the same bus starts a fresh stage (the roles stay).
   if (ev.run && s.run && ev.run !== s.run) {
     s = { ...s, stage: initialStage(), seq: 0, joined: {}, briefed: {}, openCall: {}, calls: {}, callIds: {} }
+    if (state.prejoined) s = prejoinRoles(s)
   }
   if (ev.run) s.run = ev.run
   s.activity = activityApply(s.activity, ev)
@@ -392,17 +408,25 @@ export function applyOrgSummaryEvent(summary, ev, { boss = '', expanded = false 
   const activity = activityApply(a0, ev)
   let unread = s.unread
   if (!expanded && ev?.type === 'chat' && boss && ev.from === boss && activity !== s.activity) unread += 1
+  // A run that ends while the bubble is collapsed is news too.
+  if (!expanded && activity.orgStatus === 'stopped' && a0.orgStatus !== 'stopped') unread += 1
   return activity === s.activity && unread === s.unread ? s : { ...s, activity, unread }
 }
 
 // orgBubbleStatus is the dock's ring for an org: amber while anything waits
-// for the person, spinning while a role works, idle otherwise.
-export function orgBubbleStatus(summary) {
+// for the person (extraNeeds counts asks the bus doesn't carry, like
+// workflow approvals), spinning while a role works, green once a run ended
+// cleanly, red when it ended with errors or a crashed role, idle otherwise.
+export function orgBubbleStatus(summary, extraNeeds = 0) {
   const a = summary?.activity
-  if (!a) return 'idle'
-  const needs = (a.questions?.length || 0) + (a.approvals?.length || 0) + pendingGates(a).length
+  if (!a) return extraNeeds > 0 ? 'needs' : 'idle'
+  const needs = (a.questions?.length || 0) + (a.approvals?.length || 0) + pendingGates(a).length + extraNeeds
   if (needs > 0) return 'needs'
-  if (a.orgStatus === 'stopped') return 'idle'
+  if (a.orgStatus === 'stopped') {
+    const roles = Object.values(a.roles || {})
+    if ((a.counters?.errors || 0) > 0 || roles.some(r => r.status === 'crashed' || r.status === 'failed' || r.status === 'error')) return 'error'
+    return a.run ? 'done' : 'idle'
+  }
   if (Object.values(a.roles || {}).some(r => r.status === 'working')) return 'working'
   return 'idle'
 }
@@ -431,25 +455,85 @@ export function touchesThread(ev, boss = '') {
   }
 }
 
-// ── Auto-open ────────────────────────────────────────────────────────────
+// ── Auto-dock ────────────────────────────────────────────────────────────
 
-// orgsToAutoOpen picks the running orgs that get a bubble because they ask
-// the person something (#229): rows are [{name, running, needs}], open the
-// orgs that already have a bubble, dismissed maps an org whose bubble the
-// person closed to how many items waited then. Such an org comes back only
-// when more items wait than when it was closed; once nothing waits it is
-// forgotten. Returns { open: [names], dismissed }.
+// isOrgStart reports whether a bus event says the org's run began.
+export function isOrgStart(ev) {
+  return ev?.type === 'status' && !ev.from && /^org started/.test(typeof ev.msg === 'string' ? ev.msg : '')
+}
+
+// orgsToAutoOpen picks the running orgs that get a bubble (#229, and
+// auto-dock of the coder-bubble v2 plan): rows are [{name, running, needs}],
+// open the orgs that already have a bubble, dismissed maps an org whose
+// bubble the person closed while it ran to how many items waited then. Every
+// running org without a bubble gets one, collapsed; one the person closed
+// stays closed for that run and comes back only when more items wait than
+// when it was closed. Once the org stops running it is forgotten, so its next
+// run docks again. Returns { open: [names], dismissed }.
 export function orgsToAutoOpen(rows, open, dismissed = {}) {
   const next = {}
   const names = []
   for (const r of rows || []) {
     if (!r?.name) continue
     const needs = Number(r.needs) || 0
-    if (dismissed[r.name] != null && r.running && needs > 0) next[r.name] = dismissed[r.name]
-    if (!r.running || needs === 0 || open.has(r.name)) continue
+    if (dismissed[r.name] != null && r.running) next[r.name] = dismissed[r.name]
+    if (!r.running || open.has(r.name)) continue
     if (next[r.name] != null && needs <= next[r.name]) continue
     names.push(r.name)
     delete next[r.name]
   }
   return { open: names, dismissed: next }
+}
+
+// ── Per-role threads ─────────────────────────────────────────────────────
+
+const roleOfItem = it => it.role ?? it.preparedBy?.role ?? ''
+
+function callTime(call) {
+  const t = Date.parse(call?.startedAt || '')
+  return Number.isFinite(t) ? t : 0
+}
+
+// roleThread is one role's slice of the boss thread (`org chat history`):
+// what it said, its questions, approvals, gates and sends, the team messages
+// it sent or got, and its tool activity from the stage adapter (state.calls /
+// state.callIds), oldest first. The boss's own view is the whole thread; the
+// stage keeps no tool order for the lead, so asking for the boss gets just
+// its items.
+export function roleThread(items, role, { calls = {}, callIds = {} } = {}) {
+  if (!role) return []
+  const rows = []
+  for (const it of items || []) {
+    if (it.kind === 'team' ? it.from === role || it.to === role : roleOfItem(it) === role) rows.push({ ts: Number(it.ts) || 0, item: it })
+  }
+  for (const id of callIds[role] || []) {
+    const call = calls[id]
+    if (call) rows.push({ ts: callTime(call), item: { kind: 'tool', id, role, call } })
+  }
+  return rows.map((r, i) => ({ ...r, i })).sort((a, b) => a.ts - b.ts || a.i - b.i).map(r => r.item)
+}
+
+// teamThread is the role-to-role conversation as a timeline.
+export function teamThread(items) {
+  return (items || []).filter(it => it.kind === 'team')
+}
+
+// threadView picks what the chat shows: { mode: 'boss' } is the whole boss
+// thread, { mode: 'team' } the team timeline, { mode: 'role', role } one
+// role's slice.
+export function threadView(items, view, state = {}) {
+  if (view?.mode === 'team') return teamThread(items)
+  if (view?.mode === 'role' && view.role) return roleThread(items, view.role, state)
+  return items || []
+}
+
+// toolSummary is a tool call's one-line target ("Bash · go test ./...").
+export function toolSummary(call) {
+  let args = call?.arguments
+  if (typeof args === 'string') {
+    try { args = JSON.parse(args) } catch { args = {} }
+  }
+  args = args && typeof args === 'object' ? args : {}
+  const target = String(args.file_path || args.path || args.command || args.pattern || args.url || args.description || '').replace(/\s+/g, ' ').trim()
+  return target ? `${call.name} · ${target.length > 70 ? target.slice(0, 69) + '…' : target}` : call?.name || 'tool'
 }

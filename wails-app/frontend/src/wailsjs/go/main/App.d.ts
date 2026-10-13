@@ -123,6 +123,8 @@ export function CoderStatus():Promise<string>;
 
 export function CoderStopBackground(arg1:string,arg2:string):Promise<string>;
 
+export function CoderWorkspaceDefault(arg1:string):Promise<string>;
+
 export function CoderWorkspaceList():Promise<string>;
 
 export function CoderWorkspaceRoot(arg1:string):Promise<string>;
@@ -345,7 +347,35 @@ export function GetWorkflowNodeTypes():Promise<Record<string, any>>;
 
 export function GetWorkflowTriggerInputs(arg1:string):Promise<string>;
 
+export function HILAttachment(arg1:string,arg2:number):Promise<string>;
+
+export function HILList():Promise<string>;
+
+export function HILResolve(arg1:string,arg2:boolean,arg3:string,arg4:string):Promise<string>;
+
 export function HasGeneratedDocuments(arg1:string):Promise<boolean>;
+
+export function HilSendAllowAdd(arg1:string,arg2:string,arg3:string,arg4:string):Promise<string>;
+
+export function HilSendAllowList():Promise<string>;
+
+export function HilSendAllowRemove(arg1:string):Promise<string>;
+
+export function HilSendAttachment(arg1:string,arg2:number):Promise<string>;
+
+export function HilSendAttachmentData(arg1:string,arg2:number):Promise<string>;
+
+export function HilSendEdit(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function HilSendList(arg1:string):Promise<string>;
+
+export function HilSendRecipient(arg1:string):Promise<string>;
+
+export function HilSendResolve(arg1:string,arg2:boolean,arg3:string,arg4:string,arg5:boolean):Promise<string>;
+
+export function HilSendSetApproval(arg1:boolean):Promise<string>;
+
+export function HilSendShow(arg1:string):Promise<string>;
 
 export function ImportVaultAll(arg1:string,arg2:string):Promise<main.VaultImportResult>;
 

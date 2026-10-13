@@ -1011,6 +1011,13 @@
     "scopedTitle": "Claude ran with monomind's scoped access: its own tools are limited to what this turn allows. It has no separate sandbox yet.",
     "awaitingMonomindTitle": "monomind can't sandbox this agent runtime yet (monomind issue #396), so the turn ran without one. Codex and Grok turns are sandboxed today."
   },
+  "coderFolder": {
+    "profileDefault": "Profile folder (default): {{name}}",
+    "profileDefaultUnnamed": "Profile folder (default)",
+    "profileHint": "The active profile's own folder",
+    "chooseAnother": "Choose another folder…",
+    "chooseHint": "Any folder you trust"
+  },
   "bubbles": {
     "dockLabel": "Coder chats",
     "newChat": "New coder chat",
@@ -1247,7 +1254,8 @@
       "approved": "approved",
       "denied": "denied",
       "rejected": "rejected",
-      "dismissed": "dismissed"
+      "dismissed": "dismissed",
+      "sent": "sent"
     },
     "dismiss": "Dismiss",
     "dismissHint": "Close this question without answering; the role is told",
@@ -1275,7 +1283,23 @@
     "sent": "sent",
     "couldNotSend": "Could not send: {{error}}",
     "openAsBubble": "Open as bubble",
-    "openAsBubbleNamed": "Open {{name}} as a chat bubble"
+    "openAsBubbleNamed": "Open {{name}} as a chat bubble",
+    "threadBoss": "Boss",
+    "threadTeam": "Team",
+    "threadsLabel": "Conversation view",
+    "threadRoleLabel": "{{name}} thread",
+    "teamEmpty": "No role-to-role messages yet.",
+    "roleEmpty": "{{name}} has not said or done anything yet.",
+    "waitingElsewhere_one": "{{count}} waiting for you in another view. Show the boss thread",
+    "waitingElsewhere_other": "{{count}} waiting for you in another view. Show the boss thread",
+    "tool": {
+      "running": "running",
+      "ok": "done",
+      "failed": "failed",
+      "denied": "denied"
+    },
+    "answerInBubble": "Answer in the bubble",
+    "answerInBubbleNamed": "Open {{name}} as a bubble to answer what waits for you"
   },
   "account": {
     "checking": "Checking your monoes.me account…",
@@ -1383,10 +1407,28 @@
     "left": "{{time}} left",
     "ended": "ended {{time}} ago",
     "leaseEnded": "The lease ended: another agent may take it over, or it can go back to Ready.",
-    "tag": { "question": "Question", "result": "Result" },
-    "age": { "now": "now", "m": "{{n}}m", "h": "{{n}}h", "d": "{{n}}d", "w": "{{n}}w" },
-    "span": { "m": "{{m}}m", "hm": "{{h}}h {{m}}m" },
-    "source": { "chrome": "Chrome", "os": "App", "agent": "Agent", "app": "MonoAgent", "cli": "Terminal" },
+    "tag": {
+      "question": "Question",
+      "result": "Result"
+    },
+    "age": {
+      "now": "now",
+      "m": "{{n}}m",
+      "h": "{{n}}h",
+      "d": "{{n}}d",
+      "w": "{{n}}w"
+    },
+    "span": {
+      "m": "{{m}}m",
+      "hm": "{{h}}h {{m}}m"
+    },
+    "source": {
+      "chrome": "Chrome",
+      "os": "App",
+      "agent": "Agent",
+      "app": "MonoAgent",
+      "cli": "Terminal"
+    },
     "archiveFailed": "Could not archive",
     "archiving": "Archiving…",
     "close": "Close",
@@ -1470,5 +1512,36 @@
       "org_id": "Organization ID",
       "role_id": "Role ID"
     }
+  },
+  "ask": {
+    "regionLabel": "Waiting for your approval",
+    "hilTitle": "Workflow {{workflow}} asks: {{node}}",
+    "sendTitle": "Approve sending ({{channel}})",
+    "sendLabel": "Approve sending {{channel}} to {{name}}",
+    "channel": {
+      "email": "email",
+      "dm": "direct message",
+      "comment": "comment",
+      "post": "post",
+      "connection": "connection request"
+    },
+    "to": "To",
+    "from": "From",
+    "subject": "Subject",
+    "profile": "profile",
+    "person": "open person",
+    "unknownRecipient": "Unknown recipient",
+    "textLabel": "Exact text that will be sent",
+    "edited": "Edited: approving sends this text.",
+    "preparedBy": "Prepared by {{name}}. Nothing is sent until you approve.",
+    "edit": "Edit",
+    "doneEditing": "Done editing",
+    "attachments_one": "{{count}} attachment",
+    "attachments_other": "{{count}} attachments",
+    "imageAlt": "Image attachment",
+    "previewFailed": "Preview unavailable",
+    "previewLoading": "Loading preview…",
+    "open": "Open",
+    "openNamed": "Open {{name}}"
   }
 }

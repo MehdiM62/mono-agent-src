@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/hilsuggest"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/spf13/cobra"
@@ -26,6 +27,8 @@ func newHILCmd(cfg *globalConfig) *cobra.Command {
 		newHILListCmd(cfg),
 		newHILApproveCmd(cfg),
 		newHILRejectCmd(cfg),
+		newHILResolveCmd(cfg), newHILSendsCmd(cfg), newHILShowCmd(cfg), newHILEditCmd(cfg),
+		newHILAttachmentCmd(cfg), newHILRecipientCmd(cfg), newHILAllowCmd(cfg),
 	)
 	return cmd
 }
@@ -42,6 +45,10 @@ type hilItem struct {
 	EditableData map[string]interface{} `json:"editable_data"`
 	NodeConfig   map[string]interface{} `json:"node_config"`
 	CreatedAt    string                 `json:"created_at"`
+	// Kind is "send" for an outbound send an agent prepared; Send is then its
+	// approval card (hilsend.Payload). Ordinary workflow items have neither.
+	Kind string           `json:"kind,omitempty"`
+	Send *hilsend.Payload `json:"send,omitempty"`
 	// Suggestion is TypeSafe Jev's stored suggestion (--suggest only).
 	Suggestion *hilsuggest.Suggestion `json:"suggestion,omitempty"`
 }
@@ -92,6 +99,9 @@ func newHILListCmd(cfg *globalConfig) *cobra.Command {
 				_ = json.Unmarshal([]byte(roRaw), &it.ReadonlyData)
 				_ = json.Unmarshal([]byte(edRaw), &it.EditableData)
 				_ = json.Unmarshal([]byte(cfgRaw), &it.NodeConfig)
+				if send := hilsend.FromRow(it.ID, it.Status, roRaw, edRaw, cfgRaw); send != nil {
+					it.Kind, it.Send = "send", send
+				}
 				items = append(items, it)
 			}
 			if err := rows.Err(); err != nil {
@@ -244,6 +254,9 @@ func newHILApproveCmd(cfg *globalConfig) *cobra.Command {
 			if editedData == "" {
 				editedData = "{}"
 			}
+			if done, err := approveIfSend(cmd, cfg, args[0], true, editedData); done {
+				return err
+			}
 			var check map[string]interface{}
 			if err := json.Unmarshal([]byte(editedData), &check); err != nil {
 				return fmt.Errorf("--data is not valid JSON: %w", err)
@@ -283,6 +296,9 @@ func newHILRejectCmd(cfg *globalConfig) *cobra.Command {
 		Example: `  monoagentcli hil reject 1a2b3c4d`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if done, err := approveIfSend(cmd, cfg, args[0], false, ""); done {
+				return err
+			}
 			db, err := initDB(cfg)
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)

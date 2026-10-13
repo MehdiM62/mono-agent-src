@@ -13,6 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/dynorg"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/profilectx"
 )
 
 // noticeOrgUnavailable is journaled when a dynamic-org conversation's turn
@@ -119,6 +120,8 @@ func startDynamicOrg(ctx context.Context, cfg *globalConfig, journal *turnJourna
 		journal.notice(noticeOrgUnavailable, "the agent works alone this turn: "+err.Error(), chatevents.SeverityWarning)
 		return nil, nil
 	}
+	// Workers and the lead see the active profile (name, folder, counts, names only).
+	dynorg.ProfileContext = func(ctx context.Context) string { return profilectx.Block(ctx, db.DB, cfg.ProfileID) }
 	lead := dynorg.Model{Runtime: rt.ID, Model: t.model, FullAccess: true, Resume: rt.Resume}
 	if e := st.scan.Find(rt.ID); e != nil {
 		lead.Read = st.caps.Has(monomind.CapAgentExecAccessRead) && slices.Contains(e.AccessModes, monomind.AccessRead)
@@ -129,7 +132,7 @@ func startDynamicOrg(ctx context.Context, cfg *globalConfig, journal *turnJourna
 	}
 	lib := &dynorg.MonomindLibrary{Bin: opts.Bin, Cwd: t.cwd}
 	staffer := &dynorg.Staffer{
-		Roster: orgRoster(ctx, db.DB, st, lead), Lead: lead, ModelPicker: settings.OrgModelPicker,
+		Roster: orgRoster(ctx, db.DB, st, lead), Lead: lead, ModelPicker: settings.OrgModelPicker, Router: settings.OrgRouter,
 		Picker: lib, Library: lib,
 	}
 	if q, err := agentroster.LoadQuality(ctx, db.DB, time.Now()); err == nil {
@@ -141,7 +144,7 @@ func startDynamicOrg(ctx context.Context, cfg *globalConfig, journal *turnJourna
 	limits := dynorg.Limits{MaxAgents: settings.OrgMaxAgents, MaxConcurrent: settings.OrgMaxConcurrent, BudgetUSD: settings.OrgBudgetUSD}
 	base := monomind.ExecOptions{
 		Bin: opts.Bin, Settings: monomind.CoderSettings, MaxTurns: settings.MaxTurns, Timeout: settings.timeout(),
-		EffortFlag: opts.EffortFlag,
+		EffortFlag: opts.EffortFlag, Env: agentSendEnv(journal, "", ""),
 	}
 	if settings.OrgWriters == dynorg.WritersIsolated {
 		reconcileTurnWorktrees(ctx, journal, t.cwd)
@@ -164,7 +167,7 @@ func startDynamicOrg(ctx context.Context, cfg *globalConfig, journal *turnJourna
 	opts.Tools = dynorg.ToolSpecs()
 	opts.OnToolCall = cond.Handle
 	opts.ToolTimeout = dynorg.ToolTimeout
-	opts.SystemPrompt += dynorg.LeadPrompt(limits)
+	opts.SystemPrompt += dynorg.LeadPrompt(limits) + dynorg.LeadExtras(ctx, settings.OrgRouter)
 	if cond.Isolated() {
 		opts.Tools = append(opts.Tools, dynorg.MergeToolSpec())
 		opts.SystemPrompt += dynorg.IsolatedLeadPrompt

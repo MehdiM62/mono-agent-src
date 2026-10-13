@@ -10,6 +10,7 @@ import (
 
 	ainodes "github.com/monoes/mono-agent/internal/ai/nodes"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/nodes"
 	agentnodes "github.com/monoes/mono-agent/internal/nodes/agent"
 	choosenodes "github.com/monoes/mono-agent/internal/nodes/ai/choose"
@@ -38,6 +39,8 @@ import (
 // Build creates a registry with all built-in node types registered.
 // If db is non-nil, DB-backed node packages get the connection.
 func Build(db *sql.DB) *workflow.NodeTypeRegistry {
+	// Outbound sends started by an agent wait for approval (internal/hilsend).
+	workflow.SetExecGuard(hilsend.Guard)
 	registry := workflow.NewNodeTypeRegistry()
 	control.RegisterAll(registry)
 	data.RegisterAll(registry)

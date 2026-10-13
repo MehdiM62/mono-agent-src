@@ -34,6 +34,25 @@ type registryAgent struct {
 	Name     string `json:"name"`
 	Category string `json:"category"`
 	FilePath string `json:"filePath"`
+	// Description is the one-line summary org_roster shows.
+	Description string `json:"description"`
+}
+
+// ListAgents implements AgentLister: the registry's agents by category.
+func (l *MonomindLibrary) ListAgents(context.Context) map[string][]AgentInfo {
+	l.once.Do(l.loadRegistry)
+	out := map[string][]AgentInfo{}
+	seen := map[string]bool{}
+	for _, a := range l.registry {
+		id := orElse(a.Slug, a.Name)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		cat := orElse(a.Category, "general")
+		out[cat] = append(out[cat], AgentInfo{ID: id, Description: a.Description})
+	}
+	return out
 }
 
 const monomindCallTimeout = 60 * time.Second

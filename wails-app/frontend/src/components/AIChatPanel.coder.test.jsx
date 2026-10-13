@@ -4,6 +4,7 @@
 // chat has started, the coder header, the history badge, and Stop.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
+import '../i18n.js'
 import { render, screen, cleanup, waitFor, fireEvent, within } from '@testing-library/react'
 
 Element.prototype.scrollIntoView = Element.prototype.scrollIntoView || (() => {})
@@ -17,8 +18,9 @@ const m = vi.hoisted(() => ({
   stopChatTurn: vi.fn(),
   getChatTurns: vi.fn(),
   coderStatus: vi.fn(),
-  coderWorkspaceRoot: vi.fn(),
+  coderWorkspaceDefault: vi.fn(),
   coderWorkspaceList: vi.fn(),
+  getActiveProfile: vi.fn(),
   pickCoderFolder: vi.fn(),
   openPathWithOS: vi.fn(),
 }))
@@ -48,6 +50,7 @@ beforeEach(() => {
   for (const f of Object.values(m)) f.mockReset()
   m.listChatConversations.mockResolvedValue({ items: [] })
   m.getChatTurns.mockResolvedValue({ items: [] })
+  m.getActiveProfile.mockResolvedValue({ id: 'work', name: 'Work Stuff', root_dir: WS })
   m.coderWorkspaceList.mockResolvedValue([{ path: '/w/recent-proj', lastUsed: '2026-09-27T10:00:00Z', conversations: 2, exists: true }])
   m.startChatTurn.mockResolvedValue({ ok: true, status: 'active' })
   m.stopChatTurn.mockResolvedValue({ ok: true })
@@ -93,20 +96,21 @@ describe('AIChatPanel coder mode', () => {
 
   it('starts a coder chat in the coder root, without tools, and then locks the mode', async () => {
     m.coderStatus.mockResolvedValue(status())
-    m.coderWorkspaceRoot.mockResolvedValue({ path: WS, created: true, git: true, init: { created: ['CLAUDE.md', '.claude/settings.json'], skipped: [] } })
+    m.coderWorkspaceDefault.mockResolvedValue({ path: WS, created: true, git: true, init: { created: ['CLAUDE.md', '.claude/settings.json'], skipped: [] } })
     m.createCoderConversation.mockResolvedValue({ id: 'coder-1', backend: 'agent', mode: 'coder', cwd: WS })
     await openPanel()
 
     fireEvent.click(await screen.findByRole('radio', { name: /Coder/ }))
     const workspaces = screen.getByRole('radiogroup', { name: 'Coder workspace' })
-    expect(within(workspaces).getByRole('radio', { name: /Coder root/ })).toHaveAttribute('aria-checked', 'true')
-    expect(within(workspaces).getByRole('radio', { name: /Coder root/ })).toHaveTextContent('/home/u/monoagent-coder')
+    expect(within(workspaces).getByRole('radio', { name: /Profile folder/ })).toHaveAttribute('aria-checked', 'true')
+    expect(within(workspaces).getByRole('radio', { name: /Profile folder/ })).toHaveTextContent('Profile folder (default): Work Stuff')
+    expect(within(workspaces).getByRole('radio', { name: /Profile folder/ })).toHaveTextContent(WS)
     expect(await within(workspaces).findByRole('radio', { name: /recent-proj/ })).toBeInTheDocument()
 
     await sendMessage('write hello.py and run it')
     await waitFor(() => expect(m.createCoderConversation).toHaveBeenCalledWith('claude', 'sonnet', '', WS, false))
-    expect(m.coderWorkspaceRoot).toHaveBeenCalledTimes(1)
-    expect(m.coderWorkspaceRoot).toHaveBeenCalledWith('claude')
+    expect(m.coderWorkspaceDefault).toHaveBeenCalledTimes(1)
+    expect(m.coderWorkspaceDefault).toHaveBeenCalledWith('claude')
     expect(m.createChatConversation).not.toHaveBeenCalled()
     await waitFor(() => expect(m.startChatTurn).toHaveBeenCalledWith('coder-1', expect.any(String), 'write hello.py and run it', false, false))
 
@@ -131,7 +135,7 @@ describe('AIChatPanel coder mode', () => {
     fireEvent.click(await screen.findByRole('radio', { name: /recent-proj/ }))
     await sendMessage('go')
     await waitFor(() => expect(m.createCoderConversation).toHaveBeenCalledWith('claude', 'sonnet', '', '/w/recent-proj', false))
-    expect(m.coderWorkspaceRoot).not.toHaveBeenCalled()
+    expect(m.coderWorkspaceDefault).not.toHaveBeenCalled()
     await screen.findByRole('button', { name: 'Stop generating' })
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => expect(m.stopChatTurn).toHaveBeenCalledWith('coder-2', expect.any(String)))
@@ -144,7 +148,7 @@ describe('AIChatPanel coder mode', () => {
     m.createCoderConversation.mockResolvedValue({ id: 'coder-3', backend: 'agent', mode: 'coder', cwd: '/home/u/src/my-repo' })
     await openPanel()
     fireEvent.click(await screen.findByRole('radio', { name: /Coder/ }))
-    fireEvent.click(screen.getByRole('radio', { name: /Choose folder/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Choose another folder/ }))
     expect(await screen.findByText('/home/u/src/my-repo')).toBeInTheDocument()
     await sendMessage('hi')
     await waitFor(() => expect(m.createCoderConversation).toHaveBeenCalledWith('claude', 'sonnet', '', '/home/u/src/my-repo', false))
@@ -152,7 +156,7 @@ describe('AIChatPanel coder mode', () => {
 
   it('falls back to claude when coder status predates per-runtime readiness', async () => {
     m.coderStatus.mockResolvedValue(status())
-    m.coderWorkspaceRoot.mockResolvedValue({ path: WS, created: false, git: true, init: { created: [], skipped: [] } })
+    m.coderWorkspaceDefault.mockResolvedValue({ path: WS, created: false, git: true, init: { created: [], skipped: [] } })
     m.createCoderConversation.mockResolvedValue({ id: 'coder-4', backend: 'agent', mode: 'coder', cwd: WS })
     await openPanel()
     const runtimeSelect = screen.getByTitle('Locally installed AI agent (via monomind)')
@@ -171,7 +175,7 @@ describe('AIChatPanel coder mode', () => {
       { id: 'codex', installed: true, fullAccess: true, ready: true, toolActivity: 'start-only', effort: true, reportsCost: false, initTarget: 'codex' },
       { id: 'kimicode', installed: false, fullAccess: true, ready: false, toolActivity: 'full' },
     ] }))
-    m.coderWorkspaceRoot.mockResolvedValue({ path: WS, created: true, git: true, init: { created: ['AGENTS.md', '.codex/config.toml', 'CLAUDE.md', '.claude/skills/x'], skipped: [] } })
+    m.coderWorkspaceDefault.mockResolvedValue({ path: WS, created: true, git: true, init: { created: ['AGENTS.md', '.codex/config.toml', 'CLAUDE.md', '.claude/skills/x'], skipped: [] } })
     m.createCoderConversation.mockResolvedValue({ id: 'coder-5', backend: 'agent', mode: 'coder', cwd: WS })
     const { api } = await import('../services/api.js')
     api.getAgentRuntimeModels.mockImplementation(rt => Promise.resolve(rt === 'codex'
@@ -197,7 +201,7 @@ describe('AIChatPanel coder mode', () => {
 
     await sendMessage('build it')
     await waitFor(() => expect(m.createCoderConversation).toHaveBeenCalledWith('codex', 'gpt-5-codex', 'high', WS, false))
-    expect(m.coderWorkspaceRoot).toHaveBeenCalledWith('codex')
+    expect(m.coderWorkspaceDefault).toHaveBeenCalledWith('codex')
     expect(screen.getByTestId('coder-init-note')).toHaveTextContent('created AGENTS.md, .codex/config.toml and 2 more')
     api.getAgentRuntimeModels.mockResolvedValue([{ id: 'sonnet' }])
   })
