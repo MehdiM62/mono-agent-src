@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
-	"github.com/monoes/mono-agent/internal/storage"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,10 +192,45 @@ func (a *App) GetPersonInteractions(id string) []PersonInteraction {
 	return out
 }
 
+// PersonMessage is one entry of `people messages … --json`. The app only
+// forwards what the CLI printed, so times stay the CLI's RFC 3339 strings.
+type PersonMessage struct {
+	ID         string  `json:"id"`
+	PersonID   string  `json:"person_id"`
+	Source     string  `json:"source"`
+	ExternalID string  `json:"external_id,omitempty"`
+	Direction  string  `json:"direction"`
+	Sender     string  `json:"sender,omitempty"`
+	Subject    string  `json:"subject,omitempty"`
+	Body       string  `json:"body,omitempty"`
+	Metadata   string  `json:"metadata,omitempty"`
+	Status     string  `json:"status,omitempty"` // draft | sent | failed
+	SentAt     string  `json:"sent_at,omitempty"`
+	CreatedAt  string  `json:"created_at"`
+	ReadAt     *string `json:"read_at,omitempty"` // nil = unread inbound
+}
+
+// PersonMessageWithPerson is a message of the cross-person feeds
+// (`people messages all|drafts`) with whom it belongs to.
+type PersonMessageWithPerson struct {
+	PersonMessage
+	PersonFullName         string `json:"person_full_name,omitempty"`
+	PersonPlatformUsername string `json:"person_platform_username"`
+	PersonPlatform         string `json:"person_platform"`
+}
+
+// PersonStatusUpdate is one entry of `people status … --json`.
+type PersonStatusUpdate struct {
+	ID        string `json:"id"`
+	PersonID  string `json:"person_id"`
+	Text      string `json:"text"`
+	CreatedAt string `json:"created_at"`
+}
+
 // GetPersonMessages lists a person's messages, newest first
 // (`people messages list <id>`). Each carries read_at.
-func (a *App) GetPersonMessages(personID string) []*storage.PersonMessage {
-	out := []*storage.PersonMessage{}
+func (a *App) GetPersonMessages(personID string) []*PersonMessage {
+	out := []*PersonMessage{}
 	if err := a.runMonoCLI("", &out, "people", "messages", "list", personID, "--limit", "100"); err != nil {
 		return nil
 	}
@@ -205,11 +238,11 @@ func (a *App) GetPersonMessages(personID string) []*storage.PersonMessage {
 }
 
 // GetAllPersonMessages is the cross-person feed (`people messages all`).
-func (a *App) GetAllPersonMessages(limit int) []*storage.PersonMessageWithPerson {
+func (a *App) GetAllPersonMessages(limit int) []*PersonMessageWithPerson {
 	if limit <= 0 {
 		limit = 100
 	}
-	out := []*storage.PersonMessageWithPerson{}
+	out := []*PersonMessageWithPerson{}
 	if err := a.runMonoCLI("", &out, "people", "messages", "all", "--limit", strconv.Itoa(limit)); err != nil {
 		return nil
 	}
@@ -249,13 +282,13 @@ func (a *App) AddPersonMessage(personID, source, externalID, direction, sender, 
 // ComposePersonMessage sends (or drafts, when asDraft is true) an email to a
 // person via the given Outlook connection and records it on their message
 // history — `people messages compose`.
-func (a *App) ComposePersonMessage(personID, connectionID, subject, body string, asDraft bool) (*storage.PersonMessage, error) {
+func (a *App) ComposePersonMessage(personID, connectionID, subject, body string, asDraft bool) (*PersonMessage, error) {
 	args := []string{"people", "messages", "compose",
 		"--connection=" + connectionID, "--subject=" + subject, "--body=" + body}
 	if asDraft {
 		args = append(args, "--draft")
 	}
-	var msg storage.PersonMessage
+	var msg PersonMessage
 	if err := a.runMonoCLI("", &msg, append(args, "--", personID)...); err != nil {
 		return nil, err
 	}
@@ -265,8 +298,8 @@ func (a *App) ComposePersonMessage(personID, connectionID, subject, body string,
 // GetDraftPersonMessages returns all draft (unsent) outbound messages for the
 // active profile, for review in the Human in Loop section —
 // `people messages drafts`.
-func (a *App) GetDraftPersonMessages() ([]*storage.PersonMessageWithPerson, error) {
-	var drafts []*storage.PersonMessageWithPerson
+func (a *App) GetDraftPersonMessages() ([]*PersonMessageWithPerson, error) {
+	var drafts []*PersonMessageWithPerson
 	if err := a.runMonoCLI("", &drafts, "people", "messages", "drafts"); err != nil {
 		return nil, err
 	}
@@ -275,8 +308,8 @@ func (a *App) GetDraftPersonMessages() ([]*storage.PersonMessageWithPerson, erro
 
 // SendDraftPersonMessage sends a previously-created draft and marks it as
 // sent — `people messages send-draft`.
-func (a *App) SendDraftPersonMessage(personMessageID string) (*storage.PersonMessage, error) {
-	var msg storage.PersonMessage
+func (a *App) SendDraftPersonMessage(personMessageID string) (*PersonMessage, error) {
+	var msg PersonMessage
 	if err := a.runMonoCLI("", &msg, "people", "messages", "send-draft", personMessageID); err != nil {
 		return nil, err
 	}
@@ -359,8 +392,8 @@ func (a *App) RejectPendingPerson(personID string) error {
 
 // GetLatestPersonStatus returns the most recent status update for a person,
 // or nil if none exists yet — `people status get`.
-func (a *App) GetLatestPersonStatus(personId string) *storage.PersonStatusUpdate {
-	var u *storage.PersonStatusUpdate
+func (a *App) GetLatestPersonStatus(personId string) *PersonStatusUpdate {
+	var u *PersonStatusUpdate
 	if err := a.runMonoCLI("", &u, "people", "status", "get", personId); err != nil {
 		return nil
 	}
@@ -369,8 +402,8 @@ func (a *App) GetLatestPersonStatus(personId string) *storage.PersonStatusUpdate
 
 // AddPersonStatus appends a new status update for a person —
 // `people status set`.
-func (a *App) AddPersonStatus(personId, text string) (*storage.PersonStatusUpdate, error) {
-	var u storage.PersonStatusUpdate
+func (a *App) AddPersonStatus(personId, text string) (*PersonStatusUpdate, error) {
+	var u PersonStatusUpdate
 	if err := a.runMonoCLI("", &u, "people", "status", "set", "--", personId, text); err != nil {
 		return nil, err
 	}
@@ -379,12 +412,12 @@ func (a *App) AddPersonStatus(personId, text string) (*storage.PersonStatusUpdat
 
 // GetPersonStatusHistory returns every status update for a person, newest
 // first — `people status history`. limit <= 0 means no cap.
-func (a *App) GetPersonStatusHistory(personId string, limit int) []*storage.PersonStatusUpdate {
+func (a *App) GetPersonStatusHistory(personId string, limit int) []*PersonStatusUpdate {
 	args := []string{"people", "status", "history", personId}
 	if limit > 0 {
 		args = append(args, "--limit", strconv.Itoa(limit))
 	}
-	var updates []*storage.PersonStatusUpdate
+	var updates []*PersonStatusUpdate
 	if err := a.runMonoCLI("", &updates, args...); err != nil {
 		return nil
 	}
