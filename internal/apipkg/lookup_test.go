@@ -242,3 +242,26 @@ func TestHarnessMultiRequestCases(t *testing.T) {
 	c.ExpectRequests = []expectReq{{Method: "GET", Path: "/v1/s/v/Main!1:1"}, c.Expect}
 	checkCase(t, p, op, c)
 }
+
+func TestOutputToOnSingleObject(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"get","title":"G","method":"GET","path":"/row",
+	  "output":{"to":{"id":"{{ el.id }}","$merge":"{{ el.values }}"}}}`))
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"id":"r1","values":{"Name":"ada"}}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "get"}, cred, nil)
+	if err != nil || len(items) != 1 || items[0].JSON["Name"] != "ada" || items[0].JSON["values"] != nil {
+		t.Errorf("single object to: %v %v", items, err)
+	}
+}
+
+func TestHarnessSkippedBeforeStep(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"send","title":"S","method":"POST","path":"/send",
+	  "fields":[{"key":"senderName","label":"N","type":"text"}],
+	  "before":[{"when":"{{ p.senderName }}","method":"GET","path":"/profile"}],"body":{"x":1}}`))
+	var c opCase
+	_ = json.Unmarshal([]byte(`{"expect":{"method":"POST","path":"/v1/send","body":{"x":1}}}`), &c)
+	checkCase(t, p, &p.Operations[0], c) // before skipped: one request
+	c.Params = map[string]any{"senderName": "Ada"}
+	checkCase(t, p, &p.Operations[0], c) // before ran: main is request #1
+}
