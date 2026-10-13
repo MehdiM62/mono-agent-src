@@ -447,3 +447,45 @@ func TestGA4ZipRows(t *testing.T) {
 		t.Errorf("plain zip = %#v", got)
 	}
 }
+
+func TestOperationParamForEachAndSessionAuthHarness(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"fm","title":"FM","base_url":"https://fm.test","n8n_operation_param":"action",
+	  "credentials":[{"platform":"fm","methods":["basic"],"fields":[{"key":"user","label":"U","required":true},{"key":"pass","label":"P","secret":true,"required":true}],
+	    "inject":{"headers":{"Authorization":"{{ pre.response.token | prefix:'Bearer ' | default:'none' }}"}}}],
+	  "operations":[{"resource":"","operation":"find","title":"F","method":"POST","path":"/find",
+	    "before":[{"method":"POST","path":"/sessions"}],
+	    "fields":[{"key":"tagIds","label":"T","type":"json"}],
+	    "also":[{"for_each":"{{ p.tagIds }}","method":"POST","path":"/tags/{{ el }}"}]},
+	    {"resource":"","operation":"other","title":"O","method":"GET","path":"/o"}]}`)
+	var c opCase
+	_ = json.Unmarshal([]byte(`{"params":{"action":"find","operation":"","tagIds":["a","b"]},
+	  "responses":[{"response":{"token":"T1"}},{},{},{}],
+	  "expect_requests":[{"method":"POST","path":"/sessions"},{"method":"POST","path":"/find"},
+	    {"method":"POST","path":"/tags/a"},{"method":"POST","path":"/tags/b"}]}`), &c)
+	checkCase(t, p, &p.Operations[0], c)
+	// n8n_operation_param picks the op when "operation" is absent.
+	if op, err := p.resolveOp(map[string]any{"action": "other"}); err != nil || op.Operation != "other" {
+		t.Errorf("action param: %v %v", op, err)
+	}
+}
+
+func TestPollMainRoot(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"enrich","title":"E","method":"POST","path":"/batch",
+	  "poll":{"method":"GET","path":"/batch/{{ main.request_id }}","until":"{{ res.success }}","interval_ms":1}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		switch n {
+		case 1:
+			w.Write([]byte(`{"request_id":"r9"}`))
+		case 2:
+			w.Write([]byte(`{"success":false}`))
+		default:
+			w.Write([]byte(`{"success":true,"data":[1]}`))
+		}
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "enrich"}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(*seen) != 3 || (*seen)[2].URL.Path != "/v1/batch/r9" {
+		t.Errorf("polls: %d, last %s", len(*seen), (*seen)[len(*seen)-1].URL.Path)
+	}
+}

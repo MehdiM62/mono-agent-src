@@ -175,6 +175,7 @@ Scopes:
 | `items` | every input item's JSON as a list, in `batch` operations |
 | `pre.<path>` | the decoded response of the op's (last) `before` request |
 | `bin.file_name`, `bin.mime_type`, `bin.file_extension` | the uploaded binary's name and type (ops with `binary.upload_field`); raw/multipart uploads default their Content-Type to it |
+| `main.<path>` | the main request's response, unchanged while `poll` repeats rebind `res` (also set in `also` steps) |
 | `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
 | `uuid` | a new random UUID each time (e.g. a Calendar conference `requestId`) |
 
@@ -416,7 +417,7 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
   { "when": "{{ p.updateFields.starValue }}", "method": "PUT", "path": "/contacts/{{ res.id }}/star", "body": { "star_value": "{{ p.updateFields.starValue | int }}" } }
 ]
 ```
-Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
+`"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). Step keys: `when`, `for_each`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
 
 **Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
 `"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.
@@ -489,6 +490,10 @@ node. Only one package may extend a given native node.
   credential mappings (n8n credential type → platform + field map) and per
   op `param_map` (= `n8n_param_map`) and field keys.
 - Only add `n8n_param_map` when you had to rename an n8n param.
+
+`n8n_operation_param` (package): the n8n param that selects the operation when it isn't `operation` (FileMaker uses `action`). A config without `operation` takes that param's value, so imported nodes run unchanged; `N8nIndex` exposes it as `operation_param`.
+
+Harness: requests after `before` steps are checked with `inject` rendered against those steps' `responses` (`pre`/`pres`), so session-token auth (`"Bearer {{ pre.response.token }}"`) is tested as it runs.
 
 ## 13. Testing a package
 

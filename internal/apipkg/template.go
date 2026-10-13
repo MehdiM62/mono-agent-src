@@ -28,6 +28,9 @@ type Scope struct {
 	// Bin describes the upload's binary property: file_name, mime_type,
 	// file_extension (set when the op uploads a file).
 	Bin map[string]any
+	// Main is the main request's decoded response, unchanged while poll
+	// repeats rebind res (Dropcontact: the id only the first reply has).
+	Main any
 }
 
 func (s Scope) root(name string) any {
@@ -50,6 +53,8 @@ func (s Scope) root(name string) any {
 		return s.Pres
 	case "bin":
 		return s.Bin
+	case "main":
+		return s.Main
 	case "uuid":
 		return uuid.NewString()
 	}
@@ -218,9 +223,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "uuid":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "uuid":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., pre., pres., bin. or be uuid", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., pre., pres., bin. or be uuid", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {

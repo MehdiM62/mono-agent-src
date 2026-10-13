@@ -16,6 +16,7 @@
     "category": { "type": "string" },
     "docs_url": { "type": "string" },
     "n8n_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
+    "n8n_operation_param": { "type": "string" },
     "n8n_trigger_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
     "base_url": { "type": "string", "minLength": 1 },
     "headers": { "$ref": "#/$defs/stringMap" },
@@ -143,6 +144,7 @@
           "additionalProperties": false,
           "properties": {
             "when": { "type": "string" },
+              "for_each": { "type": "string" },
             "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
             "path": { "type": "string", "minLength": 1 },
             "base_url": { "type": "string" },
@@ -178,6 +180,7 @@
           "additionalProperties": false,
           "properties": {
             "when": { "type": "string" },
+              "for_each": { "type": "string" },
               "until": { "type": "string" },
               "interval_ms": { "type": "integer" },
               "max_wait_ms": { "type": "integer" },
@@ -196,6 +199,7 @@
           "additionalProperties": false,
           "properties": {
             "when": { "type": "string" },
+              "for_each": { "type": "string" },
             "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
             "path": { "type": "string", "minLength": 1 },
             "base_url": { "type": "string" },
@@ -210,6 +214,7 @@
           "additionalProperties": false,
           "properties": {
             "when": { "type": "string" },
+              "for_each": { "type": "string" },
             "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
             "path": { "type": "string", "minLength": 1 },
             "base_url": { "type": "string" },
@@ -227,6 +232,7 @@
             "additionalProperties": false,
             "properties": {
               "when": { "type": "string" },
+              "for_each": { "type": "string" },
               "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
               "path": { "type": "string", "minLength": 1 },
               "base_url": { "type": "string" },
