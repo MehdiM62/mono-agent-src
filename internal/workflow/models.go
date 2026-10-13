@@ -90,7 +90,8 @@ type Workflow struct {
 	Connections []WorkflowConnection `json:"connections,omitempty"`
 
 	// Settings holds workflow-level options, e.g. "error_workflow" (the id
-	// of the workflow to run when this one fails).
+	// of the workflow to run when this one fails), "parallel_branches" and
+	// "variables" ($vars).
 	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 

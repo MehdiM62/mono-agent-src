@@ -27,6 +27,7 @@ type WorkflowFile struct {
 	Nodes       []WorkflowFileNode `json:"nodes"`
 	Connections []WorkflowFileEdge `json:"connections"`
 
+	// Settings are workflow-level execution options (Workflow.Settings).
 	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
