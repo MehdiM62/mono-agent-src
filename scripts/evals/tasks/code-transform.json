@@ -1,0 +1,49 @@
+{
+  "id": "code-transform",
+  "mode": "both",
+  "workflow_name": "eval-code-transform",
+  "prompt": "Create a workflow named \"eval-code-transform\", run manually, that fetches\n{{FIXTURE_URL}}/products.json (items under \"items\") and uses a Code node\n(JavaScript) to turn it into one item per product of the shape\n{\"name\": <name in upper case>, \"value\": <price * qty>}.",
+  "fixtures": [
+    "products.json"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "core.code"
+      ]
+    },
+    {
+      "type": "output",
+      "node_type": "core.code",
+      "path": "[*].name",
+      "equals": [
+        "PEN",
+        "BOOK",
+        "LAMP",
+        "CUP"
+      ]
+    },
+    {
+      "type": "output",
+      "node_type": "core.code",
+      "path": "[*].value",
+      "equals": [
+        30,
+        30,
+        42,
+        32
+      ]
+    }
+  ]
+}

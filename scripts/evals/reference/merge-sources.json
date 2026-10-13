@@ -1,0 +1,124 @@
+{
+  "name": "eval-merge-sources",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.manual",
+      "name": "trigger",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {}
+    },
+    {
+      "id": "a",
+      "type": "http.request",
+      "name": "a",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "url": "{{FIXTURE_URL}}/products.json",
+        "method": "GET"
+      }
+    },
+    {
+      "id": "b",
+      "type": "http.request",
+      "name": "b",
+      "position": {
+        "x": 520,
+        "y": 0
+      },
+      "config": {
+        "url": "{{FIXTURE_URL}}/extra.json",
+        "method": "GET"
+      }
+    },
+    {
+      "id": "a_items",
+      "type": "core.code",
+      "name": "a_items",
+      "position": {
+        "x": 780,
+        "y": 0
+      },
+      "config": {
+        "language": "javascript",
+        "code": "$json.body.items"
+      }
+    },
+    {
+      "id": "b_items",
+      "type": "core.code",
+      "name": "b_items",
+      "position": {
+        "x": 1040,
+        "y": 0
+      },
+      "config": {
+        "language": "javascript",
+        "code": "$json.body.items"
+      }
+    },
+    {
+      "id": "merge",
+      "type": "core.merge",
+      "name": "merge",
+      "position": {
+        "x": 1300,
+        "y": 0
+      },
+      "config": {}
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "a",
+      "target_handle": "main"
+    },
+    {
+      "id": "c2",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "b",
+      "target_handle": "main"
+    },
+    {
+      "id": "c3",
+      "source": "a",
+      "source_handle": "main",
+      "target": "a_items",
+      "target_handle": "main"
+    },
+    {
+      "id": "c4",
+      "source": "b",
+      "source_handle": "main",
+      "target": "b_items",
+      "target_handle": "main"
+    },
+    {
+      "id": "c5",
+      "source": "a_items",
+      "source_handle": "main",
+      "target": "merge",
+      "target_handle": "main"
+    },
+    {
+      "id": "c6",
+      "source": "b_items",
+      "source_handle": "main",
+      "target": "merge",
+      "target_handle": "main"
+    }
+  ]
+}

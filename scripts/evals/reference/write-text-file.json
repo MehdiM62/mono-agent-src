@@ -1,0 +1,66 @@
+{
+  "name": "eval-write-text-file",
+  "description": "",
+  "version": 1,
+  "is_active": false,
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger.manual",
+      "name": "trigger",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {}
+    },
+    {
+      "id": "text",
+      "type": "core.set",
+      "name": "text",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "config": {
+        "assignments": [
+          {
+            "field": "report",
+            "value": "Report for {{ $json.name }}: ok",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "id": "write",
+      "type": "data.write_binary_file",
+      "name": "write",
+      "position": {
+        "x": 520,
+        "y": 0
+      },
+      "config": {
+        "file_path": "{{OUT_DIR}}/report.txt",
+        "field": "report",
+        "encoding": "utf8"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "c1",
+      "source": "trigger",
+      "source_handle": "main",
+      "target": "text",
+      "target_handle": "main"
+    },
+    {
+      "id": "c2",
+      "source": "text",
+      "source_handle": "main",
+      "target": "write",
+      "target_handle": "main"
+    }
+  ]
+}
