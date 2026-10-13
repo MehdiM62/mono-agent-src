@@ -26,6 +26,7 @@ import (
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/extension"
+	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/i18n"
 	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/nodes"
@@ -588,6 +589,19 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 			}
 			_ = logger
 
+			// An outbound send started by an agent is queued for approval instead
+			// of run (internal/hilsend); this comes before any browser is touched.
+			guardCtx := context.Background()
+			if rawDB != nil {
+				guardCtx = vault.ContextWithProfileID(vault.ContextWithDB(guardCtx, rawDB), cfg.ProfileID)
+			}
+			if queued, handled, gerr := workflow.RunExecGuard(guardCtx, nodeType, workflow.NodeInput{Items: inputItems}, config); handled {
+				if gerr != nil {
+					return fmt.Errorf("node %s failed: %w", nodeType, gerr)
+				}
+				return renderNodeOutputs(outputFmt, queued)
+			}
+
 			// Set up browser session provider, bot registry, and config manager for social/browser nodes.
 			if needsBrowserSession(nodeType, factory) {
 				// Chrome extension only — no Rod/Chromium fallback, sharing
@@ -665,6 +679,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				}
 				entries := publication.Normalize(publication.CaptureInput{NodeType: nodeType, Config: config, Outputs: pubOutputs,
 					Source: workflow.PublicationSource(ctx, input)})
+				hilsend.Attribute(ctx, rawDB, cfg.ProfileID, entries)
 				publication.Record(ctx, publication.NewStore(rawDB, cfg.ProfileID), entries, func(msg string) { fmt.Fprintln(os.Stderr, "Warning:", msg) })
 			}
 
@@ -713,51 +728,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 				}
 			}
 
-			// Render output
-			switch outputFmt {
-			case "json":
-				result := map[string]interface{}{}
-				for _, o := range outputs {
-					result[o.Handle] = o.Items
-				}
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(result)
-
-			case "jsonl":
-				for _, o := range outputs {
-					for _, item := range o.Items {
-						b, _ := json.Marshal(map[string]interface{}{
-							"handle": o.Handle,
-							"json":   item.JSON,
-						})
-						fmt.Println(string(b))
-					}
-				}
-				return nil
-
-			default: // table / pretty
-				for _, o := range outputs {
-					if len(outputs) > 1 {
-						fmt.Printf("\n── handle: %s (%d items) ──\n", o.Handle, len(o.Items))
-					}
-					for i, item := range o.Items {
-						if len(o.Items) > 1 {
-							fmt.Printf("  [%d] ", i)
-						} else {
-							fmt.Print("  ")
-						}
-						b, _ := json.MarshalIndent(item.JSON, "  ", "  ")
-						fmt.Println(string(b))
-					}
-				}
-				totalItems := 0
-				for _, o := range outputs {
-					totalItems += len(o.Items)
-				}
-				fmt.Printf("\n✓  %d output handle(s), %d total item(s)\n", len(outputs), totalItems)
-				return nil
-			}
+			return renderNodeOutputs(outputFmt, outputs)
 		},
 	}
 
@@ -767,6 +738,54 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 	cmd.Flags().StringVar(&outputFmt, "output", "pretty", "Output format: pretty|json|jsonl")
 	cmd.Flags().StringVar(&credentialID, "credential", "", "Connection ID or platform name for credential lookup (auto-resolved from node type if omitted)")
 	return cmd
+}
+
+// renderNodeOutputs prints a node run's outputs in the --output format.
+func renderNodeOutputs(outputFmt string, outputs []workflow.NodeOutput) error {
+	switch outputFmt {
+	case "json":
+		result := map[string]interface{}{}
+		for _, o := range outputs {
+			result[o.Handle] = o.Items
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(result)
+
+	case "jsonl":
+		for _, o := range outputs {
+			for _, item := range o.Items {
+				b, _ := json.Marshal(map[string]interface{}{
+					"handle": o.Handle,
+					"json":   item.JSON,
+				})
+				fmt.Println(string(b))
+			}
+		}
+		return nil
+
+	default: // table / pretty
+		for _, o := range outputs {
+			if len(outputs) > 1 {
+				fmt.Printf("\n── handle: %s (%d items) ──\n", o.Handle, len(o.Items))
+			}
+			for i, item := range o.Items {
+				if len(o.Items) > 1 {
+					fmt.Printf("  [%d] ", i)
+				} else {
+					fmt.Print("  ")
+				}
+				b, _ := json.MarshalIndent(item.JSON, "  ", "  ")
+				fmt.Println(string(b))
+			}
+		}
+		totalItems := 0
+		for _, o := range outputs {
+			totalItems += len(o.Items)
+		}
+		fmt.Printf("\n✓  %d output handle(s), %d total item(s)\n", len(outputs), totalItems)
+		return nil
+	}
 }
 
 // savePostsToDB upserts scraped post items into the posts table.

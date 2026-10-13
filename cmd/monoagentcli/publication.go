@@ -116,6 +116,7 @@ func newPublicationCmd(cfg *globalConfig) *cobra.Command {
 		})
 	}}
 	var stdinJSON bool
+	var approval string
 	register := &cobra.Command{Use: "register --stdin-json", Short: "Record an already successful publication; does not publish remotely", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		if !stdinJSON {
 			return errInvalidInput("registration requires --stdin-json")
@@ -132,6 +133,9 @@ func newPublicationCmd(cfg *globalConfig) *cobra.Command {
 		if err := json.Unmarshal(input, &e); err != nil {
 			return errInvalidInput("invalid publication JSON: %v", err)
 		}
+		if err := requirePublicationApproval(cfg, approval); err != nil {
+			return err
+		}
 		return withPublicationStore(cfg, func(store *publication.Store) error {
 			registered, err := store.Register(cmd.Context(), e)
 			if err != nil {
@@ -140,6 +144,7 @@ func newPublicationCmd(cfg *globalConfig) *cobra.Command {
 			return printPublication(cmd, cfg, registered)
 		})
 	}}
+	register.Flags().StringVar(&approval, "approval", "", "From an agent: the id of the approved, sent send item this publication belongs to")
 	register.Flags().BoolVar(&stdinJSON, "stdin-json", false, "Read a publication object from stdin")
 	stats := &cobra.Command{Use: "stats", Short: "Count publications by platform and kind", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		return withPublicationStore(cfg, func(store *publication.Store) error {

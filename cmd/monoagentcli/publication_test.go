@@ -11,6 +11,7 @@ import (
 )
 
 func TestPublicationCLI(t *testing.T) {
+	asOperatorProcess(t) // an agent's register needs an approved send (hil_send_test.go)
 	dbPath := newApplicationCLITestDB(t)
 	run := func(input string, args ...string) (string, error) {
 		cfg := &globalConfig{DBPath: dbPath, JSONOutput: true}
