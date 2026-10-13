@@ -149,7 +149,7 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
-		if op.Binary != nil && op.Binary.UploadField != "" {
+		if r.uploads() {
 			r.scope.Bin = r.binMeta()
 		}
 		if op.Batch {
@@ -210,10 +210,28 @@ func (p *Package) resolveOp(params map[string]any) (*Operation, error) {
 		res = p.DefaultResource()
 	}
 	opName, _ := params["operation"].(string)
+	if opName == "" && p.N8nOperationParam != "" {
+		opName, _ = params[p.N8nOperationParam].(string)
+	}
 	if opName == "" {
 		opName = p.DefaultOperation(res)
 	}
 	op, ok := p.Op(res, opName)
+	if rp, _ := params["resource"].(string); !ok && rp == "" {
+		// n8n hides resource for some modes (Discord webhook): an op name
+		// only one resource has is unambiguous.
+		var only *Operation
+		n := 0
+		for i := range p.Operations {
+			if p.Operations[i].Operation == opName {
+				only = &p.Operations[i]
+				n++
+			}
+		}
+		if n == 1 {
+			op, ok = only, true
+		}
+	}
 	if !ok {
 		var have []string
 		for _, o := range p.Operations {
@@ -434,7 +452,22 @@ func (r *opRun) runAlso(ctx context.Context, main *response) error {
 	}
 	for i, st := range r.op.Also {
 		sc := r.scope
-		sc.Res = res
+		sc.Res, sc.Main = res, res
+		if st.ForEach != "" {
+			lv, err := renderString(st.ForEach, sc)
+			if err != nil {
+				return r.errf("also[%d].for_each: %w", i, err)
+			}
+			list, _ := lv.([]any)
+			for j, el := range list {
+				esc := sc
+				esc.El = el
+				if _, err := r.sendStep(ctx, st, esc); err != nil {
+					return fmt.Errorf("also[%d] element %d: %w", i, j, err)
+				}
+			}
+			continue
+		}
 		if _, err := r.sendStep(ctx, st, sc); err != nil {
 			return fmt.Errorf("also[%d]: %w", i, err)
 		}
@@ -650,8 +683,10 @@ func (r *opRun) poll(ctx context.Context, resp *response) (*response, error) {
 		maxWait = 5 * time.Minute
 	}
 	deadline := time.Now().Add(maxWait)
+	first := decodeBody(resp.body)
 	for {
 		sc := r.scope
+		sc.Main = first
 		sc.Res = decodeBody(resp.body)
 		done, err := renderString(pl.Until, sc)
 		if err != nil {

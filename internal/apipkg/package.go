@@ -36,6 +36,10 @@ type Package struct {
 	// N8nTriggerTypes are n8n trigger node types of the same app. Triggers
 	// are not supported yet; the importer reports them as such.
 	N8nTriggerTypes []string `json:"n8n_trigger_types,omitempty"`
+	// N8nOperationParam names the n8n param that selects the operation
+	// when it isn't "operation" (FileMaker: "action"). A config without
+	// "operation" uses that param's value, so imported nodes run as is.
+	N8nOperationParam string `json:"n8n_operation_param,omitempty"`
 
 	// Source is where the package was loaded from ("catalog" or a file
 	// path). Not part of the file.
@@ -163,7 +167,10 @@ type Operation struct {
 // Step is one follow-up request of an operation. When is a template; an
 // empty result skips the step (e.g. "{{ p.updateFields.tags }}").
 type Step struct {
-	When     string            `json:"when,omitempty"`
+	When string `json:"when,omitempty"`
+	// ForEach (also steps): a template resolving to a list; the step is
+	// sent once per element with el bound (Egoi: one call per tag id).
+	ForEach  string            `json:"for_each,omitempty"`
 	Method   string            `json:"method"`
 	Path     string            `json:"path"`
 	BaseURL  string            `json:"base_url,omitempty"`
@@ -279,6 +286,12 @@ type Binary struct {
 	PropertyField string `json:"property_field,omitempty"`
 	// MultipartField is the form field of the file part (default "file").
 	MultipartField string `json:"multipart_field,omitempty"`
+	// UploadWhen (a template) decides per run whether to upload at all
+	// (n8n sendBinaryData); when false the op sends its body (JSON, or
+	// none). Property (a template) overrides the binary property read
+	// from upload_field ("formField:binaryProperty" values).
+	UploadWhen string `json:"upload_when,omitempty"`
+	Property   string `json:"property,omitempty"`
 	// FileName and MimeType are templates for the uploaded part.
 	FileName string `json:"file_name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`

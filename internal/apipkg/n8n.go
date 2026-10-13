@@ -15,7 +15,10 @@ type N8nMapping struct {
 	Supported bool `json:"supported"`
 	// DefaultResource and DefaultOperations stand in for the n8n params n8n
 	// leaves out of saved workflows when they hold their default value.
-	DefaultResource   string            `json:"default_resource,omitempty"`
+	DefaultResource string `json:"default_resource,omitempty"`
+	// OperationParam is the n8n param holding the operation when it
+	// isn't "operation" (the engine reads it as is).
+	OperationParam    string            `json:"operation_param,omitempty"`
 	DefaultOperations map[string]string `json:"default_operations,omitempty"`
 	Credentials       []N8nCredential   `json:"credentials,omitempty"`
 	// Operations is keyed "<resource>.<operation>" (just the operation when
@@ -61,6 +64,7 @@ func N8nIndex() map[string]N8nMapping {
 			m := base
 			m.N8nType, m.Supported = t, true
 			m.DefaultResource = p.DefaultResource()
+			m.OperationParam = p.N8nOperationParam
 			m.DefaultOperations = map[string]string{}
 			m.Operations = map[string]N8nOperation{}
 			for _, o := range p.Operations {

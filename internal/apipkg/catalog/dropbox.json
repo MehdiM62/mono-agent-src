@@ -1,0 +1,554 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "dropbox",
+  "node_type": "app.dropbox",
+  "title": "Dropbox",
+  "description": "Files, folders and search in Dropbox",
+  "category": "app",
+  "docs_url": "https://www.dropbox.com/developers/documentation/http/documentation",
+  "n8n_types": [
+    "n8n-nodes-base.dropbox"
+  ],
+  "base_url": "https://api.dropboxapi.com/2",
+  "credentials": [
+    {
+      "platform": "dropbox",
+      "name": "Dropbox",
+      "n8n_credential": "dropboxApi",
+      "n8n_credential_alt": [
+        "dropboxOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token",
+        "accessType": "access_type"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "access_type",
+          "label": "Access type",
+          "help": "full (default; works in the team root) or folder (app folder)"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://www.dropbox.com/oauth2/authorize",
+        "token_url": "https://api.dropboxapi.com/oauth2/token",
+        "scopes": [
+          "files.content.write",
+          "files.content.read",
+          "sharing.read",
+          "account_info.read"
+        ],
+        "extra_params": {
+          "token_access_type": "offline"
+        }
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "folder",
+      "label": "Folder"
+    },
+    {
+      "value": "search",
+      "label": "Search"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a file",
+      "method": "POST",
+      "path": "https://content.dropboxapi.com/2/files/upload",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /folder/file.txt"
+        },
+        {
+          "key": "binaryData",
+          "label": "Upload binary data",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "fileContent",
+          "label": "File content",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}",
+        "Content-Type": "application/octet-stream"
+      },
+      "query": {
+        "arg": {
+          "$json": {
+            "mode": "overwrite",
+            "path": "{{ p.path }}"
+          }
+        }
+      },
+      "body_type": "raw",
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "mime_type": "application/octet-stream",
+        "upload_text": "{{ p.binaryData | ne:'true' | then:p.fileContent }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "copy",
+      "title": "Copy a file",
+      "method": "POST",
+      "path": "https://api.dropboxapi.com/2/files/copy_v2",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /folder/file.txt"
+        },
+        {
+          "key": "toPath",
+          "label": "To path",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "body": {
+        "from_path": "{{ p.path }}",
+        "to_path": "{{ p.toPath }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file",
+      "method": "POST",
+      "path": "https://api.dropboxapi.com/2/files/delete_v2",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /folder/file.txt"
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "body": {
+        "path": "{{ p.path }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "download",
+      "title": "Download a file",
+      "method": "POST",
+      "path": "https://content.dropboxapi.com/2/files/download",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /folder/file.txt"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "query": {
+        "arg": {
+          "$json": {
+            "path": "{{ p.path }}"
+          }
+        }
+      },
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "move",
+      "title": "Move a file",
+      "method": "POST",
+      "path": "https://api.dropboxapi.com/2/files/move_v2",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /folder/file.txt"
+        },
+        {
+          "key": "toPath",
+          "label": "To path",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "body": {
+        "from_path": "{{ p.path }}",
+        "to_path": "{{ p.toPath }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "create",
+      "title": "Create a folder",
+      "method": "POST",
+      "path": "https://api.dropboxapi.com/2/files/create_folder_v2",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /folder/file.txt"
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "body": {
+        "path": "{{ p.path }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "copy",
+      "title": "Copy a folder",
+      "method": "POST",
+      "path": "https://api.dropboxapi.com/2/files/copy_v2",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /folder/file.txt"
+        },
+        {
+          "key": "toPath",
+          "label": "To path",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "body": {
+        "from_path": "{{ p.path }}",
+        "to_path": "{{ p.toPath }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "delete",
+      "title": "Delete a folder",
+      "method": "POST",
+      "path": "https://api.dropboxapi.com/2/files/delete_v2",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /folder/file.txt"
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "body": {
+        "path": "{{ p.path }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "list",
+      "title": "List a folder",
+      "method": "POST",
+      "path": "https://api.dropboxapi.com/2/files/list_folder",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": false,
+          "help": "Empty for the root",
+          "default": ""
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Up to 2000 results (one page)"
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include_deleted",
+            "include_has_explicit_shared_members",
+            "include_mounted_folders",
+            "include_non_downloadable_files",
+            "recursive"
+          ]
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "body": {
+        "!path": "{{ p.path }}",
+        "limit": "{{ p.returnAll | eq:'true' | then:2000 | default:p.limit }}",
+        "$merge": "{{ p.filters }}"
+      },
+      "output": {
+        "path": "entries",
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name }}",
+          "lastModifiedClient": "{{ el.client_modified }}",
+          "lastModifiedServer": "{{ el.server_modified }}",
+          "rev": "{{ el.rev }}",
+          "contentSize": "{{ el.size }}",
+          "type": "{{ el | entries | find:'key','.tag' | get:'value' }}",
+          "contentHash": "{{ el.content_hash }}",
+          "pathLower": "{{ el.path_lower }}",
+          "pathDisplay": "{{ el.path_display }}",
+          "hasExplicitSharedMembers": "{{ el.has_explicit_shared_members }}",
+          "isDownloadable": "{{ el.is_downloadable }}"
+        }
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "move",
+      "title": "Move a folder",
+      "method": "POST",
+      "path": "https://api.dropboxapi.com/2/files/move_v2",
+      "fields": [
+        {
+          "key": "path",
+          "label": "Path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /folder/file.txt"
+        },
+        {
+          "key": "toPath",
+          "label": "To path",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "body": {
+        "from_path": "{{ p.path }}",
+        "to_path": "{{ p.toPath }}"
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "query",
+      "title": "Search files and folders",
+      "method": "POST",
+      "path": "https://api.dropboxapi.com/2/files/search_v2",
+      "fields": [
+        {
+          "key": "query",
+          "label": "Query",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fileStatus",
+          "label": "File status",
+          "type": "select",
+          "default": "active",
+          "options": [
+            "active",
+            "deleted"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Up to 1000 results (one page)"
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "file_categories",
+            "file_extensions",
+            "path"
+          ],
+          "help": "file_categories: audio, document, paper, folder, image, other, pdf, presentation, spreadsheet, video; file_extensions: comma-separated"
+        }
+      ],
+      "before": {
+        "when": "{{ cred.access_type | default:'full' | eq:'full' }}",
+        "method": "POST",
+        "path": "https://api.dropboxapi.com/2/users/get_current_account"
+      },
+      "headers": {
+        "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+      },
+      "body": {
+        "query": "{{ p.query }}",
+        "options": {
+          "filename_only": true,
+          "file_status": "{{ p.fileStatus }}",
+          "path": "{{ p.filters.path }}",
+          "file_categories": "{{ p.filters.file_categories }}",
+          "file_extensions": "{{ p.filters.file_extensions | split }}",
+          "max_results": "{{ p.returnAll | eq:'true' | then:1000 | default:p.limit }}"
+        }
+      },
+      "output": {
+        "path": "matches",
+        "to": {
+          "$merge": [
+            "{{ el | omit:'metadata,match_type' }}",
+            "{{ el.metadata.metadata }}"
+          ],
+          "match_type": "{{ el.match_type | entries | find:'key','.tag' | get:'value' }}"
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    }
+  ]
+}

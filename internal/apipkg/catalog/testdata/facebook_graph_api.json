@@ -1,0 +1,84 @@
+{
+  "GET": {
+    "params": {
+      "node": "me",
+      "edge": "accounts",
+      "graphApiVersion": "v25.0",
+      "options": {
+        "fields": {
+          "field": [
+            {
+              "name": "id"
+            },
+            {
+              "name": "name"
+            }
+          ]
+        },
+        "queryParameters": {
+          "parameter": [
+            {
+              "name": "limit",
+              "value": "5"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v25.0/me/accounts",
+      "query": {
+        "fields": "id,name",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "POST": {
+    "params": {
+      "node": "12345",
+      "edge": "feed",
+      "options": {
+        "queryParametersJson": "{\"message\":\"Hello\"}"
+      },
+      "sendBinaryData": true,
+      "binaryPropertyName": "source:pic"
+    },
+    "response": {
+      "id": "12345_1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/12345/feed",
+      "query": {
+        "message": "Hello"
+      },
+      "body": {
+        "source": "file:pic:hi"
+      }
+    },
+    "input": {
+      "pic": "aGk="
+    }
+  },
+  "DELETE": {
+    "params": {
+      "node": "12345_1"
+    },
+    "response": {
+      "success": true
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/12345_1"
+    }
+  }
+}

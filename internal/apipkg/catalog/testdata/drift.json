@@ -1,0 +1,91 @@
+{
+  "contact.create": {
+    "params": {
+      "email": "a@b.co",
+      "additionalFields": {
+        "name": "Ann"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/contacts",
+      "body": {
+        "attributes": {
+          "email": "a@b.co",
+          "name": "Ann"
+        }
+      },
+      "items": 1
+    }
+  },
+  "contact.getCustomAttributes": {
+    "response": {
+      "data": {
+        "properties": [
+          {
+            "name": "a"
+          },
+          {
+            "name": "b"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts/attributes",
+      "items": 2
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/contacts/5"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "5"
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts/5",
+      "items": 1
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "5",
+      "updateFields": {
+        "phone": "+1"
+      }
+    },
+    "response": {
+      "data": {
+        "id": 5
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/contacts/5",
+      "body": {
+        "attributes": {
+          "phone": "+1"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,247 @@
+{
+  "document.get": {
+    "params": {
+      "indexId": "books",
+      "documentId": "1"
+    },
+    "response": {
+      "_id": "1",
+      "_source": {
+        "title": "A"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/books/_doc/1",
+      "items": 1
+    },
+    "credential": {
+      "username": "elastic",
+      "password": "pw",
+      "base_url": "https://es.example.com:9243"
+    }
+  },
+  "document.create": {
+    "params": {
+      "indexId": "books",
+      "dataToSend": "autoMapInputData",
+      "inputsToIgnore": "skip",
+      "additionalFields": {
+        "documentId": "7"
+      },
+      "options": {
+        "refresh": "wait_for"
+      }
+    },
+    "input": {
+      "title": "A",
+      "skip": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/books/_doc/7",
+      "query": {
+        "refresh": "wait_for"
+      },
+      "body": {
+        "title": "A"
+      }
+    },
+    "credential": {
+      "username": "elastic",
+      "password": "pw",
+      "base_url": "https://es.example.com:9243"
+    }
+  },
+  "document.delete": {
+    "params": {
+      "indexId": "books",
+      "documentId": "7"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/books/_doc/7"
+    },
+    "credential": {
+      "username": "elastic",
+      "password": "pw",
+      "base_url": "https://es.example.com:9243"
+    }
+  },
+  "document.getAll": {
+    "params": {
+      "indexId": "books",
+      "limit": 5,
+      "options": {
+        "query": "{\"query\":{\"match\":{\"title\":\"A\"}}}",
+        "sort": "title:asc"
+      }
+    },
+    "response": {
+      "hits": {
+        "hits": [
+          {
+            "_id": "1",
+            "_source": {
+              "title": "A"
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/books/_search",
+      "query": {
+        "sort": "title:asc",
+        "_source": "true",
+        "size": "5"
+      },
+      "body": {
+        "query": {
+          "match": {
+            "title": "A"
+          }
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "username": "elastic",
+      "password": "pw",
+      "base_url": "https://es.example.com:9243"
+    }
+  },
+  "document.update": {
+    "params": {
+      "indexId": "books",
+      "documentId": "7",
+      "fieldsUi": {
+        "fieldValues": [
+          {
+            "fieldId": "title",
+            "fieldValue": "B"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/books/_update/7",
+      "body": {
+        "doc": {
+          "title": "B"
+        }
+      }
+    },
+    "credential": {
+      "username": "elastic",
+      "password": "pw",
+      "base_url": "https://es.example.com:9243"
+    }
+  },
+  "index.create": {
+    "params": {
+      "indexId": "books",
+      "additionalFields": {
+        "settings": "{\"settings\":{\"index\":{\"number_of_shards\":1}}}",
+        "timeout": "30s"
+      }
+    },
+    "response": {
+      "acknowledged": true,
+      "index": "books"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/books",
+      "query": {
+        "timeout": "30s"
+      },
+      "body": {
+        "settings": {
+          "index": {
+            "number_of_shards": 1
+          }
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "username": "elastic",
+      "password": "pw",
+      "base_url": "https://es.example.com:9243"
+    }
+  },
+  "index.delete": {
+    "params": {
+      "indexId": "books"
+    },
+    "response": {
+      "acknowledged": true
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/books",
+      "items": 1
+    },
+    "credential": {
+      "username": "elastic",
+      "password": "pw",
+      "base_url": "https://es.example.com:9243"
+    }
+  },
+  "index.get": {
+    "params": {
+      "indexId": "books",
+      "additionalFields": {
+        "flat_settings": true
+      }
+    },
+    "response": {
+      "books": {
+        "aliases": {}
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/books",
+      "query": {
+        "flat_settings": "true"
+      },
+      "items": 1
+    },
+    "credential": {
+      "username": "elastic",
+      "password": "pw",
+      "base_url": "https://es.example.com:9243"
+    }
+  },
+  "index.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "response": [
+      {
+        "index": "a"
+      },
+      {
+        "index": "b"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/_cat/indices",
+      "query": {
+        "format": "json",
+        "h": "index"
+      },
+      "items": 1
+    },
+    "credential": {
+      "username": "elastic",
+      "password": "pw",
+      "base_url": "https://es.example.com:9243"
+    }
+  }
+}

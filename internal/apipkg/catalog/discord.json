@@ -1,0 +1,1129 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "discord",
+  "extends": "service.discord",
+  "title": "Discord",
+  "description": "Channels, messages, members and webhooks in Discord (n8n operations)",
+  "category": "app",
+  "docs_url": "https://discord.com/developers/docs/reference",
+  "n8n_types": [
+    "n8n-nodes-base.discord"
+  ],
+  "base_url": "https://discord.com/api/v10",
+  "credentials": [
+    {
+      "platform": "discord",
+      "reuse_platform": "discord",
+      "name": "Discord bot",
+      "n8n_credential": "discordBotApi",
+      "n8n_credential_alt": [
+        "discordOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "botToken": "bot_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "bot_token",
+          "label": "Bot token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bot {{ cred.bot_token }}"
+        }
+      }
+    },
+    {
+      "platform": "discord_webhook",
+      "name": "Discord webhook",
+      "n8n_credential": "discordWebhookApi",
+      "n8n_field_map": {
+        "webhookUri": "webhook_uri"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "webhook_uri",
+          "label": "Webhook URL",
+          "secret": true,
+          "required": true,
+          "help": "Server settings \u2192 Integrations \u2192 Webhooks"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "User-Agent": "DiscordBot (https://monoes.me, 1)"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "channel",
+      "label": "Channel"
+    },
+    {
+      "value": "message",
+      "label": "Message"
+    },
+    {
+      "value": "member",
+      "label": "Member"
+    },
+    {
+      "value": "webhook",
+      "label": "Webhook"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "channel",
+      "operation": "create",
+      "title": "Create a channel",
+      "method": "POST",
+      "path": "/guilds/{{ p.guildId | rl }}/channels",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "default": "0",
+          "options": [
+            "0",
+            "2",
+            "4"
+          ],
+          "help": "0 text, 2 voice, 4 category"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "nsfw",
+            "bitrate",
+            "categoryId",
+            "position",
+            "rate_limit_per_user",
+            "topic",
+            "user_limit"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.options | omit:'categoryId' }}",
+        "name": "{{ p.name }}",
+        "type": "{{ p.type | int }}",
+        "parent_id": "{{ p.options.categoryId | rl }}"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "deleteChannel",
+      "title": "Delete a channel",
+      "method": "DELETE",
+      "path": "/channels/{{ p.channelId | rl }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "get",
+      "title": "Get a channel",
+      "method": "GET",
+      "path": "/channels/{{ p.channelId | rl }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "getAll",
+      "title": "Get many channels",
+      "method": "GET",
+      "path": "/guilds/{{ p.guildId | rl }}/channels",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter"
+          ],
+          "help": "filter: channel types (0, 2, 4); not applied yet"
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__single_page__",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "update",
+      "title": "Update a channel",
+      "method": "PATCH",
+      "path": "/channels/{{ p.channelId | rl }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": false,
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "nsfw",
+            "bitrate",
+            "categoryId",
+            "position",
+            "rate_limit_per_user",
+            "topic",
+            "user_limit"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.options | omit:'categoryId' }}",
+        "name": "{{ p.name }}",
+        "parent_id": "{{ p.options.categoryId | rl }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "send",
+      "title": "Send a message",
+      "method": "POST",
+      "path": "/channels/{{ p.sendTo | eq:'user' | then:pre.id | default:(p.channelId | rl) }}/messages",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "sendTo",
+          "label": "Send to",
+          "type": "select",
+          "default": "channel",
+          "options": [
+            "channel",
+            "user"
+          ]
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "content",
+          "label": "Message",
+          "type": "textarea",
+          "required": false,
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "flags",
+            "message_reference",
+            "tts"
+          ],
+          "help": "flags: SUPPRESS_EMBEDS, SUPPRESS_NOTIFICATIONS; message_reference: message ID to reply to"
+        },
+        {
+          "key": "embeds",
+          "label": "Embeds",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{\"values\": [{\"inputMethod\": fields|json, \"json\", \"description\", \"author\", \"color\", \"timestamp\", \"title\", \"url\", \"image\", \"thumbnail\", \"video\"}]}"
+        },
+        {
+          "key": "files",
+          "label": "Files",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{\"values\": [{\"inputFieldName\": \"data\"}]}; only the first file is sent"
+        },
+        {
+          "key": "filesProperty",
+          "label": "(internal) file property",
+          "type": "text",
+          "default": "data",
+          "help": "Ignored; the property comes from Files"
+        }
+      ],
+      "before": {
+        "when": "{{ p.sendTo | eq:'user' }}",
+        "method": "POST",
+        "path": "/users/@me/channels",
+        "body": {
+          "recipient_id": "{{ p.userId | rl }}"
+        }
+      },
+      "body_type": "multipart",
+      "body": {
+        "content": "{{ p.content }}",
+        "flags": "{{ p.options.flags | csv | eq:'SUPPRESS_EMBEDS' | then:4 | default:(p.options.flags | csv | eq:'SUPPRESS_NOTIFICATIONS' | then:4096) | default:(p.options.flags | csv | then:4100) }}",
+        "tts": "{{ p.options.tts | eq:'true' | then:true }}",
+        "embeds": {
+          "$map": "{{ p.embeds.values }}",
+          "$to": {
+            "$merge": "{{ el.inputMethod | eq:'json' | then:(el.json | fromjson) }}",
+            "description": "{{ el.description }}",
+            "title": "{{ el.title }}",
+            "url": "{{ el.url }}",
+            "timestamp": "{{ el.timestamp }}",
+            "color": "{{ el.color | hex }}",
+            "author": {
+              "name": "{{ el.author }}"
+            },
+            "image": {
+              "url": "{{ el.image }}"
+            },
+            "thumbnail": {
+              "url": "{{ el.thumbnail }}"
+            },
+            "video": {
+              "$when": "{{ el.video }}",
+              "url": "{{ el.video }}",
+              "width": 1270,
+              "height": 720
+            }
+          }
+        },
+        "message_reference": {
+          "message_id": "{{ p.options.message_reference }}",
+          "guild_id": "{{ p.options.message_reference | then:(p.guildId | rl) }}"
+        },
+        "payload_json": {
+          "$json": {
+            "$when": "{{ p.files.values.0.inputFieldName }}",
+            "$merge": {
+              "content": "{{ p.content }}",
+              "flags": "{{ p.options.flags | csv | eq:'SUPPRESS_EMBEDS' | then:4 | default:(p.options.flags | csv | eq:'SUPPRESS_NOTIFICATIONS' | then:4096) | default:(p.options.flags | csv | then:4100) }}",
+              "tts": "{{ p.options.tts | eq:'true' | then:true }}",
+              "embeds": {
+                "$map": "{{ p.embeds.values }}",
+                "$to": {
+                  "$merge": "{{ el.inputMethod | eq:'json' | then:(el.json | fromjson) }}",
+                  "description": "{{ el.description }}",
+                  "title": "{{ el.title }}",
+                  "url": "{{ el.url }}",
+                  "timestamp": "{{ el.timestamp }}",
+                  "color": "{{ el.color | hex }}",
+                  "author": {
+                    "name": "{{ el.author }}"
+                  },
+                  "image": {
+                    "url": "{{ el.image }}"
+                  },
+                  "thumbnail": {
+                    "url": "{{ el.thumbnail }}"
+                  },
+                  "video": {
+                    "$when": "{{ el.video }}",
+                    "url": "{{ el.video }}",
+                    "width": 1270,
+                    "height": 720
+                  }
+                }
+              },
+              "message_reference": {
+                "message_id": "{{ p.options.message_reference }}",
+                "guild_id": "{{ p.options.message_reference | then:(p.guildId | rl) }}"
+              }
+            },
+            "attachments": [
+              {
+                "id": 0,
+                "filename": "{{ bin.file_name }}"
+              }
+            ]
+          }
+        }
+      },
+      "binary": {
+        "upload_field": "filesProperty",
+        "property": "{{ p.files.values.0.inputFieldName }}",
+        "upload_when": "{{ p.files.values.0.inputFieldName }}",
+        "multipart_field": "files[0]"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "deleteMessage",
+      "title": "Delete a message",
+      "method": "DELETE",
+      "path": "/channels/{{ p.channelId | rl }}/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "get",
+      "title": "Get a message",
+      "method": "GET",
+      "path": "/channels/{{ p.channelId | rl }}/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "simplify"
+          ]
+        }
+      ],
+      "output": {
+        "to": "{{ el | pick:'id,channel_id,author,content,timestamp,type' }}",
+        "to_when": "{{ p.options.simplify }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "getAll",
+      "title": "Get many messages",
+      "method": "GET",
+      "path": "/channels/{{ p.channelId | rl }}/messages",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "simplify"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "before",
+        "cursor_path": "-1.id",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": ""
+      },
+      "output": {
+        "to": "{{ el | pick:'id,channel_id,author,content,timestamp,type' }}",
+        "to_when": "{{ p.options.simplify }}"
+      }
+    },
+    {
+      "resource": "message",
+      "operation": "react",
+      "title": "React to a message",
+      "method": "PUT",
+      "path": "/channels/{{ p.channelId | rl }}/messages/{{ p.messageId }}/reactions/{{ p.emoji }}/@me",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "emoji",
+          "label": "Emoji",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "getAll",
+      "title": "Get many members",
+      "method": "GET",
+      "path": "/guilds/{{ p.guildId | rl }}/members",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "after",
+          "label": "After user ID",
+          "type": "text",
+          "required": false,
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "simplify"
+          ]
+        }
+      ],
+      "query": {
+        "after": "{{ p.after }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "after",
+        "cursor_path": "-1.user.id",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": ""
+      },
+      "output": {
+        "to": "{{ el | pick:'user,roles,permissions' }}",
+        "to_when": "{{ p.options.simplify }}"
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "ban",
+      "title": "Ban a member",
+      "method": "PUT",
+      "path": "/guilds/{{ p.guildId | rl }}/bans/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "deleteMessageSeconds",
+          "label": "Delete message history (seconds)",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "type": "select",
+          "default": "suspicious_spam",
+          "options": [
+            "suspicious_spam",
+            "compromised",
+            "rule_break",
+            "other"
+          ]
+        },
+        {
+          "key": "reasonCustom",
+          "label": "Custom reason",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "headers": {
+        "X-Audit-Log-Reason": "{{ p.reason | eq:'other' | then:p.reasonCustom | default:(p.reason | eq:'compromised' | then:'Compromised or hacked account') | default:(p.reason | eq:'rule_break' | then:'Breaking server rules') | default:(p.reason | default:'suspicious_spam' | eq:'suspicious_spam' | then:'Suspicious or spam account') | replace:' ','%20' }}"
+      },
+      "body": {
+        "delete_message_seconds": "{{ p.deleteMessageSeconds | int }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "kick",
+      "title": "Kick a member",
+      "method": "DELETE",
+      "path": "/guilds/{{ p.guildId | rl }}/members/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "type": "select",
+          "default": "suspicious_spam",
+          "options": [
+            "suspicious_spam",
+            "compromised",
+            "rule_break",
+            "other"
+          ]
+        },
+        {
+          "key": "reasonCustom",
+          "label": "Custom reason",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "headers": {
+        "X-Audit-Log-Reason": "{{ p.reason | eq:'other' | then:p.reasonCustom | default:(p.reason | eq:'compromised' | then:'Compromised or hacked account') | default:(p.reason | eq:'rule_break' | then:'Breaking server rules') | default:(p.reason | default:'suspicious_spam' | eq:'suspicious_spam' | then:'Suspicious or spam account') | replace:' ','%20' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "roleAdd",
+      "title": "Add roles to a member",
+      "method": "GET",
+      "path": "/guilds/{{ p.guildId | rl }}/members/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "role",
+          "label": "Role IDs",
+          "type": "array",
+          "item_type": "text",
+          "required": true
+        }
+      ],
+      "also": [
+        {
+          "for_each": "{{ p.role }}",
+          "method": "PUT",
+          "path": "/guilds/{{ p.guildId | rl }}/members/{{ p.userId | rl }}/roles/{{ el }}"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "roleRemove",
+      "title": "Remove roles from a member",
+      "method": "GET",
+      "path": "/guilds/{{ p.guildId | rl }}/members/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "role",
+          "label": "Role IDs",
+          "type": "array",
+          "item_type": "text",
+          "required": true
+        }
+      ],
+      "also": [
+        {
+          "for_each": "{{ p.role }}",
+          "method": "DELETE",
+          "path": "/guilds/{{ p.guildId | rl }}/members/{{ p.userId | rl }}/roles/{{ el }}"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "timeout",
+      "title": "Time out a member",
+      "method": "PATCH",
+      "path": "/guilds/{{ p.guildId | rl }}/members/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "duration",
+          "label": "Duration (seconds)",
+          "type": "text",
+          "default": "3600",
+          "help": "60, 300, 3600, 86400, 604800, 2419200, or remove"
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "type": "select",
+          "default": "suspicious_spam",
+          "options": [
+            "suspicious_spam",
+            "compromised",
+            "rule_break",
+            "other"
+          ]
+        },
+        {
+          "key": "reasonCustom",
+          "label": "Custom reason",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "headers": {
+        "X-Audit-Log-Reason": "{{ p.reason | eq:'other' | then:p.reasonCustom | default:(p.reason | eq:'compromised' | then:'Compromised or hacked account') | default:(p.reason | eq:'rule_break' | then:'Breaking server rules') | default:(p.reason | default:'suspicious_spam' | eq:'suspicious_spam' | then:'Suspicious or spam account') | replace:' ','%20' }}"
+      },
+      "body": {
+        "!communication_disabled_until": "{{ p.duration | ne:'remove' | then:(now | epoch | add:p.duration | date:'YYYY-MM-DDTHH:mm:ssZ') }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "member",
+      "operation": "unban",
+      "title": "Unban a member",
+      "method": "DELETE",
+      "path": "/guilds/{{ p.guildId | rl }}/bans/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "guildId",
+          "label": "Server (guild) ID",
+          "type": "text",
+          "required": true,
+          "help": "Resource locator or ID"
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "reason",
+          "label": "Reason",
+          "type": "select",
+          "default": "suspicious_spam",
+          "options": [
+            "suspicious_spam",
+            "compromised",
+            "rule_break",
+            "other"
+          ]
+        },
+        {
+          "key": "reasonCustom",
+          "label": "Custom reason",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "headers": {
+        "X-Audit-Log-Reason": "{{ p.reason | eq:'other' | then:p.reasonCustom | default:(p.reason | eq:'compromised' | then:'Compromised or hacked account') | default:(p.reason | eq:'rule_break' | then:'Breaking server rules') | default:(p.reason | default:'suspicious_spam' | eq:'suspicious_spam' | then:'Suspicious or spam account') | replace:' ','%20' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "webhook",
+      "operation": "sendLegacy",
+      "title": "Send a message via webhook",
+      "method": "POST",
+      "path": "{{ cred.webhook_uri | path }}",
+      "fields": [
+        {
+          "key": "content",
+          "label": "Message",
+          "type": "textarea",
+          "required": false,
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "avatar_url",
+            "flags",
+            "tts",
+            "username",
+            "wait"
+          ]
+        },
+        {
+          "key": "embeds",
+          "label": "Embeds",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{\"values\": [{\"inputMethod\": fields|json, \"json\", \"description\", \"author\", \"color\", \"timestamp\", \"title\", \"url\", \"image\", \"thumbnail\", \"video\"}]}"
+        },
+        {
+          "key": "files",
+          "label": "Files",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "{\"values\": [{\"inputFieldName\": \"data\"}]}; only the first file is sent"
+        },
+        {
+          "key": "filesProperty",
+          "label": "(internal) file property",
+          "type": "text",
+          "default": "data",
+          "help": "Ignored; the property comes from Files"
+        }
+      ],
+      "query": {
+        "wait": "{{ p.options.wait | eq:'true' | then:true }}"
+      },
+      "body_type": "multipart",
+      "body": {
+        "content": "{{ p.content }}",
+        "flags": "{{ p.options.flags | csv | eq:'SUPPRESS_EMBEDS' | then:4 | default:(p.options.flags | csv | eq:'SUPPRESS_NOTIFICATIONS' | then:4096) | default:(p.options.flags | csv | then:4100) }}",
+        "tts": "{{ p.options.tts | eq:'true' | then:true }}",
+        "embeds": {
+          "$map": "{{ p.embeds.values }}",
+          "$to": {
+            "$merge": "{{ el.inputMethod | eq:'json' | then:(el.json | fromjson) }}",
+            "description": "{{ el.description }}",
+            "title": "{{ el.title }}",
+            "url": "{{ el.url }}",
+            "timestamp": "{{ el.timestamp }}",
+            "color": "{{ el.color | hex }}",
+            "author": {
+              "name": "{{ el.author }}"
+            },
+            "image": {
+              "url": "{{ el.image }}"
+            },
+            "thumbnail": {
+              "url": "{{ el.thumbnail }}"
+            },
+            "video": {
+              "$when": "{{ el.video }}",
+              "url": "{{ el.video }}",
+              "width": 1270,
+              "height": 720
+            }
+          }
+        },
+        "avatar_url": "{{ p.options.avatar_url }}",
+        "username": "{{ p.options.username }}",
+        "payload_json": {
+          "$json": {
+            "$when": "{{ p.files.values.0.inputFieldName }}",
+            "$merge": {
+              "content": "{{ p.content }}",
+              "flags": "{{ p.options.flags | csv | eq:'SUPPRESS_EMBEDS' | then:4 | default:(p.options.flags | csv | eq:'SUPPRESS_NOTIFICATIONS' | then:4096) | default:(p.options.flags | csv | then:4100) }}",
+              "tts": "{{ p.options.tts | eq:'true' | then:true }}",
+              "embeds": {
+                "$map": "{{ p.embeds.values }}",
+                "$to": {
+                  "$merge": "{{ el.inputMethod | eq:'json' | then:(el.json | fromjson) }}",
+                  "description": "{{ el.description }}",
+                  "title": "{{ el.title }}",
+                  "url": "{{ el.url }}",
+                  "timestamp": "{{ el.timestamp }}",
+                  "color": "{{ el.color | hex }}",
+                  "author": {
+                    "name": "{{ el.author }}"
+                  },
+                  "image": {
+                    "url": "{{ el.image }}"
+                  },
+                  "thumbnail": {
+                    "url": "{{ el.thumbnail }}"
+                  },
+                  "video": {
+                    "$when": "{{ el.video }}",
+                    "url": "{{ el.video }}",
+                    "width": 1270,
+                    "height": 720
+                  }
+                }
+              },
+              "avatar_url": "{{ p.options.avatar_url }}",
+              "username": "{{ p.options.username }}"
+            },
+            "attachments": [
+              {
+                "id": 0,
+                "filename": "{{ bin.file_name }}"
+              }
+            ]
+          }
+        }
+      },
+      "binary": {
+        "upload_field": "filesProperty",
+        "property": "{{ p.files.values.0.inputFieldName }}",
+        "upload_when": "{{ p.files.values.0.inputFieldName }}",
+        "multipart_field": "files[0]"
+      }
+    }
+  ]
+}
