@@ -1,4 +1,4 @@
-package main
+package update
 
 import (
 	"os"
@@ -8,6 +8,7 @@ import (
 )
 
 func TestInstallBinaryReplacesInPlace(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	target := filepath.Join(dir, "monoagentcli")
 	if err := os.WriteFile(target, []byte("old"), 0o755); err != nil {
@@ -33,6 +34,7 @@ func TestInstallBinaryReplacesInPlace(t *testing.T) {
 }
 
 func TestInstallBinaryTempLivesNextToTarget(t *testing.T) {
+	t.Parallel()
 	// A read-only directory makes CreateTemp in the target dir fail; the
 	// error must come from there (not from os.TempDir), and the target
 	// must be untouched.

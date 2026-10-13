@@ -25,7 +25,7 @@ func TestMain(m *testing.M) {
 	automation.TestSeed = automations.FS()
 	action.SetTestFallback(automations.FS())
 	// The live signed manifest is published now; tests that exercise the
-	// updaters must not reach it (they override this with signedLatest).
+	// updaters must not reach it.
 	releaseClient = func() *release.Client { return &release.Client{} }
 	testhome.Main(m)
 }

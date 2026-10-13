@@ -1,14 +1,16 @@
-package main
+package update
 
 import (
 	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
 func TestNewerRelease(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		latest, current string
 		want            bool
@@ -28,14 +30,14 @@ func TestNewerRelease(t *testing.T) {
 	}
 }
 
-func runUpdateCheckCmd(t *testing.T, args ...string) (updateCheck, error) {
+func runUpdateCheckCmd(t *testing.T, d Deps, args ...string) (Check, error) {
 	t.Helper()
 	var out bytes.Buffer
-	cmd := newUpdateCmd(&globalConfig{JSONOutput: true})
+	cmd := NewCommand(d)
 	cmd.SetOut(&out)
 	cmd.SetArgs(args)
 	err := cmd.Execute()
-	var res updateCheck
+	var res Check
 	if err == nil {
 		if jerr := json.Unmarshal(out.Bytes(), &res); jerr != nil {
 			t.Fatalf("not JSON: %v\n%s", jerr, out.String())
@@ -45,47 +47,51 @@ func runUpdateCheckCmd(t *testing.T, args ...string) (updateCheck, error) {
 }
 
 func TestUpdateCheckReportsWithoutDownloading(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
 	var paths []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		paths = append(paths, r.URL.Path)
+		mu.Unlock()
 		_, _ = w.Write([]byte(`{"tag_name":"v0.73.0","html_url":"https://example.test/r/v0.73.0","assets":[{"name":"x","browser_download_url":"https://example.test/x"}]}`))
 	}))
 	defer srv.Close()
-	old := latestReleaseURL
-	latestReleaseURL = srv.URL + "/latest"
-	t.Cleanup(func() { latestReleaseURL = old })
+	d := testDeps(t, srv.URL+"/latest")
 
-	res, err := runUpdateCheckCmd(t, "--check", "--current", "v0.72.0")
+	res, err := runUpdateCheckCmd(t, d, "--check", "--current", "v0.72.0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !res.UpdateAvailable || res.LatestVersion != "v0.73.0" || res.CurrentVersion != "v0.72.0" || res.ReleaseURL != "https://example.test/r/v0.73.0" {
 		t.Fatalf("res = %+v", res)
 	}
-	if len(paths) != 1 {
+	mu.Lock()
+	n := len(paths)
+	mu.Unlock()
+	if n != 1 {
 		t.Fatalf("--check must only read the release, got requests %v", paths)
 	}
-	if res, _ := runUpdateCheckCmd(t, "--check", "--current", "v0.73.0"); res.UpdateAvailable {
+	if res, _ := runUpdateCheckCmd(t, d, "--check", "--current", "v0.73.0"); res.UpdateAvailable {
 		t.Fatalf("same version reported as an update: %+v", res)
 	}
 }
 
 func TestUpdateCheckNetworkFailureIsAResult(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "rate limited", http.StatusForbidden)
 	}))
 	defer srv.Close()
-	old := latestReleaseURL
-	latestReleaseURL = srv.URL
-	t.Cleanup(func() { latestReleaseURL = old })
-	res, err := runUpdateCheckCmd(t, "--check", "--current", "v0.72.0")
+	res, err := runUpdateCheckCmd(t, testDeps(t, srv.URL), "--check", "--current", "v0.72.0")
 	if err != nil || res.Error == "" || res.UpdateAvailable {
 		t.Fatalf("res = %+v, err = %v", res, err)
 	}
 }
 
 func TestUpdateCurrentNeedsCheck(t *testing.T) {
-	if _, err := runUpdateCheckCmd(t, "--current", "v1"); exitCode(err) != 3 {
-		t.Fatalf("exit = %d, want 3", exitCode(err))
+	t.Parallel()
+	if _, err := runUpdateCheckCmd(t, testDeps(t, "http://127.0.0.1:1"), "--current", "v1"); !isInvalidInput(err) {
+		t.Fatalf("err = %v, want invalid input", err)
 	}
 }
