@@ -120,12 +120,11 @@
     "params": {
       "bucketName": "bk",
       "objectName": "a.txt",
+      "createFromBinary": false,
+      "createContent": "hi",
       "createData": {
         "cacheControl": "no-cache"
       }
-    },
-    "input": {
-      "data": "aGk="
     },
     "responses": [
       {
@@ -173,19 +172,23 @@
     "params": {
       "bucketName": "bk",
       "objectName": "a.txt",
+      "alt": "media",
       "encryptionHeaders": {
         "X-Goog-Encryption-Key": "k"
       }
     },
+    "response": "hello",
     "expect": {
       "method": "GET",
       "path": "/storage/v1/b/bk/o/a.txt",
       "query": {
-        "projection": "noAcl"
+        "projection": "noAcl",
+        "alt": "media"
       },
       "headers": {
         "X-Goog-Encryption-Key": "k"
-      }
+      },
+      "items": 1
     }
   },
   "object.update": {

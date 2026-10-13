@@ -433,7 +433,7 @@
       "method": "POST",
       "base_url": "https://storage.googleapis.com/upload/storage/v1",
       "path": "/b/{{ p.bucketName }}/o",
-      "description": "Uploads the input binary as the object, then applies the metadata in createData. Creating from text (createFromBinary off) is not supported yet.",
+      "description": "Uploads the input binary (or the text in createContent when createFromBinary is off) as the object, then applies the metadata in createData.",
       "fields": [
         {
           "key": "bucketName",
@@ -531,7 +531,8 @@
         "X-Goog-Encryption-Key-Sha256": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key-Sha256' }}"
       },
       "binary": {
-        "upload_field": "createBinaryPropertyName"
+        "upload_field": "createBinaryPropertyName",
+        "upload_text": "{{ p.createFromBinary | eq:'false' | then:p.createContent }}"
       },
       "also": [
         {
@@ -608,7 +609,7 @@
       "title": "Get object metadata",
       "method": "GET",
       "path": "/b/{{ p.bucketName }}/o/{{ p.objectName }}",
-      "description": "Returns the object's metadata; downloading the data (alt=media) is not supported yet.",
+      "description": "Returns the object's metadata, or its data as a binary with alt=media.",
       "fields": [
         {
           "key": "bucketName",
@@ -676,6 +677,7 @@
       ],
       "query": {
         "projection": "{{ p.projection }}",
+        "alt": "{{ p.alt | eq:'media' | then:'media' }}",
         "generation": "{{ p.getParameters.generation | ne:'-1' | then:p.getParameters.generation }}",
         "ifGenerationMatch": "{{ p.getParameters.ifGenerationMatch | ne:'-1' | then:p.getParameters.ifGenerationMatch }}",
         "ifGenerationNotMatch": "{{ p.getParameters.ifGenerationNotMatch | ne:'-1' | then:p.getParameters.ifGenerationNotMatch }}",
@@ -686,6 +688,11 @@
         "X-Goog-Encryption-Algorithm": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Algorithm' }}",
         "X-Goog-Encryption-Key": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key' }}",
         "X-Goog-Encryption-Key-Sha256": "{{ p.encryptionHeaders | get:'X-Goog-Encryption-Key-Sha256' }}"
+      },
+      "binary": {
+        "download_when": "{{ p.alt | eq:'media' }}",
+        "property_field": "binaryPropertyName",
+        "file_name": "{{ p.objectName }}"
       }
     },
     {

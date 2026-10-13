@@ -1,0 +1,189 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_big_query",
+  "node_type": "app.google_big_query",
+  "title": "Google BigQuery",
+  "description": "Run queries and insert rows in Google BigQuery",
+  "category": "app",
+  "docs_url": "https://cloud.google.com/bigquery/docs/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleBigQuery"
+  ],
+  "base_url": "https://bigquery.googleapis.com/bigquery/v2",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (BigQuery)",
+      "n8n_credential": "googleBigQueryOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "database",
+      "label": "Database"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "database",
+      "operation": "executeQuery",
+      "title": "Execute a query",
+      "method": "POST",
+      "path": "/projects/{{ p.projectId | rl }}/queries",
+      "description": "Runs the query and waits up to timeoutMs (default 10 s) for it to finish; output rows carry BigQuery's {f:[{v}]} cells with the schema.",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project",
+          "type": "text",
+          "required": true,
+          "help": "Google Cloud project ID (resource locator accepted)."
+        },
+        {
+          "key": "sqlQuery",
+          "label": "SQL query",
+          "type": "code",
+          "required": true,
+          "language": "sql"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "defaultDataset",
+            "dryRun",
+            "includeSchema",
+            "location",
+            "maximumBytesBilled",
+            "maxResults",
+            "timeoutMs",
+            "rawOutput",
+            "useLegacySql",
+            "returnAsNumbers",
+            "queryParameters"
+          ],
+          "help": "queryParameters.namedParameters: list of {name, value} (sent as STRING parameters)."
+        }
+      ],
+      "body": {
+        "query": "{{ p.sqlQuery }}",
+        "useLegacySql": "{{ p.options.useLegacySql | default:false }}",
+        "dryRun": "{{ p.options.dryRun }}",
+        "location": "{{ p.options.location }}",
+        "maximumBytesBilled": "{{ p.options.maximumBytesBilled }}",
+        "maxResults": "{{ p.options.maxResults | default:1000 }}",
+        "timeoutMs": "{{ p.options.timeoutMs | default:10000 }}",
+        "defaultDataset": {
+          "datasetId": "{{ p.options.defaultDataset }}",
+          "projectId": "{{ p.options.defaultDataset | then:(p.projectId | rl) }}"
+        },
+        "parameterMode": "{{ p.options.queryParameters.namedParameters | then:'NAMED' }}",
+        "queryParameters": {
+          "$map": "{{ p.options.queryParameters.namedParameters }}",
+          "$to": {
+            "name": "{{ el.name }}",
+            "parameterType": {
+              "type": "STRING"
+            },
+            "parameterValue": {
+              "value": "{{ el.value }}"
+            }
+          }
+        }
+      },
+      "output": {
+        "path": "rows"
+      }
+    },
+    {
+      "resource": "database",
+      "operation": "insert",
+      "title": "Insert rows",
+      "method": "POST",
+      "path": "/projects/{{ p.projectId | rl }}/datasets/{{ p.datasetId | rl }}/tables/{{ p.tableId | rl }}/insertAll",
+      "description": "Inserts every input item as one row in a single request.",
+      "batch": true,
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project",
+          "type": "text",
+          "required": true,
+          "help": "Google Cloud project ID (resource locator accepted)."
+        },
+        {
+          "key": "datasetId",
+          "label": "Dataset",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableId",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataMode",
+          "label": "Data mode",
+          "type": "select",
+          "options": [
+            "autoMap",
+            "define"
+          ],
+          "default": "autoMap"
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "values"
+          ],
+          "help": "values: list of {fieldId, fieldValue} (define mode)."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "batchSize",
+            "ignoreUnknownValues",
+            "skipInvalidRows",
+            "templateSuffix",
+            "traceId"
+          ]
+        }
+      ],
+      "body": {
+        "rows": {
+          "$map": "{{ items }}",
+          "$to": {
+            "json": "{{ p.dataMode | default:'autoMap' | eq:'autoMap' | then:el | default:(p.fieldsUi.values | kv:'fieldId,fieldValue') }}"
+          }
+        },
+        "ignoreUnknownValues": "{{ p.options.ignoreUnknownValues }}",
+        "skipInvalidRows": "{{ p.options.skipInvalidRows }}",
+        "templateSuffix": "{{ p.options.templateSuffix }}",
+        "traceId": "{{ p.options.traceId | default:uuid }}"
+      }
+    }
+  ]
+}
