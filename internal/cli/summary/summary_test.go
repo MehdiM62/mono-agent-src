@@ -1,4 +1,4 @@
-package main
+package summarycli
 
 import (
 	"encoding/json"
@@ -14,7 +14,7 @@ import (
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
-func newSummaryCLITestDB(t *testing.T) *globalConfig {
+func newSummaryCLITestDB(t *testing.T) *testConfig {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("MONOAGENT_DAEMON_HEARTBEAT", filepath.Join(t.TempDir(), "hb.json"))
@@ -33,14 +33,14 @@ func newSummaryCLITestDB(t *testing.T) *globalConfig {
 		t.Fatal(err)
 	}
 	db.Close()
-	return &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}
+	return &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}
 }
 
-func runSummary(t *testing.T, cfg *globalConfig, args ...string) (string, error) {
+func runSummary(t *testing.T, cfg *testConfig, args ...string) (string, error) {
 	t.Helper()
 	var err error
 	out := captureStdout(t, func() {
-		cmd := newSummaryCmd(cfg)
+		cmd := NewCommand(testDeps(cfg))
 		cmd.SetArgs(args)
 		err = cmd.Execute()
 	})
