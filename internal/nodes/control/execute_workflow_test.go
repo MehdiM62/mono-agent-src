@@ -59,6 +59,7 @@ func newSubflowFixture(t *testing.T) *subflowFixture {
 	RegisterAll(reg)
 	reg.Register("test.mark", func() workflow.NodeExecutor { return markNode{} })
 	reg.Register("test.fail", func() workflow.NodeExecutor { return failNode{} })
+	reg.Register("test.block", func() workflow.NodeExecutor { return blockNode{} })
 	eng := workflow.NewWorkflowEngineWithStore(store, db.DB, nil, reg,
 		workflow.EngineConfig{ProfileID: "default", WebhookAddr: "127.0.0.1:0", MaxConcurrent: 1}, zerolog.Nop())
 	if err := eng.Start(context.Background()); err != nil {

@@ -1,6 +1,12 @@
 package workflow
 
-import "context"
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+)
 
 // Sub-workflow calls (core.execute_workflow). A parent node starts child
 // executions through the SubWorkflowRunner the engine puts on the run's
@@ -118,4 +124,56 @@ func subWorkflowDepth(triggerData map[string]interface{}) int {
 		return d
 	}
 	return 0
+}
+
+// UnfinishedSubWorkflowChildren lists the child executions parentID started
+// that have not reached a terminal status.
+func UnfinishedSubWorkflowChildren(ctx context.Context, db *sql.DB, parentID string) ([]string, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT r.child_execution_id FROM subworkflow_runs r
+		 JOIN workflow_executions x ON x.id = r.child_execution_id
+		 WHERE r.parent_execution_id = ? AND x.status IN ('QUEUED','RUNNING','WAITING')`, parentID)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("sub-workflow: list unfinished children: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("sub-workflow: list unfinished children: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// NudgeSubWorkflowParent makes the parent waiting on childID due for resume
+// at once when childID was the last unfinished child of its node, so any
+// engine's resume tick picks it up. It is the wake for a process with no
+// engine (`workflow cancel`); an engine wakes the parent itself.
+func NudgeSubWorkflowParent(ctx context.Context, db *sql.DB, childID string) error {
+	var parentID, nodeID string
+	err := db.QueryRowContext(ctx,
+		`SELECT parent_execution_id, parent_node_id FROM subworkflow_runs WHERE child_execution_id = ? AND wait = 1`,
+		childID).Scan(&parentID, &nodeID)
+	if errors.Is(err, sql.ErrNoRows) || (err != nil && strings.Contains(err.Error(), "no such table")) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("sub-workflow: parent lookup: %w", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`UPDATE workflow_executions SET resume_after = NULL
+		 WHERE id = ? AND status = 'WAITING' AND NOT EXISTS (
+		     SELECT 1 FROM subworkflow_runs r JOIN workflow_executions c ON c.id = r.child_execution_id
+		     WHERE r.parent_execution_id = ? AND r.parent_node_id = ? AND r.wait = 1
+		       AND c.status IN ('QUEUED','RUNNING','WAITING'))`,
+		parentID, parentID, nodeID); err != nil {
+		return fmt.Errorf("sub-workflow: wake parent: %w", err)
+	}
+	return nil
 }

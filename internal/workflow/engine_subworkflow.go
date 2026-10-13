@@ -281,3 +281,25 @@ func (e *WorkflowEngine) wakeSubWorkflowParent(parentID, nodeID string) {
 		}
 	}
 }
+
+// cancelSubWorkflowChildren cancels the unfinished children parentID started
+// through cancelExecution, which in turn cancels theirs. A child running in
+// another process is not reachable from here; `workflow cancel` reaches it
+// (cancelExecution in cmd/monoagentcli signals its process).
+func (e *WorkflowEngine) cancelSubWorkflowChildren(parentID string, cause error) {
+	db := e.store.RawDB()
+	if db == nil {
+		return
+	}
+	dctx, cancel := dbCtx()
+	ids, err := UnfinishedSubWorkflowChildren(dctx, db, parentID)
+	cancel()
+	if err != nil {
+		e.logger.Warn().Err(err).Str("execution_id", parentID).Msg("engine: sub-workflow cancel cascade")
+		return
+	}
+	for _, id := range ids {
+		e.logger.Info().Str("execution_id", id).Str("parent_execution_id", parentID).Msg("engine: cancelling sub-workflow child with its parent")
+		e.cancelExecution(id, cause)
+	}
+}
