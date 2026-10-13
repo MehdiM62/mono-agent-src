@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orgdesign"
@@ -29,13 +30,13 @@ func newOrgGroupCmd(env *orgEnv) *cobra.Command {
 
 // validateGroup applies the cross-org holding rules (C-39, cycles, missing
 // children).
-func validateGroup(root string) ([]*orgdesign.Doc, error) {
+func (env *orgEnv) validateGroup(root string) ([]*orgdesign.Doc, error) {
 	docs, _, err := orgdesign.LoadAll(root)
 	if err != nil {
 		return nil, err
 	}
 	if errs := orgdesign.ValidateProfileOrgs(docs); len(errs) > 0 {
-		return nil, errInvalidInput("%s", strings.Join(errs, "; "))
+		return nil, env.d.InvalidInput("%s", strings.Join(errs, "; "))
 	}
 	return docs, nil
 }
@@ -54,7 +55,7 @@ func childGoalWarnings(root, name string) []string {
 // saveReportUp writes the managed report-up lines into child bosses.
 func saveReportUp(ctx context.Context, env *orgEnv, db *storage.Database, profileID, root string, docs []*orgdesign.Doc) error {
 	for _, d := range orggroup.ApplyReportUp(docs) {
-		if _, err := saveOrgReconciled(ctx, db, profileID, root, d, env.genOptions(profileID)); err != nil {
+		if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, d, env.genOptions(profileID)); err != nil {
 			return err
 		}
 	}
@@ -75,15 +76,15 @@ func newOrgGroupInitCmd(env *orgEnv) *cobra.Command {
 			genv := orggroup.NewEnv(db.DB, profileID, root)
 			h, err := genv.LoadHolding(args[0])
 			if err != nil {
-				return errInvalidInput("%v", err)
+				return env.d.InvalidInput("%v", err)
 			}
-			docs, err := validateGroup(root)
+			docs, err := env.validateGroup(root)
 			if err != nil {
 				return err
 			}
 			initiator, ok := h.RootRole()
 			if !ok {
-				return errInvalidInput("holding org %q needs exactly one root role", h.Name)
+				return env.d.InvalidInput("holding org %q needs exactly one root role", h.Name)
 			}
 			// Scope, not merge: init passes every Initiator tool over the
 			// holding org's current children, so a child removed from the
@@ -95,7 +96,7 @@ func newOrgGroupInitCmd(env *orgEnv) *cobra.Command {
 				return err
 			}
 			h, _ = orgdesign.Load(root, h.Name)
-			if _, err := saveOrgReconciled(ctx, db, profileID, root, h, env.genOptions(profileID)); err != nil {
+			if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, h, env.genOptions(profileID)); err != nil {
 				return err
 			}
 			children := []string{}
@@ -131,10 +132,10 @@ func newOrgGroupStartStopCmd(env *orgEnv, start bool) *cobra.Command {
 			genv := orggroup.NewEnv(db.DB, profileID, root)
 			h, err := genv.LoadHolding(args[0])
 			if err != nil {
-				return errInvalidInput("%v", err)
+				return env.d.InvalidInput("%v", err)
 			}
 			if start {
-				if _, err := validateGroup(root); err != nil {
+				if _, err := env.validateGroup(root); err != nil {
 					return err
 				}
 				if err := monomind.OrgRunStart(ctx, root, h.Name, task); err != nil {
@@ -143,7 +144,7 @@ func newOrgGroupStartStopCmd(env *orgEnv, start bool) *cobra.Command {
 				for _, c := range h.ChildOrgs {
 					if c.Start == "with_parent" {
 						if err := genv.CheckStart(ctx, h.Name, c.Org); err != nil {
-							return errInvalidInput("%v", err)
+							return env.d.InvalidInput("%v", err)
 						}
 						if err := monomind.OrgRunStart(ctx, root, c.Org, ""); err != nil {
 							return err
@@ -185,7 +186,7 @@ func newOrgGroupStatusCmd(env *orgEnv) *cobra.Command {
 			}
 			st, err := orggroup.NewEnv(db.DB, profileID, root).GroupStatus(cmd.Context(), args[0])
 			if err != nil {
-				return errInvalidInput("%v", err)
+				return env.d.InvalidInput("%v", err)
 			}
 			return printJSONValue(st)
 		},
@@ -204,7 +205,7 @@ func grantDeciderTools(ctx context.Context, env *orgEnv, db *storage.Database, p
 	}
 	dOrg, dRole, err := orgdecide.DeciderRole(a, doc, all)
 	if err != nil {
-		return errInvalidInput("%v", err)
+		return env.d.InvalidInput("%v", err)
 	}
 	if err := orgdecide.GrantDecisionTools(ctx, orggrant.NewStore(db.DB), profileID, dOrg, dRole, doc.Name); err != nil {
 		return err
@@ -216,6 +217,6 @@ func grantDeciderTools(ctx context.Context, env *orgEnv, db *storage.Database, p
 	if err != nil {
 		return err
 	}
-	_, err = saveOrgReconciled(ctx, db, profileID, root, deciderDoc, env.genOptions(profileID))
+	_, err = orgenv.SaveReconciled(ctx, db, profileID, root, deciderDoc, env.genOptions(profileID))
 	return err
 }

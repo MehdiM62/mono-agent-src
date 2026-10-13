@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
@@ -43,8 +44,8 @@ func docCarriesEnforcedKeys(d *orgdesign.Doc) bool {
 // orgWorkflowIn loads a workflow and checks it belongs to profileID.
 // Workflows without a profile (legacy, file-store) count as the default
 // profile's.
-func orgWorkflowIn(ctx context.Context, db *storage.Database, profileID, id string) (*workflow.Workflow, error) {
-	wf, err := openWorkflowStore(db).GetWorkflow(ctx, id)
+func (env *orgEnv) orgWorkflowIn(ctx context.Context, db *storage.Database, profileID, id string) (*workflow.Workflow, error) {
+	wf, err := env.OpenWorkflowStore(db).GetWorkflow(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +69,7 @@ func loadOrgForRowEdit(env *orgEnv, name string) (db *storage.Database, profileI
 	if _, _, root, err = env.Profile(); err != nil {
 		return nil, "", "", nil, nil, err
 	}
-	if release, err = lockOrgRows(root); err != nil {
+	if release, err = orgenv.LockRows(root); err != nil {
 		return nil, "", "", nil, nil, err
 	}
 	if db, profileID, root, doc, err = loadOrgForEdit(env, name); err != nil {
@@ -138,7 +139,7 @@ type grantView struct {
 	FileInputNodes []orggrant.FileInputNode `json:"file_input_nodes"`
 }
 
-func viewGrant(ctx context.Context, db *storage.Database, g orggrant.Grant) grantView {
+func (env *orgEnv) viewGrant(ctx context.Context, db *storage.Database, g orggrant.Grant) grantView {
 	t := g.Automation()
 	v := grantView{
 		ID: g.ID, Org: g.OrgName, Role: g.RoleID, Alias: t.Alias, WorkflowID: t.WorkflowID,
@@ -150,7 +151,7 @@ func viewGrant(ctx context.Context, db *storage.Database, g orggrant.Grant) gran
 	// The tier follows the workflow as it is now, not as it was at grant
 	// time: adding an email node to a granted workflow raises its calls to
 	// irreversible immediately.
-	if wf, err := orgWorkflowIn(ctx, db, g.ProfileID, t.WorkflowID); err == nil {
+	if wf, err := env.orgWorkflowIn(ctx, db, g.ProfileID, t.WorkflowID); err == nil {
 		v.WorkflowName = wf.Name
 		v.Tier = orggrant.GrantTier(orggrant.OutboundNodes(wf))
 		if fi := orggrant.FileInputNodes(wf); len(fi) > 0 {
@@ -180,7 +181,7 @@ func newOrgGrantListCmd(env *orgEnv) *cobra.Command {
 			out := []grantView{}
 			for _, g := range grants {
 				if g.Automation() != nil {
-					out = append(out, viewGrant(cmd.Context(), db, g))
+					out = append(out, env.viewGrant(cmd.Context(), db, g))
 				}
 			}
 			return printJSONValue(map[string]interface{}{"v": 1, "org": doc.Name, "grants": out})
@@ -221,7 +222,7 @@ func newOrgGrantAddCmd(env *orgEnv) *cobra.Command {
 			default:
 				return fmt.Errorf("--mode must be run, trigger, or status")
 			}
-			wf, err := orgWorkflowIn(ctx, db, profileID, ref.WorkflowID)
+			wf, err := env.orgWorkflowIn(ctx, db, profileID, ref.WorkflowID)
 			if err != nil {
 				return err
 			}
@@ -262,7 +263,7 @@ func newOrgGrantAddCmd(env *orgEnv) *cobra.Command {
 					r.SetPolicyStrings("denyTools", append(deny, "Bash"))
 				}
 			}
-			rep, err := saveOrgReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID))
+			rep, err := orgenv.SaveReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID))
 			if err != nil {
 				return err
 			}
@@ -275,7 +276,7 @@ func newOrgGrantAddCmd(env *orgEnv) *cobra.Command {
 				warnings = append(warnings, w) // C-46
 			}
 			return printJSONValue(map[string]interface{}{
-				"v": 1, "org": doc.Name, "grant": viewGrant(ctx, db, *g),
+				"v": 1, "org": doc.Name, "grant": env.viewGrant(ctx, db, *g),
 				"tool_name": orgdesign.ProviderName + "__automation_" + alias,
 				"applies":   "next org start",
 				"reconcile": rep.Findings,
@@ -317,7 +318,7 @@ func newOrgGrantRemoveCmd(env *orgEnv) *cobra.Command {
 				}
 				return err
 			}
-			if _, err := saveOrgReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
+			if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
 				return err
 			}
 			return printJSONValue(map[string]interface{}{"v": 1, "org": doc.Name, "removed": true})

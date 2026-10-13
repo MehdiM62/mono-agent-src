@@ -1,11 +1,12 @@
-package main
+package org
 
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
-	"github.com/spf13/cobra"
 )
 
 // ─── org effective-tools ─────────────────────────────────────────────────
@@ -74,7 +75,7 @@ func newOrgEffectiveToolsCmd(env *orgEnv) *cobra.Command {
 				for _, g := range grants {
 					if t := g.Automation(); t != nil && t.Tool == name {
 						desc = fmt.Sprintf("runs automation %q (%s, approval %s)", t.Alias, t.Mode, t.Approval)
-						if wf, err := orgWorkflowIn(cmd.Context(), db, profileID, t.WorkflowID); err == nil {
+						if wf, err := env.orgWorkflowIn(cmd.Context(), db, profileID, t.WorkflowID); err == nil {
 							fileInputs = orggrant.FileInputNodes(wf)
 						}
 					}

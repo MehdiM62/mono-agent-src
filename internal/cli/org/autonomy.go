@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -143,7 +144,7 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 			}
 			if f.Changed("decider-threshold") {
 				if !(threshold > 0 && threshold <= 1) {
-					return errInvalidInput("--decider-threshold %v must be in (0,1]", threshold)
+					return env.d.InvalidInput("--decider-threshold %v must be in (0,1]", threshold)
 				}
 				a.Decider.Threshold = threshold
 			}
@@ -172,7 +173,7 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 			for _, kv := range tiers {
 				k, v, ok := strings.Cut(kv, "=")
 				if !ok {
-					return errInvalidInput("--tier %q must be <class>=<tier>", kv)
+					return env.d.InvalidInput("--tier %q must be <class>=<tier>", kv)
 				}
 				a.Tiers[strings.TrimSpace(k)] = strings.TrimSpace(v)
 			}
@@ -180,9 +181,9 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 				delete(a.Tiers, k)
 			}
 			if err := a.Validate(); err != nil {
-				return errInvalidInput("%v", err)
+				return env.d.InvalidInput("%v", err)
 			}
-			if err := checkDeciderAvailable(ctx, db.DB, profileID, root, doc.Name, a); err != nil {
+			if err := env.checkDeciderAvailable(ctx, db.DB, profileID, root, doc.Name, a); err != nil {
 				return err
 			}
 			if err := store.Put(ctx, a, by); err != nil {
@@ -192,7 +193,7 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 				return err
 			}
 			doc.Autonomy = orgdecide.DisplayCopy(a, doc.Autonomy)
-			if _, err := saveOrgReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
+			if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
 				return err
 			}
 			return printJSONValue(autonomyView(a))
@@ -221,7 +222,7 @@ func newOrgAutonomySetCmd(env *orgEnv) *cobra.Command {
 // outside world: parent needs a holding org listing this org, boss needs
 // monomind tool providers, jev needs a TypeSafe key for the profile, and
 // model (also jev's fallback) needs a model its runtime offers.
-func checkDeciderAvailable(ctx context.Context, db *sql.DB, profileID, root, org string, a *orgdecide.Autonomy) error {
+func (env *orgEnv) checkDeciderAvailable(ctx context.Context, db *sql.DB, profileID, root, org string, a *orgdecide.Autonomy) error {
 	switch a.Decider.Kind {
 	case orgdesign.DeciderParent:
 		docs, _, err := orgdesign.LoadAll(root)
@@ -229,7 +230,7 @@ func checkDeciderAvailable(ctx context.Context, db *sql.DB, profileID, root, org
 			return err
 		}
 		if orgdesign.HoldingOwner(docs, org) == "" {
-			return errInvalidInput("decider parent needs a holding org that lists %q in its children", org)
+			return env.d.InvalidInput("decider parent needs a holding org that lists %q in its children", org)
 		}
 	case orgdesign.DeciderBoss:
 		set, err := monomind.Capabilities(ctx)
@@ -240,12 +241,12 @@ func checkDeciderAvailable(ctx context.Context, db *sql.DB, profileID, root, org
 			return err
 		}
 	case orgdesign.DeciderModel:
-		return checkDeciderModel(ctx, a)
+		return env.checkDeciderModel(ctx, a)
 	case orgdesign.DeciderJev:
 		if _, _, err := jevconf.ResolveKey(ctx, db, profileID, ""); err != nil {
-			return errInvalidInput("decider jev needs a TypeSafe API key: store one with `monoagentcli secret add --kind secret --name %s` (value on stdin) or set TYPESAFE_API_KEY (%v)", jevconf.SecretName, err)
+			return env.d.InvalidInput("decider jev needs a TypeSafe API key: store one with `monoagentcli secret add --kind secret --name %s` (value on stdin) or set TYPESAFE_API_KEY (%v)", jevconf.SecretName, err)
 		}
-		return checkDeciderModel(ctx, a)
+		return env.checkDeciderModel(ctx, a)
 	}
 	return nil
 }
@@ -270,7 +271,7 @@ var (
 // Deliberately fail-open on our own inability to look: a runtime with no
 // discovery command, an uninstalled binary, or a listing that errors leaves
 // the model as typed. Only a definite mismatch is refused.
-func checkDeciderModel(ctx context.Context, a *orgdecide.Autonomy) error {
+func (env *orgEnv) checkDeciderModel(ctx context.Context, a *orgdecide.Autonomy) error {
 	model := strings.TrimSpace(a.Decider.Model)
 	runtimeID := strings.TrimSpace(a.Decider.Runtime)
 	if model == "" || runtimeID == "" {
@@ -284,7 +285,7 @@ func checkDeciderModel(ctx context.Context, a *orgdecide.Autonomy) error {
 	for _, e := range scan.Agents {
 		if e.ID == runtimeID {
 			if !e.Installed {
-				return errInvalidInput("decider runtime %q is not installed%s", runtimeID, installHint(e.InstallHint))
+				return env.d.InvalidInput("decider runtime %q is not installed%s", runtimeID, installHint(e.InstallHint))
 			}
 			if e.Binary != nil {
 				binary = *e.Binary
@@ -303,7 +304,7 @@ func checkDeciderModel(ctx context.Context, a *orgdecide.Autonomy) error {
 		}
 		names = append(names, m.ID)
 	}
-	return errInvalidInput("decider model %q is not one %s offers; available: %s",
+	return env.d.InvalidInput("decider model %q is not one %s offers; available: %s",
 		model, runtimeID, strings.Join(names, ", "))
 }
 
@@ -341,13 +342,13 @@ func newOrgAutonomyPauseCmd(env *orgEnv, pause bool) *cobra.Command {
 			case len(args) == 1:
 				orgs = []string{args[0]}
 			default:
-				return errInvalidInput("name an org or pass --all")
+				return env.d.InvalidInput("name an org or pass --all")
 			}
 			until := pausedIndefinitely
 			if pause && forDur != "" {
 				d, err := time.ParseDuration(forDur)
 				if err != nil || d <= 0 {
-					return errInvalidInput("--for %q must be a duration like 30m or 2h", forDur)
+					return env.d.InvalidInput("--for %q must be a duration like 30m or 2h", forDur)
 				}
 				until = time.Now().Add(d)
 			}
@@ -419,7 +420,7 @@ func rewriteAutonomyDisplayCopy(ctx context.Context, env *orgEnv, db *storage.Da
 		return err
 	}
 	doc.Autonomy = orgdecide.DisplayCopy(a, doc.Autonomy)
-	if _, err := saveOrgReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
+	if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
 		return fmt.Errorf("org %q: %w", org, err)
 	}
 	return nil

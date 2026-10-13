@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"encoding/json"
@@ -15,8 +15,7 @@ import (
 func runOrgSummary(t *testing.T, root string, args ...string) map[string]interface{} {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	cfg := &globalConfig{DBPath: filepath.Join(t.TempDir(), "o.db"), ProfileID: "default"}
-	cmd := newOrgCmd(cfg)
+	cmd := testOrgCmd(filepath.Join(t.TempDir(), "o.db"))
 	cmd.SetArgs(append([]string{"--project", root, "summary"}, args...))
 	var runErr error
 	out := captureStdout(t, func() { runErr = cmd.Execute() })
@@ -78,8 +77,7 @@ func TestOrgSummaryNeedsYouTimeoutHolds(t *testing.T) {
 	perOrgNeedsYouTimeout = time.Second
 	t.Cleanup(func() { perOrgNeedsYouTimeout = old })
 
-	cfg := &globalConfig{DBPath: filepath.Join(t.TempDir(), "o.db"), ProfileID: "default"}
-	env := &orgEnv{cfg: cfg}
+	env := testEnv(filepath.Join(t.TempDir(), "o.db"), "default", nil)
 	root := env.Root()
 	writeOrgFile(t, root, "acme.json", `{"name":"acme"}`)
 	cmd := newOrgSummaryCmd(env)
@@ -128,8 +126,7 @@ func TestOrgSummaryAllProfiles(t *testing.T) {
 	writeOrgFile(t, rootD, "home.json", `{"name":"home"}`)
 	writeOrgFile(t, rootW, "acme.json", `{"name":"acme"}`)
 
-	cfg := &globalConfig{DBPath: dbPath, ProfileID: "default"}
-	cmd := newOrgCmd(cfg)
+	cmd := testOrgCmd(dbPath)
 	cmd.SetArgs([]string{"summary", "--all-profiles", "--fast"})
 	var runErr error
 	out := captureStdout(t, func() { runErr = cmd.Execute() })

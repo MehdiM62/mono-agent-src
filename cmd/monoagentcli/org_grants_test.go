@@ -441,3 +441,36 @@ func TestWorkflowSaveRaisesGrantTier(t *testing.T) {
 		t.Fatalf("after removing it: stored %s, display %s (want no downgrade)", s, d)
 	}
 }
+
+// TestOrgPackageAdapterWiring pins what main hands internal/cli/org: its
+// invalid-input error (exit 3), and the --project and profile of the `org`
+// command the subcommands are added to.
+func TestOrgPackageAdapterWiring(t *testing.T) {
+	f := newOrgCLIFixture(t)
+
+	_, err := f.run(t, "autonomy", "set", "growth", "--tier", "bad")
+	if code := exitCodeFor(err); code != 3 || !strings.Contains(err.Error(), "must be <class>=<tier>") {
+		t.Fatalf("bad --tier: exit %d, %v", code, err)
+	}
+	if _, err := f.run(t, "--project", t.TempDir(), "grant", "list", "growth"); err == nil || !strings.Contains(err.Error(), `is not the org root of profile "default"`) {
+		t.Fatalf("grant list under another --project: %v", err)
+	}
+	if got := f.mustRun(t, "--project", f.root, "grant", "list", "growth"); got["org"] != "growth" {
+		t.Fatalf("grant list at the profile root = %v", got)
+	}
+	other := t.TempDir()
+	writeOrgFile(t, other, "elsewhere.json", `{"name":"elsewhere"}`)
+	sum := f.mustRun(t, "--project", other, "summary", "--fast")
+	if orgs := sum["orgs"].([]interface{}); len(orgs) != 1 || orgs[0].(map[string]interface{})["name"] != "elsewhere" {
+		t.Fatalf("summary under --project = %v", sum)
+	}
+	if _, err := f.run(t, "--project", other, "summary", "--all-profiles"); exitCodeFor(err) != 3 {
+		t.Fatalf("summary --all-profiles with --project: %v", err)
+	}
+	cmd := newOrgCmd(f.cfg)
+	for _, name := range []string{"automation", "automation-role", "autonomy", "effective-tools", "grant", "group", "reconcile-doc", "summary"} {
+		if c, _, err := cmd.Find([]string{name}); err != nil || c.Name() != name {
+			t.Errorf("org %s: %v", name, err)
+		}
+	}
+}

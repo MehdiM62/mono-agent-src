@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/org"
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/monomind"
 )
@@ -33,6 +34,7 @@ func newOrgCmd(cfg *globalConfig) *cobra.Command {
 	cmd.PersistentFlags().StringVar(&env.projectFlag, "project", "",
 		"Project root orgs resolve under (<root>/.monomind/orgs/); default: the active profile's folder")
 	root := env.Root
+	d, e := orgDeps(cfg), env.env()
 
 	cmd.AddCommand(
 		newOrgListCmd(root),
@@ -61,12 +63,12 @@ func newOrgCmd(cfg *globalConfig) *cobra.Command {
 		newOrgRoleCmd(root),
 		newOrgCreateJSONCmd(env),
 		newOrgSignCmd(env),
-		newOrgAutomationCmd(env),
-		newOrgGrantCmd(env),
-		newOrgEffectiveToolsCmd(env),
+		org.NewAutomationCommand(d, e),
+		org.NewGrantCommand(d, e),
+		org.NewEffectiveToolsCommand(d, e),
 		newOrgLegacyCmd(env),
-		newOrgAutonomyCmd(env),
-		newOrgSummaryCmd(env),
+		org.NewAutonomyCommand(d, e),
+		org.NewSummaryCommand(d, e),
 		newOrgServeCmd(env),
 		newOrgLifecycleCmd(env, "stop", "Ask a running org to stop", monomind.OrgStop),
 		newOrgLifecycleCmd(env, "pause", "Pause an org: current turns finish, no new cycles start", monomind.OrgPause),
@@ -78,10 +80,10 @@ func newOrgCmd(cfg *globalConfig) *cobra.Command {
 		newOrgScheduleAuditCmd(env),
 		newOrgRenameCmd(env),
 		newOrgDeleteCmd(env),
-		newOrgAutomationRoleCmd(env),
-		newOrgGroupCmd(env),
+		org.NewAutomationRoleCommand(d, e),
+		org.NewGroupCommand(d, e),
 		newOrgReconcileCmd(env),
-		newOrgReconcileDocCmd(env),
+		org.NewReconcileDocCommand(d, e),
 		newOrgTeardownProfileCmd(env),
 	)
 	return cmd

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/monoes/mono-agent/internal/cli/org"
 	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
@@ -40,6 +41,11 @@ func (e *orgEnv) env() *orgenv.Env {
 		})
 	})
 	return e.e
+}
+
+// orgDeps is org.Deps on cfg.
+func orgDeps(cfg *globalConfig) org.Deps {
+	return org.Deps{InvalidInput: errInvalidInput}
 }
 
 func (e *orgEnv) Root() string { return e.env().Root() }
@@ -79,4 +85,37 @@ func printJSONValue(v interface{}) error {
 		return err
 	}
 	return printOrgJSON(b)
+}
+
+// The org helpers the org commands still in main, the library and the
+// daemon use; the commands themselves are in internal/cli/org.
+
+func loadOrgForEdit(env *orgEnv, name string) (*storage.Database, string, string, *orgdesign.Doc, error) {
+	return org.LoadForEdit(env.env(), name)
+}
+
+func ensureNewOrgAutonomy(ctx context.Context, db *storage.Database, profileID string, doc *orgdesign.Doc, by string) error {
+	return org.EnsureNewAutonomy(ctx, db, profileID, doc, by)
+}
+
+func childGoalWarnings(root, name string) []string { return org.ChildGoalWarnings(root, name) }
+
+func docCarriesEnforcedKeys(d *orgdesign.Doc) bool { return org.DocCarriesEnforcedKeys(d) }
+
+func fileSHA256(path string) (string, error) { return org.FileSHA256(path) }
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }

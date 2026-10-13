@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -49,7 +49,7 @@ func TestCheckDeciderModelRejectsAModelTheRuntimeDoesNotOffer(t *testing.T) {
 		{ID: "gpt-6-astra"}, {ID: "gpt-5.6-luna"}, {ID: "gpt-5.5"},
 	}, nil)
 
-	err := checkDeciderModel(context.Background(), modelDecider("codex", "gpt-5"))
+	err := depsEnv().checkDeciderModel(context.Background(), modelDecider("codex", "gpt-5"))
 	if err == nil {
 		t.Fatal("a model the runtime does not offer must be refused")
 	}
@@ -63,14 +63,14 @@ func TestCheckDeciderModelRejectsAModelTheRuntimeDoesNotOffer(t *testing.T) {
 
 func TestCheckDeciderModelAcceptsAnOfferedModel(t *testing.T) {
 	stubRuntimes(t, codexInstalled(), []monomind.RuntimeModel{{ID: "gpt-5.6-luna"}}, nil)
-	if err := checkDeciderModel(context.Background(), modelDecider("codex", "gpt-5.6-luna")); err != nil {
+	if err := depsEnv().checkDeciderModel(context.Background(), modelDecider("codex", "gpt-5.6-luna")); err != nil {
 		t.Fatalf("an offered model must pass: %v", err)
 	}
 }
 
 func TestCheckDeciderModelRejectsAnUninstalledRuntime(t *testing.T) {
 	stubRuntimes(t, []monomind.ScanEntry{{ID: "codex", Installed: false, InstallHint: "npm i -g codex"}}, nil, nil)
-	err := checkDeciderModel(context.Background(), modelDecider("codex", "gpt-5.6-luna"))
+	err := depsEnv().checkDeciderModel(context.Background(), modelDecider("codex", "gpt-5.6-luna"))
 	if err == nil || !strings.Contains(err.Error(), "not installed") {
 		t.Fatalf("want a not-installed error, got %v", err)
 	}
@@ -99,7 +99,7 @@ func TestCheckDeciderModelLeavesTheModelAloneWhenItCannotCheck(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			stubRuntimes(t, codexInstalled(), tc.models, tc.listErr)
-			if err := checkDeciderModel(context.Background(), modelDecider(tc.runtime, tc.model)); err != nil {
+			if err := depsEnv().checkDeciderModel(context.Background(), modelDecider(tc.runtime, tc.model)); err != nil {
 				t.Fatalf("should not block: %v", err)
 			}
 		})

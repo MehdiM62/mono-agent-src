@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -39,9 +40,9 @@ type automationView struct {
 	FileInputNodes []orggrant.FileInputNode `json:"file_input_nodes"`
 }
 
-func viewAutomation(ctx context.Context, db *storage.Database, profileID string, a orgdesign.AutomationRef) automationView {
+func (env *orgEnv) viewAutomation(ctx context.Context, db *storage.Database, profileID string, a orgdesign.AutomationRef) automationView {
 	v := automationView{WorkflowID: a.WorkflowID, Alias: a.Alias, Owned: a.Owned, OutboundNodes: []string{}, FileInputNodes: []orggrant.FileInputNode{}}
-	if wf, err := orgWorkflowIn(ctx, db, profileID, a.WorkflowID); err == nil {
+	if wf, err := env.orgWorkflowIn(ctx, db, profileID, a.WorkflowID); err == nil {
 		v.Exists = true
 		v.WorkflowName = wf.Name
 		if fi := orggrant.FileInputNodes(wf); len(fi) > 0 {
@@ -67,7 +68,7 @@ func newOrgAutomationListCmd(env *orgEnv) *cobra.Command {
 			}
 			items := []automationView{}
 			for _, a := range doc.Automations {
-				items = append(items, viewAutomation(cmd.Context(), db, profileID, a))
+				items = append(items, env.viewAutomation(cmd.Context(), db, profileID, a))
 			}
 			return printJSONValue(map[string]interface{}{"v": 1, "org": doc.Name, "automations": items})
 		},
@@ -94,7 +95,7 @@ func newOrgAutomationUnassignedCmd(env *orgEnv) *cobra.Command {
 					member[a.WorkflowID] = true
 				}
 			}
-			wfs, err := openWorkflowStore(db).ListWorkflows(cmd.Context(), profileID)
+			wfs, err := env.OpenWorkflowStore(db).ListWorkflows(cmd.Context(), profileID)
 			if err != nil {
 				return err
 			}
@@ -142,7 +143,7 @@ func newOrgAutomationAddCmd(env *orgEnv) *cobra.Command {
 			if r, _ := doc.FindRole(alias); r != nil {
 				return fmt.Errorf("alias %q is already a role id in org %q", alias, doc.Name)
 			}
-			if _, err := orgWorkflowIn(ctx, db, profileID, workflowID); err != nil {
+			if _, err := env.orgWorkflowIn(ctx, db, profileID, workflowID); err != nil {
 				return err
 			}
 			for _, a := range doc.Automations {
@@ -169,10 +170,10 @@ func newOrgAutomationAddCmd(env *orgEnv) *cobra.Command {
 			ref := orgdesign.AutomationRef{WorkflowID: workflowID, Alias: alias, Owned: owned}
 			doc.Automations = append(doc.Automations, ref)
 			prefillFence(doc)
-			if _, err := saveOrgReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
+			if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
 				return err
 			}
-			return printJSONValue(map[string]interface{}{"v": 1, "org": doc.Name, "automation": viewAutomation(ctx, db, profileID, ref)})
+			return printJSONValue(map[string]interface{}{"v": 1, "org": doc.Name, "automation": env.viewAutomation(ctx, db, profileID, ref)})
 		},
 	}
 	c.Flags().StringVar(&workflowID, "workflow", "", "Workflow id")
@@ -237,7 +238,7 @@ func newOrgAutomationRemoveCmd(env *orgEnv) *cobra.Command {
 			if _, err := orggrant.NewStore(db.DB).RevokeAlias(ctx, profileID, doc.Name, alias); err != nil {
 				return err
 			}
-			if _, err := saveOrgReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
+			if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
 				return err
 			}
 			return printJSONValue(map[string]interface{}{"v": 1, "org": doc.Name, "removed": true})

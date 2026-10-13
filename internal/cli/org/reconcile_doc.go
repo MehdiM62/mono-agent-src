@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
 )
@@ -37,12 +38,12 @@ func newOrgReconcileDocCmd(env *orgEnv) *cobra.Command {
 			}
 			var d orgdesign.Doc
 			if err := json.Unmarshal(raw, &d); err != nil {
-				return errInvalidInput("invalid org document on stdin: %v", err)
+				return env.d.InvalidInput("invalid org document on stdin: %v", err)
 			}
 			if d.Name == "" {
 				d.Name = name
 			} else if d.Name != name {
-				return errInvalidInput("org name %q in the document does not match the <name> argument %q", d.Name, name)
+				return env.d.InvalidInput("org name %q in the document does not match the <name> argument %q", d.Name, name)
 			}
 			db, profileID, _, err := env.Profile()
 			if err != nil {
@@ -53,7 +54,7 @@ func newOrgReconcileDocCmd(env *orgEnv) *cobra.Command {
 					return err
 				}
 			}
-			rep, err := reconcileOrgRows(cmd.Context(), db, profileID, &d, env.genOptions(profileID))
+			rep, err := orgenv.ReconcileRows(cmd.Context(), db, profileID, &d, env.genOptions(profileID))
 			if err != nil {
 				return err
 			}
