@@ -109,3 +109,28 @@ func TestWhenGatesObjects(t *testing.T) {
 		t.Errorf("got %#v, want %#v", got, want)
 	}
 }
+
+func TestGoogleFileID(t *testing.T) {
+	id := "1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"
+	cases := map[string]any{
+		"https://docs.google.com/document/d/" + id + "/edit":                id,
+		"https://docs.google.com/spreadsheets/d/" + id + "/edit#gid=0":      id,
+		"https://drive.google.com/drive/folders/" + id:                      id,
+		"https://drive.google.com/open?id=" + id:                            id,
+		"https://docs.google.com/presentation/d/" + id + "/edit#slide=id.p": id,
+		id:                            id,
+		"https://example.com/d/" + id: "https://example.com/d/" + id,
+	}
+	for in, want := range cases {
+		if got := googleFileID(in); got != want {
+			t.Errorf("%s → %v, want %v", in, got, want)
+		}
+	}
+	sc := Scope{P: map[string]any{"doc": map[string]any{"__rl": true, "mode": "url", "value": "https://docs.google.com/document/d/" + id + "/edit"},
+		"byid": map[string]any{"__rl": true, "mode": "id", "value": "abc"}}}
+	for in, want := range map[string]any{"{{ p.doc | rl }}": id, "{{ p.byid | rl }}": "abc", "{{ p.doc.value | gid }}": id} {
+		if got, err := renderString(in, sc); err != nil || got != want {
+			t.Errorf("%s = %v, %v", in, got, err)
+		}
+	}
+}
