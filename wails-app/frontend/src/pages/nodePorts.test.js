@@ -3,6 +3,7 @@ import {
   deriveOutputs, deriveInputs, caseHandles, portsDependOnConfig,
   isCaseListSettled, remapSourceEdges, NODE_CONFIG_FIELDS,
   arrayFieldItems, arrayTagLabel, normalizeConfigForSave, portRenames,
+  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle,
 } from './nodeConfigFields.js'
 
 const ids = ports => ports.map(p => p.id)
@@ -164,5 +165,41 @@ describe('renaming a handle in place keeps its edges', () => {
     expect(portRenames(p, deriveOutputs('ai.choose', { cases: ['support', 'billing', 'sales'] }))).toEqual({})
     expect(portRenames(p, deriveOutputs('ai.choose', { cases: ['billing', 'sales', 'sales2'] }))).toEqual({})
     expect(portRenames(null, p)).toEqual({})
+  })
+})
+
+describe('loops (core.split_in_batches)', () => {
+  const n = (id, subtype) => ({ id, subtype, outputs: deriveOutputs(subtype, {}) })
+  const e = (source, sourcePortId, target) => ({ source, sourcePortId, target })
+  const nodes = [n('t', 'trigger.manual'), n('L', 'core.split_in_batches'), n('a', 'http.request'), n('b', 'core.set'), n('d', 'core.set')]
+
+  it('has loop and done ports; legacy "batch" edges map to loop', () => {
+    expect(ids(deriveOutputs('core.split_in_batches', {}))).toEqual(['loop', 'done'])
+    expect(canonicalOutputHandle('core.split_in_batches', 'batch')).toBe('loop')
+    expect(canonicalOutputHandle('core.split_in_batches', 'done')).toBe('done')
+    expect(canonicalOutputHandle('core.if', 'batch')).toBe('batch')
+  })
+
+  it('human_in_loop offers the opt-in rejected port', () => {
+    expect(ids(deriveOutputs('core.human_in_loop', {}))).toEqual(['main', 'rejected'])
+  })
+
+  it('allows a back-edge from the loop body into the loop node', () => {
+    const edges = [e('t', 'main', 'L'), e('L', 'loop', 'a'), e('a', 'out', 'b'), e('b', 'main', 'L'), e('L', 'done', 'd')]
+    expect(hasForbiddenCycle(nodes, edges)).toBe(false)
+    expect([...loopBackEdges(nodes, edges)]).toEqual([edges[3]])
+    // drawn in the other order: the closing edge is the loop output itself
+    const reordered = [e('a', 'out', 'b'), e('b', 'main', 'L'), e('L', 'loop', 'a')]
+    expect(hasForbiddenCycle(nodes, reordered)).toBe(false)
+    // legacy handle
+    expect(hasForbiddenCycle(nodes, [e('L', 'batch', 'a'), e('a', 'out', 'L')])).toBe(false)
+  })
+
+  it('rejects cycles that do not close into a loop node', () => {
+    expect(hasForbiddenCycle(nodes, [e('a', 'out', 'b'), e('b', 'main', 'a')])).toBe(true)
+    // inside a loop body, a cycle that skips the loop node
+    expect(hasForbiddenCycle(nodes, [e('L', 'loop', 'a'), e('a', 'out', 'b'), e('b', 'main', 'a')])).toBe(true)
+    // from the done branch back into the loop node is not a loop
+    expect(hasForbiddenCycle(nodes, [e('L', 'done', 'd'), e('d', 'main', 'L')])).toBe(true)
   })
 })

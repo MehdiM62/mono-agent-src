@@ -15,6 +15,7 @@ import {
   NODE_CONFIG_FIELDS, BROWSER_NODE_GENERIC,
   deriveInputs, deriveOutputs, portsDependOnConfig, isCaseListSettled, remapSourceEdges,
   arrayFieldItems, arrayTagLabel, normalizeConfigForSave,
+  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle,
 } from './nodeConfigFields.js'
 import { SaveModal, WorkflowsModal, TriggerInputModal } from './NodeRunnerModals.jsx'
 import WorkflowImportDialog from './WorkflowImportDialog.jsx'
@@ -992,23 +993,6 @@ function Label({ children, style }) {
   )
 }
 
-// ── Cycle detection: would adding edge source→target create a loop? ──────────
-// True when target already reaches source through existing edges.
-function wouldCreateCycle(edges, source, target) {
-  const adj = {}
-  edges.forEach(e => { (adj[e.source] = adj[e.source] || []).push(e.target) })
-  const seen = new Set()
-  const stack = [target]
-  while (stack.length) {
-    const id = stack.pop()
-    if (id === source) return true
-    if (seen.has(id)) continue
-    seen.add(id)
-    ;(adj[id] || []).forEach(n => stack.push(n))
-  }
-  return false
-}
-
 // ── Resolve a stored connection handle ('main', 'true', …) to a port index ───
 // Handles are port ids, not indexes; legacy files stored numeric strings.
 function resolvePortIdx(ports, handle) {
@@ -1194,8 +1178,8 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         const nodeById = {}
         loadedNodes.forEach(n => { nodeById[n.id] = n })
         const loadedEdges = (wf.connections || []).map(c => ({
-          id: c.id, source: c.source_node_id, sourcePortId: c.source_handle,
-          sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, c.source_handle),
+          id: c.id, source: c.source_node_id, sourcePortId: canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle),
+          sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle)),
           target: c.target_node_id, targetPortId: c.target_handle,
           targetPortIdx: resolvePortIdx(nodeById[c.target_node_id]?.inputs, c.target_handle),
         }))
@@ -1245,8 +1229,8 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
             const nodeById = {}
             loadedNodes.forEach(n => { nodeById[n.id] = n })
             const loadedEdges = (wf.connections || []).map(c => ({
-              id: c.id, source: c.source_node_id, sourcePortId: c.source_handle,
-              sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, c.source_handle),
+              id: c.id, source: c.source_node_id, sourcePortId: canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle),
+              sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle)),
               target: c.target_node_id, targetPortId: c.target_handle,
               targetPortIdx: resolvePortIdx(nodeById[c.target_node_id]?.inputs, c.target_handle),
             }))
@@ -1490,8 +1474,10 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     const sNode = nodesRef.current.find(n => n.id === sourceNodeId)
     const tNode = nodesRef.current.find(n => n.id === targetNodeId)
     if (!sNode || !tNode) { dragRef.current = null; setPendingEdge(null); return }
-    if (wouldCreateCycle(edges, sourceNodeId, targetNodeId)) {
-      notify('connect nodes', 'Connection rejected: it would create a cycle')
+    // A cycle is allowed only as a loop closing into a Split In Batches node.
+    const candidate = { source: sourceNodeId, sourcePortIdx, sourcePortId: sNode.outputs[sourcePortIdx]?.id, target: targetNodeId }
+    if (hasForbiddenCycle(nodesRef.current, [...edges, candidate])) {
+      notify('connect nodes', 'Connection rejected: it would create a cycle. Only a loop back into a Split In Batches node may close one.')
       dragRef.current = null; setPendingEdge(null)
       return
     }
@@ -1735,8 +1721,8 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       const loadedEdges = (wf.connections || []).map(c => ({
         id:           c.id,
         source:       c.source_node_id,
-        sourcePortId: c.source_handle,
-        sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, c.source_handle),
+        sourcePortId: canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle),
+        sourcePortIdx: resolvePortIdx(nodeById[c.source_node_id]?.outputs, canonicalOutputHandle(nodeById[c.source_node_id]?.subtype, c.source_handle)),
         target:       c.target_node_id,
         targetPortId: c.target_handle,
         targetPortIdx: resolvePortIdx(nodeById[c.target_node_id]?.inputs, c.target_handle),
@@ -1797,7 +1783,10 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     const successors = {}
     const predecessors = {}
     nodes.forEach(n => { successors[n.id] = []; predecessors[n.id] = [] })
+    // Loop back-edges point backwards; following them would never terminate.
+    const back = loopBackEdges(nodes, edges)
     edges.forEach(e => {
+      if (back.has(e)) return
       if (successors[e.source]) successors[e.source].push(e.target)
       if (predecessors[e.target]) predecessors[e.target].push(e.source)
     })
