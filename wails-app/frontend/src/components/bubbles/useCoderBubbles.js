@@ -42,6 +42,9 @@ export function useCoderBubbles() {
   const [expandedKey, setExpandedKey] = useState('')
   const [summaries, setSummaries] = useState({})
   const [orgSummaries, setOrgSummaries] = useState({})
+  // bubble key → how many HIL / send-approval asks wait for the person (the
+  // bus doesn't carry them); polled by useOrgBubbleWatch.
+  const [hilNeeds, setHilNeedsState] = useState({})
   // org → its boss's role id, for counting the boss's replies as unread.
   const bosses = useRef({})
   // Per-chat UI state that outlives a collapse: { draft, scrollTop,
@@ -124,6 +127,7 @@ export function useCoderBubbles() {
     setBubbles(list => list.filter(b => b.key !== key))
     setSummaries(s => { const next = { ...s }; delete next[key]; return next })
     setOrgSummaries(s => { if (!s[key]) return s; const next = { ...s }; delete next[key]; return next })
+    setHilNeedsState(h => { if (!h[key]) return h; const next = { ...h }; delete next[key]; return next })
     delete viewState.current[key]
     setExpandedKey(k => (k === key ? '' : k))
   }
@@ -196,17 +200,32 @@ export function useCoderBubbles() {
   // status, unread and cost), plus how many items wait for the person.
   const orgSummaryOf = (key) => {
     const sum = orgSummaries[key]
-    if (!sum) return { ...emptySummary(), needs: 0 }
+    const extra = hilNeeds[key] || 0
+    if (!sum) return { ...emptySummary(), status: extra > 0 ? 'needs' : 'idle', needs: extra }
     const cost = sum.activity.usage.costUsd
     return {
-      ...emptySummary(), status: orgBubbleStatus(sum), unread: sum.unread,
-      costByTurn: cost ? { [sum.activity.run || 'run']: cost } : {}, needs: orgNeedsCount(sum),
+      ...emptySummary(), status: orgBubbleStatus(sum, extra), unread: sum.unread,
+      costByTurn: cost ? { [sum.activity.run || 'run']: cost } : {}, needs: orgNeedsCount(sum) + extra,
     }
   }
+  const coderSummaryOf = (key) => {
+    const sum = summaries[key] || emptySummary()
+    const extra = hilNeeds[key] || 0
+    return extra > 0 ? { ...sum, status: 'needs', needs: extra } : sum
+  }
+
+  // setHilNeeds replaces the whole map (key → count) when it differs.
+  const setHilNeeds = useCallback((next) => {
+    setHilNeedsState(prev => {
+      const a = Object.keys(prev), b = Object.keys(next)
+      return a.length === b.length && b.every(k => prev[k] === next[k]) ? prev : next
+    })
+  }, [])
 
   return {
     bubbles, side, expandedKey, summaries,
-    summaryOf: key => (key.startsWith('org:') ? orgSummaryOf(key) : summaries[key] || emptySummary()),
+    summaryOf: key => (key.startsWith('org:') ? orgSummaryOf(key) : coderSummaryOf(key)),
+    setHilNeeds,
     expand, collapse, openDraft, openConversation, openOrg, bindConversation, close, reorder, setSide,
     getView, setView,
     // bossOf is the org's boss once its design was read ('' before).

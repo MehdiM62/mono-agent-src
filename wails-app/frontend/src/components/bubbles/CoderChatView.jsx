@@ -11,6 +11,8 @@ import { CoderInitNote } from '../chat/CoderHeader.jsx'
 import { useCoderStatus, useRecentWorkspaces, useCoderRuntimeChoice, coderRuntimes, coderReady, fidelityNote, missingText } from '../chat/useCoderMode.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
 import { MessageBubble } from '../AIChatPanel.jsx'
+import { AskCard } from './AskCard.jsx'
+import { useHilAsks } from './useHilAsks.js'
 import { isAgentNotSetup } from '../../lib/agentSetup.js'
 import AgentSetupLink from '../AgentSetupLink.jsx'
 import '../chat/chat.css'
@@ -114,7 +116,10 @@ function CoderSetup({ status, setup, onChange, onNavigate }) {
 export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDraftChange, initialScrollTop, onScroll, onNavigate, agentFilter = null, agentFilterTurnId = '', agentFilterName = '', onClearAgentFilter }) {
   const { t } = useTranslation()
   const { status } = useCoderStatus(isDraft)
-  const scroll = useChatScroll(`${conv.messages.length}:${conv.liveTurn.lastSeq}`)
+  // Sends and workflow approvals this chat's agents prepared wait here, in
+  // the same card the org bubble uses.
+  const hil = useHilAsks({ conversationId: conv.conversationId || '' }, !!conv.conversationId)
+  const scroll = useChatScroll(`${conv.messages.length}:${conv.liveTurn.lastSeq}:${hil.asks.length}`)
 
   // Put the transcript back where it was when the bubble collapsed.
   useEffect(() => {
@@ -173,6 +178,14 @@ export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDr
             <div className="chat-assistant-turn">
               <ChatTimeline state={conv.liveTurn} turnId={conv.activeTurnId} isLive agentFilter={conv.activeTurnId === agentFilterTurnId ? agentFilter : null} />
               <TurnStatus state={conv.liveTurn} stopRequested={conv.stopRequested} />
+            </div>
+          )}
+          {hil.asks.length > 0 && (
+            <div data-testid="coder-asks" role="region" aria-label={t('ask.regionLabel')} aria-live="polite">
+              {hil.asks.map(ask => (
+                <AskCard key={ask.id} ask={ask} busy={!!hil.busy[ask.id]} outcome={hil.outcome[ask.id]}
+                  onDecide={hil.resolve} onNavigate={onNavigate} />
+              ))}
             </div>
           )}
         </div>

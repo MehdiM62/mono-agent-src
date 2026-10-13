@@ -5,6 +5,7 @@ import { confirm } from '../ConfirmDialog.jsx'
 import { notify } from '../../services/api.js'
 import { shouldCollapseOnBackdrop } from '../../lib/coderBubbles.js'
 import { orgStageOf } from '../../lib/orgBubble.js'
+import { LEAD_ID } from '../../lib/orgStage.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
 import { OrgStage } from '../stage/OrgStage.jsx'
 import { StageDrawer } from '../stage/StageDrawer.jsx'
@@ -12,6 +13,7 @@ import { useRolesAccess } from '../orgdesigner/fullAccess.jsx'
 import { OrgChatView } from './OrgChatView.jsx'
 import { useOrgBubble } from './useOrgBubble.js'
 import './bubbles.css'
+import './asks.css'
 
 const mono = 'var(--font-mono)'
 const CLOSE_MS = 170
@@ -22,6 +24,37 @@ function isModalOpen() {
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
+// ThreadTabs switches the chat between the boss thread, the team's
+// role-to-role timeline and (while a role is selected on the stage) that
+// role's thread. Arrow keys move between the tabs.
+function ThreadTabs({ view, roleName, onView }) {
+  const { t } = useTranslation()
+  const tabs = [
+    { id: 'boss', label: t('orgBubble.threadBoss'), go: () => onView({ mode: 'boss' }) },
+    { id: 'team', label: t('orgBubble.threadTeam'), go: () => onView({ mode: 'team' }) },
+    ...(roleName ? [{ id: 'role', label: roleName, go: () => {} }] : []),
+  ]
+  const onKey = (e) => {
+    const i = tabs.findIndex(x => x.id === view.mode)
+    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    if (!step) return
+    e.preventDefault()
+    const next = tabs[(i + step + tabs.length) % tabs.length]
+    next.go()
+    requestAnimationFrame(() => document.querySelector(`[data-thread-tab="${next.id}"]`)?.focus())
+  }
+  return (
+    <div className="org-thread-tabs" role="tablist" aria-label={t('orgBubble.threadsLabel')} onKeyDown={onKey}>
+      {tabs.map(tab => (
+        <button key={tab.id} type="button" role="tab" data-thread-tab={tab.id} aria-selected={view.mode === tab.id}
+          tabIndex={view.mode === tab.id ? 0 : -1} className={view.mode === tab.id ? 'active' : ''} onClick={tab.go}>
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 // OrgBubbleOverlay is an expanded running-org bubble (#229): the org's
@@ -40,6 +73,7 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
   const [stageCollapsed, setStageCollapsed] = useState(!!view.stageCollapsed)
   const [draft, setDraft] = useState(view.draft || '')
   const [selected, setSelected] = useState(null)
+  const [teamView, setTeamView] = useState(false)
   const selectedRef = useRef(null)
   const bodyRef = useRef(null)
   const panelRef = useRef(null)
@@ -105,7 +139,18 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
   const stage = useMemo(() => (conv.bubble ? orgStageOf(conv.bubble, access) : null), [conv.bubble, access])
   const selectedNode = selected ? (stage?.nodes?.[selected] || null) : null
   selectedRef.current = selectedNode ? selected : null
-  const selectNode = useCallback(id => setSelected(cur => (cur === id ? null : id)), [])
+  const selectNode = useCallback(id => { setTeamView(false); setSelected(cur => (cur === id ? null : id)) }, [])
+
+  // What the chat shows: the boss thread by default, one role's slice when a
+  // role is selected on the stage, or the team's role-to-role timeline.
+  const threadMode = useMemo(() => {
+    if (selectedNode && selected !== LEAD_ID) return { mode: 'role', role: selected }
+    return teamView ? { mode: 'team' } : { mode: 'boss' }
+  }, [selectedNode, selected, teamView])
+  const setThreadMode = useCallback(next => {
+    setSelected(null)
+    setTeamView(next?.mode === 'team')
+  }, [])
 
   const history = conv.history
   const roleTitles = useMemo(() => Object.fromEntries((history?.roles || []).map(r => [r.id, r.title || r.id])), [history])
@@ -200,7 +245,9 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
                 onPointerDown={startDrag} onKeyDown={onDividerKey} />
             </>
           )}
-          <OrgChatView conv={conv} nameOf={nameOf} draft={draft} onDraftChange={setDraft} />
+          <ThreadTabs view={threadMode} roleName={threadMode.mode === 'role' ? nameOf(threadMode.role) : ''} onView={setThreadMode} />
+          <OrgChatView conv={conv} nameOf={nameOf} draft={draft} onDraftChange={setDraft} orgName={orgName}
+            view={threadMode} onView={setThreadMode} onNavigate={onNavigate && ((page, params) => onNavigate(page, params))} />
           {selectedNode && (
             <StageDrawer node={selectedNode} calls={conv.bubble?.calls} leadInfo={leadInfo} turnId={conv.bubble?.run || ''} isLive={running}
               canStop={false} onClose={() => setSelected(null)} />
