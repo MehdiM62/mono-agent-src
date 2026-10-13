@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"errors"
@@ -27,15 +27,15 @@ func newOrgQueuedCmd(env *orgEnv) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org := args[0]
 			if !orgdesign.ValidOrgName(org) {
-				return errInvalidInput("invalid org name %q", org)
+				return env.d.InvalidInput("invalid org name %q", org)
 			}
 			root := env.Root()
 			inbox, err := orgbridge.InboxPath(root, org)
 			if err != nil {
-				return errInvalidInput("%s", err.Error())
+				return env.d.InvalidInput("%s", err.Error())
 			}
 			if !orgKnown(root, org, inbox) {
-				return errNotFound("org %q not found under %s", org, orgdesign.OrgsDir(root))
+				return env.d.NotFound("org %q not found under %s", org, orgdesign.OrgsDir(root))
 			}
 			msgs, skipped, err := orgbridge.ReadQueued(root, org)
 			if err != nil {

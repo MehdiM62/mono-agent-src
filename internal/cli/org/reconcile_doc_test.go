@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 // starting autonomy, without writing the org file.
 func TestOrgReconcileDocDoesNotSave(t *testing.T) {
 	f := newOrgCLIFixture(t)
-	raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "orgs", "growth.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "orgs", "growth.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

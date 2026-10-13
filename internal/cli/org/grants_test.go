@@ -1,8 +1,7 @@
-package main
+package org
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,107 +10,8 @@ import (
 
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
-	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
-	"github.com/monoes/mono-agent/internal/workflow"
 )
-
-type orgCLIFixture struct {
-	cfg        *globalConfig
-	root       string
-	outboundWF string
-	plainWF    string
-}
-
-// newOrgCLIFixture isolates HOME (profile folders, workflow file store,
-// daemon heartbeat), points monomind at the fake script, and seeds one org
-// plus two workflows: one with an outbound node, one without.
-func newOrgCLIFixture(t *testing.T) *orgCLIFixture {
-	t.Helper()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("MONOAGENT_DAEMON_HEARTBEAT", filepath.Join(home, "hb.json"))
-	t.Setenv("MONOAGENT_API_ADDR", "")
-	fake, err := filepath.Abs(filepath.Join("..", "..", "internal", "monomind", "testdata", "fake-monomind.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("MONOMIND_BIN", fake)
-
-	dbPath := filepath.Join(home, "test.db")
-	db, err := storage.NewDatabase(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatal(err)
-	}
-	store := workflow.NewSQLiteWorkflowStore(db.DB)
-	ctx := context.Background()
-	mk := func(name string, nodeType string) string {
-		wf := &workflow.Workflow{Name: name, ProfileID: "default"}
-		if err := store.CreateWorkflow(ctx, wf); err != nil {
-			t.Fatal(err)
-		}
-		if err := store.SaveWorkflowNodes(ctx, wf.ID, []workflow.WorkflowNode{
-			{ID: wf.ID + "-t", WorkflowID: wf.ID, Type: "trigger.manual", Name: "start"},
-			{ID: wf.ID + "-n", WorkflowID: wf.ID, Type: nodeType, Name: "step"},
-		}); err != nil {
-			t.Fatal(err)
-		}
-		return wf.ID
-	}
-	f := &orgCLIFixture{
-		cfg:        &globalConfig{DBPath: dbPath, ProfileID: "default"},
-		root:       profiledir.Root(db.DB, "default"),
-		outboundWF: mk("Publish post", "comm.slack"),
-		plainWF:    mk("Summarize", "core.set"),
-	}
-	db.Close()
-
-	doc := orgdesign.NewOrg("growth", "grow", orgdesign.NewOrgOptions{})
-	doc.Roles = append(doc.Roles, orgdesign.Role{ID: "writer", Title: "Writer", Type: "specialist", ReportsTo: strPtrCLI("lead"), Responsibilities: []string{}})
-	if _, err := orgdesign.Save(f.root, doc); err != nil {
-		t.Fatal(err)
-	}
-	return f
-}
-
-func strPtrCLI(s string) *string { return &s }
-
-func (f *orgCLIFixture) run(t *testing.T, args ...string) (map[string]interface{}, error) {
-	t.Helper()
-	cmd := newOrgCmd(f.cfg)
-	cmd.SetArgs(args)
-	var runErr error
-	out := captureStdout(t, func() { runErr = cmd.Execute() })
-	if runErr != nil {
-		return nil, runErr
-	}
-	var m map[string]interface{}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &m); err != nil {
-		t.Fatalf("org %v printed non-JSON %q: %v", args, out, err)
-	}
-	return m, nil
-}
-
-func (f *orgCLIFixture) mustRun(t *testing.T, args ...string) map[string]interface{} {
-	t.Helper()
-	m, err := f.run(t, args...)
-	if err != nil {
-		t.Fatalf("org %v: %v", args, err)
-	}
-	return m
-}
-
-func (f *orgCLIFixture) load(t *testing.T) *orgdesign.Doc {
-	t.Helper()
-	d, err := orgdesign.Load(f.root, "growth")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return d
-}
 
 func TestOrgGrantLifecycle(t *testing.T) {
 	f := newOrgCLIFixture(t)
@@ -243,7 +143,7 @@ func TestOrgGrantRefusals(t *testing.T) {
 // grant id that no row backs saves the org with both stripped.
 func TestOrgCreateJSONStripsUnbackedGrants(t *testing.T) {
 	f := newOrgCLIFixture(t)
-	raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "orgs", "growth.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "orgs", "growth.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,29 +161,6 @@ func TestOrgCreateJSONStripsUnbackedGrants(t *testing.T) {
 	lead, _ := f.load(t).FindRole("lead")
 	if len(lead.ToolProviders) != 0 || len(lead.Automations) != 0 {
 		t.Fatalf("unbacked JSON survived create-json: %+v", lead)
-	}
-}
-
-// C-20: a granted workflow cannot be deleted by accident; --force revokes
-// the grant and strips it from the org JSON first.
-func TestWorkflowDeleteChecksOrgReferences(t *testing.T) {
-	f := newOrgCLIFixture(t)
-	f.mustRun(t, "automation", "add", "growth", "--workflow", f.plainWF, "--alias", "summarize")
-	f.mustRun(t, "grant", "add", "growth", "--role", "writer", "--automation", "summarize")
-
-	err := checkWorkflowOrgReferences(context.Background(), f.cfg, f.plainWF, false)
-	if err == nil || exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "grant to growth:writer") {
-		t.Fatalf("unforced delete of a granted workflow: err=%v code=%d", err, exitCodeFor(err))
-	}
-	if err := checkWorkflowOrgReferences(context.Background(), f.cfg, f.plainWF, true); err != nil {
-		t.Fatal(err)
-	}
-	writer, _ := f.load(t).FindRole("writer")
-	if len(writer.Automations) != 0 || len(writer.ToolProviders) != 0 {
-		t.Fatalf("forced delete left the grant in the JSON: %+v", writer)
-	}
-	if err := checkWorkflowOrgReferences(context.Background(), f.cfg, f.plainWF, false); err != nil {
-		t.Fatalf("no references left, still refused: %v", err)
 	}
 }
 
@@ -389,88 +266,5 @@ func TestOrgGroupInitDropsARemovedChild(t *testing.T) {
 	want = "org_report=sales,org_start=sales,org_status=sales,org_stop=sales"
 	if got := orgToolScopeOf(t, f, "hq", "initiator"); got != want {
 		t.Fatalf("scope after removing support = %q, want %q", got, want)
-	}
-}
-
-// #284: saving a granted workflow with a new outbound node raises the
-// grant's stored tier and the org file's display copy; removing the node
-// again lowers neither.
-func TestWorkflowSaveRaisesGrantTier(t *testing.T) {
-	f := newOrgCLIFixture(t)
-	f.mustRun(t, "automation", "add", "growth", "--workflow", f.plainWF, "--alias", "summarize")
-	f.mustRun(t, "grant", "add", "growth", "--role", "lead", "--automation", "summarize")
-
-	db, err := storage.NewDatabase(f.cfg.DBPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	ctx := context.Background()
-	tiers := func() (stored, display string) {
-		gs, err := orggrant.NewStore(db.DB).ListGrants(ctx, "default", "growth", "lead")
-		if err != nil || len(gs) != 1 {
-			t.Fatalf("grants = %v, %v", gs, err)
-		}
-		lead, _ := f.load(t).FindRole("lead")
-		return gs[0].Automation().Tier, lead.FindGrantSpec("summarize").Tier
-	}
-	if s, d := tiers(); s != "consequential" || d != "consequential" {
-		t.Fatalf("before: stored %s, display %s", s, d)
-	}
-
-	store := openWorkflowStore(db)
-	wf, err := store.GetWorkflow(ctx, f.plainWF)
-	if err != nil || wf == nil {
-		t.Fatalf("workflow: %v", err)
-	}
-	plain := append([]workflow.WorkflowNode(nil), wf.Nodes...)
-	withSlack := append(append([]workflow.WorkflowNode(nil), plain...),
-		workflow.WorkflowNode{ID: f.plainWF + "-slack", WorkflowID: f.plainWF, Type: "comm.slack", Name: "notify"})
-	if err := store.SaveWorkflowNodes(ctx, f.plainWF, withSlack); err != nil {
-		t.Fatal(err)
-	}
-	if s, d := tiers(); s != "irreversible" || d != "irreversible" {
-		t.Fatalf("after adding an outbound node: stored %s, display %s", s, d)
-	}
-
-	if err := store.SaveWorkflowNodes(ctx, f.plainWF, plain); err != nil {
-		t.Fatal(err)
-	}
-	f.mustRun(t, "reconcile")
-	if s, d := tiers(); s != "irreversible" || d != "irreversible" {
-		t.Fatalf("after removing it: stored %s, display %s (want no downgrade)", s, d)
-	}
-}
-
-// TestOrgPackageAdapterWiring pins what main hands internal/cli/org: its
-// invalid-input error (exit 3), and the --project and profile of the `org`
-// command the subcommands are added to.
-func TestOrgPackageAdapterWiring(t *testing.T) {
-	f := newOrgCLIFixture(t)
-
-	_, err := f.run(t, "autonomy", "set", "growth", "--tier", "bad")
-	if code := exitCodeFor(err); code != 3 || !strings.Contains(err.Error(), "must be <class>=<tier>") {
-		t.Fatalf("bad --tier: exit %d, %v", code, err)
-	}
-	if _, err := f.run(t, "--project", t.TempDir(), "grant", "list", "growth"); err == nil || !strings.Contains(err.Error(), `is not the org root of profile "default"`) {
-		t.Fatalf("grant list under another --project: %v", err)
-	}
-	if got := f.mustRun(t, "--project", f.root, "grant", "list", "growth"); got["org"] != "growth" {
-		t.Fatalf("grant list at the profile root = %v", got)
-	}
-	other := t.TempDir()
-	writeOrgFile(t, other, "elsewhere.json", `{"name":"elsewhere"}`)
-	sum := f.mustRun(t, "--project", other, "summary", "--fast")
-	if orgs := sum["orgs"].([]interface{}); len(orgs) != 1 || orgs[0].(map[string]interface{})["name"] != "elsewhere" {
-		t.Fatalf("summary under --project = %v", sum)
-	}
-	if _, err := f.run(t, "--project", other, "summary", "--all-profiles"); exitCodeFor(err) != 3 {
-		t.Fatalf("summary --all-profiles with --project: %v", err)
-	}
-	cmd := newOrgCmd(f.cfg)
-	for _, name := range []string{"automation", "automation-role", "autonomy", "effective-tools", "grant", "group", "reconcile-doc", "summary"} {
-		if c, _, err := cmd.Find([]string{name}); err != nil || c.Name() != name {
-			t.Errorf("org %s: %v", name, err)
-		}
 	}
 }

@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -49,7 +49,7 @@ func TestOrgAutomationRoleLifecycle(t *testing.T) {
 		t.Fatal("role not removed")
 	}
 	id := orggrant.EndpointIDFromURL(rot["endpoint_url"].(string))
-	db, _, _, _ := (&orgEnv{cfg: f.cfg}).Profile()
+	db, _, _, _ := testEnv(f.cfg).Profile()
 	if _, err := orggrant.NewStore(db.DB).LookupEndpoint(t.Context(), id); err == nil {
 		t.Fatal("endpoint still live after removing the role")
 	}

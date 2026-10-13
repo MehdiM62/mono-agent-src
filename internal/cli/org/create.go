@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"encoding/json"
@@ -8,12 +8,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orgsign"
 )
 
-func newOrgValidateCmd(root func() string) *cobra.Command {
+func (env *orgEnv) newOrgValidateCmd(root func() string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "validate <name>",
 		Short: "Validate an org's config against the runtime schema and structural rules",
@@ -43,7 +44,7 @@ func newOrgValidateCmd(root func() string) *cobra.Command {
 			if valErr != nil {
 				// Exit 1 on an invalid org. The report above is the output:
 				// main adds no second {"error"} for a reportedError.
-				return reportedError{fmt.Errorf("org %s is invalid: %w", name, valErr)}
+				return env.d.Reported(fmt.Errorf("org %s is invalid: %w", name, valErr))
 			}
 			return nil
 		},
@@ -86,7 +87,7 @@ func newOrgCreateJSONCmd(env *orgEnv) *cobra.Command {
 					if other, err := orgNameInUse(db.DB, name, profileID); err != nil {
 						return err
 					} else if other != "" {
-						return errInvalidInput("org name %q is already used in profile %q; org names are unique on this machine — try %s-%s", name, other, name, shortProfile(profileID))
+						return env.d.InvalidInput("org name %q is already used in profile %q; org names are unique on this machine — try %s-%s", name, other, name, shortProfile(profileID))
 					}
 					if err := ensureNewOrgAutonomy(cmd.Context(), db, profileID, &d, "cli"); err != nil {
 						return err
@@ -97,17 +98,17 @@ func newOrgCreateJSONCmd(env *orgEnv) *cobra.Command {
 				// A whole document can come from anyone, the chat assistant
 				// included, so it is never signed here: the user reviews it
 				// with `org sign`.
-				rep, err := saveOrgReconciled(cmd.Context(), db, profileID, profileRoot, &d, env.genOptions(profileID))
+				rep, err := orgenv.SaveReconciled(cmd.Context(), db, profileID, profileRoot, &d, env.genOptions(profileID))
 				if err != nil {
 					return err
 				}
 				findings = rep.Findings
 			} else if docCarriesEnforcedKeys(&d) {
 				return fmt.Errorf("this document carries grants, tool providers, or automation roles, which need the active profile's org folder: %w", perr)
-			} else if _, out, err := saveOrgSigned(cmd.Context(), root(), name, &d); err != nil {
+			} else if _, out, err := orgenv.SaveSigned(cmd.Context(), root(), name, &d); err != nil {
 				return err
 			} else {
-				warnOrgSignature(out)
+				orgenv.WarnSignature(out)
 			}
 			path, _ := orgdesign.ConfigPath(root(), name)
 			sha, err := fileSHA256(path)
@@ -159,9 +160,9 @@ func newOrgReloadCmd(root func() string) *cobra.Command {
 			}
 			// monomind 2.21 keeps a running org on its last verified
 			// definition until this one is signed: say so, with the fix.
-			if orgSigningOn(cmd.Context(), root()) {
+			if orgenv.SigningOn(cmd.Context(), root()) {
 				if raw, _, err := orgsign.ReadFile(root(), name); err == nil {
-					if st := orgSignStatus(cmd.Context(), root(), name, raw); st.Refused() {
+					if st := orgenv.SignStatus(cmd.Context(), root(), name, raw); st.Refused() {
 						payload["signature"] = st
 						payload["warning"] = orgsign.Message(name, st) + " — until then the running org keeps its last signed definition"
 					}

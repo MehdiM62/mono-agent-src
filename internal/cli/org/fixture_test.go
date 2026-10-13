@@ -3,6 +3,7 @@ package org
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,8 +13,12 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zalando/go-keyring"
+	"golang.org/x/term"
 
-	"github.com/monoes/mono-agent/internal/cli/orgenv"
+	"github.com/monoes/mono-agent/automations"
+	"github.com/monoes/mono-agent/internal/action"
+	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -21,35 +26,57 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// TestMain keeps the tests out of the real home and mocks the keychain, as
-// cmd/monoagentcli's does.
+// TestMain does what cmd/monoagentcli's does: it keeps the tests out of the
+// real home, mocks the keychain, and seeds the official packages from the
+// repo's automations/ source.
 func TestMain(m *testing.M) {
 	keyring.MockInit()
+	automation.TestSeed = automations.FS()
+	action.SetTestFallback(automations.FS())
 	testhome.Main(m)
 }
 
-// invalidInputError is the fake of the CLI's invalid-input error (exit 3).
-type invalidInputError struct{ msg string }
+// testConfig is the part of the CLI's config the org commands read.
+type testConfig struct {
+	DBPath     string
+	ProfileID  string
+	JSONOutput bool
+}
 
-func (e *invalidInputError) Error() string { return e.msg }
+// cliError is the fake of the CLI's exit-code error: 2 not found, 3
+// invalid input.
+type cliError struct {
+	code int
+	msg  string
+}
 
-func testDeps() Deps {
-	return Deps{
-		InvalidInput: func(format string, a ...interface{}) error {
-			return &invalidInputError{msg: fmt.Sprintf(format, a...)}
-		},
+func (e *cliError) Error() string { return e.msg }
+
+// reportedError is the fake of the CLI's already-printed error.
+type reportedError struct{ error }
+
+func (e reportedError) Unwrap() error { return e.error }
+
+// exitCodeFor is the exit code the CLI gives err.
+func exitCodeFor(err error) int {
+	var ce *cliError
+	switch {
+	case err == nil:
+		return 0
+	case errors.As(err, &ce):
+		return ce.code
+	default:
+		return 1
 	}
 }
 
-// testEnv is the org environment on the database at dbPath (migrated on
-// first use, as initDB does) with profile profileID and --project *project.
-func testEnv(dbPath, profileID string, project *string) *orgEnv {
-	if project == nil {
-		project = new(string)
-	}
-	return newEnv(testDeps(), orgenv.New(orgenv.Deps{
+// testDeps is Deps on cfg the way the CLI wires it: the database at
+// cfg.DBPath, migrated, with --profile resolved as initDB does it ("" is
+// the active profile, else default; a name resolves to its id).
+func testDeps(cfg *testConfig) Deps {
+	return Deps{
 		OpenDB: func() (*storage.Database, error) {
-			db, err := storage.NewDatabase(dbPath)
+			db, err := storage.NewDatabase(cfg.DBPath)
 			if err != nil {
 				return nil, err
 			}
@@ -57,13 +84,52 @@ func testEnv(dbPath, profileID string, project *string) *orgEnv {
 				db.Close()
 				return nil, err
 			}
+			if cfg.ProfileID == "" {
+				var id string
+				_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
+				if id == "" {
+					id = "default"
+				}
+				cfg.ProfileID = id
+				return db, nil
+			}
+			var id string
+			if err := db.DB.QueryRow(`SELECT id FROM profiles WHERE id = ? OR name = ? ORDER BY id = ? DESC LIMIT 1`, cfg.ProfileID, cfg.ProfileID, cfg.ProfileID).Scan(&id); err != nil {
+				db.Close()
+				return nil, &cliError{code: 3, msg: fmt.Sprintf("profile %q not found (checked both id and name)", cfg.ProfileID)}
+			}
+			cfg.ProfileID = id
 			return db, nil
 		},
-		ProfileID:         func() string { return profileID },
+		ProfileID:         func() string { return cfg.ProfileID },
 		OpenWorkflowStore: openTestWorkflowStore,
-		Project:           func() string { return *project },
-	}))
+		JSONOutput:        func() bool { return cfg.JSONOutput },
+		NotFound: func(format string, a ...interface{}) error {
+			return &cliError{code: 2, msg: fmt.Sprintf(format, a...)}
+		},
+		InvalidInput: func(format string, a ...interface{}) error {
+			return &cliError{code: 3, msg: fmt.Sprintf(format, a...)}
+		},
+		Reported:        func(err error) error { return reportedError{err} },
+		StdinIsTerminal: func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
+		Serving:         func(c *cobra.Command, _ ...func(*cobra.Command) bool) *cobra.Command { return c },
+		CapabilityProbe: func(cmd *cobra.Command) (*monomind.CapabilitySet, error) {
+			return monomind.Capabilities(cmd.Context())
+		},
+	}
 }
+
+// newOrgCmd is `org` on cfg.
+func newOrgCmd(cfg *testConfig) *cobra.Command { return NewCommand(testDeps(cfg)) }
+
+// testEnv is the org environment of `org` on cfg, without --project.
+func testEnv(cfg *testConfig) *orgEnv {
+	d := testDeps(cfg)
+	return newEnv(d, orgenvFor(d, func() string { return "" }))
+}
+
+// depsEnv is an environment for helpers that only build errors.
+func depsEnv() *orgEnv { return newEnv(testDeps(&testConfig{}), nil) }
 
 // openTestWorkflowStore is the CLI's workflow store: files under
 // ~/.monoagent/workflows plus SQLite.
@@ -74,31 +140,6 @@ func openTestWorkflowStore(db *storage.Database) *workflow.HybridWorkflowStore {
 		return workflow.NewHybridWorkflowStore(nil, workflow.NewSQLiteWorkflowStore(db.DB))
 	}
 	return workflow.NewHybridWorkflowStore(files, workflow.NewSQLiteWorkflowStore(db.DB))
-}
-
-// testOrgCmd is an `org` command with --project and this package's
-// subcommands on a database at dbPath, profile "default".
-func testOrgCmd(dbPath string) *cobra.Command {
-	project := new(string)
-	env := testEnv(dbPath, "default", project)
-	cmd := &cobra.Command{
-		Use:               "org",
-		PersistentPostRun: func(cmd *cobra.Command, args []string) { env.Close() },
-		SilenceUsage:      true,
-		SilenceErrors:     true,
-	}
-	cmd.PersistentFlags().StringVar(project, "project", "", "")
-	cmd.AddCommand(
-		newOrgAutomationCmd(env),
-		newOrgGrantCmd(env),
-		newOrgEffectiveToolsCmd(env),
-		newOrgAutonomyCmd(env),
-		newOrgSummaryCmd(env),
-		newOrgAutomationRoleCmd(env),
-		newOrgGroupCmd(env),
-		newOrgReconcileDocCmd(env),
-	)
-	return cmd
 }
 
 // captureStdout redirects os.Stdout while fn runs and returns what was
@@ -123,19 +164,8 @@ func captureStdout(t *testing.T, fn func()) string {
 	return string(out)
 }
 
-func writeOrgFile(t *testing.T, root, rel, content string) {
-	t.Helper()
-	p := filepath.Join(root, ".monomind", "orgs", rel)
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
 type orgCLIFixture struct {
-	dbPath     string
+	cfg        *testConfig
 	root       string
 	outboundWF string
 	plainWF    string
@@ -180,7 +210,7 @@ func newOrgCLIFixture(t *testing.T) *orgCLIFixture {
 		return wf.ID
 	}
 	f := &orgCLIFixture{
-		dbPath:     dbPath,
+		cfg:        &testConfig{DBPath: dbPath, ProfileID: "default"},
 		root:       profiledir.Root(db.DB, "default"),
 		outboundWF: mk("Publish post", "comm.slack"),
 		plainWF:    mk("Summarize", "core.set"),
@@ -188,17 +218,18 @@ func newOrgCLIFixture(t *testing.T) *orgCLIFixture {
 	db.Close()
 
 	doc := orgdesign.NewOrg("growth", "grow", orgdesign.NewOrgOptions{})
-	reportsTo := "lead"
-	doc.Roles = append(doc.Roles, orgdesign.Role{ID: "writer", Title: "Writer", Type: "specialist", ReportsTo: &reportsTo, Responsibilities: []string{}})
+	doc.Roles = append(doc.Roles, orgdesign.Role{ID: "writer", Title: "Writer", Type: "specialist", ReportsTo: strPtrCLI("lead"), Responsibilities: []string{}})
 	if _, err := orgdesign.Save(f.root, doc); err != nil {
 		t.Fatal(err)
 	}
 	return f
 }
 
+func strPtrCLI(s string) *string { return &s }
+
 func (f *orgCLIFixture) run(t *testing.T, args ...string) (map[string]interface{}, error) {
 	t.Helper()
-	cmd := testOrgCmd(f.dbPath)
+	cmd := newOrgCmd(f.cfg)
 	cmd.SetArgs(args)
 	var runErr error
 	out := captureStdout(t, func() { runErr = cmd.Execute() })
@@ -221,5 +252,49 @@ func (f *orgCLIFixture) mustRun(t *testing.T, args ...string) map[string]interfa
 	return m
 }
 
-// depsEnv is an environment for helpers that only build errors.
-func depsEnv() *orgEnv { return newEnv(testDeps(), nil) }
+func (f *orgCLIFixture) load(t *testing.T) *orgdesign.Doc {
+	t.Helper()
+	d, err := orgdesign.Load(f.root, "growth")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
+// staleProvider points the writer's provider somewhere old, the way a moved
+// or hand-edited org file looks before reconcile regenerates it (as in
+// cmd/monoagentcli's daemon_org_watch_test.go).
+func staleProvider(t *testing.T, root string) {
+	t.Helper()
+	d, err := orgdesign.LoadPath(filepath.Join(orgdesign.OrgsDir(root), "growth.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, _ := d.FindRole("writer")
+	r.ToolProviders[0].Command = "/old/place/monoagentcli"
+	if _, err := orgdesign.Save(root, d); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// providerCommand is the command of writer's first tool provider in
+// growth (daemon_org_watch_test.go's helper in cmd/monoagentcli).
+func providerCommand(t *testing.T, root string) string {
+	t.Helper()
+	d, err := orgdesign.LoadPath(filepath.Join(orgdesign.OrgsDir(root), "growth.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, _ := d.FindRole("writer")
+	return r.ToolProviders[0].Command
+}
+
+// exitCodeOf is the code of err, which must carry one.
+func exitCodeOf(t *testing.T, err error) int {
+	t.Helper()
+	var ce *cliError
+	if !errors.As(err, &ce) {
+		t.Fatalf("error %v carries no exit code", err)
+	}
+	return ce.code
+}

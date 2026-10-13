@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"github.com/monoes/mono-agent/internal/monomind"
 )
 
-func newOrgRoleCmd(root func() string) *cobra.Command {
+func (env *orgEnv) newOrgRoleCmd(root func() string) *cobra.Command {
 	cmd := &cobra.Command{Use: "role", Short: "Manage one role of an org"}
 	var yes bool
 	setAccess := &cobra.Command{
@@ -23,16 +23,16 @@ func newOrgRoleCmd(root func() string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org, role, access := args[0], args[1], args[2]
 			if access != monomind.AccessFull && access != monomind.AccessScoped {
-				return errInvalidInput("access must be full or scoped, got %q", access)
+				return env.d.InvalidInput("access must be full or scoped, got %q", access)
 			}
 			if access == monomind.AccessFull {
 				if m := monomind.AgentContextMarker(); m != "" {
-					return errInvalidInput("granting full access is human-only and this looks like an agent (%s is set); run it yourself from a terminal or the app", m)
+					return env.d.InvalidInput("granting full access is human-only and this looks like an agent (%s is set); run it yourself from a terminal or the app", m)
 				}
 				if !yes {
-					return errInvalidInput("full access lets role %q run any command and change any file without asking; pass --yes-i-understand to grant it", role)
+					return env.d.InvalidInput("full access lets role %q run any command and change any file without asking; pass --yes-i-understand to grant it", role)
 				}
-				set, err := capabilityProbe(cmd)
+				set, err := env.d.CapabilityProbe(cmd)
 				if err != nil {
 					return err
 				}

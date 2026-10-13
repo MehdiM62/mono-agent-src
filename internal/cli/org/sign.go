@@ -1,9 +1,8 @@
-package main
+package org
 
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -20,30 +19,8 @@ import (
 )
 
 // Signed org definitions (#288, monomind#502): the save that keeps an
-// org's signature lives in internal/cli/orgenv; these are the CLI's names
-// for it. `org sign` itself is below.
-
-type monomindOrgSigner = orgenv.MonomindSigner
-
-func orgSigningOn(ctx context.Context, root string) bool { return orgenv.SigningOn(ctx, root) }
-
-func orgSignStatus(ctx context.Context, root, org string, raw []byte) orgsign.Status {
-	return orgenv.SignStatus(ctx, root, org, raw)
-}
-
-func saveOrgSigned(ctx context.Context, root, from string, doc *orgdesign.Doc) (string, *orgsign.Outcome, error) {
-	return orgenv.SaveSigned(ctx, root, from, doc)
-}
-
-func saveOrgDoc(ctx context.Context, root string, doc *orgdesign.Doc) (string, error) {
-	return orgenv.SaveDoc(ctx, root, doc)
-}
-
-func warnOrgSignature(out *orgsign.Outcome) { orgenv.WarnSignature(out) }
-
-func withOrgSignature(ctx context.Context, root string, payload json.RawMessage) json.RawMessage {
-	return orgenv.WithSignature(ctx, root, payload)
-}
+// org's signature is orgenv.SaveSigned. `org sign` reviews an org and signs
+// it as the operator.
 
 // orgSignResult is `org sign`'s JSON.
 type orgSignResult struct {
@@ -88,16 +65,16 @@ func newOrgSignCmd(env *orgEnv) *cobra.Command {
 			ctx := cmd.Context()
 			name, root := args[0], env.Root()
 			if !orgdesign.ValidOrgName(name) {
-				return errInvalidInput("invalid org name %q", name)
+				return env.d.InvalidInput("invalid org name %q", name)
 			}
 			raw, sha, err := orgsign.ReadFile(root, name)
 			if errors.Is(err, os.ErrNotExist) {
-				return errNotFound("org %q not found under %s", name, orgdesign.OrgsDir(root))
+				return env.d.NotFound("org %q not found under %s", name, orgdesign.OrgsDir(root))
 			} else if err != nil {
 				return err
 			}
 			res := orgSignResult{V: 1, Org: name, SHA256: sha}
-			if !orgSigningOn(ctx, root) {
+			if !orgenv.SigningOn(ctx, root) {
 				if statusOnly {
 					res.Message = "the installed monomind does not require signed org definitions (2.21+)"
 					return printJSONValue(res)
@@ -105,10 +82,10 @@ func newOrgSignCmd(env *orgEnv) *cobra.Command {
 				return errOrgSigningUnsupported
 			}
 			res.Supported = true
-			if !stdinIsTerminal() {
+			if !env.d.StdinIsTerminal() {
 				res.BlockedBy = orgsign.AgentContextMarker()
 			}
-			st := orgSignStatus(ctx, root, name, raw)
+			st := orgenv.SignStatus(ctx, root, name, raw)
 			res.State, res.Detail = st.State, st.Detail
 			if statusOnly {
 				if !st.OK() {
@@ -122,7 +99,7 @@ func newOrgSignCmd(env *orgEnv) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if env.cfg.JSONOutput || !stdinIsTerminal() {
+				if env.d.JSONOutput() || !env.d.StdinIsTerminal() {
 					res.Message = "not signed: review the above, then run `monoagentcli org sign " + name + " --yes --expect-hash " + res.Hash + "`"
 					if res.Hash == "" {
 						res.Message = "not signed: " + note
@@ -134,26 +111,26 @@ func newOrgSignCmd(env *orgEnv) *cobra.Command {
 					return printJSONValue(res)
 				}
 				if res.Hash == "" {
-					return errInvalidInput("org %s: not signed: %s", name, note)
+					return env.d.InvalidInput("org %s: not signed: %s", name, note)
 				}
 				expect = res.Hash // sign exactly what was just reviewed
 			}
 			if m := orgsign.RoleContextMarker(); m != "" {
 				// monomind's own refusal, verbatim, when it gives one.
 				if _, rerr := monomind.OrgSignReview(ctx, root, name); rerr != nil {
-					return errInvalidInput("%s", rerr.Error())
+					return env.d.InvalidInput("%s", rerr.Error())
 				}
-				return errInvalidInput("refusing to sign: %s is set — this is an org role or agent turn, and only the operator signs org definitions", m)
+				return env.d.InvalidInput("refusing to sign: %s is set — this is an org role or agent turn, and only the operator signs org definitions", m)
 			}
 			// A coding agent (the chat assistant included) runs commands with
 			// no terminal: under its markers, --yes needs a person at a TTY.
-			if m := orgsign.AgentContextMarker(); m != "" && yes && !stdinIsTerminal() {
+			if m := orgsign.AgentContextMarker(); m != "" && yes && !env.d.StdinIsTerminal() {
 				return &orgSignBlocked{marker: m, org: name}
 			}
 			if cmd.Flags().Changed("expect-hash") && expect == "" {
 				// A review that couldn't vouch for its hash hands over "":
 				// never read that as "sign whatever is there now".
-				return errInvalidInput("org %s: --expect-hash is empty: the review could not tell what it showed — review it again", name)
+				return env.d.InvalidInput("org %s: --expect-hash is empty: the review could not tell what it showed — review it again", name)
 			}
 			if expect == "" {
 				expect, _ = orgsign.Hash(root, raw)

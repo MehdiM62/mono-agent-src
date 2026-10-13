@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"bufio"
@@ -84,11 +84,11 @@ func (f *chatFake) Gate(_ context.Context, _, _, id string, approve bool, note s
 
 // setupOrgChat writes the acme org (ceo → dev → qa) under a fresh profile
 // folder, points the chat at fakes, and returns the config and the fake.
-func setupOrgChat(t *testing.T) (*globalConfig, *chatFake, string) {
+func setupOrgChat(t *testing.T) (*testConfig, *chatFake, string) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	cfg := &globalConfig{DBPath: filepath.Join(t.TempDir(), "chat.db"), ProfileID: "default"}
-	env := &orgEnv{cfg: cfg}
+	cfg := &testConfig{DBPath: filepath.Join(t.TempDir(), "chat.db"), ProfileID: "default"}
+	env := testEnv(cfg)
 	root := env.Root()
 	env.Close()
 	ceo, dev := "ceo", "dev"
@@ -105,7 +105,7 @@ func setupOrgChat(t *testing.T) (*globalConfig, *chatFake, string) {
 		t.Fatal(err)
 	}
 
-	raw, err := os.ReadFile("../../internal/orgchat/testdata/human-items.json")
+	raw, err := os.ReadFile("../../orgchat/testdata/human-items.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func setupOrgChat(t *testing.T) (*globalConfig, *chatFake, string) {
 	t.Cleanup(func() { orgChatClient, orgChatLogs, orgChatSend = prevClient, prevLogs, prevSend })
 	orgChatClient = fake
 	orgChatLogs = func(_ context.Context, _, _, _ string) (json.RawMessage, error) {
-		f, err := os.Open("../../internal/orgchat/testdata/boss-thread.jsonl")
+		f, err := os.Open("../../orgchat/testdata/boss-thread.jsonl")
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +132,7 @@ func setupOrgChat(t *testing.T) (*globalConfig, *chatFake, string) {
 	return cfg, fake, root
 }
 
-func runOrgChat(t *testing.T, cfg *globalConfig, args ...string) (string, error) {
+func runOrgChat(t *testing.T, cfg *testConfig, args ...string) (string, error) {
 	t.Helper()
 	var err error
 	out := captureStdout(t, func() {
@@ -274,7 +274,7 @@ func TestOrgChatHistoryGUIFixture(t *testing.T) {
 	}
 	want, _ := json.MarshalIndent(v, "", "  ")
 	want = append(want, '\n')
-	path := "../../wails-app/frontend/src/components/bubbles/__fixtures__/acme-history.json"
+	path := "../../../wails-app/frontend/src/components/bubbles/__fixtures__/acme-history.json"
 	if os.Getenv("UPDATE_ORG_CHAT_FIXTURE") == "1" {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
@@ -312,7 +312,7 @@ func TestOrgChatHistoryGUIFixture(t *testing.T) {
 		bus = append(bus, '\n')
 	}
 	bus = append(bus, "]\n"...)
-	busPath := "../../wails-app/frontend/src/components/bubbles/__fixtures__/acme-bus.json"
+	busPath := "../../../wails-app/frontend/src/components/bubbles/__fixtures__/acme-bus.json"
 	if os.Getenv("UPDATE_ORG_CHAT_FIXTURE") == "1" {
 		if err := os.WriteFile(busPath, bus, 0o644); err != nil {
 			t.Fatal(err)

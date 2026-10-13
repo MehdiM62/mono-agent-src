@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 
 func runOrgQueued(t *testing.T, root string, args ...string) (map[string]interface{}, error) {
 	t.Helper()
-	cmd := newOrgCmd(&globalConfig{})
+	cmd := newOrgCmd(&testConfig{})
 	cmd.SetArgs(append([]string{"--project", root, "queued"}, args...))
 	var runErr error
 	out := captureStdout(t, func() { runErr = cmd.Execute() })

@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/apikeys"
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orggrant"
@@ -126,8 +127,8 @@ func newOrgTeardownProfileCmd(env *orgEnv) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			if env.projectFlag != "" {
-				return errInvalidInput("teardown-profile acts on a whole profile; select it with --profile, not --project")
+			if env.Project() != "" {
+				return env.d.InvalidInput("teardown-profile acts on a whole profile; select it with --profile, not --project")
 			}
 			db, profileID, root, err := env.Profile()
 			if err != nil {
@@ -165,9 +166,8 @@ func newOrgTeardownProfileCmd(env *orgEnv) *cobra.Command {
 				// Strip the now-dead provider blocks from the org files,
 				// which outlive the profile when its folder is a project
 				// the user keeps.
-				s := &orgServices{db: db, logf: func(string, ...interface{}) {}}
 				saved := 0
-				for _, o := range s.reconcileProfile(ctx, orgdecide.ProfileRoot{ProfileID: profileID, Root: root}) {
+				for _, o := range env.reconciler(db).Profile(ctx, orgdecide.ProfileRoot{ProfileID: profileID, Root: root}) {
 					if o.Saved {
 						saved++
 					}
@@ -205,10 +205,9 @@ func newOrgReconcileCmd(env *orgEnv) *cobra.Command {
 				return err
 			}
 			var warnings []string
-			s := &orgServices{db: db, logf: func(string, ...interface{}) {}}
-			orgs := s.reconcileProfile(cmd.Context(), orgdecide.ProfileRoot{ProfileID: profileID, Root: root})
+			orgs := env.reconciler(db).Profile(cmd.Context(), orgdecide.ProfileRoot{ProfileID: profileID, Root: root})
 			if orgs == nil {
-				orgs = []orgReconcileOutcome{}
+				orgs = []orgenv.ReconcileOutcome{}
 			}
 			for _, o := range orgs {
 				if o.Error != "" {

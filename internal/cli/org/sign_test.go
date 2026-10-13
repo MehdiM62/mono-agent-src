@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -98,7 +98,7 @@ type recordingSigner struct {
 }
 
 func (s *recordingSigner) Sign(ctx context.Context, root, org, hash string) error {
-	if err := (monomindOrgSigner{}).Sign(ctx, root, org, hash); err != nil {
+	if err := (orgenv.MonomindSigner{}).Sign(ctx, root, org, hash); err != nil {
 		return err
 	}
 	s.calls = append(s.calls, org)
@@ -114,7 +114,7 @@ func (s *recordingSigner) Sign(ctx context.Context, root, org, hash string) erro
 
 // EnforcesHash is the production signer's (monomind 2.22 --expect-hash).
 func (s *recordingSigner) EnforcesHash(ctx context.Context, root string) bool {
-	return monomindOrgSigner{}.EnforcesHash(ctx, root)
+	return orgenv.MonomindSigner{}.EnforcesHash(ctx, root)
 }
 
 func mustRead(t *testing.T, root, org string) []byte {
@@ -128,7 +128,7 @@ func mustRead(t *testing.T, root, org string) []byte {
 
 // Check uses monomind's own --check, as the production signer does.
 func (s *recordingSigner) Check(ctx context.Context, root, org string) (orgsign.Status, bool) {
-	return monomindOrgSigner{}.Check(ctx, root, org)
+	return orgenv.MonomindSigner{}.Check(ctx, root, org)
 }
 
 // newSigningFixture is newOrgCLIFixture on a fake monomind 2.21 with a
@@ -244,7 +244,7 @@ func TestReconcileAfterOutsideEditNeverSigns(t *testing.T) {
 	if len(s.calls) != 0 {
 		t.Fatalf("reconcile signed an outside edit: %v", s.calls)
 	}
-	if providerCommand(t, f.root) != selfExecutable() {
+	if providerCommand(t, f.root) != orgenv.SelfExecutable() {
 		t.Fatal("provider not repaired")
 	}
 	if st := f.signature(t); st.OK() {
@@ -489,7 +489,7 @@ func TestOrgStatusChecksAllOrgsInOneRun(t *testing.T) {
 		return map[string]orgsign.Status{"growth": {State: orgsign.StateChanged}}, true
 	}
 	t.Cleanup(func() { orgenv.SignCheckAll = prev })
-	out := withOrgSignature(context.Background(), f.root, []byte(`{"v":1,"items":[{"name":"growth"},{"name":"other"}]}`))
+	out := orgenv.WithSignature(context.Background(), f.root, []byte(`{"v":1,"items":[{"name":"growth"},{"name":"other"}]}`))
 	var got struct {
 		Items []struct {
 			Name      string          `json:"name"`
@@ -552,6 +552,7 @@ func TestReviewDetectsASwapDuringTheRead(t *testing.T) {
 // monoagent's agent-context markers are monomind's AGENT_CONTEXT_ENV_MARKERS
 // exactly (orgrt/agent-context.ts, 2.21.0 and #568), bare AGENT included.
 func TestAgentContextMarkersMatchMonomind(t *testing.T) {
+	t.Parallel()
 	want := "CLAUDECODE CLAUDE_CODE_ENTRYPOINT MONOMIND_ORG_ROLE MONOMIND_SDK_AGENT MONOMIND_AGENT_EXEC AI_AGENT AGENT " +
 		"CODEX_SANDBOX CODEX_SANDBOX_NETWORK_DISABLED CODEX_THREAD_ID CODEX_CI OPENCODE OPENCODE_PID ANTIGRAVITY_AGENT " +
 		"GEMINI_CLI GROK_SESSION_ID GROK_MANAGED_BY_NPM COPILOT_CLI_BINARY_VERSION COPILOT_AGENT_SESSION_ID CRUSH " +

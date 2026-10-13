@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgbridge"
@@ -36,7 +37,7 @@ func newOrgServeCmd(env *orgEnv) *cobra.Command {
 			root := env.Root()
 			if stop {
 				if foreground {
-					return errInvalidInput("--stop and --foreground cannot be combined")
+					return env.d.InvalidInput("--stop and --foreground cannot be combined")
 				}
 				rep := stopRootOrgs(cmd.Context(), root, false)
 				if err := printJSONValue(rep.json(root)); err != nil {
@@ -62,7 +63,15 @@ func newOrgServeCmd(env *orgEnv) *cobra.Command {
 	}
 	c.Flags().BoolVar(&foreground, "foreground", false, "Run in this terminal until interrupted")
 	c.Flags().BoolVar(&stop, "stop", false, "Stop the folder's running orgs and its org daemon instead of starting one")
-	return servingCommand(c, servesInForeground)
+	return env.d.Serving(c, servesInForeground)
+}
+
+// servesInForeground is servingCommand's predicate for `org serve`: only
+// `--foreground` (and not `--stop`) keeps this process alive to serve.
+func servesInForeground(cmd *cobra.Command) bool {
+	foreground, _ := cmd.Flags().GetBool("foreground")
+	stop, _ := cmd.Flags().GetBool("stop")
+	return foreground && !stop
 }
 
 func newOrgLifecycleCmd(env *orgEnv, verb, short string, fn func(ctx context.Context, root, name string) (string, error)) *cobra.Command {
@@ -89,10 +98,10 @@ func newOrgSendCmd(env *orgEnv) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org := args[0]
 			if !orgdesign.ValidOrgName(org) {
-				return errInvalidInput("invalid org name %q", org)
+				return env.d.InvalidInput("invalid org name %q", org)
 			}
 			if from != "" && !strings.Contains(from, ":") {
-				return errInvalidInput("--from must be qualified as <org>:<role>")
+				return env.d.InvalidInput("--from must be qualified as <org>:<role>")
 			}
 			db, profileID, root, err := env.Profile()
 			if err != nil {
@@ -106,7 +115,7 @@ func newOrgSendCmd(env *orgEnv) *cobra.Command {
 			if err != nil {
 				var refused *orgbridge.ErrRefused
 				if errors.As(err, &refused) {
-					return errInvalidInput("%s", refused.Error())
+					return env.d.InvalidInput("%s", refused.Error())
 				}
 				return err
 			}
@@ -168,7 +177,7 @@ func newOrgRenameCmd(env *orgEnv) *cobra.Command {
 			ctx := cmd.Context()
 			oldName, newName := args[0], args[1]
 			if !orgdesign.ValidOrgName(newName) {
-				return errInvalidInput("invalid org name %q", newName)
+				return env.d.InvalidInput("invalid org name %q", newName)
 			}
 			db, profileID, root, doc, err := loadOrgForEdit(env, oldName)
 			if err != nil {
@@ -176,15 +185,15 @@ func newOrgRenameCmd(env *orgEnv) *cobra.Command {
 			}
 			dir := orgdesign.OrgsDir(root)
 			if _, err := os.Stat(filepath.Join(dir, newName+".json")); err == nil {
-				return errInvalidInput("org %q already exists", newName)
+				return env.d.InvalidInput("org %q already exists", newName)
 			}
 			if other, err := orgNameInUse(db.DB, newName, profileID); err != nil {
 				return err
 			} else if other != "" {
-				return errInvalidInput("org name %q is already used in profile %q; org names are unique on this machine — try %s-%s", newName, other, newName, shortProfile(profileID))
+				return env.d.InvalidInput("org name %q is already used in profile %q; org names are unique on this machine — try %s-%s", newName, other, newName, shortProfile(profileID))
 			}
 			if running, _ := legacyOrgRunning(cmd, root, oldName); running {
-				return errInvalidInput("org %q is running; stop it before renaming", oldName)
+				return env.d.InvalidInput("org %q is running; stop it before renaming", oldName)
 			}
 			paths, err := legacyOrgPaths(dir, oldName)
 			if err != nil {
@@ -205,7 +214,7 @@ func newOrgRenameCmd(env *orgEnv) *cobra.Command {
 			doc.Name = newName
 			// The signature is bound to the org name: a signed org is
 			// re-signed under its new one.
-			if _, err := saveOrgReconciledFrom(ctx, db, profileID, root, doc, env.genOptions(profileID), oldName); err != nil {
+			if _, err := orgenv.SaveReconciledFrom(ctx, db, profileID, root, doc, env.genOptions(profileID), oldName); err != nil {
 				return err
 			}
 			if err := os.Remove(filepath.Join(dir, oldName+".json")); err != nil && !os.IsNotExist(err) {
@@ -222,7 +231,7 @@ func newOrgRenameCmd(env *orgEnv) *cobra.Command {
 					}
 				}
 				if changed {
-					if _, err := saveOrgDoc(ctx, root, d); err != nil {
+					if _, err := orgenv.SaveDoc(ctx, root, d); err != nil {
 						return fmt.Errorf("updating holding org %s: %w", d.Name, err)
 					}
 				}
@@ -254,7 +263,7 @@ func newOrgDeleteCmd(env *orgEnv) *cobra.Command {
 			}
 			docs, _, _ := orgdesign.LoadAll(root)
 			if owner := orgdesign.HoldingOwner(docs, name); owner != "" && !force {
-				return errInvalidInput("org %q is a child of holding org %q; remove it there first or pass --force", name, owner)
+				return env.d.InvalidInput("org %q is a child of holding org %q; remove it there first or pass --force", name, owner)
 			}
 			if _, err := monomind.OrgDelete(ctx, root, name, force); err != nil {
 				return err

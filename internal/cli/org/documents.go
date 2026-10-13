@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"github.com/spf13/cobra"
@@ -24,11 +24,11 @@ func newOrgDocumentsCmd(env *orgEnv) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org := args[0]
 			if !orgdesign.ValidOrgName(org) {
-				return errInvalidInput("invalid org name %q", org)
+				return env.d.InvalidInput("invalid org name %q", org)
 			}
 			v, err := orgbridge.ReadDocView(env.Root(), org, run)
 			if err != nil {
-				return errInvalidInput("%s", err.Error())
+				return env.d.InvalidInput("%s", err.Error())
 			}
 			return printJSONValue(v)
 		},

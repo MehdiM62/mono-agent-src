@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"encoding/json"
@@ -22,7 +22,7 @@ func TestOrgCommandsNeverRunProjectPlantedMonomind(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell shims are unix-only")
 	}
-	testdata, err := filepath.Abs(filepath.Join("..", "..", "internal", "monomind", "testdata"))
+	testdata, err := filepath.Abs(filepath.Join("..", "..", "monomind", "testdata"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestOrgCommandsNeverRunProjectPlantedMonomind(t *testing.T) {
 	t.Chdir(project)
 
 	for _, args := range [][]string{{"status", "growth"}, {"run", "growth"}} {
-		cmd := newOrgCmd(&globalConfig{})
+		cmd := newOrgCmd(&testConfig{})
 		cmd.SetArgs(append(args, "--project", project))
 		var runErr error
 		captureStdout(t, func() { runErr = cmd.Execute() })
@@ -104,7 +104,7 @@ func TestOrgCommandsNeverRunProjectPlantedMonomind(t *testing.T) {
 	t.Setenv("PATH", strings.Join([]string{"node_modules/.bin", ".", filepath.Join(project, "bin"), shims, "/usr/bin", "/bin"}, sep))
 	t.Setenv("CODEX_CLI_BIN", filepath.Join(project, ".cache", "n", "bin", "codex"))
 	monomind.ResetCapabilityCache()
-	cmd := newOrgCmd(&globalConfig{})
+	cmd := newOrgCmd(&testConfig{})
 	cmd.SetArgs([]string{"status", "growth", "--project", project})
 	var runErr error
 	captureStdout(t, func() { runErr = cmd.Execute() })
