@@ -9,5 +9,72 @@
     { "key": "file_path", "label": "File Path", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["upload_file"] } },
     { "key": "filename", "label": "Filename", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["upload_file"] } },
     { "key": "user_id", "label": "User ID", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["get_user"] } }
+  ],
+  "outputs": [
+    {
+      "description": "send: channel",
+      "key": "channel",
+      "type": "string"
+    },
+    {
+      "description": "send: message ts",
+      "key": "timestamp",
+      "type": "string"
+    },
+    {
+      "description": "upload: file id",
+      "key": "file_id",
+      "type": "string"
+    },
+    {
+      "description": "upload: file name",
+      "key": "filename",
+      "type": "string"
+    },
+    {
+      "description": "list: channel or user id",
+      "key": "id",
+      "type": "string"
+    },
+    {
+      "description": "list: name",
+      "key": "name",
+      "type": "string"
+    },
+    {
+      "description": "channels: private",
+      "key": "is_private",
+      "type": "boolean"
+    },
+    {
+      "description": "channels: members",
+      "key": "num_members",
+      "type": "number"
+    },
+    {
+      "description": "users: real name",
+      "key": "real_name",
+      "type": "string"
+    },
+    {
+      "description": "users: email",
+      "key": "email",
+      "type": "string"
+    },
+    {
+      "description": "users: bot",
+      "key": "is_bot",
+      "type": "boolean"
+    },
+    {
+      "description": "users: admin",
+      "key": "is_admin",
+      "type": "boolean"
+    },
+    {
+      "description": "users: time zone",
+      "key": "timezone",
+      "type": "string"
+    }
   ]
 }

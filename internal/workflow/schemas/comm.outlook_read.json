@@ -36,5 +36,37 @@
       "required": false,
       "type": "boolean"
     }
+  ],
+  "outputs": [
+    {
+      "description": "already seen",
+      "key": "read",
+      "type": "boolean"
+    },
+    {
+      "description": "date header",
+      "key": "date",
+      "type": "string"
+    },
+    {
+      "description": "subject",
+      "key": "subject",
+      "type": "string"
+    },
+    {
+      "description": "sender",
+      "key": "from",
+      "type": "string"
+    },
+    {
+      "description": "Message-ID",
+      "key": "message_id",
+      "type": "string"
+    },
+    {
+      "description": "text body (first 2 KB)",
+      "key": "body",
+      "type": "string"
+    }
   ]
 }

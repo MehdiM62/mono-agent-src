@@ -78,5 +78,22 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "true when sent",
+      "key": "sent",
+      "type": "boolean"
+    },
+    {
+      "description": "sender",
+      "key": "from",
+      "type": "string"
+    },
+    {
+      "description": "recipients",
+      "key": "to",
+      "type": "array"
+    }
   ]
 }

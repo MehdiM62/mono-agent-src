@@ -14,5 +14,12 @@
     { "key": "base", "label": "Base Branch", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["create_pr"] } },
     { "key": "tag_name", "label": "Tag Name", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["create_release"] } },
     { "key": "release_name", "label": "Release Name", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["create_release"] } }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
+    }
   ]
 }

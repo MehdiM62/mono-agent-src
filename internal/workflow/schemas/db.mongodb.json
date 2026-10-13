@@ -99,5 +99,47 @@
       "required": false,
       "type": "number"
     }
+  ],
+  "outputs": [
+    {
+      "description": "find: one item per document",
+      "key": "<document fields>",
+      "type": "any"
+    },
+    {
+      "description": "insert_one",
+      "key": "inserted_id",
+      "type": "string"
+    },
+    {
+      "description": "insert_many",
+      "key": "inserted_ids",
+      "type": "array"
+    },
+    {
+      "description": "insert_many",
+      "key": "inserted_count",
+      "type": "number"
+    },
+    {
+      "description": "update",
+      "key": "matched_count",
+      "type": "number"
+    },
+    {
+      "description": "update",
+      "key": "modified_count",
+      "type": "number"
+    },
+    {
+      "description": "update",
+      "key": "upserted_count",
+      "type": "number"
+    },
+    {
+      "description": "delete",
+      "key": "deleted_count",
+      "type": "number"
+    }
   ]
 }

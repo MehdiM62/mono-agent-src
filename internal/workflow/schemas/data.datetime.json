@@ -410,5 +410,17 @@
       "required": false,
       "type": "boolean"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the formatted date, epoch seconds or difference",
+      "key": "<output_field|field>",
+      "type": "any"
+    }
   ]
 }
