@@ -1,4 +1,4 @@
-package main
+package update
 
 import (
 	"archive/tar"
@@ -37,8 +37,9 @@ func tgz(t *testing.T, files map[string]string) []byte {
 }
 
 // fakeAppRelease serves a latest release with the linux app tarball and a
-// SHA256SUMS.txt; tamper serves a different archive than the one summed.
-func fakeAppRelease(t *testing.T, archive []byte, tamper bool) {
+// SHA256SUMS.txt, and returns its latest-release endpoint; tamper serves a
+// different archive than the one summed.
+func fakeAppRelease(t *testing.T, archive []byte, tamper bool) string {
 	t.Helper()
 	sum := sha256.Sum256(archive)
 	var srv *httptest.Server
@@ -57,22 +58,20 @@ func fakeAppRelease(t *testing.T, archive []byte, tamper bool) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	old := latestReleaseURL
-	latestReleaseURL = srv.URL + "/latest"
-	t.Cleanup(func() { latestReleaseURL = old })
+	return srv.URL + "/latest"
 }
 
-func runUpdateAppCmd(t *testing.T, args ...string) (appUpdateResult, string) {
+func runUpdateAppCmd(t *testing.T, d Deps, args ...string) (AppResult, string) {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	cmd := newUpdateCmd(&globalConfig{JSONOutput: true})
+	cmd := NewCommand(d)
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
 	cmd.SetArgs(args)
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("update: %v (%s)", err, errOut.String())
 	}
-	var res appUpdateResult
+	var res AppResult
 	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
 		t.Fatalf("not JSON: %v\n%s", err, out.String())
 	}
@@ -92,12 +91,13 @@ func appInstallDir(t *testing.T) (app, cli string) {
 }
 
 func TestUpdateAppLinuxReplacesAppAndBundledCLI(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" {
 		t.Skip("linux install path")
 	}
-	fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "new-app", "monoagentcli": "new-cli"}), false)
+	latest := fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "new-app", "monoagentcli": "new-cli"}), false)
 	app, cli := appInstallDir(t)
-	res, progress := runUpdateAppCmd(t, "--app", app, "--current", "v1.0.0")
+	res, progress := runUpdateAppCmd(t, testDeps(t, latest), "--app", app, "--current", "v1.0.0")
 	if !res.Success || res.NewVersion != "v9.9.9" || res.Restart != "quit" || res.Error != "" {
 		t.Fatalf("res = %+v", res)
 	}
@@ -112,12 +112,13 @@ func TestUpdateAppLinuxReplacesAppAndBundledCLI(t *testing.T) {
 }
 
 func TestUpdateAppRefusesATamperedDownload(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" {
 		t.Skip("linux install path")
 	}
-	fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "evil"}), true)
+	latest := fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "evil"}), true)
 	app, cli := appInstallDir(t)
-	res, _ := runUpdateAppCmd(t, "--app", app, "--current", "v1.0.0")
+	res, _ := runUpdateAppCmd(t, testDeps(t, latest), "--app", app, "--current", "v1.0.0")
 	if res.Success || res.Error == "" {
 		t.Fatalf("a download that doesn't match SHA256SUMS must fail: %+v", res)
 	}
@@ -129,9 +130,10 @@ func TestUpdateAppRefusesATamperedDownload(t *testing.T) {
 }
 
 func TestUpdateAppUpToDate(t *testing.T) {
-	fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "x"}), false)
+	t.Parallel()
+	latest := fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "x"}), false)
 	app, _ := appInstallDir(t)
-	res, _ := runUpdateAppCmd(t, "--app", app, "--current", "v9.9.9")
+	res, _ := runUpdateAppCmd(t, testDeps(t, latest), "--app", app, "--current", "v9.9.9")
 	if !res.Success || !res.UpToDate {
 		t.Fatalf("res = %+v", res)
 	}
@@ -141,22 +143,24 @@ func TestUpdateAppUpToDate(t *testing.T) {
 }
 
 func TestUpdateCheckAndAppAreExclusive(t *testing.T) {
-	cmd := newUpdateCmd(&globalConfig{JSONOutput: true})
+	t.Parallel()
+	cmd := NewCommand(testDeps(t, "http://127.0.0.1:1"))
 	cmd.SetArgs([]string{"--check", "--app", "/x"})
-	if err := cmd.Execute(); exitCode(err) != 3 {
-		t.Fatalf("exit = %d, want 3", exitCode(err))
+	if err := cmd.Execute(); !isInvalidInput(err) {
+		t.Fatalf("err = %v, want invalid input", err)
 	}
 }
 
 // --json keeps the app's contract: every stderr line is an NDJSON progress
 // record, stdout is the one result object.
 func TestUpdateAppJSONProgressIsNDJSON(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
 		t.Skip("linux/amd64 install path")
 	}
-	fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "new-app"}), false)
+	latest := fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "new-app"}), false)
 	app, _ := appInstallDir(t)
-	res, progress := runUpdateAppCmd(t, "--app", app)
+	res, progress := runUpdateAppCmd(t, testDeps(t, latest), "--app", app)
 	if !res.Success || res.NewVersion != "v9.9.9" {
 		t.Fatalf("res = %+v", res)
 	}
@@ -175,18 +179,16 @@ func TestUpdateAppJSONProgressIsNDJSON(t *testing.T) {
 // A failure is a result in --json mode (exit 0, error set), so the app can
 // show it.
 func TestUpdateAppJSONReportsErrors(t *testing.T) {
+	t.Parallel()
 	var out bytes.Buffer
-	cmd := newUpdateCmd(&globalConfig{JSONOutput: true})
+	cmd := NewCommand(testDeps(t, "http://127.0.0.1:1/latest"))
 	cmd.SetOut(&out)
 	cmd.SetErr(&bytes.Buffer{})
-	old := latestReleaseURL
-	latestReleaseURL = "http://127.0.0.1:1/latest"
-	t.Cleanup(func() { latestReleaseURL = old })
 	cmd.SetArgs([]string{"--app", filepath.Join(t.TempDir(), "MonoAgent-linux-amd64")})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("--json failure must exit 0: %v", err)
 	}
-	var res appUpdateResult
+	var res AppResult
 	if err := json.Unmarshal(out.Bytes(), &res); err != nil || res.Success || res.Error == "" {
 		t.Fatalf("res = %+v (%v) %s", res, err, out.String())
 	}
@@ -196,10 +198,11 @@ func TestUpdateAppJSONReportsErrors(t *testing.T) {
 // replaces the running binary. Run a copy of this test binary as that
 // bundled CLI and let it update itself.
 func TestUpdateAppReplacesTheRunningBundledCLI(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
 		t.Skip("linux/amd64 install path")
 	}
-	fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "new-app", "monoagentcli": "new-cli"}), false)
+	latest := fakeAppRelease(t, tgz(t, map[string]string{"MonoAgent-linux-amd64": "new-app", "monoagentcli": "new-cli"}), false)
 	dir := t.TempDir()
 	app, cli := filepath.Join(dir, "MonoAgent-linux-amd64"), filepath.Join(dir, "monoagentcli")
 	if err := os.WriteFile(app, []byte("old"), 0o755); err != nil {
@@ -217,13 +220,13 @@ func TestUpdateAppReplacesTheRunningBundledCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := exec.Command(cli, "-test.run=^TestUpdateAppHelperProcess$", "--", "--app", app, "--current", "v1.0.0")
-	c.Env = append(os.Environ(), "MONOAGENT_UPDATE_APP_HELPER="+latestReleaseURL)
+	c.Env = append(os.Environ(), "MONOAGENT_UPDATE_APP_HELPER="+latest)
 	var out, errOut bytes.Buffer
 	c.Stdout, c.Stderr = &out, &errOut
 	if err := c.Run(); err != nil {
 		t.Fatalf("bundled CLI: %v\n%s\n%s", err, out.String(), errOut.String())
 	}
-	var res appUpdateResult
+	var res AppResult
 	// The helper's stdout ends with the test runner's "PASS".
 	if err := json.NewDecoder(&out).Decode(&res); err != nil || !res.Success || res.NewVersion != "v9.9.9" {
 		t.Fatalf("res = %+v (%v)\nstderr = %s", res, err, errOut.String())
@@ -249,7 +252,6 @@ func TestUpdateAppHelperProcess(t *testing.T) {
 	if url == "" {
 		t.Skip("helper process")
 	}
-	latestReleaseURL = url
 	args := os.Args
 	for i, a := range args {
 		if a == "--" {
@@ -257,7 +259,7 @@ func TestUpdateAppHelperProcess(t *testing.T) {
 			break
 		}
 	}
-	cmd := newUpdateCmd(&globalConfig{JSONOutput: true})
+	cmd := NewCommand(testDeps(t, url))
 	cmd.SetArgs(args)
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
