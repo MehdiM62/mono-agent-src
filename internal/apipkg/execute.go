@@ -450,9 +450,25 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 // result list.
 func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 	o := r.op.Output
-	list, isList := v.([]any)
-	if o == nil || !isList {
+	if o == nil {
 		return v, nil
+	}
+	list, isList := v.([]any)
+	if !isList {
+		// A single object is shaped as a one-element list (Coda getRow).
+		if _, isObj := v.(map[string]any); !isObj {
+			return v, nil
+		}
+		shaped, err := r.shapeOutput(ctx, []any{v})
+		if err != nil {
+			return nil, err
+		}
+		if l := shaped.([]any); len(l) == 1 {
+			return l[0], nil
+		} else if len(l) == 0 {
+			return nil, nil
+		}
+		return shaped, nil
 	}
 	each, err := r.renderOutputKey(o.Each)
 	if err != nil {

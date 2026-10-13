@@ -410,7 +410,7 @@ Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `
 "before": { "method": "GET", "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ p.sheetName | rl }}!1:1" },
 "body": { "values": [ "{{ item | row:pre.values }}" ] }
 ```
-**Output shaping** (applied in this order, also to paginated results):
+**Output shaping** (applied in this order, also to paginated results; a single-object response is shaped as a one-element list):
 - `"each": "invoice"` replaces each element by its value at that path (Chargebee `[{"invoice": {…}}]` → the invoices).
 - `"expand": {method, path, query, …}` sends one request per element (`el` = the element) and replaces it with the response (Gmail lists ids, then GETs each message with `format`).
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.

@@ -242,3 +242,15 @@ func TestHarnessMultiRequestCases(t *testing.T) {
 	c.ExpectRequests = []expectReq{{Method: "GET", Path: "/v1/s/v/Main!1:1"}, c.Expect}
 	checkCase(t, p, op, c)
 }
+
+func TestOutputToOnSingleObject(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"get","title":"G","method":"GET","path":"/row",
+	  "output":{"to":{"id":"{{ el.id }}","$merge":"{{ el.values }}"}}}`))
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"id":"r1","values":{"Name":"ada"}}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "get"}, cred, nil)
+	if err != nil || len(items) != 1 || items[0].JSON["Name"] != "ada" || items[0].JSON["values"] != nil {
+		t.Errorf("single object to: %v %v", items, err)
+	}
+}
