@@ -489,6 +489,8 @@ monoagentcli mcp --allow-mutations   # also serve mutating tools
 monoagentcli mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
 monoagentcli mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
 monoagentcli --profile work mcp --tasks-only --allow-mutations   # the user's task board's tools (task_*) and no other, for one profile
+monoagentcli mcp --allow-mutations --workflow-tools   # also each saved workflow as a tool wf_<slug>
+monoagentcli mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
 ```
 
 Register it with any MCP client (stdio transport). Prefer MCP when the
@@ -506,6 +508,11 @@ dangerous calls.
 **Read-only, always exposed:**
 
 - `workflow_list`, `workflow_get`, `workflow_validate`, `workflow_status`
+- `workflow_search` (templates and saved workflows by id, name, description or
+  node type), `workflow_inputs` (the trigger fields a workflow reads, with an
+  input skeleton for `workflow_run`), `workflow_executions` (recent runs of one
+  workflow or all), `workflow_template_list`, `workflow_template_show` (the
+  bundled templates)
 - `node_list` (optional `category` filter — see the tool's own
   description for values), `node_schema`
 - `hil_list`
@@ -566,6 +573,25 @@ existing MCP client config that relies on them.
 
 - `workflow_run`, `workflow_create`, `workflow_delete`,
   `workflow_set_active`, `workflow_node_add`
+- authoring, each the same steps as its command: `workflow_connect` /
+  `workflow_disconnect` (`workflow connect|disconnect`), `workflow_node_update`
+  / `workflow_node_delete` (`workflow node set|remove`), `workflow_save` (create
+  or replace a whole workflow document, `workflow save`),
+  `workflow_template_instantiate` (a new inactive workflow from a template,
+  `workflow templates use`)
+- `workflow_generate`, the MCP side of `monoagentcli workflow generate
+  "<description>" [--runtime auto|claude|codex|...] [--model M] [--name N]
+  [--max-attempts N] [--no-save]`: a local AI agent (monomind) writes the
+  workflow, its validation problems go back to it until it passes or the
+  attempts run out (default 3, max 10), and it is saved as an INACTIVE draft
+  (`save: false` / `--no-save` returns the JSON only)
+- with `--workflow-tools` (or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`, or a list), one
+  tool `wf_<slug>` per saved workflow of the profile (a-z, 0-9 and `_`, at most
+  64 characters; a name clash gets a short id suffix), or per listed id or
+  name. Its arguments are the workflow's trigger input (what `workflow inputs`
+  lists) plus `_timeout_seconds`; a call runs the workflow and waits, as
+  `workflow_run` does. Workflows are re-read at every `tools/list`. It cannot
+  be combined with `--api-only`, `--tasks-only` or `--grant`
 - `hil_approve`, `hil_reject`
 - `secret_add`, `secret_update`, `secret_delete`
 - `person_upsert`, `person_delete`
