@@ -1,0 +1,364 @@
+{
+  "message.sendPrivate": {
+    "params": {
+      "to": [
+        "a@x.io",
+        "b@x.io"
+      ],
+      "content": "hi"
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/messages",
+      "body": {
+        "type": "private",
+        "to": "a@x.io,b@x.io",
+        "content": "hi"
+      },
+      "items": 1
+    }
+  },
+  "message.delete": {
+    "params": {
+      "messageId": "1"
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/messages/1"
+    }
+  },
+  "message.get": {
+    "params": {
+      "messageId": "1"
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/messages/1"
+    }
+  },
+  "message.sendStream": {
+    "params": {
+      "stream": "general",
+      "topic": "news",
+      "content": "hi"
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/messages",
+      "body": {
+        "type": "stream",
+        "to": "general",
+        "topic": "news",
+        "content": "hi"
+      }
+    }
+  },
+  "message.update": {
+    "params": {
+      "messageId": "1",
+      "updateFields": {
+        "content": "x",
+        "propagateMode": "changeAll"
+      }
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/messages/1",
+      "body": {
+        "content": "x",
+        "propagate_mode": "change_all"
+      }
+    }
+  },
+  "message.updateFile": {
+    "params": {
+      "dataBinaryProperty": "data"
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "response": {
+      "uri": "/user_uploads/1/a.txt"
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "fileName": "a.txt",
+          "mimeType": "text/plain"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/user_uploads",
+      "body": {
+        "file": "file:a.txt:hello"
+      },
+      "items": 1
+    }
+  },
+  "stream.create": {
+    "params": {
+      "subscriptions": {
+        "properties": [
+          {
+            "name": "dev",
+            "description": "d"
+          }
+        ]
+      },
+      "additionalFields": {
+        "inviteOnly": true,
+        "principals": {
+          "properties": [
+            {
+              "email": "a@x.io"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/users/me/subscriptions",
+      "body": {
+        "subscriptions": "[{\"description\":\"d\",\"name\":\"dev\"}]",
+        "invite_only": "true",
+        "principals": "[\"a@x.io\"]"
+      }
+    }
+  },
+  "stream.delete": {
+    "params": {
+      "streamId": "3"
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/streams/3"
+    }
+  },
+  "stream.getAll": {
+    "params": {
+      "additionalFields": {
+        "includePublic": true,
+        "includeDefault": false
+      }
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "response": {
+      "streams": [
+        {
+          "stream_id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/streams",
+      "query": {
+        "include_public": "true"
+      },
+      "items": 1
+    }
+  },
+  "stream.getSubscribed": {
+    "params": {},
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "response": {
+      "subscriptions": [
+        {
+          "stream_id": 1
+        },
+        {
+          "stream_id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/users/me/subscriptions",
+      "query": {},
+      "items": 2
+    }
+  },
+  "stream.update": {
+    "params": {
+      "streamId": "3",
+      "additionalFields": {
+        "newName": "dev2",
+        "isPrivate": true
+      }
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/streams/3",
+      "body": {
+        "new_name": "\"dev2\"",
+        "is_private": "true"
+      }
+    }
+  },
+  "user.create": {
+    "params": {
+      "email": "a@x.io",
+      "fullName": "Ada L",
+      "password": "pw",
+      "shortName": "ada"
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/users",
+      "body": {
+        "email": "a@x.io",
+        "password": "pw",
+        "full_name": "Ada L",
+        "short_name": "ada"
+      }
+    }
+  },
+  "user.deactivate": {
+    "params": {
+      "userId": "5"
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/users/5"
+    }
+  },
+  "user.get": {
+    "params": {
+      "userId": "5",
+      "additionalFields": {
+        "includeCustomProfileFields": true
+      }
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/users/5",
+      "query": {
+        "include_custom_profile_fields": "true"
+      }
+    }
+  },
+  "user.getAll": {
+    "params": {},
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "response": {
+      "members": [
+        {
+          "user_id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/users",
+      "query": {},
+      "items": 1
+    }
+  },
+  "user.update": {
+    "params": {
+      "userId": "5",
+      "additionalFields": {
+        "fullName": "Ada",
+        "role": 400,
+        "profileData": {
+          "property": [
+            {
+              "id": "1",
+              "value": "x"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "url": "https://chat.test/",
+      "email": "bot@x.io",
+      "api_key": "k"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v1/users/5",
+      "body": {
+        "full_name": "\"Ada\"",
+        "role": "400",
+        "profile_data": "[{\"id\":\"1\",\"value\":\"x\"}]"
+      }
+    }
+  }
+}
