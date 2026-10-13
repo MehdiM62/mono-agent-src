@@ -1,0 +1,238 @@
+{
+  "contact.create": {
+    "params": {
+      "list": "1",
+      "email": "a@b.co",
+      "additionalFields": {
+        "first_name": "Ann",
+        "birth_date": "1990-05-04T00:00:00Z",
+        "tagIds": [
+          3,
+          4
+        ],
+        "extraFieldsUi": {
+          "extraFieldValues": [
+            {
+              "field_id": "1",
+              "value": "blue"
+            }
+          ]
+        }
+      }
+    },
+    "responses": [
+      {
+        "contact_id": "c9"
+      },
+      {},
+      {},
+      {
+        "base": {
+          "contact_id": "c9",
+          "email": "a@b.co",
+          "first_name": "Ann"
+        },
+        "extra": [
+          {
+            "field_id": 1,
+            "value": "blue"
+          }
+        ],
+        "tags": [
+          3
+        ],
+        "email_stats": {
+          "sent": 1
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/lists/1/contacts",
+        "body": {
+          "base": {
+            "email": "a@b.co",
+            "first_name": "Ann",
+            "birth_date": "1990-05-04"
+          },
+          "extra": [
+            {
+              "field_id": "1",
+              "value": "blue"
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/lists/1/contacts/actions/attach-tag",
+        "body": {
+          "tag_id": 3,
+          "contacts": [
+            "c9"
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/lists/1/contacts/actions/attach-tag",
+        "body": {
+          "tag_id": 4,
+          "contacts": [
+            "c9"
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/lists/1/contacts/c9"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/lists/1/contacts",
+      "items": 1
+    }
+  },
+  "contact.get": {
+    "params": {
+      "list": "1",
+      "contactId": "c9"
+    },
+    "responses": [
+      [
+        {
+          "field_id": 1,
+          "name": "color",
+          "type": "extra"
+        }
+      ],
+      {
+        "base": {
+          "contact_id": "c9",
+          "email": "a@b.co",
+          "first_name": "Ann"
+        },
+        "extra": [
+          {
+            "field_id": 1,
+            "value": "blue"
+          }
+        ],
+        "tags": [
+          3
+        ],
+        "email_stats": {
+          "sent": 1
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/lists/1/contacts/c9",
+      "items": 1
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "list": "1",
+      "limit": 2,
+      "simple": false
+    },
+    "response": {
+      "items": [
+        {
+          "base": {
+            "contact_id": "c9",
+            "email": "a@b.co",
+            "first_name": "Ann"
+          },
+          "extra": [
+            {
+              "field_id": 1,
+              "value": "blue"
+            }
+          ],
+          "tags": [
+            3
+          ],
+          "email_stats": {
+            "sent": 1
+          }
+        },
+        {
+          "base": {
+            "contact_id": "c9",
+            "email": "a@b.co",
+            "first_name": "Ann"
+          },
+          "extra": [
+            {
+              "field_id": 1,
+              "value": "blue"
+            }
+          ],
+          "tags": [
+            3
+          ],
+          "email_stats": {
+            "sent": 1
+          }
+        },
+        {
+          "base": {
+            "contact_id": "c9",
+            "email": "a@b.co",
+            "first_name": "Ann"
+          },
+          "extra": [
+            {
+              "field_id": 1,
+              "value": "blue"
+            }
+          ],
+          "tags": [
+            3
+          ],
+          "email_stats": {
+            "sent": 1
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/lists/1/contacts",
+      "query": {
+        "offset": "0",
+        "limit": "2"
+      },
+      "items": 2
+    }
+  },
+  "contact.update": {
+    "params": {
+      "list": "1",
+      "contactId": "c9",
+      "resolveData": false,
+      "updateFields": {
+        "status": "inactive"
+      }
+    },
+    "response": {
+      "contact_id": "c9"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/lists/1/contacts/c9",
+      "body": {
+        "base": {
+          "status": "inactive"
+        },
+        "extra": []
+      },
+      "items": 1
+    }
+  }
+}
