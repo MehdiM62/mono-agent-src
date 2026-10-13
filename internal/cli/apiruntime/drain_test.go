@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package apiruntime
 
 import (
 	"context"
@@ -50,7 +50,7 @@ exit 2
 // the turns it still has. Ending the turns first would cut every request in
 // flight short at once.
 func TestDrainLetsARunningRequestFinishBeforeItEndsTurns(t *testing.T) {
-	rt, err := newAPIRuntimeForTest(t, apiFlags{v1Addr: "127.0.0.1:0"}) // a temporary HOME
+	rt, err := newAPIRuntimeForTest(t, Flags{v1Addr: "127.0.0.1:0"}) // a temporary HOME
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestDrainLetsARunningRequestFinishBeforeItEndsTurns(t *testing.T) {
 	monomind.ResetCapabilityCache()
 	t.Cleanup(monomind.ResetCapabilityCache)
 
-	addr, err := rt.startV1(context.Background())
+	addr, err := rt.StartV1(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestDrainLetsARunningRequestFinishBeforeItEndsTurns(t *testing.T) {
 	}
 
 	drained := make(chan struct{})
-	go func() { rt.drain(); close(drained) }()
+	go func() { rt.Drain(); close(drained) }()
 	time.Sleep(500 * time.Millisecond) // drain is under way: a drain that ended the turn would have by now
 	if err := os.WriteFile(filepath.Join(binDir, "release"), []byte("go"), 0o600); err != nil {
 		t.Fatal(err)

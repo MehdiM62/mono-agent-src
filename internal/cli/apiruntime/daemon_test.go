@@ -1,4 +1,4 @@
-package main
+package apiruntime
 
 // The daemon runs workflows, schedules and org runs, and the OpenAI-compatible API is one part of it. When the
 // settings saved with `api config` cannot be used (the row cannot be read, or a value fails its rule) the daemon
@@ -29,26 +29,26 @@ func TestTheDaemonStartsWithoutTheAPIWhenTheSavedSettingsCannotBeUsed(t *testing
 			var logs []string
 			logf := func(format string, args ...any) { logs = append(logs, fmt.Sprintf(format, args...)) }
 
-			rt, err := daemonAPIRuntime(db, apiFlags{}, logf)
+			rt, err := daemonAPIRuntime(db, Flags{}, logf)
 			if err != nil || rt == nil {
 				t.Fatalf("the daemon stopped on the saved settings: %v", err)
 			}
-			if rt.disabled == nil {
+			if rt.Disabled() == nil {
 				t.Error("the runtime does not say that it serves nothing, and why")
 			}
 			// It serves nothing: no /v1 on the HTTP API's listener, no dedicated listener, nothing in the heartbeat.
-			if mount := rt.mainMount("127.0.0.1:9322"); mount != nil {
+			if mount := rt.MainMount("127.0.0.1:9322"); mount != nil {
 				t.Error("/v1 is mounted on the HTTP API's listener")
 			}
-			if addr, err := rt.startV1(context.Background()); addr != "" || err != nil {
+			if addr, err := rt.StartV1(context.Background()); addr != "" || err != nil {
 				t.Errorf("startV1 = %q, %v: a dedicated listener started", addr, err)
 			}
-			hb := rt.heartbeat("127.0.0.1:9322", "", "")
+			hb := rt.Heartbeat("127.0.0.1:9322", "", "")
 			if hb.APIConfinement != "" || hb.V1Confinement != "" || hb.V1Addr != "" || hb.APISettings != nil {
 				t.Errorf("the heartbeat claims an API: %+v", hb)
 			}
-			rt.drain() // nothing to stop, and it must not hang or panic
-			rt.killTurns()
+			rt.Drain() // nothing to stop, and it must not hang or panic
+			rt.KillTurns()
 			// It said why where the daemon logs, with the way out.
 			joined := strings.Join(logs, "\n")
 			if !strings.Contains(joined, "does not serve the OpenAI-compatible API") || !strings.Contains(joined, "api config") {
@@ -62,7 +62,7 @@ func TestTheDaemonStartsWithoutTheAPIWhenTheSavedSettingsCannotBeUsed(t *testing
 // every other command does. Only what was saved, and may have been saved by someone else, is survived.
 func TestTheDaemonStillStopsOnABadFlagOrVariable(t *testing.T) {
 	db := savedAPIDB(t, nil, nil)
-	for name, f := range map[string]apiFlags{
+	for name, f := range map[string]Flags{
 		"confinement": {confinement: "everything"}, "maximum": {maxConcurrent: -1}, "address": {v1Addr: "9443"},
 	} {
 		if rt, err := daemonAPIRuntime(db, f, func(string, ...any) {}); err == nil || exitCode(err) != 3 || rt != nil {
@@ -70,7 +70,7 @@ func TestTheDaemonStillStopsOnABadFlagOrVariable(t *testing.T) {
 		}
 	}
 	db = savedAPIDB(t, nil, map[string]string{"MONOAGENT_API_MAX_CONCURRENT": "abc"})
-	if rt, err := daemonAPIRuntime(db, apiFlags{}, func(string, ...any) {}); err == nil || exitCode(err) != 3 || rt != nil {
+	if rt, err := daemonAPIRuntime(db, Flags{}, func(string, ...any) {}); err == nil || exitCode(err) != 3 || rt != nil {
 		t.Errorf("a bad variable: runtime %v, exit %d, %v", rt, exitCode(err), err)
 	}
 }
@@ -78,14 +78,14 @@ func TestTheDaemonStillStopsOnABadFlagOrVariable(t *testing.T) {
 // Usable settings give the runtime they always gave: this changes nothing for anyone whose saved settings are fine.
 func TestTheDaemonRuntimeIsTheUsualOneForUsableSettings(t *testing.T) {
 	db := savedAPIDB(t, map[string]string{"max_concurrent": "2", "confinement": "sandboxed"}, nil)
-	rt, err := daemonAPIRuntime(db, apiFlags{}, func(string, ...any) {})
-	if err != nil || rt == nil || rt.disabled != nil {
+	rt, err := daemonAPIRuntime(db, Flags{}, func(string, ...any) {})
+	if err != nil || rt == nil || rt.Disabled() != nil {
 		t.Fatalf("runtime %v, error %v", rt, err)
 	}
 	if rt.conf.MaxConcurrent != 2 || rt.override != "sandboxed" {
 		t.Errorf("the saved settings were not read: %+v", rt)
 	}
-	if hb := rt.heartbeat("", "", ""); len(hb.APISettings) != len(apiconfig.Keys()) {
+	if hb := rt.Heartbeat("", "", ""); len(hb.APISettings) != len(apiconfig.Keys()) {
 		t.Errorf("the heartbeat reports %d settings", len(hb.APISettings))
 	}
 }

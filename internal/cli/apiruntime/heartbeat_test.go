@@ -1,4 +1,4 @@
-package main
+package apiruntime
 
 // The daemon's heartbeat says, for each setting of the API's server, the value it started with
 // and where it came from.
@@ -12,7 +12,7 @@ import (
 
 func TestTheDaemonsHeartbeatCarriesEverySettingAndItsSource(t *testing.T) {
 	rt := savedAPIRuntime(t,
-		apiFlags{v1Addr: "127.0.0.1:1", confinement: "chat-only", contextConfinement: "any", autoConfinement: "sandboxed", maxConcurrent: 8},
+		Flags{v1Addr: "127.0.0.1:1", confinement: "chat-only", contextConfinement: "any", autoConfinement: "sandboxed", maxConcurrent: 8},
 		// Saved under every flag and under the environment, and for two settings only saved.
 		map[string]string{
 			"v1_addr": "127.0.0.1:0", "confinement": "any", "context_confinement": "sandboxed", "auto_confinement": "any", "max_concurrent": "2",
@@ -20,7 +20,7 @@ func TestTheDaemonsHeartbeatCarriesEverySettingAndItsSource(t *testing.T) {
 		},
 		map[string]string{"MONOAGENT_API_TURN_TIMEOUT": "900s", "MONOAGENT_API_TOOL_RUNTIMES": "agy, Codex", "MONOAGENT_API_TLS_CERT": "/e/c.pem"},
 	)
-	hb := rt.heartbeat("127.0.0.1:9322", "127.0.0.1:9999", "127.0.0.1:55555")
+	hb := rt.Heartbeat("127.0.0.1:9322", "127.0.0.1:9999", "127.0.0.1:55555")
 
 	want := map[string]daemonhb.APISetting{
 		"v1_addr":             {Value: "127.0.0.1:1", Source: "flag"},
@@ -44,7 +44,7 @@ func TestTheDaemonsHeartbeatCarriesEverySettingAndItsSource(t *testing.T) {
 	}
 
 	// What the heartbeat said before is where it was.
-	if hb.APIAddr != "127.0.0.1:9322" || hb.BridgeAddr != "127.0.0.1:9999" || hb.V1Addr != "127.0.0.1:55555" || hb.Version != getVersion() {
+	if hb.APIAddr != "127.0.0.1:9322" || hb.BridgeAddr != "127.0.0.1:9999" || hb.V1Addr != "127.0.0.1:55555" || hb.Version != testVersion {
 		t.Errorf("addresses and version: %+v", hb)
 	}
 	if hb.APIConfinement != "chat-only" || hb.V1Confinement != "chat-only" || hb.ContextConfinement != "any" || hb.AutoConfinement != "sandboxed" {
@@ -54,8 +54,8 @@ func TestTheDaemonsHeartbeatCarriesEverySettingAndItsSource(t *testing.T) {
 
 // Settings that are only saved are what the daemon started with, and say so.
 func TestTheHeartbeatSaysWhenASettingIsOnlySaved(t *testing.T) {
-	rt := savedAPIRuntime(t, apiFlags{}, map[string]string{"v1_addr": "127.0.0.1:0", "confinement": "sandboxed", "max_concurrent": "3", "turn_timeout": "20m"}, nil)
-	hb := rt.heartbeat("127.0.0.1:9322", "", "127.0.0.1:55555")
+	rt := savedAPIRuntime(t, Flags{}, map[string]string{"v1_addr": "127.0.0.1:0", "confinement": "sandboxed", "max_concurrent": "3", "turn_timeout": "20m"}, nil)
+	hb := rt.Heartbeat("127.0.0.1:9322", "", "127.0.0.1:55555")
 	for key, want := range map[string]daemonhb.APISetting{
 		"v1_addr": {Value: "127.0.0.1:0", Source: "saved"}, "confinement": {Value: "sandboxed", Source: "saved"},
 		"max_concurrent": {Value: "3", Source: "saved"}, "turn_timeout": {Value: "20m", Source: "saved"},
@@ -69,8 +69,8 @@ func TestTheHeartbeatSaysWhenASettingIsOnlySaved(t *testing.T) {
 
 // With nothing set anywhere every setting is at its default, and says so.
 func TestTheHeartbeatOfADaemonWithNothingSetIsAllDefaults(t *testing.T) {
-	rt := savedAPIRuntime(t, apiFlags{}, nil, nil)
-	hb := rt.heartbeat("127.0.0.1:9322", "", "")
+	rt := savedAPIRuntime(t, Flags{}, nil, nil)
+	hb := rt.Heartbeat("127.0.0.1:9322", "", "")
 	for _, key := range apiconfig.Keys() {
 		got, ok := hb.APISettings[key]
 		if !ok || got.Source != "default" {

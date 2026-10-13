@@ -1,4 +1,4 @@
-package main
+package apiruntime
 
 // The gateway takes the working folders of the home when it is built. What fails
 // before a listener serves it must give them back, or a process that serves
@@ -25,19 +25,19 @@ func TestStartV1DoesNotBuildTheGatewayWhenItCannotBind(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer busy.Close()
-	rt, err := newAPIRuntimeForTest(t, apiFlags{v1Addr: busy.Addr().String()})
+	rt, err := newAPIRuntimeForTest(t, Flags{v1Addr: busy.Addr().String()})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := rt.startV1(context.Background()); err == nil {
+	if _, err := rt.StartV1(context.Background()); err == nil {
 		t.Fatal("binding an address in use must fail")
 	}
 	if rt.built() != nil {
 		t.Error("a listener that could not bind must not leave the working folders held")
 	}
-	other := newAPIRuntimeSharingHome(t, apiFlags{}, func(string, ...any) {})
-	if other.mainMount("127.0.0.1:9322") == nil {
+	other := newAPIRuntimeSharingHome(t, Flags{}, func(string, ...any) {})
+	if other.MainMount("127.0.0.1:9322") == nil {
 		t.Error("another process over the same home must be able to serve /v1")
 	}
 }
@@ -45,44 +45,44 @@ func TestStartV1DoesNotBuildTheGatewayWhenItCannotBind(t *testing.T) {
 // The HTTP API server takes its routes when it is made, so the gateway exists
 // before its listener is bound: a bind that then fails hands it back.
 func TestReleaseUnusedFreesTheWorkingFoldersForAnotherProcess(t *testing.T) {
-	first, err := newAPIRuntimeForTest(t, apiFlags{})
+	first, err := newAPIRuntimeForTest(t, Flags{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.mainMount("127.0.0.1:9322") == nil || first.built() == nil {
+	if first.MainMount("127.0.0.1:9322") == nil || first.built() == nil {
 		t.Fatal("the first process builds the gateway for its main listener")
 	}
-	second := newAPIRuntimeSharingHome(t, apiFlags{}, func(string, ...any) {})
-	if second.mainMount("127.0.0.1:9322") != nil {
+	second := newAPIRuntimeSharingHome(t, Flags{}, func(string, ...any) {})
+	if second.MainMount("127.0.0.1:9322") != nil {
 		t.Fatal("while the first holds the folders the second serves no /v1")
 	}
 
-	first.releaseUnused() // its main listener failed to bind: nothing serves the gateway
+	first.ReleaseUnused() // its main listener failed to bind: nothing serves the gateway
 	if first.built() != nil {
 		t.Error("the gateway must be gone")
 	}
-	third := newAPIRuntimeSharingHome(t, apiFlags{}, func(string, ...any) {})
-	if third.mainMount("127.0.0.1:9322") == nil {
+	third := newAPIRuntimeSharingHome(t, Flags{}, func(string, ...any) {})
+	if third.MainMount("127.0.0.1:9322") == nil {
 		t.Error("the folders must be free for another process once nothing serves the gateway")
 	}
 }
 
 func TestReleaseUnusedKeepsTheGatewayTheDedicatedListenerServes(t *testing.T) {
-	rt, err := newAPIRuntimeForTest(t, apiFlags{v1Addr: "127.0.0.1:0"})
+	rt, err := newAPIRuntimeForTest(t, Flags{v1Addr: "127.0.0.1:0"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := rt.startV1(context.Background()); err != nil {
+	if _, err := rt.StartV1(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	defer rt.drain()
+	defer rt.Drain()
 
-	rt.releaseUnused()
+	rt.ReleaseUnused()
 	if rt.built() == nil {
 		t.Error("a gateway a listener serves must not be released")
 	}
-	other := newAPIRuntimeSharingHome(t, apiFlags{}, func(string, ...any) {})
-	if other.mainMount("127.0.0.1:9322") != nil {
+	other := newAPIRuntimeSharingHome(t, Flags{}, func(string, ...any) {})
+	if other.MainMount("127.0.0.1:9322") != nil {
 		t.Error("the folders are still in use")
 	}
 }
@@ -92,7 +92,7 @@ func TestReleaseUnusedKeepsTheGatewayTheDedicatedListenerServes(t *testing.T) {
 // owns them; an explicit --v1-addr is an error, because that listener's only
 // purpose is /v1.
 func TestMainMountDegradesWhenTheGatewayCannotBeBuilt(t *testing.T) {
-	rt, err := newAPIRuntimeForTest(t, apiFlags{v1Addr: "127.0.0.1:0"})
+	rt, err := newAPIRuntimeForTest(t, Flags{v1Addr: "127.0.0.1:0"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,13 +104,13 @@ func TestMainMountDegradesWhenTheGatewayCannotBeBuilt(t *testing.T) {
 	}
 	rt.conf.ScratchRoot = filepath.Join(file, "workspaces") // cannot be created: its parent is a file
 
-	if rt.mainMount("127.0.0.1:9322") != nil {
+	if rt.MainMount("127.0.0.1:9322") != nil {
 		t.Error("a process that cannot build the API serves no /v1 on its main listener")
 	}
 	if joined := strings.Join(logs, "\n"); !strings.Contains(joined, "does not serve /v1") {
 		t.Errorf("it must say so: %q", joined)
 	}
-	_, err = rt.startV1(context.Background())
+	_, err = rt.StartV1(context.Background())
 	if err == nil || errors.Is(err, openaiapi.ErrScratchBusy) || !strings.Contains(err.Error(), "starting the OpenAI-compatible API") {
 		t.Errorf("an explicit --v1-addr must fail with the reason: %v", err)
 	}
@@ -122,14 +122,14 @@ func TestMainMountDegradesWhenTheGatewayCannotBeBuilt(t *testing.T) {
 // it take: a second Ctrl+C must not wait for that. While the gateway is being
 // built it serves nothing, so there is no turn to end.
 func TestKillTurnsDoesNotWaitForAGatewayThatIsBeingBuilt(t *testing.T) {
-	rt, err := newAPIRuntimeForTest(t, apiFlags{})
+	rt, err := newAPIRuntimeForTest(t, Flags{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rt.mu.Lock() // what gateway() holds for the whole of the build
 	done := make(chan struct{})
 	go func() {
-		rt.killTurns()
+		rt.KillTurns()
 		close(done)
 	}()
 	select {

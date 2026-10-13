@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package apiruntime
 
 import (
 	"context"
@@ -54,7 +54,7 @@ exit 2
 // process exits, and on a system with no parent-death signal (macOS) the agent
 // is left running.
 func TestKillTurnsWaitsForTheKillTimerOfAStuckTurn(t *testing.T) {
-	rt, err := newAPIRuntimeForTest(t, apiFlags{}) // a temporary HOME
+	rt, err := newAPIRuntimeForTest(t, Flags{}) // a temporary HOME
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,8 +101,8 @@ func TestKillTurnsWaitsForTheKillTimerOfAStuckTurn(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = syscall.Kill(-pid, syscall.SIGKILL); _ = syscall.Kill(pid, syscall.SIGKILL) })
 
-	rt.killTurns()
-	if processAlive(pid) {
+	rt.KillTurns()
+	if syscall.Kill(pid, 0) == nil { // the process is alive
 		t.Fatalf("killTurns returned while the agent process %d was still running: it would outlive a command that exits right after", pid)
 	}
 	select {

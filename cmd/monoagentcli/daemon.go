@@ -102,7 +102,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 				case <-sigCh:
 					fmt.Fprintln(os.Stderr, "Second interrupt received — forcing immediate exit.")
 					if rt := forcedExitAPI.Load(); rt != nil {
-						rt.killTurns() // the agent CLIs must not outlive the daemon
+						rt.KillTurns() // the agent CLIs must not outlive the daemon
 					}
 					os.Exit(130)
 				case <-shutdownDone:
@@ -120,11 +120,11 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if apiRT.disabled != nil { // the settings saved with `api config` cannot be used: everything else runs
-				fmt.Fprintf(os.Stderr, "warning: OpenAI-compatible API not served: %v\n", apiRT.disabled)
+			if apiRT.Disabled() != nil { // the settings saved with `api config` cannot be used: everything else runs
+				fmt.Fprintf(os.Stderr, "warning: OpenAI-compatible API not served: %v\n", apiRT.Disabled())
 			}
 			forcedExitAPI.Store(apiRT)
-			defer apiRT.drain() // runs before the database closes: no agent CLI outlives the daemon
+			defer apiRT.Drain() // runs before the database closes: no agent CLI outlives the daemon
 
 			if err := engine.Start(ctx); err != nil {
 				return fmt.Errorf("start engine: %w", err)
@@ -145,7 +145,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 				}
 			}
 
-			v1ServingAddr, err := apiRT.startV1(ctx)
+			v1ServingAddr, err := apiRT.StartV1(ctx)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "warning: OpenAI-compatible API listener not served: %v\n", err)
 			}
@@ -161,7 +161,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 				}
 			}
 
-			go daemonhb.RunWith(ctx, apiRT.heartbeat(servingAddr, bridgeServingAddr, v1ServingAddr),
+			go daemonhb.RunWith(ctx, apiRT.Heartbeat(servingAddr, bridgeServingAddr, v1ServingAddr),
 				daemonHeartbeatRefresh(engine))
 			// The org services run only while the account is valid (daemon_account.go);
 			// the daemon itself never exits because of a lock.
@@ -185,14 +185,14 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 			fmt.Fprintln(os.Stdout, "Shutting down...")
 			// The API's turns end now, not after the engine has drained: a long
 			// workflow must not keep an agent CLI running for a client that is gone.
-			apiRT.drain()
+			apiRT.Drain()
 			return nil
 		},
 	}
 	c.Flags().BoolVar(&apiOn, "api", true, "Serve the HTTP API and the automation-role endpoint receiver in this process")
 	c.Flags().StringVar(&apiAddr, "api-addr", "", "HTTP API address (default 127.0.0.1:9322, or MONOAGENT_HTTPAPI_ADDR)")
 	c.Flags().BoolVar(&allowMutations, "allow-mutations", false, "Serve mutating HTTP API endpoints (the endpoint receiver is served either way)")
-	api.bind(c)
+	api.Bind(c)
 	c.Flags().BoolVar(&bridgeOn, "bridge", true, "Hold the Chrome extension bridge open in this process (same bridge 'extension serve' runs standalone)")
 	c.AddCommand(newDaemonInstallCmd(), newDaemonUninstallCmd(), newDaemonRestartCmd(cfg))
 	return servingCommand(c)
@@ -247,12 +247,12 @@ func startDaemonAPI(ctx context.Context, cfg *globalConfig, db *storage.Database
 		ExtraRoutes: daemonRoutes(orgs.RegisterRoutes, api, addr),
 	})
 	if err != nil {
-		api.releaseUnused() // the routes above built the gateway, which nothing serves now
+		api.ReleaseUnused() // the routes above built the gateway, which nothing serves now
 		return "", err
 	}
 	ln, err := net.Listen("tcp", srv.Addr())
 	if err != nil {
-		api.releaseUnused()
+		api.ReleaseUnused()
 		return "", fmt.Errorf("listen on %s: %w (is another daemon or `monoagentcli httpapi` using it?)", srv.Addr(), err)
 	}
 	if _, err := db.DB.Exec(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, daemonAPIAddrSetting, srv.Addr()); err != nil {
