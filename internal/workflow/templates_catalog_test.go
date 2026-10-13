@@ -140,29 +140,34 @@ func checkTemplateNode(t *testing.T, n WorkflowFileNode) {
 	if err != nil {
 		t.Fatalf("node %s: %v", n.ID, err)
 	}
-	// A key may appear several times with different depends_on (API
-	// package selects per resource); use the field that applies to this
-	// config: one whose dependency matches, else the first one.
-	fields := map[string]NodeSchemaField{}
-	for _, f := range schema.Fields {
-		prev, seen := fields[f.Key]
-		applies := f.DependsOn == nil || containsString(f.DependsOn.Values, fmt.Sprint(n.Config[f.DependsOn.Key]))
-		if !seen || (applies && prev.DependsOn != nil && !containsString(prev.DependsOn.Values, fmt.Sprint(n.Config[prev.DependsOn.Key]))) {
-			fields[f.Key] = f
+	// A key may appear several times with different depends_on or
+	// visible_for (API package fields per resource/operation): check a value
+	// against the fields that apply to this config, as ValidateWorkflow does.
+	wn := WorkflowNode{ID: n.ID, Type: n.Type, Config: n.Config}
+	known := map[string]bool{}
+	options := map[string][]string{}
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		known[f.Key] = true
+		if applies, ok := fieldApplies(wn, schema, f); applies && ok && len(f.Options) > 0 {
+			options[f.Key] = append(options[f.Key], f.Options...)
 		}
 	}
 	for key, val := range n.Config {
-		f, known := fields[key]
-		if !known && !universalConfigKeys[key] {
+		if !known[key] && !universalConfigKeys[key] {
 			t.Errorf("node %s (%s): config key %q is not in the node's schema", n.ID, n.Type, key)
 			continue
 		}
-		if s, ok := val.(string); ok && len(f.Options) > 0 && !strings.Contains(s, "{{") && !containsString(f.Options, s) {
-			t.Errorf("node %s (%s): %s = %q, want one of %v", n.ID, n.Type, key, s, f.Options)
+		if s, ok := val.(string); ok && len(options[key]) > 0 && !strings.Contains(s, "{{") && !containsString(options[key], s) {
+			t.Errorf("node %s (%s): %s = %q, want one of %v", n.ID, n.Type, key, s, options[key])
 		}
 	}
-	for _, f := range schema.Fields {
-		if _, set := n.Config[f.Key]; f.Required && !set && f.DependsOn == nil {
+	for i := range schema.Fields {
+		f := &schema.Fields[i]
+		if _, set := n.Config[f.Key]; !f.Required || set {
+			continue
+		}
+		if applies, ok := fieldApplies(wn, schema, f); applies && ok {
 			t.Errorf("node %s (%s): required config key %q missing", n.ID, n.Type, f.Key)
 		}
 	}
