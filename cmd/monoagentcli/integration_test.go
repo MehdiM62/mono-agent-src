@@ -119,3 +119,15 @@ func TestAppNodesInSchemaListAndPalette(t *testing.T) {
 		t.Errorf("palette app.todoist: %+v", found)
 	}
 }
+
+func TestRefNodeDocumentsAppNodes(t *testing.T) {
+	integrationHome(t)
+	d := findNodeDoc("app.todoist")
+	if d == nil || !strings.Contains(d.Description, "resource=task operation=create") || !strings.Contains(d.Description, "content*") ||
+		!strings.Contains(d.Config, `"credential_id": "todoist"`) || !strings.Contains(d.Notes, "connect todoist") {
+		t.Fatalf("ref node app.todoist: %+v", d)
+	}
+	if findNodeDoc("app.nope") != nil {
+		t.Error("unknown app type")
+	}
+}

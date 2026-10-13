@@ -1,5 +1,13 @@
 package main
 
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/monoes/mono-agent/internal/apipkg"
+)
+
 // The `integration` entries of `ref commands`: declarative API packages
 // (internal/apipkg) that run as app.<id> nodes.
 func init() {
@@ -44,4 +52,59 @@ func init() {
 			},
 		},
 	)
+}
+
+// appNodeDoc documents an API package node type (app.*) from its package:
+// the operations with their fields, an example config and the connection.
+func appNodeDoc(typ string) *nodeDoc {
+	p, ok := apipkg.ForNodeType(typ)
+	if !ok {
+		return nil
+	}
+	var ops strings.Builder
+	for _, o := range p.Operations {
+		var fields []string
+		for _, f := range o.Fields {
+			k := f.Key
+			if f.Required {
+				k += "*"
+			}
+			fields = append(fields, k)
+		}
+		key := o.Operation
+		if o.Resource != "" {
+			key = "resource=" + o.Resource + " operation=" + o.Operation
+		}
+		fmt.Fprintf(&ops, "  %-48s %s %s\n", key, o.Method, o.Path)
+		if len(fields) > 0 {
+			fmt.Fprintf(&ops, "  %-48s fields: %s\n", "", strings.Join(fields, ", "))
+		}
+	}
+	first := p.Operations[0]
+	example := map[string]any{"credential_id": p.PrimaryPlatform()}
+	if first.Resource != "" {
+		example["resource"] = first.Resource
+	}
+	example["operation"] = first.Operation
+	for _, f := range first.Fields {
+		if f.Required {
+			example[f.Key] = "<" + f.Label + ">"
+		}
+	}
+	cfg, _ := json.MarshalIndent(example, "", "  ")
+	notes := "API package " + p.ID + " (" + p.Source + "); `monoagentcli integration show " + p.ID + "` lists it, `node schema " + typ + "` gives the form."
+	if pl := p.PrimaryPlatform(); pl != "" {
+		notes += " Connect with `monoagentcli connect " + pl + "`."
+	}
+	if len(p.N8nTypes) > 0 {
+		notes += " Imports n8n node " + strings.Join(p.N8nTypes, ", ") + " with the same parameter names."
+	}
+	return &nodeDoc{
+		Type: typ, Category: "app", Short: p.Title + " — " + p.Description,
+		Description: "Runs one " + p.Title + " API operation per input item (* = required field):\n" + ops.String(),
+		Config:      string(cfg),
+		Inputs:      "items; fields may use {{ $json.x }} and are resolved per item",
+		Outputs:     "the API response: list results become one item per element; files land in the item's binary data",
+		Notes:       notes,
+	}
 }

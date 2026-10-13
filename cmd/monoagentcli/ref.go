@@ -1597,7 +1597,7 @@ func findNodeDoc(typ string) *nodeDoc {
 			return &nodeDocs[i]
 		}
 	}
-	return nil
+	return appNodeDoc(typ) // API package nodes (app.*) are documented from their package
 }
 
 // ── commands catalogue ────────────────────────────────────────────────────────
