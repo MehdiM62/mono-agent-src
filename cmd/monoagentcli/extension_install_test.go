@@ -58,7 +58,8 @@ func runExtensionInstall(t *testing.T, args ...string) (string, error) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs(args)
+	// A nil slice would make cobra read os.Args.
+	cmd.SetArgs(append([]string{}, args...))
 	err := cmd.Execute()
 	return out.String(), err
 }
