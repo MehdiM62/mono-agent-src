@@ -447,3 +447,24 @@ func TestGA4ZipRows(t *testing.T) {
 		t.Errorf("plain zip = %#v", got)
 	}
 }
+
+func TestOperationParamForEachAndSessionAuthHarness(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"fm","title":"FM","base_url":"https://fm.test","n8n_operation_param":"action",
+	  "credentials":[{"platform":"fm","methods":["basic"],"fields":[{"key":"user","label":"U","required":true},{"key":"pass","label":"P","secret":true,"required":true}],
+	    "inject":{"headers":{"Authorization":"{{ pre.response.token | prefix:'Bearer ' | default:'none' }}"}}}],
+	  "operations":[{"resource":"","operation":"find","title":"F","method":"POST","path":"/find",
+	    "before":[{"method":"POST","path":"/sessions"}],
+	    "fields":[{"key":"tagIds","label":"T","type":"json"}],
+	    "also":[{"for_each":"{{ p.tagIds }}","method":"POST","path":"/tags/{{ el }}"}]},
+	    {"resource":"","operation":"other","title":"O","method":"GET","path":"/o"}]}`)
+	var c opCase
+	_ = json.Unmarshal([]byte(`{"params":{"action":"find","operation":"","tagIds":["a","b"]},
+	  "responses":[{"response":{"token":"T1"}},{},{},{}],
+	  "expect_requests":[{"method":"POST","path":"/sessions"},{"method":"POST","path":"/find"},
+	    {"method":"POST","path":"/tags/a"},{"method":"POST","path":"/tags/b"}]}`), &c)
+	checkCase(t, p, &p.Operations[0], c)
+	// n8n_operation_param picks the op when "operation" is absent.
+	if op, err := p.resolveOp(map[string]any{"action": "other"}); err != nil || op.Operation != "other" {
+		t.Errorf("action param: %v %v", op, err)
+	}
+}

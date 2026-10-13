@@ -246,7 +246,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		if st.Path == "" {
 			add("also[%d]: path is required", i)
 		}
-		for _, v := range []any{st.When, st.BaseURL, st.Path, st.Query, st.Body} {
+		for _, v := range []any{st.When, st.ForEach, st.BaseURL, st.Path, st.Query, st.Body} {
 			probs = append(probs, checkTemplates(sw, v, fields, credKeys)...)
 		}
 		for k, v := range st.Headers {

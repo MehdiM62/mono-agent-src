@@ -210,6 +210,9 @@ func (p *Package) resolveOp(params map[string]any) (*Operation, error) {
 		res = p.DefaultResource()
 	}
 	opName, _ := params["operation"].(string)
+	if opName == "" && p.N8nOperationParam != "" {
+		opName, _ = params[p.N8nOperationParam].(string)
+	}
 	if opName == "" {
 		opName = p.DefaultOperation(res)
 	}
@@ -435,6 +438,21 @@ func (r *opRun) runAlso(ctx context.Context, main *response) error {
 	for i, st := range r.op.Also {
 		sc := r.scope
 		sc.Res = res
+		if st.ForEach != "" {
+			lv, err := renderString(st.ForEach, sc)
+			if err != nil {
+				return r.errf("also[%d].for_each: %w", i, err)
+			}
+			list, _ := lv.([]any)
+			for j, el := range list {
+				esc := sc
+				esc.El = el
+				if _, err := r.sendStep(ctx, st, esc); err != nil {
+					return fmt.Errorf("also[%d] element %d: %w", i, j, err)
+				}
+			}
+			continue
+		}
 		if _, err := r.sendStep(ctx, st, sc); err != nil {
 			return fmt.Errorf("also[%d]: %w", i, err)
 		}
