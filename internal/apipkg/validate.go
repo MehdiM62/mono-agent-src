@@ -184,7 +184,7 @@ func (c *Credential) check(i int) []string {
 		keys[f.Key] = true
 	}
 	in := c.Inject
-	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil {
+	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 {
 		add("inject is empty: say how the credential authenticates (headers, query, basic or aws_sigv4)")
 	}
 	for k, v := range in.Headers {
@@ -199,6 +199,9 @@ func (c *Credential) check(i int) []string {
 	if s := in.AWSSigV4; s != nil {
 		probs = append(probs, checkTemplates(where+" inject.aws_sigv4",
 			[]any{s.Service, s.Region, s.AccessKeyID, s.SecretAccessKey, s.SessionToken}, anyField, keys)...)
+	}
+	for k, v := range in.Body {
+		probs = append(probs, checkTemplates(where+" inject.body."+k, v, anyField, keys)...)
 	}
 	if jw := in.JWT; jw != nil {
 		switch jw.Alg {
@@ -228,7 +231,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	var probs []string
 	add := func(format string, a ...any) { probs = append(probs, where+": "+fmt.Sprintf(format, a...)) }
 	if !validMethods[strings.ToUpper(o.Method)] && !hasTemplate(o.Method) {
-		add("method %q must be GET, POST, PUT, PATCH, DELETE, HEAD or a template", o.Method)
+		add("method %q must be an HTTP/WebDAV method or a template", o.Method)
 	}
 	fields := map[string]bool{"resource": true, "operation": true}
 	for _, f := range o.Fields {
@@ -281,7 +284,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	for i, st := range o.Also {
 		sw := fmt.Sprintf("%s also[%d]", where, i)
 		if !validMethods[strings.ToUpper(st.Method)] && !hasTemplate(st.Method) {
-			add("also[%d]: method %q must be GET, POST, PUT, PATCH, DELETE, HEAD or a template", i, st.Method)
+			add("also[%d]: method %q must be an HTTP/WebDAV method or a template", i, st.Method)
 		}
 		if st.Path == "" {
 			add("also[%d]: path is required", i)
@@ -334,7 +337,9 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 
 // checkTemplates parses every template string in v and checks that p.X
 // names a field (when fields is set) and cred.X a credential key.
-var validMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true}
+var validMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true, "HEAD": true,
+	// WebDAV (NextCloud, ownCloud)
+	"MKCOL": true, "MOVE": true, "COPY": true, "PROPFIND": true, "PROPPATCH": true}
 
 func checkTemplates(where string, v any, fields, credKeys map[string]bool) []string {
 	var probs []string

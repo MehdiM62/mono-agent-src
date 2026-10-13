@@ -113,7 +113,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 			return nil, r.errf("method: %w", err)
 		}
 		if method = strings.ToUpper(strings.TrimSpace(m)); !validMethods[method] {
-			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE or HEAD", m)
+			return nil, r.errf("method %q is not GET, POST, PUT, PATCH, DELETE, HEAD or a WebDAV method", m)
 		}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), rd)
@@ -158,12 +158,26 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 		} else if v != nil && bt != BodyJSON {
 			return nil, "", r.errf("body: a %s body must be an object", bt)
 		}
+		if c := r.credDef; c != nil && len(c.Inject.Body) > 0 {
+			if obj == nil {
+				obj = map[string]any{}
+			}
+			for k, tv := range c.Inject.Body {
+				v, err := renderText(tv, sc)
+				if err != nil {
+					return nil, "", r.errf("credential %s: inject.body.%s: %w", c.Platform, k, err)
+				}
+				if v != "" {
+					obj[k] = v
+				}
+			}
+		}
 		if pp.inBody && len(pp.values) > 0 {
 			if obj == nil {
 				obj = map[string]any{}
 			}
 			for k, val := range pp.values {
-				obj[k] = val
+				setPath(obj, k, val) // "variables.after" nests (GraphQL)
 			}
 		}
 		if bt == BodyJSON {
@@ -471,4 +485,20 @@ func addBrackets(q url.Values, key string, v any) {
 			q.Set(key, stringify(v))
 		}
 	}
+}
+
+// setPath sets obj[a][b]… = val for the dot path "a.b…", creating
+// intermediate objects (a non-object in the way is replaced).
+func setPath(obj map[string]any, path string, val any) {
+	parts := strings.Split(path, ".")
+	cur := obj
+	for _, p := range parts[:len(parts)-1] {
+		next, ok := cur[p].(map[string]any)
+		if !ok {
+			next = map[string]any{}
+			cur[p] = next
+		}
+		cur = next
+	}
+	cur[parts[len(parts)-1]] = val
 }

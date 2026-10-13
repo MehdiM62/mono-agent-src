@@ -225,6 +225,7 @@ through, so an unset param stays unset:
 | `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
 | `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
 | `lines` | text → list of its non-empty trimmed lines |
+| `values` | object → list of its values, by sorted key (maps keyed by id: Philips Hue lights) |
 | `hex` | hex text → integer (`#ff0000` → 16711680; `#`/`0x` stripped) |
 | `pluck:'path'` | list of objects → list of their values at `path` (empties dropped): `{{ p.options.fields.field \| pluck:'name' \| csv }}` |
 | `zip:headers[,'hkey'[,'vkey']]` | pair a header list with the value list into an object: GA4 `{{ el.dimensionValues \| zip:res.dimensionHeaders,'name','value' }}` |
@@ -314,6 +315,8 @@ workflows is the node's normal `on_error`.
 
 `method` may be a template (`"{{ p.sendResume | then:'POST' | default:'GET' }}"`), upper-cased and checked at run time. A `path` that is a single expression yielding an absolute `http(s)://` URL is used unescaped.
 
+WebDAV methods MKCOL, MOVE, COPY, PROPFIND and PROPPATCH are allowed (NextCloud). XML responses decode to JSON: elements by local name (repeats become lists), attributes as `@name`, text as `#text` or the plain string — a PROPFIND reads as `res.multistatus.response`.
+
 ## 7. Credentials and auth injection
 
 ```jsonc
@@ -367,6 +370,8 @@ workflows is the node's normal `on_error`.
 
 **Scope groups (`scope_group`).** A credential on an umbrella connection (`"reuse_platform": "google"` / `"microsoft"`) names the scope group it needs: `"scope_group": "calendar"` (google: sheets, gmail, drive, youtube, calendar, docs, forms, tasks, contacts; microsoft: mail, calendar, files, sites, teams). Before the first request the engine checks the connection grants it and otherwise fails with the exact `monoagentcli connect google --scopes …` command.
 
+`inject.body: {"key": "{{ cred.api_key }}"}` merges credential values into JSON/form/multipart bodies (Mandrill sends its key in every body).
+
 **Signed JWT per request (`inject.jwt`).** For APIs that want a short-lived token you sign (Ghost Admin, Zoom JWT apps, App Store Connect): `"jwt": {"header": "Authorization", "prefix": "Ghost ", "alg": "HS256", "secret": "{{ cred.api_key | split:':' | get:'1' }}", "secret_encoding": "hex", "kid": "{{ cred.api_key | split:':' | get:'0' }}", "claims": {"aud": "/admin/"}, "ttl_s": 300}`. `alg`: HS256/384/512 (secret as `text` (default), `hex` or `base64`), RS256 or ES256 (secret = a PEM private key). `iat` and `exp` (= iat + ttl_s, default 300) are added; header defaults to Authorization with prefix "Bearer ".
 
 `oauth.token_fields: ["organizer_key", "account_key"]` copies those keys of the token response onto the connection at connect and refresh (readable as `cred.organizer_key`; GoTo Webinar).
@@ -416,6 +421,10 @@ workflows is the node's normal `on_error`.
 
 `next_url_prefix` (template) is prepended to a next URL that starts with `/` when its base is not the request host (Confluence v2: `"next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl }}"`).
 
+With `"param_in": "body"`, the page param names may be dot paths, nested into the JSON body (GraphQL relay paging): `"cursor_param": "variables.after"`, `"limit_param": "variables.first"`.
+
+`"values": true` (pagination): the results at `results_path` are an object keyed by id (Mautic `{"contacts": {"12": {…}}}`); its values are the page's list (numeric keys in numeric order, else sorted), and offsets advance by their count. The `values` filter uses the same order.
+
 ## 9. Output
 
 `"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)
@@ -447,6 +456,8 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - In `to`, `match` and `expand` templates `res` is the whole decoded response (the first page for paginated ops), so per-row shaping can read response-level headers.
 - `"schema_rows": "schema.fields"` (a path in the WHOLE response) turns BigQuery rows `{f: [{v}]}` at `output.path` into objects keyed by the schema's field names (RECORD recurses, REPEATED → list, BOOLEAN → bool); `"numbers": "{{ p.options.returnAsNumbers }}"` casts INTEGER/NUMERIC/FLOAT.
 - `"firestore": "{{ p.simple }}"` decodes Firestore documents into n8n's simple shape `{_name, _id, _createTime, _updateTime, …fields}` (use `"each": "found"` / `"document"` first for batchGet / runQuery).
+- `"from": "{{ res | values }}"` (template over `res`) replaces the decoded response before `path`/`split` (npm versions: `"{{ res.time | entries:'version,published_at' }}"`).
+- `"merge": true` folds a list of objects into one object (Hue update: `"each": "success", "merge": true`).
 - `"limit": true` applies n8n's `returnAll`/`limit` params to a list the API returns whole (client-side slicing; replaces the `__no_next_page__` pagination trick).
 - `expand` with `"expand_merge_key": "transcript", "expand_merge_path": "callTranscripts.0.transcript"` sets that key on the element instead of replacing it.
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
@@ -523,6 +534,8 @@ When a config has no `resource` and the default resource lacks the operation, an
 
 **Trigger-only apps** (n8n has only a `…Trigger` node, e.g. Eventbrite, Figma): write a package with `"operations": []` and the app's `n8n_trigger_types` (plus its credentials). It registers no action node; it records the triggers for the importer and the trigger work.
 
+`n8n_version_defaults` (package): `{"1": {"apiVersion": "v4"}}` — per n8n node `typeVersion`, defaults the importer fills in for params an exported node omits (n8n doesn't export defaults, and some changed between node versions).
+
 ## 13. Testing a package
 
 `catalog/testdata/<id>.json` has one case per operation, keyed
@@ -567,7 +580,7 @@ and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
 
-**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
 ```json
 "values.append": {
   "params": { "documentId": "abc", "sheetName": "Main" },

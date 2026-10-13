@@ -193,7 +193,7 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 		if e.Method != "" && got.method != e.Method {
 			t.Errorf("%s: method: got %s, want %s", w, got.method, e.Method)
 		}
-		if got.path != e.Path {
+		if !pathMatches(got.path, e.Path) {
 			t.Errorf("%s: path: got %q, want %q", w, got.path, e.Path)
 		}
 		checkQuery(t, w, got.query, e.Query, credDef)
@@ -405,7 +405,7 @@ func sortedCaseKeys(m map[string]opCase) []string {
 // mismatch is reported against the likeliest candidate.
 func mainRequest(reqs []captured, op *Operation, e expectReq) int {
 	for i, r := range reqs {
-		if r.path == e.Path && (e.Method == "" || r.method == e.Method) {
+		if pathMatches(r.path, e.Path) && (e.Method == "" || r.method == e.Method) {
 			return i
 		}
 	}
@@ -444,4 +444,25 @@ func anyWildcards(want, got any) any {
 		return out
 	}
 	return want
+}
+
+// pathMatches compares a request path with an expected one, where an
+// expected segment "<any>" matches any non-empty segment ({{ uuid }} ids).
+func pathMatches(got, want string) bool {
+	if got == want {
+		return true
+	}
+	g, w := strings.Split(got, "/"), strings.Split(want, "/")
+	if len(g) != len(w) {
+		return false
+	}
+	for i := range w {
+		if w[i] == "<any>" && g[i] != "" {
+			continue
+		}
+		if w[i] != g[i] {
+			return false
+		}
+	}
+	return true
 }
