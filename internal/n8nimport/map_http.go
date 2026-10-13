@@ -305,6 +305,12 @@ func httpAuth(c *MapContext, cfg map[string]interface{}) {
 // credential type: an API package's or the Google / Microsoft mapping,
 // else the type without its Api / OAuth2Api suffix.
 func credentialPlatformFor(credType string) string {
+	// The connection registry's mapping wins: it names the product platform
+	// a native node resolves (gmail finds a gmail or a google connection),
+	// where an API package may name the umbrella it reuses.
+	if m, ok := connections.N8nCredentials[credType]; ok && m.Platform != "" {
+		return m.Platform
+	}
 	refreshAppSources()
 	regMu.RLock()
 	var found string
