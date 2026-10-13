@@ -243,32 +243,31 @@ func NormalizeHandles(wf *workflow.Workflow) {
 }
 
 // Validator is the validation `workflow validate` runs (handles normalized,
-// then ValidateForActivation), plus a check that every node type exists:
-// for a generated workflow an unknown type is an invented one, so it is an
-// error the model must fix, not a warning. known reports whether a non-
-// trigger type is registered; nil skips that check.
+// then the schema-aware workflow.ValidateWorkflow: structure, required fields,
+// select options, node references, expressions). With known set an unknown
+// node type is an error: for a generated workflow it is an invented one, so
+// the model must fix it. Each error carries its hint so the next attempt can
+// act on it; warnings (e.g. needs_setup for an account) do not fail the draft.
+// known reports whether a non-trigger type is registered; nil skips that check.
 func Validator(known func(string) bool) ValidateFunc {
 	return func(wf *workflow.Workflow) ([]string, []string) {
 		NormalizeHandles(wf)
-		var errs []string
-		if err := workflow.ValidateForActivation(wf); err != nil {
-			errs = append(errs, err.Error())
-		}
-		if known != nil {
-			triggers := map[string]bool{}
-			for _, t := range TriggerTypes() {
-				triggers[t] = true
+		rep := workflow.ValidateWorkflow(wf, workflow.ValidateOptions{KnownNodeType: known})
+		var errs, warns []string
+		for _, is := range rep.Issues {
+			line := is.Message
+			if is.NodeID != "" {
+				line = fmt.Sprintf("node %q: %s", is.NodeID, line)
 			}
-			for _, n := range wf.Nodes {
-				if n.Type == "" || triggers[n.Type] || known(n.Type) {
-					continue
-				}
-				if _, deprecated := workflow.IsDeprecatedNodeType(n.Type); deprecated {
-					continue // ValidateForActivation names it with its hint
-				}
-				errs = append(errs, fmt.Sprintf("node %q: unknown node type %q (use a type from the NODE CATALOG)", n.ID, n.Type))
+			if is.Hint != "" {
+				line += " (" + is.Hint + ")"
+			}
+			if is.Severity == "error" {
+				errs = append(errs, line)
+			} else {
+				warns = append(warns, line)
 			}
 		}
-		return errs, nil
+		return errs, warns
 	}
 }
