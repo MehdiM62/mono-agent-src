@@ -19,6 +19,8 @@ type N8nMapping struct {
 	// OperationParam is the n8n param holding the operation when it
 	// isn't "operation" (the engine reads it as is).
 	OperationParam string `json:"operation_param,omitempty"`
+	// ResourceParam is the n8n param holding the resource when it isn\'t "resource".
+	ResourceParam string `json:"resource_param,omitempty"`
 	// VersionDefaults: typeVersion → param defaults for omitted params.
 	VersionDefaults   map[string]map[string]any `json:"version_defaults,omitempty"`
 	DefaultOperations map[string]string         `json:"default_operations,omitempty"`
@@ -67,6 +69,7 @@ func N8nIndex() map[string]N8nMapping {
 			m.N8nType, m.Supported = t, true
 			m.DefaultResource = p.DefaultResource()
 			m.OperationParam = p.N8nOperationParam
+			m.ResourceParam = p.N8nResourceParam
 			m.VersionDefaults = p.N8nVersionDefaults
 			m.DefaultOperations = map[string]string{}
 			m.Operations = map[string]N8nOperation{}
