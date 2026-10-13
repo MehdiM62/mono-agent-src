@@ -289,6 +289,11 @@ type Output struct {
 	From string `json:"from,omitempty"`
 	// Merge folds a list of objects into one object (Hue update results).
 	Merge bool `json:"merge,omitempty"`
+	// Skip drops the first n elements (NextCloud lists the folder itself
+	// first); Sort orders elements by a dot path (SortDesc: descending).
+	Skip     int    `json:"skip,omitempty"`
+	Sort     string `json:"sort,omitempty"`
+	SortDesc bool   `json:"sort_desc,omitempty"`
 	// Limit applies n8n's returnAll/limit fields to a list that isn't
 	// paginated (client-side slicing).
 	Limit bool `json:"limit,omitempty"`

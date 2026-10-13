@@ -227,6 +227,7 @@ through, so an unset param stays unset:
 | `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
 | `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
 | `lines` | text → list of its non-empty trimmed lines |
+| `snake` | lodash snake_case (`"Due Date"`, `"DueDate"` → `due_date`; Notion `property_*` keys) |
 | `values` | object → list of its values, by sorted key (maps keyed by id: Philips Hue lights) |
 | `hex` | hex text → integer (`#ff0000` → 16711680; `#`/`0x` stripped) |
 | `pluck:'path'` | list of objects → list of their values at `path` (empties dropped): `{{ p.options.fields.field \| pluck:'name' \| csv }}` |
@@ -263,6 +264,10 @@ through, so an unset param stays unset:
 ] }
 ```
 (`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
+
+**Positional lists (`$list`).** `{"$list": [ … ]}` keeps every element, empty ones included (`""`, `[]`, `{}`, null), for APIs with positional arguments (Odoo `execute_kw`). An empty object as a key's value is kept with `"!key": {}` (Notion `{"!past_week": {}}`).
+
+**Expression heads.** An expression may start with a parenthesised sub-expression: `{{ (p.name | lower) | prefix:'x-' }}`.
 
 **Joined text (`$join`).** `{"$join": [ <template>, … ] | <template/builder giving a list>, "$sep": " AND ", "$prefix": "\"", "$suffix": "\""}` renders the parts, drops empty ones, joins the rest with `$sep` and wraps them in `$prefix`/`$suffix`; nothing left → omitted. Freshservice filters `"name:'Ada' AND department_id:5"`; Grist sort `{"$join": {"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}`.
 
@@ -460,6 +465,7 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - `"firestore": "{{ p.simple }}"` decodes Firestore documents into n8n's simple shape `{_name, _id, _createTime, _updateTime, …fields}` (use `"each": "found"` / `"document"` first for batchGet / runQuery).
 - `"from": "{{ res | values }}"` (template over `res`) replaces the decoded response before `path`/`split` (npm versions: `"{{ res.time | entries:'version,published_at' }}"`).
 - `"merge": true` folds a list of objects into one object (Hue update: `"each": "success", "merge": true`).
+- `"skip": 1` drops the first n elements (NextCloud lists the folder itself first); `"sort": "time"` orders by a path (numbers numerically, else as text), `"sort_desc": true` descending (npm getVersions).
 - `"limit": true` applies n8n's `returnAll`/`limit` params to a list the API returns whole (client-side slicing; replaces the `__no_next_page__` pagination trick).
 - `expand` with `"expand_merge_key": "transcript", "expand_merge_path": "callTranscripts.0.transcript"` sets that key on the element instead of replacing it.
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.

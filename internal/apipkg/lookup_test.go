@@ -939,3 +939,27 @@ func TestPresignedMultipartUploadStep(t *testing.T) {
 		t.Errorf("push: %s %s", cts[2], bodies[2])
 	}
 }
+
+func TestListSnakeSkipSortAndParenHead(t *testing.T) {
+	sc := Scope{P: map[string]any{"db": "odoo", "uid": 2.0, "name": "Ada"}}
+	got, err := renderValue(map[string]any{"$list": []any{"{{ p.db }}", "{{ p.uid }}", "", map[string]any{}, []any{}, "{{ p.none }}"}}, sc)
+	if err != nil || !reflect.DeepEqual(got, []any{"odoo", 2.0, "", map[string]any{}, []any{}, nil}) {
+		t.Errorf("$list = %#v, %v", got, err)
+	}
+	for in, want := range map[string]string{"Due Date": "due_date", "DueDate": "due_date", "due-date": "due_date", "HTTPServer2": "http_server_2", "already_snake": "already_snake"} {
+		if g := snakeCase(in); g != want {
+			t.Errorf("snake(%q) = %q, want %q", in, g, want)
+		}
+	}
+	if got, err := renderString("{{ (p.name | lower) | prefix:'x-' }}", sc); err != nil || got != "x-ada" {
+		t.Errorf("paren head = %#v, %v", got, err)
+	}
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"ls","title":"L","method":"GET","path":"/ls","output":{"skip":1,"sort":"v","sort_desc":true}}`))
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`[{"v":0},{"v":2},{"v":10},{"v":1}]`))
+	})
+	items, _ := runPackageOp(p, map[string]any{"operation": "ls"}, cred, nil)
+	if len(items) != 3 || items[0].JSON["v"] != 10.0 || items[2].JSON["v"] != 1.0 {
+		t.Errorf("skip+sort: %v", items)
+	}
+}
