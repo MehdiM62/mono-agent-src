@@ -176,7 +176,7 @@ func ByID(id string) (*Package, bool) {
 // ForNodeType returns the package registering nodeType (not extensions).
 func ForNodeType(nodeType string) (*Package, bool) {
 	for _, p := range packages() {
-		if p.Extends == "" && p.NodeTypeOf() == nodeType {
+		if p.Extends == "" && len(p.Operations) > 0 && p.NodeTypeOf() == nodeType {
 			return p, true
 		}
 	}

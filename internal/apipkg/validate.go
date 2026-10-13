@@ -80,6 +80,9 @@ func (p *Package) check() []string {
 		probs = append(probs, checkTemplates("headers."+k, v, nil, credKeys)...)
 	}
 
+	if len(p.Operations) == 0 && len(p.N8nTriggerTypes) == 0 {
+		add("operations: a package needs operations (or, for a trigger-only app, n8n_trigger_types)")
+	}
 	seen := map[string]bool{}
 	used := map[string]bool{}
 	for i := range p.Operations {
@@ -162,7 +165,7 @@ func (c *Credential) check(i int) []string {
 		keys[f.Key] = true
 	}
 	in := c.Inject
-	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil {
+	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil {
 		add("inject is empty: say how the credential authenticates (headers, query, basic or aws_sigv4)")
 	}
 	for k, v := range in.Headers {
@@ -177,6 +180,21 @@ func (c *Credential) check(i int) []string {
 	if s := in.AWSSigV4; s != nil {
 		probs = append(probs, checkTemplates(where+" inject.aws_sigv4",
 			[]any{s.Service, s.Region, s.AccessKeyID, s.SecretAccessKey, s.SessionToken}, anyField, keys)...)
+	}
+	if jw := in.JWT; jw != nil {
+		switch jw.Alg {
+		case "HS256", "HS384", "HS512", "RS256", "ES256":
+		default:
+			add("inject.jwt.alg %q: use HS256, HS384, HS512, RS256 or ES256", jw.Alg)
+		}
+		if jw.Secret == "" {
+			add("inject.jwt needs a secret template")
+		}
+		claims := []any{jw.Secret, jw.Kid}
+		for _, v := range jw.Claims {
+			claims = append(claims, v)
+		}
+		probs = append(probs, checkTemplates(where+" inject.jwt", claims, anyField, keys)...)
 	}
 	return probs
 }
