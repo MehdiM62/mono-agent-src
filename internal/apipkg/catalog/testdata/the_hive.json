@@ -80,7 +80,8 @@
     "credential": {
       "url": "https://hive.example.com",
       "api_key": "k",
-      "api_version": "v1"
+      "api_version": "v1",
+      "allow_unauthorized_certs": true
     }
   },
   "alert.count": {

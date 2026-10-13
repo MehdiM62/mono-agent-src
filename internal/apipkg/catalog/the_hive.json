@@ -21,7 +21,8 @@
       "n8n_field_map": {
         "ApiKey": "api_key",
         "url": "url",
-        "apiVersion": "api_version"
+        "apiVersion": "api_version",
+        "allowUnauthorizedCerts": "allow_unauthorized_certs"
       },
       "methods": [
         "api_key"
@@ -42,6 +43,11 @@
           "key": "api_version",
           "label": "API version",
           "help": "v1 for TheHive 4 (default empty = TheHive 3, API v0)"
+        },
+        {
+          "key": "allow_unauthorized_certs",
+          "label": "Ignore SSL issues",
+          "help": "true to accept self-signed or invalid TLS certificates (self-hosted servers)"
         }
       ],
       "inject": {

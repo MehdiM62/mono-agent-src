@@ -42,7 +42,8 @@
       "domain": "https://tpp.example.com",
       "client_id": "cid",
       "username": "u",
-      "password": "p"
+      "password": "p",
+      "allow_unauthorized_certs": true
     }
   },
   "certificate.delete": {

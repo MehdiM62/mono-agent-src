@@ -52,7 +52,8 @@
     },
     "credential": {
       "url": "https://hive.example.com",
-      "api_key": "k"
+      "api_key": "k",
+      "allow_unauthorized_certs": true
     }
   },
   "alert.deleteAlert": {
@@ -427,7 +428,9 @@
         "value": {
           "title": "C",
           "description": "d",
-          "startDate": "2024-01-01T00:00:00Z"
+          "startDate": "2024-01-01T00:00:00Z",
+          "customFields.severityScore": 7,
+          "customFields.team": "red"
         }
       }
     },
@@ -437,7 +440,11 @@
       "body": {
         "title": "C",
         "description": "d",
-        "startDate": 1704067200000
+        "startDate": 1704067200000,
+        "customFields": {
+          "severityScore": 7,
+          "team": "red"
+        }
       }
     },
     "credential": {
@@ -634,7 +641,10 @@
         "mode": "id",
         "value": "~456"
       },
-      "attachmentId": "at1"
+      "attachmentId": "at1",
+      "options": {
+        "dataPropertyName": "att"
+      }
     },
     "expect": {
       "method": "GET",
