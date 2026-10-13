@@ -1,0 +1,157 @@
+{
+  "entry.create": {
+    "params": {
+      "contentType": "articles",
+      "columns": "title, body"
+    },
+    "input": {
+      "title": "T",
+      "body": "B",
+      "x": 1
+    },
+    "credential": {
+      "url": "https://cms.test/",
+      "api_token": "T",
+      "api_version": "v4"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/articles",
+      "body": {
+        "data": {
+          "title": "T",
+          "body": "B"
+        }
+      },
+      "headers": {
+        "Authorization": "Bearer T"
+      },
+      "items": 1
+    }
+  },
+  "entry.delete": {
+    "params": {
+      "contentType": "articles",
+      "entryId": "1"
+    },
+    "credential": {
+      "url": "https://cms.test",
+      "email": "a@b.c",
+      "password": "pw",
+      "api_version": "v3"
+    },
+    "responses": [
+      {
+        "jwt": "J"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/articles/1",
+      "headers": {
+        "Authorization": "Bearer J"
+      },
+      "items": 1
+    }
+  },
+  "entry.get": {
+    "params": {
+      "contentType": "articles",
+      "entryId": "1"
+    },
+    "credential": {
+      "url": "https://cms.test/",
+      "api_token": "T",
+      "api_version": "v4"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/articles/1",
+      "items": 1
+    }
+  },
+  "entry.getAll": {
+    "params": {
+      "contentType": "articles",
+      "limit": 5,
+      "options": {
+        "sort": [
+          "title:asc"
+        ],
+        "where": "{\"title\":{\"$eq\":\"Hi\"}}",
+        "publicationState": "live"
+      }
+    },
+    "credential": {
+      "url": "https://cms.test/",
+      "api_token": "T",
+      "api_version": "v4"
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ],
+      "meta": {}
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/articles",
+      "query": {
+        "sort": "title:asc",
+        "filters[title][$eq]": "Hi",
+        "publicationState": "live",
+        "pagination[page]": "1",
+        "pagination[pageSize]": "5"
+      },
+      "items": 1
+    }
+  },
+  "entry.update": {
+    "params": {
+      "contentType": "articles",
+      "updateKey": "id",
+      "columns": "title"
+    },
+    "input": {
+      "id": 7,
+      "title": "New"
+    },
+    "credential": {
+      "url": "https://cms.test",
+      "email": "a@b.c",
+      "password": "pw",
+      "api_version": "v3"
+    },
+    "responses": [
+      {
+        "jwt": "J"
+      },
+      {
+        "id": 7
+      }
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/articles/7",
+      "body": {
+        "title": "New"
+      },
+      "items": 1
+    }
+  }
+}
