@@ -216,6 +216,12 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	for k, v := range o.Headers {
 		probs = append(probs, checkTemplates(where+" headers."+k, v, fields, credKeys)...)
 	}
+	if o.Output != nil && o.Output.Expand != nil {
+		st := o.Output.Expand
+		for _, v := range []any{st.When, st.BaseURL, st.Path, st.Query, st.Body} {
+			probs = append(probs, checkTemplates(where+" output.expand", v, fields, credKeys)...)
+		}
+	}
 	if st := o.Before; st != nil {
 		if !validMethods[st.Method] || st.Path == "" {
 			add("before: needs a method (GET, POST, …) and a path")
@@ -302,6 +308,11 @@ func checkTemplates(where string, v any, fields, credKeys map[string]bool) []str
 				}
 				exprs := []*expr{part.expr}
 				for _, f := range part.expr.filters {
+					for _, a := range f.args {
+						if a != f.arg && a.path != nil {
+							exprs = append(exprs, a.path)
+						}
+					}
 					if f.arg != nil && f.arg.path != nil {
 						exprs = append(exprs, f.arg.path)
 					}

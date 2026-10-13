@@ -214,6 +214,11 @@ through, so an unset param stays unset:
 | `default:"x"` | `x` when the value is empty; the argument may be a quoted string (`'x'` or `"x"`), a number, `true`/`false`/`null`, or a path (`default:p.other`, `default:cred.region`) |
 | `then:'x'` | `x` when the value is non-empty, else nil |
 | `rl` | n8n resource locator → its `value`; a `"mode": "url"` locator holding a Google Docs/Sheets/Slides/Drive URL yields the file id; other values pass |
+| `find:'path',value` | first list element whose value at `path` equals `value` (text compare), else nil: `{{ pre.sheets \| find:'properties.title',p.sheetName \| get:'properties.sheetId' }}` |
+| `find_row:column,value` | value rows (first row = header) → 1-based row number of the first data row whose `column` cell equals `value` (an object value, e.g. `item`, is read at `column`), else nil: `{{ pre.values \| find_row:p.columnToMatchOn,item }}` |
+| `get:'path'` | walk into the value: `{{ pre.payload.headers \| find:'name','Message-ID' \| get:'value' }}` |
+| `add:n`, `sub:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`); whole results are integers |
+| `colnum`, `colname` | spreadsheet column letter ↔ 1-based number (`"C"` ↔ 3, `"AA"` ↔ 27) |
 | `gid` | Google file id from a URL (`…/d/<id>/edit`, `…/folders/<id>`, `?id=<id>`); bare ids and non-Google values pass (n8n Docs `documentURL`) |
 | `eq:'x'`, `ne:'x'` | `true` when the value's string equals (`eq`) / differs from (`ne`) the argument, else nil, so they chain into `then`: `"$merge": "{{ p.dataToSend \| eq:'autoMapInputData' \| then:item }}"` |
 | `kv:'keyField,valueField'` / `kv:'keyField,valueField,prefix'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}` (with a prefix: `kv:'fieldId,fieldValue,field_'` → `{"field_12": …}`). A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
@@ -235,6 +240,8 @@ through, so an unset param stays unset:
 ] }
 ```
 (`then:item` passes the whole item; combine with `omit:p.inputsToIgnore` on a `{{ item | omit:p.inputsToIgnore }}` expression when the n8n node offers it.)
+
+**Objects with built keys (`$entries`).** `{"$entries": "{{ p.filters.date }}", "$key": "date[{{ el.operation }}]", "$value": "{{ el.value | epoch }}"}` → `{"date[after]": 1704067200}`; empty keys/values are skipped (works inside `query`, `body` and `$merge`).
 
 **Lists of objects (`$map`, `$concat`).** `{"$map": "{{ p.emailOptions.emailProperties }}", "$to": {"name": "email", "subtype": "{{ el.subtype }}", "value": "{{ el.email }}"}}` renders `$to` once per element (empty results dropped; an empty list is omitted). `{"$concat": [ <template>, … ]}` joins parts into one list (lists are spread, empty parts skipped). Together they build arrays like `properties` from several n8n collections:
 ```json
@@ -394,6 +401,11 @@ Step keys: `when`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `
 "before": { "method": "GET", "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ p.sheetName | rl }}!1:1" },
 "body": { "values": [ "{{ item | row:pre.values }}" ] }
 ```
+**Output shaping** (applied in this order, also to paginated results):
+- `"each": "invoice"` replaces each element by its value at that path (Chargebee `[{"invoice": {…}}]` → the invoices).
+- `"expand": {method, path, query, …}` sends one request per element (`el` = the element) and replaces it with the response (Gmail lists ids, then GETs each message with `format`).
+- `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept.
+
 **Header-row output.** `"output": {"path": "values", "header_row": true}` turns `[[h1,h2],[v1,v2],…]` into one item per row keyed by the first row.
 
 ## 10. Binary data
@@ -595,7 +607,8 @@ Optional keys the engine added (the design's keys are unchanged):
 | templates | filters `float`, `string`, `upper`, `rl`, `then`; `default:<path>`; `$merge` lists | §5 |
 | templates | filters `eq`, `ne`, `kv`, `omit`, `fromjson`, `epoch_ms`, `epoch`; roots `el`, `res`; `$map`/`$to`, `$concat` | §5 |
 | credential | `scope_group` (umbrella scope check) | §7 |
-| operation | `before` (pre-request → `pre`); output `header_row` | §9 |
+| operation | `before` (pre-request → `pre`); output `header_row`, `each`, `expand`, `match` | §9 |
+| templates | multi-argument filters `find`, `find_row`; filters `get`, `add`, `sub`, `colnum`, `colname`; `$entries`/`$key`/`$value` | §5 |
 | templates | filters `prefix`, `suffix`, `base64`, `base64url`, `row`; roots `pre`, `uuid` | §5 |
 | credential | method `client_credentials`; `oauth.client_id_field`, `client_secret_field`, `client_auth` (`auth_url` optional for it) | §7 |
 | operation | `also` (follow-up requests), `batch` (one request for all items) | §9 |
