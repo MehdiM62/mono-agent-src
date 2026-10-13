@@ -82,8 +82,8 @@ func runMemorySweeper(ctx context.Context, dbPath string) {
 }
 
 // runMemoryExecutionFinished is the daemon's workflow.OnExecutionFinished
-// handler: it re-evaluates the
-// workflow of executionID. Safe to call from a goroutine.
+// handler: it re-evaluates the workflow of executionID. Safe to call from a
+// goroutine.
 func runMemoryExecutionFinished(ctx context.Context, db *sql.DB, executionID, status string) {
 	if db == nil || executionID == "" {
 		return
