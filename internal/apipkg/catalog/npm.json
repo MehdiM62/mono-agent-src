@@ -82,7 +82,6 @@
       "title": "List a package's versions",
       "method": "GET",
       "path": "/{{ p.packageName }}",
-      "description": "Returns the package's version → publish time map (field time).",
       "fields": [
         {
           "key": "packageName",
@@ -93,7 +92,7 @@
         }
       ],
       "output": {
-        "path": "time"
+        "from": "{{ res.time | omit:'created,modified' | entries:'version,published_at' }}"
       }
     },
     {
