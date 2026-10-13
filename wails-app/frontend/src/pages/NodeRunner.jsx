@@ -15,7 +15,8 @@ import {
   NODE_CONFIG_FIELDS, BROWSER_NODE_GENERIC,
   deriveInputs, deriveOutputs, portsDependOnConfig, isCaseListSettled, remapSourceEdges,
   arrayFieldItems, arrayTagLabel, normalizeConfigForSave,
-  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath,
+  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath, loopEdgeBottom, LOOP_EDGE_OFF,
+  makeIdGen,
 } from './nodeConfigFields.js'
 import { SaveModal, WorkflowsModal, TriggerInputModal } from './NodeRunnerModals.jsx'
 import WorkflowImportDialog from './WorkflowImportDialog.jsx'
@@ -85,8 +86,10 @@ function edgePath(sx, sy, tx, ty) {
   return `M${sx},${sy} C${sx+dx},${sy} ${tx-dx},${ty} ${tx},${ty}`
 }
 
-let _seq = 1
-const uid = () => `nr${_seq++}`
+// Canvas ids. Loading a workflow advances the counter past its nr<N> ids;
+// taken (a Set) skips any id already on the canvas.
+const canvasIds = makeIdGen('nr')
+const uid = (taken) => canvasIds.next(taken)
 
 // Parse Go time.String() format: "2026-04-08 19:55:14.260072 +0000 UTC"
 // Also handles SQLite CURRENT_TIMESTAMP: "2026-04-08 19:55:14"
@@ -141,6 +144,7 @@ function CanvasNode({ node, selected, zoom, onHeaderMouseDown, onOutputPortMouse
           : '0 6px 20px rgba(0,0,0,.5)',
         userSelect: 'none',
         overflow: 'visible',
+        pointerEvents: 'auto',
         transition: 'border-color 140ms, box-shadow 140ms',
       }}
       onMouseDown={(e) => { e.stopPropagation(); onClick?.() }}
@@ -1189,6 +1193,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         setWfId(wf.id)
         setWfName(wf.name || 'Untitled Workflow')
         setWfActive(!!wf.is_active)
+        canvasIds.advancePast([...loadedNodes, ...loadedEdges].map(x => x.id))
         setNodes(loadedNodes)
         setEdges(loadedEdges)
         setSelectedId(null)
@@ -1240,6 +1245,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
             setWfId(wf.id)
             setWfName(wf.name || 'Untitled Workflow')
             setWfActive(!!wf.is_active)
+            canvasIds.advancePast([...loadedNodes, ...loadedEdges].map(x => x.id))
             setNodes(loadedNodes)
             setEdges(loadedEdges)
             setSelectedId(null)
@@ -1413,7 +1419,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     const y = worldY ?? (rect.height / 2 - cam.y) / cam.zoom - 60 + (Math.random() - .5) * 80
     const defaults = {}
     template.configFields?.forEach(f => { defaults[f.key] = f.default ?? '' })
-    const id = uid()
+    const id = uid(new Set(nodesRef.current.map(n => n.id)))
     setNodes(prev => [...prev, {
       id, label: template.label, subtype: template.subtype,
       category: template.category,
@@ -1487,7 +1493,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     setEdges(prev => {
       if (prev.some(e => e.source === sourceNodeId && e.sourcePortIdx === sourcePortIdx && e.target === targetNodeId && e.targetPortIdx === targetPortIdx)) return prev
       return [...prev, {
-        id: uid(), source: sourceNodeId, sourcePortIdx,
+        id: uid(new Set(prev.map(e => e.id))), source: sourceNodeId, sourcePortIdx,
         sourcePortId: sNode.outputs[sourcePortIdx]?.id,
         target: targetNodeId, targetPortIdx,
         targetPortId: tNode.inputs[targetPortIdx]?.id,
@@ -1730,6 +1736,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         targetPortId: c.target_handle,
         targetPortIdx: resolvePortIdx(nodeById[c.target_node_id]?.inputs, c.target_handle),
       }))
+      canvasIds.advancePast([...loadedNodes, ...loadedEdges].map(x => x.id))
       setNodes(loadedNodes)
       setEdges(loadedEdges)
       setSelectedId(null)
@@ -1838,7 +1845,8 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     const tp = inPortPos(tNode, edge.targetPortIdx)
     const loopIds = backEdges.get(edge)
     if (loopIds) {
-      const bottom = Math.max(...nodes.filter(n => loopIds.has(n.id)).map(n => n.y + nodeH(n))) + 28
+      const boxes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y, w: NODE_W, h: nodeH(n) }))
+      const bottom = loopEdgeBottom(boxes, loopIds, sp.x + LOOP_EDGE_OFF, tp.x - LOOP_EDGE_OFF)
       return { ...edge, path: loopEdgePath(sp.x, sp.y, tp.x, tp.y, bottom), color: LOOP_EDGE_COLOR, loop: true }
     }
     return { ...edge, path: edgePath(sp.x, sp.y, tp.x, tp.y), color: sNode.color || catColor(sNode.category) }
@@ -2274,7 +2282,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
                   <g key={ep.id}>
                     <path d={ep.path} stroke={ep.color} strokeWidth={1.5} fill="none"
                       strokeOpacity={ep.loop ? 0.85 : 0.5} strokeDasharray={ep.loop ? '6 4' : undefined} />
-                    <path d={ep.path} stroke={ep.color} strokeWidth={4} fill="none" strokeOpacity={0}
+                    <path d={ep.path} stroke={ep.color} strokeWidth={12} fill="none" strokeOpacity={0}
                       style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                       onClick={() => { setEdges(prev => prev.filter(e => e.id !== ep.id)); setIsDirty(true) }}
                     />
@@ -2286,8 +2294,9 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
               </g>
             </svg>
 
-            {/* Nodes */}
-            <div style={{ position: 'absolute', inset: 0, zIndex: 2, transformOrigin: '0 0', transform: `translate(${camera.x}px,${camera.y}px) scale(${camera.zoom})` }}>
+            {/* Nodes — the layer itself lets clicks through to the edges
+                below; each node card takes pointer events back. */}
+            <div style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none', transformOrigin: '0 0', transform: `translate(${camera.x}px,${camera.y}px) scale(${camera.zoom})` }}>
               {nodes.map(node => (
                 <CanvasNode
                   key={node.id}

@@ -3,7 +3,8 @@ import {
   deriveOutputs, deriveInputs, caseHandles, portsDependOnConfig,
   isCaseListSettled, remapSourceEdges, NODE_CONFIG_FIELDS,
   arrayFieldItems, arrayTagLabel, normalizeConfigForSave, portRenames,
-  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath,
+  canonicalOutputHandle, loopBackEdges, hasForbiddenCycle, loopEdgePath, loopEdgeBottom,
+  makeIdGen,
 } from './nodeConfigFields.js'
 
 const ids = ports => ports.map(p => p.id)
@@ -210,7 +211,7 @@ describe('loopEdgePath', () => {
   const points = d => [...d.matchAll(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g)].map(m => [+m[1], +m[2]])
 
   it('leaves the source rightwards, runs along the bottom and enters the target from the left', () => {
-    const d = loopEdgePath(700, 100, 300, 100, 260)
+    const d = loopEdgePath(700, 100, 300, 100, 260, 24, 10)
     expect(d.startsWith('M700,100 H714')).toBe(true)
     expect(d).toContain('V250')
     expect(d).toContain('H286')        // bottom run back towards the target
@@ -220,8 +221,46 @@ describe('loopEdgePath', () => {
   })
 
   it('stays well-formed when the target sits right of the source', () => {
-    const d = loopEdgePath(300, 100, 700, 120, 260)
+    const d = loopEdgePath(300, 100, 700, 120, 260, 24, 10)
     expect(d).toContain('Q324,260 334,260')
     expect(d.endsWith('H700')).toBe(true)
+  })
+})
+
+describe('loopEdgeBottom', () => {
+  // The r2 auto-layout: Split → Set → (back to Split), with the done branch's
+  // Remove Duplicates right under Set.
+  const boxes = [
+    { id: 'L', x: 780, y: 184, w: 220, h: 114 },
+    { id: 'set', x: 1040, y: 184, w: 220, h: 86 },
+    { id: 'rd', x: 1040, y: 323, w: 220, h: 86 },
+    { id: 'far', x: 2000, y: 323, w: 220, h: 86 },
+  ]
+  const loop = new Set(['L', 'set'])
+
+  it('runs below the loop nodes and below any node the run crosses', () => {
+    expect(loopEdgeBottom(boxes, loop, 1272, 768)).toBe(323 + 86 + 28)
+  })
+
+  it('ignores nodes outside the run and keeps just below the loop when clear', () => {
+    const clear = boxes.filter(b => b.id !== 'rd')
+    expect(loopEdgeBottom(clear, loop, 1272, 768)).toBe(298 + 28)
+  })
+
+  it('keeps pushing down past stacked nodes', () => {
+    const stacked = [...boxes, { id: 'rd2', x: 900, y: 430, w: 220, h: 86 }]
+    expect(loopEdgeBottom(stacked, loop, 1272, 768)).toBe(430 + 86 + 28)
+  })
+})
+
+describe('makeIdGen', () => {
+  it('moves past loaded ids and skips taken ones', () => {
+    const ids = makeIdGen('nr')
+    expect(ids.next()).toBe('nr1')
+    ids.advancePast(['nr1', 'nr5', 'n7', 'nrx', 'abc'])
+    expect(ids.next()).toBe('nr6')
+    expect(ids.next(new Set(['nr7', 'nr8']))).toBe('nr9')
+    ids.advancePast(['nr3'])          // never moves backwards
+    expect(ids.next()).toBe('nr10')
   })
 })

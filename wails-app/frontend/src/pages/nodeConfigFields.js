@@ -777,10 +777,32 @@ export function loopBackEdges(nodes, edges) {
   return back
 }
 
+// LOOP_EDGE_OFF is how far right of the source port (and left of the target
+// port) a loop back-edge turns down/up: close to the port, so it stays clear
+// of the curves of neighbouring edges in the gap between two nodes.
+export const LOOP_EDGE_OFF = 12
+
+// loopEdgeBottom is the y of a loop back-edge's bottom run: below the
+// loop's own nodes, then pushed further down past any node box ({id, x, y,
+// w, h}) the run between x1 and x2 would otherwise cross.
+export function loopEdgeBottom(boxes, loopIds, x1, x2, margin = 28) {
+  const lo = Math.min(x1, x2), hi = Math.max(x1, x2)
+  const own = boxes.filter(b => loopIds.has(b.id))
+  let y = (own.length ? Math.max(...own.map(b => b.y + b.h)) : 0) + margin
+  const crossed = boxes.filter(b => b.x < hi && b.x + b.w > lo)
+  for (let moved = true; moved;) {
+    moved = false
+    for (const b of crossed) {
+      if (y > b.y - margin && y < b.y + b.h + margin) { y = b.y + b.h + margin; moved = true }
+    }
+  }
+  return y
+}
+
 // loopEdgePath routes a loop back-edge around its loop instead of across it:
 // out of the source port, down to bottomY (below the loop's nodes), back
 // along the bottom, and up into the target port, with rounded corners.
-export function loopEdgePath(sx, sy, tx, ty, bottomY, off = 24, r = 10) {
+export function loopEdgePath(sx, sy, tx, ty, bottomY, off = LOOP_EDGE_OFF, r = 8) {
   const a = sx + off, b = tx - off
   const dir = b < a ? -1 : 1
   return `M${sx},${sy} H${a - r} Q${a},${sy} ${a},${sy + r} V${bottomY - r} Q${a},${bottomY} ${a + dir * r},${bottomY}` +
@@ -857,4 +879,25 @@ export function remapSourceEdges(edges, nodeId, outputs, prevOutputs) {
     if (idx === -1) return []
     return [idx === e.sourcePortIdx && id === e.sourcePortId ? e : { ...e, sourcePortIdx: idx, sourcePortId: id }]
   })
+}
+
+// makeIdGen hands out canvas ids (`${prefix}1`, `${prefix}2`, …). A loaded
+// workflow already holds such ids: advancePast moves the counter beyond
+// them, and next skips any id in taken.
+export function makeIdGen(prefix) {
+  let seq = 1
+  const re = new RegExp(`^${prefix}(\\d+)$`)
+  return {
+    next(taken) {
+      let id
+      do { id = `${prefix}${seq++}` } while (taken && taken.has(id))
+      return id
+    },
+    advancePast(ids) {
+      for (const id of ids || []) {
+        const m = re.exec(String(id))
+        if (m) seq = Math.max(seq, Number(m[1]) + 1)
+      }
+    },
+  }
 }
