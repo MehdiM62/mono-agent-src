@@ -788,7 +788,7 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 						fmt.Fprintf(os.Stdout, "Hint:   %s\n", waitingHint)
 					}
 				}
-				// A FAILED or CANCELLED execution must exit 1 even though the
+				// A FAILED, REJECTED or CANCELLED execution must exit 1 even though the
 				// wait itself succeeded. JSON callers still print the full
 				// execution record (with error fields populated) before this
 				// propagates.
@@ -805,6 +805,8 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 						msg = "cancelled"
 					}
 					return fmt.Errorf("execution %s was cancelled: %s", executionID, msg)
+				case workflow.StatusRejected:
+					return fmt.Errorf("execution %s was rejected by a reviewer: %s", executionID, exec.ErrorMessage)
 				}
 				return nil
 			}

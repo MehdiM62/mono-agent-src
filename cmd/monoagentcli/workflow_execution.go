@@ -25,6 +25,7 @@ type executionDetailJSON struct {
 	StartedAt   string                    `json:"started_at"`
 	FinishedAt  string                    `json:"finished_at"`
 	Error       string                    `json:"error_message"`
+	ErrorClass  string                    `json:"error_class,omitempty"`
 	CreatedAt   string                    `json:"created_at"`
 	Nodes       []executionDetailNodeJSON `json:"nodes"`
 }
@@ -43,6 +44,8 @@ type executionDetailNodeJSON struct {
 	InputItems   json.RawMessage `json:"input_items"`
 	OutputItems  json.RawMessage `json:"output_items"`
 	RetryCount   int             `json:"retry_count"`
+	ErrorClass   string          `json:"error_class,omitempty"`
+	ErrorHint    string          `json:"error_hint,omitempty"`
 }
 
 // newWorkflowExecutionCmd prints one execution with its per-node status.
@@ -74,12 +77,23 @@ func newWorkflowExecutionCmd(cfg *globalConfig) *cobra.Command {
 			if detail.Error != "" {
 				fmt.Fprintf(os.Stdout, "Error: %s\n", detail.Error)
 			}
+			if detail.ErrorClass != "" {
+				fmt.Fprintf(os.Stdout, "Class: %s\n", detail.ErrorClass)
+			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "NODE\tNAME\tSTATUS\tSTARTED AT\tFINISHED AT\tERROR")
 			for _, n := range detail.Nodes {
 				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", n.NodeID, n.NodeName, n.Status, n.StartedAt, n.FinishedAt, n.ErrorMessage)
 			}
-			return w.Flush()
+			if err := w.Flush(); err != nil {
+				return err
+			}
+			for _, n := range detail.Nodes {
+				if n.ErrorHint != "" {
+					fmt.Fprintf(os.Stdout, "Hint (%s, %s): %s\n", n.NodeName, n.ErrorClass, n.ErrorHint)
+				}
+			}
+			return nil
 		},
 	}
 }
@@ -92,9 +106,9 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 	d := executionDetailJSON{Nodes: []executionDetailNodeJSON{}}
 	err := db.QueryRowContext(ctx, `SELECT id, workflow_id, status,
 	                              COALESCE(trigger_type,''), COALESCE(started_at,''), COALESCE(finished_at,''),
-	                              COALESCE(error_message,''), created_at
+	                              COALESCE(error_message,''), created_at, COALESCE(error_class,'')
 	                       FROM workflow_executions WHERE id = ? AND profile_id = ?`, executionID, profileID).
-		Scan(&d.ID, &d.WorkflowID, &d.Status, &d.TriggerType, &d.StartedAt, &d.FinishedAt, &d.Error, &d.CreatedAt)
+		Scan(&d.ID, &d.WorkflowID, &d.Status, &d.TriggerType, &d.StartedAt, &d.FinishedAt, &d.Error, &d.CreatedAt, &d.ErrorClass)
 	if errors.Is(err, sql.ErrNoRows) {
 		return d, errNotFound("execution %q not found", executionID)
 	}
@@ -104,7 +118,8 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 
 	rows, err := db.QueryContext(ctx, `SELECT id, node_id, node_name, status,
 	                                COALESCE(error_message,''), COALESCE(started_at,''), COALESCE(finished_at,''),
-	                                COALESCE(input_items,'[]'), COALESCE(output_items,'[]'), retry_count
+	                                COALESCE(input_items,'[]'), COALESCE(output_items,'[]'), retry_count,
+	                                COALESCE(error_class,''), COALESCE(error_hint,'')
 	                         FROM workflow_execution_nodes
 	                         WHERE execution_id = ?
 	                         ORDER BY started_at`, executionID)
@@ -116,7 +131,7 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 		var n executionDetailNodeJSON
 		var in, out string
 		if err := rows.Scan(&n.ID, &n.NodeID, &n.NodeName, &n.Status, &n.ErrorMessage,
-			&n.StartedAt, &n.FinishedAt, &in, &out, &n.RetryCount); err != nil {
+			&n.StartedAt, &n.FinishedAt, &in, &out, &n.RetryCount, &n.ErrorClass, &n.ErrorHint); err != nil {
 			return d, fmt.Errorf("scan execution node: %w", err)
 		}
 		n.InputItems, n.OutputItems = redactedItemsJSON(in), redactedItemsJSON(out)
@@ -213,7 +228,7 @@ func cancelExecution(ctx context.Context, db *sql.DB, profileID, executionID str
 	}
 	res.Status = res.PreviousStatus
 	switch strings.ToUpper(res.PreviousStatus) {
-	case "SUCCESS", "FAILED", "CANCELLED":
+	case "SUCCESS", "SUCCESS_WITH_ERRORS", "FAILED", workflow.StatusRejected, "CANCELLED":
 		return res, nil
 	}
 

@@ -468,7 +468,7 @@ func RunExecution(
 
 			// Persist failure.
 			dbCtx2, dbCancel2 := dbCtx()
-			if storeErr := store.SetExecutionNodeFinished(dbCtx2, execNode.ID, "FAILED", nil, execErr.Error()); storeErr != nil {
+			if storeErr := recordNodeFailure(dbCtx2, store, execNode, execErr); storeErr != nil {
 				logger.Error().Err(storeErr).
 					Str("node_id", node.ID).
 					Msg("failed to persist node failure")
@@ -567,7 +567,7 @@ func RunExecution(
 				Str("node_name", node.Name).
 				Msg("node emitted error output with no edge wired from the 'error' handle — failing node (wire an error edge or set on_error=continue/skip to tolerate)")
 			fctx, fcancel := dbCtx()
-			if storeErr := store.SetExecutionNodeFinished(fctx, execNode.ID, "FAILED", nil, nodeErr.Error()); storeErr != nil {
+			if storeErr := recordNodeFailure(fctx, store, execNode, nodeErr); storeErr != nil {
 				logger.Error().Err(storeErr).
 					Str("node_id", node.ID).
 					Msg("failed to persist node failure")
