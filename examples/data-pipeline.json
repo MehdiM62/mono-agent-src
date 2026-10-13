@@ -31,7 +31,6 @@
       "position": { "x": 640, "y": 0 },
       "disabled": false,
       "config": {
-        "language": "javascript",
         "code": "(function () {\n  const out = [];\n  for (const item of $input.all()) {\n    const orders = (item.body && item.body.orders) || [];\n    for (const order of orders) {\n      out.push({ orderId: order.id, amount: Number(order.total || 0), currency: order.currency || 'USD' });\n    }\n  }\n  return out;\n})()"
       }
     },

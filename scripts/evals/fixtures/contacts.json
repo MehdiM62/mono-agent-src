@@ -1,0 +1,7 @@
+{"contacts":[
+ {"email":"ann@example.test","name":"Ann"},
+ {"email":"bob@example.test","name":"Bob"},
+ {"email":"ann@example.test","name":"Ann (duplicate)"},
+ {"email":"cy@example.test","name":"Cy"},
+ {"email":"bob@example.test","name":"Bob (duplicate)"}
+]}

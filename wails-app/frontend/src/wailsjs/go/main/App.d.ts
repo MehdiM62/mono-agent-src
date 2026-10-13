@@ -235,6 +235,8 @@ export function GetEffectiveTools(arg1:string,arg2:string):Promise<string>;
 
 export function GetExecutionDetail(arg1:string):Promise<Record<string, any>>;
 
+export function GetExtensionStatus():Promise<string>;
+
 export function GetGlobalOrgSummary(arg1:boolean):Promise<string>;
 
 export function GetGlobalSummary():Promise<string>;

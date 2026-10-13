@@ -1,0 +1,40 @@
+{
+  "id": "set-template",
+  "mode": "both",
+  "workflow_name": "eval-set-template",
+  "prompt": "Create a workflow named \"eval-set-template\", run manually with input fields\n\"first\" and \"last\" (for example {\"first\":\"Ada\",\"last\":\"Lovelace\"}), that sets\nfull_name to \"<first> <last>\" and shout to the full name in upper case.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "mcp_validate_ok"
+    },
+    {
+      "type": "mcp_run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "output",
+      "path": "[0].full_name",
+      "equals": "Ada Lovelace"
+    },
+    {
+      "type": "output",
+      "path": "[0].shout",
+      "equals": "ADA LOVELACE"
+    }
+  ],
+  "input": {
+    "first": "Ada",
+    "last": "Lovelace"
+  }
+}

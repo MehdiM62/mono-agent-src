@@ -118,8 +118,8 @@ func TestAReplayWritesNothingAtAll(t *testing.T) {
 	}
 }
 
-// An agent that retries its twentieth task (the reply was lost) gets the task, not a refusal.
-func TestAnAgentsRetryAtTheHourlyLimitGetsItsTaskBack(t *testing.T) {
+// An agent that retries its twentieth task (the reply was lost) gets the same task back.
+func TestAnAgentsRetryOfItsTwentiethTaskGetsItsTaskBack(t *testing.T) {
 	s, _, _ := newTestStore(t)
 	for i := 0; i < 19; i++ {
 		if _, _, err := s.Add(bg, "default", AddInput{Title: "a"}, bot("b")); err != nil {
@@ -133,6 +133,6 @@ func TestAnAgentsRetryAtTheHourlyLimitGetsItsTaskBack(t *testing.T) {
 	}
 	again, created, err := s.Add(bg, "default", in, bot("b"))
 	if err != nil || created || again.ID != first.ID {
-		t.Errorf("retry at the limit: %+v created %v err %v, want the first task back", again, created, err)
+		t.Errorf("retry of the twentieth: %+v created %v err %v, want the first task back", again, created, err)
 	}
 }

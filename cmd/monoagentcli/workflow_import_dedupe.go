@@ -295,16 +295,6 @@ func copyWarning(id, by string) string {
 	return fmt.Sprintf("%s: %s; imported as a copy — use --replace %s to replace it", why, id, id)
 }
 
-// nodeTypeSet is the sorted multiset of a workflow's node types.
-func nodeTypeSet(wf *workflow.Workflow) string {
-	types := make([]string, 0, len(wf.Nodes))
-	for _, n := range wf.Nodes {
-		types = append(types, n.Type)
-	}
-	sort.Strings(types)
-	return strings.Join(types, "\x00")
-}
-
 // missingBundleHint lists bundled packages that were not installed and the
 // command that installs them (a re-import with --yes; imports are
 // idempotent, so the workflow itself is left unchanged).

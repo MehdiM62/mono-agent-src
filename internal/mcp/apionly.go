@@ -36,7 +36,7 @@ func (s *Server) servedTools() []tool {
 	case s.opts.APIOnly:
 		keep = apiToolNames()
 	default:
-		return all
+		return append(all, s.workflowTools()...)
 	}
 	return narrow(all, keep)
 }

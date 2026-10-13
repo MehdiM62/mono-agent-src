@@ -1,0 +1,26 @@
+{
+  "name": "Scrape and transform",
+  "nodes": [
+    {"parameters": {}, "name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0]},
+    {"parameters": {"url": "https://example.com", "options": {"response": {"response": {"responseFormat": "text"}}}}, "name": "Fetch page", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [200, 0]},
+    {"parameters": {"operation": "extractHtmlContent", "extractionValues": {"values": [{"key": "title", "cssSelector": "h1"}, {"key": "links", "cssSelector": "a", "returnValue": "attribute", "attribute": "href", "returnArray": true}]}, "options": {}}, "name": "HTML", "type": "n8n-nodes-base.html", "typeVersion": 1.2, "position": [400, 0]},
+    {"parameters": {"mode": "markdownToHtml", "markdown": "={{ $json.title }}", "destinationKey": "titleHtml", "options": {}}, "name": "Markdown", "type": "n8n-nodes-base.markdown", "typeVersion": 1, "position": [600, 0]},
+    {"parameters": {"type": "SHA256", "value": "={{ $json.title }}", "dataPropertyName": "hash"}, "name": "Crypto", "type": "n8n-nodes-base.crypto", "typeVersion": 1, "position": [800, 0]},
+    {"parameters": {"operation": "formatDate", "date": "={{ $now }}", "format": "yyyy-MM-dd", "outputFieldName": "day", "options": {}}, "name": "Date & Time", "type": "n8n-nodes-base.dateTime", "typeVersion": 2, "position": [1000, 0]},
+    {"parameters": {"operation": "addToDate", "magnitude": "={{ $json.day }}", "timeUnit": "days", "duration": 7, "outputFieldName": "nextWeek", "options": {}}, "name": "Plus a week", "type": "n8n-nodes-base.dateTime", "typeVersion": 2, "position": [1200, 0]},
+    {"parameters": {"mode": "jsonToxml", "dataPropertyName": "xml", "options": {}}, "name": "XML", "type": "n8n-nodes-base.xml", "typeVersion": 1, "position": [1400, 0]},
+    {"parameters": {"command": "=echo {{ $json.hash }} >> /tmp/hashes.txt"}, "name": "Execute Command", "type": "n8n-nodes-base.executeCommand", "typeVersion": 1, "position": [1600, 0]},
+    {"parameters": {"operation": "generateHtmlTemplate", "html": "=<h1>{{ $('HTML').item.json.title }}</h1>"}, "name": "Render", "type": "n8n-nodes-base.html", "typeVersion": 1.2, "position": [1800, 0]}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "Fetch page", "type": "main", "index": 0}]]},
+    "Fetch page": {"main": [[{"node": "HTML", "type": "main", "index": 0}]]},
+    "HTML": {"main": [[{"node": "Markdown", "type": "main", "index": 0}]]},
+    "Markdown": {"main": [[{"node": "Crypto", "type": "main", "index": 0}]]},
+    "Crypto": {"main": [[{"node": "Date & Time", "type": "main", "index": 0}]]},
+    "Date & Time": {"main": [[{"node": "Plus a week", "type": "main", "index": 0}]]},
+    "Plus a week": {"main": [[{"node": "XML", "type": "main", "index": 0}]]},
+    "XML": {"main": [[{"node": "Execute Command", "type": "main", "index": 0}]]},
+    "Execute Command": {"main": [[{"node": "Render", "type": "main", "index": 0}]]}
+  }
+}

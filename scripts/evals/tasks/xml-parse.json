@@ -1,0 +1,37 @@
+{
+  "id": "xml-parse",
+  "mode": "both",
+  "workflow_name": "eval-xml-parse",
+  "prompt": "Create a workflow named \"eval-xml-parse\", run manually, that downloads\n{{FIXTURE_URL}}/feed.xml with an HTTP GET (not the RSS node) and parses the\nXML response body with the XML node into a field named \"doc\".",
+  "fixtures": [
+    "feed.xml"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "http.request",
+        "data.xml"
+      ]
+    },
+    {
+      "type": "output",
+      "node_type": "data.xml",
+      "path": "[0].doc",
+      "contains": [
+        "Eval Feed",
+        "Gamma launch"
+      ]
+    }
+  ]
+}

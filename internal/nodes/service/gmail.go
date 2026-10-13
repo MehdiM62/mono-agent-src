@@ -34,7 +34,8 @@ type GmailNode struct{}
 
 func (n *GmailNode) Type() string { return "service.gmail" }
 
-const gmailBaseURL = "https://gmail.googleapis.com/gmail/v1/users/me"
+// gmailBaseURL is a var (not const) so tests can point it at an httptest server.
+var gmailBaseURL = "https://gmail.googleapis.com/gmail/v1/users/me"
 
 func (n *GmailNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
 	accessToken := strVal(config, "access_token")

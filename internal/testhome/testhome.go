@@ -15,8 +15,9 @@ import (
 	"testing"
 )
 
-// Main points HOME (and USERPROFILE) at a fresh temp dir, runs the tests,
-// removes the dir and exits. Go's build and module caches, and the user cache
+// Main points HOME (and USERPROFILE) at a fresh temp dir, makes
+// http.DefaultTransport refuse non-loopback hosts (see AllowNetworkEnv), runs
+// the tests, removes the dir and exits. Go's build and module caches, and the user cache
 // dir (rod's browser download), keep their real locations so tests that
 // build binaries or launch a browser don't start cold.
 func Main(m *testing.M) {
@@ -25,6 +26,7 @@ func Main(m *testing.M) {
 
 func run(m *testing.M) int {
 	keepCaches()
+	blockNetwork()
 	dir, err := os.MkdirTemp("", "monoagent-testhome-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "testhome:", err)

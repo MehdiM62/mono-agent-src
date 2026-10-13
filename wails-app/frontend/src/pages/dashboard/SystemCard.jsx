@@ -18,7 +18,9 @@ export function DashRow({ tone, label, value, title, onClick }) {
 
 export const TONE = { ok: 'var(--green-neon)', warn: '#fbbf24', bad: '#ef4444', off: 'var(--text-dim)' }
 
-export default function SystemCard({ summary, onNavigate }) {
+// bridge: the row's state when the dashboard knows more than the port probe
+// (bridgeState in getStarted.js); otherwise summary's own.
+export default function SystemCard({ summary, bridge: bridgeProp, onNavigate }) {
   const { t } = useTranslation()
   const [health, setHealth] = useState(getHealth())
   useEffect(() => subscribeHealth(setHealth), [])
@@ -29,7 +31,7 @@ export default function SystemCard({ summary, onNavigate }) {
   const sv = summary?.services
   const jev = summary?.jev
   const h = summarize(health?.report)
-  const bridge = sv?.bridge ? sv.bridge.status : 'off'
+  const bridge = bridgeProp ?? (sv?.bridge ? sv.bridge.status : 'off')
   const toHealth = () => onNavigate('settings', { section: 'health' })
   const healthTone = health?.cliMissing || h.level === 'broken' ? TONE.bad : h.level === 'issues' ? TONE.warn : health?.report ? TONE.ok : TONE.off
   const healthValue = health?.cliMissing ? t('dashboard.system.cliMissing')

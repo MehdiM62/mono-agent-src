@@ -1,0 +1,21 @@
+{
+  "name": "Form webhook to Google Sheets",
+  "nodes": [
+    {"parameters": {"httpMethod": "POST", "path": "lead-form", "responseMode": "responseNode", "options": {}}, "id": "w1", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [0, 0], "webhookId": "abc-123"},
+    {"parameters": {"assignments": {"assignments": [
+      {"id": "a", "name": "email", "value": "={{ $json.body.email.toLowerCase().trim() }}", "type": "string"},
+      {"id": "b", "name": "name", "value": "={{ $json.body.first_name + ' ' + $json.body.last_name }}", "type": "string"},
+      {"id": "c", "name": "received", "value": "={{ $now.toISO() }}", "type": "string"},
+      {"id": "d", "name": "budget", "value": "={{ Number($json.body.budget) || 0 }}", "type": "number"}
+    ]}, "options": {}}, "id": "w2", "name": "Normalize", "type": "n8n-nodes-base.set", "typeVersion": 3.4, "position": [220, 0]},
+    {"parameters": {"operation": "append", "documentId": {"__rl": true, "value": "1AbCdEf", "mode": "id"}, "sheetName": {"__rl": true, "value": "Leads", "mode": "name"},
+      "columns": {"mappingMode": "defineBelow", "value": {"Email": "={{ $json.email }}", "Name": "={{ $json.name }}", "Received": "={{ $json.received }}"}, "matchingColumns": [], "schema": []}, "options": {}},
+      "id": "w3", "name": "Append row", "type": "n8n-nodes-base.googleSheets", "typeVersion": 4.5, "position": [440, 0], "credentials": {"googleSheetsOAuth2Api": {"id": "9", "name": "Google Sheets account"}}},
+    {"parameters": {"respondWith": "json", "responseBody": "={ \"ok\": true }", "options": {}}, "id": "w4", "name": "Respond", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [660, 0]}
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Normalize", "type": "main", "index": 0}]]},
+    "Normalize": {"main": [[{"node": "Append row", "type": "main", "index": 0}]]},
+    "Append row": {"main": [[{"node": "Respond", "type": "main", "index": 0}]]}
+  }
+}

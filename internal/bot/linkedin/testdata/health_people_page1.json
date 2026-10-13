@@ -1,0 +1,6 @@
+[
+  {"url": "https://www.linkedin.com/in/ann-lee-test", "name": "Ann Lee", "headline": "Staff Engineer at Acme", "location": "Berlin", "degree": "2nd", "followsBack": true},
+  {"url": "https://www.linkedin.com/in/bo-kim-test", "name": "Bo Kim", "headline": "Designer", "location": "Seoul", "degree": "3rd+", "followsBack": false},
+  {"url": "https://www.linkedin.com/in/ann-lee-test", "name": "Ann Lee (duplicate card)", "headline": "", "location": "", "degree": "", "followsBack": false},
+  {"url": "", "name": "LinkedIn Member", "headline": "card without a profile link", "location": "", "degree": "", "followsBack": false}
+]

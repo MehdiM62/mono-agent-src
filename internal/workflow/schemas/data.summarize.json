@@ -1,0 +1,51 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "help": "JSON array of {aggregation, field, include_empty, separate_by, custom_separator}. aggregation: append, average, concatenate, count, count_unique, max, min, sum. Results are named <aggregation>_<field> (e.g. sum_amount, unique_count_id, appended_tags). separate_by applies to concatenate (default ','; 'other' uses custom_separator).",
+      "key": "fields_to_summarize",
+      "label": "Fields To Summarize (JSON)",
+      "placeholder": "[\n  { \"aggregation\": \"sum\", \"field\": \"amount\" },\n  { \"aggregation\": \"count\", \"field\": \"id\" }\n]",
+      "required": true,
+      "rows": 5,
+      "type": "textarea"
+    },
+    {
+      "help": "Comma-separated fields to group the summary by.",
+      "key": "fields_to_split_by",
+      "label": "Fields To Split By",
+      "placeholder": "country, city",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "separate_items",
+      "help": "separate_items: one item per group. single_item: one item with groups nested by their values.",
+      "key": "output_format",
+      "label": "Output Format",
+      "options": [
+        "separate_items",
+        "single_item"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": false,
+      "help": "Treat field names literally instead of as parent.child paths.",
+      "key": "disable_dot_notation",
+      "label": "Disable Dot Notation",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "help": "Leave out items whose group-by field is empty.",
+      "key": "skip_empty_split_fields",
+      "label": "Skip Items Without Group Value",
+      "required": false,
+      "type": "boolean"
+    }
+  ]
+}

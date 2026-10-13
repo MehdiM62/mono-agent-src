@@ -278,6 +278,7 @@ func newNodeCmd(cfg *globalConfig) *cobra.Command {
 		newNodeRunCmd(cfg),
 		newNodeSchemaCmd(cfg),
 		newNodePaletteCmd(cfg),
+		newNodeCurlCmd(cfg),
 	)
 	return cmd
 }
@@ -321,7 +322,12 @@ func nodeTypeCategory(t string) string {
 	return nodeCategory(t)
 }
 
-// newNodeListCmd lists all registered node types.
+// triggerNodeTypes are the trigger types the engine handles itself: they are
+// never in the node registry (execution.go passes them through), so `node
+// list` adds them to the registered types.
+var triggerNodeTypes = []string{"trigger.manual", "trigger.org", "trigger.schedule", "trigger.webhook"}
+
+// newNodeListCmd lists all registered node types and the engine's triggers.
 func newNodeListCmd(cfg *globalConfig) *cobra.Command {
 	var filter string
 
@@ -340,6 +346,11 @@ func newNodeListCmd(cfg *globalConfig) *cobra.Command {
 			}
 			registry := buildNodeRegistry(cfg.Verbose, rawDB)
 			types := registry.Types()
+			for _, t := range triggerNodeTypes {
+				if !registry.Has(t) {
+					types = append(types, t)
+				}
+			}
 			sort.Strings(types)
 
 			if filter != "" {
@@ -368,8 +379,7 @@ func newNodeListCmd(cfg *globalConfig) *cobra.Command {
 			fmt.Fprintln(w, "TYPE\tCATEGORY")
 			fmt.Fprintln(w, "────\t────────")
 			for _, t := range types {
-				cat := nodeCategory(t)
-				fmt.Fprintf(w, "%s\t%s\n", t, cat)
+				fmt.Fprintf(w, "%s\t%s\n", t, nodeTypeCategory(t))
 			}
 			w.Flush()
 			fmt.Printf("\n%d node types\n", len(types))

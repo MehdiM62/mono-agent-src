@@ -217,6 +217,7 @@ through, so an unset param stays unset:
 | `eq:'x'`, `ne:'x'` | `true` when the value's string equals (`eq`) / differs from (`ne`) the argument, else nil, so they chain into `then`: `"$merge": "{{ p.dataToSend \| eq:'autoMapInputData' \| then:item }}"` |
 | `kv:'keyField,valueField'` / `kv:'keyField,valueField,prefix'` | n8n key/value rows `[{fieldId: "a", fieldValue: 1}]` → object `{"a": 1}` (with a prefix: `kv:'fieldId,fieldValue,field_'` → `{"field_12": …}`). A single-key wrapper (`{"fieldValues": [...]}`) is unwrapped; rows with an empty key are skipped |
 | `fromjson` | JSON string → value (n8n `jsonParameters` / `*Json` params: `"$merge": "{{ p.additionalFieldsJson \| fromjson }}"`); non-strings pass |
+| `"$when": "<template>"` (object key) | the object is omitted when the template renders empty/false, and kept even with all other keys empty when it passes (Google Docs `"endOfSegmentLocation": {}`) |
 | `prefix:'x'`, `suffix:'x'` | add text before/after a NON-empty value (empty stays empty → omitted): `{{ p.rrule \| prefix:'RRULE:' }}`, `{{ p.contactId \| prefix:'people/' }}` |
 | `base64`, `base64url` | encode the value's text (`base64url` is unpadded, for Gmail `raw`) |
 | `row:<path>` | object → list of its values ordered by a header list: `{{ item \| row:pre.values }}` (a list of rows uses its first row; missing keys → `""`) |
