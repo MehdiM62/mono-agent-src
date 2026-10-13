@@ -78,7 +78,9 @@ type Manifest struct {
 	Assets    []Asset `json:"assets"`
 }
 
-// VerifyWith is Verify against explicit keys.
+// VerifyWith checks sig (a "<key-id> <base64 signature>" line) over the
+// exact manifest bytes against keys (normally PinnedKeys()) and parses the
+// manifest.
 func VerifyWith(keys []Key, manifest, sig []byte) (*Manifest, error) {
 	if len(keys) == 0 {
 		return nil, fmt.Errorf("%w: this build pins no release key", ErrUnavailable)
