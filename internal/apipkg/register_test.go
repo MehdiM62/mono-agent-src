@@ -102,9 +102,13 @@ func TestInstalledPackagesOverrideAndErrors(t *testing.T) {
 		"todoist": strings.Replace(pkgJSON(`{"resource":"","operation":"ping","title":"Ping","method":"GET","path":"/p"}`), `"id":"demo"`, `"id":"todoist"`, 1),
 		"broken":  `{"$schema":"apipkg.v1","id":"broken"}`,
 		"dupe":    strings.Replace(pkgJSON(`{"resource":"","operation":"ping","title":"Ping","method":"GET","path":"/p"}`), `"id":"demo"`, `"id":"dupe","node_type":"app.typeform"`, 1),
+		"dupe2":   strings.Replace(pkgJSON(`{"resource":"","operation":"ping","title":"Ping","method":"GET","path":"/p"}`), `"id":"demo"`, `"id":"dupe2","node_type":"app.typeform"`, 1),
 	})
 	pkgs, err := Load()
-	if err == nil || !strings.Contains(err.Error(), "broken") || !strings.Contains(err.Error(), "both claim app.typeform") {
+	// An installed package claiming a catalog node type replaces it; two
+	// installed packages claiming one type are an error.
+	if err == nil || !strings.Contains(err.Error(), "broken") || !strings.Contains(err.Error(), "dupe and dupe2 both claim app.typeform") &&
+		!strings.Contains(err.Error(), "both claim app.typeform; dupe2 is left out") {
 		t.Errorf("errors: %v", err)
 	}
 	p, _ := ByID("todoist")
@@ -116,8 +120,8 @@ func TestInstalledPackagesOverrideAndErrors(t *testing.T) {
 	for _, p := range pkgs {
 		ids[p.ID] = true
 	}
-	if !ids["todoist"] || !ids["typeform"] || !ids["calendly"] || ids["dupe"] || ids["broken"] {
-		t.Errorf("packages: %v (want todoist/typeform/calendly, not dupe/broken)", ids)
+	if !ids["todoist"] || ids["typeform"] || !ids["dupe"] || ids["dupe2"] || !ids["calendly"] || ids["broken"] {
+		t.Errorf("packages: %v (want todoist, dupe replacing typeform, calendly; not dupe2/broken)", ids)
 	}
 	if !strings.HasSuffix(InstallDir(), ".monoagent/apipkgs") {
 		t.Error(InstallDir())
