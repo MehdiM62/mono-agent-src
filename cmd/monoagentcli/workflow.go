@@ -7,12 +7,8 @@ import (
 	"time"
 
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
-	cfgpkg "github.com/monoes/mono-agent/internal/config"
-	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/cli/enginebuild"
 	"github.com/monoes/mono-agent/internal/i18n"
-	"github.com/monoes/mono-agent/internal/logging"
-	"github.com/monoes/mono-agent/internal/nodes"
-	"github.com/monoes/mono-agent/internal/scheduler"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -147,60 +143,22 @@ func restoreWorkflowSnapshot(ctx context.Context, store *workflow.HybridWorkflow
 	return nil
 }
 
-// buildEngine constructs a fully wired WorkflowEngine suitable for CLI use.
-// It creates its own scheduler (no action executor or store needed for workflow triggers).
-// The returned cleanup func is currently a no-op placeholder kept for the
-// engine lifecycle contract; callers should defer it alongside
-// engine.Stop().
+// buildEngine constructs a fully wired WorkflowEngine suitable for CLI use
+// (enginebuild.Build, with the CLI's database, browser session provider,
+// bot registry and workflow store).
 func buildEngine(cfg *globalConfig, allowAllProfiles bool) (*workflow.WorkflowEngine, func(), error) {
-	db, err := initDB(cfg)
-	if err != nil {
-		return nil, func() {}, fmt.Errorf("open database: %w", err)
-	}
-
-	registry := buildNodeRegistry(cfg.Verbose, db.DB)
-
-	logger := logging.Zerolog()
-	if cfg.Verbose {
-		logger = logger.Level(zerolog.TraceLevel)
-	}
-
-	// Set up browser session provider, bot registry, and config manager
-	// so browser/social nodes work in workflows. Chrome extension only —
-	// no Rod/Chromium fallback, sharing another local process's connection
-	// when one already exists (e.g. the daemon). The bridge is connected
-	// lazily on the first browser-node GetPage: connecting eagerly blocked
-	// every engine command (workflow run/activate/daemon) for up to ~60s
-	// and launched the user's real Chrome even for browserless workflows.
-	extLogger := logger.With().Str("component", "extension").Logger()
-	sessionProvider := &lazyBrowserSessionProvider{logger: extLogger, defaultProfile: cfg.ProfileID}
-	nodes.SetGlobalSessionProvider(sessionProvider)
-	nodes.SetGlobalBotRegistry(&cliBotRegistry{})
-	nodes.SetGlobalCredentialStore(connections.NewStore(db.DB))
-
-	cfgLogger := logging.Zerolog()
-	cfgStore := cfgpkg.ConfigStore(&cfgpkg.DBConfigStore{DB: db})
-	rawCfgMgr := cfgpkg.NewConfigManager(expandPath("~/.monoagent/configs"), cfgStore, cfgLogger)
-	nodes.SetGlobalConfigMgr(&cfgpkg.ConfigManagerAdapter{Mgr: rawCfgMgr})
-
-	sched := scheduler.NewScheduler(logger)
-	sched.Start()
-
-	engCfg := workflow.EngineConfig{
-		MaxConcurrent:    5,
-		QueueCapacity:    1000,
-		PruneInterval:    time.Hour,
-		MaxExecHistory:   500,
-		ProfileID:        cfg.ProfileID,
+	return enginebuild.Build(enginebuild.Options{
+		Verbose:          cfg.Verbose,
+		ProfileID:        func() string { return cfg.ProfileID },
 		AllowAllProfiles: allowAllProfiles,
-	}
-
-	hybridStore := openWorkflowStore(db)
-	engine := workflow.NewWorkflowEngineWithStore(hybridStore, db.DB, sched, registry, engCfg, logger)
-	return engine, func() {
-		sessionProvider.Close()
-		nodes.CloseHealthObservers()
-	}, nil
+	}, enginebuild.Deps{
+		OpenDB: func() (*storage.Database, error) { return initDB(cfg) },
+		NewSessionProvider: func(logger zerolog.Logger, defaultProfile string) enginebuild.SessionProvider {
+			return &lazyBrowserSessionProvider{logger: logger, defaultProfile: defaultProfile}
+		},
+		BotRegistry:       &cliBotRegistry{},
+		OpenWorkflowStore: openWorkflowStore,
+	})
 }
 
 // lazyBrowserSessionProvider implements nodes.SessionProvider by connecting
