@@ -416,6 +416,8 @@ workflows is the node's normal `on_error`.
 
 `next_url_prefix` (template) is prepended to a next URL that starts with `/` when its base is not the request host (Confluence v2: `"next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl }}"`).
 
+With `"param_in": "body"`, the page param names may be dot paths, nested into the JSON body (GraphQL relay paging): `"cursor_param": "variables.after"`, `"limit_param": "variables.first"`.
+
 ## 9. Output
 
 `"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)

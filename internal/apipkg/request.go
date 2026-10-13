@@ -163,7 +163,7 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 				obj = map[string]any{}
 			}
 			for k, val := range pp.values {
-				obj[k] = val
+				setPath(obj, k, val) // "variables.after" nests (GraphQL)
 			}
 		}
 		if bt == BodyJSON {
@@ -471,4 +471,20 @@ func addBrackets(q url.Values, key string, v any) {
 			q.Set(key, stringify(v))
 		}
 	}
+}
+
+// setPath sets obj[a][b]… = val for the dot path "a.b…", creating
+// intermediate objects (a non-object in the way is replaced).
+func setPath(obj map[string]any, path string, val any) {
+	parts := strings.Split(path, ".")
+	cur := obj
+	for _, p := range parts[:len(parts)-1] {
+		next, ok := cur[p].(map[string]any)
+		if !ok {
+			next = map[string]any{}
+			cur[p] = next
+		}
+		cur = next
+	}
+	cur[parts[len(parts)-1]] = val
 }
