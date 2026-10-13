@@ -1,0 +1,801 @@
+{
+  "databricksSql.executeQuery": {
+    "params": {
+      "warehouseId": {
+        "__rl": true,
+        "value": "w1"
+      },
+      "query": "select 1 as a",
+      "queryParameters": {
+        "parameters": [
+          {
+            "name": "x",
+            "value": "1",
+            "type": "INT"
+          }
+        ]
+      }
+    },
+    "response": {
+      "statement_id": "s1",
+      "status": {
+        "state": "SUCCEEDED"
+      },
+      "manifest": {
+        "schema": {
+          "columns": [
+            {
+              "name": "a"
+            }
+          ]
+        }
+      },
+      "result": {
+        "data_array": [
+          [
+            "1"
+          ],
+          [
+            "2"
+          ]
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/sql/statements",
+      "body": {
+        "warehouse_id": "w1",
+        "statement": "select 1 as a",
+        "wait_timeout": "50s",
+        "on_wait_timeout": "CONTINUE",
+        "parameters": [
+          {
+            "name": "x",
+            "value": "1",
+            "type": "INT"
+          }
+        ]
+      },
+      "items": 2
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "files.listDirectory": {
+    "params": {
+      "volumePath": "main.default.vol",
+      "directoryPath": "a/b",
+      "additionalFields": {
+        "pageSize": 10
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.0/fs/directories/Volumes/main/default/vol/a/b",
+      "query": {
+        "page_size": "10"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "files.createDirectory": {
+    "params": {
+      "volumePath": "main.default.vol",
+      "directoryPath": "new"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/2.0/fs/directories/Volumes/main/default/vol/new",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "files.deleteDirectory": {
+    "params": {
+      "volumePath": "main.default.vol",
+      "directoryPath": "new"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/2.0/fs/directories/Volumes/main/default/vol/new"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "files.deleteFile": {
+    "params": {
+      "volumePath": "main.default.vol",
+      "filePath": "x/y.csv"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/2.0/fs/files/Volumes/main/default/vol/x/y.csv"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "files.downloadFile": {
+    "params": {
+      "volumePath": "main.default.vol",
+      "filePath": "y.csv"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.0/fs/files/Volumes/main/default/vol/y.csv",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "files.getFileInfo": {
+    "params": {
+      "volumePath": "main.default.vol",
+      "filePath": "y.csv"
+    },
+    "expect": {
+      "method": "HEAD",
+      "path": "/api/2.0/fs/files/Volumes/main/default/vol/y.csv"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "files.uploadFile": {
+    "params": {
+      "volumePath": "main.default.vol",
+      "filePath": "y.csv",
+      "additionalFields": {
+        "overwrite": true
+      }
+    },
+    "input": {
+      "data": "YSxi"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/2.0/fs/files/Volumes/main/default/vol/y.csv",
+      "query": {
+        "overwrite": "true"
+      },
+      "body": "a,b"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "genie.startConversation": {
+    "params": {
+      "spaceId": "sp",
+      "initialMessage": "Sales?"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/genie/spaces/sp/start-conversation",
+      "body": {
+        "content": "Sales?"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "genie.createMessage": {
+    "params": {
+      "spaceId": "sp",
+      "conversationId": "c",
+      "message": "More"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/genie/spaces/sp/conversations/c/messages",
+      "body": {
+        "content": "More"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "genie.executeMessageQuery": {
+    "params": {
+      "spaceId": "sp",
+      "conversationId": "c",
+      "messageId": "m",
+      "attachmentId": "a"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/genie/spaces/sp/conversations/c/messages/m/attachments/a/execute-query"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "genie.getMessage": {
+    "params": {
+      "spaceId": "sp",
+      "conversationId": "c",
+      "messageId": "m"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.0/genie/spaces/sp/conversations/c/messages/m"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "genie.getSpace": {
+    "params": {
+      "spaceId": "sp"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.0/genie/spaces/sp"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "genie.getQueryResults": {
+    "params": {
+      "spaceId": "sp",
+      "conversationId": "c",
+      "messageId": "m",
+      "attachmentId": "a"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.0/genie/spaces/sp/conversations/c/messages/m/attachments/a/query-result"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "job.run": {
+    "params": {
+      "jobId": "42",
+      "jobParameters": {
+        "parameters": [
+          {
+            "name": "env",
+            "value": "prod"
+          }
+        ]
+      }
+    },
+    "response": {
+      "run_id": 7
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.2/jobs/run-now",
+      "body": {
+        "job_id": 42,
+        "job_parameters": {
+          "env": "prod"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "job.getJob": {
+    "params": {
+      "jobId": "42"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.2/jobs/get",
+      "query": {
+        "job_id": "42",
+        "include_trigger_state": "true"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "job.getRun": {
+    "params": {
+      "runId": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.2/jobs/runs/get",
+      "query": {
+        "run_id": "7"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "job.getRunOutput": {
+    "params": {
+      "runId": "7"
+    },
+    "responses": [
+      {
+        "job_id": 42,
+        "tasks": [
+          {
+            "run_id": 8,
+            "task_key": "t1"
+          }
+        ]
+      },
+      {
+        "notebook_output": {
+          "result": "ok"
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/2.2/jobs/runs/get",
+        "query": {
+          "run_id": "7"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/2.2/jobs/runs/get-output",
+        "query": {
+          "run_id": "8"
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.2/jobs/runs/get",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "modelServing.queryEndpoint": {
+    "params": {
+      "endpointName": "chat",
+      "requestBody": "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/serving-endpoints/chat/invocations",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.listTables": {
+    "params": {
+      "catalogName": "main",
+      "schemaName": "default"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/tables",
+      "query": {
+        "catalog_name": "main",
+        "schema_name": "default"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.createCatalog": {
+    "params": {
+      "catalogName": "sales",
+      "comment": "c"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.1/unity-catalog/catalogs",
+      "body": {
+        "name": "sales",
+        "comment": "c"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.createFunction": {
+    "params": {
+      "catalogName": "main",
+      "schemaName": "default",
+      "functionName": "f",
+      "inputParams": "[{\"name\":\"x\",\"type_name\":\"INT\",\"position\":0}]",
+      "routineDefinition": "x+1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.1/unity-catalog/functions",
+      "body": {
+        "function_info": {
+          "name": "f",
+          "catalog_name": "main",
+          "schema_name": "default",
+          "input_params": {
+            "parameters": [
+              {
+                "name": "x",
+                "type_name": "INT",
+                "position": 0,
+                "type_text": "INT",
+                "type_json": "{\"name\":\"INT\"}"
+              }
+            ]
+          },
+          "data_type": "STRING",
+          "full_data_type": "STRING",
+          "specific_name": "f",
+          "parameter_style": "S",
+          "security_type": "DEFINER",
+          "sql_data_access": "CONTAINS_SQL",
+          "is_deterministic": false,
+          "is_null_call": true,
+          "routine_body": "SQL",
+          "routine_definition": "x+1"
+        }
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.createTable": {
+    "params": {
+      "catalogName": "main",
+      "schemaName": "default",
+      "tableName": "t",
+      "storageLocation": "s3://b/t",
+      "tableAdditionalFields": {
+        "columns": "[{\"name\":\"id\"}]"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.1/unity-catalog/tables",
+      "body": {
+        "catalog_name": "main",
+        "schema_name": "default",
+        "name": "t",
+        "table_type": "EXTERNAL",
+        "data_source_format": "DELTA",
+        "storage_location": "s3://b/t",
+        "columns": [
+          {
+            "name": "id"
+          }
+        ]
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.createVolume": {
+    "params": {
+      "catalogName": "main",
+      "schemaName": "default",
+      "volumeName": "v"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.1/unity-catalog/volumes",
+      "body": {
+        "catalog_name": "main",
+        "schema_name": "default",
+        "name": "v",
+        "volume_type": "MANAGED"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.deleteCatalog": {
+    "params": {
+      "catalogName": "sales"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/2.1/unity-catalog/catalogs/sales"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.deleteFunction": {
+    "params": {
+      "fullName": "main.default.f"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/2.1/unity-catalog/functions/main.default.f"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.deleteTable": {
+    "params": {
+      "fullName": "main.default.t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/2.1/unity-catalog/tables/main.default.t"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.deleteVolume": {
+    "params": {
+      "catalogName": "main",
+      "schemaName": "default",
+      "volumeName": "v"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/2.1/unity-catalog/volumes/main.default.v"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.getCatalog": {
+    "params": {
+      "catalogName": "sales"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/catalogs/sales"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.getFunction": {
+    "params": {
+      "fullName": "main.default.f"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/functions/main.default.f"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.getTable": {
+    "params": {
+      "fullName": "main.default.t"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/tables/main.default.t"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.getVolume": {
+    "params": {
+      "catalogName": "main",
+      "schemaName": "default",
+      "volumeName": "v"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/volumes/main.default.v"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.listCatalogs": {
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/catalogs"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.listFunctions": {
+    "params": {
+      "catalogName": "main",
+      "schemaName": "default"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/functions",
+      "query": {
+        "catalog_name": "main",
+        "schema_name": "default"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.listVolumes": {
+    "params": {
+      "catalogName": "main"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/volumes",
+      "query": {
+        "catalog_name": "main"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "unityCatalog.updateCatalog": {
+    "params": {
+      "catalogName": "sales",
+      "comment": "new"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/2.1/unity-catalog/catalogs/sales",
+      "body": {
+        "comment": "new"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "vectorSearch.listIndexes": {
+    "params": {
+      "endpointName": "vs"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.0/vector-search/indexes",
+      "query": {
+        "endpoint_name": "vs"
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "vectorSearch.createIndex": {
+    "params": {
+      "indexName": "main.default.idx",
+      "endpointName": "vs",
+      "primaryKey": "id",
+      "deltaSyncIndexSpec": "{\"source_table\":\"main.default.docs\"}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/vector-search/indexes",
+      "body": {
+        "name": "main.default.idx",
+        "endpoint_name": "vs",
+        "primary_key": "id",
+        "index_type": "DELTA_SYNC",
+        "delta_sync_index_spec": {
+          "source_table": "main.default.docs"
+        }
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "vectorSearch.getIndex": {
+    "params": {
+      "indexName": "main.default.idx"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/2.0/vector-search/indexes/main.default.idx"
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  },
+  "vectorSearch.queryIndex": {
+    "params": {
+      "indexName": "idx",
+      "queryText": "refunds",
+      "columns": "id, text",
+      "enableReranking": true,
+      "columnsToRerank": "text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/vector-search/indexes/idx/query",
+      "body": {
+        "num_results": 10,
+        "query_type": "ANN",
+        "query_text": "refunds",
+        "columns": [
+          "id",
+          "text"
+        ],
+        "reranker": {
+          "model": "databricks_reranker",
+          "parameters": {
+            "columns_to_rerank": [
+              "text"
+            ]
+          }
+        }
+      }
+    },
+    "credential": {
+      "host": "https://adb-1.azuredatabricks.net",
+      "access_token": "dapi1"
+    }
+  }
+}
