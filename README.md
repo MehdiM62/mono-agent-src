@@ -16,7 +16,7 @@
 
 ## What is Mono Agent?
 
-**Mono Agent** is an automation platform that runs on your machine for humans **and** AI agents:
+**Mono Agent** is an automation platform that runs on your machine for humans **and** AI agents. **No AI credits:** AI steps run on the agent CLI you already pay for (Claude Code, Codex, OpenCode, Copilot and others), with that CLI's own login and plan.
 
 > **Project status:** pre-1.0, single maintainer. Core workflow engine and node set are exercised by CI (`go test ./...`), but expect breaking changes between minor versions until 1.0.
 
@@ -828,6 +828,8 @@ mono-agent/
 ---
 
 ## Community
+
+Want it built for you? [Monoes Workforce](https://monoes.me/workforce) sets up and runs automations for you.
 
 Questions, ideas, and "is this the right tool for X" go to [GitHub Discussions](https://github.com/monoes/mono-agent/discussions) — the issue tracker is kept for bugs and well-scoped feature requests. See [SUPPORT.md](SUPPORT.md) for the full breakdown, and [SECURITY.md](SECURITY.md) for reporting vulnerabilities (never in a public issue or Discussion).
 
