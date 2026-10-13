@@ -1,0 +1,463 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_contacts",
+  "node_type": "app.google_contacts",
+  "title": "Google Contacts",
+  "description": "Contacts in Google Contacts (People API)",
+  "category": "app",
+  "docs_url": "https://developers.google.com/people/api/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleContacts"
+  ],
+  "base_url": "https://people.googleapis.com/v1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Contacts scope group)",
+      "n8n_credential": "googleContactsOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google",
+      "scope_group": "contacts"
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/people:createContact",
+      "fields": [
+        {
+          "key": "familyName",
+          "label": "Family name",
+          "type": "text"
+        },
+        {
+          "key": "givenName",
+          "label": "Given name",
+          "type": "text"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressesUi",
+            "birthday",
+            "companyUi",
+            "customFieldsUi",
+            "emailsUi",
+            "eventsUi",
+            "fileAs",
+            "group",
+            "honorificPrefix",
+            "honorificSuffix",
+            "middleName",
+            "biographies",
+            "phoneUi",
+            "relationsUi"
+          ],
+          "help": "Lists are n8n-style: phoneUi.phoneValues [{type, value}], emailsUi.emailsValues [{type, value}], addressesUi.addressesValues [{streetAddress, city, region, countryCode, postalCode, type}], companyUi.companyValues [{current, domain, name, title}], relationsUi.relationsValues [{person, type}], eventsUi.eventsValues [{date, type}], customFieldsUi.customFieldsValues [{key, value}]; group is a list of contactGroups/… resource names; birthday is a date."
+        }
+      ],
+      "body": {
+        "names": [
+          {
+            "givenName": "{{ p.givenName }}",
+            "familyName": "{{ p.familyName }}",
+            "middleName": "{{ p.additionalFields.middleName }}",
+            "honorificPrefix": "{{ p.additionalFields.honorificPrefix }}",
+            "honorificSuffix": "{{ p.additionalFields.honorificSuffix }}"
+          }
+        ],
+        "organizations": "{{ p.additionalFields.companyUi.companyValues }}",
+        "phoneNumbers": "{{ p.additionalFields.phoneUi.phoneValues }}",
+        "addresses": "{{ p.additionalFields.addressesUi.addressesValues }}",
+        "relations": "{{ p.additionalFields.relationsUi.relationsValues }}",
+        "events": {
+          "$map": "{{ p.additionalFields.eventsUi.eventsValues }}",
+          "$to": {
+            "date": {
+              "day": "{{ el.date | date:'DD' | int }}",
+              "month": "{{ el.date | date:'MM' | int }}",
+              "year": "{{ el.date | date:'YYYY' | int }}"
+            },
+            "type": "{{ el.type }}"
+          }
+        },
+        "birthdays": [
+          {
+            "date": {
+              "day": "{{ p.additionalFields.birthday | date:'DD' | int }}",
+              "month": "{{ p.additionalFields.birthday | date:'MM' | int }}",
+              "year": "{{ p.additionalFields.birthday | date:'YYYY' | int }}"
+            }
+          }
+        ],
+        "emailAddresses": "{{ p.additionalFields.emailsUi.emailsValues }}",
+        "biographies": [
+          {
+            "value": "{{ p.additionalFields.biographies }}",
+            "contentType": "{{ p.additionalFields.biographies | then:'TEXT_PLAIN' }}"
+          }
+        ],
+        "userDefined": "{{ p.additionalFields.customFieldsUi.customFieldsValues }}",
+        "memberships": {
+          "$map": "{{ p.additionalFields.group }}",
+          "$to": {
+            "contactGroupMembership": {
+              "contactGroupResourceName": "{{ el }}"
+            }
+          }
+        },
+        "fileAses": [
+          {
+            "value": "{{ p.additionalFields.fileAs }}"
+          }
+        ]
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/people/{{ p.contactId }}:deleteContact",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true,
+          "help": "The ID after people/ in the contact's resource name."
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/people/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true,
+          "help": "The ID after people/ in the contact's resource name."
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "addresses",
+            "biographies",
+            "birthdays",
+            "coverPhotos",
+            "emailAddresses",
+            "events",
+            "genders",
+            "imClients",
+            "interests",
+            "locales",
+            "memberships",
+            "metadata",
+            "names",
+            "nicknames",
+            "occupations",
+            "organizations",
+            "phoneNumbers",
+            "photos",
+            "relations",
+            "residences",
+            "sipAddresses",
+            "skills",
+            "urls",
+            "userDefined"
+          ],
+          "default": [],
+          "required": true,
+          "help": "Person fields to return; * returns all."
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Accepted for n8n compatibility; the People API person is returned as is."
+        }
+      ],
+      "query": {
+        "personFields": "{{ p.fields | csv | eq:'*' | then:'addresses,biographies,birthdays,coverPhotos,emailAddresses,events,genders,imClients,interests,locales,memberships,metadata,names,nicknames,occupations,organizations,phoneNumbers,photos,relations,residences,sipAddresses,skills,urls,userDefined' | default:p.fields | csv }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "description": "Lists your connections, or searches contacts when Use query is on (search returns at most 30 results, each under person).",
+      "path": "/people{{ p.useQuery | eq:'true' | then:':searchContacts' | default:'/me/connections' }}",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "addresses",
+            "biographies",
+            "birthdays",
+            "coverPhotos",
+            "emailAddresses",
+            "events",
+            "genders",
+            "imClients",
+            "interests",
+            "locales",
+            "memberships",
+            "metadata",
+            "names",
+            "nicknames",
+            "occupations",
+            "organizations",
+            "phoneNumbers",
+            "photos",
+            "relations",
+            "residences",
+            "sipAddresses",
+            "skills",
+            "urls",
+            "userDefined"
+          ],
+          "default": [],
+          "required": true,
+          "help": "Person fields to return; * returns all."
+        },
+        {
+          "key": "useQuery",
+          "label": "Use query",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "query",
+          "label": "Query",
+          "type": "text"
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Accepted for n8n compatibility."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sortOrder"
+          ]
+        }
+      ],
+      "query": {
+        "personFields": "{{ p.fields | csv | eq:'*' | then:p.useQuery | eq:'false' | then:'addresses,biographies,birthdays,coverPhotos,emailAddresses,events,genders,imClients,interests,locales,memberships,metadata,names,nicknames,occupations,organizations,phoneNumbers,photos,relations,residences,sipAddresses,skills,urls,userDefined' }}{{ p.fields | csv | ne:'*' | then:p.useQuery | eq:'false' | then:p.fields | csv }}",
+        "readMask": "{{ p.fields | csv | eq:'*' | then:p.useQuery | eq:'true' | then:'addresses,biographies,birthdays,coverPhotos,emailAddresses,events,genders,imClients,interests,locales,memberships,metadata,names,nicknames,occupations,organizations,phoneNumbers,photos,relations,residences,sipAddresses,skills,urls,userDefined' }}{{ p.fields | csv | ne:'*' | then:p.useQuery | eq:'true' | then:p.fields | csv }}",
+        "query": "{{ p.useQuery | eq:'true' | then:p.query }}",
+        "sortOrder": "{{ p.options.sortOrder }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "pageSize",
+        "page_size": 100,
+        "results_path": "connections"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PATCH",
+      "path": "/people/{{ p.contactId }}:updateContact",
+      "description": "Without an etag the contact is read first to get its current etag.",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true,
+          "help": "The ID after people/ in the contact's resource name."
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "multiselect",
+          "options": [
+            "*",
+            "addresses",
+            "biographies",
+            "birthdays",
+            "coverPhotos",
+            "emailAddresses",
+            "events",
+            "genders",
+            "imClients",
+            "interests",
+            "locales",
+            "memberships",
+            "metadata",
+            "names",
+            "nicknames",
+            "occupations",
+            "organizations",
+            "phoneNumbers",
+            "photos",
+            "relations",
+            "residences",
+            "sipAddresses",
+            "skills",
+            "urls",
+            "userDefined"
+          ],
+          "default": [],
+          "required": true,
+          "help": "Person fields to return; * returns all."
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "etag",
+            "familyName",
+            "givenName",
+            "addressesUi",
+            "birthday",
+            "companyUi",
+            "customFieldsUi",
+            "emailsUi",
+            "eventsUi",
+            "fileAs",
+            "group",
+            "honorificPrefix",
+            "honorificSuffix",
+            "middleName",
+            "biographies",
+            "phoneUi",
+            "relationsUi"
+          ],
+          "help": "Lists are n8n-style: phoneUi.phoneValues [{type, value}], emailsUi.emailsValues [{type, value}], addressesUi.addressesValues [{streetAddress, city, region, countryCode, postalCode, type}], companyUi.companyValues [{current, domain, name, title}], relationsUi.relationsValues [{person, type}], eventsUi.eventsValues [{date, type}], customFieldsUi.customFieldsValues [{key, value}]; group is a list of contactGroups/… resource names; birthday is a date."
+        }
+      ],
+      "before": {
+        "when": "{{ p.updateFields.etag | default:'' | eq:'' }}",
+        "method": "GET",
+        "path": "/people/{{ p.contactId }}",
+        "query": {
+          "personFields": "names"
+        }
+      },
+      "query": {
+        "personFields": "{{ p.fields | csv | eq:'*' | then:'addresses,biographies,birthdays,coverPhotos,emailAddresses,events,genders,imClients,interests,locales,memberships,metadata,names,nicknames,occupations,organizations,phoneNumbers,photos,relations,residences,sipAddresses,skills,urls,userDefined' | default:p.fields | csv }}",
+        "updatePersonFields": "{{ p.updateFields.companyUi | then:'organizations,' }}{{ p.updateFields.phoneUi | then:'phoneNumbers,' }}{{ p.updateFields.addressesUi | then:'addresses,' }}{{ p.updateFields.relationsUi | then:'relations,' }}{{ p.updateFields.eventsUi | then:'events,' }}{{ p.updateFields.birthday | then:'birthdays,' }}{{ p.updateFields.emailsUi | then:'emailAddresses,' }}{{ p.updateFields.biographies | then:'biographies,' }}{{ p.updateFields.customFieldsUi | then:'userDefined,' }}{{ p.updateFields.group | then:'memberships,' }}{{ p.updateFields.fileAs | then:'fileAses,' }}names"
+      },
+      "body": {
+        "names": [
+          {
+            "givenName": "{{ p.updateFields.givenName }}",
+            "familyName": "{{ p.updateFields.familyName }}",
+            "middleName": "{{ p.updateFields.middleName }}",
+            "honorificPrefix": "{{ p.updateFields.honorificPrefix }}",
+            "honorificSuffix": "{{ p.updateFields.honorificSuffix }}"
+          }
+        ],
+        "organizations": "{{ p.updateFields.companyUi.companyValues }}",
+        "phoneNumbers": "{{ p.updateFields.phoneUi.phoneValues }}",
+        "addresses": "{{ p.updateFields.addressesUi.addressesValues }}",
+        "relations": "{{ p.updateFields.relationsUi.relationsValues }}",
+        "events": {
+          "$map": "{{ p.updateFields.eventsUi.eventsValues }}",
+          "$to": {
+            "date": {
+              "day": "{{ el.date | date:'DD' | int }}",
+              "month": "{{ el.date | date:'MM' | int }}",
+              "year": "{{ el.date | date:'YYYY' | int }}"
+            },
+            "type": "{{ el.type }}"
+          }
+        },
+        "birthdays": [
+          {
+            "date": {
+              "day": "{{ p.updateFields.birthday | date:'DD' | int }}",
+              "month": "{{ p.updateFields.birthday | date:'MM' | int }}",
+              "year": "{{ p.updateFields.birthday | date:'YYYY' | int }}"
+            }
+          }
+        ],
+        "emailAddresses": "{{ p.updateFields.emailsUi.emailsValues }}",
+        "biographies": [
+          {
+            "value": "{{ p.updateFields.biographies }}",
+            "contentType": "{{ p.updateFields.biographies | then:'TEXT_PLAIN' }}"
+          }
+        ],
+        "userDefined": "{{ p.updateFields.customFieldsUi.customFieldsValues }}",
+        "memberships": {
+          "$map": "{{ p.updateFields.group }}",
+          "$to": {
+            "contactGroupMembership": {
+              "contactGroupResourceName": "{{ el }}"
+            }
+          }
+        },
+        "fileAses": [
+          {
+            "value": "{{ p.updateFields.fileAs }}"
+          }
+        ],
+        "!etag": "{{ p.updateFields.etag | default:pre.etag }}"
+      }
+    }
+  ]
+}
