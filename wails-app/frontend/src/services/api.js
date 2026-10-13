@@ -210,6 +210,23 @@ export const api = {
     GoApp.SetChatOrgMode(conversationID, mode).then(parseStreamResult),
   coderStopBackground: (conversationID, turnID) =>
     GoApp.CoderStopBackground(conversationID, turnID).then(parseStreamResult),
+  // Send approval (coder-bubble-v2 point 3): an agent's outbound send waits as a
+  // HIL item of kind "send" (also in getHILItems as item.send). Payload shape:
+  // internal/hilsend/types.go. hilSendResolve performs the previewed payload
+  // once on approve (editText/editSubject/alwaysAllow optional).
+  hilSendList:         (state = '') => GoApp.HilSendList(state).then(parseStreamResult),
+  hilSendShow:         (id) => GoApp.HilSendShow(id).then(parseStreamResult),
+  hilSendEdit:         (id, text = '', subject = '') => GoApp.HilSendEdit(id, text, subject).then(parseStreamResult),
+  hilSendResolve:      (id, approve, { editText = '', editSubject = '', alwaysAllow = false } = {}) =>
+    GoApp.HilSendResolve(id, approve, editText, editSubject, alwaysAllow).then(parseStreamResult),
+  hilSendAttachment:     (id, n) => GoApp.HilSendAttachment(id, n).then(parseStreamResult),
+  hilSendAttachmentData: (id, n) => GoApp.HilSendAttachmentData(id, n),
+  hilSendRecipient:    (id) => GoApp.HilSendRecipient(id).then(parseStreamResult),
+  hilSendAllowList:    () => GoApp.HilSendAllowList().then(parseStreamResult),
+  hilSendAllowAdd:     (action, platform, account, recipient) =>
+    GoApp.HilSendAllowAdd(action, platform, account, recipient).then(parseStreamResult),
+  hilSendAllowRemove:  (ruleID) => GoApp.HilSendAllowRemove(ruleID).then(parseStreamResult),
+  hilSendSetApproval:  (on) => GoApp.HilSendSetApproval(on).then(parseStreamResult),
   coderWorkspaceRoot: (runtimeID = '') => GoApp.CoderWorkspaceRoot(runtimeID).then(parseStreamResult),
   coderWorkspaceList: () => GoApp.CoderWorkspaceList().then(parseStreamResult),
   createCoderConversation: (runtimeID, model, effort, cwd, newWorkspace = false) =>
