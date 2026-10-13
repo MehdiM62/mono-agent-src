@@ -1,0 +1,605 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "reddit",
+  "extends": "service.reddit",
+  "title": "Reddit",
+  "description": "Posts, comments, profile, subreddits and users on Reddit (n8n operations)",
+  "category": "app",
+  "docs_url": "https://www.reddit.com/dev/api/",
+  "n8n_types": [
+    "n8n-nodes-base.reddit"
+  ],
+  "base_url": "https://oauth.reddit.com",
+  "headers": {
+    "User-Agent": "{{ cred.user_agent | default:'mono-agent/1.0' }}"
+  },
+  "credentials": [
+    {
+      "platform": "reddit",
+      "reuse_platform": "reddit",
+      "name": "Reddit",
+      "n8n_credential": "redditOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth",
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "user_agent",
+          "label": "User-Agent",
+          "help": "Reddit asks for a descriptive one"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "post",
+      "label": "Post"
+    },
+    {
+      "value": "postComment",
+      "label": "Post Comment"
+    },
+    {
+      "value": "profile",
+      "label": "Profile"
+    },
+    {
+      "value": "subreddit",
+      "label": "Subreddit"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "post",
+      "operation": "create",
+      "title": "Submit a post",
+      "method": "POST",
+      "path": "/api/submit",
+      "fields": [
+        {
+          "key": "subreddit",
+          "label": "Subreddit",
+          "type": "text",
+          "required": true,
+          "help": "Name without r/"
+        },
+        {
+          "key": "kind",
+          "label": "Kind",
+          "type": "select",
+          "default": "self",
+          "options": [
+            "self",
+            "link",
+            "image"
+          ]
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "default": "",
+          "help": "Link and image posts"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "default": "",
+          "help": "Text posts"
+        },
+        {
+          "key": "resubmit",
+          "label": "Resubmit",
+          "type": "boolean",
+          "default": false,
+          "help": "Allow a link that was posted before"
+        }
+      ],
+      "query": {
+        "api_type": "json",
+        "title": "{{ p.title }}",
+        "sr": "{{ p.subreddit }}",
+        "kind": "{{ p.kind }}",
+        "text": "{{ p.kind | eq:'self' | then:p.text }}",
+        "url": "{{ p.kind | ne:'self' | then:p.url }}",
+        "resubmit": "{{ p.kind | ne:'self' | then:(p.resubmit | bool | string) }}"
+      },
+      "output": {
+        "path": "json.data"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "delete",
+      "title": "Delete a post",
+      "method": "POST",
+      "path": "/api/del",
+      "fields": [
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true,
+          "help": "Without the t3_ prefix"
+        }
+      ],
+      "query": {
+        "api_type": "json",
+        "id": "t3_{{ p.postId }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "get",
+      "title": "Get a post",
+      "method": "GET",
+      "path": "/r/{{ p.subreddit }}/comments/{{ p.postId }}.json",
+      "fields": [
+        {
+          "key": "subreddit",
+          "label": "Subreddit",
+          "type": "text",
+          "required": true,
+          "help": "Name without r/"
+        },
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "0.data.children.0.data"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "getAll",
+      "title": "Get many posts",
+      "method": "GET",
+      "path": "/r/{{ p.subreddit }}{{ p.filters.category | then:'/' }}{{ p.filters.category }}.json",
+      "fields": [
+        {
+          "key": "subreddit",
+          "label": "Subreddit",
+          "type": "text",
+          "required": true,
+          "help": "Name without r/"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "category"
+          ],
+          "help": "category: top, hot, new or rising"
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "after",
+        "cursor_path": "data.after",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data.children"
+      },
+      "output": {
+        "each": "data"
+      }
+    },
+    {
+      "resource": "post",
+      "operation": "search",
+      "title": "Search posts",
+      "method": "GET",
+      "path": "{{ p.location | eq:'allReddit' | then:'/search.json' }}{{ p.location | ne:'allReddit' | then:'/r/' }}{{ p.location | ne:'allReddit' | then:p.subreddit }}{{ p.location | ne:'allReddit' | then:'/search.json' }}",
+      "fields": [
+        {
+          "key": "location",
+          "label": "Location",
+          "type": "select",
+          "default": "subreddit",
+          "options": [
+            "allReddit",
+            "subreddit"
+          ]
+        },
+        {
+          "key": "subreddit",
+          "label": "Subreddit",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "keyword",
+          "label": "Keyword",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: comments, hot, new, relevance or top"
+        }
+      ],
+      "query": {
+        "q": "{{ p.keyword }}",
+        "restrict_sr": "{{ p.location | eq:'subreddit' | default:false | string }}",
+        "sort": "{{ p.additionalFields.sort }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "after",
+        "cursor_path": "data.after",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data.children"
+      },
+      "output": {
+        "each": "data"
+      }
+    },
+    {
+      "resource": "postComment",
+      "operation": "create",
+      "title": "Comment on a post",
+      "method": "POST",
+      "path": "/api/comment",
+      "fields": [
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentText",
+          "label": "Comment",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "api_type": "json",
+        "text": "{{ p.commentText }}",
+        "thing_id": "t3_{{ p.postId }}"
+      },
+      "output": {
+        "path": "json.data.things.0.data"
+      }
+    },
+    {
+      "resource": "postComment",
+      "operation": "getAll",
+      "title": "Get many comments of a post",
+      "method": "GET",
+      "path": "/r/{{ p.subreddit }}/comments/{{ p.postId }}.json",
+      "fields": [
+        {
+          "key": "subreddit",
+          "label": "Subreddit",
+          "type": "text",
+          "required": true,
+          "help": "Name without r/"
+        },
+        {
+          "key": "postId",
+          "label": "Post ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "query": {
+        "limit": "{{ p.returnAll | bool | ne:'true' | then:p.limit }}"
+      },
+      "output": {
+        "path": "1.data.children",
+        "each": "data",
+        "limit": true
+      }
+    },
+    {
+      "resource": "postComment",
+      "operation": "delete",
+      "title": "Delete a comment",
+      "method": "POST",
+      "path": "/api/del",
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true,
+          "help": "Without the t1_ prefix"
+        }
+      ],
+      "query": {
+        "api_type": "json",
+        "id": "t1_{{ p.commentId }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "postComment",
+      "operation": "reply",
+      "title": "Reply to a comment",
+      "method": "POST",
+      "path": "/api/comment",
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "replyText",
+          "label": "Reply",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "api_type": "json",
+        "text": "{{ p.replyText }}",
+        "thing_id": "t1_{{ p.commentId }}"
+      },
+      "output": {
+        "path": "json.data.things.0.data"
+      }
+    },
+    {
+      "resource": "profile",
+      "operation": "get",
+      "title": "Get my profile details",
+      "method": "GET",
+      "path": "{{ p.details | eq:'saved' | then:'/user/' | default:'/api/v1/me' }}{{ p.details | eq:'saved' | then:pre.name }}{{ p.details | eq:'blockedUsers' | then:'/blocked' }}{{ p.details | eq:'friends' | then:'/friends' }}{{ p.details | eq:'karma' | then:'/karma' }}{{ p.details | eq:'prefs' | then:'/prefs' }}{{ p.details | eq:'trophies' | then:'/trophies' }}{{ p.details | eq:'saved' | then:'/saved.json' }}",
+      "fields": [
+        {
+          "key": "details",
+          "label": "Details",
+          "type": "select",
+          "default": "identity",
+          "options": [
+            "blockedUsers",
+            "friends",
+            "identity",
+            "karma",
+            "prefs",
+            "saved",
+            "trophies"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "before": {
+        "when": "{{ p.details | eq:'saved' }}",
+        "method": "GET",
+        "path": "/api/v1/me"
+      },
+      "query": {
+        "limit": "{{ p.details | eq:'saved' | then:(p.returnAll | bool | ne:'true' | then:p.limit) }}"
+      },
+      "output": {
+        "path": "{{ p.details | eq:'identity' | then:'features' | default:(p.details | eq:'friends' | then:'data.children') | default:(p.details | eq:'karma' | then:'data') | default:(p.details | eq:'trophies' | then:'data.trophies') | default:(p.details | eq:'saved' | then:'data.children') }}",
+        "each": "{{ p.details | eq:'trophies' | then:'data' | default:(p.details | eq:'saved' | then:'data') }}",
+        "limit": true
+      }
+    },
+    {
+      "resource": "subreddit",
+      "operation": "get",
+      "title": "Get a subreddit",
+      "method": "GET",
+      "path": "/r/{{ p.subreddit }}/about{{ p.content | eq:'rules' | then:'/rules' }}.json",
+      "fields": [
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "select",
+          "default": "about",
+          "options": [
+            "about",
+            "rules"
+          ]
+        },
+        {
+          "key": "subreddit",
+          "label": "Subreddit",
+          "type": "text",
+          "required": true,
+          "help": "Name without r/"
+        }
+      ],
+      "output": {
+        "path": "{{ p.content | eq:'rules' | then:'rules' | default:'data' }}"
+      }
+    },
+    {
+      "resource": "subreddit",
+      "operation": "getAll",
+      "title": "Get many subreddits",
+      "method": "{{ p.filters.trending | bool | eq:'true' | then:'GET' | default:(p.filters.keyword | then:'POST') | default:'GET' }}",
+      "path": "{{ p.filters.trending | bool | eq:'true' | then:'/api/trending_subreddits.json' }}{{ p.filters.trending | bool | ne:'true' | then:p.filters.keyword | then:'/api/search_subreddits.json' }}{{ p.filters.trending | bool | ne:'true' | then:(p.filters.keyword | default:'' | eq:'') | then:'/subreddits/popular.json' }}",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keyword",
+            "trending"
+          ]
+        }
+      ],
+      "query": {
+        "query": "{{ p.filters.trending | bool | ne:'true' | then:p.filters.keyword }}",
+        "limit": "{{ p.filters.trending | bool | ne:'true' | then:(p.filters.keyword | default:'' | eq:'' | then:(p.returnAll | bool | ne:'true' | then:p.limit)) }}"
+      },
+      "output": {
+        "from": "{{ p.filters.trending | bool | eq:'true' | then:res.subreddit_names | default:(p.filters.keyword | then:res.subreddits) | default:(res.data.children | pluck:'data') }}",
+        "to_when": "{{ p.filters.trending | bool }}",
+        "to": {
+          "name": "{{ el }}"
+        },
+        "limit": true
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user's details",
+      "method": "GET",
+      "path": "/user/{{ p.username }}/{{ p.details }}.json",
+      "fields": [
+        {
+          "key": "username",
+          "label": "Username",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "details",
+          "label": "Details",
+          "type": "select",
+          "default": "about",
+          "options": [
+            "about",
+            "comments",
+            "gilded",
+            "overview",
+            "submitted"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "query": {
+        "limit": "{{ p.details | ne:'about' | then:(p.returnAll | bool | ne:'true' | then:p.limit) }}"
+      },
+      "output": {
+        "path": "{{ p.details | eq:'about' | then:'data' | default:'data.children' }}",
+        "each": "{{ p.details | ne:'about' | then:'data' }}",
+        "limit": true
+      }
+    }
+  ]
+}

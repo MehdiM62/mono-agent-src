@@ -1,0 +1,61 @@
+{
+  "sms.send": {
+    "params": {
+      "from": "+14155550100",
+      "to": "+14155550101",
+      "message": "hi"
+    },
+    "response": {
+      "message": "queued"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/Account/test-auth_id/Message/",
+      "body": {
+        "src": "+14155550100",
+        "dst": "+14155550101",
+        "text": "hi"
+      },
+      "items": 1
+    }
+  },
+  "call.make": {
+    "params": {
+      "from": "+1",
+      "to": "+2",
+      "answer_url": "https://x.test/a"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/Account/test-auth_id/Call/",
+      "body": {
+        "from": "+1",
+        "to": "+2",
+        "answer_url": "https://x.test/a",
+        "answer_method": "POST"
+      }
+    }
+  },
+  "mms.send": {
+    "params": {
+      "from": "+1",
+      "to": "+2",
+      "message": "m",
+      "media_urls": "https://a.test/1.png, https://a.test/2.png"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/Account/test-auth_id/Message/",
+      "body": {
+        "src": "+1",
+        "dst": "+2",
+        "text": "m",
+        "type": "mms",
+        "media_urls": [
+          "https://a.test/1.png",
+          "https://a.test/2.png"
+        ]
+      }
+    }
+  }
+}

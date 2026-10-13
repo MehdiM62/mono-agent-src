@@ -1,0 +1,679 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "sea_table",
+  "node_type": "app.sea_table",
+  "title": "SeaTable",
+  "description": "Rows, links, assets and base info in SeaTable",
+  "category": "app",
+  "docs_url": "https://api.seatable.io/",
+  "n8n_types": [
+    "n8n-nodes-base.seaTable"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.seaTableTrigger"
+  ],
+  "base_url": "{{ cred.environment | eq:'selfHosted' | then:cred.domain | default:'https://cloud.seatable.io' }}",
+  "credentials": [
+    {
+      "platform": "seatable",
+      "name": "SeaTable",
+      "n8n_credential": "seaTableApi",
+      "n8n_field_map": {
+        "environment": "environment",
+        "domain": "domain",
+        "token": "token",
+        "timezone": "timezone"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "environment",
+          "label": "Environment",
+          "help": "cloudHosted (default) or selfHosted"
+        },
+        {
+          "key": "domain",
+          "label": "Server URL",
+          "help": "Self-hosted only, e.g. https://seatable.example.com"
+        },
+        {
+          "key": "token",
+          "label": "Base API token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "timezone",
+          "label": "Timezone"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Token {{ pres.0.access_token | default:cred.token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "row",
+      "label": "Row"
+    },
+    {
+      "value": "base",
+      "label": "Base"
+    },
+    {
+      "value": "link",
+      "label": "Link"
+    },
+    {
+      "value": "asset",
+      "label": "Asset"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "row",
+      "operation": "create",
+      "title": "Create a row",
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}{{ p.bigdata | bool | eq:'true' | then:'/add-archived-rows/' | default:'/rows/' }}",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "defineBelow",
+          "options": [
+            "autoMapInputData",
+            "defineBelow"
+          ]
+        },
+        {
+          "key": "apply_default",
+          "label": "Apply column defaults",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Inputs to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated input fields not to send (auto-map)"
+        },
+        {
+          "key": "columnsUi",
+          "label": "Columns",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "columnValues"
+          ],
+          "help": "{columnValues: [{columnName, columnValue}]}"
+        },
+        {
+          "key": "bigdata",
+          "label": "Big data backend",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "body": {
+        "table_name": "{{ p.tableName }}",
+        "rows": [
+          {
+            "$merge": [
+              "{{ p.fieldsToSend | eq:'autoMapInputData' | then:(item | omit:(p.inputsToIgnore | split)) }}",
+              "{{ p.columnsUi.columnValues | kv:'columnName,columnValue' }}"
+            ]
+          }
+        ],
+        "apply_default": "{{ p.apply_default | bool | eq:'true' | then:true }}"
+      },
+      "output": {
+        "from": "{{ res.first_row | default:res }}"
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "remove",
+      "title": "Delete a row",
+      "method": "DELETE",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/rows/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "table_name": "{{ p.tableName }}",
+        "row_ids": [
+          "{{ p.rowId }}"
+        ]
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "get",
+      "title": "Get a row",
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/sql/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "simple",
+            "convert"
+          ],
+          "help": "simple (default on): drop the _ system columns; convert (default on): column names instead of keys"
+        }
+      ],
+      "body": {
+        "sql": "SELECT * FROM `{{ p.tableName | replace:'`','``' }}` WHERE _id = '{{ p.rowId | replace:'\\','\\\\' | replace:\"'\",\"\\'\" }}'",
+        "convert_keys": "{{ p.options.convert | default:true | bool }}"
+      },
+      "output": {
+        "path": "results",
+        "to_when": "{{ p.options.simple | default:true | bool }}",
+        "to": {
+          "$merge": "{{ el | omit:'_id,_ctime,_mtime,_creator,_last_modifier,_locked,_locked_by,_archived' }}"
+        }
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "list",
+      "title": "Get many rows",
+      "method": "GET",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/rows/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "viewName",
+          "label": "View",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "simple",
+            "convert"
+          ],
+          "help": "simple (default on): drop the _ system columns; convert (default on): column names instead of keys"
+        }
+      ],
+      "query": {
+        "table_name": "{{ p.tableName }}",
+        "view_name": "{{ p.viewName }}",
+        "limit": 1000,
+        "convert_keys": "{{ p.options.convert | default:true | bool }}"
+      },
+      "output": {
+        "path": "rows",
+        "to_when": "{{ p.options.simple | default:true | bool }}",
+        "to": {
+          "$merge": "{{ el | omit:'_id,_ctime,_mtime,_creator,_last_modifier,_locked,_locked_by,_archived' }}"
+        }
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "lock",
+      "title": "Lock a row",
+      "method": "PUT",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/lock-rows/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "table_name": "{{ p.tableName }}",
+        "row_ids": [
+          "{{ p.rowId }}"
+        ]
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "search",
+      "title": "Search rows",
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/sql",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "searchColumn",
+          "label": "Column",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "searchTerm",
+          "label": "Search term",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "insensitive",
+            "wildcard",
+            "simple",
+            "convert"
+          ]
+        }
+      ],
+      "body": {
+        "sql": "SELECT * FROM `{{ p.tableName | replace:'`','``' }}` WHERE {{ p.options.insensitive | bool | eq:'true' | then:'lower(' }}`{{ p.searchColumn | replace:'`','``' }}`{{ p.options.insensitive | bool | eq:'true' | then:')' }}{{ p.options.wildcard | default:true | bool | eq:'true' | then:' LIKE \"%' | default:' = \"' }}{{ p.options.insensitive | bool | eq:'true' | then:(p.searchTerm | string | lower) | default:(p.searchTerm | string) | replace:'\\','\\\\' | replace:'\"','\\\"' | replace:\"'\",\"\\'\" }}{{ p.options.wildcard | default:true | bool | eq:'true' | then:'%\"' | default:'\"' }}",
+        "convert_keys": "{{ p.options.convert | default:true | bool }}"
+      },
+      "output": {
+        "path": "results",
+        "to_when": "{{ p.options.simple | bool }}",
+        "to": {
+          "$merge": "{{ el | omit:'_id,_ctime,_mtime,_creator,_last_modifier,_locked,_locked_by,_archived' }}"
+        }
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "unlock",
+      "title": "Unlock a row",
+      "method": "PUT",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/unlock-rows/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "table_name": "{{ p.tableName }}",
+        "row_ids": [
+          "{{ p.rowId }}"
+        ]
+      }
+    },
+    {
+      "resource": "row",
+      "operation": "update",
+      "title": "Update a row",
+      "method": "PUT",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/rows/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "defineBelow",
+          "options": [
+            "autoMapInputData",
+            "defineBelow"
+          ]
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Inputs to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated input fields not to send (auto-map)"
+        },
+        {
+          "key": "columnsUi",
+          "label": "Columns",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "columnValues"
+          ],
+          "help": "{columnValues: [{columnName, columnValue}]}"
+        }
+      ],
+      "body": {
+        "table_name": "{{ p.tableName }}",
+        "updates": [
+          {
+            "row_id": "{{ p.rowId }}",
+            "row": {
+              "$merge": [
+                "{{ p.fieldsToSend | eq:'autoMapInputData' | then:(item | omit:(p.inputsToIgnore | split)) }}",
+                "{{ p.columnsUi.columnValues | kv:'columnName,columnValue' }}"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "resource": "base",
+      "operation": "snapshot",
+      "title": "Create a snapshot",
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/snapshot/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [],
+      "body": {
+        "dtable_name": "snapshot"
+      }
+    },
+    {
+      "resource": "base",
+      "operation": "metadata",
+      "title": "Get the base metadata",
+      "method": "GET",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/metadata/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [],
+      "output": {
+        "path": "metadata"
+      }
+    },
+    {
+      "resource": "base",
+      "operation": "collaborator",
+      "title": "Find collaborators",
+      "description": "Collaborators whose contact email or name contains the search text",
+      "method": "GET",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/related-users/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "searchString",
+          "label": "Search",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "user_list"
+      }
+    },
+    {
+      "resource": "asset",
+      "operation": "getPublicURL",
+      "title": "Get a public URL",
+      "method": "GET",
+      "path": "/api/v2.1/dtable/app-download-link/",
+      "query": {
+        "path": "{{ p.assetPath }}"
+      },
+      "fields": [
+        {
+          "key": "assetPath",
+          "label": "Asset path",
+          "type": "text",
+          "required": true,
+          "help": "e.g. /images/2024-01/photo.png"
+        }
+      ]
+    },
+    {
+      "resource": "link",
+      "operation": "add",
+      "title": "Link two rows",
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/links/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true,
+          "help": "table_name:::table_id"
+        },
+        {
+          "key": "linkColumn",
+          "label": "Link column",
+          "type": "text",
+          "required": true,
+          "help": "column_name:::link_id:::other_table_id"
+        },
+        {
+          "key": "linkColumnSourceId",
+          "label": "Source row ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "linkColumnTargetId",
+          "label": "Target row ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "link_id": "{{ p.linkColumn | split:':::' | get:'1' }}",
+        "table_id": "{{ p.tableName | split:':::' | get:'1' }}",
+        "other_table_id": "{{ p.linkColumn | split:':::' | get:'2' }}",
+        "other_rows_ids_map": {
+          "$entries": "{{ p.linkColumnSourceId | split }}",
+          "$key": "{{ el }}",
+          "$value": [
+            "{{ p.linkColumnTargetId }}"
+          ]
+        }
+      }
+    },
+    {
+      "resource": "link",
+      "operation": "list",
+      "title": "List linked rows",
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/query-links/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true,
+          "help": "table_name:::table_id"
+        },
+        {
+          "key": "linkColumn",
+          "label": "Link column",
+          "type": "text",
+          "required": true,
+          "help": "column_name:::link_id:::other_table_id:::column_key"
+        },
+        {
+          "key": "rowId",
+          "label": "Row ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "table_id": "{{ p.tableName | split:':::' | get:'1' }}",
+        "link_column_key": "{{ p.linkColumn | split:':::' | get:'3' }}",
+        "rows": [
+          {
+            "row_id": "{{ p.rowId }}",
+            "offset": 0,
+            "limit": 100
+          }
+        ]
+      }
+    },
+    {
+      "resource": "link",
+      "operation": "remove",
+      "title": "Unlink two rows",
+      "method": "DELETE",
+      "path": "/api-gateway/api/v2/dtables/{{ pres.0.dtable_uuid }}/links/",
+      "before": {
+        "method": "GET",
+        "path": "/api/v2.1/dtable/app-access-token/"
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true,
+          "help": "table_name:::table_id"
+        },
+        {
+          "key": "linkColumn",
+          "label": "Link column",
+          "type": "text",
+          "required": true,
+          "help": "column_name:::link_id:::other_table_id"
+        },
+        {
+          "key": "linkColumnSourceId",
+          "label": "Source row ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "linkColumnTargetId",
+          "label": "Target row ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "link_id": "{{ p.linkColumn | split:':::' | get:'1' }}",
+        "table_id": "{{ p.tableName | split:':::' | get:'1' }}",
+        "other_table_id": "{{ p.linkColumn | split:':::' | get:'2' }}",
+        "other_rows_ids_map": {
+          "$entries": "{{ p.linkColumnSourceId | split }}",
+          "$key": "{{ el }}",
+          "$value": [
+            "{{ p.linkColumnTargetId }}"
+          ]
+        }
+      }
+    }
+  ]
+}

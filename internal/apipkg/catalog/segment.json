@@ -1,0 +1,401 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "segment",
+  "node_type": "app.segment",
+  "title": "Segment",
+  "description": "Identify users, group them and track events and page views in Segment",
+  "category": "app",
+  "docs_url": "https://segment.com/docs/connections/sources/catalog/libraries/server/http-api/",
+  "n8n_types": [
+    "n8n-nodes-base.segment"
+  ],
+  "base_url": "https://api.segment.io/v1",
+  "credentials": [
+    {
+      "platform": "segment",
+      "name": "Segment",
+      "n8n_credential": "segmentApi",
+      "n8n_field_map": {
+        "writekey": "write_key"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "write_key",
+          "label": "Write key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.write_key }}",
+          "password": ""
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "identify",
+      "label": "Identify"
+    },
+    {
+      "value": "group",
+      "label": "Group"
+    },
+    {
+      "value": "track",
+      "label": "Track"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "identify",
+      "operation": "create",
+      "title": "Identify a user",
+      "method": "POST",
+      "path": "/identify",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "default": "",
+          "help": "Leave empty to send an anonymous id"
+        },
+        {
+          "key": "traits",
+          "label": "Traits",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "traitsUi"
+          ],
+          "help": "{traitsUi: [{key, value}]}"
+        },
+        {
+          "key": "context",
+          "label": "Context",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contextUi"
+          ],
+          "help": "{contextUi: {active, ip, locate, page, timezone, app: {appUi}, campaign: {campaignUi}, device: {deviceUi}}}"
+        },
+        {
+          "key": "integrations",
+          "label": "Integrations",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "integrationsUi"
+          ],
+          "help": "{integrationsUi: {all, salesforce}}"
+        }
+      ],
+      "body": {
+        "userId": "{{ p.userId }}",
+        "anonymousId": "{{ p.userId | default:'__none__' | eq:'__none__' | then:uuid }}",
+        "context": {
+          "active": "{{ p.context.contextUi.active | bool | eq:'true' | then:true }}",
+          "ip": "{{ p.context.contextUi.ip }}",
+          "locate": "{{ p.context.contextUi.locate }}",
+          "page": "{{ p.context.contextUi.page }}",
+          "timezone": "{{ p.context.contextUi.timezone }}",
+          "app": {
+            "name": "{{ p.context.contextUi.app.appUi.name }}",
+            "version": "{{ p.context.contextUi.app.appUi.version }}",
+            "build": "{{ p.context.contextUi.app.appUi.build }}"
+          },
+          "campaign": {
+            "name": "{{ p.context.contextUi.campaign.campaignUi.name }}",
+            "source": "{{ p.context.contextUi.campaign.campaignUi.source }}",
+            "medium": "{{ p.context.contextUi.campaign.campaignUi.medium }}",
+            "term": "{{ p.context.contextUi.campaign.campaignUi.term }}",
+            "content": "{{ p.context.contextUi.campaign.campaignUi.content }}"
+          },
+          "device": {
+            "id": "{{ p.context.contextUi.device.deviceUi.id }}",
+            "manufacturer": "{{ p.context.contextUi.device.deviceUi.manufacturer }}",
+            "model": "{{ p.context.contextUi.device.deviceUi.model }}",
+            "type": "{{ p.context.contextUi.device.deviceUi.type }}",
+            "version": "{{ p.context.contextUi.device.deviceUi.version }}"
+          }
+        },
+        "integrations": {
+          "all": "{{ p.integrations.integrationsUi.all | bool | eq:'true' | then:true }}",
+          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | eq:'true' | then:true }}"
+        },
+        "traits": "{{ p.traits.traitsUi | kv:'key,value' }}"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "add",
+      "title": "Add a user to a group",
+      "method": "POST",
+      "path": "/group",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "default": "",
+          "help": "Leave empty to send an anonymous id"
+        },
+        {
+          "key": "groupId",
+          "label": "Group ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "traits",
+          "label": "Traits",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "traitsUi"
+          ],
+          "help": "{traitsUi: [{key, value}]}"
+        },
+        {
+          "key": "context",
+          "label": "Context",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contextUi"
+          ],
+          "help": "{contextUi: {active, ip, locate, page, timezone, app: {appUi}, campaign: {campaignUi}, device: {deviceUi}}}"
+        },
+        {
+          "key": "integrations",
+          "label": "Integrations",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "integrationsUi"
+          ],
+          "help": "{integrationsUi: {all, salesforce}}"
+        }
+      ],
+      "body": {
+        "userId": "{{ p.userId }}",
+        "anonymousId": "{{ p.userId | default:'__none__' | eq:'__none__' | then:uuid }}",
+        "context": {
+          "active": "{{ p.context.contextUi.active | bool | eq:'true' | then:true }}",
+          "ip": "{{ p.context.contextUi.ip }}",
+          "locate": "{{ p.context.contextUi.locate }}",
+          "page": "{{ p.context.contextUi.page }}",
+          "timezone": "{{ p.context.contextUi.timezone }}",
+          "app": {
+            "name": "{{ p.context.contextUi.app.appUi.name }}",
+            "version": "{{ p.context.contextUi.app.appUi.version }}",
+            "build": "{{ p.context.contextUi.app.appUi.build }}"
+          },
+          "campaign": {
+            "name": "{{ p.context.contextUi.campaign.campaignUi.name }}",
+            "source": "{{ p.context.contextUi.campaign.campaignUi.source }}",
+            "medium": "{{ p.context.contextUi.campaign.campaignUi.medium }}",
+            "term": "{{ p.context.contextUi.campaign.campaignUi.term }}",
+            "content": "{{ p.context.contextUi.campaign.campaignUi.content }}"
+          },
+          "device": {
+            "id": "{{ p.context.contextUi.device.deviceUi.id }}",
+            "manufacturer": "{{ p.context.contextUi.device.deviceUi.manufacturer }}",
+            "model": "{{ p.context.contextUi.device.deviceUi.model }}",
+            "type": "{{ p.context.contextUi.device.deviceUi.type }}",
+            "version": "{{ p.context.contextUi.device.deviceUi.version }}"
+          }
+        },
+        "integrations": {
+          "all": "{{ p.integrations.integrationsUi.all | bool | eq:'true' | then:true }}",
+          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | eq:'true' | then:true }}"
+        },
+        "groupId": "{{ p.groupId }}",
+        "traits": "{{ p.traits.traitsUi | kv:'key,value' }}"
+      }
+    },
+    {
+      "resource": "track",
+      "operation": "event",
+      "title": "Track an event",
+      "method": "POST",
+      "path": "/track",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "default": "",
+          "help": "Leave empty to send an anonymous id"
+        },
+        {
+          "key": "event",
+          "label": "Event",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "context",
+          "label": "Context",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contextUi"
+          ],
+          "help": "{contextUi: {active, ip, locate, page, timezone, app: {appUi}, campaign: {campaignUi}, device: {deviceUi}}}"
+        },
+        {
+          "key": "integrations",
+          "label": "Integrations",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "integrationsUi"
+          ],
+          "help": "{integrationsUi: {all, salesforce}}"
+        },
+        {
+          "key": "properties",
+          "label": "Properties",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "propertiesUi"
+          ],
+          "help": "{propertiesUi: [{key, value}]}"
+        }
+      ],
+      "body": {
+        "userId": "{{ p.userId }}",
+        "anonymousId": "{{ p.userId | default:'__none__' | eq:'__none__' | then:uuid }}",
+        "context": {
+          "active": "{{ p.context.contextUi.active | bool | eq:'true' | then:true }}",
+          "ip": "{{ p.context.contextUi.ip }}",
+          "locate": "{{ p.context.contextUi.locate }}",
+          "page": "{{ p.context.contextUi.page }}",
+          "timezone": "{{ p.context.contextUi.timezone }}",
+          "app": {
+            "name": "{{ p.context.contextUi.app.appUi.name }}",
+            "version": "{{ p.context.contextUi.app.appUi.version }}",
+            "build": "{{ p.context.contextUi.app.appUi.build }}"
+          },
+          "campaign": {
+            "name": "{{ p.context.contextUi.campaign.campaignUi.name }}",
+            "source": "{{ p.context.contextUi.campaign.campaignUi.source }}",
+            "medium": "{{ p.context.contextUi.campaign.campaignUi.medium }}",
+            "term": "{{ p.context.contextUi.campaign.campaignUi.term }}",
+            "content": "{{ p.context.contextUi.campaign.campaignUi.content }}"
+          },
+          "device": {
+            "id": "{{ p.context.contextUi.device.deviceUi.id }}",
+            "manufacturer": "{{ p.context.contextUi.device.deviceUi.manufacturer }}",
+            "model": "{{ p.context.contextUi.device.deviceUi.model }}",
+            "type": "{{ p.context.contextUi.device.deviceUi.type }}",
+            "version": "{{ p.context.contextUi.device.deviceUi.version }}"
+          }
+        },
+        "integrations": {
+          "all": "{{ p.integrations.integrationsUi.all | bool | eq:'true' | then:true }}",
+          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | eq:'true' | then:true }}"
+        },
+        "event": "{{ p.event }}",
+        "properties": "{{ p.properties.propertiesUi | kv:'key,value' }}"
+      }
+    },
+    {
+      "resource": "track",
+      "operation": "page",
+      "title": "Track a page view",
+      "method": "POST",
+      "path": "/page",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "default": "",
+          "help": "Leave empty to send an anonymous id"
+        },
+        {
+          "key": "name",
+          "label": "Page name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "context",
+          "label": "Context",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contextUi"
+          ],
+          "help": "{contextUi: {active, ip, locate, page, timezone, app: {appUi}, campaign: {campaignUi}, device: {deviceUi}}}"
+        },
+        {
+          "key": "integrations",
+          "label": "Integrations",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "integrationsUi"
+          ],
+          "help": "{integrationsUi: {all, salesforce}}"
+        },
+        {
+          "key": "properties",
+          "label": "Properties",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "propertiesUi"
+          ],
+          "help": "{propertiesUi: [{key, value}]}"
+        }
+      ],
+      "body": {
+        "userId": "{{ p.userId }}",
+        "anonymousId": "{{ p.userId | default:'__none__' | eq:'__none__' | then:uuid }}",
+        "context": {
+          "active": "{{ p.context.contextUi.active | bool | eq:'true' | then:true }}",
+          "ip": "{{ p.context.contextUi.ip }}",
+          "locate": "{{ p.context.contextUi.locate }}",
+          "page": "{{ p.context.contextUi.page }}",
+          "timezone": "{{ p.context.contextUi.timezone }}",
+          "app": {
+            "name": "{{ p.context.contextUi.app.appUi.name }}",
+            "version": "{{ p.context.contextUi.app.appUi.version }}",
+            "build": "{{ p.context.contextUi.app.appUi.build }}"
+          },
+          "campaign": {
+            "name": "{{ p.context.contextUi.campaign.campaignUi.name }}",
+            "source": "{{ p.context.contextUi.campaign.campaignUi.source }}",
+            "medium": "{{ p.context.contextUi.campaign.campaignUi.medium }}",
+            "term": "{{ p.context.contextUi.campaign.campaignUi.term }}",
+            "content": "{{ p.context.contextUi.campaign.campaignUi.content }}"
+          },
+          "device": {
+            "id": "{{ p.context.contextUi.device.deviceUi.id }}",
+            "manufacturer": "{{ p.context.contextUi.device.deviceUi.manufacturer }}",
+            "model": "{{ p.context.contextUi.device.deviceUi.model }}",
+            "type": "{{ p.context.contextUi.device.deviceUi.type }}",
+            "version": "{{ p.context.contextUi.device.deviceUi.version }}"
+          }
+        },
+        "integrations": {
+          "all": "{{ p.integrations.integrationsUi.all | bool | eq:'true' | then:true }}",
+          "salesforce": "{{ p.integrations.integrationsUi.salesforce | bool | eq:'true' | then:true }}"
+        },
+        "name": "{{ p.name }}",
+        "properties": "{{ p.properties.propertiesUi | kv:'key,value' }}"
+      }
+    }
+  ]
+}
