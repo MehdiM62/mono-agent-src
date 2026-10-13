@@ -101,12 +101,18 @@
             "filter",
             "sort"
           ],
-          "help": "filter: {\"filterProperties\": [{\"field\", \"values\"}]}; sort: {\"sortProperties\": [{\"field\", \"direction\": asc|desc}]} (up to 6)"
+          "help": "filter: {\"filterProperties\": [{\"field\", \"values\"}]}; sort: {\"sortProperties\": [{\"field\", \"direction\": asc|desc}]}"
         }
       ],
       "query": {
         "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}",
-        "sort": "{{ p.additionalOptions.sort.sortProperties.0.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.0.field }}{{ p.additionalOptions.sort.sortProperties.1.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.1.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.1.field }}{{ p.additionalOptions.sort.sortProperties.2.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.2.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.2.field }}{{ p.additionalOptions.sort.sortProperties.3.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.3.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.3.field }}{{ p.additionalOptions.sort.sortProperties.4.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.4.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.4.field }}{{ p.additionalOptions.sort.sortProperties.5.field | then:',' }}{{ p.additionalOptions.sort.sortProperties.5.direction | eq:'desc' | then:'-' }}{{ p.additionalOptions.sort.sortProperties.5.field }}",
+        "sort": {
+          "$join": {
+            "$map": "{{ p.additionalOptions.sort.sortProperties }}",
+            "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"
+          },
+          "$sep": ","
+        },
         "filter": {
           "$json": {
             "$entries": "{{ p.additionalOptions.filter.filterProperties }}",
