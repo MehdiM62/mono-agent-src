@@ -123,6 +123,25 @@ with set-oauth-client, or 'monoagentcli connect refresh <id>' /
 'monoagentcli connect <platform>' to fully re-authenticate.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OAUTH CLIENT IDS — you bring your own
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The binary ships no OAuth client id for any platform. Before the first
+'connect <platform>' on an OAuth platform, register an OAuth app with
+that platform yourself and give monoagent its client id, in either way:
+
+  MONOAGENT_<PLATFORM>_CLIENT_ID (and _CLIENT_SECRET) in the environment
+  monoagentcli connect set-oauth-client <platform> --client-id <id>
+
+The stored per-profile value wins over the environment. A successful
+connect stores the client it used, for silent refresh later.
+
+The monoes.me OAuth app is for signing in to monoes.me (see 'ref
+account'), not for connecting integrations. Reusing it for integrations
+is a possible future option, considered only if it blocks nothing and
+cannot be abused. It is not implemented.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SCHEDULED/WEBHOOK TRIGGERS NEED THE DAEMON RUNNING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

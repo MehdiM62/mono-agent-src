@@ -1,0 +1,37 @@
+══════════════════════════════════════════════════════════════
+  NODE: comm.slack
+  Category: comm
+══════════════════════════════════════════════════════════════
+
+  Send a Slack message to a channel or user
+
+  Config example:
+    { "credential_id": "slack-bot", "channel": "#news", "text": "{{ $json.summary }}" }
+
+  Inputs:   item with message content
+  Outputs:  ts (timestamp), channel
+
+  ────────────────────────────────────────────────────────────
+  Credential platform: slack
+
+  Fields (every operation):
+    credential_id        Slack Connection · credential_picker · required
+    operation            Operation · select · required · default="post_message"
+
+  Operations (operation):
+    post_message  (default)
+      channel              Channel · resource_picker
+                           Select a Slack channel.
+      text                 Message Text · textarea
+      blocks               Blocks (Block Kit JSON array) · code
+                           Slack Block Kit blocks sent with the message; Message Text becomes the notification fallback. Give a JSON array in the workflow file, or an expression that yields one (e.g. {{ json $json.blocks }}).
+    upload_file
+      channel              Channel · resource_picker
+                           Select a Slack channel.
+      file_path            File Path · text
+      filename             Filename · text
+    list_channels
+      no further fields
+    get_user
+      user_id              User ID · text
+

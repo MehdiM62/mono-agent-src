@@ -1,0 +1,21 @@
+══════════════════════════════════════════════════════════════
+  NODE: instagram.like_posts
+  Category: instagram
+══════════════════════════════════════════════════════════════
+
+  Like a list of posts
+
+  Config example:
+    { "credential_id": "onetap", "selectedListItems": "{{ json $json.posts }}" }
+
+  Inputs:   item with posts array [{url, platform}]
+  Outputs:  liked_count
+
+  ────────────────────────────────────────────────────────────
+  Credential platform: instagram
+
+  Fields:
+    targets              Post URLs · array · required
+                         Post URLs or identifiers to like.
+    limit                Max Likes · number · default=20
+
