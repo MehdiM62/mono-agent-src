@@ -1,0 +1,505 @@
+{
+  "page.create": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "space": "9",
+      "title": "Hello",
+      "bodyPlainText": "a < b\n\nline 2",
+      "parentPage": "7"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/ex/confluence/c1/wiki/api/v2/pages",
+      "query": {},
+      "body": {
+        "spaceId": "9",
+        "status": "current",
+        "title": "Hello",
+        "body": {
+          "representation": "storage",
+          "value": "<p>a &lt; b</p><p>line 2</p>"
+        },
+        "parentId": "7"
+      }
+    }
+  },
+  "page.addComment": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      },
+      "bodyFormat": "storage",
+      "bodyStorage": "<p>x</p>"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/ex/confluence/c1/wiki/api/v2/footer-comments",
+      "query": {},
+      "body": {
+        "body": {
+          "representation": "storage",
+          "value": "<p>x</p>"
+        },
+        "pageId": "123"
+      }
+    }
+  },
+  "page.addLabels": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "url",
+        "value": "https://x.atlassian.net/wiki/spaces/S/pages/123/Title"
+      },
+      "labels": "a, b"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/ex/confluence/c1/wiki/rest/api/content/123/label",
+      "query": {},
+      "body": [
+        {
+          "prefix": "global",
+          "name": "a"
+        },
+        {
+          "prefix": "global",
+          "name": "b"
+        }
+      ]
+    }
+  },
+  "page.append": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      },
+      "bodyPlainText": "more"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/ex/confluence/c1/wiki/api/v2/pages/123",
+      "query": {},
+      "body": {
+        "id": "123",
+        "status": "current",
+        "title": "T",
+        "version": {
+          "number": 5
+        },
+        "body": {
+          "representation": "storage",
+          "value": "<p>old</p><p>more</p>"
+        }
+      }
+    },
+    "response": {
+      "status": "current",
+      "title": "T",
+      "version": {
+        "number": 4
+      },
+      "body": {
+        "storage": {
+          "value": "<p>old</p>"
+        }
+      }
+    }
+  },
+  "page.delete": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/ex/confluence/c1/wiki/api/v2/pages/123",
+      "query": {}
+    }
+  },
+  "page.deleteComment": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "commentId": "55"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/ex/confluence/c1/wiki/api/v2/footer-comments/55",
+      "query": {}
+    }
+  },
+  "page.get": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      },
+      "bodyFormat": "plainText"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ex/confluence/c1/wiki/api/v2/pages/123",
+      "query": {
+        "body-format": "atlas_doc_format"
+      }
+    }
+  },
+  "page.getComments": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      },
+      "limit": 5,
+      "options": {
+        "sortBy": "created-date",
+        "sortDirection": "desc"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ex/confluence/c1/wiki/api/v2/pages/123/footer-comments",
+      "query": {
+        "body-format": "storage",
+        "sort": "-created-date",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "results": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "page.getLabels": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      },
+      "options": {
+        "prefix": [
+          "global",
+          "team"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ex/confluence/c1/wiki/api/v2/pages/123/labels",
+      "query": {
+        "prefix": "global,team",
+        "limit": "50"
+      },
+      "items": 1
+    },
+    "response": {
+      "results": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "page.getManyByLabel": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "label": "77",
+      "space": "9"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ex/confluence/c1/wiki/api/v2/labels/77/pages",
+      "query": {
+        "body-format": "storage",
+        "space-id": "9",
+        "limit": "50"
+      },
+      "items": 0
+    },
+    "response": {
+      "results": []
+    }
+  },
+  "page.removeLabel": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      },
+      "labelName": "old"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/ex/confluence/c1/wiki/rest/api/content/123/label",
+      "query": {
+        "name": "old"
+      }
+    }
+  },
+  "page.update": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      },
+      "title": "New"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/ex/confluence/c1/wiki/api/v2/pages/123",
+      "query": {},
+      "body": {
+        "id": "123",
+        "status": "draft",
+        "title": "New",
+        "version": {
+          "number": 1
+        },
+        "body": {
+          "representation": "storage",
+          "value": "<p>keep</p>"
+        }
+      }
+    },
+    "response": {
+      "status": "draft",
+      "title": "T",
+      "version": {
+        "number": 1
+      },
+      "body": {
+        "storage": {
+          "value": "<p>keep</p>"
+        }
+      }
+    }
+  },
+  "attachment.getMany": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ex/confluence/c1/wiki/api/v2/pages/123/attachments",
+      "query": {
+        "limit": "50"
+      },
+      "items": 1
+    },
+    "response": {
+      "results": [
+        {
+          "id": "a"
+        }
+      ]
+    }
+  },
+  "attachment.delete": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "attachmentId": "a1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/ex/confluence/c1/wiki/api/v2/attachments/a1",
+      "query": {}
+    }
+  },
+  "attachment.upload": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "page": {
+        "__rl": true,
+        "mode": "id",
+        "value": "123"
+      },
+      "comment": "v2"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/ex/confluence/c1/wiki/rest/api/content/123/child/attachment",
+      "query": {},
+      "body": {
+        "minorEdit": "false",
+        "comment": "v2",
+        "file": "file:data:hello"
+      },
+      "items": 1
+    },
+    "response": {
+      "results": [
+        {
+          "id": "att"
+        }
+      ]
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "fileName": "data"
+        }
+      }
+    }
+  },
+  "search.query": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "cql": "type=page",
+      "limit": 10,
+      "options": {
+        "fetchFullPageContent": true,
+        "contentStatuses": [
+          "current"
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ex/confluence/c1/wiki/rest/api/search",
+      "query": {
+        "cql": "type=page",
+        "expand": "content.body.storage",
+        "cqlcontext": "{\"contentStatuses\":[\"current\"]}",
+        "limit": "10"
+      },
+      "items": 1
+    },
+    "response": {
+      "results": [
+        {
+          "id": 1
+        }
+      ]
+    }
+  },
+  "space.getMany": {
+    "params": {},
+    "response": [
+      {
+        "id": "c1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/ex/confluence/c1/wiki/api/v2/spaces",
+      "query": {
+        "limit": "50"
+      }
+    }
+  },
+  "space.get": {
+    "params": {
+      "site": {
+        "__rl": true,
+        "mode": "list",
+        "value": "c1"
+      },
+      "space": "9",
+      "options": {
+        "descriptionFormat": "plain"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ex/confluence/c1/wiki/api/v2/spaces/9",
+      "query": {
+        "description-format": "plain"
+      }
+    }
+  }
+}
