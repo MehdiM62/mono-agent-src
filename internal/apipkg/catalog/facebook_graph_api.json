@@ -1,0 +1,278 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "facebook_graph_api",
+  "node_type": "app.facebook_graph_api",
+  "title": "Facebook Graph API",
+  "description": "Any Facebook Graph API node or edge",
+  "category": "app",
+  "docs_url": "https://developers.facebook.com/docs/graph-api",
+  "n8n_types": [
+    "n8n-nodes-base.facebookGraphApi"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.facebookTrigger",
+    "n8n-nodes-base.facebookLeadAdsTrigger"
+  ],
+  "n8n_operation_param": "httpRequestMethod",
+  "base_url": "https://graph.facebook.com",
+  "credentials": [
+    {
+      "platform": "facebook_graph",
+      "name": "Facebook Graph API",
+      "n8n_credential": "facebookGraphApi",
+      "n8n_credential_alt": [
+        "facebookGraphApiOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "api_key",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "A user, page or app access token"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://www.facebook.com/v25.0/dialog/oauth",
+        "token_url": "https://graph.facebook.com/v25.0/oauth/access_token",
+        "extra_params": {
+          "scope": "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts"
+        }
+      },
+      "inject": {
+        "query": {
+          "access_token": "{{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "GET",
+      "title": "Read (GET) a Graph API node or edge",
+      "method": "GET",
+      "path": "https://{{ p.hostUrl | default:'graph.facebook.com' }}/{{ p.graphApiVersion | path }}{{ p.graphApiVersion | then:'/' }}{{ p.node | path }}{{ p.edge | then:'/' }}{{ p.edge | path }}",
+      "fields": [
+        {
+          "key": "hostUrl",
+          "label": "Host",
+          "type": "select",
+          "default": "graph.facebook.com",
+          "options": [
+            "graph.facebook.com",
+            "graph-video.facebook.com"
+          ]
+        },
+        {
+          "key": "graphApiVersion",
+          "label": "Graph API version",
+          "type": "text",
+          "default": "",
+          "help": "e.g. v25.0; empty = the app's default version"
+        },
+        {
+          "key": "node",
+          "label": "Node",
+          "type": "text",
+          "required": true,
+          "help": "Node ID or name, e.g. me or a page ID"
+        },
+        {
+          "key": "edge",
+          "label": "Edge",
+          "type": "text",
+          "default": "",
+          "help": "e.g. feed, photos"
+        },
+        {
+          "key": "allowUnauthorizedCerts",
+          "label": "Ignore SSL issues",
+          "type": "boolean",
+          "default": false,
+          "help": "Accepted for n8n compatibility; certificates are always checked"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "queryParameters",
+            "queryParametersJson"
+          ],
+          "help": "fields: {\"field\": [{\"name\"}]}; queryParameters: {\"parameter\": [{\"name\", \"value\"}]}; queryParametersJson: a JSON object"
+        }
+      ],
+      "query": {
+        "fields": {
+          "$map": "{{ p.options.fields.field }}",
+          "$to": "{{ el.name }}"
+        },
+        "$merge": [
+          "{{ p.options.queryParameters | kv:'name,value' }}",
+          "{{ p.options.queryParametersJson | fromjson }}"
+        ]
+      }
+    },
+    {
+      "resource": "",
+      "operation": "POST",
+      "title": "Write (POST) to a Graph API node or edge",
+      "method": "POST",
+      "path": "https://{{ p.hostUrl | default:'graph.facebook.com' }}/{{ p.graphApiVersion | path }}{{ p.graphApiVersion | then:'/' }}{{ p.node | path }}{{ p.edge | then:'/' }}{{ p.edge | path }}",
+      "fields": [
+        {
+          "key": "hostUrl",
+          "label": "Host",
+          "type": "select",
+          "default": "graph.facebook.com",
+          "options": [
+            "graph.facebook.com",
+            "graph-video.facebook.com"
+          ]
+        },
+        {
+          "key": "graphApiVersion",
+          "label": "Graph API version",
+          "type": "text",
+          "default": "",
+          "help": "e.g. v25.0; empty = the app's default version"
+        },
+        {
+          "key": "node",
+          "label": "Node",
+          "type": "text",
+          "required": true,
+          "help": "Node ID or name, e.g. me or a page ID"
+        },
+        {
+          "key": "edge",
+          "label": "Edge",
+          "type": "text",
+          "default": "",
+          "help": "e.g. feed, photos"
+        },
+        {
+          "key": "allowUnauthorizedCerts",
+          "label": "Ignore SSL issues",
+          "type": "boolean",
+          "default": false,
+          "help": "Accepted for n8n compatibility; certificates are always checked"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "queryParameters",
+            "queryParametersJson"
+          ],
+          "help": "fields: {\"field\": [{\"name\"}]}; queryParameters: {\"parameter\": [{\"name\", \"value\"}]}; queryParametersJson: a JSON object"
+        },
+        {
+          "key": "sendBinaryData",
+          "label": "Send binary data",
+          "type": "boolean",
+          "default": false,
+          "help": "Not supported yet: the request is sent without the file"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": ""
+        }
+      ],
+      "query": {
+        "fields": {
+          "$map": "{{ p.options.fields.field }}",
+          "$to": "{{ el.name }}"
+        },
+        "$merge": [
+          "{{ p.options.queryParameters | kv:'name,value' }}",
+          "{{ p.options.queryParametersJson | fromjson }}"
+        ]
+      }
+    },
+    {
+      "resource": "",
+      "operation": "DELETE",
+      "title": "Delete a Graph API node or edge",
+      "method": "DELETE",
+      "path": "https://{{ p.hostUrl | default:'graph.facebook.com' }}/{{ p.graphApiVersion | path }}{{ p.graphApiVersion | then:'/' }}{{ p.node | path }}{{ p.edge | then:'/' }}{{ p.edge | path }}",
+      "fields": [
+        {
+          "key": "hostUrl",
+          "label": "Host",
+          "type": "select",
+          "default": "graph.facebook.com",
+          "options": [
+            "graph.facebook.com",
+            "graph-video.facebook.com"
+          ]
+        },
+        {
+          "key": "graphApiVersion",
+          "label": "Graph API version",
+          "type": "text",
+          "default": "",
+          "help": "e.g. v25.0; empty = the app's default version"
+        },
+        {
+          "key": "node",
+          "label": "Node",
+          "type": "text",
+          "required": true,
+          "help": "Node ID or name, e.g. me or a page ID"
+        },
+        {
+          "key": "edge",
+          "label": "Edge",
+          "type": "text",
+          "default": "",
+          "help": "e.g. feed, photos"
+        },
+        {
+          "key": "allowUnauthorizedCerts",
+          "label": "Ignore SSL issues",
+          "type": "boolean",
+          "default": false,
+          "help": "Accepted for n8n compatibility; certificates are always checked"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "queryParameters",
+            "queryParametersJson"
+          ],
+          "help": "fields: {\"field\": [{\"name\"}]}; queryParameters: {\"parameter\": [{\"name\", \"value\"}]}; queryParametersJson: a JSON object"
+        }
+      ],
+      "query": {
+        "fields": {
+          "$map": "{{ p.options.fields.field }}",
+          "$to": "{{ el.name }}"
+        },
+        "$merge": [
+          "{{ p.options.queryParameters | kv:'name,value' }}",
+          "{{ p.options.queryParametersJson | fromjson }}"
+        ]
+      }
+    }
+  ]
+}
