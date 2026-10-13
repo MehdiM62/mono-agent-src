@@ -24,6 +24,7 @@ will succeed — `workflow import` and `--dry-run` work without them.
 | `outlook-inbox-sync.json` | Hourly: sync Outlook inbox + sent mail into People (adapted from the bundled template) | `trigger.schedule` | `service.outlook_mail` → `people.sync_outlook_message` (×2 branches) |
 | `telegram-notify.json` | Every morning: RSS items pushed as one Telegram bot message | `trigger.schedule` | `system.rss_read` → `core.code` → `comm.telegram` |
 | `data-pipeline.json` | Fetch API JSON → reshape in code → write CSV → sum totals | `trigger.manual` | `http.request` → `core.code` → `data.spreadsheet` → `core.aggregate` |
+| `error-auto-repair.json` | Template error workflow: when another workflow fails, an agent proposes a fix and a person reviews it | `trigger.error` | `core.set` → `agent.ask` → `core.human_in_loop` |
 
 Every example except `image-gen-vault.json` and `outlook-inbox-sync.json`
 (which adapt the bundled `gemimg` / `outlook_email_sync` templates) and

@@ -86,9 +86,13 @@ type Workflow struct {
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 	// Populated by LoadWorkflow — not stored directly
-	Nodes       []WorkflowNode         `json:"nodes,omitempty"`
-	Connections []WorkflowConnection   `json:"connections,omitempty"`
-	Settings    map[string]interface{} `json:"settings,omitempty"`
+	Nodes       []WorkflowNode       `json:"nodes,omitempty"`
+	Connections []WorkflowConnection `json:"connections,omitempty"`
+
+	// Settings holds workflow-level options, e.g. "error_workflow" (the id
+	// of the workflow to run when this one fails), "parallel_branches" and
+	// "variables" ($vars).
+	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
 // WorkflowNode is one node in the workflow graph.
@@ -154,7 +158,7 @@ type WorkflowExecution struct {
 	// every scheduled/triggered execution unreachable by GetExecutionDetail
 	// (profile-scoped lookup) for any profile other than 'default'.
 	ProfileID   string `json:"profile_id" db:"profile_id"`
-	Status      string `json:"status" db:"status"` // QUEUED, RUNNING, SUCCESS, FAILED, CANCELLED
+	Status      string `json:"status" db:"status"` // QUEUED, RUNNING, WAITING, SUCCESS, SUCCESS_WITH_ERRORS, FAILED, REJECTED, CANCELLED
 	TriggerType string `json:"trigger_type" db:"trigger_type"`
 	// TriggerNodeID is the trigger node that fired this run, persisted so an
 	// adopted, resumed or retried run still fires only that node's branch.
@@ -171,6 +175,8 @@ type WorkflowExecution struct {
 	// execution — enough for RunExecution to skip already-completed nodes and
 	// continue from the pause point on resume. Empty for normal runs.
 	ResumeState string `json:"-" db:"resume_state"`
+	// ErrorClass is the class of the run's first failure (see ErrorClass).
+	ErrorClass string `json:"error_class,omitempty" db:"error_class"`
 	// Populated on load
 	Nodes []WorkflowExecutionNode `json:"nodes,omitempty"`
 }
@@ -209,6 +215,10 @@ type WorkflowExecutionNode struct {
 	StartedAt    *time.Time `json:"started_at" db:"started_at"`
 	FinishedAt   *time.Time `json:"finished_at" db:"finished_at"`
 	RetryCount   int        `json:"retry_count" db:"retry_count"`
+
+	// ErrorClass and ErrorHint classify a FAILED node (see ErrorClass).
+	ErrorClass string `json:"error_class,omitempty" db:"error_class"`
+	ErrorHint  string `json:"error_hint,omitempty" db:"error_hint"`
 }
 
 // ParseItems unmarshals InputRaw and OutputRaw JSON into InputItems and OutputItems.

@@ -10,6 +10,14 @@
       "min": 1,
       "required": true,
       "type": "number"
+    },
+    {
+      "default": false,
+      "help": "Treat this run's input as a new set instead of continuing the current loop (e.g. paging until a page comes back empty).",
+      "key": "reset",
+      "label": "Reset",
+      "required": false,
+      "type": "boolean"
     }
   ]
 }
