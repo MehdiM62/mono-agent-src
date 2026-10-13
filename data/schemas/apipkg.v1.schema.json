@@ -165,7 +165,7 @@
         },
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
         "batch": { "type": "boolean" },
-        "before": {
+        "before": { "oneOf": [ {
           "type": "object",
           "required": ["method", "path"],
           "additionalProperties": false,
@@ -179,7 +179,21 @@
             "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
             "headers": { "$ref": "#/$defs/stringMap" }
           }
-        },
+        }, { "type": "array", "items": {
+          "type": "object",
+          "required": ["method", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "when": { "type": "string" },
+            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+            "path": { "type": "string", "minLength": 1 },
+            "base_url": { "type": "string" },
+            "query": { "type": "object" },
+            "body": {},
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "headers": { "$ref": "#/$defs/stringMap" }
+          }
+        } } ] },
         "also": {
           "type": "array",
           "items": {
