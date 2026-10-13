@@ -1,6 +1,7 @@
 package apipkg
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -14,6 +15,7 @@ var knownFilters = map[string]bool{
 	"string": true, "lower": true, "upper": true, "default": true, "rl": true,
 	"then": true, "eq": true, "ne": true, "kv": true, "omit": true,
 	"fromjson": true, "epoch_ms": true, "epoch": true, "split": true, "date": true,
+	"prefix": true, "suffix": true, "base64": true, "base64url": true, "row": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -75,6 +77,22 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return fromJSON(v)
 	case "split":
 		return splitString(v, arg)
+	case "prefix":
+		if isEmpty(v) {
+			return nil, nil
+		}
+		return stringify(arg) + stringify(v), nil
+	case "suffix":
+		if isEmpty(v) {
+			return nil, nil
+		}
+		return stringify(v) + stringify(arg), nil
+	case "base64":
+		return base64.StdEncoding.EncodeToString([]byte(stringify(v))), nil
+	case "base64url":
+		return base64.RawURLEncoding.EncodeToString([]byte(stringify(v))), nil
+	case "row":
+		return toRow(v, arg)
 	case "date":
 		return formatDate(v, arg)
 	case "epoch_ms":
@@ -366,4 +384,57 @@ func formatDate(v, arg any) (any, error) {
 		}
 	}
 	return b.String(), nil
+}
+
+// toRow orders an object's values by a header list (e.g. a sheet's first
+// row): {"b":2,"a":1} with ["a","b","c"] → [1,2,""]. arg may also be a
+// list of rows, whose first row is used.
+func toRow(v, arg any) (any, error) {
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("row: value is %T, not an object", v)
+	}
+	header, ok := arg.([]any)
+	if ok && len(header) > 0 {
+		if first, isRow := header[0].([]any); isRow {
+			header = first
+		}
+	}
+	if len(header) == 0 {
+		return nil, fmt.Errorf("row: the header is empty (a sheet without a header row?)")
+	}
+	out := make([]any, len(header))
+	for i, h := range header {
+		if val, ok := obj[stringify(h)]; ok && val != nil {
+			out[i] = val
+		} else {
+			out[i] = ""
+		}
+	}
+	return out, nil
+}
+
+// rowsToObjects turns [[h1,h2],[v1,v2],…] into [{h1:v1,h2:v2},…]; short
+// rows leave keys out, extra cells are dropped.
+func rowsToObjects(v any) any {
+	rows, ok := v.([]any)
+	if !ok || len(rows) == 0 {
+		return v
+	}
+	header, ok := rows[0].([]any)
+	if !ok {
+		return v
+	}
+	out := make([]any, 0, len(rows)-1)
+	for _, r := range rows[1:] {
+		cells, _ := r.([]any)
+		obj := map[string]any{}
+		for i, h := range header {
+			if i < len(cells) {
+				obj[stringify(h)] = cells[i]
+			}
+		}
+		out = append(out, obj)
+	}
+	return out
 }

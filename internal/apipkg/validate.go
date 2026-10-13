@@ -216,6 +216,14 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	for k, v := range o.Headers {
 		probs = append(probs, checkTemplates(where+" headers."+k, v, fields, credKeys)...)
 	}
+	if st := o.Before; st != nil {
+		if !validMethods[st.Method] || st.Path == "" {
+			add("before: needs a method (GET, POST, …) and a path")
+		}
+		for _, v := range []any{st.When, st.BaseURL, st.Path, st.Query, st.Body} {
+			probs = append(probs, checkTemplates(where+" before", v, fields, credKeys)...)
+		}
+	}
 	for i, st := range o.Also {
 		sw := fmt.Sprintf("%s also[%d]", where, i)
 		if !validMethods[st.Method] {
@@ -333,7 +341,7 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item", "el", "res", "items":
+	case "item", "el", "res", "items", "pre":
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}
