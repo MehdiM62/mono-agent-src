@@ -1,0 +1,478 @@
+{
+  "row.get": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "id": "5"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/data/p1/t1/records/5"
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "row.create": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "fieldsMapper": {
+        "mappingMode": "defineBelow",
+        "value": {
+          "Title": "x",
+          "N": 2
+        }
+      }
+    },
+    "response": {
+      "records": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/data/p1/t1/records",
+      "body": [
+        {
+          "fields": {
+            "Title": "x",
+            "N": 2
+          }
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "row.upsert": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "dataToSend": "autoMapInputData",
+      "inputsToIgnore": "skip"
+    },
+    "input": {
+      "fields": {
+        "Title": "y",
+        "skip": 1
+      }
+    },
+    "response": {
+      "records": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/data/p1/t1/records",
+      "body": [
+        {
+          "fields": {
+            "Title": "y"
+          }
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "row.update": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "id": "5",
+      "fieldsMapper": {
+        "value": {
+          "Title": "z"
+        }
+      }
+    },
+    "response": {
+      "records": [
+        {
+          "id": 5
+        }
+      ]
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v3/data/p1/t1/records",
+      "body": [
+        {
+          "id": "5",
+          "fields": {
+            "Title": "z"
+          }
+        }
+      ]
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "row.delete": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "id": "5"
+    },
+    "response": {
+      "records": [
+        {
+          "id": 5
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v3/data/p1/t1/records",
+      "body": [
+        {
+          "id": "5"
+        }
+      ]
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "row.search": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "limit": 10,
+      "options": {
+        "where": "(Title,eq,x)",
+        "fields": [
+          "Title",
+          "N"
+        ],
+        "sort": {
+          "property": [
+            {
+              "field": "Title",
+              "direction": "desc"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "records": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/data/p1/t1/records",
+      "query": {
+        "where": "(Title,eq,x)",
+        "fields": "Title,N",
+        "sort": "[{\"direction\":\"desc\",\"field\":\"Title\"}]",
+        "offset": "0",
+        "limit": "10"
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "row.count": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "options": {
+        "where": "(N,gt,1)"
+      }
+    },
+    "response": {
+      "count": 3
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/data/p1/t1/count",
+      "query": {
+        "where": "(N,gt,1)"
+      }
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "row.upload": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "id": "5",
+      "uploadMode": "url",
+      "uploadFieldName": "Files",
+      "url": "https://x/f.png"
+    },
+    "responses": [
+      {
+        "id": 5,
+        "fields": {
+          "Files": [
+            {
+              "url": "https://x/a.png"
+            }
+          ]
+        }
+      },
+      {
+        "records": []
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/api/v3/data/p1/t1/records/5"
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/v3/data/p1/t1/records",
+        "body": {
+          "id": "5",
+          "fields": {
+            "Files": [
+              {
+                "url": "https://x/a.png"
+              },
+              {
+                "url": "https://x/f.png"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v3/data/p1/t1/records",
+      "body": {
+        "id": "5",
+        "fields": {
+          "Files": [
+            {
+              "url": "https://x/a.png"
+            },
+            {
+              "url": "https://x/f.png"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "linkrow.list": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "id": "5",
+      "linkFieldName": "L",
+      "limit": 5,
+      "options": {
+        "fields": {
+          "items": [
+            {
+              "field": "A"
+            },
+            {
+              "field": {
+                "__rl": true,
+                "value": "B"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "records": [
+        {
+          "id": 9
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/data/p1/t1/links/L/5",
+      "query": {
+        "fields": "A,B",
+        "offset": "0",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "linkrow.link": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "id": "5",
+      "linkFieldName": "L",
+      "linkId": [
+        "7",
+        "8"
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/data/p1/t1/links/L/5",
+      "body": [
+        {
+          "id": "7"
+        },
+        {
+          "id": "8"
+        }
+      ]
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "linkrow.unlink": {
+    "params": {
+      "projectId": {
+        "__rl": true,
+        "mode": "id",
+        "value": "p1"
+      },
+      "table": "t1",
+      "id": "5",
+      "linkFieldName": "L",
+      "linkId": [
+        "7"
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v3/data/p1/t1/links/L/5",
+      "body": [
+        {
+          "id": "7"
+        }
+      ]
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "base.get": {
+    "params": {
+      "projectId": "p1"
+    },
+    "responses": [
+      {
+        "id": "p1"
+      },
+      {
+        "list": [
+          {
+            "id": "t1"
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/meta/bases/p1",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  },
+  "base.getAll": {
+    "params": {
+      "workspaceId": "w1"
+    },
+    "response": {
+      "list": [
+        {
+          "id": "p1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/meta/workspaces/w1/bases",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://app.nocodb.com",
+      "api_token": "T"
+    }
+  }
+}
