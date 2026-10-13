@@ -83,7 +83,9 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 	if resultsPath == "" && r.op.Output != nil {
 		resultsPath = r.outputPath()
 	}
-	inBody := pg.paramInBody() && r.bodyType() == BodyJSON
+	bt := r.bodyType()
+	inBody := pg.paramInBody() && (bt == BodyJSON || bt == BodyForm || bt == BodyMultipart)
+	inPath := pg.ParamIn == "path"
 
 	var (
 		all    []any
@@ -96,7 +98,7 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 		page = *pg.StartPage
 	}
 	for n := 0; n < maxPages; n++ {
-		pp := pageParams{values: map[string]any{}, inBody: inBody, url: next}
+		pp := pageParams{values: map[string]any{}, inBody: inBody, inPath: inPath, url: next}
 		if next == "" {
 			if pg.LimitParam != "" {
 				pp.values[pg.LimitParam] = pageSize

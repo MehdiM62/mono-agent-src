@@ -17,6 +17,7 @@
     "docs_url": { "type": "string" },
     "n8n_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
     "n8n_operation_param": { "type": "string" },
+    "n8n_resource_param": { "type": "string" },
     "n8n_version_defaults": { "type": "object" },
     "query_style": { "type": "string", "enum": ["", "brackets"] },
     "n8n_trigger_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
@@ -94,6 +95,9 @@
         "headers": { "$ref": "#/$defs/stringMap" },
         "query": { "$ref": "#/$defs/stringMap" },
         "body": { "$ref": "#/$defs/stringMap" },
+        "hmac": { "type": "object", "required": ["header", "secret", "message"], "additionalProperties": false,
+          "properties": { "header": { "type": "string" }, "secret": { "type": "string" }, "message": { "type": "string" },
+            "alg": { "type": "string", "enum": ["SHA256", "SHA1", "SHA512"] }, "encoding": { "type": "string", "enum": ["base64", "hex"] }, "prefix": { "type": "string" } } },
         "jwt": {
           "type": "object", "required": ["alg", "secret"], "additionalProperties": false,
           "properties": {
@@ -323,7 +327,7 @@
         "page_size": { "type": "integer" },
         "start_page": { "type": "integer" },
         "max_pages": { "type": "integer" },
-        "param_in": { "type": "string", "enum": ["query", "body"] }
+        "param_in": { "type": "string", "enum": ["query", "body", "path"] }
       }
     }
   }
