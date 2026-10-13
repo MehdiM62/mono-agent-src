@@ -112,7 +112,9 @@
         "to": {
           "result": "{{ el }}"
         }
-      }
+      },
+      "error_when": "{{ hdr.X-Amz-Function-Error | default:res.errorMessage }}",
+      "error_message": "{{ res.errorType | suffix:': ' }}{{ res.errorMessage | default:hdr.X-Amz-Function-Error }}"
     }
   ]
 }

@@ -5,10 +5,12 @@ import (
 	"crypto/sha1" //nolint:gosec // test vector
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSnakeASCIIHashModWeekday(t *testing.T) {
@@ -151,5 +153,75 @@ func TestOutputDownloadPerElement(t *testing.T) {
 	items, err = runPackageOp(p, map[string]any{"operation": "list", "fields": "Docs"}, cred, nil)
 	if err != nil || len(*seen) != 1 || items[0].Binary != nil {
 		t.Errorf("download off: %d requests, %v, %v", len(*seen), items, err)
+	}
+}
+
+func TestCortexCaseArtifactFile(t *testing.T) {
+	p := catalogPkg(t, "cortex")
+	m := newMockServer(t, map[string]any{"id": "job1"}, 200)
+	_, err := runPackageOp(p, map[string]any{"resource": "responder", "operation": "execute", "responder": "R1::Mailer",
+		"entityType": "case_artifact", "parameters": map[string]any{"values": map[string]any{
+			"dataType": "file", "binaryPropertyName": "doc", "message": "m"}}},
+		map[string]any{"host": "https://cortex.test", "access_token": "k"},
+		map[string]any{"binary": map[string]any{"doc": map[string]any{"data": "aGk=", "fileName": "a.txt", "mimeType": "text/plain"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs := m.requests()
+	if len(reqs) != 1 {
+		t.Fatalf("want 1 request, got %d", len(reqs))
+	}
+	var body map[string]any
+	if err := json.Unmarshal(reqs[0].body, &body); err != nil {
+		t.Fatal(err)
+	}
+	m5, s1, s2 := md5.Sum([]byte("hi")), sha1.Sum([]byte("hi")), sha256.Sum256([]byte("hi")) //nolint:gosec // test vector
+	want := map[string]any{"_type": "case_artifact", "dataType": "file", "message": "m", "attachment": map[string]any{
+		"name": "a.txt", "contentType": "text/plain", "size": 2.0, "id": hex.EncodeToString(s2[:]),
+		"hashes": []any{hex.EncodeToString(s2[:]), hex.EncodeToString(s1[:]), hex.EncodeToString(m5[:])}}}
+	if !reflect.DeepEqual(body["data"], want) {
+		t.Errorf("data = %#v\nwant %#v", body["data"], want)
+	}
+}
+
+func TestGA4LastCalendarWeek(t *testing.T) {
+	p := catalogPkg(t, "google_analytics")
+	m := newMockServer(t, map[string]any{}, 200)
+	if _, err := runPackageOp(p, map[string]any{"resource": "report", "operation": "get", "propertyId": "123",
+		"dateRange": "lastCalendarWeek", "metricsGA4": map[string]any{"metricValues": []any{map[string]any{"listName": "totalUsers"}}}},
+		map[string]any{"access_token": "t"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(m.requests()[0].body, &body); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	back := int(now.Weekday()+6) % 7 // days since this Monday
+	mon := time.Date(now.Year(), now.Month(), now.Day()-back-7, 0, 0, 0, 0, time.UTC)
+	want := []any{map[string]any{"startDate": mon.Format("2006-01-02"), "endDate": mon.AddDate(0, 0, 6).Format("2006-01-02")}}
+	if !reflect.DeepEqual(body["dateRanges"], want) {
+		t.Errorf("dateRanges = %v, want %v", body["dateRanges"], want)
+	}
+}
+
+func TestOdooJSONRPCErrorFails(t *testing.T) {
+	p := catalogPkg(t, "odoo")
+	cases, err := loadCases("odoo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := cases["opportunity.get"] // username/password: JSON-RPC
+	rpcErr := map[string]any{"jsonrpc": "2.0", "id": 1, "error": map[string]any{"code": 200, "message": "Odoo Server Error",
+		"data": map[string]any{"name": "odoo.exceptions.AccessDenied", "message": "Access Denied"}}}
+	// The login answers fine; the call reports the error.
+	m := newMockServer(t, nil, 200, map[string]any{"jsonrpc": "2.0", "result": 2}, rpcErr)
+	params := map[string]any{"resource": "opportunity", "operation": "get"}
+	for k, v := range c.Params {
+		params[k] = v
+	}
+	_, err = runPackageOp(p, params, c.Credential, c.Input)
+	if err == nil || !strings.Contains(err.Error(), "the API reported an error: Access Denied") || len(m.requests()) != 2 {
+		t.Fatalf("an HTTP 200 JSON-RPC error must fail the item, got %v after %d requests", err, len(m.requests()))
 	}
 }
