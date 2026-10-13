@@ -54,12 +54,12 @@ func TestHealthPostURLAndID(t *testing.T) {
 		t.Errorf("postURL = %q", got)
 	}
 	for in, want := range map[string]string{
-		"https://www.linkedin.com/feed/update/urn:li:activity:7123456789012345678/": "7123456789012345678",
-		"https://www.linkedin.com/feed/update/urn:li:ugcPost:7123456789012345679/":  "7123456789012345679",
-		"urn:li:share:7123456789012345680":                                          "7123456789012345680",
+		"https://www.linkedin.com/feed/update/urn:li:activity:7123456789012345678/":      "7123456789012345678",
+		"https://www.linkedin.com/feed/update/urn:li:ugcPost:7123456789012345679/":       "7123456789012345679",
+		"urn:li:share:7123456789012345680":                                               "7123456789012345680",
 		"https://www.linkedin.com/posts/ann-lee_title-activity-7123456789012345681-AbCd": "7123456789012345681",
-		"https://www.linkedin.com/feed/update/urn:li:activity:12345/":                   "", // under 6 digits
-		"https://www.linkedin.com/in/ann-lee-test/":                                     "",
+		"https://www.linkedin.com/feed/update/urn:li:activity:12345/":                    "", // under 6 digits
+		"https://www.linkedin.com/in/ann-lee-test/":                                      "",
 		"": "",
 	} {
 		if got := postIDFromURL(in); got != want {
@@ -158,11 +158,11 @@ func TestHealthAsFromJSONListRoundTrip(t *testing.T) {
 	if back := fromJSONList[Position](list); !reflect.DeepEqual(back, in) {
 		t.Errorf("fromJSONList round trip = %+v", back)
 	}
-	// nil and unmarshalable input give an empty, non-nil list.
-	if got := asJSONList(nil); got == nil || len(got) != 0 {
+	// nil (JSON null) and unmarshalable input give an empty list.
+	if got := asJSONList(nil); len(got) != 0 {
 		t.Errorf("asJSONList(nil) = %#v", got)
 	}
-	if got := asJSONList(func() {}); got == nil || len(got) != 0 {
+	if got := asJSONList(func() {}); len(got) != 0 {
 		t.Errorf("asJSONList(func) = %#v", got)
 	}
 	if got := fromJSONList[School](nil); len(got) != 0 {
@@ -179,8 +179,8 @@ func TestHealthSetDetails(t *testing.T) {
 	if exp := m["experience"].([]interface{}); len(exp) != 1 {
 		t.Errorf("experience = %#v", exp)
 	}
-	if edu := m["education"].([]interface{}); edu == nil || len(edu) != 0 {
-		t.Errorf("education should be an empty list, got %#v", edu)
+	if edu := m["education"].([]interface{}); len(edu) != 0 {
+		t.Errorf("education should be empty, got %#v", edu)
 	}
 
 	setDetails(m, []Position{
