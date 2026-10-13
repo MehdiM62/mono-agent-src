@@ -181,6 +181,7 @@ Scopes:
 | `main.<path>` | the main request's response, unchanged while `poll` repeats rebind `res` (also set in `also` steps) |
 | `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
 | `now` | the current UTC time (RFC 3339): `{{ now \| epoch \| add:p.duration \| date:'YYYY-MM-DDTHH:mm:ssZ' }}` |
+| `idx` | the element's position inside `$map`/`$entries` (pivot parallel lists: `{{ p.mrr \| get:(idx \| string) }}`) |
 | `uuid` | a new random UUID each time (e.g. a Calendar conference `requestId`) |
 
 Paths walk objects by key and arrays by index; `-1` is the last element
@@ -227,6 +228,9 @@ through, so an unset param stays unset:
 | `add:n`, `sub:n`, `mul:n` | arithmetic with a number or path (`{{ p.startIndex \| sub:1 }}`, `{{ p.minutes \| mul:60000 }}`); whole results are integers |
 | `numeric` | a numeric string → number (integer when whole); anything else passes unchanged |
 | `lines` | text → list of its non-empty trimmed lines |
+| `matches:'regex'` | `true` when the text matches, else nil (chain into `then`; SOQL date literals) |
+| `in:'a,b'` | `true` when the value is one of the listed (comma text, list or path), else nil |
+| `flatten` | lists and objects of lists → one flat list (object keys sorted; Rocket.Chat `{update: […], remove: […]}`) |
 | `snake` | lodash snake_case (`"Due Date"`, `"DueDate"` → `due_date`; Notion `property_*` keys) |
 | `values` | object → list of its values, by sorted key (maps keyed by id: Philips Hue lights) |
 | `hex` | hex text → integer (`#ff0000` → 16711680; `#`/`0x` stripped) |

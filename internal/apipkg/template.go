@@ -35,6 +35,8 @@ type Scope struct {
 	// Hdr is the main response's headers (first value each); lookups are
 	// case-insensitive (hdr.Location, hdr.Resource-ID).
 	Hdr headerMap
+	// Idx is the element's position inside a $map / $entries.
+	Idx int
 }
 
 // headerMap holds response headers; lookupPath matches its keys
@@ -65,6 +67,8 @@ func (s Scope) root(name string) any {
 		return s.Main
 	case "hdr":
 		return s.Hdr
+	case "idx":
+		return s.Idx
 	case "now":
 		return time.Now().UTC().Format(time.RFC3339)
 	case "uuid":
@@ -247,9 +251,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now", "idx":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., hdr., pre., pres., bin. or be uuid / now", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., hdr., pre., pres., bin. or be uuid / now / idx", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
@@ -643,7 +647,7 @@ func renderMap(src, to any, sc Scope) (any, error) {
 	out := make([]any, 0, len(arr))
 	for i, el := range arr {
 		esc := sc
-		esc.El = el
+		esc.El, esc.Idx = el, i
 		r, err := renderValue(to, esc)
 		if err != nil {
 			return nil, fmt.Errorf("$map element %d: %w", i, err)
@@ -735,7 +739,7 @@ func renderEntries(src, key, val any, sc Scope) (any, error) {
 	out := map[string]any{}
 	for i, el := range arr {
 		esc := sc
-		esc.El = el
+		esc.El, esc.Idx = el, i
 		k, err := renderText(ks, esc)
 		if err != nil {
 			return nil, fmt.Errorf("$entries element %d key: %w", i, err)
