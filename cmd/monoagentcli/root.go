@@ -154,6 +154,10 @@ func newRootCmd() *cobra.Command {
 // command that isn't Runnable *before* it validates args, so a group needs a
 // RunE for its Args check to be reached at all. The RunE is only ever hit
 // with zero args, where it does what cobra did — print help.
+//
+// Replacing cobra's own unknown-command error also replaced its "Did you
+// mean" suggestions, so the error adds them back (SuggestionsFor) before the
+// list of available subcommands.
 func rejectUnknownSubcommands(cmd *cobra.Command) {
 	for _, sub := range cmd.Commands() {
 		rejectUnknownSubcommands(sub)
@@ -169,7 +173,14 @@ func rejectUnknownSubcommands(cmd *cobra.Command) {
 					names = append(names, sub.Name())
 				}
 			}
-			return fmt.Errorf("unknown command %q for %q (available: %s)", args[0], c.CommandPath(), strings.Join(names, ", "))
+			msg := fmt.Sprintf("unknown command %q for %q", args[0], c.CommandPath())
+			if c.SuggestionsMinimumDistance <= 0 {
+				c.SuggestionsMinimumDistance = 2 // cobra's default, which only its own lookup applies
+			}
+			if suggestions := c.SuggestionsFor(args[0]); len(suggestions) > 0 {
+				msg += fmt.Sprintf(". Did you mean: %s?", strings.Join(suggestions, ", "))
+			}
+			return fmt.Errorf("%s (available: %s)", msg, strings.Join(names, ", "))
 		}
 		cmd.RunE = func(c *cobra.Command, _ []string) error { return c.Help() }
 	}

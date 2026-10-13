@@ -156,7 +156,7 @@ func newHILListCmd(cfg *globalConfig) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&suggest, "suggest", false, "Add TypeSafe Jev's suggestion to each item (computed and stored when missing; needs `jev enable hil`)")
+	cmd.Flags().BoolVar(&suggest, "suggest", false, "Add TypeSafe Jev's suggestion to each item (computed and stored when missing; needs 'jev enable hil')")
 	cmd.Flags().BoolVar(&resuggest, "resuggest", false, "Recompute and store every suggestion (implies --suggest)")
 	return cmd
 }
