@@ -82,6 +82,9 @@ type Workflow struct {
 	ProfileID   string    `json:"profile_id,omitempty" db:"profile_id"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	// Settings holds workflow-level execution options (e.g.
+	// "parallel_branches": true). Persisted by the file store only.
+	Settings map[string]interface{} `json:"settings,omitempty" db:"-"`
 	// Populated by LoadWorkflow — not stored directly
 	Nodes       []WorkflowNode       `json:"nodes,omitempty"`
 	Connections []WorkflowConnection `json:"connections,omitempty"`

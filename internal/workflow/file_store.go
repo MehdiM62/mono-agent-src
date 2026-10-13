@@ -26,6 +26,9 @@ type WorkflowFile struct {
 	UpdatedAt   time.Time          `json:"updated_at"`
 	Nodes       []WorkflowFileNode `json:"nodes"`
 	Connections []WorkflowFileEdge `json:"connections"`
+
+	// Settings are workflow-level execution options (Workflow.Settings).
+	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
 // WorkflowFileNode is a node as stored in the JSON file.
@@ -111,6 +114,7 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 		ProfileID:   wf.ProfileID,
 		CreatedAt:   wf.CreatedAt,
 		UpdatedAt:   wf.UpdatedAt,
+		Settings:    wf.Settings,
 	}
 
 	for _, n := range wf.Nodes {
@@ -288,6 +292,7 @@ func parseWorkflowFile(data []byte) (*Workflow, error) {
 		ProfileID:   wfFile.ProfileID,
 		CreatedAt:   wfFile.CreatedAt,
 		UpdatedAt:   wfFile.UpdatedAt,
+		Settings:    wfFile.Settings,
 	}
 	for _, fn := range wfFile.Nodes {
 		n := WorkflowNode{
