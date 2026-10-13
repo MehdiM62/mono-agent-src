@@ -1,4 +1,4 @@
-package main
+package workflowbundle
 
 import (
 	"os"
@@ -10,14 +10,14 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// nodeResolver maps a node type "<prefix>.<action>" to the installed
+// NodeResolver maps a node type "<prefix>.<action>" to the installed
 // package that provides that action ("" when none does, e.g. core.set or
 // trigger.manual).
-type nodeResolver func(prefix, action string) string
+type NodeResolver func(prefix, action string) string
 
-// workflowAutomationIDs returns the sorted, distinct package ids the
+// WorkflowAutomationIDs returns the sorted, distinct package ids the
 // workflow's "<prefix>.<action>" nodes use.
-func workflowAutomationIDs(nodes []workflow.WorkflowFileNode, resolve nodeResolver) []string {
+func WorkflowAutomationIDs(nodes []workflow.WorkflowFileNode, resolve NodeResolver) []string {
 	seen := map[string]bool{}
 	var ids []string
 	for _, n := range nodes {
@@ -36,7 +36,7 @@ func workflowAutomationIDs(nodes []workflow.WorkflowFileNode, resolve nodeResolv
 	return ids
 }
 
-// packageResolver resolves (prefix, action) to the package that has the
+// PackageResolver resolves (prefix, action) to the package that has the
 // action. Candidates, in order:
 //
 //  1. the package the DefSource resolves the prefix to (the action loader's
@@ -51,7 +51,7 @@ func workflowAutomationIDs(nodes []workflow.WorkflowFileNode, resolve nodeResolv
 // bundled from the legacy package, not the built-in. When no candidate has
 // the action, the first candidate is returned (the node is broken either
 // way; bundling the prefix's package is the closest match).
-func packageResolver(reg *automation.Registry) nodeResolver {
+func PackageResolver(reg *automation.Registry) NodeResolver {
 	src := reg.DefSource()
 	actions := map[string][]string{} // package id → manifest actions
 	has := func(id, act string) bool {
@@ -94,13 +94,13 @@ func packageResolver(reg *automation.Registry) nodeResolver {
 	}
 }
 
-// canonicalNodeTypes rewrites "<prefix>.<action>" node types to
+// CanonicalNodeTypes rewrites "<prefix>.<action>" node types to
 // "<package id>.<action>" wherever the node resolved to a different,
 // bundled package. A legacy alias, or a legacy action living beside a
 // built-in, is a local convenience of the exporting machine — an imported
 // package never claims an alias — so a bundled workflow must name the
 // package it ships.
-func canonicalNodeTypes(nodes []workflow.WorkflowFileNode, resolve nodeResolver, bundled map[string]bundledAutomation) []workflow.WorkflowFileNode {
+func CanonicalNodeTypes(nodes []workflow.WorkflowFileNode, resolve NodeResolver, bundled map[string]BundledAutomation) []workflow.WorkflowFileNode {
 	out := make([]workflow.WorkflowFileNode, len(nodes))
 	copy(out, nodes)
 	for i, n := range out {
@@ -117,9 +117,9 @@ func canonicalNodeTypes(nodes []workflow.WorkflowFileNode, resolve nodeResolver,
 	return out
 }
 
-// writeFileAtomic writes b to path via a temp file in the same directory
+// WriteFileAtomic writes b to path via a temp file in the same directory
 // and a rename, so readers never see a partial file.
-func writeFileAtomic(path string, b []byte) error {
+func WriteFileAtomic(path string, b []byte) error {
 	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
 		return err
