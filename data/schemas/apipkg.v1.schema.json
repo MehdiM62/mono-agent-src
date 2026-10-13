@@ -17,6 +17,7 @@
     "docs_url": { "type": "string" },
     "n8n_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
     "n8n_operation_param": { "type": "string" },
+    "n8n_version_defaults": { "type": "object" },
     "query_style": { "type": "string", "enum": ["", "brackets"] },
     "n8n_trigger_types": { "type": "array", "items": { "type": "string", "pattern": "^[A-Za-z0-9@/_-]+\\.[A-Za-z0-9_]+$" } },
     "base_url": { "type": "string", "minLength": 1 },

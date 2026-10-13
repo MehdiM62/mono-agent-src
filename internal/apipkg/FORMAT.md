@@ -525,6 +525,8 @@ When a config has no `resource` and the default resource lacks the operation, an
 
 **Trigger-only apps** (n8n has only a `…Trigger` node, e.g. Eventbrite, Figma): write a package with `"operations": []` and the app's `n8n_trigger_types` (plus its credentials). It registers no action node; it records the triggers for the importer and the trigger work.
 
+`n8n_version_defaults` (package): `{"1": {"apiVersion": "v4"}}` — per n8n node `typeVersion`, defaults the importer fills in for params an exported node omits (n8n doesn't export defaults, and some changed between node versions).
+
 ## 13. Testing a package
 
 `catalog/testdata/<id>.json` has one case per operation, keyed
