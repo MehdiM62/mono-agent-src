@@ -163,7 +163,7 @@
         ],
         "conferenceData": {
           "createRequest": {
-            "requestId": "{{ p.additionalFields.conferenceDataUi.conferenceDataValues.conferenceSolution | then:p.start | epoch_ms | prefix:'monoagent-' }}",
+            "requestId": "{{ p.additionalFields.conferenceDataUi.conferenceDataValues.conferenceSolution | then:uuid }}",
             "conferenceSolutionKey": {
               "type": "{{ p.additionalFields.conferenceDataUi.conferenceDataValues.conferenceSolution }}"
             }

@@ -11,7 +11,7 @@
     },
     "expect": {
       "method": "POST",
-      "path": "/v1/spaces%2FAAA/messages",
+      "path": "/v1/spaces/AAA/messages",
       "query": {
         "threadKey": "t1"
       },
@@ -26,7 +26,7 @@
     },
     "expect": {
       "method": "DELETE",
-      "path": "/v1/spaces%2FAAA%2Fmessages%2FBBB"
+      "path": "/v1/spaces/AAA/messages/BBB"
     }
   },
   "message.get": {
@@ -35,7 +35,7 @@
     },
     "expect": {
       "method": "GET",
-      "path": "/v1/spaces%2FAAA%2Fmessages%2FBBB"
+      "path": "/v1/spaces/AAA/messages/BBB"
     }
   },
   "message.update": {
@@ -46,7 +46,7 @@
     },
     "expect": {
       "method": "PUT",
-      "path": "/v1/spaces%2FAAA%2Fmessages%2FBBB",
+      "path": "/v1/spaces/AAA/messages/BBB",
       "query": {
         "updateMask": "text"
       },
@@ -61,7 +61,7 @@
     },
     "expect": {
       "method": "GET",
-      "path": "/v1/spaces%2FAAA%2Fmembers%2F1"
+      "path": "/v1/spaces/AAA/members/1"
     }
   },
   "member.getAll": {
@@ -78,7 +78,7 @@
     },
     "expect": {
       "method": "GET",
-      "path": "/v1/spaces%2FAAA/members",
+      "path": "/v1/spaces/AAA/members",
       "query": {
         "pageSize": "10"
       },
@@ -91,7 +91,7 @@
     },
     "expect": {
       "method": "GET",
-      "path": "/v1/spaces%2FAAA"
+      "path": "/v1/spaces/AAA"
     }
   },
   "space.getAll": {

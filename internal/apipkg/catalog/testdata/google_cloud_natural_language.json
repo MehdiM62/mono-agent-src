@@ -1,0 +1,28 @@
+{
+  "document.analyzeSentiment": {
+    "params": {
+      "content": "I love it",
+      "options": {
+        "language": "en"
+      }
+    },
+    "response": {
+      "documentSentiment": {
+        "score": 0.9
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/documents:analyzeSentiment",
+      "body": {
+        "document": {
+          "type": "PLAIN_TEXT",
+          "content": "I love it",
+          "language": "en"
+        },
+        "encodingType": "UTF16"
+      },
+      "items": 1
+    }
+  }
+}

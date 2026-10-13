@@ -50,7 +50,7 @@
       "operation": "create",
       "title": "Create a message",
       "method": "POST",
-      "path": "/{{ p.spaceId }}/messages",
+      "path": "/{{ p.spaceId | path }}/messages",
       "fields": [
         {
           "key": "spaceId",
@@ -108,7 +108,7 @@
       "operation": "delete",
       "title": "Delete a message",
       "method": "DELETE",
-      "path": "/{{ p.messageId }}",
+      "path": "/{{ p.messageId | path }}",
       "fields": [
         {
           "key": "messageId",
@@ -124,7 +124,7 @@
       "operation": "get",
       "title": "Get a message",
       "method": "GET",
-      "path": "/{{ p.messageId }}",
+      "path": "/{{ p.messageId | path }}",
       "fields": [
         {
           "key": "messageId",
@@ -140,7 +140,7 @@
       "operation": "update",
       "title": "Update a message",
       "method": "PUT",
-      "path": "/{{ p.messageId }}",
+      "path": "/{{ p.messageId | path }}",
       "fields": [
         {
           "key": "messageId",
@@ -186,7 +186,7 @@
       "operation": "get",
       "title": "Get a member",
       "method": "GET",
-      "path": "/{{ p.memberId }}",
+      "path": "/{{ p.memberId | path }}",
       "fields": [
         {
           "key": "memberId",
@@ -202,7 +202,7 @@
       "operation": "getAll",
       "title": "Get many members",
       "method": "GET",
-      "path": "/{{ p.spaceId }}/members",
+      "path": "/{{ p.spaceId | path }}/members",
       "fields": [
         {
           "key": "spaceId",
@@ -239,7 +239,7 @@
       "operation": "get",
       "title": "Get a space",
       "method": "GET",
-      "path": "/{{ p.spaceId }}",
+      "path": "/{{ p.spaceId | path }}",
       "fields": [
         {
           "key": "spaceId",
