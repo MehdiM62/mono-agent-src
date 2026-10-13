@@ -1,0 +1,22 @@
+{
+  "name": "Legacy nightly sync",
+  "nodes": [
+    {"parameters": {"triggerTimes": {"item": [{"hour": 3, "minute": 30}, {"mode": "everyWeek", "hour": 9, "weekday": "1"}, {"mode": "custom", "cronExpression": "0 */15 * * * *"}]}}, "name": "Cron", "type": "n8n-nodes-base.cron", "typeVersion": 1, "position": [0, 0]},
+    {"parameters": {"functionCode": "return [{json: {id: 1, name: 'a'}}, {json: {id: 2, name: 'b'}}];"}, "name": "Function", "type": "n8n-nodes-base.function", "typeVersion": 1, "position": [200, 0]},
+    {"parameters": {"functionCode": "item.upper = item.name.toUpperCase();\nreturn item;"}, "name": "FunctionItem", "type": "n8n-nodes-base.functionItem", "typeVersion": 1, "position": [400, 0]},
+    {"parameters": {"conditions": {"number": [{"value1": "={{$json[\"id\"]}}", "operation": "larger", "value2": 1}], "string": [{"value1": "={{$json[\"name\"]}}", "operation": "contains", "value2": "b"}]}, "combineOperation": "any"}, "name": "IF", "type": "n8n-nodes-base.if", "typeVersion": 1, "position": [600, 0]},
+    {"parameters": {"keepOnlySet": true, "values": {"string": [{"name": "label", "value": "={{$node[\"Function\"].json[\"name\"]}}-{{$json[\"id\"]}}"}], "number": [{"name": "id", "value": "={{$json[\"id\"]}}"}], "boolean": [{"name": "flag", "value": true}]}, "options": {}}, "name": "Set", "type": "n8n-nodes-base.set", "typeVersion": 1, "position": [800, -100]},
+    {"parameters": {"requestMethod": "POST", "url": "https://example.com/sync", "jsonParameters": true, "bodyParametersJson": "={{ JSON.stringify($json) }}", "options": {"timeout": 5000}}, "name": "HTTP Request", "type": "n8n-nodes-base.httpRequest", "typeVersion": 1, "position": [800, 100]},
+    {"parameters": {"mode": "mergeByKey", "propertyName1": "id", "propertyName2": "id"}, "name": "Merge", "type": "n8n-nodes-base.merge", "typeVersion": 1, "position": [1000, 0]},
+    {"parameters": {"interval": 30, "unit": "minutes"}, "name": "Interval", "type": "n8n-nodes-base.interval", "typeVersion": 1, "position": [0, 200]}
+  ],
+  "connections": {
+    "Cron": {"main": [[{"node": "Function", "type": "main", "index": 0}]]},
+    "Interval": {"main": [[{"node": "Function", "type": "main", "index": 0}]]},
+    "Function": {"main": [[{"node": "FunctionItem", "type": "main", "index": 0}]]},
+    "FunctionItem": {"main": [[{"node": "IF", "type": "main", "index": 0}]]},
+    "IF": {"main": [[{"node": "Set", "type": "main", "index": 0}], [{"node": "HTTP Request", "type": "main", "index": 0}]]},
+    "Set": {"main": [[{"node": "Merge", "type": "main", "index": 0}]]},
+    "HTTP Request": {"main": [[{"node": "Merge", "type": "main", "index": 1}]]}
+  }
+}

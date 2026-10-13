@@ -288,6 +288,7 @@ func newWorkflowCmd(cfg *globalConfig) *cobra.Command {
 		newWorkflowGetCmd(cfg),
 		newWorkflowCreateCmd(cfg),
 		newWorkflowImportCmd(cfg),
+		newWorkflowConvertCmd(cfg),
 		newWorkflowExportCmd(cfg),
 		newWorkflowRunCmd(cfg),
 		newWorkflowInputsCmd(cfg),
@@ -1638,6 +1639,7 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 	// With --json a failure is also {"error","code"} on stdout (contracts
 	// §5), as the automation commands do; the exit code is unchanged.
 	withJSONErrors(cfg, cmd)
+	withN8nImport(cfg, cmd)
 	return cmd
 }
 
