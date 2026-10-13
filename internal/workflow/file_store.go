@@ -171,6 +171,48 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 	return nil
 }
 
+// readRaw returns the workflow file's bytes as they are on disk, and whether
+// the file exists — what restoreRaw needs to undo a SaveWorkflow.
+func (s *WorkflowFileStore) readRaw(id string) ([]byte, bool, error) {
+	path, err := s.filePath(id)
+	if err != nil {
+		return nil, false, err
+	}
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, fmt.Errorf("file_store: read %s: %w", id, err)
+	}
+	return data, true, nil
+}
+
+// restoreRaw puts back a workflow file captured by readRaw: the previous
+// bytes when it existed, no file when it did not.
+func (s *WorkflowFileStore) restoreRaw(id string, data []byte, existed bool) error {
+	path, err := s.filePath(id)
+	if err != nil {
+		return err
+	}
+	defer s.invalidate(path)
+	if !existed {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("file_store: remove %s: %w", id, err)
+		}
+		return nil
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("file_store: write %s: %w", id, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("file_store: rename %s: %w", id, err)
+	}
+	return nil
+}
+
 // GetWorkflow reads a workflow JSON file by ID.
 // Returns nil, nil if not found.
 func (s *WorkflowFileStore) GetWorkflow(ctx context.Context, id string) (*Workflow, error) {

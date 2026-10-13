@@ -17,11 +17,17 @@ const ErrorWorkflowSetting = "error_workflow"
 // workflow whose settings name none.
 const DefaultErrorWorkflowConfig = "workflow.error_workflow"
 
+// execer is what saveWorkflowSettings writes through: a *sql.DB, or the
+// *sql.Tx of a save that must land as a whole (saveDefinition).
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
 // saveWorkflowSettings writes w.Settings to the workflows.settings column.
 // Best-effort: a database without the column (an old test schema) keeps
 // the workflow row as it was; the file store holds settings on its own.
-func saveWorkflowSettings(ctx context.Context, db *sql.DB, w *Workflow) {
-	if db == nil || w == nil || w.ID == "" {
+func saveWorkflowSettings(ctx context.Context, db execer, w *Workflow) {
+	if d, ok := db.(*sql.DB); db == nil || (ok && d == nil) || w == nil || w.ID == "" {
 		return
 	}
 	raw := []byte("{}")
