@@ -186,13 +186,18 @@
         tone: "warn",
         label: rejected ? "Pairing rejected" : "Not paired",
         title: rejected ? "The bridge refused this browser's token" : "This browser isn't paired yet",
+        // Never paired leads with the path that needs nothing typed: a
+        // MonoAgent command that starts the bridge for a browser task opens
+        // the pairing page (pair_bridge.js), and this browser pairs itself.
+        // The token is the fallback for a bridge that is already running,
+        // which opens no page.
         body:
           said ||
           (rejected
             ? "The saved token is no longer the bridge's. Generate a new one and paste it below."
-            : "The bridge only accepts a browser it has been introduced to. Run this, then paste what it prints."),
+            : "Usually this happens by itself: when MonoAgent starts its bridge for a browser task, it opens a pairing page and this browser pairs on its own. If no page opened, run this and paste what it prints."),
         command: PAIR_COMMAND,
-        action: { id: ACTIONS.PAIR, label: "Paste a pairing token" },
+        action: { id: ACTIONS.PAIR, label: rejected ? "Paste a new token" : "Paste a token instead" },
         queues: true,
       });
     }

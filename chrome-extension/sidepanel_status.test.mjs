@@ -144,6 +144,16 @@ test("never paired and refused are told apart", () => {
   assert.equal(never.tone, "warn");
 });
 
+test("never paired leads with automatic pairing, the token second", () => {
+  const never = S.describe({ status: "unpaired" });
+  const auto = never.body.indexOf("pairs on its own");
+  const token = never.body.indexOf("paste");
+  assert.ok(auto >= 0, "says the pairing page pairs the browser by itself");
+  assert.ok(token > auto, "the token comes after the automatic path");
+  assert.equal(never.action.label, "Paste a token instead");
+  assert.equal(S.describe({ status: "unpaired", reason: "auth_rejected" }).action.label, "Paste a new token");
+});
+
 test("a rejected token is a pairing problem whatever status carries it", () => {
   const view = S.describe({ status: "disconnected", reason: "auth_rejected" });
   assert.equal(view.key, "rejected");
