@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 const (
@@ -220,9 +222,7 @@ func (c *Client) checkFresh(m *Manifest) error {
 	}
 	if next != st {
 		if b, err := json.Marshal(next); err == nil {
-			if os.MkdirAll(filepath.Dir(c.StatePath), 0o755) == nil {
-				_ = os.WriteFile(c.StatePath, b, 0o644)
-			}
+			_ = statedir.WriteFile(c.StatePath, b)
 		}
 	}
 	return nil
