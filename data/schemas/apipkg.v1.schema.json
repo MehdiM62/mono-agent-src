@@ -52,7 +52,8 @@
         "fields": { "type": "array", "items": { "$ref": "#/$defs/credentialField" } },
         "oauth": { "$ref": "#/$defs/oauth" },
         "inject": { "$ref": "#/$defs/inject" },
-        "reuse_platform": { "type": "string" }
+        "reuse_platform": { "type": "string" },
+        "scope_group": { "type": "string" }
       }
     },
     "credentialField": {
@@ -129,7 +130,7 @@
         "output": {
           "type": "object",
           "additionalProperties": false,
-          "properties": { "path": { "type": "string" }, "split": { "type": "boolean" } }
+          "properties": { "path": { "type": "string" }, "split": { "type": "boolean" }, "header_row": { "type": "boolean" } }
         },
         "binary": {
           "type": "object",
@@ -145,6 +146,21 @@
         },
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
         "batch": { "type": "boolean" },
+        "before": {
+          "type": "object",
+          "required": ["method", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "when": { "type": "string" },
+            "method": { "type": "string", "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] },
+            "path": { "type": "string", "minLength": 1 },
+            "base_url": { "type": "string" },
+            "query": { "type": "object" },
+            "body": {},
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "headers": { "$ref": "#/$defs/stringMap" }
+          }
+        },
         "also": {
           "type": "array",
           "items": {

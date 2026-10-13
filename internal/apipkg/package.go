@@ -57,6 +57,11 @@ type Credential struct {
 	OAuth         *OAuthSpec        `json:"oauth,omitempty"`
 	Inject        Inject            `json:"inject"`
 	ReusePlatform string            `json:"reuse_platform,omitempty"`
+	// ScopeGroup names the umbrella-connection scope group the package
+	// needs (google: calendar, docs, forms, …; microsoft: mail, files, …).
+	// Before the first request the engine checks the connection grants it
+	// and fails with the exact `connect … --scopes` command when not.
+	ScopeGroup string `json:"scope_group,omitempty"`
 
 	// N8nCredentialAlt are further n8n credential types that map to this
 	// credential (e.g. the OAuth2 variant of an API-key credential).
@@ -143,6 +148,9 @@ type Operation struct {
 	// batchUpdate/batchDelete): params come from the first item and the
 	// items root holds every item's JSON.
 	Batch bool `json:"batch,omitempty"`
+	// Before is a request sent first; its decoded response is the pre
+	// root for the main request (e.g. read a sheet's header row).
+	Before *Step `json:"before,omitempty"`
 }
 
 // Step is one follow-up request of an operation. When is a template; an
@@ -206,6 +214,9 @@ type Pagination struct {
 type Output struct {
 	Path  string `json:"path,omitempty"`
 	Split *bool  `json:"split,omitempty"`
+	// HeaderRow turns a list of value rows into objects keyed by the
+	// first row (Google Sheets values, CSV-like APIs).
+	HeaderRow bool `json:"header_row,omitempty"`
 }
 
 // Binary configures file upload and download.
