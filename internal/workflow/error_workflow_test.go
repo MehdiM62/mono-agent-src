@@ -245,6 +245,10 @@ func TestWorkflowSettingsPersist(t *testing.T) {
 	if got.Settings[ErrorWorkflowSetting] != "y" {
 		t.Fatalf("settings after update = %#v", got.Settings)
 	}
+	list, err := store.ListWorkflows(ctx, "")
+	if err != nil || len(list) != 1 || list[0].Settings[ErrorWorkflowSetting] != "y" {
+		t.Fatalf("list = %+v, %v", list, err)
+	}
 }
 
 // The file store keeps settings in the workflow's JSON.

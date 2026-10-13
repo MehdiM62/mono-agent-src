@@ -51,6 +51,32 @@ func loadWorkflowSettings(ctx context.Context, db *sql.DB, w *Workflow) {
 	}
 }
 
+// loadWorkflowsSettings fills Settings for each listed workflow with one
+// query; best-effort like loadWorkflowSettings.
+func loadWorkflowsSettings(ctx context.Context, db *sql.DB, ws []Workflow) {
+	if db == nil || len(ws) == 0 {
+		return
+	}
+	rows, err := db.QueryContext(ctx, `SELECT id, COALESCE(settings, '') FROM workflows WHERE COALESCE(settings, '') NOT IN ('', '{}')`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	byID := map[string]map[string]interface{}{}
+	for rows.Next() {
+		var id, raw string
+		var m map[string]interface{}
+		if rows.Scan(&id, &raw) == nil && json.Unmarshal([]byte(raw), &m) == nil && len(m) > 0 {
+			byID[id] = m
+		}
+	}
+	for i := range ws {
+		if m, ok := byID[ws[i].ID]; ok {
+			ws[i].Settings = m
+		}
+	}
+}
+
 // errorWorkflowID returns the id of wf's error workflow: its own
 // error_workflow setting, else the configured default, else "".
 func errorWorkflowID(ctx context.Context, db *sql.DB, wf *Workflow) string {

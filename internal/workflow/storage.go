@@ -242,7 +242,11 @@ func (s *SQLiteWorkflowStore) ListWorkflows(ctx context.Context, profileID strin
 		w.IsActive = isActive != 0
 		out = append(out, w)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	loadWorkflowsSettings(ctx, s.db, out)
+	return out, nil
 }
 
 // NodeCounts returns each workflow's node count, keyed by workflow id, for
