@@ -115,6 +115,43 @@ ask for JSON, a category, or a rewrite in the prompt itself.`,
 install one with "monoagentcli agent install <runtime>".`,
 	},
 	{
+		Type:     "mcp.call",
+		Category: "agent",
+		Short:    "Call a tool on any MCP server (stdio or Streamable HTTP)",
+		Description: `An MCP client. Connects to one server per node run (MCP 2025-06-18: initialize,
+notifications/initialized), then lists its tools or calls one tool per input
+item (once when there are no items). stdio spawns the server once, in its own
+process group, reuses it for every item and kills it when the node ends or
+the run is cancelled. http POSTs JSON-RPC to the endpoint, accepts JSON and
+SSE replies, and keeps the Mcp-Session-Id the server issues.`,
+		Config: `{
+  "server":    "",                    // optional: vault secret with the server as JSON
+                                      //   {transport, command, args, env, cwd, url, headers}
+  "transport": "stdio",               // stdio | http (empty: http when url is set)
+  "command":   "npx",                 // stdio
+  "args":      ["-y", "@modelcontextprotocol/server-everything"],
+  "env":       {"API_TOKEN": "@secret:my-token"},
+  "cwd":       "",
+  "url":       "https://example.com/mcp",                 // http
+  "headers":   {"Authorization": "Bearer @secret:zapier"},
+  "operation": "call_tool",           // call_tool | list_tools
+  "tool":      "search",              // call_tool; per item
+  "arguments": {"query": "{{ $json.text }}"},             // per item
+  "timeout":   60,                    // seconds per MCP request
+  "fail_on_tool_error": true          // false: isError results become items
+}`,
+		Inputs: "any items (tool and arguments read from each item's $json)",
+		Outputs: `call_tool: one item per input {tool, result, content, is_error}; result is
+structuredContent when present, else the text content (JSON-parsed when it
+parses). list_tools: one item per tool {tool, title, description,
+input_schema, output_schema, annotations}.`,
+		Notes: `A result with isError fails the node (on_error applies) unless
+fail_on_tool_error is false. @secret:<name> references in env and header
+values are resolved from the vault, also inside a value ("Bearer @secret:x");
+one that does not resolve fails the node rather than being sent. Org grants
+treat mcp.call as outbound.`,
+	},
+	{
 		Type:     "browser.jev",
 		Category: "agent",
 		Short:    "Browser agent: reach a goal on any website in your own browser (TypeSafe Jev)",

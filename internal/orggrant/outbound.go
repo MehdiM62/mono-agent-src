@@ -222,6 +222,7 @@ var outboundNodes = setOf(
 	// node keeps the runtime from using its tools.
 	"ai.extract_page", "applications.evaluate",
 	"browser.jev", // goal-driven agent in the user's browser
+	"mcp.call",    // calls any tool of an arbitrary MCP server
 	"http.ftp", "http.ssh", "system.execute_command",
 	"data.write_binary_file", // writes any local path
 	"vault.secret_save",      // overwrites credentials
