@@ -24,6 +24,9 @@ func (n *GoogleSheetsNode) Execute(ctx context.Context, input workflow.NodeInput
 	if accessToken == "" {
 		return nil, fmt.Errorf("google_sheets: access_token is required")
 	}
+	if err := credentialScopeCheck(config, "google_sheets"); err != nil {
+		return nil, fmt.Errorf("google_sheets: %w", err)
+	}
 
 	operation := strVal(config, "operation")
 	if operation == "" {
