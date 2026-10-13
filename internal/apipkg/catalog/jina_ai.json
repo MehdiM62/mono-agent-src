@@ -62,7 +62,7 @@
         "X-Return-Format": "{{ p.options.outputFormat }}",
         "X-Target-Selector": "{{ p.options.targetSelector }}",
         "X-Remove-Selector": "{{ p.options.excludeSelector }}",
-        "X-With-Generated-Alt": "{{ p.options.enableImageCaptioning | then:'true' }}",
+        "X-With-Generated-Alt": "{{ p.options.enableImageCaptioning | eq:'true' | then:'true' }}",
         "X-Wait-For-Selector": "{{ p.options.waitForSelector }}"
       },
       "fields": [

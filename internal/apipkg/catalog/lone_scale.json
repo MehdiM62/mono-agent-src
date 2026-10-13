@@ -253,7 +253,7 @@
             }
           }
         ],
-        "detect_job_change": "{{ p.detectJobChange | then:true }}"
+        "detect_job_change": "{{ p.detectJobChange | eq:'true' | then:true }}"
       },
       "output": {
         "path": "contacts"
@@ -323,7 +323,7 @@
         "limit": "{{ p.sourceAdditionalFields.maxResults }}",
         "included_locations": "{{ p.sourceAdditionalFields.includedLocations | split }}",
         "seniority_levels": "{{ p.sourceAdditionalFields.seniorityLevels }}",
-        "disable_company_info": "{{ p.sourceAdditionalFields.disableCompanyInfo | then:true }}"
+        "disable_company_info": "{{ p.sourceAdditionalFields.disableCompanyInfo | eq:'true' | then:true }}"
       },
       "output": {
         "path": "contacts"
@@ -372,7 +372,7 @@
         "linkedin_id": "{{ p.searchLinkedinId }}",
         "slug": "{{ p.searchSlug }}",
         "name": "{{ p.searchName }}",
-        "enrich": "{{ p.searchEnrich | then:'true' }}"
+        "enrich": "{{ p.searchEnrich | eq:'true' | then:'true' }}"
       },
       "output": {
         "path": "results"

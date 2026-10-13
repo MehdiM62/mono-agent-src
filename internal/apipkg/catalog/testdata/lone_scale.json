@@ -102,7 +102,8 @@
         "maxResults": 5,
         "seniorityLevels": [
           "vp"
-        ]
+        ],
+        "disableCompanyInfo": false
       }
     },
     "response": {
