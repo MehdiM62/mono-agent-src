@@ -551,7 +551,7 @@ func newChatCmd(cfg *globalConfig) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&runtime, "runtime", "", "Agent runtime id (claude, codex, kimicode, … — see `agent scan`)")
+	cmd.Flags().StringVar(&runtime, "runtime", "", "Agent runtime id (claude, codex, kimicode, … — see 'agent scan')")
 	cmd.Flags().StringVar(&model, "model", "", "Model override for the runtime")
 	cmd.Flags().StringVar(&effort, "effort", "", "Reasoning effort level for the model")
 	cmd.Flags().StringVar(&resume, "resume", "", "Session/thread id to resume (from the session event)")

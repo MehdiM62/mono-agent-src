@@ -1,0 +1,587 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_iam",
+  "node_type": "app.aws_iam",
+  "title": "AWS IAM",
+  "description": "Users and groups in AWS Identity and Access Management",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/IAM/latest/APIReference/API_Operations.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsIam"
+  ],
+  "base_url": "https://iam.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "iam",
+          "region": "{{ cred.region | matches:'^cn-' | then:'cn-north-1' | default:'us-east-1' }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "group",
+      "label": "Group"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "ListUsers",
+        "Version": "2010-05-08",
+        "PathPrefix": "{{ p.additionalFields.pathPrefix | re:'^/?(.*?)/?$' | prefix:'/' | suffix:'/' }}"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "pathPrefix"
+          ]
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "Marker",
+        "cursor_path": "ListUsersResponse.ListUsersResult.Marker",
+        "has_more_path": "ListUsersResponse.ListUsersResult.IsTruncated",
+        "limit_param": "MaxItems",
+        "page_size": 1000,
+        "param_in": "body",
+        "results_path": "ListUsersResponse.ListUsersResult.Users"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "addToGroup",
+      "title": "Add a user to a group",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "AddUserToGroup",
+        "Version": "2010-05-08",
+        "UserName": "{{ p.user | rl }}",
+        "GroupName": "{{ p.group | rl }}"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name"
+        },
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "CreateUser",
+        "Version": "2010-05-08",
+        "UserName": "{{ p.userName }}",
+        "Path": "{{ p.additionalFields.path }}",
+        "PermissionsBoundary": "{{ p.additionalFields.permissionsBoundary }}",
+        "$merge": [
+          {
+            "$entries": "{{ p.additionalFields.tags.tags }}",
+            "$key": "Tags.member.{{ idx | add:1 }}.Key",
+            "$value": "{{ el.key }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.tags.tags }}",
+            "$key": "Tags.member.{{ idx | add:1 }}.Value",
+            "$value": "{{ el.value }}"
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "userName",
+          "label": "User name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "path",
+            "permissionsBoundary",
+            "tags"
+          ],
+          "help": "permissionsBoundary: policy ARN; tags: {tags: [{key, value}]}"
+        }
+      ],
+      "output": {
+        "path": "CreateUserResponse.CreateUserResult.User"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "DeleteUser",
+        "Version": "2010-05-08",
+        "UserName": "{{ p.user | rl }}"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "description": "Removes the user from all its groups first",
+      "before": [
+        {
+          "method": "POST",
+          "path": "/",
+          "body_type": "form",
+          "body": {
+            "Action": "ListGroupsForUser",
+            "Version": "2010-05-08",
+            "UserName": "{{ p.user | rl }}"
+          }
+        },
+        {
+          "for_each": "{{ pres.0.ListGroupsForUserResponse.ListGroupsForUserResult.Groups }}",
+          "method": "POST",
+          "path": "/",
+          "body_type": "form",
+          "body": {
+            "Action": "RemoveUserFromGroup",
+            "Version": "2010-05-08",
+            "UserName": "{{ p.user | rl }}",
+            "GroupName": "{{ el.GroupName }}"
+          }
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "GetUser",
+        "Version": "2010-05-08",
+        "UserName": "{{ p.user | rl }}"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name"
+        }
+      ],
+      "output": {
+        "path": "GetUserResponse.GetUserResult.User"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "removeFromGroup",
+      "title": "Remove a user from a group",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "RemoveUserFromGroup",
+        "Version": "2010-05-08",
+        "UserName": "{{ p.user | rl }}",
+        "GroupName": "{{ p.group | rl }}"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name"
+        },
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "UpdateUser",
+        "Version": "2010-05-08",
+        "UserName": "{{ p.user | rl }}",
+        "NewUserName": "{{ p.userName }}",
+        "NewPath": "{{ p.additionalFields.path }}"
+      },
+      "fields": [
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name"
+        },
+        {
+          "key": "userName",
+          "label": "New user name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "path"
+          ],
+          "help": "path: e.g. /division_abc/"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "getAll",
+      "title": "Get many groups",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "ListGroups",
+        "Version": "2010-05-08"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "includeUsers",
+          "label": "Include users",
+          "type": "boolean",
+          "default": false,
+          "help": "Also list each group's members (one extra call per group)"
+        }
+      ],
+      "output": {
+        "expand": {
+          "when": "{{ p.includeUsers }}",
+          "method": "POST",
+          "path": "/",
+          "body_type": "form",
+          "body": {
+            "Action": "GetGroup",
+            "Version": "2010-05-08",
+            "GroupName": "{{ el.GroupName }}"
+          }
+        },
+        "expand_merge_key": "Users",
+        "expand_merge_path": "GetGroupResponse.GetGroupResult.Users"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "Marker",
+        "cursor_path": "ListGroupsResponse.ListGroupsResult.Marker",
+        "has_more_path": "ListGroupsResponse.ListGroupsResult.IsTruncated",
+        "limit_param": "MaxItems",
+        "page_size": 1000,
+        "param_in": "body",
+        "results_path": "ListGroupsResponse.ListGroupsResult.Groups"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "create",
+      "title": "Create a group",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "CreateGroup",
+        "Version": "2010-05-08",
+        "GroupName": "{{ p.groupName }}",
+        "Path": "{{ p.additionalFields.path }}"
+      },
+      "fields": [
+        {
+          "key": "groupName",
+          "label": "Group name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "path"
+          ],
+          "help": "path: e.g. /division_abc/"
+        }
+      ],
+      "output": {
+        "path": "CreateGroupResponse.CreateGroupResult.Group"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "delete",
+      "title": "Delete a group",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "DeleteGroup",
+        "Version": "2010-05-08",
+        "GroupName": "{{ p.group | rl }}"
+      },
+      "fields": [
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "description": "Removes every member first",
+      "before": [
+        {
+          "method": "POST",
+          "path": "/",
+          "body_type": "form",
+          "body": {
+            "Action": "GetGroup",
+            "Version": "2010-05-08",
+            "GroupName": "{{ p.group | rl }}"
+          }
+        },
+        {
+          "for_each": "{{ pres.0.GetGroupResponse.GetGroupResult.Users }}",
+          "method": "POST",
+          "path": "/",
+          "body_type": "form",
+          "body": {
+            "Action": "RemoveUserFromGroup",
+            "Version": "2010-05-08",
+            "GroupName": "{{ p.group | rl }}",
+            "UserName": "{{ el.UserName }}"
+          }
+        }
+      ]
+    },
+    {
+      "resource": "group",
+      "operation": "get",
+      "title": "Get a group",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "GetGroup",
+        "Version": "2010-05-08",
+        "GroupName": "{{ p.group | rl }}"
+      },
+      "fields": [
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        },
+        {
+          "key": "includeUsers",
+          "label": "Include users",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "output": {
+        "path": "GetGroupResponse.GetGroupResult",
+        "to": {
+          "$merge": "{{ el.Group }}",
+          "Users": "{{ p.includeUsers | then:el.Users }}"
+        }
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "update",
+      "title": "Update a group",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "UpdateGroup",
+        "Version": "2010-05-08",
+        "GroupName": "{{ p.group | rl }}",
+        "NewGroupName": "{{ p.groupName }}",
+        "NewPath": "{{ p.additionalFields.path }}"
+      },
+      "fields": [
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        },
+        {
+          "key": "groupName",
+          "label": "New group name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "path"
+          ],
+          "help": "path: e.g. /division_abc/"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    }
+  ]
+}

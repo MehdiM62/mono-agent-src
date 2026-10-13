@@ -62,6 +62,7 @@ func (ae *ActionExecutor) executeLoop(ctx context.Context, loop LoopDef, allStep
 	dailyCap := ae.resolveLoopCap(loop.MaxItemsPerDay)
 
 	loopSteps := ae.getStepsByIDs(allSteps, loop.Steps)
+	targets := ae.iteratesTargets(loop.Iterator)
 
 	ae.logger.Info().
 		Str("loopID", loop.ID).
@@ -127,7 +128,7 @@ func (ae *ActionExecutor) executeLoop(ctx context.Context, loop LoopDef, allStep
 			Message:  fmt.Sprintf("Loop %s: item %d/%d", loop.ID, idx+1, len(collection)),
 		})
 
-		stepErr := ae.executeSteps(ctx, loopSteps)
+		stepErr := ae.runTarget(targets, idx, func() error { return ae.executeSteps(ctx, loopSteps) })
 		if stepErr != nil {
 			if isHalt(stepErr) {
 				return stepErr

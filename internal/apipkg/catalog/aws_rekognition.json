@@ -1,0 +1,170 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_rekognition",
+  "node_type": "app.aws_rekognition",
+  "title": "AWS Rekognition",
+  "description": "Faces, labels, text and celebrities in images with Amazon Rekognition",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/rekognition/latest/APIReference/API_Operations.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsRekognition"
+  ],
+  "base_url": "https://rekognition.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "rekognition",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "image",
+      "label": "Image"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "image",
+      "operation": "analyze",
+      "title": "Analyze an image",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "RekognitionService.{{ p.type | eq:'recognizeCelebrity' | then:'RecognizeCelebrities' | default:(p.type | replace:'detect','Detect') }}",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "Image": {
+          "Bytes": "{{ p.binaryData | then:bin.base64 }}",
+          "S3Object": {
+            "$when": "{{ p.binaryData | ne:'true' }}",
+            "Bucket": "{{ p.bucket }}",
+            "Name": "{{ p.name }}",
+            "Version": "{{ p.additionalFields.version }}"
+          }
+        },
+        "MinConfidence": "{{ p.type | in:'detectModerationLabels,detectLabels' | then:p.additionalFields.minConfidence }}",
+        "MaxLabels": "{{ p.type | eq:'detectLabels' | then:p.additionalFields.maxLabels }}",
+        "Attributes": "{{ p.type | eq:'detectFaces' | then:(p.additionalFields.attributes | json | upper | fromjson) }}",
+        "Filters": {
+          "$when": "{{ p.type | eq:'detectText' }}",
+          "RegionsOfInterest": {
+            "$map": "{{ p.additionalFields.regionsOfInterestUi.regionsOfInterestValues }}",
+            "$to": {
+              "BoundingBox": {
+                "Height": "{{ el.height }}",
+                "Left": "{{ el.left }}",
+                "Top": "{{ el.top }}",
+                "Width": "{{ el.width }}"
+              }
+            }
+          },
+          "WordFilter": "{{ p.additionalFields.wordFilterUi }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "default": "detectFaces",
+          "options": [
+            "detectFaces",
+            "detectLabels",
+            "detectModerationLabels",
+            "detectText",
+            "recognizeCelebrity"
+          ]
+        },
+        {
+          "key": "binaryData",
+          "label": "Binary file",
+          "type": "boolean",
+          "default": false,
+          "help": "Send the image from the input item instead of S3"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "bucket",
+          "label": "Bucket",
+          "type": "text",
+          "default": "",
+          "help": "S3 bucket of the image (when not binary)"
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "help": "S3 object key of the image (when not binary)"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attributes",
+            "maxLabels",
+            "minConfidence",
+            "regionsOfInterestUi",
+            "version",
+            "wordFilterUi"
+          ],
+          "help": "attributes: [\"all\"] or [\"default\"]; regionsOfInterestUi: {regionsOfInterestValues: [{height, left, top, width}]}; wordFilterUi: {MinBoundingBoxHeight, MinBoundingBoxWidth, MinConfidence}"
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}"
+      }
+    }
+  ]
+}

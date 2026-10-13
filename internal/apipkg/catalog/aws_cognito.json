@@ -1,0 +1,821 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_cognito",
+  "node_type": "app.aws_cognito",
+  "title": "AWS Cognito",
+  "description": "Users, groups and user pools in Amazon Cognito",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/cognito-user-identity-pools/latest/APIReference/API_Operations.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsCognito"
+  ],
+  "base_url": "https://cognito-idp.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "cognito-idp",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "group",
+      "label": "Group"
+    },
+    {
+      "value": "userPool",
+      "label": "User Pool"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "Filter": {
+          "$join": [
+            "{{ p.filters.filter.value | then:(p.filters.filter.attribute | default:'email') | replace:'\"','\\\"' }}",
+            "{{ p.filters.filter.value | replace:'\"','\\\"' }}"
+          ],
+          "$sep": "\"^=\"",
+          "$prefix": "\"",
+          "$suffix": "\""
+        }
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 60
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter"
+          ],
+          "help": "{filter: {attribute, value}}: users whose attribute starts with value"
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": [
+            "{{ el | omit:'Attributes' }}",
+            {
+              "$entries": "{{ el.Attributes }}",
+              "$key": "{{ el.Name }}",
+              "$value": "{{ el.Value | default:'' }}"
+            }
+          ]
+        },
+        "to_when": "{{ p.simple }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "PaginationToken",
+        "cursor_path": "PaginationToken",
+        "limit_param": "Limit",
+        "page_size": 60,
+        "param_in": "body",
+        "results_path": "Users"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "addToGroup",
+      "title": "Add a user to a group",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminAddUserToGroup",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "Username": "{{ pres.0.Users.0.Username | default:(p.user | rl) }}",
+        "GroupName": "{{ p.group | rl }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name, email/phone (when the pool signs in with them) or sub"
+        },
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        }
+      ],
+      "output": {
+        "to": {
+          "addedToGroup": true
+        }
+      },
+      "before": [
+        {
+          "method": "POST",
+          "path": "/",
+          "headers": {
+            "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers",
+            "Content-Type": "application/x-amz-json-1.1"
+          },
+          "body": {
+            "UserPoolId": "{{ p.userPool | rl }}",
+            "Filter": "sub = \"{{ p.user | rl | replace:'\"','' }}\""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminCreateUser",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "Username": "{{ p.newUserName }}",
+        "MessageAction": "{{ p.additionalFields.messageAction | eq:'SUPPRESS' | then:'SUPPRESS' }}",
+        "ForceAliasCreation": "{{ p.additionalFields.forceAliasCreation }}",
+        "DesiredDeliveryMediums": "{{ p.additionalFields.desiredDeliveryMediums }}",
+        "TemporaryPassword": "{{ p.additionalFields.temporaryPasswordOptions }}",
+        "UserAttributes": {
+          "$map": "{{ p.additionalFields.userAttributes.attributes }}",
+          "$to": {
+            "Name": "{{ el.attributeType | eq:'custom' | then:(el.customName | re:'^(?:custom:)?(.*)$' | prefix:'custom:') | default:(el.standardName | default:'address') }}",
+            "Value": "{{ el.value }}"
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "newUserName",
+          "label": "User name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "desiredDeliveryMediums",
+            "forceAliasCreation",
+            "messageAction",
+            "temporaryPasswordOptions",
+            "userAttributes"
+          ],
+          "help": "messageAction: RESEND or SUPPRESS; desiredDeliveryMediums: [\"SMS\", \"EMAIL\"]; userAttributes: {attributes: [{attributeType: standard|custom, standardName, customName, value}]}; standard names: address, birthdate, email, email_verified, family_name, gender, given_name, locale, middle_name, name, nickname, phone_number, phone_number_verified, preferred_username, profilepicture, updated_at, sub, website, zoneinfo"
+        }
+      ],
+      "output": {
+        "path": "User"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminDeleteUser",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "Username": "{{ pres.0.Users.0.Username | default:(p.user | rl) }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name, email/phone (when the pool signs in with them) or sub"
+        }
+      ],
+      "output": {
+        "to": {
+          "deleted": true
+        }
+      },
+      "before": [
+        {
+          "method": "POST",
+          "path": "/",
+          "headers": {
+            "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers",
+            "Content-Type": "application/x-amz-json-1.1"
+          },
+          "body": {
+            "UserPoolId": "{{ p.userPool | rl }}",
+            "Filter": "sub = \"{{ p.user | rl | replace:'\"','' }}\""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminGetUser",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "Username": "{{ pres.0.Users.0.Username | default:(p.user | rl) }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name, email/phone (when the pool signs in with them) or sub"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": [
+            "{{ el | omit:'UserAttributes' }}",
+            {
+              "$entries": "{{ el.UserAttributes }}",
+              "$key": "{{ el.Name }}",
+              "$value": "{{ el.Value | default:'' }}"
+            }
+          ]
+        },
+        "to_when": "{{ p.simple }}"
+      },
+      "before": [
+        {
+          "method": "POST",
+          "path": "/",
+          "headers": {
+            "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers",
+            "Content-Type": "application/x-amz-json-1.1"
+          },
+          "body": {
+            "UserPoolId": "{{ p.userPool | rl }}",
+            "Filter": "sub = \"{{ p.user | rl | replace:'\"','' }}\""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "removeFromGroup",
+      "title": "Remove a user from a group",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminRemoveUserFromGroup",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "Username": "{{ pres.0.Users.0.Username | default:(p.user | rl) }}",
+        "GroupName": "{{ p.group | rl }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name, email/phone (when the pool signs in with them) or sub"
+        },
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        }
+      ],
+      "output": {
+        "to": {
+          "removedFromGroup": true
+        }
+      },
+      "before": [
+        {
+          "method": "POST",
+          "path": "/",
+          "headers": {
+            "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers",
+            "Content-Type": "application/x-amz-json-1.1"
+          },
+          "body": {
+            "UserPoolId": "{{ p.userPool | rl }}",
+            "Filter": "sub = \"{{ p.user | rl | replace:'\"','' }}\""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user's attributes",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.AdminUpdateUserAttributes",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "Username": "{{ pres.0.Users.0.Username | default:(p.user | rl) }}",
+        "UserAttributes": {
+          "$map": "{{ p.userAttributes.attributes }}",
+          "$to": {
+            "Name": "{{ el.attributeType | eq:'custom' | then:(el.customName | re:'^(?:custom:)?(.*)$' | prefix:'custom:') | default:(el.standardName | default:'address') }}",
+            "Value": "{{ el.value }}"
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "user",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User name, email/phone (when the pool signs in with them) or sub"
+        },
+        {
+          "key": "userAttributes",
+          "label": "Attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attributes"
+          ],
+          "help": "{attributes: [{attributeType: standard|custom, standardName, customName, value}]}; standard names: address, birthdate, email, email_verified, family_name, gender, given_name, locale, middle_name, name, nickname, phone_number, phone_number_verified, preferred_username, profilepicture, updated_at, sub, website, zoneinfo"
+        }
+      ],
+      "output": {
+        "to": {
+          "updated": true
+        }
+      },
+      "before": [
+        {
+          "method": "POST",
+          "path": "/",
+          "headers": {
+            "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsers",
+            "Content-Type": "application/x-amz-json-1.1"
+          },
+          "body": {
+            "UserPoolId": "{{ p.userPool | rl }}",
+            "Filter": "sub = \"{{ p.user | rl | replace:'\"','' }}\""
+          }
+        }
+      ]
+    },
+    {
+      "resource": "group",
+      "operation": "getAll",
+      "title": "Get many groups",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.ListGroups",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 60
+        },
+        {
+          "key": "includeUsers",
+          "label": "Include users",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "output": {
+        "expand": {
+          "when": "{{ p.includeUsers }}",
+          "method": "POST",
+          "path": "/",
+          "headers": {
+            "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsersInGroup",
+            "Content-Type": "application/x-amz-json-1.1"
+          },
+          "body": {
+            "UserPoolId": "{{ p.userPool | rl }}",
+            "GroupName": "{{ el.GroupName }}"
+          }
+        },
+        "expand_merge_key": "Users",
+        "expand_merge_path": "Users"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "NextToken",
+        "cursor_path": "NextToken",
+        "limit_param": "Limit",
+        "page_size": 60,
+        "param_in": "body",
+        "results_path": "Groups"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "create",
+      "title": "Create a group",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.CreateGroup",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "GroupName": "{{ p.newGroupName }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "Precedence": "{{ p.additionalFields.precedence | int }}",
+        "RoleArn": "{{ p.additionalFields.arn }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "newGroupName",
+          "label": "Group name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "arn",
+            "description",
+            "precedence"
+          ],
+          "help": "arn: IAM role ARN for the group"
+        }
+      ],
+      "output": {
+        "path": "Group"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "delete",
+      "title": "Delete a group",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.DeleteGroup",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "GroupName": "{{ p.group | rl }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        }
+      ],
+      "output": {
+        "to": {
+          "deleted": true
+        }
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "get",
+      "title": "Get a group",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.GetGroup",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "GroupName": "{{ p.group | rl }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        },
+        {
+          "key": "includeUsers",
+          "label": "Include users",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "output": {
+        "path": "Group",
+        "expand": {
+          "when": "{{ p.includeUsers }}",
+          "method": "POST",
+          "path": "/",
+          "headers": {
+            "X-Amz-Target": "AWSCognitoIdentityProviderService.ListUsersInGroup",
+            "Content-Type": "application/x-amz-json-1.1"
+          },
+          "body": {
+            "UserPoolId": "{{ p.userPool | rl }}",
+            "GroupName": "{{ el.GroupName }}"
+          }
+        },
+        "expand_merge_key": "Users",
+        "expand_merge_path": "Users"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "update",
+      "title": "Update a group",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.UpdateGroup",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}",
+        "GroupName": "{{ p.group | rl }}",
+        "Description": "{{ p.additionalFields.description }}",
+        "Precedence": "{{ p.additionalFields.precedence | int }}",
+        "RoleArn": "{{ p.additionalFields.arn }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "group",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group name"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "arn",
+            "description",
+            "precedence"
+          ],
+          "help": "arn: IAM role ARN for the group"
+        }
+      ],
+      "output": {
+        "to": {
+          "updated": true
+        }
+      }
+    },
+    {
+      "resource": "userPool",
+      "operation": "get",
+      "title": "Get a user pool",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.DescribeUserPool",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "UserPoolId": "{{ p.userPool | rl }}"
+      },
+      "fields": [
+        {
+          "key": "userPool",
+          "label": "User pool",
+          "type": "text",
+          "required": true,
+          "help": "User pool ID, e.g. us-east-1_AbC123"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "output": {
+        "path": "UserPool",
+        "to": "{{ el | omit:'AccountRecoverySetting,AdminCreateUserConfig,EmailConfiguration,LambdaConfig,Policies,SchemaAttributes,UserAttributeUpdateSettings,UserPoolTags,UserPoolTier,VerificationMessageTemplate' }}",
+        "to_when": "{{ p.simple }}"
+      }
+    }
+  ]
+}

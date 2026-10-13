@@ -1,0 +1,666 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_ses",
+  "node_type": "app.aws_ses",
+  "title": "AWS SES",
+  "description": "Emails, templates and verification emails in Amazon SES",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/ses/latest/APIReference/API_Operations.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsSes"
+  ],
+  "base_url": "https://email.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "ses",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "email",
+      "label": "Email"
+    },
+    {
+      "value": "customVerificationEmail",
+      "label": "Custom Verification Email"
+    },
+    {
+      "value": "template",
+      "label": "Template"
+    }
+  ],
+  "headers": {
+    "Accept": "text/xml"
+  },
+  "operations": [
+    {
+      "resource": "email",
+      "operation": "send",
+      "title": "Send an email",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "SendEmail",
+        "Version": "2010-12-01",
+        "Source": "{{ p.fromEmail }}",
+        "ConfigurationSetName": "{{ p.additionalFields.configurationSetName }}",
+        "ReturnPath": "{{ p.additionalFields.returnPath }}",
+        "ReturnPathArn": "{{ p.additionalFields.returnPathArn }}",
+        "SourceArn": "{{ p.additionalFields.sourceArn }}",
+        "$merge": [
+          {
+            "$entries": "{{ p.toAddresses }}",
+            "$key": "Destination.ToAddresses.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.ccAddresses }}",
+            "$key": "Destination.CcAddresses.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.bccAddresses }}",
+            "$key": "Destination.BccAddresses.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.replyToAddresses }}",
+            "$key": "ReplyToAddresses.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          }
+        ],
+        "Message.Subject.Data": "{{ p.subject }}",
+        "Message.Body.Html.Data": "{{ p.isBodyHtml | then:p.body }}",
+        "Message.Body.Html.Charset": "{{ p.isBodyHtml | then:'UTF-8' }}",
+        "Message.Body.Text.Data": "{{ p.isBodyHtml | ne:'true' | then:p.body }}"
+      },
+      "fields": [
+        {
+          "key": "isBodyHtml",
+          "label": "Body is HTML",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "fromEmail",
+          "label": "From email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "toAddresses",
+          "label": "To addresses",
+          "type": "array",
+          "required": true,
+          "item_type": "text",
+          "default": []
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bccAddresses",
+            "ccAddresses",
+            "configurationSetName",
+            "replyToAddresses",
+            "returnPath",
+            "returnPathArn",
+            "sourceArn"
+          ],
+          "help": "ccAddresses, bccAddresses and replyToAddresses are lists of emails"
+        }
+      ],
+      "output": {
+        "path": "SendEmailResponse.SendEmailResult"
+      }
+    },
+    {
+      "resource": "email",
+      "operation": "sendTemplate",
+      "title": "Send an email from a template",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "SendTemplatedEmail",
+        "Version": "2010-12-01",
+        "Source": "{{ p.fromEmail }}",
+        "ConfigurationSetName": "{{ p.additionalFields.configurationSetName }}",
+        "ReturnPath": "{{ p.additionalFields.returnPath }}",
+        "ReturnPathArn": "{{ p.additionalFields.returnPathArn }}",
+        "SourceArn": "{{ p.additionalFields.sourceArn }}",
+        "$merge": [
+          {
+            "$entries": "{{ p.toAddresses }}",
+            "$key": "Destination.ToAddresses.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.ccAddresses }}",
+            "$key": "Destination.CcAddresses.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.bccAddresses }}",
+            "$key": "Destination.BccAddresses.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          },
+          {
+            "$entries": "{{ p.additionalFields.replyToAddresses }}",
+            "$key": "ReplyToAddresses.member.{{ idx | add:1 }}",
+            "$value": "{{ el }}"
+          }
+        ],
+        "Template": "{{ p.templateName }}",
+        "TemplateData": "{{ p.templateDataUi.templateDataValues | kv:'key,value' | json }}"
+      },
+      "fields": [
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fromEmail",
+          "label": "From email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "toAddresses",
+          "label": "To addresses",
+          "type": "array",
+          "required": true,
+          "item_type": "text",
+          "default": []
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bccAddresses",
+            "ccAddresses",
+            "configurationSetName",
+            "replyToAddresses",
+            "returnPath",
+            "returnPathArn",
+            "sourceArn"
+          ],
+          "help": "ccAddresses, bccAddresses and replyToAddresses are lists of emails"
+        },
+        {
+          "key": "templateDataUi",
+          "label": "Template data",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "templateDataValues"
+          ],
+          "help": "{templateDataValues: [{key, value}]}: the template's placeholders"
+        }
+      ],
+      "output": {
+        "path": "SendTemplatedEmailResponse"
+      }
+    },
+    {
+      "resource": "customVerificationEmail",
+      "operation": "create",
+      "title": "Create a custom verification email template",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "CreateCustomVerificationEmailTemplate",
+        "Version": "2010-12-01",
+        "FromEmailAddress": "{{ p.fromEmailAddress }}",
+        "TemplateName": "{{ p.templateName }}",
+        "TemplateSubject": "{{ p.templateSubject }}",
+        "TemplateContent": "{{ p.templateContent }}",
+        "SuccessRedirectionURL": "{{ p.successRedirectionURL }}",
+        "FailureRedirectionURL": "{{ p.failureRedirectionURL }}"
+      },
+      "fields": [
+        {
+          "key": "fromEmailAddress",
+          "label": "From email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "templateContent",
+          "label": "Template content",
+          "type": "textarea",
+          "required": true,
+          "help": "HTML of the email"
+        },
+        {
+          "key": "templateSubject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "successRedirectionURL",
+          "label": "Success redirection URL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "failureRedirectionURL",
+          "label": "Failure redirection URL",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "CreateCustomVerificationEmailTemplateResponse"
+      }
+    },
+    {
+      "resource": "customVerificationEmail",
+      "operation": "delete",
+      "title": "Delete a custom verification email template",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "DeleteCustomVerificationEmailTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "{{ p.templateName }}"
+      },
+      "fields": [
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "DeleteCustomVerificationEmailTemplateResponse"
+      }
+    },
+    {
+      "resource": "customVerificationEmail",
+      "operation": "get",
+      "title": "Get a custom verification email template",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "GetCustomVerificationEmailTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "{{ p.templateName }}"
+      },
+      "fields": [
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "GetCustomVerificationEmailTemplateResponse"
+      }
+    },
+    {
+      "resource": "customVerificationEmail",
+      "operation": "getAll",
+      "title": "Get many custom verification email templates",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "ListCustomVerificationEmailTemplates",
+        "Version": "2010-12-01"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1,
+          "max": 50
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "NextToken",
+        "cursor_path": "ListCustomVerificationEmailTemplatesResponse.ListCustomVerificationEmailTemplatesResult.NextToken",
+        "limit_param": "MaxResults",
+        "page_size": 50,
+        "param_in": "body",
+        "results_path": "ListCustomVerificationEmailTemplatesResponse.ListCustomVerificationEmailTemplatesResult.CustomVerificationEmailTemplates.member"
+      }
+    },
+    {
+      "resource": "customVerificationEmail",
+      "operation": "send",
+      "title": "Send a custom verification email",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "SendCustomVerificationEmail",
+        "Version": "2010-12-01",
+        "TemplateName": "{{ p.templateName }}",
+        "EmailAddress": "{{ p.email }}",
+        "ConfigurationSetName": "{{ p.additionalFields.configurationSetName }}"
+      },
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true,
+          "help": "Address to verify"
+        },
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "configurationSetName"
+          ]
+        }
+      ],
+      "output": {
+        "path": "SendCustomVerificationEmailResponse"
+      }
+    },
+    {
+      "resource": "customVerificationEmail",
+      "operation": "update",
+      "title": "Update a custom verification email template",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "UpdateCustomVerificationEmailTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "{{ p.templateName }}",
+        "FromEmailAddress": "{{ p.updateFields.fromEmailAddress }}",
+        "TemplateSubject": "{{ p.updateFields.templateSubject }}",
+        "TemplateContent": "{{ p.updateFields.templateContent }}",
+        "SuccessRedirectionURL": "{{ p.updateFields.successRedirectionURL }}",
+        "FailureRedirectionURL": "{{ p.updateFields.failureRedirectionURL }}"
+      },
+      "fields": [
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "failureRedirectionURL",
+            "fromEmailAddress",
+            "successRedirectionURL",
+            "templateContent",
+            "templateSubject"
+          ]
+        }
+      ],
+      "output": {
+        "path": "UpdateCustomVerificationEmailTemplateResponse"
+      }
+    },
+    {
+      "resource": "template",
+      "operation": "create",
+      "title": "Create a template",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "CreateTemplate",
+        "Version": "2010-12-01",
+        "Template.TemplateName": "{{ p.templateName }}",
+        "Template.SubjectPart": "{{ p.subjectPart }}",
+        "Template.HtmlPart": "{{ p.htmlPart }}",
+        "Template.TextPart": "{{ p.additionalFields.textPart }}"
+      },
+      "fields": [
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subjectPart",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "htmlPart",
+          "label": "HTML body",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "textPart"
+          ]
+        }
+      ],
+      "output": {
+        "path": "CreateTemplateResponse"
+      }
+    },
+    {
+      "resource": "template",
+      "operation": "delete",
+      "title": "Delete a template",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "DeleteTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "{{ p.templateName }}"
+      },
+      "fields": [
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "DeleteTemplateResponse"
+      }
+    },
+    {
+      "resource": "template",
+      "operation": "get",
+      "title": "Get a template",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "GetTemplate",
+        "Version": "2010-12-01",
+        "TemplateName": "{{ p.templateName }}"
+      },
+      "fields": [
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "GetTemplateResponse"
+      }
+    },
+    {
+      "resource": "template",
+      "operation": "getAll",
+      "title": "Get many templates",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "ListTemplates",
+        "Version": "2010-12-01"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "NextToken",
+        "cursor_path": "ListTemplatesResponse.ListTemplatesResult.NextToken",
+        "limit_param": "MaxItems",
+        "page_size": 50,
+        "param_in": "body",
+        "results_path": "ListTemplatesResponse.ListTemplatesResult.TemplatesMetadata.member"
+      }
+    },
+    {
+      "resource": "template",
+      "operation": "update",
+      "title": "Update a template",
+      "method": "POST",
+      "path": "/",
+      "body_type": "form",
+      "body": {
+        "Action": "UpdateTemplate",
+        "Version": "2010-12-01",
+        "Template.TemplateName": "{{ p.templateName }}",
+        "Template.SubjectPart": "{{ p.updateFields.subjectPart }}",
+        "Template.HtmlPart": "{{ p.updateFields.htmlPart }}",
+        "Template.TextPart": "{{ p.updateFields.textPart }}"
+      },
+      "fields": [
+        {
+          "key": "templateName",
+          "label": "Template name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "htmlPart",
+            "subjectPart",
+            "textPart"
+          ]
+        }
+      ],
+      "output": {
+        "path": "UpdateTemplateResponse"
+      }
+    }
+  ]
+}

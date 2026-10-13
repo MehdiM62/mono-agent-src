@@ -13,13 +13,7 @@ import (
 // placeholder never holds a space; a backticked phrase is an accident.
 func TestFlagUsagesHaveNoAccidentalPlaceholders(t *testing.T) {
 	// Owned by other files' owners; drop each entry once its usage is fixed.
-	pending := map[string]bool{
-		"monoagentcli daemon --bridge":                      true, // daemon.go
-		"monoagentcli chat --runtime":                       true, // chat.go
-		"monoagentcli chat history create --runtime":        true, // chat_history.go
-		"monoagentcli chat history create --profile-folder": true,
-		"monoagentcli chat history create --coder-root":     true,
-	}
+	pending := map[string]bool{}
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
 		c.LocalFlags().VisitAll(func(f *pflag.Flag) {
