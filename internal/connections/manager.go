@@ -18,13 +18,11 @@ type Manager struct {
 	store *Store
 }
 
-// NewManager creates a Manager backed by db. Calls EnsureTable on init.
+// NewManager creates a Manager backed by db, which must be migrated
+// (ApplyMigrations creates the connections tables). The error is always
+// nil; it stays for the callers.
 func NewManager(db *sql.DB) (*Manager, error) {
-	store := NewStore(db)
-	if err := store.EnsureTable(context.Background()); err != nil {
-		return nil, fmt.Errorf("NewManager: EnsureTable: %w", err)
-	}
-	return &Manager{store: store}, nil
+	return &Manager{store: NewStore(db)}, nil
 }
 
 // ConnectOptions controls how Connect behaves.
