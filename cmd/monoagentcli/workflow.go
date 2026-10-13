@@ -305,6 +305,7 @@ func newWorkflowCmd(cfg *globalConfig) *cobra.Command {
 		newWorkflowMigrateCmd(cfg),
 		newWorkflowTemplatesCmd(cfg),
 		newWorkflowSearchCmd(cfg),
+		newWorkflowGenerateCmd(cfg),
 	)
 
 	return cmd
