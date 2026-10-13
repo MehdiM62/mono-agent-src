@@ -1,0 +1,110 @@
+{
+  "workbook.getAll": {
+    "params": { "limit": 5, "filters": { "fields": "id,name" } },
+    "response": { "value": [ { "id": "w1" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/root/search(q='.xlsx')", "query": { "$select": "id,name", "$top": "5" }, "items": 1 }
+  },
+  "workbook.addWorksheet": {
+    "params": { "workbook": { "__rl": true, "mode": "id", "value": "W1" }, "additionalFields": { "name": "Q4" } },
+    "expect": { "method": "POST", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/add", "body": { "name": "Q4" } }
+  },
+  "workbook.deleteWorkbook": {
+    "params": { "workbook": "W1" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/me/drive/items/W1", "items": 1 }
+  },
+  "worksheet.getAll": {
+    "params": { "workbook": "W1", "returnAll": true },
+    "response": { "value": [ { "id": "s1" }, { "id": "s2" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/items/W1/workbook/worksheets", "query": { "$top": "100" }, "items": 2 }
+  },
+  "worksheet.append": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "dataMode": "autoMap" },
+    "input": { "name": "cy", "age": 5 },
+    "responses": [
+      { "address": "Sheet1!A1:C3", "values": [ ["name", "age", "city"], ["ada", "36", "x"], ["bob", "40", "y"] ] },
+      { "address": "Sheet1!A4:C4", "values": [ ["cy", 5, ""] ] }
+    ],
+    "expect": {
+      "method": "PATCH", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/range(address='A4:C4')",
+      "body": { "values": [ ["cy", 5, ""] ] }, "items": 1
+    }
+  },
+  "worksheet.upsert": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "columnToMatchOn": "name", "valueToMatchOn": "zed", "fieldsUi": { "values": [ { "column": "age", "fieldValue": "9" } ] } },
+    "responses": [
+      { "address": "Sheet1!A1:C3", "values": [ ["name", "age", "city"], ["ada", "36", "x"], ["bob", "40", "y"] ] },
+      { "values": [ [null, "9", null] ] }
+    ],
+    "expect": {
+      "method": "PATCH", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/range(address='A4:C4')",
+      "body": { "values": [ [null, "9", null] ] }
+    }
+  },
+  "worksheet.clear": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "useRange": true, "range": "A1:B2", "applyTo": "Contents" },
+    "expect": { "method": "POST", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/range(address='A1:B2')/clear", "body": { "applyTo": "Contents" } }
+  },
+  "worksheet.deleteWorksheet": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1" }
+  },
+  "worksheet.readRows": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1" },
+    "response": { "address": "Sheet1!A1:B3", "values": [ ["name", "age"], ["ada", 36], ["bob", 40] ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/usedRange", "items": 2 }
+  },
+  "worksheet.update": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "dataMode": "autoMap", "columnToMatchOn": "name" },
+    "input": { "name": "bob", "city": "z" },
+    "responses": [
+      { "address": "Sheet1!B2:D4", "values": [ ["name", "age", "city"], ["ada", "36", "x"], ["bob", "40", "y"] ] },
+      { "values": [ ["bob", null, "z"] ] }
+    ],
+    "expect": {
+      "method": "PATCH", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/range(address='B4:D4')",
+      "body": { "values": [ ["bob", null, "z"] ] }
+    }
+  },
+  "table.append": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "table": "T1", "fieldsUi": { "values": [ { "column": "name", "fieldValue": "cy" } ] } },
+    "responses": [ { "value": [ { "name": "name" }, { "name": "age" } ] }, { "index": 3, "values": [ ["cy", ""] ] } ],
+    "expect": {
+      "method": "POST", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/tables/T1/rows/add",
+      "body": { "values": [ ["cy", ""] ] }, "items": 1
+    }
+  },
+  "table.convertToRange": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "table": "T1" },
+    "expect": { "method": "POST", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/tables/T1/convertToRange" }
+  },
+  "table.addTable": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1" },
+    "responses": [ { "address": "Sheet1!A1:C9" }, { "id": "T2" } ],
+    "expect": { "method": "POST", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/tables/add", "body": { "address": "A1:C9", "hasHeaders": true } }
+  },
+  "table.deleteTable": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "table": "T1" },
+    "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/tables/T1" }
+  },
+  "table.getColumns": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "table": "T1", "limit": 10 },
+    "response": { "value": [ { "name": "name", "index": 0 }, { "name": "age", "index": 1 } ] },
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/tables/T1/columns", "query": { "$skip": "0", "$top": "10" }, "items": 2 }
+  },
+  "table.getRows": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "table": "T1", "limit": 10 },
+    "responses": [ { "value": [ { "name": "name" }, { "name": "age" } ] }, { "value": [ { "index": 0, "values": [ ["ada", 36] ] } ] } ],
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/tables/T1/rows", "query": { "$skip": "0", "$top": "10" }, "items": 1 }
+  },
+  "table.lookup": {
+    "params": { "workbook": "W1", "worksheet": "Sheet1", "table": "T1", "lookupColumn": "age", "lookupValue": "40" },
+    "responses": [
+      { "value": [ { "name": "name", "index": 0 }, { "name": "age", "index": 1 } ] },
+      { "value": [ { "index": 0, "values": [ ["ada", 36] ] }, { "index": 1, "values": [ ["bob", 40] ] } ] }
+    ],
+    "expect": { "method": "GET", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/tables/T1/rows", "items": 1 }
+  }
+}
