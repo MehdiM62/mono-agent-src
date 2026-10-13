@@ -87,7 +87,7 @@ func (r *opRun) buildRequest(ctx context.Context, pp pageParams) (*built, error)
 			return nil, r.errf("query: %w", err)
 		}
 		q := u.Query()
-		addValues(q, qv)
+		r.addValues(q, qv)
 		u.RawQuery = q.Encode()
 	}
 	if len(pp.values) > 0 && !pp.inBody {
@@ -186,7 +186,7 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 		return nil, "", nil
 	case BodyForm:
 		q := url.Values{}
-		addValues(q, obj)
+		r.addValues(q, obj)
 		return []byte(q.Encode()), "application/x-www-form-urlencoded", nil
 	case BodyMultipart:
 		return r.multipartBody(obj)
@@ -437,4 +437,38 @@ func (r *opRun) bodyType() string {
 		return BodyJSON
 	}
 	return BodyNone
+}
+
+// addValues encodes obj into q in the op's query style: "brackets"
+// flattens nested objects and lists PHP-style (a[b][0][c]=v, Magento),
+// otherwise lists repeat the key and objects are sent as JSON.
+func (r *opRun) addValues(q url.Values, obj map[string]any) {
+	style := r.op.QueryStyle
+	if style == "" {
+		style = r.pkg.QueryStyle
+	}
+	if style != "brackets" {
+		addValues(q, obj)
+		return
+	}
+	for k, v := range obj {
+		addBrackets(q, k, v)
+	}
+}
+
+func addBrackets(q url.Values, key string, v any) {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, x := range t {
+			addBrackets(q, key+"["+k+"]", x)
+		}
+	case []any:
+		for i, x := range t {
+			addBrackets(q, fmt.Sprintf("%s[%d]", key, i), x)
+		}
+	default:
+		if !isEmpty(v) {
+			q.Set(key, stringify(v))
+		}
+	}
 }

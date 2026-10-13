@@ -728,3 +728,21 @@ func TestRoundHelpScoutLinkedInHumantic(t *testing.T) {
 		t.Errorf("output.limit: %d / %d", len(items), len(all))
 	}
 }
+
+func TestBracketQueryStyle(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"list","title":"L","method":"GET","path":"/products","query_style":"brackets",
+	  "fields":[{"key":"filters","label":"F","type":"json"},{"key":"returnAll","label":"A","type":"boolean"},{"key":"limit","label":"L","type":"number","default":5}],
+	  "query":{"search_criteria":{"filter_groups":[{"filters":"{{ p.filters }}"}]}},
+	  "pagination":{"type":"page","page_param":"search_criteria[current_page]","limit_param":"search_criteria[page_size]","page_size":5,"start_page":1,"results_path":"items"}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"items":[{"sku":"a"}]}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "list", "filters": []any{map[string]any{"field": "sku", "value": "x", "condition_type": "eq"}}}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	q := (*seen)[0].URL.Query()
+	if q.Get("search_criteria[filter_groups][0][filters][0][field]") != "sku" || q.Get("search_criteria[filter_groups][0][filters][0][condition_type]") != "eq" ||
+		q.Get("search_criteria[current_page]") != "1" || q.Get("search_criteria[page_size]") != "5" {
+		t.Errorf("query = %v", q)
+	}
+}

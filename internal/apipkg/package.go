@@ -40,6 +40,9 @@ type Package struct {
 	// when it isn't "operation" (FileMaker: "action"). A config without
 	// "operation" uses that param's value, so imported nodes run as is.
 	N8nOperationParam string `json:"n8n_operation_param,omitempty"`
+	// QueryStyle "brackets" encodes nested query/form values PHP-style
+	// (a[b][0][c]=v); an op's own query_style overrides it.
+	QueryStyle string `json:"query_style,omitempty"`
 
 	// Source is where the package was loaded from ("catalog" or a file
 	// path). Not part of the file.
@@ -163,6 +166,7 @@ type Operation struct {
 	Output      *Output                    `json:"output,omitempty"`
 	Binary      *Binary                    `json:"binary,omitempty"`
 	N8nParamMap map[string]string          `json:"n8n_param_map,omitempty"`
+	QueryStyle  string                     `json:"query_style,omitempty"`
 	// Also are follow-up requests sent after the main one, in order, for
 	// n8n operations that make several calls (e.g. update fields, then
 	// tags). Each may read res (the main response). The node's output is
