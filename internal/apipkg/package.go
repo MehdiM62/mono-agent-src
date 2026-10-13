@@ -40,6 +40,13 @@ type Package struct {
 	// when it isn't "operation" (FileMaker: "action"). A config without
 	// "operation" uses that param's value, so imported nodes run as is.
 	N8nOperationParam string `json:"n8n_operation_param,omitempty"`
+	// N8nVersionDefaults: per n8n node typeVersion, param defaults the
+	// importer fills in when an exported node omits them (n8n leaves
+	// defaults out; Invoice Ninja v1 meant apiVersion v4).
+	N8nVersionDefaults map[string]map[string]any `json:"n8n_version_defaults,omitempty"`
+	// QueryStyle "brackets" encodes nested query/form values PHP-style
+	// (a[b][0][c]=v); an op's own query_style overrides it.
+	QueryStyle string `json:"query_style,omitempty"`
 
 	// Source is where the package was loaded from ("catalog" or a file
 	// path). Not part of the file.
@@ -96,9 +103,12 @@ type OAuthSpec struct {
 	// credential fields hold the client id/secret (default client_id /
 	// client_secret) and how they are sent: "body" (default) or "basic".
 	// token_url and extra_params values are templates over cred.*.
-	ClientIDField     string `json:"client_id_field,omitempty"`
-	ClientSecretField string `json:"client_secret_field,omitempty"`
-	ClientAuth        string `json:"client_auth,omitempty"`
+	// TokenFields are extra token-response keys stored on the connection
+	// (GoTo Webinar organizer_key/account_key) and readable as cred.<key>.
+	TokenFields       []string `json:"token_fields,omitempty"`
+	ClientIDField     string   `json:"client_id_field,omitempty"`
+	ClientSecretField string   `json:"client_secret_field,omitempty"`
+	ClientAuth        string   `json:"client_auth,omitempty"`
 }
 
 // Inject says how a credential authenticates a request. Every value is a
@@ -160,6 +170,7 @@ type Operation struct {
 	Output      *Output                    `json:"output,omitempty"`
 	Binary      *Binary                    `json:"binary,omitempty"`
 	N8nParamMap map[string]string          `json:"n8n_param_map,omitempty"`
+	QueryStyle  string                     `json:"query_style,omitempty"`
 	// Also are follow-up requests sent after the main one, in order, for
 	// n8n operations that make several calls (e.g. update fields, then
 	// tags). Each may read res (the main response). The node's output is
@@ -185,7 +196,10 @@ type Step struct {
 	When string `json:"when,omitempty"`
 	// ForEach (also steps): a template resolving to a list; the step is
 	// sent once per element with el bound (Egoi: one call per tag id).
-	ForEach  string            `json:"for_each,omitempty"`
+	ForEach string `json:"for_each,omitempty"`
+	// Upload sends the op's binary (binary.upload_field/property) as the
+	// raw body, Content-Type = its MIME type (register-then-upload APIs).
+	Upload   bool              `json:"upload,omitempty"`
 	Method   string            `json:"method"`
 	Path     string            `json:"path"`
 	BaseURL  string            `json:"base_url,omitempty"`
@@ -259,6 +273,14 @@ type Output struct {
 	// replaces the element with the decoded response (Gmail lists ids,
 	// then GETs each message).
 	Expand *Step `json:"expand,omitempty"`
+	// ExpandMerge: with expand, set element[key] to the response's value at
+	// path ("" = the whole response) instead of replacing the element
+	// (Gong call transcripts).
+	ExpandMergeKey  string `json:"expand_merge_key,omitempty"`
+	ExpandMergePath string `json:"expand_merge_path,omitempty"`
+	// Limit applies n8n's returnAll/limit fields to a list that isn't
+	// paginated (client-side slicing).
+	Limit bool `json:"limit,omitempty"`
 	// To reshapes each result element with a template (el = the element),
 	// e.g. {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}. ToWhen, a
 	// template, skips the reshape when it renders empty/false (rawData).
@@ -306,7 +328,10 @@ type Binary struct {
 	// none). Property (a template) overrides the binary property read
 	// from upload_field ("formField:binaryProperty" values).
 	UploadWhen string `json:"upload_when,omitempty"`
-	Property   string `json:"property,omitempty"`
+	// FallbackBodyType is the body type when upload_when turns the upload
+	// off (default: json when the op has a body, else none).
+	FallbackBodyType string `json:"fallback_body_type,omitempty"`
+	Property         string `json:"property,omitempty"`
 	// FileName and MimeType are templates for the uploaded part.
 	FileName string `json:"file_name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`
@@ -316,6 +341,10 @@ type Binary struct {
 	// UploadText (a template): when it renders non-empty, its text is the
 	// upload instead of the input item's binary (GCS create from text).
 	UploadText string `json:"upload_text,omitempty"`
+	// DownloadBase64 (a template over res): when the response carries the
+	// file base64-encoded in JSON (GitHub contents), decode it onto the
+	// item's binary and keep the JSON response as the item's json.
+	DownloadBase64 string `json:"download_base64,omitempty"`
 }
 
 // NodeTypeOf is the node type a package registers ("" for extends).

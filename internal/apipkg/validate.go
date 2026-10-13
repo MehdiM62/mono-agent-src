@@ -3,6 +3,7 @@ package apipkg
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/monoes/mono-agent/internal/workflow"
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/connections"
@@ -74,12 +75,25 @@ func (p *Package) check() []string {
 		for _, f := range p.Credentials[i].Fields {
 			credKeys[f.Key] = true
 		}
+		if o := p.Credentials[i].OAuth; o != nil {
+			for _, k := range o.TokenFields {
+				credKeys[k] = true
+			}
+		}
 	}
 	probs = append(probs, checkTemplates("base_url", p.BaseURL, nil, credKeys)...)
 	for k, v := range p.Headers {
 		probs = append(probs, checkTemplates("headers."+k, v, nil, credKeys)...)
 	}
 
+	if p.Extends != "" {
+		native := nativeOperations(p.Extends)
+		for _, o := range p.Operations {
+			if o.Resource == "" && native[o.Operation] {
+				add("operation %q has no resource and %s already has an operation with that name: give it a resource (or another name), or it would replace the native one", o.Operation, p.Extends)
+			}
+		}
+	}
 	if len(p.Operations) == 0 && len(p.N8nTriggerTypes) == 0 {
 		add("operations: a package needs operations (or, for a trigger-only app, n8n_trigger_types)")
 	}
@@ -158,8 +172,13 @@ func (c *Credential) check(i int) []string {
 	for _, k := range oauthTokenKeys {
 		keys[k] = true
 	}
+	if c.OAuth != nil {
+		for _, k := range c.OAuth.TokenFields {
+			keys[k] = true
+		}
+	}
 	for _, f := range c.Fields {
-		if keys[f.Key] && f.Key != "access_token" {
+		if keys[f.Key] && f.Key != "access_token" && !(c.OAuth != nil && contains(c.OAuth.TokenFields, f.Key)) {
 			add("field %q clashes with an OAuth token key", f.Key)
 		}
 		keys[f.Key] = true
@@ -208,6 +227,9 @@ var allowedFieldTypes = map[string]bool{
 func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	var probs []string
 	add := func(format string, a ...any) { probs = append(probs, where+": "+fmt.Sprintf(format, a...)) }
+	if !validMethods[strings.ToUpper(o.Method)] && !hasTemplate(o.Method) {
+		add("method %q must be GET, POST, PUT, PATCH, DELETE, HEAD or a template", o.Method)
+	}
 	fields := map[string]bool{"resource": true, "operation": true}
 	for _, f := range o.Fields {
 		if reservedFieldKeys[f.Key] {
@@ -249,7 +271,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		}
 	}
 	for i, st := range o.Before {
-		if !validMethods[st.Method] || st.Path == "" {
+		if (!validMethods[strings.ToUpper(st.Method)] && !hasTemplate(st.Method)) || st.Path == "" {
 			add("before[%d]: needs a method (GET, POST, …) and a path", i)
 		}
 		for _, v := range []any{st.When, st.BaseURL, st.Path, st.Query, st.Body} {
@@ -258,8 +280,8 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	}
 	for i, st := range o.Also {
 		sw := fmt.Sprintf("%s also[%d]", where, i)
-		if !validMethods[st.Method] {
-			add("also[%d]: method %q must be GET, POST, PUT, PATCH, DELETE or HEAD", i, st.Method)
+		if !validMethods[strings.ToUpper(st.Method)] && !hasTemplate(st.Method) {
+			add("also[%d]: method %q must be GET, POST, PUT, PATCH, DELETE, HEAD or a template", i, st.Method)
 		}
 		if st.Path == "" {
 			add("also[%d]: path is required", i)
@@ -388,10 +410,37 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item", "el", "res", "items", "pre", "pres", "bin", "main":
+	case "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr":
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}
 	}
 	return nil
+}
+
+// nativeOperations lists the "operation" select options of a native node's
+// own schema file (without any extension merged in).
+func nativeOperations(nodeType string) map[string]bool {
+	out := map[string]bool{}
+	b, ok := workflow.ReadSchemaFile(nodeType)
+	if !ok {
+		return out
+	}
+	var doc struct {
+		Fields []struct {
+			Key     string   `json:"key"`
+			Options []string `json:"options"`
+		} `json:"fields"`
+	}
+	if json.Unmarshal(b, &doc) != nil {
+		return out
+	}
+	for _, f := range doc.Fields {
+		if f.Key == "operation" {
+			for _, o := range f.Options {
+				out[o] = true
+			}
+		}
+	}
+	return out
 }

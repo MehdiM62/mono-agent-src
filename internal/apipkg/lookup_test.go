@@ -626,3 +626,168 @@ func TestJWTES256(t *testing.T) {
 		t.Error("ES256 signature does not verify")
 	}
 }
+
+func TestExtendsCannotShadowNativeOps(t *testing.T) {
+	_, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"gh","title":"GH","base_url":"https://api.github.test","extends":"service.github",
+	  "operations":[{"resource":"","operation":"create_issue","title":"X","method":"POST","path":"/x"}]}`), "test")
+	if err == nil || !strings.Contains(err.Error(), "would replace the native one") {
+		t.Errorf("want shadowing error, got %v", err)
+	}
+	if _, err := Parse([]byte(`{"$schema":"apipkg.v1","id":"gh","title":"GH","base_url":"https://api.github.test","extends":"service.github",
+	  "operations":[{"resource":"","operation":"get_user_n8n","title":"X","method":"GET","path":"/x"}]}`), "test"); err != nil {
+		t.Errorf("a new resourceless op is fine: %v", err)
+	}
+}
+
+func TestBase64InJSONUploadAndDownload(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"put","title":"P","method":"PUT","path":"/contents/{{ p.path }}",
+	  "fields":[{"key":"path","label":"P","type":"text"},{"key":"binaryData","label":"B","type":"boolean"},{"key":"fileContent","label":"C","type":"text"},
+	    {"key":"binaryPropertyName","label":"N","type":"text","default":"data"}],
+	  "body":{"content":"{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"},
+	  "binary":{"upload_field":"binaryPropertyName","upload_when":"{{ p.binaryData }}"}},
+	  {"resource":"","operation":"get","title":"G","method":"GET","path":"/contents/{{ p.path }}",
+	  "fields":[{"key":"path","label":"P","type":"text"},{"key":"asBinaryProperty","label":"A","type":"boolean"}],
+	  "binary":{"download_when":"{{ p.asBinaryProperty }}","download_base64":"{{ res.content }}","file_name":"{{ res.name }}"}}`))
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		w.Write([]byte(`{"name":"a.txt","sha":"s1","content":"aGVs\nbG8="}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "put", "path": "a.txt", "binaryData": true}, cred, map[string]any{"data": "aGk="}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runPackageOp(p, map[string]any{"operation": "put", "path": "a.txt", "fileContent": "yo"}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	if bodies[0] != `{"content":"aGk="}` || bodies[1] != `{"content":"eW8="}` {
+		t.Errorf("bodies = %v", bodies)
+	}
+	items, err := runPackageOp(p, map[string]any{"operation": "get", "path": "a.txt", "asBinaryProperty": true}, cred, nil)
+	if err != nil || string(items[0].Binary["data"]) != "hello" || items[0].JSON["sha"] != "s1" || items[0].JSON["file_name"] != "a.txt" || items[0].JSON["mime_type"] != "text/plain; charset=utf-8" {
+		t.Errorf("download: %v %v", items, err)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "get", "path": "a.txt"}, cred, nil)
+	if items[0].Binary != nil || items[0].JSON["content"] == nil {
+		t.Errorf("no download: %v", items)
+	}
+}
+
+func TestRoundHelpScoutLinkedInHumantic(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"create","title":"C","method":"POST","path":"/conversations",
+	  "fields":[{"key":"resolveData","label":"R","type":"boolean","default":true}],"body":{"x":1},
+	  "output":{"to":{"id":"{{ hdr.Resource-ID }}","uri":"{{ hdr.location }}"}}},
+	  {"resource":"","operation":"post","title":"P","method":"POST","path":"/rest/posts",
+	   "fields":[{"key":"binaryPropertyName","label":"B","type":"text","default":"data"}],
+	   "before":[{"method":"POST","path":"/rest/images","query":{"action":"initializeUpload"}},
+	             {"upload":true,"method":"PUT","path":"{{ pre.value.uploadUrl }}"}],
+	   "body":{"media":"{{ pres.0.value.image }}"},"binary":{"upload_field":"binaryPropertyName","upload_when":"false"}},
+	  {"resource":"","operation":"profile","title":"H","method":"{{ p.resume | then:'post' | default:'GET' }}","path":"/user-profile/create",
+	   "fields":[{"key":"resume","label":"R","type":"text"}]},
+	  {"resource":"","operation":"list","title":"L","method":"GET","path":"/list",
+	   "fields":[{"key":"returnAll","label":"A","type":"boolean"},{"key":"limit","label":"L","type":"number"}],"output":{"limit":true}}`))
+	var reqs []*http.Request
+	var bodies []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		b, _ := io.ReadAll(r.Body)
+		reqs, bodies = append(reqs, r), append(bodies, string(b))
+		switch r.URL.Path {
+		case "/v1/conversations":
+			w.Header().Set("Resource-ID", "77")
+			w.Header().Set("Location", "https://api.test/conversations/77")
+			w.WriteHeader(201)
+		case "/v1/rest/images":
+			w.Write([]byte(`{"value":{"uploadUrl":"https://up.test/u1","image":"urn:li:image:1"}}`))
+		case "/v1/list":
+			w.Write([]byte(`[1,2,3,4]`))
+		default:
+			w.Write([]byte(`{}`))
+		}
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "create"}, cred, nil)
+	if err != nil || items[0].JSON["id"] != "77" || items[0].JSON["uri"] != "https://api.test/conversations/77" {
+		t.Errorf("hdr: %v %v", items, err)
+	}
+	reqs, bodies = nil, nil
+	if _, err := runPackageOp(p, map[string]any{"operation": "post"}, cred, map[string]any{"data": "aGk=", "file_name": "a.png"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 3 || reqs[1].Method != "PUT" || reqs[1].URL.Path != "/u1" || bodies[1] != "hi" || reqs[1].Header.Get("Content-Type") != "image/png" ||
+		bodies[2] != `{"media":"urn:li:image:1"}` {
+		t.Errorf("linkedin upload chain: %d reqs, bodies %q, step %s %s ct=%q", len(reqs), bodies, reqs[1].Method, reqs[1].URL.Path, reqs[1].Header.Get("Content-Type"))
+	}
+	reqs = nil
+	runPackageOp(p, map[string]any{"operation": "profile", "resume": "x"}, cred, nil)
+	runPackageOp(p, map[string]any{"operation": "profile"}, cred, nil)
+	if reqs[0].Method != "POST" || reqs[1].Method != "GET" {
+		t.Errorf("templated method: %s %s", reqs[0].Method, reqs[1].Method)
+	}
+	items, _ = runPackageOp(p, map[string]any{"operation": "list", "limit": 2}, cred, nil)
+	all, _ := runPackageOp(p, map[string]any{"operation": "list", "returnAll": true, "limit": 2}, cred, nil)
+	if len(items) != 2 || len(all) != 4 {
+		t.Errorf("output.limit: %d / %d", len(items), len(all))
+	}
+}
+
+func TestBracketQueryStyle(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"list","title":"L","method":"GET","path":"/products","query_style":"brackets",
+	  "fields":[{"key":"filters","label":"F","type":"json"},{"key":"returnAll","label":"A","type":"boolean"},{"key":"limit","label":"L","type":"number","default":5}],
+	  "query":{"search_criteria":{"filter_groups":[{"filters":"{{ p.filters }}"}]}},
+	  "pagination":{"type":"page","page_param":"search_criteria[current_page]","limit_param":"search_criteria[page_size]","page_size":5,"start_page":1,"results_path":"items"}}`))
+	seen := pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`{"items":[{"sku":"a"}]}`))
+	})
+	if _, err := runPackageOp(p, map[string]any{"operation": "list", "filters": []any{map[string]any{"field": "sku", "value": "x", "condition_type": "eq"}}}, cred, nil); err != nil {
+		t.Fatal(err)
+	}
+	q := (*seen)[0].URL.Query()
+	if q.Get("search_criteria[filter_groups][0][filters][0][field]") != "sku" || q.Get("search_criteria[filter_groups][0][filters][0][condition_type]") != "eq" ||
+		q.Get("search_criteria[current_page]") != "1" || q.Get("search_criteria[page_size]") != "5" {
+		t.Errorf("query = %v", q)
+	}
+}
+
+func TestJoinBuilder(t *testing.T) {
+	sc := Scope{P: map[string]any{"name": "Ada", "dep": 5.0, "none": "",
+		"sort": []any{map[string]any{"field": "a", "direction": "desc"}, map[string]any{"field": "b"}}}}
+	join := map[string]any{"$join": []any{"{{ p.name | prefix:\"name:'\" | suffix:\"'\" }}", "{{ p.none | prefix:'x:' }}", "{{ p.dep | prefix:'department_id:' }}"},
+		"$sep": " AND ", "$prefix": "\"", "$suffix": "\""}
+	if got, err := renderValue(join, sc); err != nil || got != `"name:'Ada' AND department_id:5"` {
+		t.Errorf("join = %#v, %v", got, err)
+	}
+	empty := map[string]any{"$join": []any{"{{ p.none }}"}, "$sep": ",", "$prefix": "\""}
+	if got, _ := renderValue(empty, sc); got != nil {
+		t.Errorf("empty join = %#v", got)
+	}
+	grist := map[string]any{"$join": map[string]any{"$map": "{{ p.sort }}", "$to": "{{ el.direction | eq:'desc' | then:'-' }}{{ el.field }}"}, "$sep": ","}
+	if got, _ := renderValue(grist, sc); got != "-a,b" {
+		t.Errorf("grist = %#v", got)
+	}
+}
+
+func TestGraphQLBodyPagination(t *testing.T) {
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"issues","title":"I","method":"POST","path":"/graphql",
+	  "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	  "body":{"query":"query($first:Int,$after:String){issues(first:$first,after:$after){nodes{id} pageInfo{hasNextPage endCursor}}}","variables":{"x":1}},
+	  "pagination":{"type":"cursor","param_in":"body","cursor_param":"variables.after","limit_param":"variables.first","page_size":2,
+	    "cursor_path":"data.issues.pageInfo.endCursor","has_more_path":"data.issues.pageInfo.hasNextPage","results_path":"data.issues.nodes"}}`))
+	var bodies []map[string]any
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		var b map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&b)
+		bodies = append(bodies, b)
+		if n == 1 {
+			w.Write([]byte(`{"data":{"issues":{"nodes":[{"id":1},{"id":2}],"pageInfo":{"hasNextPage":true,"endCursor":"c1"}}}}`))
+			return
+		}
+		w.Write([]byte(`{"data":{"issues":{"nodes":[{"id":3}],"pageInfo":{"hasNextPage":false}}}}`))
+	})
+	items, err := runPackageOp(p, map[string]any{"operation": "issues", "returnAll": true}, cred, nil)
+	if err != nil || len(items) != 3 {
+		t.Fatalf("items %v %v", items, err)
+	}
+	v2 := bodies[1]["variables"].(map[string]any)
+	if v2["after"] != "c1" || v2["first"] != 2.0 || v2["x"] != 1.0 || bodies[1]["after"] != nil {
+		t.Errorf("second page body = %v", bodies[1])
+	}
+}

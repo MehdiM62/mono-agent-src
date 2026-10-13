@@ -32,7 +32,14 @@ type Scope struct {
 	// Main is the main request's decoded response, unchanged while poll
 	// repeats rebind res (Dropcontact: the id only the first reply has).
 	Main any
+	// Hdr is the main response's headers (first value each); lookups are
+	// case-insensitive (hdr.Location, hdr.Resource-ID).
+	Hdr headerMap
 }
+
+// headerMap holds response headers; lookupPath matches its keys
+// case-insensitively.
+type headerMap map[string]any
 
 func (s Scope) root(name string) any {
 	switch name {
@@ -56,6 +63,8 @@ func (s Scope) root(name string) any {
 		return s.Bin
 	case "main":
 		return s.Main
+	case "hdr":
+		return s.Hdr
 	case "now":
 		return time.Now().UTC().Format(time.RFC3339)
 	case "uuid":
@@ -226,9 +235,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "uuid", "now":
+	case "p", "cred", "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., pre., pres., bin. or be uuid / now", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., res., main., hdr., pre., pres., bin. or be uuid / now", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
@@ -327,6 +336,15 @@ func (e *expr) evalLit(sc Scope) (any, bool, error) {
 func lookupPath(v any, path []string) any {
 	for _, seg := range path {
 		switch c := v.(type) {
+		case headerMap:
+			var hit any
+			for k, x := range c {
+				if strings.EqualFold(k, seg) {
+					hit = x
+					break
+				}
+			}
+			v = hit
 		case map[string]any:
 			v = c[seg]
 		case []any:
@@ -407,6 +425,9 @@ func renderValue(v any, sc Scope) (any, error) {
 		}
 		if parts, ok := t["$concat"]; ok {
 			return renderConcat(parts, sc)
+		}
+		if parts, ok := t["$join"]; ok {
+			return renderJoin(parts, t, sc)
 		}
 		if inner, ok := t["$json"]; ok {
 			r, err := renderValue(inner, sc)
@@ -701,4 +722,41 @@ func isListBuilder(v any) bool {
 	_, isMap := m["$map"]
 	_, isConcat := m["$concat"]
 	return isMap || isConcat
+}
+
+// renderJoin renders "$join" (a list of templates, or one template or
+// builder yielding a list), drops empty parts, joins the rest with "$sep"
+// and wraps them in "$prefix"/"$suffix". Nothing left → nil (omitted).
+func renderJoin(parts any, m map[string]any, sc Scope) (any, error) {
+	var vals []any
+	if arr, ok := parts.([]any); ok {
+		for i, p := range arr {
+			r, err := renderValue(p, sc)
+			if err != nil {
+				return nil, fmt.Errorf("$join part %d: %w", i, err)
+			}
+			vals = append(vals, r)
+		}
+	} else {
+		r, err := renderValue(parts, sc)
+		if err != nil {
+			return nil, fmt.Errorf("$join: %w", err)
+		}
+		if l, ok := r.([]any); ok {
+			vals = l
+		} else if r != nil {
+			vals = []any{r}
+		}
+	}
+	var keep []string
+	for _, v := range vals {
+		if s := stringify(v); !isEmpty(v) && s != "" {
+			keep = append(keep, s)
+		}
+	}
+	if len(keep) == 0 {
+		return nil, nil
+	}
+	str := func(k string) string { s, _ := m[k].(string); return s }
+	return str("$prefix") + strings.Join(keep, str("$sep")) + str("$suffix"), nil
 }

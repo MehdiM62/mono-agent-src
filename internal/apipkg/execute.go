@@ -2,11 +2,13 @@ package apipkg
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -312,10 +314,28 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	if err := r.runAlso(ctx, resp); err != nil {
 		return nil, err
 	}
+	r.scope.Hdr = headerMap{}
+	for k, vs := range resp.header {
+		if len(vs) > 0 {
+			r.scope.Hdr[k] = vs[0]
+		}
+	}
 	if r.downloads() {
+		if b := r.op.Binary; b.DownloadBase64 != "" {
+			return r.downloadBase64Item(resp)
+		}
 		return []workflow.Item{r.downloadItem(resp)}, nil
 	}
 	if len(strings.TrimSpace(string(resp.body))) == 0 {
+		// An empty body (201 + Location/Resource-ID headers) can still be
+		// shaped from hdr by output.to / output.expand.
+		if o := r.op.Output; o != nil && (o.To != nil || o.Expand != nil) {
+			shaped, err := r.shapeOutput(ctx, map[string]any{})
+			if err != nil {
+				return nil, err
+			}
+			return toItems(shaped, true), nil
+		}
 		return []workflow.Item{{JSON: map[string]any{"success": true}}}, nil
 	}
 	v := decodeBody(resp.body)
@@ -495,7 +515,14 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 	op := *r.op
 	op.Method, op.Path, op.BaseURL = st.Method, st.Path, st.BaseURL
 	op.Query, op.Body, op.BodyType, op.Headers = st.Query, st.Body, st.BodyType, st.Headers
-	op.Pagination, op.Binary, op.Also, op.Before = nil, nil, nil, nil
+	op.Pagination, op.Also, op.Before = nil, nil, nil
+	if st.Upload && r.op.Binary != nil && r.op.Binary.UploadField != "" {
+		b := *r.op.Binary
+		b.UploadWhen, b.DownloadWhen, b.Download, b.DownloadBase64 = "", "", false, ""
+		op.Binary, op.Body, op.BodyType = &b, nil, BodyRaw
+	} else {
+		op.Binary = nil
+	}
 	step := *r
 	step.op, step.scope = &op, sc
 	return step.send(ctx, pageParams{})
@@ -547,8 +574,19 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			if err != nil {
 				return nil, fmt.Errorf("output.expand element %d: %w", i, err)
 			}
-			if resp != nil && len(strings.TrimSpace(string(resp.body))) > 0 {
-				list[i] = decodeBody(resp.body)
+			if resp == nil || len(strings.TrimSpace(string(resp.body))) == 0 {
+				continue
+			}
+			got := decodeBody(resp.body)
+			if o.ExpandMergeKey == "" {
+				list[i] = got
+				continue
+			}
+			if o.ExpandMergePath != "" {
+				got = lookupPath(got, strings.Split(o.ExpandMergePath, "."))
+			}
+			if m, ok := el.(map[string]any); ok {
+				m[o.ExpandMergeKey] = got
 			}
 		}
 	}
@@ -590,6 +628,9 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 				list[i] = firestoreDoc(el)
 			}
 		}
+	}
+	if o.Limit {
+		list = r.clientLimit(list)
 	}
 	if o.To != nil {
 		apply := true
@@ -775,4 +816,51 @@ func schemaCell(v any, f map[string]any, nums bool) any {
 		}
 	}
 	return v
+}
+
+// downloadBase64Item decodes a base64 file from the JSON response
+// (binary.download_base64) onto the item, keeping the JSON as the item.
+func (r *opRun) downloadBase64Item(resp *response) ([]workflow.Item, error) {
+	b := r.op.Binary
+	doc := decodeBody(resp.body)
+	sc := r.scope
+	sc.Res = doc
+	enc, err := renderText(b.DownloadBase64, sc)
+	if err != nil {
+		return nil, r.errf("binary.download_base64: %w", err)
+	}
+	data, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(enc), ""))
+	if err != nil {
+		return nil, r.errf("binary.download_base64: not base64: %w", err)
+	}
+	prop := "data"
+	if f := b.PropertyField; f != "" {
+		if s := stringify(r.params[f]); s != "" {
+			prop = s
+		}
+	}
+	obj, _ := doc.(map[string]any)
+	if obj == nil {
+		obj = map[string]any{}
+	}
+	name, _ := renderText(b.FileName, sc)
+	mt, _ := renderText(b.MimeType, sc)
+	if mt == "" {
+		mt = mime.TypeByExtension(path.Ext(name))
+	}
+	obj["binary_property"], obj["file_name"], obj["mime_type"], obj["size"] = prop, name, mt, len(data)
+	return []workflow.Item{{JSON: obj, Binary: map[string][]byte{prop: data}}}, nil
+}
+
+// clientLimit honours the op's returnAll/limit params on a list the API
+// returned whole (n8n slices client-side).
+func (r *opRun) clientLimit(list []any) []any {
+	if b, _ := toBool(r.params["returnAll"]); b == true {
+		return list
+	}
+	n, _ := toInt(r.params["limit"])
+	if l, ok := n.(int64); ok && l > 0 && int(l) < len(list) {
+		return list[:l]
+	}
+	return list
 }
