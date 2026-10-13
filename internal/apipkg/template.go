@@ -91,6 +91,9 @@ type expr struct {
 	root    string
 	path    []string
 	filters []filterCall
+	// head is a parenthesised sub-expression the value starts from:
+	// {{ (p.a | lower) | prefix:'x' }}.
+	head *expr
 }
 
 type filterCall struct {
@@ -164,9 +167,18 @@ func parseTemplate(s string) (*tmpl, error) {
 // parseExpr parses the inside of {{ }}.
 func parseExpr(src string) (*expr, error) {
 	segs := splitPipes(src)
-	e, err := parsePath(strings.TrimSpace(segs[0]))
-	if err != nil {
-		return nil, err
+	var e *expr
+	if h := strings.TrimSpace(segs[0]); len(h) > 1 && h[0] == '(' && h[len(h)-1] == ')' {
+		inner, err := parseExpr(strings.TrimSpace(h[1 : len(h)-1]))
+		if err != nil {
+			return nil, err
+		}
+		e = &expr{head: inner}
+	} else {
+		var err error
+		if e, err = parsePath(h); err != nil {
+			return nil, err
+		}
 	}
 	e.src = src
 	for _, f := range segs[1:] {
@@ -288,7 +300,16 @@ func (e *expr) eval(sc Scope) (any, error) {
 // evalLit also reports whether the value is a literal the package author
 // wrote (a then/default argument), which path rendering does not escape.
 func (e *expr) evalLit(sc Scope) (any, bool, error) {
-	v := lookupPath(sc.root(e.root), e.path)
+	var v any
+	if e.head != nil {
+		hv, err := e.head.eval(sc)
+		if err != nil {
+			return nil, false, err
+		}
+		v = hv
+	} else {
+		v = lookupPath(sc.root(e.root), e.path)
+	}
 	literal := false
 	for _, f := range e.filters {
 		var arg any
@@ -425,6 +446,26 @@ func renderValue(v any, sc Scope) (any, error) {
 		}
 		if parts, ok := t["$concat"]; ok {
 			return renderConcat(parts, sc)
+		}
+		if parts, ok := t["$list"]; ok {
+			// Positional lists keep every element, empty ones included
+			// (Odoo execute_kw args, Notion {"past_week": {}}).
+			arr, ok := parts.([]any)
+			if !ok {
+				return nil, fmt.Errorf("$list must be a list")
+			}
+			out := make([]any, len(arr))
+			for i, el := range arr {
+				r, err := renderValue(el, sc)
+				if err != nil {
+					return nil, fmt.Errorf("$list element %d: %w", i, err)
+				}
+				if m, ok := r.(map[string]any); ok && m == nil {
+					r = map[string]any{}
+				}
+				out[i] = r
+			}
+			return out, nil
 		}
 		if parts, ok := t["$join"]; ok {
 			return renderJoin(parts, t, sc)

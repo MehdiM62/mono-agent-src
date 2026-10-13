@@ -360,6 +360,9 @@ func checkTemplates(where string, v any, fields, credKeys map[string]bool) []str
 					continue
 				}
 				exprs := []*expr{part.expr}
+				for h := part.expr.head; h != nil; h = h.head {
+					exprs = append(exprs, h)
+				}
 				for _, f := range part.expr.filters {
 					for _, a := range f.args {
 						if a != f.arg && a.path != nil {

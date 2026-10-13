@@ -939,3 +939,60 @@ func TestPresignedMultipartUploadStep(t *testing.T) {
 		t.Errorf("push: %s %s", cts[2], bodies[2])
 	}
 }
+
+func TestListSnakeSkipSortAndParenHead(t *testing.T) {
+	sc := Scope{P: map[string]any{"db": "odoo", "uid": 2.0, "name": "Ada"}}
+	got, err := renderValue(map[string]any{"$list": []any{"{{ p.db }}", "{{ p.uid }}", "", map[string]any{}, []any{}, "{{ p.none }}"}}, sc)
+	if err != nil || !reflect.DeepEqual(got, []any{"odoo", 2.0, "", map[string]any{}, []any{}, nil}) {
+		t.Errorf("$list = %#v, %v", got, err)
+	}
+	for in, want := range map[string]string{"Due Date": "due_date", "DueDate": "due_date", "due-date": "due_date", "HTTPServer2": "http_server_2", "already_snake": "already_snake"} {
+		if g := snakeCase(in); g != want {
+			t.Errorf("snake(%q) = %q, want %q", in, g, want)
+		}
+	}
+	if got, err := renderString("{{ (p.name | lower) | prefix:'x-' }}", sc); err != nil || got != "x-ada" {
+		t.Errorf("paren head = %#v, %v", got, err)
+	}
+	p := mustParse(t, pkgJSON(`{"resource":"","operation":"ls","title":"L","method":"GET","path":"/ls","output":{"skip":1,"sort":"v","sort_desc":true}}`))
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		w.Write([]byte(`[{"v":0},{"v":2},{"v":10},{"v":1}]`))
+	})
+	items, _ := runPackageOp(p, map[string]any{"operation": "ls"}, cred, nil)
+	if len(items) != 3 || items[0].JSON["v"] != 10.0 || items[2].JSON["v"] != 1.0 {
+		t.Errorf("skip+sort: %v", items)
+	}
+}
+
+func TestPaginationWhenAndTemplatedParams(t *testing.T) {
+	p := mustParse(t, `{"$schema":"apipkg.v1","id":"st","title":"S","base_url":"https://s.test",
+	  "credentials":[{"platform":"st","methods":["api_key"],"fields":[{"key":"api_key","label":"K","required":true},{"key":"api_version","label":"V"}],
+	    "inject":{"headers":{"Authorization":"Bearer {{ cred.api_key }}"}}}],
+	  "operations":[{"resource":"","operation":"list","title":"L","method":"GET","path":"/entries",
+	    "fields":[{"key":"returnAll","label":"A","type":"boolean"}],
+	    "output":{"path":"{{ cred.api_version | eq:'v4' | then:'data' }}"},
+	    "pagination":{"type":"page","when":"{{ cred.api_version | eq:'v4' }}","page_param":"{{ cred.api_version | eq:'v4' | then:'pagination[page]' }}",
+	      "limit_param":"pagination[pageSize]","page_size":2,"start_page":1,"results_path":"data"}}]}`)
+	var qs []string
+	pagedServer(t, func(n int, r *http.Request, w http.ResponseWriter) {
+		qs = append(qs, r.URL.RawQuery)
+		if r.URL.Query().Get("pagination[page]") == "" {
+			w.Write([]byte(`[{"id":1},{"id":2},{"id":3}]`))
+			return
+		}
+		if r.URL.Query().Get("pagination[page]") == "1" {
+			w.Write([]byte(`{"data":[{"id":1},{"id":2}]}`))
+			return
+		}
+		w.Write([]byte(`{"data":[{"id":3}]}`))
+	})
+	v4, err := runPackageOp(p, map[string]any{"operation": "list", "returnAll": true}, map[string]any{"api_key": "k", "api_version": "v4"}, nil)
+	if err != nil || len(v4) != 3 || len(qs) != 2 {
+		t.Fatalf("v4 paging: %d items, %v, %v", len(v4), qs, err)
+	}
+	qs = nil
+	v3, err := runPackageOp(p, map[string]any{"operation": "list", "returnAll": true}, map[string]any{"api_key": "k", "api_version": "v3"}, nil)
+	if err != nil || len(v3) != 3 || len(qs) != 1 || qs[0] != "" {
+		t.Errorf("v3 no paging: %d items, %v, %v", len(v3), qs, err)
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 var knownFilters = map[string]bool{
@@ -25,7 +26,7 @@ var knownFilters = map[string]bool{
 	"add": true, "sub": true, "colnum": true, "colname": true, "get": true, "sheetgid": true, "entries": true, "path": true,
 	"lines": true, "escape_html": true, "join": true, "mul": true, "numeric": true,
 	"firestore_value": true, "firestore_fields": true, "pick": true,
-	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true,
+	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true, "snake": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -133,6 +134,8 @@ func applyFilter(name string, v, arg any) (any, error) {
 			}
 		}
 		return firestoreFields(obj, cols), nil
+	case "snake":
+		return snakeCase(stringify(v)), nil
 	case "values":
 		m, ok := v.(map[string]any)
 		if !ok {
@@ -888,4 +891,38 @@ func truthy(v any) bool {
 		return b == true
 	}
 	return true
+}
+
+// snakeCase is lodash's snakeCase: words split on case changes, digits
+// and non-alphanumerics, lower-cased, joined by "_" ("Due Date",
+// "DueDate", "due-date" → "due_date").
+func snakeCase(s string) string {
+	var words []string
+	var cur []rune
+	flush := func() {
+		if len(cur) > 0 {
+			words = append(words, strings.ToLower(string(cur)))
+			cur = cur[:0]
+		}
+	}
+	rs := []rune(s)
+	for i, r := range rs {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			if len(cur) > 0 {
+				prev := cur[len(cur)-1]
+				lowerToUpper := unicode.IsUpper(r) && (unicode.IsLower(prev) || unicode.IsDigit(prev))
+				acronymEnd := unicode.IsUpper(r) && unicode.IsUpper(prev) && i+1 < len(rs) && unicode.IsLower(rs[i+1])
+				digitEdge := unicode.IsDigit(r) != unicode.IsDigit(prev)
+				if lowerToUpper || acronymEnd || digitEdge {
+					flush()
+				}
+			}
+			cur = append(cur, r)
+		default:
+			flush()
+		}
+	}
+	flush()
+	return strings.Join(words, "_")
 }

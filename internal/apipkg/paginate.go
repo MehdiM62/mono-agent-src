@@ -56,7 +56,17 @@ func (r *opRun) limits() (returnAll bool, limit int) {
 // paginate fetches pages until the source runs out, the limit is reached
 // or max_pages stops it (truncated).
 func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
-	pg := r.op.Pagination
+	pgv := *r.op.Pagination
+	pg := &pgv
+	for _, f := range []*string{&pg.CursorParam, &pg.OffsetParam, &pg.LimitParam, &pg.PageParam} {
+		if hasTemplate(*f) {
+			v, err := renderText(*f, r.scope)
+			if err != nil {
+				return nil, false, r.errf("pagination param: %w", err)
+			}
+			*f = v
+		}
+	}
 	returnAll, limit := r.limits()
 	pageSize := pg.PageSize
 	if pageSize <= 0 {
