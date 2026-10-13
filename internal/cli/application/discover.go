@@ -1,5 +1,4 @@
-// cmd/monoagentcli/application_discover.go
-package main
+package application
 
 import (
 	"encoding/json"
@@ -12,10 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newApplicationDiscoverCmd returns the `application discover` command:
+// newDiscoverCmd returns the `application discover` command:
 // searches one discovery.Source and imports non-duplicate results as new
 // pending job applications.
-func newApplicationDiscoverCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newDiscoverCmd() *cobra.Command {
 	var keywords, location, source string
 	var limit int
 	cmd := &cobra.Command{
@@ -25,28 +24,28 @@ func newApplicationDiscoverCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli application discover --keywords "platform engineer" --limit 50`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if keywords == "" {
-				return errInvalidInput("--keywords is required")
+				return d.InvalidInput("--keywords is required")
 			}
 			src, ok := discoveryregistry.Get(source)
 			if !ok {
-				return errInvalidInput("unknown --source %q (available: %v)", source, discoveryregistry.Names())
+				return d.InvalidInput("unknown --source %q (available: %v)", source, discoveryregistry.Names())
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
 			store := applications.NewStore(db.DB)
 
-			created, skipped, failed, searchErr := discovery.Search(cmd.Context(), src, store, cfg.ProfileID, discovery.SearchQuery{
+			created, skipped, failed, searchErr := discovery.Search(cmd.Context(), src, store, d.ProfileID(), discovery.SearchQuery{
 				Keywords: keywords, Location: location, Limit: limit,
 			})
 			if searchErr != nil && len(created) == 0 {
 				return fmt.Errorf("discovering jobs: %w", searchErr)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				type createdApp struct {
 					ID      string `json:"id"`
 					Title   string `json:"title"`

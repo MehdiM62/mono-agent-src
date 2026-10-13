@@ -1,55 +1,18 @@
-// cmd/monoagentcli/application_apply.go
-package main
+package application
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
-	"time"
-
-	browserpkg "github.com/monoes/mono-agent/internal/browser"
 
 	"github.com/monoes/mono-agent/internal/applications"
 	"github.com/monoes/mono-agent/internal/apply"
 	"github.com/monoes/mono-agent/internal/documents"
-	"github.com/monoes/mono-agent/internal/secrets"
 
 	"github.com/spf13/cobra"
 )
 
-// applicationApplyBridgeFunc obtains a connected MonoAgent extension bridge
-// for `application apply` to open the job posting through — swappable for
-// tests that stub out browser mechanics entirely (see
-// TestApplicationApplyAutoModeSkipsPrompt), mirroring
-// apply.OpenForApplicationFunc/documents.RenderPDFFunc's convention.
-var applicationApplyBridgeFunc = func(profileID string) (browserpkg.ExtensionBridge, error) {
-	bridge := setupProfileBridge(profileID, newExtensionBridgeLogger(), 3*time.Second)
-	if err := ensureExtensionConnected(bridge, 30*time.Second); err != nil {
-		return nil, err
-	}
-	return bridge, nil
-}
-
-// confirmPromptFunc asks the user a y/N question on stdin/stdout, real by
-// default; swappable for tests. Returns true only on an explicit "y"/"yes"
-// (case-insensitive) — any other input, including a read error or EOF,
-// is treated as "no" (the safe default for an action that opens a real
-// browser and starts an application flow).
-var confirmPromptFunc = func(prompt string) bool {
-	fmt.Fprintf(os.Stderr, "%s [y/N]: ", prompt)
-	secrets.MarkStdinConsumed()
-	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return false
-	}
-	answer := strings.ToLower(strings.TrimSpace(line))
-	return answer == "y" || answer == "yes"
-}
-
-func newApplicationApplyCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newApplyCmd() *cobra.Command {
 	var mode, cvDataFile, letterDataFile string
 	cmd := &cobra.Command{
 		Use:   "apply <id>",
@@ -61,36 +24,36 @@ func newApplicationApplyCmd(cfg *globalConfig) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		Example: `  monoagentcli application apply 1c2e... --cv-data-file cv.json --cover-letter-data-file letter.json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
 
 			store := applications.NewStore(db.DB)
-			app, err := store.Get(cmd.Context(), cfg.ProfileID, args[0])
+			app, err := store.Get(cmd.Context(), d.ProfileID(), args[0])
 			if err != nil {
 				return fmt.Errorf("getting application: %w", err)
 			}
 			if app.Kind != applications.KindJob {
-				return errInvalidInput("application apply currently supports job-kind applications only, got %q", app.Kind)
+				return d.InvalidInput("application apply currently supports job-kind applications only, got %q", app.Kind)
 			}
 
 			effectiveMode := mode
 			if effectiveMode == "" {
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					effectiveMode = "auto"
 				} else {
 					effectiveMode = "confirm"
 				}
 			}
 			if effectiveMode != "auto" && effectiveMode != "confirm" {
-				return errInvalidInput("--mode must be \"auto\" or \"confirm\", got %q", effectiveMode)
+				return d.InvalidInput("--mode must be \"auto\" or \"confirm\", got %q", effectiveMode)
 			}
 
 			if effectiveMode == "confirm" {
 				prompt := fmt.Sprintf("About to prepare and open %s — %s (%s). Continue?", app.Job.Company, app.Job.Title, app.Job.URL)
-				if !confirmPromptFunc(prompt) {
+				if !d.Confirm(prompt) {
 					fmt.Fprintln(cmd.OutOrStdout(), "Cancelled.")
 					return nil
 				}
@@ -103,7 +66,7 @@ func newApplicationApplyCmd(cfg *globalConfig) *cobra.Command {
 					return fmt.Errorf("reading --cv-data-file: %w", err)
 				}
 				if err := json.Unmarshal(raw, &cvData); err != nil {
-					return errInvalidInput("parsing --cv-data-file: %v", err)
+					return d.InvalidInput("parsing --cv-data-file: %v", err)
 				}
 			}
 			var letterData documents.CoverLetterData
@@ -113,16 +76,16 @@ func newApplicationApplyCmd(cfg *globalConfig) *cobra.Command {
 					return fmt.Errorf("reading --cover-letter-data-file: %w", err)
 				}
 				if err := json.Unmarshal(raw, &letterData); err != nil {
-					return errInvalidInput("parsing --cover-letter-data-file: %v", err)
+					return d.InvalidInput("parsing --cover-letter-data-file: %v", err)
 				}
 			}
 
-			cvHTML, cvPDF, letterHTML, letterPDF, err := apply.Prepare(cmd.Context(), db.DB, cfg.ProfileID, app.ID, cvData, letterData)
+			cvHTML, cvPDF, letterHTML, letterPDF, err := apply.Prepare(cmd.Context(), db.DB, d.ProfileID(), app.ID, cvData, letterData)
 			if err != nil {
 				return fmt.Errorf("preparing documents: %w", err)
 			}
 
-			bridge, err := applicationApplyBridgeFunc(cfg.ProfileID)
+			bridge, err := d.Bridge(d.ProfileID())
 			if err != nil {
 				return fmt.Errorf("connecting to browser extension: %w", err)
 			}
@@ -130,7 +93,7 @@ func newApplicationApplyCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("opening browser: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]string{
@@ -149,7 +112,7 @@ func newApplicationApplyCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newApplicationSendCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSendCmd() *cobra.Command {
 	var note string
 	cmd := &cobra.Command{
 		Use:   "send <id>",
@@ -157,17 +120,17 @@ func newApplicationSendCmd(cfg *globalConfig) *cobra.Command {
 		Long:  "This is the only way an application's status becomes \"applied\" — mono-agent never submits a form on your behalf; this command is how you tell it you did.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
 
 			store := applications.NewStore(db.DB)
-			if err := store.SetStatus(cmd.Context(), cfg.ProfileID, args[0], applications.StatusApplied, applications.ActorUser, note); err != nil {
+			if err := store.SetStatus(cmd.Context(), d.ProfileID(), args[0], applications.StatusApplied, applications.ActorUser, note); err != nil {
 				return fmt.Errorf("recording send: %w", err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]string{"id": args[0], "status": "applied"})

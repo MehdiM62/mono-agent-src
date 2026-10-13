@@ -1,8 +1,6 @@
-// cmd/monoagentcli/application_evaluate_test.go
-package main
+package application
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"strings"
@@ -12,16 +10,7 @@ import (
 	"github.com/monoes/mono-agent/internal/monomind"
 )
 
-func runApplicationEvaluateCmd(t *testing.T, dbPath string, args ...string) (string, error) {
-	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true}
-	cmd := newApplicationCmd(cfg)
-	cmd.SetArgs(args)
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	err := cmd.Execute()
-	return out.String(), err
-}
+// These tests replace internal/matching's package-level seams, so they do not run in parallel.
 
 func fakeEvaluateDeps(t *testing.T) {
 	t.Helper()
@@ -44,9 +33,9 @@ func fakeEvaluateDeps(t *testing.T) {
 
 func TestApplicationEvaluate(t *testing.T) {
 	fakeEvaluateDeps(t)
-	dbPath := newApplicationCLITestDB(t)
+	dbPath := homeDB(t)
 
-	addOut, err := runApplicationEvaluateCmd(t, dbPath, "add", "--kind", "job", "--title", "Backend Engineer", "--company", "Acme", "--url", "https://acme.example/1")
+	addOut, err := run(t, dbPath, true, "add", "--kind", "job", "--title", "Backend Engineer", "--company", "Acme", "--url", "https://acme.example/1")
 	if err != nil {
 		t.Fatalf("application add: %v (%s)", err, addOut)
 	}
@@ -61,7 +50,7 @@ func TestApplicationEvaluate(t *testing.T) {
 		t.Fatalf("could not extract id from add output: %s", addOut)
 	}
 
-	evalOut, err := runApplicationEvaluateCmd(t, dbPath, "evaluate", id)
+	evalOut, err := run(t, dbPath, true, "evaluate", id)
 	if err != nil {
 		t.Fatalf("application evaluate: %v (%s)", err, evalOut)
 	}
@@ -72,8 +61,8 @@ func TestApplicationEvaluate(t *testing.T) {
 
 func TestApplicationEvaluateRejectsNotFound(t *testing.T) {
 	fakeEvaluateDeps(t)
-	dbPath := newApplicationCLITestDB(t)
-	if _, err := runApplicationEvaluateCmd(t, dbPath, "evaluate", "does-not-exist"); err == nil {
+	dbPath := homeDB(t)
+	if _, err := run(t, dbPath, true, "evaluate", "does-not-exist"); err == nil {
 		t.Fatal("expected error for unknown id, got nil")
 	}
 }

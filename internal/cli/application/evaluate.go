@@ -1,5 +1,4 @@
-// cmd/monoagentcli/application_evaluate.go
-package main
+package application
 
 import (
 	"encoding/json"
@@ -11,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newApplicationEvaluateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newEvaluateCmd() *cobra.Command {
 	var runtime string
 	cmd := &cobra.Command{
 		Use:   "evaluate <id>",
@@ -28,18 +27,18 @@ falling back to an agent. Sends the job posting and profile excerpts to TypeSafe
 		Example: `  monoagentcli application evaluate 1c2e... --runtime claude
   monoagentcli application evaluate 1c2e... --runtime jev`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
 
-			verdict, err := matching.Evaluate(cmd.Context(), db.DB, cfg.ProfileID, args[0], runtime)
+			verdict, err := matching.Evaluate(cmd.Context(), db.DB, d.ProfileID(), args[0], runtime)
 			if err != nil {
 				return fmt.Errorf("evaluating application: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(verdict)
@@ -52,21 +51,21 @@ falling back to an agent. Sends the job posting and profile excerpts to TypeSafe
 	return cmd
 }
 
-func newApplicationEvaluatePendingCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newEvaluatePendingCmd() *cobra.Command {
 	var runtime string
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "evaluate-pending",
 		Short: "Evaluate every pending job application with no evaluation yet",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
 
 			store := applications.NewStore(db.DB)
-			apps, err := store.List(cmd.Context(), cfg.ProfileID, applications.ListFilter{
+			apps, err := store.List(cmd.Context(), d.ProfileID(), applications.ListFilter{
 				Kind: applications.KindJob, Status: applications.StatusPending,
 			})
 			if err != nil {
@@ -88,7 +87,7 @@ func newApplicationEvaluatePendingCmd(cfg *globalConfig) *cobra.Command {
 				if already > 0 {
 					continue
 				}
-				verdict, err := matching.Evaluate(cmd.Context(), db.DB, cfg.ProfileID, app.ID, runtime)
+				verdict, err := matching.Evaluate(cmd.Context(), db.DB, d.ProfileID(), app.ID, runtime)
 				if err != nil {
 					fmt.Fprintf(cmd.ErrOrStderr(), "warning: evaluating %s failed: %v\n", app.ID, err)
 					continue
@@ -97,7 +96,7 @@ func newApplicationEvaluatePendingCmd(cfg *globalConfig) *cobra.Command {
 				evaluated++
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]interface{}{"evaluated": evaluated, "verdicts": verdictCounts})
