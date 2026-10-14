@@ -1,4 +1,4 @@
-package main
+package doctor
 
 import (
 	"github.com/monoes/mono-agent/internal/health"

@@ -1,4 +1,4 @@
-package main
+package doctor
 
 import (
 	"context"
@@ -17,6 +17,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/health"
+	"github.com/monoes/mono-agent/internal/storage"
 )
 
 // The accounts checks only read. On a real, migrated database: testing a
@@ -44,7 +45,7 @@ func TestAccountChecksOnlyReadAndLeakNothing(t *testing.T) {
 	keyring.MockInit()
 	home := os.Getenv("HOME")
 	dbPath := filepath.Join(home, ".monoagent", "monoagent.db")
-	db, err := initDB(&globalConfig{DBPath: dbPath, ProfileID: "default"})
+	db, err := migratedDB(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,11 +90,11 @@ func TestAccountChecksOnlyReadAndLeakNothing(t *testing.T) {
 }
 
 func TestScrubSecrets(t *testing.T) {
-	err := scrubSecrets(os.ErrClosed, "short")
+	err := ScrubSecrets(os.ErrClosed, "short")
 	if err != os.ErrClosed {
 		t.Error("an error with nothing to scrub was replaced")
 	}
-	got := scrubSecrets(io.ErrUnexpectedEOF, "unexpected")
+	got := ScrubSecrets(io.ErrUnexpectedEOF, "unexpected")
 	if strings.Contains(got.Error(), "unexpected") {
 		t.Errorf("scrubbed = %q", got)
 	}
@@ -123,7 +124,7 @@ func fakeHTTP(t *testing.T, status int) func() []string {
 func accountTestDB(t *testing.T) (*health.Env, *connections.Store) {
 	t.Helper()
 	keyring.MockInit()
-	db, err := initDB(&globalConfig{DBPath: filepath.Join(t.TempDir(), "monoagent.db"), ProfileID: "default"})
+	db, err := migratedDB(filepath.Join(t.TempDir(), "monoagent.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,4 +220,41 @@ func TestClassifyConnectionError(t *testing.T) {
 			t.Errorf("%v: %s, want %s", tc.raw, kind, tc.want)
 		}
 	}
+}
+
+// migratedDB opens the database at path, creating its folder, with every migration applied.
+func migratedDB(path string) (*storage.Database, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	db, err := storage.NewDatabase(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.ApplyMigrations(); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return db, nil
+}
+
+// captureStdout returns what fn printed on stdout.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	orig := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = orig }()
+	fn()
+	if err := w.Close(); err != nil {
+		t.Fatalf("closing pipe writer: %v", err)
+	}
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("reading captured stdout: %v", err)
+	}
+	return string(out)
 }
