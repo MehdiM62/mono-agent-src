@@ -1,18 +1,14 @@
-package main
+package hil
 
 import (
-	"bytes"
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/profiledir"
@@ -33,81 +29,23 @@ import (
 //	hil recipient <id>                        the recipient's people record
 //	hil allow list|add|remove                 per-destination "always allow"
 
-// hilSendRunner builds the Runner that performs an approved send. A variable
-// so tests run a fake instead of starting a process.
-var hilSendRunner = func(cfg *globalConfig) hilsend.Runner {
-	return func(ctx context.Context, r hilsend.Run) (json.RawMessage, error) {
-		exe, err := os.Executable()
-		if err != nil {
-			return nil, err
-		}
-		items := make([]map[string]interface{}, 0, len(r.Input))
-		for _, in := range r.Input {
-			items = append(items, map[string]interface{}{"json": in})
-		}
-		stdin, err := json.Marshal(map[string]interface{}{"config": r.Config, "input": items})
-		if err != nil {
-			return nil, err
-		}
-		args := []string{}
-		if cfg.DBPath != "" {
-			args = append(args, "--db-path", cfg.DBPath)
-		}
-		if cfg.ProfileID != "" {
-			args = append(args, "--profile", cfg.ProfileID)
-		}
-		args = append(args, "node", "run", r.NodeType, "--stdin", "--output", "json")
-		cmd := exec.CommandContext(ctx, exe, args...)
-		cmd.Env = append(os.Environ(), hilsend.EnvApprovalID+"="+r.ApprovalID, hilsend.EnvApprovalProof+"="+r.Proof)
-		cmd.Stdin = bytes.NewReader(stdin)
-		var stdout, stderr bytes.Buffer
-		cmd.Stdout, cmd.Stderr = &stdout, &stderr
-		if err := cmd.Run(); err != nil {
-			msg := strings.TrimSpace(stderr.String())
-			if len(msg) > 800 {
-				msg = msg[len(msg)-800:]
-			}
-			if msg == "" {
-				msg = err.Error()
-			}
-			return nil, errors.New(msg)
-		}
-		out := bytes.TrimSpace(stdout.Bytes())
-		if !json.Valid(out) {
-			return json.RawMessage(strconv.Quote(string(out))), nil
-		}
-		return json.RawMessage(out), nil
-	}
+func (d Deps) hilSendStore(db *sql.DB) hilsend.Store {
+	return hilsend.Store{DB: db, Profile: d.ProfileID()}
 }
 
-func hilSendStore(cfg *globalConfig, db *sql.DB) hilsend.Store {
-	return hilsend.Store{DB: db, Profile: cfg.ProfileID}
-}
-
-func hilSendError(err error) error {
+func (d Deps) hilSendError(err error) error {
 	switch {
 	case errors.Is(err, hilsend.ErrNotFound):
-		return errNotFound("send item not found")
+		return d.NotFound("send item not found")
 	case errors.Is(err, hilsend.ErrNotSend):
-		return errInvalidInput("that Human-in-Loop item is not a send item")
+		return d.InvalidInput("that Human-in-Loop item is not a send item")
 	}
 	return err
 }
 
-// requireOperator refuses an agent: it may prepare a send, never decide one.
-func requireOperator(what string) error {
-	if _, err := callerFor("").operator(what); err != nil {
-		return err
-	}
-	if _, agent := hilsend.Detect(); agent {
-		return operatorOnlyError("%s is set, so an agent is running this command: only the operator can %s; run it in your own terminal", hilsend.EnvAgentContext, what)
-	}
-	return nil
-}
-
-func printSend(cmd *cobra.Command, cfg *globalConfig, p hilsend.Payload) error {
-	if cfg.JSONOutput {
-		return writeJSONTo(cmd.OutOrStdout(), p)
+func (d Deps) printSend(cmd *cobra.Command, p hilsend.Payload) error {
+	if d.JSONOutput() {
+		return d.WriteJSON(cmd.OutOrStdout(), p)
 	}
 	w := cmd.OutOrStdout()
 	fmt.Fprintf(w, "%s  %s  %s via %s  to %s\n", p.ID, p.State, p.Action, p.Channel, p.Recipient.Name)
@@ -121,29 +59,29 @@ func printSend(cmd *cobra.Command, cfg *globalConfig, p hilsend.Payload) error {
 	return nil
 }
 
-func withSendDB(cfg *globalConfig, fn func(*sql.DB, hilsend.Store) error) error {
-	db, err := initDB(cfg)
+func (d Deps) withSendDB(fn func(*sql.DB, hilsend.Store) error) error {
+	db, err := d.OpenDB()
 	if err != nil {
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	defer db.Close()
-	return fn(db.DB, hilSendStore(cfg, db.DB))
+	return fn(db.DB, d.hilSendStore(db.DB))
 }
 
 // resolveSend decides a send item; shared by `hil resolve` and the older
 // `hil approve|reject`.
-func resolveSend(cmd *cobra.Command, cfg *globalConfig, st hilsend.Store, id string, approve bool, edit hilsend.Edit, always bool) error {
-	if err := requireOperator("approve or reject a send"); err != nil {
+func (d Deps) resolveSend(cmd *cobra.Command, st hilsend.Store, id string, approve bool, edit hilsend.Edit, always bool) error {
+	if err := d.RequireOperator("approve or reject a send"); err != nil {
 		return err
 	}
-	p, err := hilsend.Resolve(cmd.Context(), st, id, approve, edit, always, hilSendRunner(cfg))
+	p, err := hilsend.Resolve(cmd.Context(), st, id, approve, edit, always, d.SendRunner())
 	if err != nil {
-		return hilSendError(err)
+		return d.hilSendError(err)
 	}
-	return printSend(cmd, cfg, p)
+	return d.printSend(cmd, p)
 }
 
-func newHILResolveCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newHILResolveCmd() *cobra.Command {
 	var approve, reject, always bool
 	var text, subject string
 	cmd := &cobra.Command{
@@ -159,10 +97,10 @@ func newHILResolveCmd(cfg *globalConfig) *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if approve == reject {
-				return errInvalidInput("give exactly one of --approve or --reject")
+				return d.InvalidInput("give exactly one of --approve or --reject")
 			}
 			if reject && (cmd.Flags().Changed("edit-text") || cmd.Flags().Changed("edit-subject") || always) {
-				return errInvalidInput("--edit-text, --edit-subject and --always-allow only go with --approve")
+				return d.InvalidInput("--edit-text, --edit-subject and --always-allow only go with --approve")
 			}
 			var edit hilsend.Edit
 			if cmd.Flags().Changed("edit-text") {
@@ -171,8 +109,8 @@ func newHILResolveCmd(cfg *globalConfig) *cobra.Command {
 			if cmd.Flags().Changed("edit-subject") {
 				edit.Subject = &subject
 			}
-			return withSendDB(cfg, func(_ *sql.DB, st hilsend.Store) error {
-				return resolveSend(cmd, cfg, st, args[0], approve, edit, always)
+			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
+				return d.resolveSend(cmd, st, args[0], approve, edit, always)
 			})
 		},
 	}
@@ -184,14 +122,14 @@ func newHILResolveCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newHILSendsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newHILSendsCmd() *cobra.Command {
 	var state string
 	cmd := &cobra.Command{
 		Use:   "sends",
 		Short: "List send items (every state, oldest first)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return withSendDB(cfg, func(_ *sql.DB, st hilsend.Store) error {
+			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
 				var states []hilsend.State
 				if state != "" {
 					states = append(states, hilsend.State(state))
@@ -200,8 +138,8 @@ func newHILSendsCmd(cfg *globalConfig) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if cfg.JSONOutput {
-					return writeJSONTo(cmd.OutOrStdout(), items)
+				if d.JSONOutput() {
+					return d.WriteJSON(cmd.OutOrStdout(), items)
 				}
 				for _, p := range items {
 					fmt.Fprintf(cmd.OutOrStdout(), "%s  %-8s %-8s %-10s %s\n", p.ID, p.State, p.Action, p.Channel, p.Recipient.Name)
@@ -214,31 +152,31 @@ func newHILSendsCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newHILShowCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newHILShowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <id>",
 		Short: "Show one send item (the approval card's payload)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return withSendDB(cfg, func(_ *sql.DB, st hilsend.Store) error {
+			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
 				p, err := st.Get(cmd.Context(), args[0])
 				if err != nil {
-					return hilSendError(err)
+					return d.hilSendError(err)
 				}
-				return printSend(cmd, cfg, p)
+				return d.printSend(cmd, p)
 			})
 		},
 	}
 }
 
-func newHILEditCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newHILEditCmd() *cobra.Command {
 	var text, subject string
 	cmd := &cobra.Command{
 		Use:   "edit <id>",
 		Short: "Change a pending send's text or subject (operator only); it stays pending and re-previews",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireOperator("edit a send"); err != nil {
+			if err := d.RequireOperator("edit a send"); err != nil {
 				return err
 			}
 			var t, s *string
@@ -249,14 +187,14 @@ func newHILEditCmd(cfg *globalConfig) *cobra.Command {
 				s = &subject
 			}
 			if t == nil && s == nil {
-				return errInvalidInput("give --text and/or --subject")
+				return d.InvalidInput("give --text and/or --subject")
 			}
-			return withSendDB(cfg, func(_ *sql.DB, st hilsend.Store) error {
+			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
 				p, err := st.Edit(cmd.Context(), args[0], t, s)
 				if err != nil {
-					return hilSendError(err)
+					return d.hilSendError(err)
 				}
-				return printSend(cmd, cfg, p)
+				return d.printSend(cmd, p)
 			})
 		},
 	}
@@ -268,18 +206,18 @@ func newHILEditCmd(cfg *globalConfig) *cobra.Command {
 // attachmentRoots are the only folders a preview may read from: the
 // profile's folder (the coder chat folder is that folder), the downloads
 // folder, and the coder workspace root.
-func attachmentRoots(db *sql.DB, profile string) []string {
+func (d Deps) attachmentRoots(db *sql.DB, profile string) []string {
 	roots := []string{profiledir.Root(db, profile)}
 	if home, err := os.UserHomeDir(); err == nil {
 		roots = append(roots, filepath.Join(home, ".monoagent", "downloads"))
 	}
-	if s, err := loadCoderSettings(db); err == nil && s.WorkspaceRoot != "" {
-		roots = append(roots, s.WorkspaceRoot)
+	if root, err := d.WorkspaceRoot(db); err == nil && root != "" {
+		roots = append(roots, root)
 	}
 	return roots
 }
 
-func newHILAttachmentCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newHILAttachmentCmd() *cobra.Command {
 	var stream bool
 	cmd := &cobra.Command{
 		Use:   "attachment <id> <n>",
@@ -291,19 +229,19 @@ func newHILAttachmentCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			n, err := strconv.Atoi(args[1])
 			if err != nil {
-				return errInvalidInput("attachment index %q is not a number", args[1])
+				return d.InvalidInput("attachment index %q is not a number", args[1])
 			}
-			return withSendDB(cfg, func(db *sql.DB, st hilsend.Store) error {
+			return d.withSendDB(func(db *sql.DB, st hilsend.Store) error {
 				p, err := st.Get(cmd.Context(), args[0])
 				if err != nil {
-					return hilSendError(err)
+					return d.hilSendError(err)
 				}
-				f, err := hilsend.AttachmentFile(p, n, attachmentRoots(db, cfg.ProfileID))
+				f, err := hilsend.AttachmentFile(p, n, d.attachmentRoots(db, d.ProfileID()))
 				if err != nil {
-					return errInvalidInput("%v", err)
+					return d.InvalidInput("%v", err)
 				}
 				if !stream {
-					return writeJSONTo(cmd.OutOrStdout(), f)
+					return d.WriteJSON(cmd.OutOrStdout(), f)
 				}
 				fh, err := os.Open(f.Path)
 				if err != nil {
@@ -334,16 +272,16 @@ type hilRecipient struct {
 	Category string `json:"category,omitempty"`
 }
 
-func newHILRecipientCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newHILRecipientCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "recipient <id>",
 		Short: "Show the people record of a send item's recipient",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return withSendDB(cfg, func(db *sql.DB, st hilsend.Store) error {
+			return d.withSendDB(func(db *sql.DB, st hilsend.Store) error {
 				p, err := st.Get(cmd.Context(), args[0])
 				if err != nil {
-					return hilSendError(err)
+					return d.hilSendError(err)
 				}
 				out := hilRecipient{Recipient: p.Recipient}
 				if p.Recipient.PersonID != "" {
@@ -357,13 +295,13 @@ func newHILRecipientCmd(cfg *globalConfig) *cobra.Command {
 						out.Website, out.Intro, out.Job, out.Category = web.String, intro.String, job.String, cat.String
 					}
 				}
-				return writeJSONTo(cmd.OutOrStdout(), out)
+				return d.WriteJSON(cmd.OutOrStdout(), out)
 			})
 		},
 	}
 }
 
-func newHILAllowCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newHILAllowCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "allow",
 		Short: "Destinations an agent may send to without approval (operator only)",
@@ -371,12 +309,12 @@ func newHILAllowCmd(cfg *globalConfig) *cobra.Command {
 	list := &cobra.Command{
 		Use: "list", Short: "List the always-allow rules", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return withSendDB(cfg, func(_ *sql.DB, st hilsend.Store) error {
+			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
 				rules, err := st.Allows(cmd.Context())
 				if err != nil {
 					return err
 				}
-				return writeJSONTo(cmd.OutOrStdout(), rules)
+				return d.WriteJSON(cmd.OutOrStdout(), rules)
 			})
 		},
 	}
@@ -384,17 +322,17 @@ func newHILAllowCmd(cfg *globalConfig) *cobra.Command {
 	add := &cobra.Command{
 		Use: "add", Short: "Always allow one destination", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := requireOperator("allow a destination"); err != nil {
+			if err := d.RequireOperator("allow a destination"); err != nil {
 				return err
 			}
 			if a.Action == "" || a.Recipient == "" {
-				return errInvalidInput("--action and --recipient are required")
+				return d.InvalidInput("--action and --recipient are required")
 			}
-			return withSendDB(cfg, func(_ *sql.DB, st hilsend.Store) error {
+			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
 				if err := st.Allow(cmd.Context(), a); err != nil {
 					return err
 				}
-				return writeJSONTo(cmd.OutOrStdout(), a)
+				return d.WriteJSON(cmd.OutOrStdout(), a)
 			})
 		},
 	}
@@ -405,18 +343,18 @@ func newHILAllowCmd(cfg *globalConfig) *cobra.Command {
 	remove := &cobra.Command{
 		Use: "remove <rule-id>", Short: "Stop always allowing a destination", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireOperator("remove an always-allow rule"); err != nil {
+			if err := d.RequireOperator("remove an always-allow rule"); err != nil {
 				return err
 			}
-			return withSendDB(cfg, func(_ *sql.DB, st hilsend.Store) error {
+			return d.withSendDB(func(_ *sql.DB, st hilsend.Store) error {
 				ok, err := st.Disallow(cmd.Context(), args[0])
 				if err != nil {
 					return err
 				}
 				if !ok {
-					return errNotFound("no such always-allow rule")
+					return d.NotFound("no such always-allow rule")
 				}
-				return writeJSONTo(cmd.OutOrStdout(), map[string]any{"removed": args[0]})
+				return d.WriteJSON(cmd.OutOrStdout(), map[string]any{"removed": args[0]})
 			})
 		},
 	}
@@ -426,8 +364,8 @@ func newHILAllowCmd(cfg *globalConfig) *cobra.Command {
 
 // delegateSendResolve routes the older `hil approve|reject <id>` to the send
 // path when id is a send item. handled is false for an ordinary HIL item.
-func delegateSendResolve(cmd *cobra.Command, cfg *globalConfig, db *sql.DB, id string, approve bool, data string) (handled bool, err error) {
-	st := hilSendStore(cfg, db)
+func (deps Deps) delegateSendResolve(cmd *cobra.Command, db *sql.DB, id string, approve bool, data string) (handled bool, err error) {
+	st := deps.hilSendStore(db)
 	if _, gerr := st.Get(cmd.Context(), id); gerr != nil {
 		return false, nil
 	}
@@ -438,41 +376,19 @@ func delegateSendResolve(cmd *cobra.Command, cfg *globalConfig, db *sql.DB, id s
 			Subject *string `json:"subject"`
 		}
 		if jerr := json.Unmarshal([]byte(data), &d); jerr != nil {
-			return true, errInvalidInput("--data is not valid JSON: %v", jerr)
+			return true, deps.InvalidInput("--data is not valid JSON: %v", jerr)
 		}
 		edit = hilsend.Edit{Text: d.Text, Subject: d.Subject}
 	}
-	return true, resolveSend(cmd, cfg, st, id, approve, edit, false)
+	return true, deps.resolveSend(cmd, st, id, approve, edit, false)
 }
 
 // approveIfSend is delegateSendResolve on a database it opens itself.
-func approveIfSend(cmd *cobra.Command, cfg *globalConfig, id string, approve bool, data string) (bool, error) {
-	db, err := initDB(cfg)
+func (d Deps) approveIfSend(cmd *cobra.Command, id string, approve bool, data string) (bool, error) {
+	db, err := d.OpenDB()
 	if err != nil {
 		return false, nil
 	}
 	defer db.Close()
-	return delegateSendResolve(cmd, cfg, db.DB, id, approve, data)
-}
-
-// requirePublicationApproval gates `publication register` from an agent: a
-// publication it claims must be one the operator approved. approvalID names the
-// send item (as returned when it was queued); an approved send registers its
-// own publication, so this is only for a publication made outside that path.
-// Operators, and profiles that turned sendApproval off, are not asked.
-func requirePublicationApproval(cfg *globalConfig, approvalID string) error {
-	if _, agent := hilsend.Detect(); !agent {
-		return nil
-	}
-	return withImageDB(cfg, func(db *sql.DB) error {
-		if !hilsend.Enabled(db) {
-			return nil
-		}
-		if approvalID != "" {
-			if p, err := hilSendStore(cfg, db).Get(context.Background(), approvalID); err == nil && p.State == hilsend.StateSent {
-				return nil
-			}
-		}
-		return operatorOnlyError("registering a publication from an agent needs an approved send: prepare the send (it is queued for approval, and registers itself once approved), or pass --approval <hil id> of a send that was approved and sent")
-	})
+	return d.delegateSendResolve(cmd, db.DB, id, approve, data)
 }

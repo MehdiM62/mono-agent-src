@@ -1,4 +1,4 @@
-package main
+package hil
 
 import (
 	"context"
@@ -38,8 +38,8 @@ func newHILTestDB(t *testing.T) string {
 // TestHILApproveUnknownIDIsNotFound guards RV4-4: approving an unknown (or
 // already resolved) HIL item must exit 2, not 1.
 func TestHILApproveUnknownIDIsNotFound(t *testing.T) {
-	cfg := &globalConfig{DBPath: newHILTestDB(t), ProfileID: "default"}
-	cmd := newHILApproveCmd(cfg)
+	cfg := &testConfig{DBPath: newHILTestDB(t), ProfileID: "default"}
+	cmd := testDeps(cfg).newHILApproveCmd()
 	cmd.SetArgs([]string{"deadbeef"})
 	err := cmd.Execute()
 	if err == nil {
@@ -53,8 +53,8 @@ func TestHILApproveUnknownIDIsNotFound(t *testing.T) {
 // TestHILRejectUnknownIDIsNotFound is TestHILApproveUnknownIDIsNotFound's
 // reject counterpart.
 func TestHILRejectUnknownIDIsNotFound(t *testing.T) {
-	cfg := &globalConfig{DBPath: newHILTestDB(t), ProfileID: "default"}
-	cmd := newHILRejectCmd(cfg)
+	cfg := &testConfig{DBPath: newHILTestDB(t), ProfileID: "default"}
+	cmd := testDeps(cfg).newHILRejectCmd()
 	cmd.SetArgs([]string{"deadbeef"})
 	err := cmd.Execute()
 	if err == nil {
@@ -69,7 +69,7 @@ func TestHILRejectUnknownIDIsNotFound(t *testing.T) {
 
 // hilSuggestEnv is a migrated DB (scratch HOME), a fake Jev answering the
 // decision per caption (default approve), and the surface switch.
-func hilSuggestEnv(t *testing.T, enabled bool, decisions map[string]string) (*globalConfig, *sql.DB, *jevtest.Server) {
+func hilSuggestEnv(t *testing.T, enabled bool, decisions map[string]string) (*testConfig, *sql.DB, *jevtest.Server) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("TYPESAFE_API_KEY", "test-key")
@@ -93,7 +93,7 @@ func hilSuggestEnv(t *testing.T, enabled bool, decisions map[string]string) (*gl
 			t.Fatal(err)
 		}
 	}
-	return &globalConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true}, sdb.DB, srv
+	return &testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true}, sdb.DB, srv
 }
 
 func hilItems(captions ...string) workflow.NodeInput {
@@ -104,11 +104,11 @@ func hilItems(captions ...string) workflow.NodeInput {
 	return in
 }
 
-func runHIL(t *testing.T, cfg *globalConfig, args ...string) ([]hilItem, error) {
+func runHIL(t *testing.T, cfg *testConfig, args ...string) ([]hilItem, error) {
 	t.Helper()
 	var err error
 	out := captureStdout(t, func() {
-		cmd := newHILCmd(cfg)
+		cmd := NewCommand(testDeps(cfg))
 		cmd.SetArgs(args)
 		err = cmd.Execute()
 	})
