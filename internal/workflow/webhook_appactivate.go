@@ -313,6 +313,33 @@ func (tm *TriggerManager) unregisterAppHook(st *appHookState) {
 	}
 }
 
+// unregisterStoredAppHooks removes from the apps the stored hooks of a
+// workflow's nodes this manager has no active trigger for, and forgets them.
+// A process that did not register them (the CLI deactivating or deleting a
+// workflow whose hooks the daemon registered) would otherwise leave them
+// registered with the vendor.
+func (tm *TriggerManager) unregisterStoredAppHooks(ctx context.Context, workflowID, profileID string) {
+	store := tm.appDeps().store
+	if store == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, appHookTimeout)
+	defer cancel()
+	recs, err := store.list(ctx, workflowID)
+	if err != nil {
+		tm.logger.Error().Err(err).Str("workflow_id", workflowID).Msg("app webhook: listing the stored hooks")
+		return
+	}
+	for i := range recs {
+		tm.mu.Lock()
+		active := tm.active[workflowID][recs[i].NodeID] != nil
+		tm.mu.Unlock()
+		if !active {
+			tm.unregisterRecord(ctx, profileID, &recs[i])
+		}
+	}
+}
+
 // unregisterRecord calls the record's registrar to remove the hook, then
 // forgets the record. A failure is logged with the hook id, so it can be
 // removed by hand in the app.
