@@ -58,3 +58,30 @@ func TestApplyMigration097_PostsProfileScoped(t *testing.T) {
 		t.Fatal("same shortcode in the same profile must violate the unique key")
 	}
 }
+
+// Ownerless posts go to the 'default' profile when it exists, else to the
+// oldest profile.
+func TestApplyMigration097_OwnerlessPostsPickAnExistingProfile(t *testing.T) {
+	db, err := NewDatabase(filepath.Join(t.TempDir(), "posts2.db"))
+	if err != nil {
+		t.Fatalf("NewDatabase: %v", err)
+	}
+	defer db.DB.Close()
+	applyMigrationsBelow(t, db, 97)
+	for _, stmt := range []string{
+		`DELETE FROM profiles WHERE id = 'default'`,
+		`INSERT INTO profiles (id, name, created_at) VALUES ('newer', 'N', '2026-05-01 00:00:00'), ('oldest', 'O', '2026-01-01 00:00:00')`,
+		`INSERT INTO posts (id, person_id, platform, shortcode, url, scraped_at) VALUES ('po-none', NULL, 'INSTAGRAM', 'SC3', 'u3', 't')`,
+	} {
+		if _, err := db.DB.Exec(stmt); err != nil {
+			t.Fatalf("seeding %q: %v", stmt, err)
+		}
+	}
+	if err := db.ApplyMigrations(); err != nil {
+		t.Fatalf("ApplyMigrations: %v", err)
+	}
+	var got string
+	if err := db.DB.QueryRow(`SELECT profile_id FROM posts WHERE id = 'po-none'`).Scan(&got); err != nil || got != "oldest" {
+		t.Fatalf("ownerless post profile = %q (%v), want the oldest profile", got, err)
+	}
+}

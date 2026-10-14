@@ -5,7 +5,9 @@
 --
 -- Backfill: profile_id comes from the owning person (people.profile_id via
 -- person_id). Posts with a NULL or dangling person_id have no owner to infer
--- a profile from, so they are assigned to the 'default' profile.
+-- a profile from, so they go to the profile with id 'default' if it exists,
+-- else to the oldest profile (created_at), and only if there are no profiles
+-- at all to the literal 'default' (so the NOT NULL rebuild cannot fail).
 --
 -- Post ids are preserved, so post_comments.post_id keeps resolving. The
 -- migration runner executes with foreign_keys=OFF (see ApplyMigrations), so
@@ -35,7 +37,11 @@ INSERT INTO posts_v2 (
 SELECT
   p.id, p.person_id, p.platform, p.shortcode, p.url, p.thumbnail_url,
   p.like_count, p.comment_count, p.caption, p.posted_at, p.scraped_at,
-  COALESCE((SELECT pe.profile_id FROM people pe WHERE pe.id = p.person_id), 'default')
+  COALESCE(
+    (SELECT pe.profile_id FROM people pe WHERE pe.id = p.person_id),
+    (SELECT id FROM profiles WHERE id = 'default'),
+    (SELECT id FROM profiles ORDER BY created_at, id LIMIT 1),
+    'default')
 FROM posts p;
 
 DROP TABLE posts;
