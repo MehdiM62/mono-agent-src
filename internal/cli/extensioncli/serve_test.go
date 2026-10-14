@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"bytes"
@@ -64,7 +64,7 @@ func serveInBackground(t *testing.T, base string) *syncWriter {
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &syncWriter{}
 	done := make(chan error, 1)
-	go func() { done <- runExtensionServe(ctx, out) }()
+	go func() { done <- runExtensionServe(ctx, out, "test") }()
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -127,7 +127,7 @@ func TestExtensionServe_YieldsToARunningBridge(t *testing.T) {
 	second := &syncWriter{}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := runExtensionServe(ctx, second); err != nil {
+	if err := runExtensionServe(ctx, second, "test"); err != nil {
 		t.Fatalf("a second serve should stand down cleanly, got %v", err)
 	}
 	if got := second.String(); !strings.Contains(got, "already running") {
@@ -137,22 +137,6 @@ func TestExtensionServe_YieldsToARunningBridge(t *testing.T) {
 	// The first one is still the one holding the port.
 	if _, err := extension.FetchStatus(base); err != nil {
 		t.Errorf("the original bridge stopped answering after a second serve: %v", err)
-	}
-}
-
-// TestSetupExtensionBridge_RelaysThroughARunningBridge is the reuse path
-// node.go depends on: a workflow run that starts while the bridge is up
-// must talk through it, not fight it for the port.
-func TestSetupExtensionBridge_RelaysThroughARunningBridge(t *testing.T) {
-	base := isolateBridgeEnv(t)
-	serveInBackground(t, base)
-
-	bridge := setupExtensionBridge(newExtensionBridgeLogger(), 100*time.Millisecond)
-	if _, ok := bridge.(*extension.RemoteBridge); !ok {
-		t.Fatalf("setupExtensionBridge returned %T, want a *extension.RemoteBridge relaying through the running one", bridge)
-	}
-	if _, err := extension.FetchStatus(base); err != nil {
-		t.Errorf("the running bridge stopped answering after a workflow-style setup: %v", err)
 	}
 }
 
@@ -239,22 +223,6 @@ func TestBridgeLifetimeHint_OnlyForABridgeThisProcessOwns(t *testing.T) {
 	relayed := &extension.RemoteBridge{Sender: extension.NewRemoteSender("http://127.0.0.1:9")}
 	if got := bridgeLifetimeHint(relayed); got != "" {
 		t.Errorf("advised starting a bridge while relaying through one:\n%s", got)
-	}
-}
-
-// TestFallbackPortHint_SilentOnAnExplicitPort: the "another program holds
-// 9222" note is only true when the server fell back on its own. Someone
-// who set the port deliberately is not looking at a conflict.
-func TestFallbackPortHint_SilentOnAnExplicitPort(t *testing.T) {
-	bridge := &fakeAddrBridge{addr: "127.0.0.1:9400"}
-
-	t.Setenv(extension.ExtensionPortEnv, "")
-	if got := fallbackPortHint(bridge); got == "" {
-		t.Error("no note on a non-default port that nobody asked for")
-	}
-	t.Setenv(extension.ExtensionPortEnv, "9400")
-	if got := fallbackPortHint(bridge); got != "" {
-		t.Errorf("blamed another program for a port the operator chose:\n%s", got)
 	}
 }
 

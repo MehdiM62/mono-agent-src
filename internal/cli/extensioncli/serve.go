@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"context"
@@ -15,6 +15,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/cli/bridge"
+	capturecli "github.com/monoes/mono-agent/internal/cli/capture"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/extension"
 )
 
@@ -59,12 +61,12 @@ func bridgeLifetimeHint(bridge connChecker) string {
 // newExtensionServer builds an extension server wired up the way every
 // process that owns one needs it (bridge.NewServer): answering the popup's
 // profile picker and its task entries, and reporting this build in its status.
-func newExtensionServer(logger zerolog.Logger) *extension.Server {
+func newExtensionServer(logger zerolog.Logger, version string) *extension.Server {
 	return bridge.NewServer(logger, bridge.Options{
-		ListenAddr: extensionListenAddr(),
-		Profiles:   extensionProfileSource(defaultDBPath),
-		Tasks:      extensionTaskSink(defaultDBPath),
-		Version:    getVersion(),
+		ListenAddr: bridge.ListenAddr(),
+		Profiles:   capturecli.ExtensionProfileSource(capturecli.DefaultDBPath),
+		Tasks:      extensionTaskSink(capturecli.DefaultDBPath),
+		Version:    version,
 		InstallCaptureSummaries: func(srv *extension.Server, logf func(string, ...any)) {
 			installCaptureSummaries(srv, logf)
 		},
@@ -82,10 +84,10 @@ func findRunningBridge() (extension.Status, string, bool) {
 // findRunningBridgeCtx is findRunningBridge that stops probing once ctx is
 // done (bridge.FindRunning).
 func findRunningBridgeCtx(ctx context.Context) (extension.Status, string, bool) {
-	return bridge.FindRunning(ctx, extensionProbeAddrs())
+	return bridge.FindRunning(ctx, bridge.ProbeAddrs())
 }
 
-func newExtensionServeCmd() *cobra.Command {
+func newExtensionServeCmd(cfg *Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the extension bridge in the foreground so the browser stays connected",
@@ -119,18 +121,18 @@ func newExtensionServeCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			return runExtensionServe(ctx, cmd.OutOrStdout())
+			return runExtensionServe(ctx, cmd.OutOrStdout(), cfg.Version())
 		},
 	}
 	cmd.Flags().StringVar(&summaryRuntimeFlag, "summary-runtime", "",
 		"Agent runtime that writes capture summaries (default: $"+summaryRuntimeEnv+", else claude; \"off\" disables)")
-	return servingCommand(cmd)
+	return cfg.ServingCommand(cmd)
 }
 
 // runExtensionServe is the body of `extension serve`, split out so its
 // lifecycle can be tested without a signal handler or a process to send a
 // signal to.
-func runExtensionServe(ctx context.Context, out io.Writer) error {
+func runExtensionServe(ctx context.Context, out io.Writer, version string) error {
 	// Probe before binding, exactly as setupExtensionBridge does. Without
 	// this a second `extension serve` would lose the race for the default
 	// port, quietly take the 9323 fallback, and leave two bridges
@@ -142,7 +144,7 @@ func runExtensionServe(ctx context.Context, out io.Writer) error {
 		return nil
 	}
 
-	srv := newExtensionServer(newBridgeServeLogger())
+	srv := newExtensionServer(newBridgeServeLogger(), version)
 	summaries := installCaptureSummaries(srv, narrateLogf(out))
 	defer summaries.Close()
 	summaries.SweepIndexAfter(ctx, captureIndexStartupDelay)
@@ -160,10 +162,10 @@ func runExtensionServe(ctx context.Context, out io.Writer) error {
 		// Both candidate ports failed to bind and neither is a bridge we
 		// could have relayed through (findRunningBridge already said so),
 		// so this is a real conflict the user has to resolve.
-		return errAuthConnection("cannot start the extension bridge: %v\n"+
+		return clicore.AuthConnection("cannot start the extension bridge: %v\n"+
 			"Another program is holding %s (most often a Chrome started with --remote-debugging-port). "+
 			"Close it, or set %s to a free port.",
-			err, strings.Join(extensionProbeAddrs(), " and "), extension.ExtensionPortEnv)
+			err, strings.Join(bridge.ProbeAddrs(), " and "), extension.ExtensionPortEnv)
 	}
 
 	fmt.Fprintf(out, "MonoAgent bridge listening on %s\n", addr)
@@ -290,7 +292,7 @@ type bridgeStatusReport struct {
 	Hint          string                 `json:"hint,omitempty"`
 }
 
-func newExtensionStatusCmd(cfg *globalConfig) *cobra.Command {
+func newExtensionStatusCmd(cfg *Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Report whether a bridge is running and whether the extension is attached",
@@ -307,7 +309,7 @@ func newExtensionStatusCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  monoagentcli extension status\n  monoagentcli extension status --json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runExtensionStatus(cmd.OutOrStdout(), cfg.JSONOutput)
+			return runExtensionStatus(cmd.OutOrStdout(), cfg.JSONOutput())
 		},
 	}
 }
@@ -324,7 +326,7 @@ func runExtensionStatus(out io.Writer, asJSON bool) error {
 		if asJSON {
 			return writeBridgeJSON(out, report)
 		}
-		fmt.Fprintf(out, "No bridge is running on %s.\n", strings.Join(extensionProbeAddrs(), " or "))
+		fmt.Fprintf(out, "No bridge is running on %s.\n", strings.Join(bridge.ProbeAddrs(), " or "))
 		fmt.Fprintln(out, "  Start one with: monoagentcli extension serve")
 		return nil
 	}

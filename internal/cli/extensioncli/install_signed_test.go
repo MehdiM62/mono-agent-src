@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"bytes"
@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/release"
+	"github.com/monoes/mono-agent/internal/updatecheck"
 )
 
 // signedExtensionRelease is a fake release served over TLS: manifest.json
@@ -58,7 +59,7 @@ func newSignedExtensionRelease(t *testing.T, zipData []byte) *signedExtensionRel
 	if err != nil {
 		t.Fatal(err)
 	}
-	r := &signedExtensionRelease{priv: priv, zip: zipData, sums: sha256Hex(zipData)}
+	r := &signedExtensionRelease{priv: priv, zip: zipData, sums: updatecheck.SHA256Hex(zipData)}
 	r.srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/manifest.json"):
@@ -67,7 +68,7 @@ func newSignedExtensionRelease(t *testing.T, zipData []byte) *signedExtensionRel
 			_, _ = w.Write(r.sig)
 		case strings.HasSuffix(req.URL.Path, "/"+extensionZipAsset):
 			_, _ = w.Write(r.zip)
-		case strings.HasSuffix(req.URL.Path, "/"+sha256SumsAssetName):
+		case strings.HasSuffix(req.URL.Path, "/"+updatecheck.SumsAssetName):
 			_, _ = w.Write([]byte(r.sums + "  " + extensionZipAsset + "\n"))
 		default:
 			http.NotFound(w, req)
@@ -123,8 +124,8 @@ func TestExtensionDownloadVerifiesTheSignedManifest(t *testing.T) {
 			t.Errorf("output lacks %q:\n%s", want, out.String())
 		}
 	}
-	if strings.Contains(out.String(), sha256SumsAssetName) {
-		t.Errorf("the signed path must not use %s:\n%s", sha256SumsAssetName, out.String())
+	if strings.Contains(out.String(), updatecheck.SumsAssetName) {
+		t.Errorf("the signed path must not use %s:\n%s", updatecheck.SumsAssetName, out.String())
 	}
 }
 
@@ -153,7 +154,7 @@ func TestExtensionDownloadRejectsATamperedZip(t *testing.T) {
 	// them, so only the signed manifest can catch it.
 	r.zip = append([]byte{}, signed...)
 	r.zip[len(r.zip)/2] ^= 0xff
-	r.sums = sha256Hex(r.zip)
+	r.sums = updatecheck.SHA256Hex(r.zip)
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -223,7 +224,7 @@ func TestExtensionDownloadFallsBackForAnOlderManifest(t *testing.T) {
 	if !bytes.Equal(got, data) {
 		t.Fatal("returned bytes differ from the release zip")
 	}
-	for _, want := range []string{"lists no extension in it (an older release); checking against " + sha256SumsAssetName, "Checksum verified: "} {
+	for _, want := range []string{"lists no extension in it (an older release); checking against " + updatecheck.SumsAssetName, "Checksum verified: "} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %q:\n%s", want, out.String())
 		}

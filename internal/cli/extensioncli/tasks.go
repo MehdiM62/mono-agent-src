@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	capturecli "github.com/monoes/mono-agent/internal/cli/capture"
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/tasks"
 )
@@ -36,7 +37,7 @@ func extensionTaskSink(path string) extension.TaskSink { return boardSink{path: 
 
 // AddCaptured implements extension.TaskSink.
 func (b boardSink) AddCaptured(ctx context.Context, t extension.CapturedTask) (extension.TaskAdded, error) {
-	db, err := openProfileDB(b.path)
+	db, err := capturecli.OpenProfileDB(b.path)
 	if err != nil {
 		// A fixed message: openProfileDB's names the database's path, and the
 		// extension may show a reason in the page as a toast, where the

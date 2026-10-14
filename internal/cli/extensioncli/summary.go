@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"fmt"
@@ -9,7 +9,9 @@ import (
 
 	"github.com/monoes/mono-agent/internal/capture"
 	"github.com/monoes/mono-agent/internal/capturesummary"
+	capturecli "github.com/monoes/mono-agent/internal/cli/capture"
 	"github.com/monoes/mono-agent/internal/cli/capturehooks"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/extension"
 )
 
@@ -49,7 +51,7 @@ func installCaptureSummaries(srv *extension.Server, logf func(string, ...any)) *
 	return capturehooks.Install(srv, logf, capturehooks.Deps{
 		Runtime: configuredSummaryRuntime,
 		NewClassifier: func(logf func(string, ...any)) func(*capture.Result) {
-			return newCaptureClassifier(logf).Handle
+			return capturecli.NewClassifier(logf).Handle
 		},
 		OpenDB: openCaptureIndexDB,
 	})
@@ -73,13 +75,13 @@ func checkSummaryChoice(mode, runtime, model string) error {
 		return nil
 	}
 	if mode != "summary" && mode != "video" {
-		return errInvalidInput("--summary-runtime and --summary-model need --mode summary or --mode video")
+		return clicore.InvalidInput("--summary-runtime and --summary-model need --mode summary or --mode video")
 	}
 	if runtime != "" && !capturesummary.ValidRuntimeID(runtime) {
-		return errInvalidInput("--summary-runtime %q is not an agent runtime id (see `agent scan --installed`)", runtime)
+		return clicore.InvalidInput("--summary-runtime %q is not an agent runtime id (see `agent scan --installed`)", runtime)
 	}
 	if model != "" && !capturesummary.ValidModel(model) {
-		return errInvalidInput("--summary-model %q is not a model id", model)
+		return clicore.InvalidInput("--summary-model %q is not a model id", model)
 	}
 	return nil
 }

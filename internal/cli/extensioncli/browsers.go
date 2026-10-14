@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/profiledir"
 )
@@ -42,7 +43,7 @@ type browsersReport struct {
 
 const noBridgeHint = "No bridge is running. Start one with `monoagentcli extension serve`."
 
-func newExtensionBrowsersCmd(cfg *globalConfig) *cobra.Command {
+func newExtensionBrowsersCmd(cfg *Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "browsers",
 		Short: "List the browsers attached to the bridge and the profile each one runs",
@@ -58,7 +59,7 @@ func newExtensionBrowsersCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newExtensionBindCmd(cfg *globalConfig) *cobra.Command {
+func newExtensionBindCmd(cfg *Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "bind <browser> <profile>",
 		Short: "Run a profile's browser actions in one browser",
@@ -68,11 +69,11 @@ func newExtensionBindCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  monoagentcli extension bind \"Edge Work\" Work\n  monoagentcli extension bind 3f2a Personal",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := cfg.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			profileID, err := resolveProfileID(db.DB, args[1])
+			profileID, err := cfg.ResolveProfileID(db.DB, args[1])
 			db.Close()
 			if err != nil {
 				return err
@@ -82,7 +83,7 @@ func newExtensionBindCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newExtensionUnbindCmd(cfg *globalConfig) *cobra.Command {
+func newExtensionUnbindCmd(cfg *Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:     "unbind <browser>",
 		Short:   "Make a browser a default browser again (for profiles with none of their own)",
@@ -94,12 +95,12 @@ func newExtensionUnbindCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func runExtensionBrowsers(ctx context.Context, cfg *globalConfig, out io.Writer) error {
+func runExtensionBrowsers(ctx context.Context, cfg *Deps, out io.Writer) error {
 	report := browsersReport{Browsers: []browserRow{}}
 	_, base, ok := findRunningBridge()
 	if !ok {
 		report.Hint = noBridgeHint
-		return printBrowsers(out, cfg.JSONOutput, report)
+		return printBrowsers(out, cfg.JSONOutput(), report)
 	}
 	report.Running = true
 	infos, err := extension.NewRemoteSender(base).Browsers()
@@ -107,47 +108,47 @@ func runExtensionBrowsers(ctx context.Context, cfg *globalConfig, out io.Writer)
 	case errors.Is(err, extension.ErrBridgeTooOld):
 		report.Hint = err.Error()
 	case err != nil:
-		return errAuthConnection("listing browsers: %v", err)
+		return clicore.AuthConnection("listing browsers: %v", err)
 	default:
 		report.Browsers = browserRows(infos, profileNames(ctx, cfg))
 	}
-	return printBrowsers(out, cfg.JSONOutput, report)
+	return printBrowsers(out, cfg.JSONOutput(), report)
 }
 
-func runExtensionBind(ctx context.Context, cfg *globalConfig, out io.Writer, query, profileID string) error {
+func runExtensionBind(ctx context.Context, cfg *Deps, out io.Writer, query, profileID string) error {
 	_, base, ok := findRunningBridge()
 	if !ok {
-		return errNotFound("%s", noBridgeHint)
+		return clicore.NotFound("%s", noBridgeHint)
 	}
 	sender := extension.NewRemoteSender(base)
 	infos, err := sender.Browsers()
 	if err != nil {
-		return errAuthConnection("listing browsers: %v", err)
+		return clicore.AuthConnection("listing browsers: %v", err)
 	}
 	target, err := matchBrowser(infos, query)
 	if err != nil {
 		return err
 	}
 	if target.Legacy {
-		return errInvalidInput("that browser's extension is too old to bind — reload it from the browser's extensions page (it needs version 1.5.0 or later)")
+		return clicore.InvalidInput("that browser's extension is too old to bind — reload it from the browser's extensions page (it needs version 1.5.0 or later)")
 	}
 	if err := sender.SetBinding(target.Instance, profileID, ""); err != nil {
 		return fmt.Errorf("binding %s: %w (if the extension is older than 1.5.0, reload it)", target.Instance, err)
 	}
 	infos, err = sender.Browsers()
 	if err != nil {
-		return errAuthConnection("listing browsers: %v", err)
+		return clicore.AuthConnection("listing browsers: %v", err)
 	}
 	for _, row := range browserRows(infos, profileNames(ctx, cfg)) {
 		if row.Instance == target.Instance {
-			if cfg.JSONOutput {
+			if cfg.JSONOutput() {
 				return json.NewEncoder(out).Encode(row)
 			}
 			printBrowserTable(out, []browserRow{row})
 			return nil
 		}
 	}
-	return errNotFound("the browser disconnected right after binding — check `monoagentcli extension browsers`")
+	return clicore.NotFound("the browser disconnected right after binding — check `monoagentcli extension browsers`")
 }
 
 // matchBrowser finds one browser by instance id, id prefix (4+ chars) or
@@ -169,9 +170,9 @@ func matchBrowser(infos []extension.ConnInfo, query string) (extension.ConnInfo,
 	case 1:
 		return hits[0], nil
 	case 0:
-		return extension.ConnInfo{}, errNotFound("no connected browser matches %q — see `monoagentcli extension browsers`", q)
+		return extension.ConnInfo{}, clicore.NotFound("no connected browser matches %q — see `monoagentcli extension browsers`", q)
 	default:
-		return extension.ConnInfo{}, errInvalidInput("%q matches %d browsers — use more of the id", q, len(hits))
+		return extension.ConnInfo{}, clicore.InvalidInput("%q matches %d browsers — use more of the id", q, len(hits))
 	}
 }
 
@@ -191,9 +192,9 @@ func browserRows(infos []extension.ConnInfo, names map[string]string) []browserR
 }
 
 // profileNames maps profile ids to names for display; it is best effort.
-func profileNames(ctx context.Context, cfg *globalConfig) map[string]string {
+func profileNames(ctx context.Context, cfg *Deps) map[string]string {
 	names := map[string]string{}
-	db, err := initDB(cfg)
+	db, err := cfg.OpenDB()
 	if err != nil {
 		return names
 	}
