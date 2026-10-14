@@ -23,7 +23,7 @@ func TestNodePaletteGroupsRunnableTypes(t *testing.T) {
 	if err := json.Unmarshal([]byte(buf.String()), &got); err != nil {
 		t.Fatalf("palette is not JSON: %v", err)
 	}
-	if len(got["triggers"]) != 8 {
+	if len(got["triggers"]) != 9 {
 		t.Errorf("triggers = %+v", got["triggers"])
 	}
 	var ifNode *PaletteNode

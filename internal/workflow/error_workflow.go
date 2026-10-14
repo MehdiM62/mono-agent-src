@@ -159,6 +159,8 @@ func executionMode(triggerType string) string {
 		return "manual"
 	case TriggerNodeTypeWebhook:
 		return "webhook"
+	case TriggerTypeEvaluation:
+		return "evaluation"
 	}
 	return "trigger"
 }

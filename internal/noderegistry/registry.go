@@ -27,6 +27,7 @@ import (
 	dbnodes "github.com/monoes/mono-agent/internal/nodes/db"
 	discoverynodes "github.com/monoes/mono-agent/internal/nodes/discovery"
 	documentsnodes "github.com/monoes/mono-agent/internal/nodes/documents"
+	evalnode "github.com/monoes/mono-agent/internal/nodes/evalnode"
 	guardrailsnodes "github.com/monoes/mono-agent/internal/nodes/guardrails"
 	httpnodes "github.com/monoes/mono-agent/internal/nodes/http"
 	imagenodes "github.com/monoes/mono-agent/internal/nodes/image"
@@ -72,6 +73,7 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 	browserjev.RegisterAll(registry)
 	choosenodes.RegisterAll(registry)     // ai.choose: route items by a TypeSafe Jev choice
 	guardrailsnodes.RegisterAll(registry) // ai.guardrails: check or sanitize text (n8n Guardrails)
+	evalnode.RegisterAll(registry)        // core.evaluation: n8n Evaluation (workflow evaluate)
 
 	// Org runtime node (org.run) — kicks off/manages agent orgs from workflows.
 	orgnodes.RegisterAll(registry)

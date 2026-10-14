@@ -249,6 +249,29 @@ lte, like/ilike (% wildcard), isEmpty, isNotEmpty, isTrue, isFalse; "match":
 updatedAt; "dry_run" shows before/after without writing.`,
 	},
 	{
+		Type:     "core.evaluation",
+		Category: "core",
+		Short:    "Record an evaluation case's inputs, outputs and metrics (n8n Evaluation)",
+		Config: `{
+  "operation": "setMetrics",
+  "metric": "stringSimilarity",
+  "expected_answer": "{{ $('When fetching a dataset row').item.json.expected }}",
+  "actual_answer": "{{ $json.output }}"
+}`,
+		Inputs:  "any items",
+		Outputs: "setMetrics: one item per input with the metric by name; checkIfEvaluating: evaluation / normal; the others pass items on",
+		Notes: `Only in a run of "monoagentcli workflow evaluate" (a trigger.evaluation
+run) does setInputs record the case's inputs, setOutputs write its outputs
+into the dataset row ("table", default the trigger's table; or a sheet with
+"source": "googleSheets") and setMetrics record the first item's metrics;
+elsewhere they pass items on. Metrics: stringSimilarity (0-1, edit
+distance), categorization (1 on an exact match), toolsUsed (share of
+"expected_tools" found in "intermediate_steps"), customMetrics ("metrics":
+[{name, value}], numbers), and correctness / helpfulness, scored 1-5 by a
+local agent runtime ("runtime"/"model", or an attached ai.model). inputs and
+outputs are [{name, value}] lists; "metric_name" renames a metric.`,
+	},
+	{
 		Type:     "core.noop",
 		Category: "core",
 		Short:    "Pass items through unchanged",

@@ -204,8 +204,9 @@ func isExpression(v interface{}) bool {
 // AI sub-node of a kind supplies: a root with that sub-node attached need
 // not set them.
 var subSuppliedFields = map[string]map[string][]string{
-	"agent.ask":     {"ai_languageModel": {"runtime", "model"}},
-	"ai.guardrails": {"ai_languageModel": {"runtime", "model"}},
+	"agent.ask":       {"ai_languageModel": {"runtime", "model"}},
+	"ai.guardrails":   {"ai_languageModel": {"runtime", "model"}},
+	"core.evaluation": {"ai_languageModel": {"runtime", "model"}},
 }
 
 // attachedSubKinds returns, per root node id, the kinds of the enabled AI

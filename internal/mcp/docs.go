@@ -78,6 +78,8 @@ Triggers: trigger.schedule (6-field cron: sec min hour day month weekday;
   overlap, catch_up), trigger.webhook (path config; POST to the daemon's
   webhook port; response_mode onReceived|lastNode|responseNode),
   trigger.execute_workflow (called by core.execute_workflow),
+  trigger.evaluation (one run per dataset row in monoagentcli workflow
+    evaluate; core.evaluation records metrics),
   trigger.error (runs when a workflow naming this one as its error
   workflow fails), trigger.local_file (path; events add|change|unlink;
   one run per change while the daemon runs)
