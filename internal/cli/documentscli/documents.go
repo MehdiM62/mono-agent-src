@@ -1,29 +1,44 @@
-package main
+// Package documentscli is `monoagentcli documents`. What the commands need from the CLI around
+// them comes in through Deps, so they can be tested in isolation. (The package is not named
+// documents: it is built on internal/documents, which renders and stores them.)
+package documentscli
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/documents"
+	"github.com/monoes/mono-agent/internal/storage"
 
 	"github.com/spf13/cobra"
 )
 
-// newDocumentsCmd returns the `documents` command group: renders
+// Deps is what the commands take from the CLI around them.
+type Deps struct {
+	// JSONOutput reports the global --json flag; it is read when a command runs.
+	JSONOutput func() bool
+	// ProfileID is the profile in effect; read after OpenDB, which resolves --profile.
+	ProfileID func() string
+	// OpenDB opens (and migrates) the database and resolves the profile (the CLI's initDB).
+	OpenDB func() (*storage.Database, error)
+}
+
+// NewCommand returns the `documents` command group: renders
 // structured CV/cover-letter/tender-proposal data into HTML+PDF and saves
 // both into the vault. See
 // docs/mastermind/specs/2026-09-05-document-generation-design.md.
-func newDocumentsCmd(cfg *globalConfig) *cobra.Command {
+func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "documents",
 		Short: "Generate CV, cover letter, and tender proposal documents",
 	}
-	cmd.AddCommand(newDocumentsRenderCmd(cfg))
+	cmd.AddCommand(newRenderCmd(d))
 	return cmd
 }
 
-func newDocumentsRenderCmd(cfg *globalConfig) *cobra.Command {
+func newRenderCmd(d Deps) *cobra.Command {
 	var docType, dataFile, applicationID string
 	cmd := &cobra.Command{
 		Use:   "render",
@@ -37,7 +52,7 @@ func newDocumentsRenderCmd(cfg *globalConfig) *cobra.Command {
 			}
 
 			var htmlDocID, pdfDocID string
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -47,29 +62,29 @@ func newDocumentsRenderCmd(cfg *globalConfig) *cobra.Command {
 			case documents.DocTypeCV:
 				var data documents.CVData
 				if err := json.Unmarshal(raw, &data); err != nil {
-					return errInvalidInput("parsing --data-file: %v", err)
+					return clicore.InvalidInput("parsing --data-file: %v", err)
 				}
-				htmlDocID, pdfDocID, err = documents.GenerateDocument(cmd.Context(), db.DB, cfg.ProfileID, applicationID, documents.DocTypeCV, data)
+				htmlDocID, pdfDocID, err = documents.GenerateDocument(cmd.Context(), db.DB, d.ProfileID(), applicationID, documents.DocTypeCV, data)
 			case documents.DocTypeCoverLetter:
 				var data documents.CoverLetterData
 				if err := json.Unmarshal(raw, &data); err != nil {
-					return errInvalidInput("parsing --data-file: %v", err)
+					return clicore.InvalidInput("parsing --data-file: %v", err)
 				}
-				htmlDocID, pdfDocID, err = documents.GenerateDocument(cmd.Context(), db.DB, cfg.ProfileID, applicationID, documents.DocTypeCoverLetter, data)
+				htmlDocID, pdfDocID, err = documents.GenerateDocument(cmd.Context(), db.DB, d.ProfileID(), applicationID, documents.DocTypeCoverLetter, data)
 			case documents.DocTypeTenderProposal:
 				var data documents.TenderProposalData
 				if err := json.Unmarshal(raw, &data); err != nil {
-					return errInvalidInput("parsing --data-file: %v", err)
+					return clicore.InvalidInput("parsing --data-file: %v", err)
 				}
-				htmlDocID, pdfDocID, err = documents.GenerateDocument(cmd.Context(), db.DB, cfg.ProfileID, applicationID, documents.DocTypeTenderProposal, data)
+				htmlDocID, pdfDocID, err = documents.GenerateDocument(cmd.Context(), db.DB, d.ProfileID(), applicationID, documents.DocTypeTenderProposal, data)
 			default:
-				return errInvalidInput("--type must be one of cv, cover_letter, tender_proposal, got %q", docType)
+				return clicore.InvalidInput("--type must be one of cv, cover_letter, tender_proposal, got %q", docType)
 			}
 			if err != nil {
 				return fmt.Errorf("generating document: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]string{"html_document_id": htmlDocID, "pdf_document_id": pdfDocID})
