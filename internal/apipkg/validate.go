@@ -126,6 +126,9 @@ func (p *Package) check() []string {
 		}
 	}
 	probs = append(probs, p.checkScopeGroups()...)
+	if p.Webhook != nil {
+		probs = append(probs, p.Webhook.check(credKeys)...)
+	}
 	return probs
 }
 
@@ -514,6 +517,10 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 	case "cred":
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
+		}
+	case "hook":
+		if !fields[hookFieldsMarker] {
+			return []string{fmt.Sprintf("%s: {{ %s }}: hook.* is only available in the package's webhook block", where, e.src)}
 		}
 	case "item", "el", "up", "res", "items", "pre", "pres", "bin", "main", "hdr", "idx", "page", "batch":
 		if fields == nil {

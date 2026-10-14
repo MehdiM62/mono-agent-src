@@ -55,6 +55,9 @@ type Package struct {
 	// is the error's text. An operation's own pair replaces these.
 	ErrorWhen    string `json:"error_when,omitempty"`
 	ErrorMessage string `json:"error_message,omitempty"`
+	// Webhook registers the app's webhook trigger with the vendor on
+	// activation (see webhook.go).
+	Webhook *Webhook `json:"webhook,omitempty"`
 
 	// Source is where the package was loaded from ("catalog" or a file
 	// path). Not part of the file.
