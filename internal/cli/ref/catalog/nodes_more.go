@@ -180,6 +180,30 @@ workflow does not need to be active to be called.`,
 		Outputs: "the items passed by the calling workflow",
 	},
 	{
+		Type:     "trigger.evaluation",
+		Category: "trigger",
+		Short:    "Run this workflow once per dataset row in an evaluation (n8n's When fetching a dataset row)",
+		Description: `Names the dataset an evaluation runs: "monoagentcli workflow evaluate <id>"
+runs the workflow once per row (each run an execution of its own) and keeps
+the mean of the metrics core.evaluation nodes set. Rows come from a data
+table of the profile (default) or a Google Sheet whose first row names the
+columns. Only an evaluation fires this trigger; a manual run of the workflow
+leaves its branch idle. The workflow need not be active.`,
+		Config: `{
+  "source": "dataTable",
+  "table": "Support questions",
+  "limit_rows": true,
+  "max_rows": 20,
+  "match": "all",
+  "filters": [{"column": "split", "condition": "eq", "value": "test"}]
+}`,
+		Inputs:  "none",
+		Outputs: "one item per run: the row's columns plus row_id and row_number",
+		Notes: `"workflow evaluate <id> --dataset <table>" reads another data table. Sheets
+take "credential_id", "spreadsheet_id" and "sheet_name"; their filters compare
+with eq only. "workflow evaluations <id>" lists past runs.`,
+	},
+	{
 		Type:     "trigger.error",
 		Category: "trigger",
 		Short:    "Run this workflow when another workflow fails (its error workflow)",

@@ -30,6 +30,7 @@ var Manifest = []ManifestEntry{
 	{NodeType: "core.aggregate", GoFile: "internal/nodes/control/aggregate_schema.go", StructName: "AggregateNodeSchema"},
 	{NodeType: "core.code", GoFile: "internal/nodes/control/code_schema.go", StructName: "CodeNodeSchema"},
 	{NodeType: "core.data_table", GoFile: "internal/nodes/control/data_table_schema.go", StructName: "DataTableNodeSchema"},
+	{NodeType: "core.evaluation", GoFile: "internal/nodes/evalnode/schema.go", StructName: "EvaluationNodeSchema"},
 	{NodeType: "core.compare_datasets", GoFile: "internal/nodes/control/compare_datasets_schema.go", StructName: "CompareDatasetsNodeSchema"},
 	{NodeType: "core.human_in_loop", GoFile: "internal/nodes/control/human_in_loop_schema.go", StructName: "HumanInLoopNodeSchema"},
 	{NodeType: "core.limit", GoFile: "internal/nodes/control/limit_schema.go", StructName: "LimitNodeSchema"},
@@ -106,6 +107,7 @@ var Manifest = []ManifestEntry{
 	{NodeType: "trigger.webhook", GoFile: "internal/workflow/trigger_schema.go", StructName: "WebhookTriggerSchema"},
 	{NodeType: "trigger.sse", GoFile: "internal/workflow/trigger_schema.go", StructName: "SSETriggerSchema"},
 	{NodeType: "trigger.local_file", GoFile: "internal/workflow/trigger_local_file.go", StructName: "LocalFileTriggerSchema"},
+	{NodeType: "trigger.evaluation", GoFile: "internal/workflow/evaluation.go", StructName: "EvaluationTriggerSchema"},
 
 	// --- comm.* ---
 	{NodeType: "comm.bluesky", GoFile: "internal/nodes/comm/bluesky_schema.go", StructName: "BlueskyNodeSchema"},

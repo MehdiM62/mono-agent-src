@@ -6,15 +6,14 @@ import (
 )
 
 // Core n8n triggers beyond schedules and webhooks: the n8n Form
-// (map_form.go), the SSE trigger, the MCP server trigger, the evaluation
-// dataset trigger, and the trigger types that import as placeholders
-// (triggerPlaceholders).
+// (map_form.go), the SSE trigger, the MCP server trigger, and the trigger
+// types that import as placeholders (triggerPlaceholders). The evaluation
+// dataset trigger is in map_evaluation.go.
 
 func init() {
 	Register("n8n-nodes-base.formTrigger", mapFormTrigger)
 	Register("n8n-nodes-base.sseTrigger", mapSSETrigger)
 	Register("n8n-nodes-base.n8nTrigger", mapWorkflowTrigger)
-	Register("n8n-nodes-base.evaluationTrigger", mapEvaluationTrigger)
 	Register("@n8n/n8n-nodes-langchain.mcpTrigger", mapMCPTrigger)
 	for t, reason := range triggerPlaceholders {
 		reason := reason
@@ -76,44 +75,4 @@ func mapMCPTrigger(c *MapContext) Mapping {
 	}
 	c.Warn("tools", nil, "%s", msg)
 	return Mapping{Type: "trigger.manual", Config: map[string]interface{}{}}
-}
-
-// mapEvaluationTrigger: n8n fed the rows of a test dataset (a Google
-// Sheet or an n8n data table) through the workflow. The import starts
-// manually and reads the sheet's rows.
-func mapEvaluationTrigger(c *MapContext) Mapping {
-	def := "googleSheets"
-	if c.version(4.7) {
-		def = "dataTable"
-	}
-	c.Ignore("notice", "credentials", "authentication")
-	if src := c.Literal("source", def); src != "googleSheets" {
-		c.Ignore("dataTableId", "limitRows", "maxRows", "filterRows", "filters")
-		c.issues = append(c.issues, Issue{Severity: SevError, Param: "source", Value: src,
-			Message: "n8n data tables have no mono-agent equivalent: export the dataset to a Google Sheet and read it from there"})
-		return Mapping{Unmapped: true}
-	}
-	read := map[string]interface{}{
-		"credential_id":  c.Credential("google_sheets", "googleSheetsOAuth2Api", "googleApi"),
-		"operation":      "read_rows",
-		"use_header_row": true,
-		"spreadsheet_id": c.rlValue("documentId"),
-		"sheet_name":     c.rlValue("sheetName"),
-	}
-	if len(c.paramList("filtersUI.values")) > 0 {
-		c.Warn("filtersUI", c.Raw("filtersUI"), "row filters are not supported; every row is read")
-	}
-	c.Ignore("filtersUI", "combineFilters", "options")
-	c.Note("starts manually and passes every dataset row at once (n8n ran the workflow once per row during an evaluation)")
-	m := Mapping{Type: "trigger.manual", Config: map[string]interface{}{}, EntrySuffix: " (start)"}
-	if c.Bool("limitRows", false) {
-		m.Chain = []ChainStep{
-			{Type: "service.google_sheets", Suffix: " (read)", Config: read},
-			{Type: "core.limit", Config: map[string]interface{}{"max_items": c.Float("maxRows", 10)}},
-		}
-		return m
-	}
-	c.Ignore("maxRows")
-	m.Chain = []ChainStep{{Type: "service.google_sheets", Config: read}}
-	return m
 }

@@ -92,6 +92,7 @@ func Palette(db *sql.DB, includeDeprecated bool) map[string][]PaletteNode {
 			mkNode("trigger.chat", "Chat", "triggers", "Serve a chat page and start a run with each message"),
 			mkNode("trigger.execute_workflow", "When Called by Another Workflow", "triggers", "Start this workflow from an Execute Workflow node"),
 			mkNode("trigger.error", "Error Trigger", "triggers", "Run when a workflow that names this one as its error workflow fails"),
+			mkNode("trigger.evaluation", "When Fetching a Dataset Row", "triggers", "Run the workflow once per dataset row in an evaluation (workflow evaluate)"),
 			mkNode("trigger.local_file", "Local File Trigger", "triggers", "Run when a file in a watched path is added, changed or removed"),
 		},
 		"control": []PaletteNode{
@@ -112,6 +113,7 @@ func Palette(db *sql.DB, includeDeprecated bool) map[string][]PaletteNode {
 			mkNode("core.limit", "Limit", "control", "Limit the number of output items"),
 			mkNode("core.remove_duplicates", "Remove Duplicates", "control", "Deduplicate items within a run or across earlier runs"),
 			mkNode("core.data_table", "Data Table", "control", "Keep rows across runs in a data table: insert, get, update, upsert, delete"),
+			mkNode("core.evaluation", "Evaluation", "control", "Record an evaluation case's inputs, outputs and metrics, or route by whether the run is one"),
 			mkNode("core.compare_datasets", "Compare Datasets", "control", "Compare two datasets and output differences"),
 			mkNode("core.aggregate", "Aggregate", "control", "Aggregate multiple items into one"),
 			mkNode("core.human_in_loop", "Human in Loop", "control", "Pause and wait for a human to review, edit, and approve the data"),

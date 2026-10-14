@@ -105,7 +105,11 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		// payload. When TriggerNodeID is empty (a manual run of a workflow
 		// without exactly one trigger.manual) every trigger node fires. Other trigger nodes get no items, so their
 		// downstream branch is skipped by the empty-input guard above.
-		if r.exec.TriggerNodeID == "" || node.ID == r.exec.TriggerNodeID {
+		// trigger.evaluation fires only in the runs of an evaluation, never
+		// in a manual run that fires every trigger.
+		if node.Type == TriggerTypeEvaluation && r.exec.TriggerType != TriggerTypeEvaluation {
+			inputItems = []Item{}
+		} else if r.exec.TriggerNodeID == "" || node.ID == r.exec.TriggerNodeID {
 			inputItems = r.triggerItems
 		} else {
 			inputItems = []Item{}

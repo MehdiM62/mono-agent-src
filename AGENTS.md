@@ -256,6 +256,7 @@ The desktop app does everything through these commands; they are equally usable 
     lists its resume or reply URLs (`waiting_for` in --json).
   - `workflow cancel <execution-id>` stops the recorded process (never the daemon), marks the run cancelled and rejects its pending HIL items. It leaves a finished run alone.
   - `workflow retry <execution-id> [--json] [--timeout]` runs a finished execution again with its trigger data (a new execution, current workflow version) and waits like `workflow run`. A queued, running or waiting execution, or one an org started, is refused (exit 3).
+  - `workflow evaluate <id> [--dataset <table>] [--timeout] [--json]` runs an n8n-style evaluation: one execution per row of the dataset its `trigger.evaluation` node names (a data table or a Google Sheet), where `core.evaluation` nodes record each case's inputs, outputs (written back into the row) and metrics; the run keeps each metric's mean. A run that cannot start (no evaluation trigger, no setMetrics node, no rows) is stored with its error code and exits 1. `workflow evaluations <id> [--run <run-id>]` lists past runs or shows one with its cases. A manual run never fires `trigger.evaluation`.
   - `workflow delete <id> --yes` refuses a workflow that an org uses; `--force` also revokes its grants.
   - `workflow get`, `workflow export` and `workflow delete` are profile-scoped.
 - **Sessions and connections:**

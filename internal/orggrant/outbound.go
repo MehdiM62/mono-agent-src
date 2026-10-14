@@ -224,6 +224,7 @@ var readOnlyByConfig = map[string]func(map[string]interface{}) bool{
 	"comm.outlook_send":    outlookLegacyReadOnly,
 	"service.outlook_mail": outlookLegacyReadOnly,
 	"core.data_table":      dataTableReadOnly,
+	"core.evaluation":      evaluationReadOnly,
 	"core.code":            codeReadOnly,
 	"code":                 codeReadOnly,
 }
@@ -258,6 +259,14 @@ func outlookLegacyReadOnly(cfg map[string]interface{}) bool {
 		}
 	}
 	return true
+}
+
+// evaluationReadOnly: recording a case's inputs, scoring it (model turns
+// only judge the text) and routing are bookkeeping; setOutputs (the
+// default operation) writes into the dataset row, a data table or a sheet.
+func evaluationReadOnly(cfg map[string]interface{}) bool {
+	op, _ := cfg["operation"].(string)
+	return op == "setInputs" || op == "setMetrics" || op == "checkIfEvaluating"
 }
 
 // dataTableReadOnly: reading rows or listing tables, and inserting rows or
