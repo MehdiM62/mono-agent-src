@@ -1,4 +1,4 @@
-package main
+package jevcli
 
 import (
 	"encoding/json"
@@ -9,11 +9,12 @@ import (
 
 	"github.com/zalando/go-keyring"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/secrets"
 )
 
-func jevKeyTestCfg(t *testing.T) *globalConfig {
+func jevKeyTestCfg(t *testing.T) *testConfig {
 	t.Helper()
 	keyring.MockInit()
 	return jevTestCfg(t, true)
@@ -91,7 +92,7 @@ func TestJevKeySetStatusTestRemove(t *testing.T) {
 	if out, _, err = runJev(t, cfg, "", "key", "remove"); err != nil || !strings.Contains(out, `"removed": "typesafe"`) {
 		t.Fatalf("remove: %v %s", err, out)
 	}
-	if _, _, err = runJev(t, cfg, "", "key", "remove"); exitCodeFor(err) == 0 {
+	if _, _, err = runJev(t, cfg, "", "key", "remove"); clicore.ExitCodeFor(err) == 0 {
 		t.Fatal("second remove should fail")
 	}
 }
@@ -115,7 +116,7 @@ func TestJevKeySetUpdatesNaturallyNamedEntry(t *testing.T) {
 
 func TestJevKeySetRejectsEmpty(t *testing.T) {
 	cfg := jevKeyTestCfg(t)
-	if _, _, err := runJev(t, cfg, "\n", "key", "set"); exitCodeFor(err) == 0 {
+	if _, _, err := runJev(t, cfg, "\n", "key", "set"); clicore.ExitCodeFor(err) == 0 {
 		t.Fatal("empty key accepted")
 	}
 }
