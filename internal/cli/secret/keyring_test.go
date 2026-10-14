@@ -1,4 +1,4 @@
-package main
+package secret
 
 import (
 	"bytes"
@@ -17,8 +17,7 @@ import (
 // runKeyringCmd runs `secret <args>` with stdin, as --json, under profile.
 func runKeyringCmd(t *testing.T, dbPath, profile, stdin string, args ...string) (string, string, error) {
 	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: profile}
-	cmd := newSecretCmd(cfg)
+	cmd := NewCommand(testDeps(dbPath, profile, true))
 	cmd.SetArgs(args)
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)

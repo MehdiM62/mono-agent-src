@@ -1,4 +1,4 @@
-package main
+package secret
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 // with no OS keychain) work without a terminal — the desktop app's Settings
 // calls these. The passphrase is only ever read from stdin and never
 // printed.
-func newSecretKeyringCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSecretKeyringCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "keyring",
 		Short: "Show the vault's key store and manage the file-keyring passphrase file",
@@ -28,14 +28,14 @@ func newSecretKeyringCmd(cfg *globalConfig) *cobra.Command {
 			"stdin, the terminal (/dev/tty).",
 	}
 	cmd.AddCommand(
-		newSecretKeyringStatusCmd(cfg),
-		newSecretKeyringSetPassphraseCmd(cfg),
-		newSecretKeyringClearPassphraseCmd(cfg),
+		d.newSecretKeyringStatusCmd(),
+		d.newSecretKeyringSetPassphraseCmd(),
+		d.newSecretKeyringClearPassphraseCmd(),
 	)
 	return cmd
 }
 
-func newSecretKeyringStatusCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSecretKeyringStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Report the vault's key store and the passphrase file (never prompts)",
@@ -45,8 +45,8 @@ func newSecretKeyringStatusCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			st := secrets.KeyringStatus()
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
-				return writeJSONTo(out, st)
+			if d.JSONOutput() {
+				return d.WriteJSON(out, st)
 			}
 			switch st.Backend {
 			case secrets.KeyringBackendOS:
@@ -76,7 +76,7 @@ func newSecretKeyringStatusCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newSecretKeyringSetPassphraseCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSecretKeyringSetPassphraseCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "set-passphrase",
 		Short: "Save the file-keyring passphrase (read from stdin) to ~/.monoagent/keyring-passphrase",
@@ -101,8 +101,8 @@ func newSecretKeyringSetPassphraseCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
-				return writeJSONTo(out, map[string]any{"path": path, "saved": true})
+			if d.JSONOutput() {
+				return d.WriteJSON(out, map[string]any{"path": path, "saved": true})
 			}
 			fmt.Fprintf(out, "Saved the file-keyring passphrase to %s (mode 0600).\n", path)
 			return nil
@@ -110,7 +110,7 @@ func newSecretKeyringSetPassphraseCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newSecretKeyringClearPassphraseCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSecretKeyringClearPassphraseCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "clear-passphrase",
 		Short: "Delete ~/.monoagent/keyring-passphrase",
@@ -121,8 +121,8 @@ func newSecretKeyringClearPassphraseCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
-				return writeJSONTo(out, map[string]any{"path": path, "removed": removed})
+			if d.JSONOutput() {
+				return d.WriteJSON(out, map[string]any{"path": path, "removed": removed})
 			}
 			if removed {
 				fmt.Fprintf(out, "Removed %s.\n", path)

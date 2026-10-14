@@ -1,4 +1,4 @@
-package main
+package secret
 
 import (
 	"bufio"
@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newSecretExportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSecretExportCmd() *cobra.Command {
 	var output string
 	cmd := &cobra.Command{
 		Use:   "export",
@@ -24,13 +24,13 @@ func newSecretExportCmd(cfg *globalConfig) *cobra.Command {
 		Example: `  monoagentcli secret export
   monoagentcli secret export --output ./my-vault.json.enc`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
 
-			profileID := cfg.ProfileID
+			profileID := d.ProfileID()
 			if profileID == "" {
 				profileID = "default"
 			}
@@ -56,7 +56,7 @@ func newSecretExportCmd(cfg *globalConfig) *cobra.Command {
 			fmt.Fprintf(os.Stderr, "Passphrase (save this now, it will not be shown again): %s\n", passphrase)
 			fmt.Fprintf(os.Stderr, "Exported %d, skipped %d that could not be decrypted.\n", exported, skipped)
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]interface{}{"path": path, "passphrase": passphrase, "exported": exported, "skipped": skipped})
@@ -68,7 +68,7 @@ func newSecretExportCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newSecretImportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSecretImportCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "import <file>",
 		Short:   "Import entries from an encrypted vault export file",
@@ -90,13 +90,13 @@ func newSecretImportCmd(cfg *globalConfig) *cobra.Command {
 			}
 			passphrase := strings.TrimRight(line, "\r\n")
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
 
-			profileID := cfg.ProfileID
+			profileID := d.ProfileID()
 			if profileID == "" {
 				profileID = "default"
 			}
@@ -107,7 +107,7 @@ func newSecretImportCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("importing vault: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]int{"imported": imported, "skipped": skipped})

@@ -1,4 +1,4 @@
-package main
+package secret
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newSecretUpdateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSecretUpdateCmd() *cobra.Command {
 	var newName, username, url, notes string
 	var fieldFlags []string
 	var stdinJSON bool
@@ -21,7 +21,7 @@ func newSecretUpdateCmd(cfg *globalConfig) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		Example: `  monoagentcli secret update github --username bob
   printf '%s' '{"fields":{"pat":"ghp_..."}}' | monoagentcli secret update github --stdin-json`,
-		RunE: runSecretUpdate(cfg, &newName, &username, &url, &notes, &fieldFlags, &stdinJSON),
+		RunE: d.runSecretUpdate(&newName, &username, &url, &notes, &fieldFlags, &stdinJSON),
 	}
 	cmd.Flags().StringVar(&newName, "name", "", "Rename this entry")
 	cmd.Flags().StringVar(&username, "username", "", "New username (login kind only)")
@@ -32,22 +32,22 @@ func newSecretUpdateCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func runSecretUpdate(cfg *globalConfig, newName, username, url, notes *string, fieldFlags *[]string, stdinJSON *bool) func(*cobra.Command, []string) error {
+func (d Deps) runSecretUpdate(newName, username, url, notes *string, fieldFlags *[]string, stdinJSON *bool) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		if *stdinJSON && len(*fieldFlags) > 0 {
 			return fmt.Errorf("--stdin-json cannot be combined with --field")
 		}
-		db, err := initDB(cfg)
+		db, err := d.OpenDB()
 		if err != nil {
 			return fmt.Errorf("initializing database: %w", err)
 		}
 		defer db.DB.Close()
 
-		profileID := cfg.ProfileID
+		profileID := d.ProfileID()
 		if profileID == "" {
 			profileID = "default"
 		}
-		id, err := lookupSecretID(cmd.Context(), db.DB, profileID, args[0])
+		id, err := d.lookupSecretID(cmd.Context(), db.DB, profileID, args[0])
 		if err != nil {
 			return err
 		}
@@ -90,7 +90,7 @@ func runSecretUpdate(cfg *globalConfig, newName, username, url, notes *string, f
 		if namePtr != nil {
 			finalName = *namePtr
 		}
-		if cfg.JSONOutput {
+		if d.JSONOutput() {
 			enc := json.NewEncoder(cmd.OutOrStdout())
 			enc.SetIndent("", "  ")
 			return enc.Encode(map[string]string{"name": finalName})
@@ -100,31 +100,31 @@ func runSecretUpdate(cfg *globalConfig, newName, username, url, notes *string, f
 	}
 }
 
-func newSecretRmCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSecretRmCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "rm <name>",
 		Short:   "Delete a vault entry",
 		Args:    cobra.ExactArgs(1),
 		Example: `  monoagentcli secret rm openai-key`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.DB.Close()
 
-			profileID := cfg.ProfileID
+			profileID := d.ProfileID()
 			if profileID == "" {
 				profileID = "default"
 			}
-			id, err := lookupSecretID(cmd.Context(), db.DB, profileID, args[0])
+			id, err := d.lookupSecretID(cmd.Context(), db.DB, profileID, args[0])
 			if err != nil {
 				return err
 			}
 			if err := secrets.DeleteCascade(cmd.Context(), db.DB, profileID, id); err != nil {
 				return fmt.Errorf("deleting entry: %w", err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]string{"name": args[0]})
@@ -135,13 +135,13 @@ func newSecretRmCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newSecretEncryptConnectionsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newSecretEncryptConnectionsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "encrypt-connections",
 		Short: "One-time migration: encrypt any existing plaintext connection credentials in place",
 		Long:  "Existing connections created before the secrets vault shipped store OAuth tokens/API keys as plaintext JSON. This re-saves every such connection through the same Save path new connections already use, which encrypts the data column automatically. Safe to run repeatedly — it's a no-op once every row is encrypted. This same check-and-migrate step also runs automatically on every CLI and GUI startup, so running this command by hand is normally unnecessary.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
