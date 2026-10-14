@@ -271,7 +271,9 @@ ask for JSON, a category, or a rewrite in the prompt itself.`,
                     "required": ["category"],
                     "properties": {"category": {"type": "string", "enum": ["lead", "spam"]}}},
   "merge_output":  false,                          // with output_schema: copy an object's fields onto the item
-  "concurrency":   1                               // items run at once; output keeps input order
+  "concurrency":   1,                              // items run at once; output keeps input order
+  "memory":        {"session_key": "{{ $json.sessionId }}", // optional: conversation memory
+                    "window": 10}                  // earlier messages sent (0 = all)
 }`,
 		Inputs:  "any items (prompt placeholders read from $json)",
 		Outputs: "input item + <output_key> with the agent's answer (the parsed JSON value with output_schema)",
@@ -293,7 +295,46 @@ runtime can't resume); a second mismatch fails the node, which follows
 on_error.
 
 Every turn's tokens and cost, when the runtime reports them, are recorded in
-the agent_usage table with the profile, workflow, execution and node ids.`,
+the agent_usage table with the profile, workflow, execution and node ids.
+
+memory keeps a conversation in the profile's local chat memory (the same one
+agent.memory reads and edits). Each item's session_key is resolved against that
+item; its last window messages (default 10, i.e. 5 exchanges; 0 sends the whole
+session) go in front of the prompt as a transcript, and after a successful turn
+the prompt and the answer are added to the session. Items of one session run
+one after another, in input order, even with concurrency above 1. Leave memory
+out, or set "enabled": false, for none.`,
+	},
+	{
+		Type:     "agent.memory",
+		Category: "agent",
+		Short:    "Read, add or delete the messages of a chat memory session",
+		Description: `Manages the profile's local chat memory: the conversations agent.ask keeps with
+its memory option. Each input item names a session (session_key, resolved per
+item; default its sessionId field) and the node gets, inserts or deletes that
+session's messages. Imported n8n Chat Memory Manager and Chat Messages Retriever
+nodes become this node.`,
+		Config: `{
+  "operation":   "get",                    // get | insert | delete
+  "session_key": "{{ $json.sessionId }}",
+  // get
+  "format":      "simple",                 // simple [{role, content}] | pairs [{human, ai}] | raw (+ seq, created_at)
+  "group":       true,                     // one item {…input, messages, messagesCount}, or one item per message
+  // insert
+  "messages":    [{"role": "human", "content": "{{ $json.chatInput }}"},
+                  {"role": "ai", "content": "Hello!"}],   // role: human | ai | system (user/assistant accepted)
+  "insert_mode": "append",                 // append | override (replace the session)
+  // delete
+  "delete_mode": "last_n",                 // last_n | all
+  "count":       2                         // last_n: newest messages removed
+}`,
+		Inputs:  "any items (one session per item)",
+		Outputs: "get: the input item + messages and messagesCount (or one item per message); insert/delete: {success: true}",
+		Notes: `Messages live in the profile database (table chat_memory_messages) and survive
+restarts; sessions are per profile, shared by every workflow of it. Roles are
+stored as human, ai and system. delete with last_n removes the newest count
+messages, or all of them when the session has fewer. An item whose session_key
+resolves to nothing fails the node.`,
 	},
 	{
 		Type:     "mcp.call",
