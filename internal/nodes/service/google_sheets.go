@@ -16,6 +16,9 @@ import (
 )
 
 // GoogleSheetsNode implements the service.google_sheets node type.
+//
+// read_rows with "since_last_run" returns only the rows appended since an
+// earlier run of the node (google_sheets_cursor.go).
 type GoogleSheetsNode struct{}
 
 func (n *GoogleSheetsNode) Type() string { return "service.google_sheets" }
@@ -106,6 +109,11 @@ func (n *GoogleSheetsNode) Execute(ctx context.Context, input workflow.NodeInput
 		}
 		values, _ := data["values"].([]interface{})
 		items = sheetsValuesToItems(values, useHeaderRow)
+		if boolVal(config, "since_last_run") {
+			if items, err = sheetsRowsSinceLastRun(ctx, input, spreadsheetID, rangeStr, len(values), items); err != nil {
+				return nil, fmt.Errorf("google_sheets read_rows: since_last_run: %w", err)
+			}
+		}
 
 	case "append_rows":
 		values := sheetsExtractValues(config)

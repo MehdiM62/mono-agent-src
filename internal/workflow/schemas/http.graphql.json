@@ -82,7 +82,7 @@
       "required": false,
       "placeholder": "bearer",
       "depends_on": { "key": "auth_type", "values": ["none", "credential"] },
-      "help": "bearer, basic, header:X-API-Key or query:api_key. Leave empty to decide from the connection."
+      "help": "bearer, basic, oauth1 (default for OAuth 1.0a connections), header:X-API-Key or query:api_key. Leave empty to decide from the connection."
     },
     {
       "key": "auth_username",

@@ -9,6 +9,7 @@
     { "key": "range", "label": "Range", "type": "text", "required": false, "placeholder": "e.g. A1:D100", "help": "Leave empty to auto-detect from data.", "depends_on": { "key": "operation", "values": ["read_rows", "update_rows", "clear_range"] } },
     { "key": "values", "label": "Rows (JSON array)", "type": "textarea", "required": false, "rows": 5, "help": "e.g. [[\"a\", \"b\"], [\"c\", \"d\"]]. Defaults to the incoming items.", "depends_on": { "key": "operation", "values": ["append_rows", "update_rows"] } },
     { "key": "use_header_row", "label": "First Row is Header", "type": "boolean", "required": false, "help": "Map the first row to field names when reading; prepend a header row when appending.", "depends_on": { "key": "operation", "values": ["read_rows", "append_rows"] } },
+    { "key": "since_last_run", "label": "Only New Rows Since Last Run", "type": "boolean", "required": false, "default": false, "help": "Return only rows appended after the ones this node read in an earlier run, by row number. The first run returns every row. If the range now has fewer rows than last time (cleared or rows deleted) the run starts over and returns every row. Remembered per node, spreadsheet and range.", "depends_on": { "key": "operation", "values": ["read_rows"] } },
     { "key": "value_input_option", "label": "Input Option", "type": "select", "required": false, "options": ["RAW", "USER_ENTERED"], "default": "RAW", "depends_on": { "key": "operation", "values": ["append_rows", "update_rows"] } }
   ],
   "outputs": [

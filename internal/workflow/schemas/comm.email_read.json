@@ -55,6 +55,14 @@
       "label": "Unread Only",
       "required": false,
       "type": "boolean"
+    },
+    {
+      "default": false,
+      "help": "Return only messages with a UID above the highest one this node returned in an earlier run. The first run returns the newest Max Emails as usual; later runs return the oldest Max Emails new messages so a backlog is read over the next runs. Remembered per node and account and mailbox; starts over when the server changes the mailbox's UIDVALIDITY.",
+      "key": "since_last_run",
+      "label": "Only New Since Last Run",
+      "required": false,
+      "type": "boolean"
     }
   ],
   "outputs": [

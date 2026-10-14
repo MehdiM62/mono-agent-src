@@ -1,8 +1,10 @@
 package connections
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 )
@@ -100,15 +102,54 @@ func (m *Manager) runOAuth1(ctx context.Context, p PlatformDef, conn *Connection
 	if key == "" || secret == "" {
 		return fmt.Errorf("oauth1: the connection needs %s and %s", OAuth1ConsumerKey, OAuth1ConsumerSecret)
 	}
-	vals, err := RunOAuth1Flow(ctx, *p.OAuth1, key, secret, timeout, progress)
+	// A generic platform's endpoints and signature method are the
+	// connection's fields.
+	cfg := *p.OAuth1
+	for _, f := range []struct {
+		dst *string
+		key string
+	}{
+		{&cfg.RequestTokenURL, OAuth1RequestTokenURL},
+		{&cfg.AuthURL, OAuth1AuthorizationURL},
+		{&cfg.AccessTokenURL, OAuth1AccessTokenURL},
+		{&cfg.SignatureMethod, OAuth1SignatureMethod},
+	} {
+		if *f.dst == "" {
+			*f.dst = getStr(conn.Data, f.key)
+		}
+	}
+	vals, err := RunOAuth1Flow(ctx, cfg, key, secret, timeout, progress)
 	if err != nil {
 		return err
+	}
+	if cfg.SignatureMethod != "" && !strings.EqualFold(cfg.SignatureMethod, "HMAC-SHA1") {
+		conn.Data[OAuth1SignatureMethod] = cfg.SignatureMethod
 	}
 	for k, v := range vals {
 		if k == "oauth_callback_confirmed" {
 			continue
 		}
 		conn.Data[k] = v
+	}
+	return nil
+}
+
+// PromptMissingFields asks on the terminal, reading answers from in (secret
+// ones without echo), for each required field that values lacks and adds
+// the answers to values.
+func PromptMissingFields(fields []CredentialField, values map[string]string, in io.Reader) error {
+	var ask []CredentialField
+	for _, f := range fields {
+		if f.Required && strings.TrimSpace(values[f.Key]) == "" {
+			ask = append(ask, f)
+		}
+	}
+	conn := &Connection{Data: map[string]interface{}{}}
+	if err := promptFields(ask, conn, nil, bufio.NewReader(in)); err != nil {
+		return err
+	}
+	for k, v := range conn.Data {
+		values[k] = v.(string)
 	}
 	return nil
 }

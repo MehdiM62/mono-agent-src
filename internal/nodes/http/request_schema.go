@@ -20,7 +20,7 @@ type RequestNodeSchema struct {
 
 	AuthType string `json:"auth_type" schema:"label=Authentication,type=select,options=none|credential|basic|digest|bearer|api_key,default=none,help=credential uses the saved connection above (also the case with none when a connection is picked)."`
 
-	CredentialAuth string `json:"credential_auth" schema:"label=Connection auth,type=text,placeholder=bearer,depends_on_key=auth_type,depends_on_values=none|credential,help=How to send the connection's secret: bearer (default for tokens and keys)， basic， header:X-API-Key or query:api_key. Leave empty to decide from the connection."`
+	CredentialAuth string `json:"credential_auth" schema:"label=Connection auth,type=text,placeholder=bearer,depends_on_key=auth_type,depends_on_values=none|credential,help=How to send the connection's secret: bearer (default for tokens and keys)， basic， oauth1 (default for OAuth 1.0a connections)， header:X-API-Key or query:api_key. Leave empty to decide from the connection."`
 
 	AuthUsername string `json:"auth_username" schema:"label=Username,type=text,depends_on_key=auth_type,depends_on_values=basic|digest"`
 

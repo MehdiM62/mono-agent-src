@@ -22,9 +22,18 @@ var nodeDocsComm = []nodeDoc{
 		Type:     "comm.email_read",
 		Category: "comm",
 		Short:    "Fetch emails from an IMAP mailbox",
-		Config:   `{ "credential_id": "my-imap", "folder": "INBOX", "unseen_only": true, "limit": 10 }`,
-		Inputs:   "none",
-		Outputs:  "one item per email: from, subject, body, date",
+		Description: `Reads a mailbox read-only (EXAMINE + BODY.PEEK: nothing is marked read).
+since_last_run returns only messages with a UID above the highest one an
+earlier run returned; it starts over when the mailbox's UIDVALIDITY changes.`,
+		Config: `{
+  "credential_id":  "my-imap",
+  "mailbox":        "INBOX",
+  "unread_only":    true,
+  "limit":          10,
+  "since_last_run": false   // true: only messages newer than the previous run returned
+}`,
+		Inputs:  "none",
+		Outputs: "one item per email: uid, from, subject, body, date, message_id, read",
 	},
 	{
 		Type:     "comm.slack",
@@ -74,6 +83,9 @@ var nodeDocsService = []nodeDoc{
 		Type:     "service.google_sheets",
 		Category: "service",
 		Short:    "Read or write Google Sheets rows",
+		Description: `read_rows with since_last_run returns only rows past the ones an earlier
+run read (by row number, per spreadsheet and range); a range that shrank
+starts over and returns every row.`,
 		Config: `{
   "credential_id":  "google-oauth",
   "spreadsheet_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms",
@@ -88,9 +100,12 @@ var nodeDocsService = []nodeDoc{
 		Type:     "service.gmail",
 		Category: "service",
 		Short:    "Send or read Gmail messages via Gmail API",
-		Config:   `{ "credential_id": "gmail-oauth", "operation": "send", "to": "user@example.com", "subject": "Report", "body": "{{ $json.report }}" }`,
-		Inputs:   "item with message fields",
-		Outputs:  "message_id, thread_id",
+		Description: `list_messages with since_last_run lists only messages received after the
+newest one an earlier run saw (Gmail after: plus an id check at the
+boundary); each listed item then carries its internalDate.`,
+		Config:  `{ "credential_id": "gmail-oauth", "operation": "send", "to": "user@example.com", "subject": "Report", "body": "{{ $json.report }}" }`,
+		Inputs:  "item with message fields",
+		Outputs: "message_id, thread_id",
 	},
 	{
 		Type:     "service.google_drive",

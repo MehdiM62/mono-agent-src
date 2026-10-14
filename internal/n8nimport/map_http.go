@@ -252,8 +252,8 @@ func httpV1(c *MapContext, cfg map[string]interface{}) {
 }
 
 // httpAuth maps n8n's authentication onto http.request's (and
-// http.graphql's) auth fields. A predefined credential type, Basic, Header
-// and Bearer auth use a saved connection; the secrets of the others come
+// http.graphql's) auth fields. A predefined credential type, Basic, Header,
+// Bearer and OAuth1 auth use a saved connection; the secrets of the others come
 // from vault secrets the report lists (n8n exports never carry them).
 func httpAuth(c *MapContext, cfg map[string]interface{}) {
 	auth := c.Literal("authentication", "none")
@@ -285,6 +285,8 @@ func httpAuth(c *MapContext, cfg map[string]interface{}) {
 		useConnection("generic_api", "monoagentcli connect generic_api (api_key = the bearer token)")
 	case "oAuth2Api":
 		useConnection("oauth2", "create an OAuth connection for this API and set credential_id to it")
+	case "oAuth1Api":
+		useConnection("generic_oauth1", "monoagentcli connect oauth generic_oauth1 --field request_token_url=… --field authorization_url=… --field access_token_url=… (the n8n OAuth1 credential's URLs; consumer key, secret and signature method are asked, or pass them as --field too)")
 	case "httpDigestAuth":
 		cfg["auth_type"] = "digest"
 		cfg["auth_username"] = c.Secret("username", kind)

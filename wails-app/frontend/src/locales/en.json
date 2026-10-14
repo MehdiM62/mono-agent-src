@@ -252,7 +252,7 @@
       "firstRunAction": "Pick a template",
       "extension": "Connect the browser extension",
       "extensionWhy": "Web automations run in your own browser through the extension.",
-      "extensionWhyUnpaired": "The bridge is running but does not accept this app yet — pair it in Settings.",
+      "extensionWhyUnpaired": "The bridge is running but does not accept this app yet. Pair it by running `monoagentcli extension pair --open` in a terminal.",
       "extensionAction": "Set up",
       "daemon": "Keep workflows running in the background",
       "daemonWhy": "Schedules and webhooks need the background service.",

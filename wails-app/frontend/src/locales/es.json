@@ -252,7 +252,7 @@
       "firstRunAction": "Elegir una plantilla",
       "extension": "Conecta la extensión del navegador",
       "extensionWhy": "Las automatizaciones web se ejecutan en tu propio navegador a través de la extensión.",
-      "extensionWhyUnpaired": "El puente está en marcha pero aún no acepta esta app: emparéjalo en Ajustes.",
+      "extensionWhyUnpaired": "El puente está en marcha pero aún no acepta esta app. Emparéjalo ejecutando `monoagentcli extension pair --open` en una terminal.",
       "extensionAction": "Configurar",
       "daemon": "Mantén los flujos en marcha en segundo plano",
       "daemonWhy": "Las programaciones y los webhooks necesitan el servicio en segundo plano.",
