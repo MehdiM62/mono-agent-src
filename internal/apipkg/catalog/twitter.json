@@ -360,7 +360,7 @@
       "method": "POST",
       "path": "/dm_conversations/with/{{ pre.data.id | default:(p.user | rl) }}/messages",
       "before": {
-        "when": "{{ p.user.mode | default:'username' | eq:'username' }}",
+        "when": "{{ p.user.mode | default:(p.user | rl | replace:'@','' | matches:'^[0-9]+$' | then:'id') | default:'username' | eq:'username' }}",
         "method": "GET",
         "path": "/users/by/username/{{ p.user | rl | replace:'@','' }}"
       },
@@ -381,7 +381,7 @@
           "label": "User",
           "type": "text",
           "required": true,
-          "help": "Username, or a user ID in an n8n id-mode locator"
+          "help": "Username, a numeric user ID, or n8n's locator (mode id or username)"
         },
         {
           "key": "text",
@@ -399,7 +399,10 @@
           ],
           "help": "attachments: a media ID"
         }
-      ]
+      ],
+      "n8n_param_map": {
+        "userId": "user"
+      }
     }
   ]
 }

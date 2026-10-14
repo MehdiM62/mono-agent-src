@@ -527,6 +527,34 @@
       }
     },
     {
+      "resource": "file",
+      "operation": "get",
+      "title": "Get a file's metadata",
+      "description": "One file or folder with all its metadata (modifiedTime, trashed, …); the importer polls it for n8n's Drive trigger on a specific file or on the watched folder itself.",
+      "method": "GET",
+      "path": "/files/{{ p.fileId | rl }}",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File or folder",
+          "type": "text",
+          "required": true,
+          "help": "File/folder ID or URL (n8n resource locator accepted)."
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "text",
+          "default": "*",
+          "help": "Drive fields selector; * returns every field."
+        }
+      ],
+      "query": {
+        "fields": "{{ p.fields }}",
+        "supportsAllDrives": "true"
+      }
+    },
+    {
       "resource": "fileFolder",
       "operation": "search",
       "title": "Search files and folders",

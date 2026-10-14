@@ -268,6 +268,7 @@ through, so an unset param stays unset:
 | `dotnet_date` | .NET JSON date `/Date(1586833770780)/` (optional `+0100` offset) → `2020-04-14T03:09:30.780Z`; objects and lists are converted deeply, other values pass. A whole response: `"output": {"to": "{{ el \| dotnet_date }}"}` (Unleashed) |
 | `wrap:n` | text broken into lines of at most `n` characters joined by CRLF (base64 bodies in MIME messages: `{{ p.message \| base64 \| wrap:76 }}`) |
 | `mime_parts:'boundary'` | `bin.files` → one base64 attachment part per file (Content-Type with the file's MIME type and name, Content-Disposition attachment, lines wrapped at 76) plus the closing `--boundary--`; an empty list is nil, a file without data fails naming its property. The template writes the `multipart/mixed` header and the text part (Gmail send/reply/draft) |
+| `sealbox:key` | the value's text sealed for a base64 X25519 public key (libsodium `crypto_box_seal`), base64: Venafi `"{{ p.privateKeyPassphrase \| sealbox:pres.1.key }}"` |
 | `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -542,6 +543,7 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - `expand` with `"expand_merge_key": "transcript", "expand_merge_path": "callTranscripts.0.transcript"` sets that key on the element instead of replacing it.
 - `"to": {"id": "{{ el.id }}", "$merge": "{{ el.values }}"}` reshapes each element (`el` = element; same rules as `$map`'s `$to`); `"to_when": "{{ p.options.rawData | ne:'true' }}"` skips the reshape when it renders empty/false. Runs after `match`.
 - `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept. `rows` may give one object for a single condition: `"rows": "{{ p | pick:'lookupColumn,lookupValue' }}"`.
+- `"where": "{{ el.file }}"` keeps only the elements for which the template (`el` = the element) renders true — client-side filtering for APIs without a server-side filter (Graph delta: files only, no folders or the root). Runs after `download`, before `match`.
 - `"match_after_to": true` runs `match` after `to` instead of before, so it filters the reshaped elements (Excel table rows `{values: [[…]]}` zipped with their column names, then matched by column; `first` = `{{ p.options.returnAllMatches | ne:'true' }}`).
 
 **Files per element (`output.download`).** Fetches files for every output
@@ -569,6 +571,24 @@ no `for_each`) plus `files`, `property`, `file_name`, `mime_type`.
   `file_name` to its Content-Disposition name. The download is sent without
   `Accept: application/json`; `"auth": false` leaves the credential off
   (presigned file URLs: Notion files, Google Slides thumbnails).
+
+**Tree walks (`output.walk`).** Some n8n operations return a whole sub-tree: the API lists the records below an id only to a fixed depth, so the records at that depth are listed again until nothing new turns up. `walk` appends what it finds to the main result (the main response stays first; a list result keeps its elements):
+```json
+"output": { "walk": {
+  "when": "{{ p.includeDescendants }}",
+  "start": "{{ res.id }}",
+  "request": { "method": "GET", "path": "/wiki/api/v2/pages/{{ el }}/descendants", "query": { "depth": 10 } },
+  "pagination": { "type": "next_url", "next_url_path": "_links.next", "limit_param": "limit", "page_size": 250 },
+  "results_path": "results",
+  "descend": "{{ el.type | in:'page,folder' | then:(el.depth | eq:'10') }}",
+  "keep": "{{ el.type | eq:'page' }}",
+  "max": "{{ p.maxPages | sub:1 }}",
+  "fetch": { "method": "GET", "path": "/wiki/api/v2/pages", "query": { "id": "{{ el | csv }}" }, "chunk": 250, "results_path": "results" } } }
+```
+- `start` (a template or builder; `res` = the main response, or on a paginated op the list of every result) gives the first frontier: an id or a list of ids. Outlook folders with children: `{"$map": "{{ res }}", "$to": "{{ el.childFolderCount | ne:'0' | then:el.childFolderCount | then:el.id }}"}`. Each round sends `request` once per frontier id (`el` = the id), every page of it when `pagination` is set (any §8 type; `results_path` says where the records are). `request` and `fetch` take a step's `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers` and `auth`.
+- Per record (`el` = the record): `id` (default `{{ el.id }}`) — records with an empty or already seen id are skipped (start ids count as seen, so cycles end); `descend` — its id joins the next round's frontier; `keep` (default true) — it is collected. The walk ends when a round finds nothing to descend into or `max` records are kept; it stops mid-page at the cap. `max` empty = no cap; `0` or less walks nothing.
+- `fetch` (optional) replaces the kept records by full objects: the ids go out in chunks of `chunk` (default 100) with `el` = the chunk's list of ids, the objects at its `results_path` are matched back by `key` (default `{{ el.id }}`), in walk order; ids the API does not return are dropped.
+- The walked records go through the rest of `output` (`each`, `to`, …) with the main result.
 
 **Header-row output.** `"output": {"path": "values", "header_row": true}` turns `[[h1,h2],[v1,v2],…]` into one item per row keyed by the first row.
 
@@ -835,3 +855,6 @@ Optional keys the engine added (the design's keys are unchanged):
 | credential | `oauth.connect_fields` (templated per-tenant OAuth endpoints), `oauth.metadata` | §7 |
 | credential | AWS AssumeRole via connection `role_arn` (`external_id`, `role_session_name`) | §7 |
 | templates, binary | filters `wrap`, `mime_parts`; `binary.properties` without `upload_field` | §5, §10 |
+| output | `where` (keep elements by a template) | §9 |
+| templates | filter `sealbox` | §5 |
+| output | `walk` (tree walk over a growing id frontier, optional chunked `fetch`) | §9 |

@@ -59,3 +59,21 @@ func matchRow(el any, conds []any, colKey, valKey string, or bool) bool {
 	}
 	return !or
 }
+
+// applyWhere keeps the elements for which output.where (el = the
+// element) renders true.
+func (r *opRun) applyWhere(list []any) ([]any, error) {
+	out := list[:0:0]
+	for i, el := range list {
+		sc := r.scope
+		sc.El = el
+		v, err := renderString(r.op.Output.Where, sc)
+		if err != nil {
+			return nil, r.errf("output.where element %d: %w", i, err)
+		}
+		if truthy(v) {
+			out = append(out, el)
+		}
+	}
+	return out, nil
+}
