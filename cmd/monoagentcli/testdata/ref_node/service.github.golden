@@ -150,6 +150,9 @@
                          shown when resource is workflow
     inputs               Inputs (JSON) · code · default="{}"
                          shown when resource is workflow
+    options              Options · code
+                         limitWaitTime: {values: {limitType: afterTimeInterval (resumeAmount, resumeUnit) or atSpecifiedTime (maxDateAndTime)}} gives up waiting and passes the input items on
+                         shown when resource is workflow
 
   Operations (operation):
     list_repos  (default)
