@@ -23,13 +23,13 @@ func mapSplitInBatches(c *MapContext) Mapping {
 	if c.version(3) {
 		def = 1
 	}
-	if c.Bool("options.reset", false) {
-		c.Note("reset has no effect: the loop body runs once over all items in mono-agent")
-	}
 	cfg := map[string]interface{}{"batch_size": c.Float("batchSize", def)}
+	if c.Bool("options.reset", false) {
+		cfg["reset"] = true
+	}
 	switch {
 	case c.version(3):
-		return Mapping{Type: "core.split_in_batches", Config: cfg, Outputs: []string{"done", "batch"}}
+		return Mapping{Type: "core.split_in_batches", Config: cfg, Outputs: []string{"done", "loop"}}
 	case c.version(2):
 		return Mapping{Type: "core.split_in_batches", Config: cfg, Outputs: []string{"batch", "done"}}
 	}
