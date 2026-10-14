@@ -1,0 +1,268 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_entra",
+  "node_type": "app.microsoft_entra",
+  "title": "Microsoft Entra ID",
+  "description": "Users, groups and group membership in Microsoft Entra ID (Microsoft Graph)",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/graph/api/resources/users",
+  "n8n_types": ["n8n-nodes-base.microsoftEntra"],
+  "base_url": "https://graph.microsoft.com/v1.0",
+  "credentials": [
+    {
+      "platform": "microsoft",
+      "name": "Microsoft 365 (Entra ID)",
+      "n8n_credential": "microsoftEntraOAuth2Api",
+      "n8n_credential_alt": ["microsoftOAuth2Api"],
+      "methods": ["oauth"],
+      "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } },
+      "reuse_platform": "microsoft",
+      "scope_group": "directory"
+    }
+  ],
+  "resources": [
+    { "value": "user", "label": "User" },
+    { "value": "group", "label": "Group" }
+  ],
+  "operations": [
+    {
+      "resource": "user", "operation": "getAll", "title": "Get many users",
+      "method": "GET", "path": "/users",
+      "fields": [
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50, "min": 1 },
+        { "key": "filter", "label": "Filter", "type": "text", "help": "OData $filter, e.g. startswith(displayName,'a')." },
+        { "key": "output", "label": "Output", "type": "select", "default": "simple", "options": ["simple", "raw", "fields"], "help": "simple: a few key properties; raw: every property; fields: the ones listed in Fields." },
+        { "key": "fields", "label": "Fields", "type": "array", "item_type": "text", "default": [], "help": "User properties to return when Output is fields (id is always added)." }
+      ],
+      "query": {
+        "$filter": "{{ p.filter }}",
+        "$select": { "$join": [
+          "{{ p.output | eq:'simple' | then:'id,createdDateTime,displayName,userPrincipalName,mail,mailNickname,securityIdentifier' }}",
+          "{{ p.output | eq:'raw' | then:'id,accountEnabled,ageGroup,assignedLicenses,assignedPlans,authorizationInfo,businessPhones,city,companyName,consentProvidedForMinor,country,createdDateTime,creationType,customSecurityAttributes,deletedDateTime,department,displayName,employeeHireDate,employeeId,employeeLeaveDateTime,employeeOrgData,employeeType,externalUserState,externalUserStateChangeDateTime,faxNumber,givenName,identities,imAddresses,isManagementRestricted,isResourceAccount,jobTitle,lastPasswordChangeDateTime,legalAgeGroupClassification,licenseAssignmentStates,mail,mailNickname,mobilePhone,officeLocation,onPremisesDistinguishedName,onPremisesDomainName,onPremisesExtensionAttributes,onPremisesImmutableId,onPremisesLastSyncDateTime,onPremisesProvisioningErrors,onPremisesSamAccountName,onPremisesSecurityIdentifier,onPremisesSyncEnabled,onPremisesUserPrincipalName,otherMails,passwordPolicies,passwordProfile,postalCode,preferredDataLocation,preferredLanguage,provisionedPlans,proxyAddresses,securityIdentifier,serviceProvisioningErrors,showInAddressList,signInSessionsValidFromDateTime,state,streetAddress,surname,usageLocation,userPrincipalName,userType' }}",
+          "{{ p.output | eq:'fields' | then:(p.fields | csv) }}",
+          "{{ p.output | eq:'fields' | then:'id' }}"
+        ], "$sep": "," }
+      },
+      "pagination": { "type": "next_url", "next_url_path": "@odata.nextLink", "results_path": "value", "limit_param": "$top", "page_size": 100 }
+    },
+    {
+      "resource": "user", "operation": "addGroup", "title": "Add a user to a group",
+      "method": "POST", "path": "/groups/{{ p.group | rl }}/members/$ref",
+      "fields": [
+        { "key": "group", "label": "Group ID", "type": "text", "required": true },
+        { "key": "user", "label": "User ID", "type": "text", "required": true }
+      ],
+      "body": { "@odata.id": "https://graph.microsoft.com/v1.0/directoryObjects/{{ p.user | rl }}" },
+      "output": { "to": { "added": true } }
+    },
+    {
+      "resource": "user", "operation": "create", "title": "Create a user",
+      "method": "POST", "path": "/users",
+      "fields": [
+        { "key": "accountEnabled", "label": "Account enabled", "type": "boolean", "default": true, "required": true },
+        { "key": "displayName", "label": "Display name", "type": "text", "required": true },
+        { "key": "userPrincipalName", "label": "User principal name", "type": "text", "required": true, "placeholder": "jane@contoso.com" },
+        { "key": "mailNickname", "label": "Mail alias", "type": "text", "required": true },
+        { "key": "password", "label": "Password", "type": "password", "required": true },
+        { "key": "additionalFields", "label": "Additional fields", "type": "collection", "default": {},
+          "options": ["aboutMe", "ageGroup", "birthday", "businessPhones", "city", "companyName", "consentProvidedForMinor", "country", "department", "employeeId", "employeeType", "employeeHireDate", "employeeLeaveDateTime", "employeeOrgData", "givenName", "forceChangePassword", "interests", "jobTitle", "surname", "mail", "mobilePhone", "mySite", "officeLocation", "onPremisesImmutableId", "otherMails", "passwordPolicies", "pastProjects", "postalCode", "preferredLanguage", "responsibilities", "schools", "skills", "state", "streetAddress", "usageLocation", "userType"],
+          "help": "Set after the user exists, with follow-up updates. employeeOrgData: {employeeOrgValues: {costCenter, division}}; forceChangePassword: forceChangePasswordNextSignIn or forceChangePasswordNextSignInWithMfa; passwordPolicies: a list." }
+      ],
+      "body": {
+        "accountEnabled": "{{ p.accountEnabled }}",
+        "displayName": "{{ p.displayName }}",
+        "userPrincipalName": "{{ p.userPrincipalName }}",
+        "mailNickname": "{{ p.mailNickname }}",
+        "passwordProfile": { "password": "{{ p.password }}" }
+      },
+      "also": [
+        {
+          "when": "{{ p.additionalFields | pick:'aboutMe,birthday,interests,mySite,pastProjects,responsibilities,schools,skills' }}",
+          "method": "PATCH", "path": "/users/{{ res.id }}",
+          "body": {
+            "$merge": "{{ p.additionalFields | pick:'aboutMe,interests,mySite,pastProjects,responsibilities,schools,skills' }}",
+            "birthday": "{{ p.additionalFields.birthday | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}"
+          }
+        },
+        {
+          "when": "{{ p.additionalFields | omit:'aboutMe,birthday,interests,mySite,pastProjects,responsibilities,schools,skills' }}",
+          "method": "PATCH", "path": "/users/{{ res.id }}",
+          "body": {
+            "$merge": "{{ p.additionalFields | omit:'aboutMe,birthday,interests,mySite,pastProjects,responsibilities,schools,skills,businessPhones,employeeHireDate,employeeLeaveDateTime,employeeOrgData,forceChangePassword,passwordPolicies' }}",
+            "businessPhones": { "$concat": [ "{{ p.additionalFields.businessPhones }}" ] },
+            "employeeHireDate": "{{ p.additionalFields.employeeHireDate | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+            "employeeLeaveDateTime": "{{ p.additionalFields.employeeLeaveDateTime | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+            "employeeOrgData": "{{ p.additionalFields.employeeOrgData.employeeOrgValues }}",
+            "passwordPolicies": "{{ p.additionalFields.passwordPolicies | csv }}",
+            "passwordProfile": {
+              "forceChangePasswordNextSignIn": "{{ p.additionalFields.forceChangePassword | eq:'forceChangePasswordNextSignIn' }}",
+              "forceChangePasswordNextSignInWithMfa": "{{ p.additionalFields.forceChangePassword | eq:'forceChangePasswordNextSignInWithMfa' }}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "user", "operation": "delete", "title": "Delete a user",
+      "method": "DELETE", "path": "/users/{{ p.user | rl }}",
+      "fields": [ { "key": "user", "label": "User ID", "type": "text", "required": true, "help": "Object ID or user principal name." } ],
+      "output": { "to": { "deleted": true } }
+    },
+    {
+      "resource": "user", "operation": "get", "title": "Get a user",
+      "method": "GET", "path": "/users/{{ p.user | rl }}",
+      "fields": [
+        { "key": "user", "label": "User ID", "type": "text", "required": true, "help": "Object ID or user principal name." },
+        { "key": "output", "label": "Output", "type": "select", "default": "simple", "options": ["simple", "raw", "fields"], "help": "simple: a few key properties; raw: every property; fields: the ones listed in Fields." },
+        { "key": "fields", "label": "Fields", "type": "array", "item_type": "text", "default": [], "help": "User properties to return when Output is fields (id is always added)." }
+      ],
+      "query": {
+        "$select": { "$join": [
+          "{{ p.output | eq:'simple' | then:'id,createdDateTime,displayName,userPrincipalName,mail,mailNickname,securityIdentifier' }}",
+          "{{ p.output | eq:'raw' | then:'id,accountEnabled,ageGroup,assignedLicenses,assignedPlans,authorizationInfo,businessPhones,city,companyName,consentProvidedForMinor,country,createdDateTime,creationType,customSecurityAttributes,deletedDateTime,department,displayName,employeeHireDate,employeeId,employeeLeaveDateTime,employeeOrgData,employeeType,externalUserState,externalUserStateChangeDateTime,faxNumber,givenName,identities,imAddresses,isManagementRestricted,isResourceAccount,jobTitle,lastPasswordChangeDateTime,legalAgeGroupClassification,licenseAssignmentStates,mail,mailNickname,mobilePhone,officeLocation,onPremisesDistinguishedName,onPremisesDomainName,onPremisesExtensionAttributes,onPremisesImmutableId,onPremisesLastSyncDateTime,onPremisesProvisioningErrors,onPremisesSamAccountName,onPremisesSecurityIdentifier,onPremisesSyncEnabled,onPremisesUserPrincipalName,otherMails,passwordPolicies,passwordProfile,postalCode,preferredDataLocation,preferredLanguage,provisionedPlans,proxyAddresses,securityIdentifier,serviceProvisioningErrors,showInAddressList,signInSessionsValidFromDateTime,state,streetAddress,surname,usageLocation,userPrincipalName,userType' }}",
+          "{{ p.output | eq:'fields' | then:(p.fields | csv) }}",
+          "{{ p.output | eq:'fields' | then:'id' }}"
+        ], "$sep": "," }
+      }
+    },
+    {
+      "resource": "user", "operation": "removeGroup", "title": "Remove a user from a group",
+      "method": "DELETE", "path": "/groups/{{ p.group | rl }}/members/{{ p.user | rl }}/$ref",
+      "fields": [
+        { "key": "group", "label": "Group ID", "type": "text", "required": true },
+        { "key": "user", "label": "User ID", "type": "text", "required": true }
+      ],
+      "output": { "to": { "removed": true } }
+    },
+    {
+      "resource": "user", "operation": "update", "title": "Update a user",
+      "method": "PATCH", "path": "/users/{{ p.user | rl }}",
+      "fields": [
+        { "key": "user", "label": "User ID", "type": "text", "required": true, "help": "Object ID or user principal name." },
+        { "key": "updateFields", "label": "Update fields", "type": "collection", "default": {},
+          "options": ["aboutMe", "accountEnabled", "ageGroup", "birthday", "businessPhones", "city", "companyName", "consentProvidedForMinor", "country", "department", "displayName", "employeeId", "employeeType", "givenName", "employeeHireDate", "employeeLeaveDateTime", "employeeOrgData", "forceChangePassword", "interests", "jobTitle", "surname", "mail", "mailNickname", "mobilePhone", "mySite", "officeLocation", "onPremisesImmutableId", "otherMails", "password", "passwordPolicies", "pastProjects", "postalCode", "preferredLanguage", "responsibilities", "schools", "skills", "state", "streetAddress", "usageLocation", "userPrincipalName", "userType"],
+          "help": "Profile fields (aboutMe, birthday, interests, mySite, pastProjects, responsibilities, schools, skills) are sent in a separate update, as Graph requires." }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'aboutMe,birthday,interests,mySite,pastProjects,responsibilities,schools,skills,businessPhones,employeeHireDate,employeeLeaveDateTime,employeeOrgData,forceChangePassword,password,passwordPolicies' }}",
+        "businessPhones": { "$concat": [ "{{ p.updateFields.businessPhones }}" ] },
+        "employeeHireDate": "{{ p.updateFields.employeeHireDate | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+        "employeeLeaveDateTime": "{{ p.updateFields.employeeLeaveDateTime | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}",
+        "employeeOrgData": "{{ p.updateFields.employeeOrgData.employeeOrgValues }}",
+        "passwordPolicies": "{{ p.updateFields.passwordPolicies | csv }}",
+        "passwordProfile": {
+          "password": "{{ p.updateFields.password }}",
+          "forceChangePasswordNextSignIn": "{{ p.updateFields.forceChangePassword | eq:'forceChangePasswordNextSignIn' }}",
+          "forceChangePasswordNextSignInWithMfa": "{{ p.updateFields.forceChangePassword | eq:'forceChangePasswordNextSignInWithMfa' }}"
+        }
+      },
+      "also": [
+        {
+          "when": "{{ p.updateFields | pick:'aboutMe,birthday,interests,mySite,pastProjects,responsibilities,schools,skills' }}",
+          "method": "PATCH", "path": "/users/{{ p.user | rl }}",
+          "body": {
+            "$merge": "{{ p.updateFields | pick:'aboutMe,interests,mySite,pastProjects,responsibilities,schools,skills' }}",
+            "birthday": "{{ p.updateFields.birthday | date:'YYYY-MM-DDTHH:mm:ss.SSSZ' }}"
+          }
+        }
+      ],
+      "output": { "to": { "updated": true } }
+    },
+    {
+      "resource": "group", "operation": "getAll", "title": "Get many groups",
+      "method": "GET", "path": "/groups",
+      "fields": [
+        { "key": "returnAll", "label": "Return all", "type": "boolean", "default": false },
+        { "key": "limit", "label": "Limit", "type": "number", "default": 50, "min": 1 },
+        { "key": "filter", "label": "Filter", "type": "text", "help": "OData $filter, e.g. startswith(displayName,'a')." },
+        { "key": "output", "label": "Output", "type": "select", "default": "simple", "options": ["simple", "raw", "fields"], "help": "simple: a few key properties; raw: everything Graph returns by default; fields: the ones listed in Fields." },
+        { "key": "fields", "label": "Fields", "type": "array", "item_type": "text", "default": [], "help": "Group properties to return when Output is fields (id is always added)." }
+      ],
+      "query": {
+        "$filter": "{{ p.filter }}",
+        "$select": { "$join": [
+          "{{ p.output | eq:'simple' | then:'id,createdDateTime,description,displayName,mail,mailEnabled,mailNickname,securityEnabled,securityIdentifier,visibility' }}",
+          "{{ p.output | eq:'fields' | then:(p.fields | csv) }}",
+          "{{ p.output | eq:'fields' | then:'id' }}"
+        ], "$sep": "," }
+      },
+      "pagination": { "type": "next_url", "next_url_path": "@odata.nextLink", "results_path": "value", "limit_param": "$top", "page_size": 100 }
+    },
+    {
+      "resource": "group", "operation": "create", "title": "Create a group",
+      "method": "POST", "path": "/groups",
+      "fields": [
+        { "key": "groupType", "label": "Group type", "type": "select", "default": "", "options": ["", "Unified"], "help": "Empty = security group; Unified = Microsoft 365 group." },
+        { "key": "displayName", "label": "Group name", "type": "text", "required": true },
+        { "key": "mailNickname", "label": "Mail alias", "type": "text", "required": true },
+        { "key": "mailEnabled", "label": "Mail enabled", "type": "boolean", "default": false, "help": "Microsoft 365 groups only; security groups are never mail enabled." },
+        { "key": "membershipType", "label": "Membership type", "type": "select", "default": "", "options": ["", "DynamicMembership"], "help": "Empty = assigned members; DynamicMembership = members from a rule." },
+        { "key": "securityEnabled", "label": "Security enabled", "type": "boolean", "default": true },
+        { "key": "additionalFields", "label": "Additional fields", "type": "collection", "default": {},
+          "options": ["isAssignableToRole", "description", "membershipRule", "membershipRuleProcessingState", "preferredDataLocation", "uniqueName", "visibility"],
+          "help": "description, preferredDataLocation, uniqueName and visibility are set with a follow-up update once the group exists." }
+      ],
+      "body": {
+        "displayName": "{{ p.displayName }}",
+        "mailNickname": "{{ p.mailNickname }}",
+        "mailEnabled": "{{ p.groupType | eq:'Unified' | then:p.mailEnabled | default:false }}",
+        "securityEnabled": "{{ p.groupType | eq:'Unified' | then:(p.securityEnabled | string) | default:'true' | bool }}",
+        "groupTypes": { "$concat": [ "{{ p.groupType }}", "{{ p.membershipType }}" ] },
+        "isAssignableToRole": "{{ p.additionalFields.isAssignableToRole }}",
+        "membershipRule": "{{ p.additionalFields.membershipRule }}",
+        "membershipRuleProcessingState": "{{ p.additionalFields.membershipRuleProcessingState }}"
+      },
+      "also": [
+        {
+          "when": "{{ p.additionalFields | pick:'description,preferredDataLocation,uniqueName,visibility' }}",
+          "method": "PATCH", "path": "/groups/{{ res.id }}",
+          "body": { "$merge": "{{ p.additionalFields | pick:'description,preferredDataLocation,uniqueName,visibility' }}" }
+        }
+      ]
+    },
+    {
+      "resource": "group", "operation": "delete", "title": "Delete a group",
+      "method": "DELETE", "path": "/groups/{{ p.group | rl }}",
+      "fields": [ { "key": "group", "label": "Group ID", "type": "text", "required": true } ],
+      "output": { "to": { "deleted": true } }
+    },
+    {
+      "resource": "group", "operation": "get", "title": "Get a group",
+      "method": "GET", "path": "/groups/{{ p.group | rl }}",
+      "fields": [
+        { "key": "group", "label": "Group ID", "type": "text", "required": true },
+        { "key": "output", "label": "Output", "type": "select", "default": "simple", "options": ["simple", "raw", "fields"], "help": "simple: a few key properties; raw: everything Graph returns by default; fields: the ones listed in Fields." },
+        { "key": "fields", "label": "Fields", "type": "array", "item_type": "text", "default": [], "help": "Group properties to return when Output is fields (id is always added)." },
+        { "key": "options", "label": "Options", "type": "collection", "default": {}, "options": ["includeMembers"], "help": "includeMembers: also return the group's members." }
+      ],
+      "query": {
+        "$select": { "$join": [
+          "{{ p.output | eq:'simple' | then:'id,createdDateTime,description,displayName,mail,mailEnabled,mailNickname,securityEnabled,securityIdentifier,visibility' }}",
+          "{{ p.output | eq:'fields' | then:(p.fields | csv) }}",
+          "{{ p.output | eq:'fields' | then:'id' }}"
+        ], "$sep": "," },
+        "$expand": "{{ p.options.includeMembers | then:'members($select=id,accountEnabled,createdDateTime,displayName,employeeId,mail,securityIdentifier,userPrincipalName,userType)' }}"
+      }
+    },
+    {
+      "resource": "group", "operation": "update", "title": "Update a group",
+      "method": "PATCH", "path": "/groups/{{ p.group | rl }}",
+      "fields": [
+        { "key": "group", "label": "Group ID", "type": "text", "required": true },
+        { "key": "updateFields", "label": "Update fields", "type": "collection", "default": {},
+          "options": ["allowExternalSenders", "autoSubscribeNewMembers", "description", "displayName", "mailNickname", "membershipRule", "membershipRuleProcessingState", "preferredDataLocation", "securityEnabled", "uniqueName", "visibility"],
+          "help": "allowExternalSenders and autoSubscribeNewMembers are sent in their own update, as Graph requires." }
+      ],
+      "body": { "$merge": "{{ p.updateFields | omit:'allowExternalSenders,autoSubscribeNewMembers' }}" },
+      "also": [
+        {
+          "when": "{{ p.updateFields | pick:'allowExternalSenders,autoSubscribeNewMembers' }}",
+          "method": "PATCH", "path": "/groups/{{ p.group | rl }}",
+          "body": { "$merge": "{{ p.updateFields | pick:'allowExternalSenders,autoSubscribeNewMembers' }}" }
+        }
+      ],
+      "output": { "to": { "updated": true } }
+    }
+  ]
+}

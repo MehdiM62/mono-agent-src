@@ -1,0 +1,150 @@
+{
+  "channel.create": {
+    "params": { "teamId": { "__rl": true, "mode": "id", "value": "T1" }, "name": "General 2", "options": { "description": "d", "type": "private" } },
+    "expect": { "method": "POST", "path": "/v1.0/teams/T1/channels", "body": { "displayName": "General 2", "description": "d", "membershipType": "private" } }
+  },
+  "channel.deleteChannel": {
+    "params": { "teamId": "T1", "channelId": "C1" }, "response_status": 204,
+    "expect": { "method": "DELETE", "path": "/v1.0/teams/T1/channels/C1", "items": 1 }
+  },
+  "channel.get": { "params": { "teamId": "T1", "channelId": "C1" }, "expect": { "method": "GET", "path": "/v1.0/teams/T1/channels/C1" } },
+  "channel.getAll": {
+    "params": { "teamId": "T1" }, "response": { "value": [ { "id": "C1" }, { "id": "C2" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/teams/T1/channels", "items": 2 }
+  },
+  "channel.update": {
+    "params": { "teamId": "T1", "channelId": "C1", "name": "Renamed" }, "response_status": 204,
+    "expect": { "method": "PATCH", "path": "/v1.0/teams/T1/channels/C1", "body": { "displayName": "Renamed" } }
+  },
+  "channelMessage.create": {
+    "params": { "teamId": "T1", "channelId": "C1", "message": "Hi team", "options": { "makeReply": "M0" } },
+    "expect": { "method": "POST", "path": "/beta/teams/T1/channels/C1/messages/M0/replies", "body": { "body": { "contentType": "text", "content": "Hi team" } } }
+  },
+  "channelMessage.softDeleteMessage": {
+    "params": { "teamId": "T1", "channelId": "C1", "messageId": "M2", "options": { "parentMessageId": "M1" } }, "response_status": 204,
+    "expect": { "method": "POST", "path": "/v1.0/teams/T1/channels/C1/messages/M1/replies/M2/softDelete" }
+  },
+  "channelMessage.get": { "params": { "teamId": "T1", "channelId": "C1", "messageId": "M1" }, "expect": { "method": "GET", "path": "/beta/teams/T1/channels/C1/messages/M1" } },
+  "channelMessage.getAll": {
+    "params": { "teamId": "T1", "channelId": "C1", "limit": 10 }, "response": { "value": [ { "id": "M1" } ] },
+    "expect": { "method": "GET", "path": "/beta/teams/T1/channels/C1/messages", "query": { "$top": "10" }, "items": 1 }
+  },
+  "channelMessage.getAllReplies": {
+    "params": { "teamId": "T1", "channelId": "C1", "messageId": "M1", "returnAll": true }, "response": { "value": [] },
+    "expect": { "method": "GET", "path": "/beta/teams/T1/channels/C1/messages/M1/replies", "query": { "$top": "50" }, "items": 0 }
+  },
+  "channelMessage.reply": {
+    "params": { "teamId": "T1", "channelId": "C1", "messageId": "M1", "contentType": "html", "message": "<b>ok</b>" },
+    "expect": { "method": "POST", "path": "/beta/teams/T1/channels/C1/messages/M1/replies", "body": { "body": { "contentType": "html", "content": "<b>ok</b>" } } }
+  },
+  "channelMessage.undoSoftDeleteMessage": {
+    "params": { "teamId": "T1", "channelId": "C1", "messageId": "M1" }, "response_status": 204,
+    "expect": { "method": "POST", "path": "/v1.0/teams/T1/channels/C1/messages/M1/undoSoftDelete" }
+  },
+  "chat.create": {
+    "params": { "chatType": "group", "topic": "Launch", "members": { "member": [ { "userId": "bob@contoso.com" }, { "userId": "g1", "role": "guest", "tenantId": "t2" } ] } },
+    "responses": [ { "id": "me1", "userType": "Member" }, { "id": "chat1" } ],
+    "expect": {
+      "method": "POST", "path": "/v1.0/chats",
+      "body": {
+        "chatType": "group", "topic": "Launch",
+        "members": [
+          { "@odata.type": "#microsoft.graph.aadUserConversationMember", "roles": ["owner"], "user@odata.bind": "https://graph.microsoft.com/v1.0/users('me1')" },
+          { "@odata.type": "#microsoft.graph.aadUserConversationMember", "roles": ["owner"], "user@odata.bind": "https://graph.microsoft.com/v1.0/users('bob@contoso.com')" },
+          { "@odata.type": "#microsoft.graph.aadUserConversationMember", "roles": ["guest"], "user@odata.bind": "https://graph.microsoft.com/v1.0/users('g1')", "tenantId": "t2" }
+        ]
+      }
+    }
+  },
+  "chat.get": { "params": { "chatId": "19:abc@thread.v2" }, "expect": { "method": "GET", "path": "/v1.0/chats/19:abc@thread.v2" } },
+  "chat.getAll": {
+    "params": { "limit": 5 }, "response": { "value": [ { "id": "c" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/chats", "query": { "$top": "5" }, "items": 1 }
+  },
+  "chatMember.getAll": {
+    "params": { "chatId": "X" }, "response": { "value": [ { "id": "m1" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/chats/X/members", "items": 1 }
+  },
+  "chatMember.add": {
+    "params": { "chatId": "X", "userId": "u1", "options": { "shareHistory": "all" } }, "response_status": 201,
+    "expect": {
+      "method": "POST", "path": "/v1.0/chats/X/members",
+      "body": { "@odata.type": "#microsoft.graph.aadUserConversationMember", "roles": ["owner"], "user@odata.bind": "https://graph.microsoft.com/v1.0/users('u1')", "visibleHistoryStartDateTime": "0001-01-01T00:00:00Z" }
+    }
+  },
+  "chatMember.remove": { "params": { "chatId": "X", "membershipId": "m1" }, "response_status": 204, "expect": { "method": "DELETE", "path": "/v1.0/chats/X/members/m1" } },
+  "chatMessage.create": {
+    "params": { "chatId": "X", "message": "hello" },
+    "expect": { "method": "POST", "path": "/v1.0/chats/X/messages", "body": { "body": { "contentType": "text", "content": "hello" } } }
+  },
+  "chatMessage.softDeleteMessage": {
+    "params": { "chatId": "X", "messageId": "M1" }, "responses": [ { "id": "me1" }, {} ],
+    "expect": { "method": "POST", "path": "/v1.0/users/me1/chats/X/messages/M1/softDelete" }
+  },
+  "chatMessage.get": { "params": { "chatId": "X", "messageId": "M1" }, "expect": { "method": "GET", "path": "/v1.0/chats/X/messages/M1" } },
+  "chatMessage.getAll": {
+    "params": { "chatId": "X", "limit": 20 }, "response": { "value": [ { "id": "M1" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/chats/X/messages", "query": { "$top": "20" }, "items": 1 }
+  },
+  "chatMessage.undoSoftDeleteMessage": {
+    "params": { "chatId": "X", "messageId": "M1" }, "responses": [ { "id": "me1" }, {} ],
+    "expect": { "method": "POST", "path": "/v1.0/users/me1/chats/X/messages/M1/undoSoftDelete" }
+  },
+  "onlineMeeting.create": {
+    "params": {
+      "subject": "Sync", "startDateTime": "2026-10-20T09:00:00Z", "endDateTime": "2026-10-20T09:30:00Z",
+      "attendees": { "attendee": [ { "userId": "bob@contoso.com", "role": "presenter" } ] },
+      "options": { "lobbyBypassScope": "organization", "recordAutomatically": true, "passcodeRequired": false }
+    },
+    "responses": [ { "id": "u-bob", "userPrincipalName": "bob@contoso.com" }, { "id": "mt1" } ],
+    "expect": {
+      "method": "POST", "path": "/v1.0/me/onlineMeetings",
+      "body": {
+        "subject": "Sync", "startDateTime": "2026-10-20T09:00:00Z", "endDateTime": "2026-10-20T09:30:00Z",
+        "recordAutomatically": true, "lobbyBypassSettings": { "scope": "organization" },
+        "joinMeetingIdSettings": { "isPasscodeRequired": false },
+        "participants": { "attendees": [ { "identity": { "user": { "id": "u-bob" } }, "upn": "bob@contoso.com", "role": "presenter" } ] }
+      }
+    }
+  },
+  "onlineMeeting.createOrGet": {
+    "params": { "organizerId": "org@contoso.com", "externalId": "ext-1", "options": { "subject": "Weekly" } },
+    "expect": { "method": "POST", "path": "/v1.0/users/org@contoso.com/onlineMeetings/createOrGet", "body": { "externalId": "ext-1", "subject": "Weekly" } }
+  },
+  "onlineMeeting.deleteMeeting": { "params": { "meetingId": "mt1" }, "response_status": 204, "expect": { "method": "DELETE", "path": "/v1.0/me/onlineMeetings/mt1" } },
+  "onlineMeeting.get": { "params": { "meetingId": "mt1" }, "expect": { "method": "GET", "path": "/v1.0/me/onlineMeetings/mt1" } },
+  "onlineMeeting.update": {
+    "params": { "meetingId": "mt1", "updateFields": { "subject": "Renamed", "removeAllAttendees": true } },
+    "expect": { "method": "PATCH", "path": "/v1.0/me/onlineMeetings/mt1", "body": { "subject": "Renamed", "participants": { "attendees": [] } } }
+  },
+  "task.create": {
+    "params": { "planId": "P1", "bucketId": "B1", "title": "Ship it", "options": { "assignedTo": "u1", "percentComplete": 50 } },
+    "expect": {
+      "method": "POST", "path": "/v1.0/planner/tasks",
+      "body": { "planId": "P1", "bucketId": "B1", "title": "Ship it", "percentComplete": 50,
+                "assignments": { "u1": { "@odata.type": "microsoft.graph.plannerAssignment", "orderHint": " !" } } }
+    }
+  },
+  "task.deleteTask": {
+    "params": { "taskId": "K1" }, "responses": [ { "@odata.etag": "W/\"abc\"" }, {} ],
+    "expect": { "method": "DELETE", "path": "/v1.0/planner/tasks/K1", "headers": { "If-Match": "W/\"abc\"" } }
+  },
+  "task.get": { "params": { "taskId": "K1" }, "expect": { "method": "GET", "path": "/v1.0/planner/tasks/K1" } },
+  "task.getAll": {
+    "params": { "tasksFor": "member" }, "responses": [ { "id": "me1" }, { "value": [ { "id": "K1" } ] } ],
+    "expect": { "method": "GET", "path": "/v1.0/users/me1/planner/tasks", "items": 1 }
+  },
+  "task.update": {
+    "params": { "taskId": "K1", "updateFields": { "title": "New", "percentComplete": 100 } }, "responses": [ { "@odata.etag": "W/\"abc\"" }, {} ],
+    "expect": { "method": "PATCH", "path": "/v1.0/planner/tasks/K1", "headers": { "If-Match": "W/\"abc\"" }, "body": { "title": "New", "percentComplete": 100 } }
+  },
+  "activityNotification.send": {
+    "params": { "recipientId": "bob@contoso.com", "headline": "Build done", "previewText": "All green", "topic": "CI", "topicLink": "https://teams.microsoft.com/l/chat/0/0", "options": { "chainId": 7 } },
+    "response_status": 204,
+    "expect": {
+      "method": "POST", "path": "/v1.0/users/bob@contoso.com/teamwork/sendActivityNotification",
+      "body": { "topic": { "source": "text", "value": "CI", "webUrl": "https://teams.microsoft.com/l/chat/0/0" }, "activityType": "systemDefault",
+                "previewText": { "content": "All green" }, "templateParameters": [ { "name": "systemDefaultText", "value": "Build done" } ], "chainId": 7 }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "secureScore.get": {
+    "params": { "secureScoreId": "s1" },
+    "response": { "@odata.context": "x", "id": "s1" },
+    "expect": { "method": "GET", "path": "/v1.0/security/secureScores/s1", "items": 1 }
+  },
+  "secureScore.getAll": {
+    "params": { "limit": 2, "filters": { "filter": "azureTenantId eq \"t1\"" } },
+    "response": { "value": [ { "id": "a", "controlScores": [] }, { "id": "b", "controlScores": [] } ] },
+    "expect": {
+      "method": "GET", "path": "/v1.0/security/secureScores",
+      "query": { "$filter": "azureTenantId eq 't1'", "$count": "true", "$top": "2" },
+      "items": 2
+    }
+  },
+  "secureScoreControlProfile.get": {
+    "params": { "secureScoreControlProfileId": "p1" },
+    "expect": { "method": "GET", "path": "/v1.0/security/secureScoreControlProfiles/p1" }
+  },
+  "secureScoreControlProfile.getAll": {
+    "params": { "returnAll": true },
+    "response": { "value": [ { "id": "p1" } ] },
+    "expect": { "method": "GET", "path": "/v1.0/security/secureScoreControlProfiles", "query": { "$top": "100" }, "items": 1 }
+  },
+  "secureScoreControlProfile.update": {
+    "params": { "secureScoreControlProfileId": "p1", "provider": "SecureScore", "vendor": "Microsoft", "updateFields": { "state": "Ignored" } },
+    "expect": {
+      "method": "PATCH", "path": "/v1.0/security/secureScoreControlProfiles/p1",
+      "headers": { "Prefer": "return=representation" },
+      "body": { "vendorInformation": { "provider": "SecureScore", "vendor": "Microsoft" }, "state": "Ignored" }
+    }
+  }
+}
