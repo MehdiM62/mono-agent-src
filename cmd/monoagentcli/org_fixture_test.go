@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
@@ -257,7 +259,9 @@ func TestOrgAdapterWiring(t *testing.T) {
 	for m := monomind.AgentContextMarker(); m != ""; m = monomind.AgentContextMarker() {
 		t.Setenv(m, "")
 	}
-	withCoderCaps(t)
+	oldProbe := capabilityProbe
+	capabilityProbe = func(*cobra.Command) (*monomind.CapabilitySet, error) { return monomind.NewCapabilitySet("9.0.0"), nil }
+	t.Cleanup(func() { capabilityProbe = oldProbe })
 	if _, err := run(f.cfg, "role", "set-access", "growth", "lead", "full", "--yes-i-understand"); err == nil || !strings.Contains(err.Error(), "org-role-full-access") {
 		t.Fatalf("full access on a monomind without the capability: %v", err)
 	}

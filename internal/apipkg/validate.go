@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/monoes/mono-agent/internal/workflow"
+	"regexp"
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/connections"
@@ -119,9 +120,18 @@ func (p *Package) check() []string {
 			add("resources: %q has no operations", r.Value)
 		}
 	}
+	for k := range p.N8nVersionDefaults {
+		if !versionKeyRE.MatchString(k) {
+			add("n8n_version_defaults: key %q must be a typeVersion (\"2\", \"2.1\") or a comparison (\"<3\", \">=2\")", k)
+		}
+	}
 	probs = append(probs, p.checkScopeGroups()...)
 	return probs
 }
+
+// versionKeyRE matches an n8n_version_defaults key: an exact typeVersion or
+// a comparison (<, <=, >, >=) the importer applies to every matching version.
+var versionKeyRE = regexp.MustCompile(`^(<=|>=|<|>)?\s*[0-9]+(\.[0-9]+)?$`)
 
 func resourceList(rs []Resource) string {
 	vals := make([]string, len(rs))
@@ -360,8 +370,18 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 			PagePage:         {pg.PageParam, "page_param"},
 			PageNextURL:      {pg.NextURLPath, "next_url_path"},
 		}
+		if pg.Next != nil && pg.Type == PageCursor {
+			// A continuation request carries the cursor in its own templates.
+			need[PageCursor] = [2]string{pg.CursorPath, "cursor_path"}
+		}
 		if n, ok := need[pg.Type]; ok && (n[0] == "" || strings.HasPrefix(n[0], "|") || strings.HasSuffix(n[0], "|")) {
 			add("pagination %q needs %s", pg.Type, n[1])
+		}
+		if st := pg.Next; st != nil {
+			if pg.Type != PageCursor {
+				add(`pagination.next works with type "cursor" only`)
+			}
+			probs = append(probs, checkStep(where+" pagination.next", *st, fields, credKeys)...)
 		}
 		if pg.ParamIn == "body" && bt != BodyJSON && bt != BodyForm && bt != BodyMultipart {
 			add(`pagination param_in "body" needs a json, form or multipart body`)
@@ -389,6 +409,18 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 			}
 			probs = append(probs, checkHeaderTemplates(where+" binary.upload_session.create", us.Create.Headers, fields, credKeys)...)
 		}
+	}
+	if b := o.Bulk; b != nil {
+		probs = append(probs, b.check(where+" bulk", fields, credKeys)...)
+	}
+	for i, st := range o.Before {
+		probs = append(probs, checkTemplates(fmt.Sprintf("%s before[%d]", where, i), []any{st.ErrorWhen, st.ErrorMessage}, fields, credKeys)...)
+	}
+	for i, st := range o.Also {
+		probs = append(probs, checkTemplates(fmt.Sprintf("%s also[%d]", where, i), []any{st.ErrorWhen, st.ErrorMessage}, fields, credKeys)...)
+	}
+	if pl := o.Poll; pl != nil {
+		probs = append(probs, checkTemplates(where+" poll", []any{pl.ErrorWhen, pl.ErrorMessage}, fields, credKeys)...)
 	}
 	for n8n, ours := range o.N8nParamMap {
 		if !fields[ours] {
@@ -483,7 +515,7 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item", "el", "up", "res", "items", "pre", "pres", "bin", "main", "hdr", "idx", "page":
+	case "item", "el", "up", "res", "items", "pre", "pres", "bin", "main", "hdr", "idx", "page", "batch":
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}

@@ -42,7 +42,7 @@
         "base_url": { "type": "string" },
         "query": { "type": "object" },
         "body": {},
-        "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+        "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
         "headers": { "$ref": "#/$defs/stringMap" },
         "chunk": { "type": "integer" },
         "results_path": { "type": "string" },
@@ -174,7 +174,7 @@
         "base_url": { "type": "string" },
         "query": { "type": "object" },
         "body": {},
-        "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+        "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
         "headers": { "$ref": "#/$defs/stringMap" },
         "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } },
         "pagination": { "$ref": "#/$defs/pagination" },
@@ -210,7 +210,7 @@
                 "base_url": { "type": "string" },
                 "query": { "type": "object" },
                 "body": {},
-                "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+                "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
                 "headers": { "$ref": "#/$defs/stringMap" },
                 "property": { "type": "string" },
                 "file_name": { "type": "string" },
@@ -231,7 +231,7 @@
             "base_url": { "type": "string" },
             "query": { "type": "object" },
             "body": {},
-            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
             "headers": { "$ref": "#/$defs/stringMap" }
           }
         },
@@ -269,7 +269,7 @@
             "mime_type": { "type": "string" },
             "download_when": { "type": "string" },
             "upload_when": { "type": "string" },
-            "fallback_body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "fallback_body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
             "download_base64": { "type": "string" },
             "property": { "type": "string" },
             "properties": { "type": "string" },
@@ -293,7 +293,7 @@
                     "base_url": { "type": "string" },
                     "query": { "type": "object" },
                     "body": {},
-                    "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+                    "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
                     "headers": { "$ref": "#/$defs/stringMap" }
                   }
                 }
@@ -303,6 +303,25 @@
         },
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
         "batch": { "type": "boolean" },
+        "bulk": {
+          "type": "object",
+          "required": ["when", "method", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "when": { "type": "string" },
+            "size": { "type": "integer" },
+            "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
+            "path": { "type": "string", "minLength": 1 },
+            "base_url": { "type": "string" },
+            "query": { "type": "object" },
+            "body": {},
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
+            "headers": { "$ref": "#/$defs/stringMap" },
+            "output": { "type": "object" },
+            "error_when": { "type": "string" },
+            "error_message": { "type": "string" }
+          }
+        },
         "scope_group": { "type": "string" },
         "error_when": { "type": "string" },
         "error_message": { "type": "string" },
@@ -316,6 +335,8 @@
               "for_each": { "type": "string" },
               "upload": { "type": "boolean" },
               "auth": { "type": "boolean" },
+              "error_when": { "type": "string" },
+              "error_message": { "type": "string" },
               "until": { "type": "string" },
               "interval_ms": { "type": "integer" },
               "max_wait_ms": { "type": "integer" },
@@ -324,7 +345,7 @@
             "base_url": { "type": "string" },
             "query": { "type": "object" },
             "body": {},
-            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
             "headers": { "$ref": "#/$defs/stringMap" }
           }
         },
@@ -337,12 +358,14 @@
               "for_each": { "type": "string" },
               "upload": { "type": "boolean" },
               "auth": { "type": "boolean" },
+              "error_when": { "type": "string" },
+              "error_message": { "type": "string" },
             "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
             "path": { "type": "string", "minLength": 1 },
             "base_url": { "type": "string" },
             "query": { "type": "object" },
             "body": {},
-            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
             "headers": { "$ref": "#/$defs/stringMap" }
           }
         }, { "type": "array", "items": {
@@ -354,12 +377,14 @@
               "for_each": { "type": "string" },
               "upload": { "type": "boolean" },
               "auth": { "type": "boolean" },
+              "error_when": { "type": "string" },
+              "error_message": { "type": "string" },
             "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
             "path": { "type": "string", "minLength": 1 },
             "base_url": { "type": "string" },
             "query": { "type": "object" },
             "body": {},
-            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+            "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
             "headers": { "$ref": "#/$defs/stringMap" }
           }
         } } ] },
@@ -374,12 +399,14 @@
               "for_each": { "type": "string" },
               "upload": { "type": "boolean" },
               "auth": { "type": "boolean" },
+              "error_when": { "type": "string" },
+              "error_message": { "type": "string" },
               "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
               "path": { "type": "string", "minLength": 1 },
               "base_url": { "type": "string" },
               "query": { "type": "object" },
               "body": {},
-              "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+              "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
               "headers": { "$ref": "#/$defs/stringMap" }
             }
           }
@@ -410,6 +437,24 @@
         "item_type": { "type": "string" }
       }
     },
+    "step": {
+      "type": "object",
+      "required": ["method", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "when": { "type": "string" },
+        "auth": { "type": "boolean" },
+        "error_when": { "type": "string" },
+        "error_message": { "type": "string" },
+        "method": { "type": "string", "pattern": "^(GET|POST|PUT|PATCH|DELETE|HEAD|MKCOL|MOVE|COPY|PROPFIND|PROPPATCH|.*\\{\\{.*)$" },
+        "path": { "type": "string", "minLength": 1 },
+        "base_url": { "type": "string" },
+        "query": { "type": "object" },
+        "body": {},
+        "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
+        "headers": { "$ref": "#/$defs/stringMap" }
+      }
+    },
     "pagination": {
       "type": "object",
       "required": ["type"],
@@ -432,7 +477,8 @@
         "page_size": { "type": "integer" },
         "start_page": { "type": "integer" },
         "max_pages": { "type": "integer" },
-        "param_in": { "type": "string", "enum": ["query", "body", "path"] }
+        "param_in": { "type": "string", "enum": ["query", "body", "path"] },
+        "next": { "$ref": "#/$defs/step" }
       }
     }
   }

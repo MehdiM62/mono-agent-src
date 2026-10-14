@@ -64,7 +64,11 @@ func appMapper(m apipkg.N8nMapping) n8nimport.AppMapper {
 		a.CredentialPlatform[c.N8nType] = c.Platform
 		a.CredentialHints[c.N8nType] = credentialHint(c)
 	}
+	if !a.Trigger {
+		a.Operations = make(map[string]bool, len(m.Operations))
+	}
 	for key, op := range m.Operations {
+		a.Operations[key] = true
 		if len(op.ParamMap) == 0 {
 			continue
 		}

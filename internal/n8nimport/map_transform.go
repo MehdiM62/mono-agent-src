@@ -136,6 +136,12 @@ func mapRemoveDuplicates(c *MapContext) Mapping {
 			return c.OperationUnsupported("", op)
 		}
 	}
+	return removeDuplicateItems(c)
+}
+
+// removeDuplicateItems maps Remove Duplicates v1 (and Item Lists'
+// removeDuplicates, which has the same parameters).
+func removeDuplicateItems(c *MapContext) Mapping {
 	c.Ignore("options.disableDotNotation")
 	compare := c.Literal("compare", "allFields")
 	removeOther := c.Bool("options.removeOtherFields", false)
@@ -240,7 +246,7 @@ func mapItemLists(c *MapContext) Mapping {
 	case "limit":
 		return mapLimit(c)
 	case "removeDuplicates":
-		return mapRemoveDuplicates(c)
+		return removeDuplicateItems(c)
 	case "sort":
 		return mapSort(c)
 	case "splitOutItems":

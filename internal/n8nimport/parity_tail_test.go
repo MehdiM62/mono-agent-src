@@ -96,6 +96,7 @@ func shapeOf(t *testing.T, nodeJSON string) *workflow.WorkflowFile {
 // Wufoo, Formstack and Form.io triggers reshape the posted payload the way
 // n8n's simplified output did.
 func TestFormTriggersShapePayloads(t *testing.T) {
+	defer n8nimport.WithHandshakeKey("k")()
 	wufoo := shapeOf(t, `{"name":"W","type":"n8n-nodes-base.wufooTrigger","typeVersion":1,"position":[0,0],"webhookId":"wf","parameters":{"form":"f1"}}`)
 	fields := `{"Fields":[{"ID":"Field1","Title":"Name","Type":"text"},{"ID":"Field2","Title":"CV","Type":"file"},
 	  {"ID":"Field3","Title":"Likes","Type":"checkbox","SubFields":[{"ID":"Field3","Label":"Tea"},{"ID":"Field4","Label":"Coffee"}]},

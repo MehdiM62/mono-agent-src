@@ -1,6 +1,10 @@
 package n8nimport
 
-import "fmt"
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+)
 
 // Payload shaping steps for webhook triggers whose n8n node rewrote the
 // vendor's payload. They run as core.code after the trigger.webhook, whose
@@ -74,17 +78,22 @@ return items.map(function (it) {
 // FieldStructure JSON) into answers keyed by field title: file fields give
 // their URL, checkboxes the ticked choices, address/likert/name fields an
 // object keyed by sub-field label. With onlyAnswers off the entry's
-// metadata and parsed structures come along, as in n8n.
+// metadata and parsed structures come along, as in n8n. Like n8n, posts
+// whose HandshakeKey differs from the key set up for the webhook are
+// dropped; the importer makes a new key for the user to enter in Wufoo.
 func shapeWufoo(c *MapContext) *ChainStep {
 	only := c.Bool("onlyAnswers", true)
-	c.Note("Wufoo sends a HandshakeKey with each post; n8n dropped posts whose key did not match the one it registered, the imported webhook does not check it")
-	body := fmt.Sprintf(`var onlyAnswers = %s;
+	key := newHandshakeKey()
+	c.Note("Wufoo: enter %s as the WebHook's Handshake Key; posts without that key are dropped, as n8n dropped posts without the key it registered", key)
+	body := fmt.Sprintf(`var onlyAnswers = %s, handshakeKey = %s;
 function parse(v) {
   if (typeof v !== "string") { return v || {}; }
   try { return JSON.parse(v); } catch (e) { return {}; }
 }
-return items.map(function (it) {
+var out = [];
+items.forEach(function (it) {
   var b = it.json.body !== undefined && it.json.body !== null && typeof it.json.body === "object" ? it.json.body : it.json;
+  if (b.HandshakeKey !== handshakeKey) { return; }
   var fields = parse(b.FieldStructure), entries = {};
   (fields.Fields || []).forEach(function (f) {
     var subs = f.SubFields || [];
@@ -100,18 +109,28 @@ return items.map(function (it) {
       entries[f.Title] = b[f.ID];
     }
   });
-  if (onlyAnswers) { return entries; }
-  return { createdBy: b.CreatedBy, entryId: b.EntryId, dateCreated: b.DateCreated, formId: b.FormId,
-    formStructure: parse(b.FormStructure), fieldStructure: fields, entries: entries };
+  if (onlyAnswers) { out.push(entries); return; }
+  out.push({ createdBy: b.CreatedBy, entryId: b.EntryId, dateCreated: b.DateCreated, formId: b.FormId,
+    formStructure: parse(b.FormStructure), fieldStructure: fields, entries: entries });
 });
-`, jsValue(only))
+return out;
+`, jsValue(only), jsValue(key))
 	return &ChainStep{Type: "core.code", Config: codeConfig(wrapCode(body))}
+}
+
+// newHandshakeKey makes the shared key a Wufoo webhook sends with each
+// post (tests replace it).
+var newHandshakeKey = func() string {
+	b := make([]byte, 20)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // shapeFormstack replaces each {value, …} field object of a Formstack
 // submission by its value (Simplify, default on); off, the body passes
 // unchanged and no step is needed.
 func shapeFormstack(c *MapContext) *ChainStep {
+	c.Note("Formstack signs each post with X-FS-Signature (sha256=<HMAC-SHA256 of the raw body>); the imported webhook does not verify it yet")
 	if !c.Bool("simple", true) {
 		return nil
 	}

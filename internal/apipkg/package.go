@@ -251,6 +251,31 @@ type Operation struct {
 	// ErrorWhen / ErrorMessage replace the package's for this op.
 	ErrorWhen    string `json:"error_when,omitempty"`
 	ErrorMessage string `json:"error_message,omitempty"`
+	// Bulk, when its when template is true for the first item, sends the
+	// op for all input items as one request per chunk (n8n's "bulk
+	// operation" option: Elasticsearch _bulk) instead of one per item.
+	Bulk *Bulk `json:"bulk,omitempty"`
+}
+
+// Bulk is an operation's one-request-for-many-items variant. The batch
+// root lists every item of the chunk as {p, item, index} (its params,
+// its JSON, its position); items is their JSON as for batch ops; p is
+// the chunk's first item's params. Output and error_when shape the bulk
+// response instead of the op's.
+type Bulk struct {
+	When string `json:"when"`
+	// Size is the number of items per request (default: all in one).
+	Size         int               `json:"size,omitempty"`
+	Method       string            `json:"method"`
+	Path         string            `json:"path"`
+	BaseURL      string            `json:"base_url,omitempty"`
+	Query        map[string]any    `json:"query,omitempty"`
+	Body         any               `json:"body,omitempty"`
+	BodyType     string            `json:"body_type,omitempty"`
+	Headers      map[string]string `json:"headers,omitempty"`
+	Output       *Output           `json:"output,omitempty"`
+	ErrorWhen    string            `json:"error_when,omitempty"`
+	ErrorMessage string            `json:"error_message,omitempty"`
 }
 
 // Step is one follow-up request of an operation. When is a template; an
@@ -276,6 +301,11 @@ type Step struct {
 	Body     any               `json:"body,omitempty"`
 	BodyType string            `json:"body_type,omitempty"`
 	Headers  map[string]string `json:"headers,omitempty"`
+	// ErrorWhen / ErrorMessage replace the op's (and package's) 2xx error
+	// check for this step's responses: a poll whose pending reply says
+	// success:false fails only on a real error (Dropcontact).
+	ErrorWhen    string `json:"error_when,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
 }
 
 // Key is "<resource>.<operation>", or just the operation when the package
@@ -335,6 +365,11 @@ type Pagination struct {
 	// MaxPages caps one run (default 1000); items get
 	// pagination_truncated=true when it stops a list early.
 	MaxPages int `json:"max_pages,omitempty"`
+	// Next sends every page after the first as this request instead of
+	// the op's (continuation endpoints: Dropbox list_folder/continue with
+	// only the cursor; Elasticsearch search_after with the new PIT id).
+	// res is the previous page and page.cursor its cursor.
+	Next *Step `json:"next,omitempty"`
 }
 
 // Output says which part of the response becomes the node's items.
