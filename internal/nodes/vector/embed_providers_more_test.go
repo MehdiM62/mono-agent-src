@@ -1,6 +1,7 @@
 package vector
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -16,6 +17,12 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/zalando/go-keyring"
+
+	"github.com/monoes/mono-agent/internal/connections"
+	"github.com/monoes/mono-agent/internal/testdb"
+	"github.com/monoes/mono-agent/internal/vault"
 )
 
 func TestEmbedDatabricksServicePrincipal(t *testing.T) {
@@ -212,5 +219,55 @@ func TestN8nEmbeddingsNewProviders(t *testing.T) {
 		if got.Type != "vector.embed" || !reflect.DeepEqual(got.Config, tc.want) {
 			t.Errorf("%s: %s %v, want %v", tc.typ, got.Type, got.Config, tc.want)
 		}
+	}
+}
+
+// A vector.store embedding block naming a google_service_account
+// connection signs in with the connection's key and uses its project and
+// location; the node's own location wins.
+func TestVertexEmbeddingUsesServiceAccountConnection(t *testing.T) {
+	keyring.MockInit()
+	db := testdb.Open(t).DB
+	ctx := vault.ContextWithDB(context.Background(), db)
+	key, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, _ := x509.MarshalPKCS8PrivateKey(key)
+	conn := &connections.Connection{Platform: "google_service_account", Method: connections.MethodAPIKey, Label: "sa",
+		Data: map[string]interface{}{"client_email": "sa@proj.iam.gserviceaccount.com",
+			"private_key": string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})),
+			"project_id":  "proj-from-conn", "location": "us-east1"}}
+	if err := connections.NewStore(db).Save(ctx, conn); err != nil {
+		t.Fatal(err)
+	}
+	var tokenAsked bool
+	tsrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenAsked = true
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"ya29.conn"}`))
+	}))
+	t.Cleanup(tsrv.Close)
+	old := googleTokenURL
+	googleTokenURL = tsrv.URL
+	t.Cleanup(func() { googleTokenURL = old })
+	srv, reqs := embedFakeServer(t, func(r *http.Request, body map[string]interface{}) (int, interface{}) {
+		return 200, map[string]interface{}{"predictions": []map[string]interface{}{{"embeddings": map[string]interface{}{"values": []float64{1}}}}}
+	})
+	cfg := map[string]interface{}{"provider": "vertex", "credential_id": "google_service_account", "location": "europe-west4", "base_url": srv.URL}
+	if err := resolveNestedCredential(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	ec, err := parseEmbedConfig(cfg, "embedding.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ec.embed(ctx, []string{"x"}, purposeQuery); err != nil {
+		t.Fatal(err)
+	}
+	r := (*reqs)[0]
+	if !tokenAsked || r.Header.Get("Authorization") != "Bearer ya29.conn" ||
+		r.Path != "/v1/projects/proj-from-conn/locations/europe-west4/publishers/google/models/text-embedding-005:predict" {
+		t.Fatalf("token %v, request %+v", tokenAsked, r)
 	}
 }

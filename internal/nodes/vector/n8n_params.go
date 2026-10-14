@@ -121,8 +121,7 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 	N8nPrefix + "embeddingsGoogleGemini": embedNode(ProviderGemini, map[string]string{"modelName": "model"}, "full", ""),
 	N8nPrefix + "embeddingsGoogleVertex": embedNode(ProviderVertex, map[string]string{
 		"modelName": "model", "projectId": "project_id", "location": "location",
-	}, "partial", "the n8n Google service-account credential is not carried over (mono has no service-account connection): "+
-		"set embedding.client_email and embedding.private_key, or embedding.access_token, and embedding.location when it is not us-central1"),
+	}, "full", ""),
 	N8nPrefix + "embeddingsHuggingFaceInference": embedNode(ProviderHuggingFace, map[string]string{
 		"modelName": "model", "options.endpointUrl": "base_url",
 	}, "full", ""),
@@ -255,6 +254,7 @@ var N8nCredentialMappings = map[string]N8nCredentialMapping{
 	"mistralCloudApi":     {"mistral", map[string]string{"apiKey": "api_key"}},
 	"googlePalmApi":       {"gemini_api", map[string]string{"apiKey": "api_key", "host": "base_url"}},
 	"huggingFaceApi":      {"huggingface", map[string]string{"apiKey": "api_key"}},
+	"googleApi":           {"google_service_account", map[string]string{"email": "client_email", "privateKey": "private_key", "region": "location"}},
 	"aws":                 {"aws", map[string]string{"accessKeyId": "access_key_id", "secretAccessKey": "secret_access_key", "sessionToken": "session_token", "region": "region"}},
 	"nvidiaApi":           {"openai", map[string]string{"apiKey": "api_key", "url": "base_url"}},
 	"qdrantApi":           {"qdrant", map[string]string{"qdrantUrl": "url", "apiKey": "api_key"}},

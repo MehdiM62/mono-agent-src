@@ -27,7 +27,7 @@
       "label": "Connection",
       "type": "credential_picker",
       "required": false,
-      "help": "openai_compatible → openai, ollama → ollama, cohere, gemini → gemini_api, mistral, huggingface, bedrock → aws, azure_openai. Optional for local servers. databricks → databricks or databricks_sp, oracle → oracle; vertex takes a token or service-account fields below."
+      "help": "openai_compatible → openai, ollama → ollama, cohere, gemini → gemini_api, mistral, huggingface, bedrock → aws, azure_openai. Optional for local servers. databricks → databricks or databricks_sp, oracle → oracle, vertex → google_service_account (or a token / the fields below)."
     },
     {
       "key": "model",

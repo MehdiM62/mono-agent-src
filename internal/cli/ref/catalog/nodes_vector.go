@@ -21,9 +21,10 @@ Providers and their connection (credential_id):
   databricks         "databricks" (host + access_token) or "databricks_sp" (host +
                      client_id/client_secret); model = serving endpoint, called through
                      the workspace AI gateway (OpenAI-compatible)
-  vertex             project_id, location (default us-central1; global, eu, us work)
-                     and access_token, or a service account's client_email +
-                     private_key (PEM) — the token is fetched per run
+  vertex             "google_service_account" (client_email + private_key, optional
+                     project_id and location), or access_token; project_id and
+                     location (default us-central1; global, eu, us work) on the node
+                     win — the token is fetched per run
   oracle             "oracle" (connection_string); model = an ONNX model loaded into
                      the database (VECTOR_EMBEDDING), one query per text
 

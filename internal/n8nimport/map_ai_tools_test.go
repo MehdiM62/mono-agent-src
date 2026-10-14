@@ -299,3 +299,34 @@ func TestToolExecutorToolIsNotKeptTwice(t *testing.T) {
 		}
 	}
 }
+
+// n8n's Google service-account credential on Vertex embeddings becomes the
+// google_service_account connection.
+func TestVertexEmbeddingsUseServiceAccountConnection(t *testing.T) {
+	src := `{"name":"t","nodes":[
+	 {"name":"Store","type":"@n8n/n8n-nodes-langchain.vectorStoreInMemory","typeVersion":1.3,"position":[0,0],"parameters":{"mode":"insert","memoryKey":"kb"}},
+	 {"name":"Emb","type":"@n8n/n8n-nodes-langchain.embeddingsGoogleVertex","typeVersion":1,"position":[0,200],
+	  "parameters":{"projectId":{"__rl":true,"mode":"id","value":"proj"},"modelName":"text-embedding-005"},
+	  "credentials":{"googleApi":{"id":"7","name":"GCP SA"}}}],
+	 "connections":{"Emb":{"ai_embedding":[[{"node":"Store","type":"ai_embedding","index":0}]]}}}`
+	wf, rep, err := n8nimport.Convert([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	emb, _ := node(t, wf, "Store").Config["embedding"].(map[string]interface{})
+	if emb["provider"] != "vertex" || emb["project_id"] != "proj" || emb["credential_id"] != "google_service_account" {
+		t.Fatalf("embedding %v", emb)
+	}
+	found := false
+	for _, c := range rep.Credentials {
+		if c.Platform == "google_service_account" && strings.Contains(c.Hint, "privateKey → private_key") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("credentials %+v", rep.Credentials)
+	}
+	if text := issueText(rep, "Store"); strings.Contains(text, "service-account credential is not carried over") {
+		t.Errorf("report still says the credential is lost:\n%s", text)
+	}
+}
