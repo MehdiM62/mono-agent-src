@@ -260,20 +260,6 @@ func (m *Manager) Remove(ctx context.Context, id, profileID string) error {
 	return m.store.Delete(ctx, id, profileID)
 }
 
-// Save persists a connection (insert or update).
-func (m *Manager) Save(ctx context.Context, conn *Connection) error {
-	return m.store.Save(ctx, conn)
-}
-
-// RefreshToken silently exchanges conn's stored refresh_token for a new
-// access_token (per-profile client credentials, with the /consumers/
-// audience fallback) and persists the result. Exposed so every caller —
-// CLI, GUI, workflow engine — shares this one implementation instead of
-// keeping its own copy that silently misses fixes applied to the others.
-func (m *Manager) RefreshToken(ctx context.Context, conn *Connection) error {
-	return m.store.RefreshToken(ctx, conn)
-}
-
 // Refresh silently exchanges a connection's stored refresh_token for a new
 // access_token — no browser, no user interaction — the same mechanism used
 // automatically whenever a stale connection is resolved for use. Falls back
