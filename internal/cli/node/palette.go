@@ -159,7 +159,7 @@ func Palette(db *sql.DB, includeDeprecated bool) map[string][]PaletteNode {
 		"ai": []PaletteNode{
 			mkNode("agent.ask", "Agent Ask", "ai", "Ask a locally-installed AI agent (claude, codex, …) one turn via the monomind engine"),
 			mkNode("mcp.call", "MCP Call", "ai", "List or call the tools of an MCP server (stdio or Streamable HTTP) — Zapier, Pipedream, vendor servers, or monoagent's own"),
-			mkNode("agent.memory", "Chat Memory", "ai", "Read, add or clear the messages of a conversation that agent.ask remembers (memory option)"),
+			mkNode("agent.memory", "Agent Memory", "ai", "Read, add or clear the messages of a conversation that agent.ask remembers (memory option)"),
 			mkNode("ai.guardrails", "Guardrails", "ai", "Check text for PII, secrets, URLs, keywords, jailbreaks and off-topic content; pass/fail or sanitize"),
 			mkNode("browser.jev", "Browser Agent (Jev)", "ai", "Reach a goal on any website in your own browser — TypeSafe Jev picks each click/type/select"),
 			mkNode("ai.choose", "AI Choose (Jev)", "ai", "Route each item to one of your cases — TypeSafe Jev picks, with a low_confidence output"),

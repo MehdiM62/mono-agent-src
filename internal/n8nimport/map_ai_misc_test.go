@@ -185,3 +185,22 @@ func TestMessageAnAgentSession(t *testing.T) {
 		t.Error("v2 without a session must not keep memory")
 	}
 }
+
+// The executed tool's $fromAI goes through the expression translator, so a
+// default value survives (the item may not carry the key).
+func TestToolExecutorKeepsFromAIDefault(t *testing.T) {
+	raw := `{"name":"t","nodes":[
+	  {"name":"Exec","type":"@n8n/n8n-nodes-langchain.toolExecutor","typeVersion":1,"position":[0,0],
+	   "parameters":{"query":"{}"}},
+	  {"name":"Set Tool","type":"n8n-nodes-base.setTool","typeVersion":3.4,"position":[0,400],
+	   "parameters":{"assignments":{"assignments":[{"id":"a","name":"out","value":"={{ $fromAI('text', '', 'string', 'fallback') }}","type":"string"}]}}}],
+	 "connections":{"Set Tool":{"ai_tool":[[{"node":"Exec","type":"ai_tool","index":0}]]}}}`
+	wf, rep, err := n8nimport.Convert([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := fmtConfig(node(t, wf, "Exec"))
+	if !strings.Contains(cfg, "text") || !strings.Contains(cfg, "fallback") {
+		t.Errorf("$fromAI default lost: %s\n%s", cfg, issueText(rep, "Exec"))
+	}
+}

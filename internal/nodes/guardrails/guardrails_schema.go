@@ -29,7 +29,7 @@ type GuardrailsNodeSchema struct {
 
 	PII bool `json:"pii" schema:"label=Personal Data (PII),type=boolean,default=false,help=Find personal data: e-mail， phone， credit card (Luhn)， IBAN， IP， SSN and national IDs."`
 
-	PIIEntities string `json:"pii_entities" schema:"label=PII Entities,type=array,item_type=text,depends_on_key=pii,depends_on_values=true,help=Empty = all. n8n names: EMAIL_ADDRESS， PHONE_NUMBER， CREDIT_CARD， IBAN_CODE， IP_ADDRESS， US_SSN， DATE_TIME， LOCATION， … (see ref node ai.guardrails)."`
+	PIIEntities string `json:"pii_entities" schema:"label=PII Entities,type=array,item_type=text,depends_on_key=pii,depends_on_values=true,help=The kinds of personal data to look for; leave empty to look for all of them. Use the type names， for example EMAIL_ADDRESS， PHONE_NUMBER， CREDIT_CARD， IBAN_CODE， IP_ADDRESS， LOCATION， DATE_TIME， US_SSN， UK_NINO or IN_PAN."`
 
 	SecretKeys bool `json:"secret_keys" schema:"label=Secret Keys,type=boolean,default=false,help=Find API keys， tokens， private keys and random-looking credentials."`
 
