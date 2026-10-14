@@ -158,6 +158,9 @@ func (p *Package) opFields(extension ...bool) []map[string]any {
 	for _, o := range p.Operations {
 		for _, f := range o.Fields {
 			id := f.Key + "\x00" + f.Type + "\x00" + f.Label + "\x00" + strings.Join(f.Options, ",")
+			if f.DependsOn != nil {
+				id += "\x00" + f.DependsOn.Key + "=" + strings.Join(f.DependsOn.Values, ",")
+			}
 			g, ok := groups[id]
 			if !ok {
 				g = &group{field: f, required: f.Required}
@@ -187,8 +190,24 @@ func (p *Package) opFields(extension ...bool) []map[string]any {
 			f.Required = g.required && len(g.ops) == p.opsIn(g.resNames)
 		}
 		m := toMap(f)
-		m["visible_for"] = g.ops
+		m["visible_for"] = visibleFor(g.ops, g.field.DependsOn)
 		out = append(out, m)
+	}
+	return out
+}
+
+// visibleFor lists the configs a field shows for: its ops, each narrowed
+// by the field's own depends_on (one entry per value), e.g. a field read
+// only while a legacy toggle is on.
+func visibleFor(ops []opRef, own *workflow.FieldDependency) any {
+	if own == nil || own.Key == "" {
+		return ops
+	}
+	var out []map[string]string
+	for _, o := range ops {
+		for _, v := range own.Values {
+			out = append(out, map[string]string{"resource": o.Resource, "operation": o.Operation, own.Key: v})
+		}
 	}
 	return out
 }

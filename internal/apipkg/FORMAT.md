@@ -152,7 +152,19 @@ Generated node schema: a `credential_id` picker, a `resource` select, one
 `operation` select per resource (`depends_on` the resource), then every op's
 fields. Fields with the same key, type, label and options are merged into one
 entry. Each field carries `depends_on: {"key": "operation", "values": […]}`
-and an exact `visible_for: [{"resource": …, "operation": …}]`.
+and an exact `visible_for: [{"resource": …, "operation": …}]`. A field may
+declare its own `depends_on: {"key": "legacyEditModel", "values": ["true"]}`:
+the key and value join every `visible_for` entry (one entry per value), so
+the field shows, and is checked, only for those ops while that field holds
+that value. Use it to keep importer-only fields (legacy toggles that
+`n8n_version_defaults` turns on) out of the form for new nodes.
+A required `select` whose `default` is empty or not one of its `options`
+starts on its first option; set `default` when another option is the
+sensible start.
+On a native node a package `extends` with resources, the native
+`operation` select gets `depends_on: {"key": "resource", "values": [""]}`:
+it shows while no resource is picked and each resource's own `operation`
+select (with its own `default`) takes over once one is.
 
 Every field is resolved **per input item** from workflow expressions
 (`{{ $json.id }}` in the node config), so one node run makes one request per
