@@ -57,9 +57,10 @@ func mapMessageAnAgent(c *MapContext) Mapping {
 	if c.Literal("advanced.invokeMode", "allItems") == "allItems" {
 		cfg["execute_once"] = true
 	}
-	if c.Has("advanced.sessionId") || c.Has("advanced.session") {
-		c.Ignore("advanced.sessionId", "advanced.session")
-		c.Note("the agent session is not kept between runs")
+	if key := messageAgentSession(c); key != "" {
+		// n8n starts a fresh session when the key comes out empty.
+		cfg["memory"] = map[string]interface{}{"session_key": key, "skip_when_missing": true}
+		c.Note("the agent session is kept in monoagent's local chat memory (agent.memory reads it)")
 	}
 	structured := c.Bool("useStructuredOutput", false)
 	if structured {
@@ -82,6 +83,27 @@ func mapMessageAnAgent(c *MapContext) Mapping {
 		"});\n"
 	return Mapping{Type: "agent.ask", Config: cfg, EntrySuffix: " (ask)",
 		Chain: []ChainStep{{Type: "core.code", Config: codeConfig(wrapCode(body))}}}
+}
+
+// messageAgentSession is the session key of a Message an Agent node: v3.1
+// and later pick it like n8n's chat memory (the chat trigger's sessionId, or a
+// key defined below); earlier versions take an optional advanced.sessionId.
+// "" means no session (a fresh one every run).
+func messageAgentSession(c *MapContext) string {
+	if c.version(3.1) {
+		base := "advanced.session.session."
+		c.Ignore("advanced.sessionId")
+		if c.Literal(base+"sessionIdType", "fromInput") == "customKey" {
+			return c.Str(base+"sessionKey", "")
+		}
+		if c.Has(base + "sessionKey") {
+			return c.Str(base+"sessionKey", "={{ $json.sessionId }}")
+		}
+		c.Ignore("advanced.session")
+		return "{{ $json.sessionId }}"
+	}
+	c.Ignore("advanced.session")
+	return c.Str("advanced.sessionId", "")
 }
 
 // messageAgentSchema reads the structured-output schema: a JSON Schema, or

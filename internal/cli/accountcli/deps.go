@@ -1,7 +1,9 @@
 // Package accountcli is `monoagentcli account`: the monoes.me sign-in of this machine (login,
-// logout, status). The sign-in itself (account_login.go) stays in the CLI, which the library's
-// alias shares; it comes in through Deps, as everything else the commands need, so they can be
-// tested in isolation.
+// logout, status), the sign-in that `account login` shares with `library login` (SignIn), the
+// first-run adoption of an older library login (AdoptFirstRun) and the serving commands'
+// refresher (ServingCommand). What the commands need from the CLI comes in through Deps and
+// arguments, so they can be tested in isolation. The process guard's installation and the gate
+// stay in cmd/monoagentcli and internal/cli/accountgate.
 package accountcli
 
 import (

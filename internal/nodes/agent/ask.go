@@ -222,7 +222,9 @@ func (t *asker) ask(ctx context.Context, item workflow.Item) (workflow.Item, err
 			return workflow.Item{}, err
 		}
 		defer mem.release()
-		prompt = mem.wrap(prompt)
+		if mem != nil {
+			prompt = mem.wrap(prompt)
+		}
 	}
 	if cfg.schema != nil {
 		prompt += schemaInstruction(cfg.schema)
