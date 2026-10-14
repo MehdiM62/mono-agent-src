@@ -89,7 +89,7 @@ Register one server per profile:
 
 It cannot be combined with --api-only or --grant.
 
---workflow-tools (or MONOAGENT_MCP_WORKFLOW_TOOLS=1) also serves each saved
+--workflow-tools (or MONOAGENT_MCP_WORKFLOW_TOOLS=1) also serves each active
 workflow of the profile as a tool of its own, wf_<slug>, named after the workflow
 (lowercase a-z, 0-9 and _, at most 64 characters; a second workflow with the same
 name gets a short id suffix). --workflow-tools=<id or name>,... serves only those.
@@ -160,7 +160,7 @@ variable) and --db-path, exactly like every other command.`,
 	cmd.Flags().BoolVar(&tasksOnly, "tasks-only", false,
 		"Serve only the user's task board's tools (task_*) and no other: no workflow, vault, secret, person, org, API or documentation tool. For an agent that is to work the board and nothing else: --allow-mutations, which task_claim/comment/finish/release/add need, also serves workflow tools that can run a command as you; with --tasks-only it does not. Cannot be combined with --api-only or --grant; also settable via MONOAGENT_MCP_TASKS_ONLY=1")
 	cmd.Flags().StringVar(&workflowTools, "workflow-tools", "",
-		"Also serve saved workflows as tools wf_<slug> whose arguments are the workflow's trigger input and whose call runs it and waits, as workflow_run does: --workflow-tools for every workflow of the profile, --workflow-tools=<id or name>,... for those only. Mutating: needs --allow-mutations too. Cannot be combined with --api-only, --tasks-only or --grant; also settable via MONOAGENT_MCP_WORKFLOW_TOOLS=1 (or the list)")
+		"Also serve saved workflows as tools wf_<slug> whose arguments are the workflow's trigger input and whose call runs it and waits, as workflow_run does: --workflow-tools for every active workflow of the profile, --workflow-tools=<id or name>,... for those only (inactive workflows are not served: they cannot run). Mutating: needs --allow-mutations too. Cannot be combined with --api-only, --tasks-only or --grant; also settable via MONOAGENT_MCP_WORKFLOW_TOOLS=1 (or the list)")
 	cmd.Flags().Lookup("workflow-tools").NoOptDefVal = "all"
 	return servingCommand(cmd)
 }
