@@ -1,4 +1,4 @@
-package main
+package librarycli
 
 import (
 	"bytes"
@@ -15,6 +15,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/workflowbundle"
+	"github.com/monoes/mono-agent/internal/cli/workflowio"
 	"github.com/monoes/mono-agent/internal/library"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/profiledir"
@@ -43,7 +46,7 @@ func newLibraryPublishCmd(e *libEnv) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			kind, local := library.NormalizeKind(args[0]), args[1]
 			if !library.ValidKind(kind) {
-				return errInvalidInput("kind must be workflow, automation, org or api, not %q", kind)
+				return clicore.InvalidInput("kind must be workflow, automation, org or api, not %q", kind)
 			}
 			c, err := e.open()
 			if err != nil {
@@ -59,7 +62,7 @@ func newLibraryPublishCmd(e *libEnv) *cobra.Command {
 			}
 			me, err := c.Me(ctx)
 			if err != nil {
-				return libErr(err)
+				return e.deps.Err(err)
 			}
 			var it *library.Item
 			created := true
@@ -79,16 +82,16 @@ func newLibraryPublishCmd(e *libEnv) *cobra.Command {
 			}
 			var ae *library.APIError
 			if errors.As(err, &ae) && ae.Status == http.StatusConflict && kind == library.KindAutomation && !created {
-				return errInvalidInput("%v — raise the version in the package's automation.json (it must be newer than %s) and publish again", err, up.Version)
+				return clicore.InvalidInput("%v — raise the version in the package's automation.json (it must be newer than %s) and publish again", err, up.Version)
 			}
 			if err != nil {
-				return libErr(err)
+				return e.deps.Err(err)
 			}
 			if err := e.recordPublished(it, kind, local); err != nil {
 				return err
 			}
 			out := map[string]any{"item": it, "created": created}
-			return printLib(e.cfg, cmd, out, func(w io.Writer) {
+			return e.print(cmd, out, func(w io.Writer) {
 				verb := "Published"
 				if !created {
 					verb = "Published a new version of"
@@ -151,25 +154,25 @@ func (e *libEnv) pack(ctx context.Context, kind, local string, o libPublishOptio
 		info, err := reg.Info(local)
 		if err != nil {
 			if errors.Is(err, automation.ErrNotInstalled) {
-				return up, errNotFound("automation %q is not installed", local)
+				return up, clicore.NotFound("automation %q is not installed", local)
 			}
 			return up, err
 		}
 		var buf bytes.Buffer
 		if err := reg.Export(local, &buf, automation.ExportOptions{}); err != nil {
-			return up, errInvalidInput("pack %s: %v", local, err)
+			return up, clicore.InvalidInput("pack %s: %v", local, err)
 		}
 		up.Data, up.Filename, up.ContentType = buf.Bytes(), local+".mpkg", "application/zip"
 		name, desc, version = info.Name, info.Description, info.Version
 	case library.KindWorkflow:
-		store := openWorkflowStore(e.db)
-		wf := ownedWorkflow(ctx, store, e.db.DB, e.cfg.ProfileID, local)
+		store := e.deps.OpenWorkflowStore(e.db)
+		wf := workflowio.OwnedWorkflow(ctx, store, e.db.DB, e.deps.ProfileID(), local)
 		if wf == nil {
-			return up, errNotFound("workflow %q not found in this profile", local)
+			return up, clicore.NotFound("workflow %q not found in this profile", local)
 		}
-		var file any = workflowFileFromWorkflow(wf)
+		var file any = workflowio.WorkflowFileFromWorkflow(wf)
 		if !o.noBundle {
-			b, err := bundleWorkflowAutomations(workflowFileFromWorkflow(wf), bundleOptions{skipShipped: true})
+			b, err := e.deps.Bundle.BundleWorkflowAutomations(workflowio.WorkflowFileFromWorkflow(wf), workflowbundle.Options{SkipShipped: true})
 			if err != nil {
 				return up, err
 			}
@@ -182,10 +185,10 @@ func (e *libEnv) pack(ctx context.Context, kind, local string, o libPublishOptio
 		up.Data, up.Filename, up.ContentType = data, slugFile(wf.Name)+".json", "application/json"
 		name, desc, version = wf.Name, wf.Description, "1.0.0"
 	case library.KindOrg:
-		root := profiledir.Root(e.db.DB, e.cfg.ProfileID)
+		root := profiledir.Root(e.db.DB, e.deps.ProfileID())
 		d, err := orgdesign.Load(root, local)
 		if err != nil {
-			return up, errNotFound("org %q not found in this profile: %v", local, err)
+			return up, clicore.NotFound("org %q not found in this profile: %v", local, err)
 		}
 		data, err := json.MarshalIndent(d, "", "  ")
 		if err != nil {
@@ -248,7 +251,7 @@ func (e *libEnv) recordedItemID(kind, local string) string {
 	if err != nil {
 		return ""
 	}
-	recs, _ := prov.List(e.cfg.ProfileID, kind)
+	recs, _ := prov.List(e.deps.ProfileID(), kind)
 	for _, r := range recs {
 		if r.LocalID == local {
 			return r.ItemID
@@ -261,7 +264,7 @@ func (e *libEnv) recordedItemID(kind, local string) string {
 // An automation's own package keeps its source and trust; the link lives
 // in the provenance file. Automations and API packages belong to no profile.
 func (e *libEnv) recordPublished(it *library.Item, kind, local string) error {
-	profile := e.cfg.ProfileID
+	profile := e.deps.ProfileID()
 	if kind == library.KindAutomation || kind == library.KindAPI {
 		profile = ""
 	}
