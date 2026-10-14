@@ -175,7 +175,7 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 	}, "partial", "Databricks deletes by primary key only, so clearing the index before an insert is not available"),
 	N8nPrefix + "vectorStoreOracleDBVector": storeNode(StoreOracle, "", map[string]string{
 		"tableName": "collection", "options.distanceStrategy": "distance", "options.metadata.metadataValues": "filter",
-	}, "partial", "new tables use id VARCHAR2, text CLOB, metadata JSON and embedding VECTOR columns; a table created by n8n (RAW ids) can be searched but ids come back as raw bytes"),
+	}, "partial", "new tables use id VARCHAR2, text CLOB, metadata JSON and embedding VECTOR columns; a table created by n8n (RAW ids) can be searched and its ids come back as uppercase hex (n8n shows the external_id column; set id_column to external_id for those)"),
 
 	// ── text splitters ──────────────────────────────────────────────────────
 	N8nPrefix + "textSplitterCharacterTextSplitter": {Role: N8nRoleSplitter, OurType: "vector.split_text",
