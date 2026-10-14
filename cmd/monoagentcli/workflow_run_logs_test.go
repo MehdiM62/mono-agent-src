@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -37,7 +40,7 @@ func failingRunWorkflow(t *testing.T, cfg *globalConfig) string {
 
 // runLogsFor runs workflowID with the root logger initialised from args (as
 // main does) and returns what it logged and printed.
-func runLogsFor(t *testing.T, cfg *globalConfig, workflowID string, args ...string) (logs, stdout string) {
+func runLogsFor(t *testing.T, cfg *globalConfig, workflowID string, args ...string) (logs, stdout string, err error) {
 	t.Helper()
 	t.Setenv(logging.EnvLevel, "")
 	prevDefault, prevOut, prevFlags, prevLevel := slog.Default(), log.Writer(), log.Flags(), logging.Level()
@@ -52,10 +55,10 @@ func runLogsFor(t *testing.T, cfg *globalConfig, workflowID string, args ...stri
 	})
 	cmd := newWorkflowCmd(cfg)
 	cmd.SetArgs([]string{"run", workflowID, "--timeout", "30s"})
-	stdout = captureStdout(t, func() { _ = cmd.Execute() })
+	stdout = captureStdout(t, func() { err = cmd.Execute() })
 	// Undo the run's demotion (a CLI process runs one command).
 	logging.Demote(slog.LevelInfo, oneShotRunLogs...)()
-	return buf.String(), stdout
+	return buf.String(), stdout, err
 }
 
 // A human-mode run's summary reports a failed node; the engine's own log
@@ -65,15 +68,21 @@ func TestWorkflowRunHumanModeQuietsFailureLogs(t *testing.T) {
 	id := failingRunWorkflow(t, cfg)
 	cfg.JSONOutput = false
 
-	logs, stdout := runLogsFor(t, cfg, id)
+	logs, stdout, err := runLogsFor(t, cfg, id)
 	if strings.Contains(logs, "level=") {
 		t.Errorf("human-mode run logged:\n%s", logs)
 	}
-	if !strings.Contains(stdout, "FAILED") {
+	if !strings.Contains(stdout, "Status: FAILED") || !strings.Contains(stdout, "Error:  node") {
 		t.Errorf("summary does not report the failure:\n%s", stdout)
 	}
+	// The summary showed the error: main exits 1 without printing it again.
+	var stdoutDoc, stderr bytes.Buffer
+	reportCommandError([]string{"workflow", "run", id}, err, &stdoutDoc, &stderr)
+	if err == nil || exitCodeFor(err) != 1 || stderr.Len() != 0 || stdoutDoc.Len() != 0 {
+		t.Errorf("err %v (exit %d) reported as stderr %q stdout %q", err, exitCodeFor(err), stderr.String(), stdoutDoc.String())
+	}
 
-	logs, _ = runLogsFor(t, cfg, id, "--log-level=warn")
+	logs, _, _ = runLogsFor(t, cfg, id, "--log-level=warn")
 	if !strings.Contains(logs, `msg="node execution failed"`) {
 		t.Errorf("--log-level=warn hid the node failure:\n%s", logs)
 	}
@@ -85,7 +94,7 @@ func TestWorkflowRunJSONKeepsFailureLogs(t *testing.T) {
 	_, cfg := persistTestEnv(t)
 	id := failingRunWorkflow(t, cfg)
 
-	logs, stdout := runLogsFor(t, cfg, id)
+	logs, stdout, err := runLogsFor(t, cfg, id)
 	var rec struct {
 		Status string `json:"status"`
 	}
@@ -94,5 +103,22 @@ func TestWorkflowRunJSONKeepsFailureLogs(t *testing.T) {
 	}
 	if !strings.Contains(logs, `msg="node execution failed"`) {
 		t.Errorf("--json run lost the engine's lines:\n%s", logs)
+	}
+	// --json reports the failure as before: the record above is the
+	// document, the error goes to stderr, exit 1.
+	var doc, stderr bytes.Buffer
+	reportCommandError([]string{"--json", "workflow", "run", id}, err, &doc, &stderr)
+	if errors.As(err, new(clicore.Shown)) || exitCodeFor(err) != 1 || !strings.Contains(stderr.String(), "failed: ") {
+		t.Errorf("--json error %v: stdout %q stderr %q", err, doc.String(), stderr.String())
+	}
+}
+
+// A wrapper that adds to a shown failure (a hint) is still printed.
+func TestReportCommandErrorShownWithHint(t *testing.T) {
+	shown := clicore.Shown{Err: errors.New("execution e1 failed: boom")}
+	var stdout, stderr bytes.Buffer
+	reportCommandError(nil, fmt.Errorf("%w — install it", shown), &stdout, &stderr)
+	if !strings.Contains(stderr.String(), "boom — install it") {
+		t.Errorf("stderr = %q", stderr.String())
 	}
 }

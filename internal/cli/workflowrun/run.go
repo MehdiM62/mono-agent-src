@@ -67,23 +67,28 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 				// wait itself succeeded. JSON callers still print the full
 				// execution record (with error fields populated) before this
 				// propagates.
+				var failed error
 				switch exec.Status {
 				case "FAILED":
 					msg := exec.ErrorMessage
 					if msg == "" {
 						msg = "unknown error"
 					}
-					return fmt.Errorf("execution %s failed: %s", executionID, msg)
+					failed = fmt.Errorf("execution %s failed: %s", executionID, msg)
 				case "CANCELLED":
 					msg := exec.ErrorMessage
 					if msg == "" {
 						msg = "cancelled"
 					}
-					return fmt.Errorf("execution %s was cancelled: %s", executionID, msg)
+					failed = fmt.Errorf("execution %s was cancelled: %s", executionID, msg)
 				case workflow.StatusRejected:
-					return fmt.Errorf("execution %s was rejected by a reviewer: %s", executionID, exec.ErrorMessage)
+					failed = fmt.Errorf("execution %s was rejected by a reviewer: %s", executionID, exec.ErrorMessage)
 				}
-				return nil
+				if failed != nil && !quiet {
+					// The summary above said it; main only sets the exit code.
+					failed = clicore.Shown{Err: failed}
+				}
+				return failed
 			}
 		case <-ctx.Done():
 			return ctx.Err()
