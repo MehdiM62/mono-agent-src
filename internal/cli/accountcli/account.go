@@ -1,4 +1,4 @@
-package main
+package accountcli
 
 import (
 	"fmt"
@@ -9,12 +9,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
 
-// newAccountCmd is `account`: the monoes.me sign-in of this machine. One session
+// NewCommand is `account`: the monoes.me sign-in of this machine. One session
 // per OS user is shared by every profile; `library login`, `logout` and `status`
 // are aliases of the commands here.
-func newAccountCmd(cfg *globalConfig) *cobra.Command {
+func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "account",
 		Short: "Sign in to monoes.me: the one account MonoAgent uses on this machine",
@@ -26,15 +27,15 @@ func newAccountCmd(cfg *globalConfig) *cobra.Command {
 			"  monoagentcli account logout                    # revoke and forget the session\n\n" +
 			"`status` exits 0 while the session is good (including offline grace) and 4 when it is not.",
 	}
-	for _, c := range []*cobra.Command{newAccountLoginCmd(cfg), newAccountLogoutCmd(cfg), newAccountStatusCmd(cfg)} {
-		withJSONErrors(cfg, c)
+	for _, c := range []*cobra.Command{d.newAccountLoginCmd(), d.newAccountLogoutCmd(), d.newAccountStatusCmd()} {
+		d.WithJSONErrors(c)
 		cmd.AddCommand(c)
 	}
 	return cmd
 }
 
-func newAccountLoginCmd(cfg *globalConfig) *cobra.Command {
-	var f signInFlags
+func (d Deps) newAccountLoginCmd() *cobra.Command {
+	var signIn func(cmd *cobra.Command) (account.Status, bool, error)
 	cmd := &cobra.Command{
 		Use:   "login",
 		Short: "Log in to monoes.me (opens the browser; --email for a code by email)",
@@ -49,18 +50,18 @@ func newAccountLoginCmd(cfg *globalConfig) *cobra.Command {
 			"The session is kept in ~/.monoagent/account, its refresh token sealed by the system key store.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			st, sent, err := signIn(cmd, cfg, &f, "account login")
+			st, sent, err := signIn(cmd)
 			if err != nil || sent {
 				return err
 			}
-			return printAccountStatus(cfg, cmd, st)
+			return d.printAccountStatus(cmd, st)
 		},
 	}
-	f.add(cmd)
+	signIn = d.AddSignIn(cmd, "account login")
 	return cmd
 }
 
-func newAccountLogoutCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAccountLogoutCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout",
 		Short: "Log out of monoes.me on this machine (revokes and forgets the session)",
@@ -69,14 +70,14 @@ func newAccountLogoutCmd(cfg *globalConfig) *cobra.Command {
 			if err := account.Logout(cmd.Context()); err != nil {
 				return err
 			}
-			return printLib(cfg, cmd, map[string]any{"logged_out": true, "base_url": account.Host()}, func(w io.Writer) {
+			return d.print(cmd, map[string]any{"logged_out": true, "base_url": account.Host()}, func(w io.Writer) {
 				fmt.Fprintln(w, "Logged out of monoes.me.")
 			})
 		},
 	}
 }
 
-func newAccountStatusCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAccountStatusCmd() *cobra.Command {
 	var offline bool
 	cmd := &cobra.Command{
 		Use:   "status",
@@ -98,28 +99,28 @@ func newAccountStatusCmd(cfg *globalConfig) *cobra.Command {
 				}
 			}
 			if st.State != account.StateLocked {
-				return printAccountStatus(cfg, cmd, st)
+				return d.printAccountStatus(cmd, st)
 			}
-			if cfg.JSONOutput {
-				if err := writeJSONTo(cmd.OutOrStdout(), st); err != nil {
+			if d.JSONOutput() {
+				if err := clicore.WriteJSONTo(cmd.OutOrStdout(), st); err != nil {
 					return err
 				}
 			}
-			return reportedError{Err: errAuthConnection("%s", describeStatus(st))}
+			return clicore.Reported{Err: clicore.AuthConnection("%s", DescribeStatus(st))}
 		},
 	}
 	cmd.Flags().BoolVar(&offline, "offline", false, "Report the saved session without asking monoes.me to renew it")
 	return cmd
 }
 
-func printAccountStatus(cfg *globalConfig, cmd *cobra.Command, st account.Status) error {
-	return printLib(cfg, cmd, st, func(w io.Writer) { fmt.Fprintln(w, describeStatus(st)) })
+func (d Deps) printAccountStatus(cmd *cobra.Command, st account.Status) error {
+	return d.print(cmd, st, func(w io.Writer) { fmt.Fprintln(w, DescribeStatus(st)) })
 }
 
-// describeStatus is the sentence for a status: who is logged in, or what to do. A
+// DescribeStatus is the sentence for a status: who is logged in, or what to do. A
 // locked session is described in B1a's frozen words (index §3.4): what the refusal of
 // a gated command says after its first line.
-func describeStatus(st account.Status) string {
+func DescribeStatus(st account.Status) string {
 	as := ""
 	if u := st.User; u != nil && (u.Username != "" || u.Email != "") {
 		as = " as " + nonEmptyStr(u.Username, u.Email)

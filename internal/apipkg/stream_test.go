@@ -248,7 +248,7 @@ func TestAirtopAgentRunWithoutAwait(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(reqs()) != 2 || reqs()[1].query != "profileId=prof" || string(reqs()[1].body) != `{}` {
+	if len(reqs()) != 2 || reqs()[1].query != "profileId=prof" || string(reqs()[1].body) != `{"configVars":{}}` {
 		t.Errorf("requests = %+v", reqs())
 	}
 	if items[0].JSON["invocationId"] != "inv1" || items[0].JSON["status"] != nil {

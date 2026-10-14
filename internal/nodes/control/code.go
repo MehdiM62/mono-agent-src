@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dop251/goja"
@@ -19,6 +20,7 @@ import (
 //	      last(), and item (the first item)
 //	    - $json: first item's JSON map (shorthand)
 //	    - $('Node Name'): that node's output, with $input's accessors
+//	    - $execution: id, resumeUrl and resumeFormUrl; $workflow: id
 //	    The code must return an array of objects (or a single object), or
 //	    a promise of one; a top-level return or await runs the code as an
 //	    async function body.
@@ -84,6 +86,17 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 	}
 	if err := rt.Set("$json", firstJSON); err != nil {
 		return nil, fmt.Errorf("code node: failed to set $json: %w", err)
+	}
+
+	// $execution and $workflow, as in n8n's Code node. The resume URL is
+	// signed, so it is only built for code that reads $execution.
+	if strings.Contains(code, "$execution") {
+		if err := rt.Set("$execution", workflow.ExecutionData(input.ExecutionID)); err != nil {
+			return nil, fmt.Errorf("code node: failed to set $execution: %w", err)
+		}
+	}
+	if err := rt.Set("$workflow", map[string]interface{}{"id": input.WorkflowID}); err != nil {
+		return nil, fmt.Errorf("code node: failed to set $workflow: %w", err)
 	}
 
 	// Enforce the timeout via goja's interrupt mechanism.

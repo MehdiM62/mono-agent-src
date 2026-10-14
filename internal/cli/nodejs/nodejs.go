@@ -1,4 +1,4 @@
-package main
+package nodejs
 
 import (
 	"bufio"
@@ -9,11 +9,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/doctor"
 	"github.com/monoes/mono-agent/internal/nodemgr"
 )
 
-// `node` is taken by the workflow node runner, hence `nodejs`.
-func newNodejsCmd(cfg *globalConfig) *cobra.Command {
+// NewCommand is `nodejs`. `node` is taken by the workflow node runner, hence `nodejs`.
+func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "nodejs",
 		Short: "Manage the private Node.js runtime monoagent can install for monomind",
@@ -35,7 +37,7 @@ CLI at once run one after the other, and remove/update keep a version a
 running process uses (detected on Linux; Windows refuses to delete it; on
 macOS stop monoagent's processes first).`,
 	}
-	cmd.AddCommand(newNodejsStatusCmd(cfg), newNodejsInstallCmd(cfg), newNodejsUpdateCmd(cfg), newNodejsRemoveCmd(cfg))
+	cmd.AddCommand(d.newNodejsStatusCmd(), d.newNodejsInstallCmd(), d.newNodejsUpdateCmd(), d.newNodejsRemoveCmd())
 	return cmd
 }
 
@@ -50,7 +52,7 @@ type nodejsStatus struct {
 	Active         string   `json:"active"` // "system" | "managed" | "none"
 }
 
-func newNodejsStatusCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodejsStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show which Node.js monoagent uses",
@@ -75,7 +77,7 @@ func newNodejsStatusCmd(cfg *globalConfig) *cobra.Command {
 			}
 
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(st)
@@ -100,7 +102,7 @@ func newNodejsStatusCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newNodejsInstallCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodejsInstallCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "install [version]",
 		Short: "Download and activate a managed Node.js (default: latest LTS)",
@@ -115,28 +117,28 @@ With --json, progress is streamed as NDJSON like ` + "`doctor fix`" + `.`,
 			if len(args) == 1 {
 				want = args[0]
 			}
-			return runNodejsInstall(cmd, cfg, want, false)
+			return d.runNodejsInstall(cmd, want, false)
 		},
 	}
 }
 
-func newNodejsUpdateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodejsUpdateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "update",
 		Short: "Move the managed Node.js to the latest LTS and remove older versions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if _, ok := nodemgr.New().Current(); !ok {
-				return errNotFound("no managed Node.js installed — use: monoagentcli nodejs install")
+				return clicore.NotFound("no managed Node.js installed — use: monoagentcli nodejs install")
 			}
-			return runNodejsInstall(cmd, cfg, "lts", true)
+			return d.runNodejsInstall(cmd, "lts", true)
 		},
 	}
 }
 
-func runNodejsInstall(cmd *cobra.Command, cfg *globalConfig, want string, prune bool) error {
+func (d Deps) runNodejsInstall(cmd *cobra.Command, want string, prune bool) error {
 	out := cmd.OutOrStdout()
-	progress := progressWriter(out, cfg.JSONOutput)
+	progress := doctor.ProgressWriter(out, d.JSONOutput())
 	m := nodemgr.New()
 	v, err := m.Install(cmd.Context(), want, progress)
 	if err == nil && prune {
@@ -148,19 +150,19 @@ func runNodejsInstall(cmd *cobra.Command, cfg *globalConfig, want string, prune 
 			progress("could not remove older versions: " + perr.Error())
 		}
 	}
-	return finishStreamed(out, cfg.JSONOutput, err, "managed Node.js v"+v+" is active")
+	return FinishStreamed(out, d.JSONOutput(), err, "managed Node.js v"+v+" is active")
 }
 
-// finishStreamed ends a command whose progress was streamed with
+// FinishStreamed ends a command whose progress was streamed with
 // progressWriter: a final NDJSON done/error event in JSON mode, a summary
 // line otherwise.
-func finishStreamed(out io.Writer, asJSON bool, err error, okMsg string) error {
+func FinishStreamed(out io.Writer, asJSON bool, err error, okMsg string) error {
 	if asJSON {
 		if err != nil {
-			writeFixEvent(out, fixEvent{Kind: "error", Message: err.Error()})
-			return &cliError{Code: exitCodeFor(err), Msg: err.Error()}
+			doctor.WriteFixEvent(out, doctor.FixEvent{Kind: "error", Message: err.Error()})
+			return &clicore.Error{Code: clicore.ExitCodeFor(err), Msg: err.Error()}
 		}
-		writeFixEvent(out, fixEvent{Kind: "done", Message: okMsg})
+		doctor.WriteFixEvent(out, doctor.FixEvent{Kind: "done", Message: okMsg})
 		return nil
 	}
 	if err != nil {
@@ -170,7 +172,7 @@ func finishStreamed(out io.Writer, asJSON bool, err error, okMsg string) error {
 	return nil
 }
 
-func newNodejsRemoveCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodejsRemoveCmd() *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "remove [version]",
@@ -185,8 +187,8 @@ func newNodejsRemoveCmd(cfg *globalConfig) *cobra.Command {
 				what = "managed Node.js " + version
 			}
 			if !yes {
-				if cfg.JSONOutput || !stdinIsTerminal() {
-					return errInvalidInput("refusing to remove %s without --yes", what)
+				if d.JSONOutput() || !d.StdinIsTerminal() {
+					return clicore.InvalidInput("refusing to remove %s without --yes", what)
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "Remove %s? [y/N] ", what)
 				ans, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
@@ -197,7 +199,7 @@ func newNodejsRemoveCmd(cfg *globalConfig) *cobra.Command {
 			if err := m.Remove(version); err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]string{"removed": what})
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "✓ removed %s\n", what)
