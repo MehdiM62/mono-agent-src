@@ -37,9 +37,6 @@ func invocationClass(root *cobra.Command, args []string) string {
 	return accountGate().InvocationClass(root, args)
 }
 
-// asksForHelp reports whether cobra will print help for args instead of running the command.
-func asksForHelp(args []string) bool { return accountGate().AsksForHelp(args) }
-
 // newGateRefusal is what a refused command fails with: exit 4, login_required.
 func newGateRefusal(st account.Status) error { return accountGate().Refusal(st) }
 

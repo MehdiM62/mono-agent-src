@@ -10,16 +10,11 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/update"
 	"github.com/monoes/mono-agent/internal/release"
 	"github.com/monoes/mono-agent/internal/storage"
-	"github.com/monoes/mono-agent/internal/updatecheck"
 	"github.com/spf13/cobra"
 )
 
 // `monoagentcli update` lives in internal/cli/update; this is its adapter:
 // the CLI's globals and helpers handed over as update.Deps.
-
-// sha256SumsAssetName is the checksum manifest published with every
-// release (see .github/workflows/release.yml "Flatten and checksum").
-const sha256SumsAssetName = updatecheck.SumsAssetName
 
 // releasesRepo is the public repository the release assets are published to
 // (owner/name); every release URL of the CLI is built from it. It is not the
@@ -34,14 +29,6 @@ var latestReleaseURL = update.LatestReleaseURL
 // releaseClient builds the signed-manifest client (a variable so tests can
 // point it at an httptest server with generated keys).
 var releaseClient = release.DefaultClient
-
-// The release helpers the extension installer shares with the updater.
-var (
-	isDevVersion        = update.IsDevVersion
-	httpGetAll          = update.HTTPGetAll
-	sha256Hex           = updatecheck.SHA256Hex
-	verifyReleaseDigest = updatecheck.VerifyReleaseDigest
-)
 
 func newUpdateCmd(cfg *globalConfig) *cobra.Command {
 	return update.NewCommand(updateDeps(cfg))

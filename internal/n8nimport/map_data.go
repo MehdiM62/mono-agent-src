@@ -2,31 +2,11 @@ package n8nimport
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
 
 func init() {
 	Register("n8n-nodes-base.htmlExtract", mapHTMLExtract)
-}
-
-var simpleFieldExpr = regexp.MustCompile(`^=\{\{\s*\$json\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$`)
-
-// valueField returns the item field a value parameter reads. Mono data
-// nodes take a field name; a value that is not exactly {{ $json.x }} is
-// first written to a helper field by a core.set step (returned in pre).
-func (c *MapContext) valueField(param, helper string) (field string, pre *ChainStep) {
-	raw := c.Raw(param)
-	if s, ok := raw.(string); ok {
-		if m := simpleFieldExpr.FindStringSubmatch(s); m != nil {
-			return m[1], nil
-		}
-	}
-	v := c.Translate(param, setValueString(raw))
-	return helper, &ChainStep{Type: "core.set", Suffix: " (prepare)", Config: map[string]interface{}{
-		"assignments":   []interface{}{map[string]interface{}{"field": helper, "value": v, "type": "string"}},
-		"include_input": true,
-	}}
 }
 
 // withPre puts an optional preparing step in front of a mapping.

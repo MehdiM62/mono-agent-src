@@ -113,11 +113,6 @@ func (pc parityCase) String() string {
 	return pc.key
 }
 
-// parityStatus converts one case and says what a user gets.
-func parityStatus(t *testing.T, sub, param string, pc parityCase) (string, string) {
-	return parityStatusUnder(t, sub, subParents[sub], param, pc)
-}
-
 // parityStatusUnder converts one case with the sub-node attached to the
 // given parents. A sub-node that is placed on its own (an agent's tool)
 // counts as unmapped when it, or a parent, becomes a placeholder.

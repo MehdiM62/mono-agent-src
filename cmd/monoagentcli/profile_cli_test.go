@@ -2,13 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
-
-	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/storage"
 )
@@ -30,32 +25,6 @@ func exitCodeOf(t *testing.T, err error) int {
 	return ce.Code
 }
 
-func runFolderSync(t *testing.T, cfg *globalConfig, newCmd func(*globalConfig) *cobra.Command, args ...string) folderSyncResult {
-	t.Helper()
-	cmd := newCmd(cfg)
-	cmd.SetArgs(args)
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("%v: %v (%s)", args, err, out.String())
-	}
-	var res folderSyncResult
-	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
-		t.Fatalf("not JSON: %v\n%s", err, out.String())
-	}
-	return res
-}
-
-func writeFile(t *testing.T, path, content string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func seedProfiles(t *testing.T, dbPath string, ids ...string) {
 	t.Helper()
 	store, err := storage.NewDatabase(dbPath)
@@ -69,8 +38,6 @@ func seedProfiles(t *testing.T, dbPath string, ids ...string) {
 		}
 	}
 }
-
-func syncCounts(r folderSyncResult) [3]int { return [3]int{r.Added, r.Updated, r.Removed} }
 
 // TestProfileAdapterWiring pins what the adapter hands internal/cli/profile: initDB (the
 // active profile, --profile), --json through printJSON on stdout, and the CLI's exit codes.
