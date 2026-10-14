@@ -94,7 +94,7 @@ func Palette(db *sql.DB, includeDeprecated bool) map[string][]PaletteNode {
 			mkNode("core.respond_webhook", "Respond to Webhook", "control", "Answer the webhook request that started the run"),
 			mkNode("core.stop_error", "Stop And Error", "control", "Halt workflow with an error message"),
 			mkNode("core.set", "Set", "control", "Set or transform data fields"),
-			mkNode("core.code", "Code", "control", "Execute arbitrary JavaScript code"),
+			mkNode("core.code", "Code", "control", "Execute arbitrary JavaScript or Python code"),
 			mkNode("core.filter", "Filter", "control", "Keep only items matching a condition"),
 			mkNode("core.sort", "Sort", "control", "Sort items by one or more fields"),
 			mkNode("core.limit", "Limit", "control", "Limit the number of output items"),
