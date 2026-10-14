@@ -1146,7 +1146,7 @@
       "operation": "deleteMeeting",
       "title": "Delete an online meeting",
       "method": "DELETE",
-      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/{{ p.meetingId | rl }}",
+      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/{{ pres.0.value.0.id | default:(p.meetingId | rl) }}",
       "fields": [
         {
           "key": "organizerId",
@@ -1159,12 +1159,20 @@
           "label": "Meeting ID",
           "type": "text",
           "required": true,
-          "help": "The online meeting's ID (join-URL lookup is not supported)."
+          "help": "The online meeting's ID, or n8n's locator in url mode with the meeting's join URL (looked up first)."
         }
       ],
       "output": {
         "to": {
           "success": true
+        }
+      },
+      "before": {
+        "when": "{{ p.meetingId.mode | eq:'url' }}",
+        "method": "GET",
+        "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings",
+        "query": {
+          "$filter": "JoinWebUrl eq '{{ p.meetingId | rl | replace:\"'\",\"''\" }}'"
         }
       }
     },
@@ -1173,7 +1181,7 @@
       "operation": "get",
       "title": "Get an online meeting",
       "method": "GET",
-      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/{{ p.meetingId | rl }}",
+      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/{{ pres.0.value.0.id | default:(p.meetingId | rl) }}",
       "fields": [
         {
           "key": "organizerId",
@@ -1186,16 +1194,24 @@
           "label": "Meeting ID",
           "type": "text",
           "required": true,
-          "help": "The online meeting's ID (join-URL lookup is not supported)."
+          "help": "The online meeting's ID, or n8n's locator in url mode with the meeting's join URL (looked up first)."
         }
-      ]
+      ],
+      "before": {
+        "when": "{{ p.meetingId.mode | eq:'url' }}",
+        "method": "GET",
+        "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings",
+        "query": {
+          "$filter": "JoinWebUrl eq '{{ p.meetingId | rl | replace:\"'\",\"''\" }}'"
+        }
+      }
     },
     {
       "resource": "onlineMeeting",
       "operation": "update",
       "title": "Update an online meeting",
       "method": "PATCH",
-      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/{{ p.meetingId | rl }}",
+      "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings/{{ pres.0.value.0.id | default:(p.meetingId | rl) }}",
       "fields": [
         {
           "key": "organizerId",
@@ -1208,7 +1224,7 @@
           "label": "Meeting ID",
           "type": "text",
           "required": true,
-          "help": "The online meeting's ID (join-URL lookup is not supported)."
+          "help": "The online meeting's ID, or n8n's locator in url mode with the meeting's join URL (looked up first)."
         },
         {
           "key": "updateFields",
@@ -1233,14 +1249,24 @@
           "help": "Start and end time go together; attendees: {attendee: [{userId, role}]} replaces the list."
         }
       ],
-      "before": {
-        "for_each": "{{ p.updateFields.attendees.attendee }}",
-        "method": "GET",
-        "path": "/users/{{ el.userId | rl }}",
-        "query": {
-          "$select": "id,userPrincipalName"
+      "before": [
+        {
+          "when": "{{ p.meetingId.mode | eq:'url' }}",
+          "method": "GET",
+          "path": "/{{ p.organizerId | rl | then:'users' | default:'me' }}{{ p.organizerId | rl | then:'/' }}{{ p.organizerId | rl }}/onlineMeetings",
+          "query": {
+            "$filter": "JoinWebUrl eq '{{ p.meetingId | rl | replace:\"'\",\"''\" }}'"
+          }
+        },
+        {
+          "for_each": "{{ p.updateFields.attendees.attendee }}",
+          "method": "GET",
+          "path": "/users/{{ el.userId | rl }}",
+          "query": {
+            "$select": "id,userPrincipalName"
+          }
         }
-      },
+      ],
       "body": {
         "$merge": "{{ p.updateFields | pick:'allowAttendeeToEnableCamera,allowAttendeeToEnableMic,allowMeetingChat,allowTeamworkReactions,allowedPresenters,isEntryExitAnnounced,recordAutomatically' }}",
         "lobbyBypassSettings": {

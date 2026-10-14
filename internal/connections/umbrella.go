@@ -83,6 +83,7 @@ var umbrellas = map[string]umbrellaDef{
 			{Name: "analytics", Description: "Google Analytics (read reports)", Scopes: gScopes("analytics.readonly"), OptIn: true},
 			{Name: "books", Description: "Google Books (bookshelves)", Scopes: gScopes("books"), OptIn: true},
 			{Name: "businessprofile", Description: "Google Business Profile (locations, posts, reviews)", Scopes: gScopes("business.manage"), OptIn: true},
+			{Name: "formsedit", Description: "Google Forms editing (create forms, add and change questions)", Scopes: gScopes("forms.body"), OptIn: true},
 			{Name: "admin", Description: "Workspace Admin directory (users, groups, ChromeOS devices)", Scopes: gScopes("admin.directory.user", "admin.directory.group", "admin.directory.device.chromeos"), OptIn: true},
 		},
 		Members: []umbrellaMember{

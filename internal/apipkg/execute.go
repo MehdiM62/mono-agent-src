@@ -96,6 +96,9 @@ type opRun struct {
 	scope   Scope
 	// prop overrides the upload property (one of binary.properties).
 	prop string
+	// onPage, when set, sees each page's results while paginating;
+	// returning true stops (output.walk stops at its cap).
+	onPage func(results []any) bool
 }
 
 func (r *opRun) errf(format string, a ...any) error {
@@ -339,7 +342,13 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		if err != nil {
 			return nil, err
 		}
-		shaped, err := r.shapeOutput(ctx, results)
+		var all any = results
+		if o := r.op.Output; o != nil && o.Walk != nil {
+			if all, err = r.walk(ctx, results, results); err != nil {
+				return nil, err
+			}
+		}
+		shaped, err := r.shapeOutput(ctx, all)
 		if err != nil {
 			return nil, err
 		}
@@ -414,6 +423,11 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	}
 	if r.op.Output != nil && r.op.Output.HeaderRow {
 		v = rowsToObjects(v)
+	}
+	if o := r.op.Output; o != nil && o.Walk != nil {
+		if v, err = r.walk(ctx, doc, v); err != nil {
+			return nil, err
+		}
 	}
 	r.scope.Res = doc // output.to/match templates may read the whole response
 	if v, err = r.shapeOutput(ctx, v); err != nil {
@@ -676,6 +690,11 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 	}
 	if o.Download != nil {
 		if err := r.downloadFiles(ctx, list); err != nil {
+			return nil, err
+		}
+	}
+	if o.Where != "" {
+		if list, err = r.applyWhere(list); err != nil {
 			return nil, err
 		}
 	}

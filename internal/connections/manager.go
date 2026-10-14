@@ -18,13 +18,11 @@ type Manager struct {
 	store *Store
 }
 
-// NewManager creates a Manager backed by db. Calls EnsureTable on init.
+// NewManager creates a Manager backed by db, which must be migrated
+// (ApplyMigrations creates the connections tables). The error is always
+// nil; it stays for the callers.
 func NewManager(db *sql.DB) (*Manager, error) {
-	store := NewStore(db)
-	if err := store.EnsureTable(context.Background()); err != nil {
-		return nil, fmt.Errorf("NewManager: EnsureTable: %w", err)
-	}
-	return &Manager{store: store}, nil
+	return &Manager{store: NewStore(db)}, nil
 }
 
 // ConnectOptions controls how Connect behaves.
@@ -270,20 +268,6 @@ func (m *Manager) SaveFields(ctx context.Context, platformID string, method Auth
 // Remove deletes a connection by ID, scoped to profileID.
 func (m *Manager) Remove(ctx context.Context, id, profileID string) error {
 	return m.store.Delete(ctx, id, profileID)
-}
-
-// Save persists a connection (insert or update).
-func (m *Manager) Save(ctx context.Context, conn *Connection) error {
-	return m.store.Save(ctx, conn)
-}
-
-// RefreshToken silently exchanges conn's stored refresh_token for a new
-// access_token (per-profile client credentials, with the /consumers/
-// audience fallback) and persists the result. Exposed so every caller —
-// CLI, GUI, workflow engine — shares this one implementation instead of
-// keeping its own copy that silently misses fixes applied to the others.
-func (m *Manager) RefreshToken(ctx context.Context, conn *Connection) error {
-	return m.store.RefreshToken(ctx, conn)
 }
 
 // Refresh silently exchanges a connection's stored refresh_token for a new

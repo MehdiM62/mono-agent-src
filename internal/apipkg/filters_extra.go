@@ -1,7 +1,8 @@
 package apipkg
 
 import (
-	"crypto/md5"  //nolint:gosec // content fingerprint the API asks for, not a security use
+	"crypto/md5" //nolint:gosec // content fingerprint the API asks for, not a security use
+	"crypto/rand"
 	"crypto/sha1" //nolint:gosec // content fingerprint the API asks for, not a security use
 	"crypto/sha256"
 	"encoding/base64"
@@ -13,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/nacl/box"
 )
 
 // hashHex is the md5/sha1/sha256 filter: the hex digest of the value's
@@ -127,4 +130,22 @@ func dotnetDates(v any) any {
 		return out
 	}
 	return v
+}
+
+// sealBox is the sealbox filter: the value's text encrypted for the
+// base64 X25519 public key arg as a libsodium sealed box
+// (crypto_box_seal), base64-encoded. Venafi wants keystore passphrases
+// sealed with the certificate's edge encryption key.
+func sealBox(v, arg any) (any, error) {
+	key, err := base64.StdEncoding.DecodeString(strings.TrimSpace(stringify(arg)))
+	if err != nil || len(key) != 32 {
+		return nil, fmt.Errorf("sealbox: the key must be a base64 32-byte public key")
+	}
+	var pk [32]byte
+	copy(pk[:], key)
+	sealed, err := box.SealAnonymous(nil, []byte(stringify(v)), &pk, rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("sealbox: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(sealed), nil
 }

@@ -308,6 +308,12 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 			probs = append(probs, checkTemplates(where+" output.expand", v, fields, credKeys)...)
 		}
 	}
+	if o.Output != nil {
+		probs = append(probs, checkTemplates(where+" output.where", o.Output.Where, fields, credKeys)...)
+	}
+	if o.Output != nil && o.Output.Walk != nil {
+		probs = append(probs, o.Output.Walk.check(where+" output.walk", fields, credKeys)...)
+	}
 	if pl := o.Poll; pl != nil {
 		if !validMethods[pl.Method] || pl.Path == "" || pl.Until == "" {
 			add("poll: needs method, path and until")

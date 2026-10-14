@@ -29,7 +29,7 @@ var knownFilters = map[string]bool{
 	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true, "snake": true, "matches": true, "in": true, "flatten": true, "unflatten": true,
 	"len": true, "urlencode": true,
 	"md5": true, "sha1": true, "sha256": true, "mod": true, "weekday": true, "dotnet_date": true,
-	"wrap": true, "mime_parts": true,
+	"wrap": true, "mime_parts": true, "sealbox": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -381,6 +381,8 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return hashHex(name, v, arg)
 	case "mod":
 		return modulo(v, arg)
+	case "sealbox":
+		return sealBox(v, arg)
 	case "weekday":
 		return isoWeekday(v)
 	case "dotnet_date":
