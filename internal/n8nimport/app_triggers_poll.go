@@ -24,10 +24,10 @@ var pollTriggers = map[string]pollSpec{
 	"microsoftOneDriveTrigger":          {Plan: planOneDrive},
 	"googleBusinessProfileTrigger":      {Plan: planBusinessProfile},
 	"seaTableTrigger":                   {Plan: planSeaTable},
-	"clockifyTrigger":                   {Missing: "the Clockify package has no operation listing time entries"},
-	"togglTrigger":                      {Missing: "the Toggl package has no operations yet"},
-	"databricksTrigger":                 {Missing: "the Databricks package cannot list job runs or pipeline updates"},
-	"venafiTlsProtectDatacenterTrigger": {Missing: "the Venafi package cannot list only expired certificates"},
+	"clockifyTrigger":                   {Plan: planClockify},
+	"togglTrigger":                      {Plan: planToggl},
+	"databricksTrigger":                 {Plan: planDatabricks},
+	"venafiTlsProtectDatacenterTrigger": {Plan: planVenafiDatacenter},
 }
 
 const (
