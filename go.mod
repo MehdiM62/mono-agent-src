@@ -25,6 +25,7 @@ require (
 	github.com/mmcdole/gofeed v1.5.0
 	github.com/mochi-mqtt/server/v2 v2.7.9
 	github.com/olekukonko/tablewriter v1.1.5
+	github.com/pkg/sftp v1.13.11
 	github.com/rabbitmq/amqp091-go v1.15.0
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/robfig/cron/v3 v3.0.1
@@ -54,7 +55,6 @@ require (
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
-	github.com/pkg/sftp v1.13.11 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.15.0 // indirect
