@@ -105,6 +105,8 @@ type WebhookServer struct {
 	deliveries WebhookDeliveries
 	// handshakes answers vendor URL checks (webhook_handshake.go).
 	handshakes webhookHandshakes
+	// forms are the trigger.form pages at /form/<path> (form_serve.go).
+	forms formRoutes
 }
 
 // SetRunner makes the server start runs through run, which reports the
@@ -328,6 +330,10 @@ func (s *WebhookServer) Deregister(path string) {
 // before the body is read and before admitTrace writes to the org ledger.
 func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.refuseWhileLocked(w, r) {
+		return
+	}
+	if p, ok := strings.CutPrefix(r.URL.Path, "/form/"); ok {
+		s.serveForm(w, r, p)
 		return
 	}
 	// Parse path: must be /webhook/{path}
