@@ -17,6 +17,7 @@
   Fields (every operation):
     credential_id        Slack Connection · credential_picker · required
     operation            Operation · select · required · default="post_message"
+                         shown when resource is (not set)
     resource             Resource · select · default="" · options: |message|channel|file|reaction|star|user|userGroup
                          Leave empty for the built-in operations; pick a resource for the Slack API package operations.
     operation            Message Operation · select · required · default="post"
