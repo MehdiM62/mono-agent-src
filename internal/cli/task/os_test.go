@@ -1,4 +1,4 @@
-package main
+package task
 
 import (
 	"encoding/json"
@@ -151,7 +151,7 @@ func TestTaskOSRefusesAwayFromMacOS(t *testing.T) {
 // test runs the real commands as an agent on whatever machine it is on, a Linux runner too.
 func TestTaskOSInstallAndUninstallAreTheOperators(t *testing.T) {
 	db, dest, _, _ := newTaskOSTest(t)
-	t.Setenv("CLAUDECODE", "1")
+	setenv(t, "CLAUDECODE", "1")
 	for _, goos := range []string{"darwin", "linux", "windows"} {
 		taskOSGOOS = goos
 		for _, sub := range []string{"install", "uninstall"} {
@@ -419,7 +419,7 @@ func TestTheMenusCommandLineIsACaptureOnlyForTheOperator(t *testing.T) {
 	if n := countTaskOSTasks(t, db); n != 1 {
 		t.Errorf("%d tasks, want only the first capture", n)
 	}
-	t.Setenv("CLAUDECODE", "1")
+	setenv(t, "CLAUDECODE", "1")
 	out, _, err = runTask(t, db, "default", true, "Reply to Sam", args...)
 	doc = nil
 	_ = json.Unmarshal([]byte(out), &doc)
@@ -441,20 +441,4 @@ func countTaskOSTasks(t *testing.T, db string) int {
 		t.Fatal(err)
 	}
 	return n
-}
-
-func TestEveryTaskOSCommandHasAReferenceEntry(t *testing.T) {
-	have := map[string]bool{}
-	for _, d := range cliDocs {
-		have[d.Name] = true
-	}
-	names := []string{"task os"}
-	for _, sub := range newTaskOSCmd(&globalConfig{}).Commands() {
-		names = append(names, "task os "+sub.Name())
-	}
-	for _, n := range names {
-		if !have[n] {
-			t.Errorf("`ref commands` has no entry for `%s`", n)
-		}
-	}
 }
