@@ -29,6 +29,7 @@ import { runProblem } from '../lib/runFailure.js'
 import RunProblemPanel from '../components/RunProblemPanel.jsx'
 import { rememberTriggerInput, rememberedTriggerInput } from './triggerInput.js'
 import { usePageVisibleRef } from '../lib/usePageVisible.js'
+import { fitCamera, placeAfter, autoConnect, panToShow } from './canvasPlacement.js'
 import { isAgentNotSetup, withoutAgentSetupMarker } from '../lib/agentSetup.js'
 import AgentSetupLink from '../components/AgentSetupLink.jsx'
 
@@ -81,6 +82,9 @@ function inPortPos(n, i) {
 function outPortPos(n, i) {
   return { x: n.x + NODE_W, y: n.y + HEAD_H + PORT_PAD + i * PORT_H + PORT_H / 2 }
 }
+
+// fitView is the camera that frames nodes in the canvas element el.
+const fitView = (nodes, el) => fitCamera(nodes, el?.getBoundingClientRect(), { nodeW: NODE_W, nodeH })
 
 // Canvas ids. Loading a workflow advances the counter past its nr<N> ids;
 // taken (a Set) skips any id already on the canvas.
@@ -1198,7 +1202,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         setEdges(loadedEdges)
         setSelectedId(null)
         setIsDirty(false)
-        setCamera({ x: 60, y: 60, zoom: 1 })
+        setCamera(fitView(loadedNodes, wrapperRef.current)); lastAddedRef.current = null
       } catch (e) { console.error('Failed to load workflow from navData', e) }
     })()
     return () => { cancelled = true }
@@ -1250,7 +1254,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
             setEdges(loadedEdges)
             setSelectedId(null)
             setIsDirty(false)
-            setCamera({ x: 60, y: 60, zoom: 1 })
+            setCamera(fitView(loadedNodes, wrapperRef.current)); lastAddedRef.current = null
           }
         }
         if (cancelled) return
@@ -1290,8 +1294,13 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const wrapperRef = useRef(null)
   const dragRef    = useRef(null)
   const nodesRef   = useRef(nodes)
+  const edgesRef   = useRef(edges)
+  const selectedIdRef = useRef(selectedId)
+  const lastAddedRef  = useRef(null)
   const cameraRef  = useRef(camera)
   useEffect(() => { nodesRef.current = nodes }, [nodes])
+  useEffect(() => { edgesRef.current = edges }, [edges])
+  useEffect(() => { selectedIdRef.current = selectedId }, [selectedId])
   useEffect(() => { cameraRef.current = camera }, [camera])
 
   // Load node types (and the installed automations, for the session picker)
@@ -1412,15 +1421,17 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   }, [selectedId]) // eslint-disable-line
 
   // ── Add node ──────────────────────────────────────────────────────────────
+  // A palette drag drops the node where it was released. A palette click
+  // puts it to the right of the selected (else the last added) node and
+  // wires that node's free main output into it, as n8n does; with neither,
+  // it lands at the centre of the view.
   const addNode = useCallback((template, worldX, worldY) => {
     const cam = cameraRef.current
     const rect = wrapperRef.current?.getBoundingClientRect() || { width: 900, height: 600 }
-    const x = worldX ?? (rect.width / 2 - cam.x) / cam.zoom - NODE_W / 2 + (Math.random() - .5) * 100
-    const y = worldY ?? (rect.height / 2 - cam.y) / cam.zoom - 60 + (Math.random() - .5) * 80
     const defaults = {}
     template.configFields?.forEach(f => { defaults[f.key] = f.default ?? '' })
     const id = uid(new Set(nodesRef.current.map(n => n.id)))
-    setNodes(prev => [...prev, {
+    const node = {
       id, label: template.label, subtype: template.subtype,
       category: template.category,
       color: template.color || catColor(template.category || template.id),
@@ -1429,9 +1440,20 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       schema: template.schema || { credential_platform: null, fields: [] },
       configFields: template.configFields || [],
       config: defaults,
-      x, y,
       runStatus: null, runInputItems: null, runOutputs: null, runOutputItems: 0, runDuration: null, runError: null,
-    }])
+    }
+    const dropped = worldX != null && worldY != null
+    const anchor = dropped ? null
+      : nodesRef.current.find(n => n.id === selectedIdRef.current) || nodesRef.current.find(n => n.id === lastAddedRef.current)
+    if (dropped) Object.assign(node, { x: worldX, y: worldY })
+    else if (anchor) Object.assign(node, placeAfter(anchor, nodesRef.current, node, { nodeW: NODE_W, nodeH }))
+    else Object.assign(node, { x: (rect.width / 2 - cam.x) / cam.zoom - NODE_W / 2, y: (rect.height / 2 - cam.y) / cam.zoom - 60 })
+    setNodes(prev => [...prev, node])
+    // Keep a node placed off-screen in view.
+    if (anchor) setCamera(c => panToShow(c, { x: node.x, y: node.y, w: NODE_W, h: nodeH(node) }, rect))
+    const edge = anchor && autoConnect(anchor, node, edgesRef.current)
+    if (edge) setEdges(prev => [...prev, { id: uid(new Set(prev.map(e => e.id))), ...edge }])
+    lastAddedRef.current = id
     setSelectedId(id)
     setIsDirty(true)
   }, [])
@@ -1742,7 +1764,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       setSelectedId(null)
       setGlobalStatus(null)
       setIsDirty(false)
-      setCamera({ x: 60, y: 60, zoom: 1 })
+      setCamera(fitView(loadedNodes, wrapperRef.current)); lastAddedRef.current = null
       if (!keepModal) setShowWfModal(false)
     } catch (e) {
       console.error('Load failed', e)
@@ -1773,7 +1795,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const resetCanvas = useCallback(() => {
     setWfId(null); setWfName('Untitled Workflow'); setWfActive(false)
     setNodes([]); setEdges([]); setSelectedId(null); setGlobalStatus(null)
-    setIsDirty(false); setCamera({ x: 60, y: 60, zoom: 1 })
+    setIsDirty(false); setCamera({ x: 60, y: 60, zoom: 1 }); lastAddedRef.current = null
     setExecOverlay(null)
   }, [])
 
@@ -1830,8 +1852,9 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
         }
       })
     })
-    setNodes(prev => prev.map(n => ({ ...n, x: positions[n.id]?.x ?? n.x, y: positions[n.id]?.y ?? n.y })))
-    setCamera({ x: 40, y: 40, zoom: 1 })
+    const laidOut = nodes.map(n => ({ ...n, x: positions[n.id]?.x ?? n.x, y: positions[n.id]?.y ?? n.y }))
+    setNodes(laidOut)
+    setCamera(fitView(laidOut, wrapperRef.current))
   }, [nodes, edges])
 
   // ── Edge paths ────────────────────────────────────────────────────────────
