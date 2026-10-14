@@ -1,18 +1,15 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog"
-
 	"github.com/monoes/mono-agent/internal/capture"
-	"github.com/monoes/mono-agent/internal/captureindex"
 	"github.com/monoes/mono-agent/internal/capturesummary"
+	"github.com/monoes/mono-agent/internal/cli/capturehooks"
 	"github.com/monoes/mono-agent/internal/extension"
 )
 
@@ -42,63 +39,20 @@ func configuredSummaryRuntime() string {
 
 // captureHooks is what installCaptureSummaries wires into a bridge: the
 // summarizer and the capture indexing queue. Close stops both.
-type captureHooks struct {
-	summaries *capturesummary.Summarizer
-	index     *captureindex.Queue
-}
-
-// Close cancels a summary or an indexing pass in flight. A pass cut short
-// leaves its capture unindexed, and the next bridge's startup sweep takes
-// it up again.
-func (h *captureHooks) Close() {
-	h.summaries.Close()
-	h.index.Stop()
-}
-
-// sweepIndexAfter starts the bridge's catch-up pass over every profile's
-// unindexed captures (sweepCaptureIndexAfter).
-func (h *captureHooks) sweepIndexAfter(ctx context.Context, delay time.Duration) {
-	sweepCaptureIndexAfter(ctx, h.index, delay)
-}
+type captureHooks = capturehooks.Hooks
 
 // installCaptureSummaries wires a summarizer, the page-kind classifier and
-// the capture indexing queue into srv's after-write hook and returns them.
-// logf receives one line per summary and indexing outcome.
-//
-// The same catalog of installed runtimes backs the extension's "AI for
-// summaries" picker (summary.runtimes / summary.models) and the check a
-// capture's own runtime choice has to pass, so the picker never offers
-// something the summarizer would then refuse.
+// the capture indexing queue into srv's after-write hook and returns them
+// (capturehooks.Install). logf receives one line per summary and indexing
+// outcome.
 func installCaptureSummaries(srv *extension.Server, logf func(string, ...any)) *captureHooks {
-	runtime := configuredSummaryRuntime()
-	catalog := capturesummary.MonomindCatalog()
-	sum := capturesummary.New(runtime, capturesummary.ExecRunner(0))
-	sum.Catalog = catalog
-	sum.Logf = logf
-	// Page-kind classification (Jev surface "capture") runs after the
-	// summary is queued; it is a no-op unless the capture's profile enabled
-	// it, and never makes the capture wait (capture_classify.go).
-	classifier := newCaptureClassifier(logf)
-	// Indexing makes the capture searchable from Ask and chat within
-	// seconds (extension_capture_index.go). Queued like the summary, so
-	// the capture is acknowledged as fast as before.
-	index := newCaptureIndexQueue(logf)
-	// A summary lands minutes after its capture; indexing it is one more
-	// pass over the capture's profile.
-	sum.OnDone = func(dir string, _ capturesummary.Status) { handleIndexSummary(index, dir) }
-	srv.SetAfterWrite(func(res *capture.Result) {
-		sum.Handle(res)
-		classifier.Handle(res)
-		handleIndexCapture(index, res)
+	return capturehooks.Install(srv, logf, capturehooks.Deps{
+		Runtime: configuredSummaryRuntime,
+		NewClassifier: func(logf func(string, ...any)) func(*capture.Result) {
+			return newCaptureClassifier(logf).Handle
+		},
+		OpenDB: openCaptureIndexDB,
 	})
-	srv.SetSummaryCatalog(catalog, runtime)
-	srv.SetBrainStatusSource(captureBrainStatus)
-	return &captureHooks{summaries: sum, index: index}
-}
-
-// loggerLogf adapts a zerolog logger for installCaptureSummaries.
-func loggerLogf(logger zerolog.Logger) func(string, ...any) {
-	return func(format string, args ...any) { logger.Info().Msgf(format, args...) }
 }
 
 // narrateLogf writes summary outcomes into `extension serve`'s own

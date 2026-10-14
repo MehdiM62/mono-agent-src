@@ -12,7 +12,7 @@ import (
 // sentinel is pinned by TestWorkflowBundleDiffersSameVersion.
 func TestWorkflowBundleAdapterWiring(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	if _, err := parseAutomationDomains([]string{"a"}); exitCodeFor(err) != 3 {
+	if _, err := workflowBundleDeps().ParseAutomationDomains([]string{"a"}); exitCodeFor(err) != 3 {
 		t.Fatalf("bad --automation-domains: exit %d (%v), want 3", exitCodeFor(err), err)
 	}
 	file := workflow.WorkflowFile{Name: "w", Nodes: []workflow.WorkflowFileNode{{ID: "t", Type: "trigger.manual"}}}

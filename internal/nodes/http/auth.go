@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+
+	"github.com/monoes/mono-agent/internal/connections"
 )
 
 // authPlan is how one request authenticates. At most one mechanism is set.
@@ -20,6 +22,7 @@ type authPlan struct {
 	hdrVal  string
 	qName   string
 	qVal    string
+	oauth1  *connections.OAuth1Params // signs the request (OAuth 1.0a)
 }
 
 // authTypes are the auth_type values http.request and http.graphql accept.
@@ -40,6 +43,8 @@ var authTypeAliases = map[string]string{
 	"predefinedCredentialType": "credential",
 	"oAuth2":                   "credential",
 	"oAuth2Api":                "credential",
+	"oAuth1":                   "credential",
+	"oAuth1Api":                "credential",
 }
 
 // credentialSecretKeys are the connection fields that hold a single API
@@ -118,13 +123,14 @@ func buildAuthPlan(config map[string]interface{}, node string) (authPlan, error)
 
 // credentialAuth derives the auth plan from a saved connection's data.
 //
-// With no override: an OAuth access_token is sent as a Bearer token; a
-// username/password pair (or email + api_token, account_sid + auth_token)
+// With no override: an OAuth 1.0a connection (consumer_key and
+// oauth_token) signs the request; an OAuth access_token is sent as a Bearer
+// token; a username/password pair (or email + api_token, account_sid + auth_token)
 // as Basic auth; a single API key or token as a Bearer token — or in the
 // header the connection names (generic_api's header_name).
 //
-// override is credential_auth: "bearer", "basic", "header:<Name>" or
-// "query:<name>".
+// override is credential_auth: "bearer", "basic", "oauth1",
+// "header:<Name>" or "query:<name>".
 func credentialAuth(cred map[string]interface{}, override string) (authPlan, error) {
 	var plan authPlan
 	str := func(k string) string { s, _ := cred[k].(string); return strings.TrimSpace(s) }
@@ -152,6 +158,9 @@ func credentialAuth(cred map[string]interface{}, override string) (authPlan, err
 
 	switch kind {
 	case "":
+		if str(connections.OAuth1ConsumerKey) != "" && str(connections.OAuth1Token) != "" {
+			return oauth1Auth(str)
+		}
 		if t := str("access_token"); t != "" {
 			plan.tok = t
 			return plan, nil
@@ -172,6 +181,11 @@ func credentialAuth(cred map[string]interface{}, override string) (authPlan, err
 		}
 		plan.tok = secret
 		return plan, nil
+	case "oauth1":
+		if str(connections.OAuth1ConsumerKey) == "" {
+			return authPlan{}, fmt.Errorf("credential_auth oauth1: the connection has no consumer_key (fields present: %s)", fieldNames(cred))
+		}
+		return oauth1Auth(str)
 	case "bearer":
 		if secret == "" {
 			return authPlan{}, fmt.Errorf("credential_auth bearer: the connection has no access_token, API key or token (fields present: %s)", fieldNames(cred))
@@ -203,9 +217,29 @@ func credentialAuth(cred map[string]interface{}, override string) (authPlan, err
 			plan.qName, plan.qVal = name, secret
 		}
 	default:
-		return authPlan{}, fmt.Errorf("credential_auth: unknown value %q (use bearer, basic, header:<Name> or query:<name>)", override)
+		return authPlan{}, fmt.Errorf("credential_auth: unknown value %q (use bearer, basic, oauth1, header:<Name> or query:<name>)", override)
 	}
 	return plan, nil
+}
+
+// oauth1Auth signs with an OAuth 1.0a connection's consumer and token
+// pair. Its signature_method (HMAC-SHA1 when unset) and realm are the
+// connection's fields too.
+func oauth1Auth(str func(string) string) (authPlan, error) {
+	method := strings.ToUpper(str(connections.OAuth1SignatureMethod))
+	switch method {
+	case "", "HMAC-SHA1", "HMAC-SHA256", "HMAC-SHA512", "PLAINTEXT":
+	default:
+		return authPlan{}, fmt.Errorf("the connection's signature_method %q is not HMAC-SHA1, HMAC-SHA256, HMAC-SHA512 or PLAINTEXT", method)
+	}
+	return authPlan{oauth1: &connections.OAuth1Params{
+		ConsumerKey:     str(connections.OAuth1ConsumerKey),
+		ConsumerSecret:  str(connections.OAuth1ConsumerSecret),
+		Token:           str(connections.OAuth1Token),
+		TokenSecret:     str(connections.OAuth1TokenSecret),
+		SignatureMethod: method,
+		Realm:           str("realm"),
+	}}, nil
 }
 
 // fieldNames lists a connection's field names (never values) for errors.
@@ -236,10 +270,13 @@ func (p authPlan) applyToQuery(q url.Values) {
 	}
 }
 
-// applyToRequest sets the auth headers. Digest is applied by the sender
-// after the server's challenge.
-func (p authPlan) applyToRequest(req *http.Request) {
+// applyToRequest sets the auth headers; an OAuth 1.0a signature covers
+// body when it is a form. Digest is applied by the sender after the
+// server's challenge.
+func (p authPlan) applyToRequest(req *http.Request, body []byte) error {
 	switch {
+	case p.oauth1 != nil:
+		return connections.SignOAuth1(req, body, *p.oauth1)
 	case p.basic:
 		req.SetBasicAuth(p.user, p.pw)
 	case p.tok != "":
@@ -247,6 +284,7 @@ func (p authPlan) applyToRequest(req *http.Request) {
 	case p.hdrName != "":
 		req.Header.Set(p.hdrName, p.hdrVal)
 	}
+	return nil
 }
 
 // credentialBaseURL returns the base URL a saved connection supplies

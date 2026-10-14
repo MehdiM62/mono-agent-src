@@ -72,8 +72,6 @@ func (e *orgEnv) genOptions(profileID string) orggrant.GenOptions {
 
 func selfExecutable() string { return orgenv.SelfExecutable() }
 
-const daemonAPIAddrSetting = orgenv.DaemonAPIAddrSetting
-
 func orgAPIAddr(db *storage.Database) string { return orgenv.APIAddr(db) }
 
 func saveOrgReconciled(ctx context.Context, db *storage.Database, profileID, root string, doc *orgdesign.Doc, opts orggrant.GenOptions) (*orggrant.Report, error) {

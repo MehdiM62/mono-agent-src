@@ -47,11 +47,21 @@ type ReplayReport struct {
 
 // healObserver records selector lookups and reports self-heals as they
 // happen: a lookup that succeeded only after every recorded candidate
-// missed (index -1) was rescued by the fallback.
+// missed (index -1) was rescued by the fallback. Jev's picks arrive through
+// action.JevRepairObserver, which names the picked element's best selector.
 type healObserver struct {
 	observer
-	healed map[string]bool // config key → self-healed
+	healed map[string]bool   // config key → self-healed
+	picked map[string]string // config key → best selector of Jev's pick
 	onHeal func(key string)
+}
+
+func (o *healObserver) ObserveJevPick(_, key string, pick action.JevPick) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if len(pick.Entry.Candidates) > 0 {
+		o.picked[key] = describeCandidate(pick.Entry.Candidates[0])
+	}
 }
 
 func (o *healObserver) ObserveSelector(id, key string, idx int, ok, healed bool) {
@@ -115,7 +125,7 @@ func runChunk(ctx context.Context, plan *ReplayPlan, steps []action.StepDef, o R
 			keyStep[s.ConfigKey] = s.ID
 		}
 	}
-	obs := &healObserver{healed: map[string]bool{}, onHeal: func(key string) {
+	obs := &healObserver{healed: map[string]bool{}, picked: map[string]string{}, onHeal: func(key string) {
 		st := byID[keyStep[key]]
 		o.Logger.Warn().Str("step", st.ID).Str("intent", st.Describe).
 			Msg("self-heal: every recorded selector missed; the fallback picked the element")
@@ -161,6 +171,10 @@ func runChunk(ctx context.Context, plan *ReplayPlan, steps []action.StepDef, o R
 			if sid == row.ID && obs.healed[key] && row.Status == StatusHealed {
 				r.Steps[i].Status = StatusSelfHealed
 				r.Steps[i].Message = "every recorded selector missed; self-heal found the element"
+				if sel := obs.picked[key]; sel != "" {
+					r.Steps[i].Selector = sel
+					r.Steps[i].Message += " (" + sel + ")"
+				}
 				rep.SelfHealed = append(rep.SelfHealed, row.ID)
 			}
 		}
