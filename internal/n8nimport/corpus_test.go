@@ -38,7 +38,7 @@ var corpusExpect = map[string]struct {
 	"merge_modes.json":         {0, []string{"core.merge"}},
 	"todoist_app.json":         {0, []string{"app.todoist"}},
 	"split_out_summarize.json": {0, []string{"data.split_out", "data.summarize"}},
-	"vector_rag.json":          {0, []string{"vector.load_document", "vector.store"}},
+	"vector_rag.json":          {0, []string{"vector.store", "vector.embeddings", "vector.document_loader", "vector.text_splitter"}},
 	"http_graphql.json":        {0, []string{"http.request", "http.graphql"}},
 	"app_triggers.json":        {0, []string{"trigger.webhook", "trigger.schedule", "core.code", "service.google_sheets", "service.gmail", "app.toggl", "core.remove_duplicates"}},
 }

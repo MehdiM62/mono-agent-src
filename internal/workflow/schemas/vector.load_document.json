@@ -177,5 +177,12 @@
       "key": "metadata",
       "type": "object"
     }
+  ],
+  "sub_inputs": [
+    {
+      "handle": "ai_textSplitter",
+      "label": "Text Splitter",
+      "max": 1
+    }
   ]
 }
