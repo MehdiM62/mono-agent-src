@@ -53,6 +53,11 @@ type SubNode struct {
 	Kind           string // the connection handle, e.g. "ai_languageModel"
 	Config         map[string]interface{}
 	SubNodes       []SubNode // the sub-node's own sub-nodes
+	// Call runs an ai_tool sub-node once with args as its input item: its
+	// config (left unresolved in Config) is resolved against args, so its
+	// {{ $json.<arg> }} references read what the model passed. Nil for other
+	// kinds.
+	Call func(ctx context.Context, args map[string]interface{}) ([]Item, error) `json:"-"`
 }
 
 // SubNodesOf returns the attached sub-nodes of one kind.

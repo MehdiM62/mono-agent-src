@@ -131,7 +131,7 @@ func (n *AskNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		cfg.runtime, cfg.model, cfg.auto = choice.Runtime, choice.Model, true
 	}
 
-	t := &asker{bin: bin, cfg: cfg, input: input, db: db}
+	t := &asker{bin: bin, cfg: cfg, input: input, db: db, tools: buildTools(input)}
 	items := make([]workflow.Item, len(input.Items))
 	if concurrency == 1 || len(input.Items) <= 1 {
 		for i, item := range input.Items {
@@ -188,6 +188,7 @@ type asker struct {
 	cfg   askConfig
 	input workflow.NodeInput
 	db    *sql.DB
+	tools *agentTools // ai_tool sub-nodes; nil = no tools
 }
 
 // askAll runs items up to n at a time into out (same order). The first
@@ -242,6 +243,8 @@ func (t *asker) askAll(ctx context.Context, items, out []workflow.Item, n int) e
 // ask runs one item: a turn, and with output_schema one re-ask on a mismatch.
 func (t *asker) ask(ctx context.Context, item workflow.Item) (workflow.Item, error) {
 	cfg := t.cfg
+	calls := &toolCallLog{}
+	ctx = context.WithValue(ctx, toolCallKey{}, calls)
 	prompt, err := t.resolve(cfg.promptTemplate, item)
 	if err != nil {
 		return workflow.Item{}, fmt.Errorf("agent.ask: prompt: %w", err)
@@ -293,6 +296,9 @@ func (t *asker) ask(ctx context.Context, item workflow.Item) (workflow.Item, err
 		}
 	}
 	outJSON["_agent_session_id"] = res.SessionID
+	if len(calls.calls) > 0 {
+		outJSON["_agent_tool_calls"] = calls.calls
+	}
 	if res.SandboxStatus != "" {
 		outJSON["_agent_sandbox"] = res.SandboxStatus
 	}
@@ -362,6 +368,8 @@ func (t *asker) turn(ctx context.Context, prompt, system, resume string) (*monom
 		// for every agent.ask turn, whichever workflow runs it.
 		Sandbox:          monomind.TurnSandboxMode,
 		WorkspacePurpose: monomind.WorkspaceAgentAsk,
+		Tools:            t.toolSpecs(),
+		OnToolCall:       t.toolHandler(ctx),
 	}, func(ev monomind.Event) {
 		if ev.Type == monomind.EventStart && ev.Model != "" {
 			model = ev.Model
