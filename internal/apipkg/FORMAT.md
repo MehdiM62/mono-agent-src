@@ -199,7 +199,10 @@ a JSON array. Anything else is string-interpolated: `"Bearer {{ cred.token }}"`;
 `nil`, `""`, `[]` or `{}` is left out. `0` and `false` are kept. A nested
 object that ends up empty is left out too. Array elements that resolve
 empty are dropped. Write `"!key"` to send the value even when empty (a `$map`/`$concat` under `"!key"` sends `[]`)
-(`"!description": "{{ p.description }}"` sends `""`/`null`).
+(`"!description": "{{ p.description }}"` sends `""`/`null`). A forced object or
+array template is sent as `{}`/`[]` when everything inside it is empty
+(`"!configVars": {"$merge": "{{ p.vars }}"}` sends `"configVars": {}`), at any
+depth, and a `"!key"` inside a literal `$merge` object survives the spread.
 
 **`$merge`.** `"$merge": "{{ p.additionalFields }}"` spreads an object into
 the parent (its empty values are dropped). Explicit keys override merged
