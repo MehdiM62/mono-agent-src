@@ -1,30 +1,17 @@
-// cmd/monoagentcli/application_apply_test.go
-package main
+package application
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	browserpkg "github.com/monoes/mono-agent/internal/browser"
-
 	"github.com/monoes/mono-agent/internal/apply"
+	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	"github.com/monoes/mono-agent/internal/documents"
+	"github.com/monoes/mono-agent/internal/testdb"
 )
-
-func runApplicationApplyCmd(t *testing.T, dbPath string, args ...string) (string, error) {
-	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true}
-	cmd := newApplicationCmd(cfg)
-	cmd.SetArgs(args)
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	err := cmd.Execute()
-	return out.String(), err
-}
 
 func writeDataFile(t *testing.T, content string) string {
 	t.Helper()
@@ -46,23 +33,19 @@ func TestApplicationApplyAutoModeSkipsPrompt(t *testing.T) {
 	// bridge lookup and the open call so the test doesn't depend on a real
 	// MonoAgent extension/Chrome being connected in whatever environment
 	// runs this suite.
-	origBridge := applicationApplyBridgeFunc
-	applicationApplyBridgeFunc = func(string) (browserpkg.ExtensionBridge, error) { return nil, nil }
-	t.Cleanup(func() { applicationApplyBridgeFunc = origBridge })
 
 	origOpen := apply.OpenForApplicationFunc
 	apply.OpenForApplicationFunc = func(ctx context.Context, jobURL string, bridge browserpkg.ExtensionBridge) error { return nil }
 	t.Cleanup(func() { apply.OpenForApplicationFunc = origOpen })
 
-	origPrompt := confirmPromptFunc
-	confirmPromptFunc = func(string) bool {
+	dbPath := homeDB(t)
+	d := testDeps(dbPath, true)
+	d.Bridge = func(string) (browserpkg.ExtensionBridge, error) { return nil, nil }
+	d.Confirm = func(string) bool {
 		t.Fatal("auto mode must never call the confirmation prompt")
 		return false
 	}
-	t.Cleanup(func() { confirmPromptFunc = origPrompt })
-
-	dbPath := newApplicationCLITestDB(t)
-	addOut, err := runApplicationApplyCmd(t, dbPath, "add", "--kind", "job", "--title", "Backend Engineer", "--company", "Acme", "--url", "about:blank")
+	addOut, err := runWith(t, d, "add", "--kind", "job", "--title", "Backend Engineer", "--company", "Acme", "--url", "about:blank")
 	if err != nil {
 		t.Fatalf("application add: %v (%s)", err, addOut)
 	}
@@ -76,19 +59,18 @@ func TestApplicationApplyAutoModeSkipsPrompt(t *testing.T) {
 
 	cvFile := writeDataFile(t, `{"name":"Jane Doe"}`)
 	letterFile := writeDataFile(t, `{"senderName":"Jane Doe"}`)
-	out, err := runApplicationApplyCmd(t, dbPath, "apply", id, "--mode", "auto", "--cv-data-file", cvFile, "--cover-letter-data-file", letterFile)
+	out, err := runWith(t, d, "apply", id, "--mode", "auto", "--cv-data-file", cvFile, "--cover-letter-data-file", letterFile)
 	if err != nil {
 		t.Fatalf("application apply: %v (%s)", err, out)
 	}
 }
 
 func TestApplicationApplyConfirmModeDeclined(t *testing.T) {
-	origPrompt := confirmPromptFunc
-	confirmPromptFunc = func(string) bool { return false }
-	t.Cleanup(func() { confirmPromptFunc = origPrompt })
-
-	dbPath := newApplicationCLITestDB(t)
-	addOut, err := runApplicationApplyCmd(t, dbPath, "add", "--kind", "job", "--title", "Backend Engineer", "--company", "Acme", "--url", "about:blank")
+	t.Parallel()
+	dbPath := testdb.Path(t)
+	d := testDeps(dbPath, true)
+	d.Confirm = func(string) bool { return false }
+	addOut, err := runWith(t, d, "add", "--kind", "job", "--title", "Backend Engineer", "--company", "Acme", "--url", "about:blank")
 	if err != nil {
 		t.Fatalf("application add: %v (%s)", err, addOut)
 	}
@@ -102,7 +84,7 @@ func TestApplicationApplyConfirmModeDeclined(t *testing.T) {
 
 	cvFile := writeDataFile(t, `{"name":"Jane Doe"}`)
 	letterFile := writeDataFile(t, `{"senderName":"Jane Doe"}`)
-	out, err := runApplicationApplyCmd(t, dbPath, "apply", id, "--mode", "confirm", "--cv-data-file", cvFile, "--cover-letter-data-file", letterFile)
+	out, err := runWith(t, d, "apply", id, "--mode", "confirm", "--cv-data-file", cvFile, "--cover-letter-data-file", letterFile)
 	if err != nil {
 		t.Fatalf("application apply (declined): %v (%s)", err, out)
 	}
@@ -112,8 +94,9 @@ func TestApplicationApplyConfirmModeDeclined(t *testing.T) {
 }
 
 func TestApplicationSendTransitionsToApplied(t *testing.T) {
-	dbPath := newApplicationCLITestDB(t)
-	addOut, err := runApplicationApplyCmd(t, dbPath, "add", "--kind", "job", "--title", "Backend Engineer", "--company", "Acme", "--url", "about:blank")
+	t.Parallel()
+	dbPath := testdb.Path(t)
+	addOut, err := run(t, dbPath, true, "add", "--kind", "job", "--title", "Backend Engineer", "--company", "Acme", "--url", "about:blank")
 	if err != nil {
 		t.Fatalf("application add: %v (%s)", err, addOut)
 	}
@@ -125,12 +108,12 @@ func TestApplicationSendTransitionsToApplied(t *testing.T) {
 		}
 	}
 
-	sendOut, err := runApplicationApplyCmd(t, dbPath, "send", id)
+	sendOut, err := run(t, dbPath, true, "send", id)
 	if err != nil {
 		t.Fatalf("application send: %v (%s)", err, sendOut)
 	}
 
-	getOut, err := runApplicationApplyCmd(t, dbPath, "get", id)
+	getOut, err := run(t, dbPath, true, "get", id)
 	if err != nil {
 		t.Fatalf("application get: %v", err)
 	}
