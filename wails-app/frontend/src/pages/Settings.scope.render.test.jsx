@@ -17,12 +17,13 @@ vi.mock('../wailsjs/go/main/App', () => ({
   GetVersion: () => Promise.resolve({ version: '1' }), CheckForUpdate: () => Promise.resolve({}), AppSelfUpdate: vi.fn(),
   GetActiveProfile: vi.fn(() => Promise.resolve({ id: 'work', name: 'Work' })),
 }))
-const stub = vi.hoisted(() => (name) => ({ default: () => <div data-testid={name}>{name}</div> }))
+const stub = vi.hoisted(() => (name) => ({ default: ({ part }) => <div data-testid={part ? `${name}-${part}` : name}>{name}</div> }))
 vi.mock('../components/settings/HealthSection.jsx', () => stub('health'))
 vi.mock('../components/settings/BrowserBindingsSection.jsx', () => stub('bindings'))
 vi.mock('../components/settings/JevSection.jsx', () => stub('jev'))
 vi.mock('../components/settings/ApiSection.jsx', () => stub('api'))
 vi.mock('../components/settings/CoderModeSection.jsx', () => stub('coder'))
+vi.mock('../components/settings/api/ApiKeysSection.jsx', () => stub('api-keys'))
 import Settings from './Settings.jsx'
 
 afterEach(cleanup)
@@ -47,13 +48,19 @@ describe('Settings scope groups', () => {
     render(<Settings onNavigate={vi.fn()} />)
     const g = screen.getByTestId('scope-global')
     const p = screen.getByTestId('scope-profile')
-    for (const id of ['health', 'coder', 'jev', 'api']) expect(within(g).getByTestId(id)).toBeInTheDocument()
+    for (const id of ['health', 'coder', 'jev-machine', 'api-machine']) expect(within(g).getByTestId(id)).toBeInTheDocument()
     expect(within(g).getByText('Database Path')).toBeInTheDocument()
     expect(within(g).getByText('settings.aiAgentsTitle')).toBeInTheDocument()
     expect(within(p).getByTestId('bindings')).toBeInTheDocument()
     expect(within(p).getAllByText('Data Export').length).toBeGreaterThan(0)
     expect(within(p).getByText('settings.connectionsTitle')).toBeInTheDocument()
     expect(within(g).queryByText('Data Export')).toBeNull()
-    expect(within(p).queryByTestId('jev')).toBeNull()
+    // the sections that mix both scopes are split: the profile's halves are in the profile group only
+    expect(within(p).getByTestId('jev-profile')).toBeInTheDocument()
+    expect(within(p).getByTestId('api-keys')).toBeInTheDocument()
+    expect(within(g).queryByTestId('jev-profile')).toBeNull()
+    expect(within(g).queryByTestId('api-keys')).toBeNull()
+    expect(within(p).queryByTestId('jev-machine')).toBeNull()
+    expect(within(p).queryByTestId('api-machine')).toBeNull()
   })
 })

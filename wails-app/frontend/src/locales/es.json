@@ -663,9 +663,12 @@
       "globalLine": "Se aplica a todo este equipo, a todos los perfiles.",
       "profileTitle": "Este perfil",
       "profileLine": "Se aplica solo al perfil {{name}}. Los demás perfiles conservan los suyos.",
-      "profileLineNoName": "Se aplica solo al perfil activo. Los demás perfiles conservan los suyos.",
-      "tagGlobal": "Todo el equipo",
-      "tagProfile": "Solo este perfil"
+      "profileLineNoName": "Se aplica solo al perfil activo. Los demás perfiles conservan los suyos."
+    },
+    "jev": {
+      "keyProfileVault": "Definida (este perfil, se compartirá)",
+      "featuresTitle": "Funciones de TypeSafe Jev",
+      "consent": "Activar una función es una decisión solo de este perfil: permite que este perfil envíe datos a TypeSafe. Los demás perfiles siguen desactivados hasta que la activen ellos."
     }
   },
   "orgs": {

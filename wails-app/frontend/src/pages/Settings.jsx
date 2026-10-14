@@ -11,6 +11,7 @@ import JevSection from '../components/settings/JevSection.jsx'
 import ApiSection from '../components/settings/ApiSection.jsx'
 import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
+import ApiKeysSection from '../components/settings/api/ApiKeysSection.jsx'
 import { ScopeGroup } from '../components/settings/ScopeGroup.jsx'
 
 const headingStyle = { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }
@@ -392,10 +393,10 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
           <CoderModeSection />
 
           <div ref={sectionRefs.jev} data-section="jev">
-            <JevSection collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />
+            <JevSection part="machine" collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />
           </div>
 
-          <ApiSection onNavigate={onNavigate} isActive={isActive} />
+          <ApiSection part="machine" onNavigate={onNavigate} isActive={isActive} />
 
           {/* Application Info */}
           <div ref={sectionRefs.version} data-section="version" style={headingStyle}>
@@ -456,6 +457,10 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
           </div>
 
           <BrowserBindingsSection />
+
+          <JevSection part="profile" />
+
+          <ApiKeysSection isActive={isActive} />
 
           {/* Export people/actions as JSON (runs with --profile) */}
           <div style={headingStyle}>

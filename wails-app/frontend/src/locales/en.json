@@ -663,9 +663,12 @@
       "globalLine": "Applies to this whole machine, every profile.",
       "profileTitle": "This profile",
       "profileLine": "Applies only to the profile {{name}}. Other profiles keep their own.",
-      "profileLineNoName": "Applies only to the active profile. Other profiles keep their own.",
-      "tagGlobal": "Machine-wide",
-      "tagProfile": "This profile only"
+      "profileLineNoName": "Applies only to the active profile. Other profiles keep their own."
+    },
+    "jev": {
+      "keyProfileVault": "Set (this profile, will be shared)",
+      "featuresTitle": "TypeSafe Jev features",
+      "consent": "Turning a feature on is a choice for this profile only: it lets this profile send data to TypeSafe. Other profiles stay off until they turn it on themselves."
     }
   },
   "orgs": {

@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { Badge } from './api/ui.jsx'
 
 // The two scopes of the Settings page. "global" settings belong to this machine
 // and are the same whichever profile is active; "profile" settings belong to
@@ -28,16 +27,5 @@ export function ScopeGroup({ scope, profileName, children }) {
       </div>
       {children}
     </section>
-  )
-}
-
-// ScopeTag labels one control inside a section that mixes both scopes.
-export function ScopeTag({ scope }) {
-  const { t } = useTranslation()
-  const isProfile = scope === 'profile'
-  return (
-    <Badge data-testid={`scope-tag-${scope}`} tone={isProfile ? 'info' : 'muted'}>
-      {isProfile ? t('settings.scope.tagProfile') : t('settings.scope.tagGlobal')}
-    </Badge>
   )
 }
