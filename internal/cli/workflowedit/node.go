@@ -1,4 +1,4 @@
-package main
+package workflowedit
 
 import (
 	"context"
@@ -17,22 +17,22 @@ import (
 // ── node subcommand group ────────────────────────────────────────────────────
 
 // newWorkflowNodeCmd is the `workflow node` parent command.
-func newWorkflowNodeCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "node",
 		Short: "Manage nodes within a workflow",
 	}
 	cmd.AddCommand(
-		newWorkflowNodeAddCmd(cfg),
-		newWorkflowNodeListCmd(cfg),
-		newWorkflowNodeSetCmd(cfg),
-		newWorkflowNodeRemoveCmd(cfg),
+		d.newNodeAddCmd(),
+		d.newNodeListCmd(),
+		d.newNodeSetCmd(),
+		d.newNodeRemoveCmd(),
 	)
 	return cmd
 }
 
 // newWorkflowNodeAddCmd adds a node to a workflow.
-func newWorkflowNodeAddCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodeAddCmd() *cobra.Command {
 	var nodeType, name, configJSON string
 	var posX, posY float64
 
@@ -43,19 +43,19 @@ func newWorkflowNodeAddCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workflowID := args[0]
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			// Ensure workflow exists.
 			wf, err := store.GetWorkflow(ctx, workflowID)
 			if err != nil || wf == nil {
-				return errNotFound("workflow %q not found", workflowID)
+				return d.NotFound("workflow %q not found", workflowID)
 			}
 
 			// Fetch existing nodes so we can append.
@@ -89,7 +89,7 @@ func newWorkflowNodeAddCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("save nodes: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(newNode)
 			}
 			fmt.Fprintf(os.Stdout, "Added node %s (type: %s, id: %s)\n", newNode.Name, newNode.Type, newNode.ID)
@@ -108,7 +108,7 @@ func newWorkflowNodeAddCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowNodeListCmd lists the nodes in a workflow.
-func newWorkflowNodeListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodeListCmd() *cobra.Command {
 	var jsonOut bool
 
 	cmd := &cobra.Command{
@@ -116,21 +116,21 @@ func newWorkflowNodeListCmd(cfg *globalConfig) *cobra.Command {
 		Short: "List nodes in a workflow",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			wf, err := store.GetWorkflow(ctx, args[0])
 			if err != nil || wf == nil {
-				return errNotFound("workflow %q not found", args[0])
+				return d.NotFound("workflow %q not found", args[0])
 			}
 
-			if jsonOut || cfg.JSONOutput {
+			if jsonOut || d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(wf.Nodes)
 			}
 
@@ -153,7 +153,7 @@ func newWorkflowNodeListCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowNodeSetCmd updates a node's configuration and/or position.
-func newWorkflowNodeSetCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodeSetCmd() *cobra.Command {
 	var configJSON, name string
 	var posX, posY float64
 	var setPosX, setPosY bool
@@ -165,18 +165,18 @@ func newWorkflowNodeSetCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workflowID, nodeID := args[0], args[1]
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			wf, err := store.GetWorkflow(ctx, workflowID)
 			if err != nil || wf == nil {
-				return errNotFound("workflow %q not found", workflowID)
+				return d.NotFound("workflow %q not found", workflowID)
 			}
 
 			found := false
@@ -191,7 +191,7 @@ func newWorkflowNodeSetCmd(cfg *globalConfig) *cobra.Command {
 				if configJSON != "" {
 					var config map[string]interface{}
 					if err := json.Unmarshal([]byte(configJSON), &config); err != nil {
-						return errInvalidInput("parse --config JSON: %v", err)
+						return d.InvalidInput("parse --config JSON: %v", err)
 					}
 					wf.Nodes[i].Config = config
 					if err := wf.Nodes[i].MarshalConfig(); err != nil {
@@ -207,13 +207,13 @@ func newWorkflowNodeSetCmd(cfg *globalConfig) *cobra.Command {
 				break
 			}
 			if !found {
-				return errNotFound("node %q not found in workflow %q", nodeID, workflowID)
+				return d.NotFound("node %q not found in workflow %q", nodeID, workflowID)
 			}
 
 			if err := store.SaveWorkflowNodes(ctx, workflowID, wf.Nodes); err != nil {
 				return fmt.Errorf("save nodes: %w", err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				for i := range wf.Nodes {
 					if wf.Nodes[i].ID == nodeID {
 						return json.NewEncoder(os.Stdout).Encode(wf.Nodes[i])
@@ -240,7 +240,7 @@ func newWorkflowNodeSetCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowNodeRemoveCmd removes a node (and its connections) from a workflow.
-func newWorkflowNodeRemoveCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodeRemoveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <workflow-id> <node-id>",
 		Short: "Remove a node from a workflow",
@@ -248,18 +248,18 @@ func newWorkflowNodeRemoveCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workflowID, nodeID := args[0], args[1]
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			wf, err := store.GetWorkflow(ctx, workflowID)
 			if err != nil || wf == nil {
-				return errNotFound("workflow %q not found", workflowID)
+				return d.NotFound("workflow %q not found", workflowID)
 			}
 
 			newNodes := wf.Nodes[:0]
@@ -273,7 +273,7 @@ func newWorkflowNodeRemoveCmd(cfg *globalConfig) *cobra.Command {
 				newNodes = append(newNodes, wf.Nodes[i])
 			}
 			if removed == nil {
-				return errNotFound("node %q not found in workflow %q", nodeID, workflowID)
+				return d.NotFound("node %q not found in workflow %q", nodeID, workflowID)
 			}
 
 			// Drop connections that reference the removed node.
@@ -292,7 +292,7 @@ func newWorkflowNodeRemoveCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("save connections: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(removed)
 			}
 			fmt.Fprintf(os.Stdout, "Node %s removed.\n", nodeID)
@@ -304,7 +304,7 @@ func newWorkflowNodeRemoveCmd(cfg *globalConfig) *cobra.Command {
 // ── connect / disconnect ─────────────────────────────────────────────────────
 
 // newWorkflowConnectCmd adds an edge between two nodes.
-func newWorkflowConnectCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConnectCmd() *cobra.Command {
 	var fromStr, toStr string
 
 	cmd := &cobra.Command{
@@ -329,18 +329,18 @@ func newWorkflowConnectCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("--to: %w", err)
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			wf, err := store.GetWorkflow(ctx, workflowID)
 			if err != nil || wf == nil {
-				return errNotFound("workflow %q not found", workflowID)
+				return d.NotFound("workflow %q not found", workflowID)
 			}
 
 			conn := workflow.WorkflowConnection{
@@ -358,7 +358,7 @@ func newWorkflowConnectCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("save connections: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(conn)
 			}
 			fmt.Fprintf(os.Stdout, "Connected %s:%s → %s:%s  (id: %s)\n",
@@ -375,7 +375,7 @@ func newWorkflowConnectCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowDisconnectCmd removes a connection by its ID.
-func newWorkflowDisconnectCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newDisconnectCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "disconnect <workflow-id> <connection-id>",
 		Short: "Remove a connection from a workflow",
@@ -383,18 +383,18 @@ func newWorkflowDisconnectCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workflowID, connID := args[0], args[1]
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			wf, err := store.GetWorkflow(ctx, workflowID)
 			if err != nil || wf == nil {
-				return errNotFound("workflow %q not found", workflowID)
+				return d.NotFound("workflow %q not found", workflowID)
 			}
 
 			newConns := wf.Connections[:0]
