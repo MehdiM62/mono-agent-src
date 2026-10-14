@@ -334,3 +334,16 @@ func TestNodeSchemaFieldVisibleForJSON(t *testing.T) {
 		t.Fatalf("VisibleFor = %v", f.VisibleFor)
 	}
 }
+
+// node_timeout is read by the engine for every node type, like
+// retry_policy, so it is not an unknown field of the node.
+func TestValidateWorkflowNodeTimeoutIsGeneric(t *testing.T) {
+	rep := ValidateWorkflow(vwf(trig,
+		vnode("h", "http.request", "Fetch", map[string]interface{}{"url": "https://x", "node_timeout": 2})),
+		ValidateOptions{KnownNodeType: knownTypes()})
+	for _, is := range rep.Issues {
+		if is.Code == IssueUnknownField {
+			t.Errorf("unexpected issue: %+v", is)
+		}
+	}
+}
