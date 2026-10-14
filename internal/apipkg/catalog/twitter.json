@@ -358,17 +358,62 @@
       "operation": "create",
       "title": "Send a direct message",
       "method": "POST",
-      "path": "/dm_conversations/with/{{ pre.data.id | default:(p.user | rl) }}/messages",
-      "before": {
-        "when": "{{ p.user.mode | default:(p.user | rl | replace:'@','' | matches:'^[0-9]+$' | then:'id') | default:'username' | eq:'username' }}",
-        "method": "GET",
-        "path": "/users/by/username/{{ p.user | rl | replace:'@','' }}"
-      },
+      "path": "/dm_conversations/with/{{ pres.0.data.id | default:(p.user | rl) }}/messages",
+      "before": [
+        {
+          "when": "{{ p.user.mode | default:(p.user | rl | replace:'@','' | matches:'^[0-9]+$' | then:'id') | default:'username' | eq:'username' }}",
+          "method": "GET",
+          "path": "/users/by/username/{{ p.user | rl | replace:'@','' }}"
+        },
+        {
+          "when": "{{ p.additionalFields.attachment | then:(bin.files.0.mime_type | matches:'image') }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "media_data": "{{ bin.files.0.base64 }}"
+          }
+        },
+        {
+          "when": "{{ p.additionalFields.attachment | then:((bin.files.0.mime_type | matches:'image') | not) }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "INIT",
+            "total_bytes": "{{ bin.files.0.file_size }}",
+            "media_type": "{{ bin.files.0.mime_type }}"
+          }
+        },
+        {
+          "for_each": "{{ p.additionalFields.attachment | then:((bin.files.0.mime_type | matches:'image') | not) | then:(bin.files.0.base64 | base64_chunks:5242880) }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "APPEND",
+            "media_id": "{{ pres.2.media_id_string }}",
+            "media_data": "{{ el }}",
+            "segment_index": "{{ idx }}",
+            "name": "{{ bin.files.0.file_name }}"
+          }
+        },
+        {
+          "when": "{{ p.additionalFields.attachment | then:((bin.files.0.mime_type | matches:'image') | not) }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "FINALIZE",
+            "media_id": "{{ pres.2.media_id_string }}"
+          }
+        }
+      ],
       "body": {
         "text": "{{ p.text }}",
         "attachments": [
           {
-            "media_id": "{{ p.additionalFields.attachments }}"
+            "media_id": "{{ p.additionalFields.attachments | default:pres.1.media_id_string | default:pres.4.media_id_string }}"
           }
         ]
       },
@@ -395,14 +440,19 @@
           "type": "collection",
           "default": {},
           "options": [
-            "attachments"
+            "attachments",
+            "attachment"
           ],
-          "help": "attachments: a media ID"
+          "help": "attachments: a media ID; attachment (n8n v1): the input binary property to upload and attach (the first of a comma-separated list), sent through upload.twitter.com/1.1/media/upload"
         }
       ],
       "n8n_param_map": {
         "userId": "user"
-      }
+      },
+      "binary": {
+        "properties": "{{ p.additionalFields.attachment | split | get:'0' }}"
+      },
+      "description": "With attachment, the file is uploaded first (images in one request, other media by INIT/APPEND/FINALIZE in 5 MiB segments) and its media ID attached."
     }
   ]
 }

@@ -34,11 +34,11 @@
     "params": { "workbook": "W1", "worksheet": "Sheet1", "columnToMatchOn": "name", "valueToMatchOn": "zed", "fieldsUi": { "values": [ { "column": "age", "fieldValue": "9" } ] } },
     "responses": [
       { "address": "Sheet1!A1:C3", "values": [ ["name", "age", "city"], ["ada", "36", "x"], ["bob", "40", "y"] ] },
-      { "values": [ [null, "9", null] ] }
+      { "values": [ ["zed", "9", null] ] }
     ],
     "expect": {
       "method": "PATCH", "path": "/v1.0/me/drive/items/W1/workbook/worksheets/Sheet1/range(address='A4:C4')",
-      "body": { "values": [ [null, "9", null] ] }
+      "body": { "values": [ ["zed", "9", null] ] }
     }
   },
   "worksheet.clear": {

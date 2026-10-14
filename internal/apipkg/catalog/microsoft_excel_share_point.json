@@ -336,7 +336,7 @@
       "title": "Append or update a row",
       "method": "PATCH",
       "base_url": "https://graph.microsoft.com/v1.0/sites/{{ p.site | rl }}/drives/{{ p.library | rl }}",
-      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/range(address='{{ p.dataMode | ne:'raw' | then:(pre.address | re:'!([A-Z]+)') }}{{ p.dataMode | ne:'raw' | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item) | add:(pre.address | re:'![A-Z]+([0-9]+)' | int) | sub:1 | default:(pre.address | re:'([0-9]+)$' | int | add:1))) }}{{ p.dataMode | ne:'raw' | then:':' }}{{ p.dataMode | ne:'raw' | then:(pre.address | re:':([A-Z]+)[0-9]+$') }}{{ p.dataMode | ne:'raw' | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item) | add:(pre.address | re:'![A-Z]+([0-9]+)' | int) | sub:1 | default:(pre.address | re:'([0-9]+)$' | int | add:1))) }}{{ p.dataMode | eq:'raw' | then:(p.range | default:(pre.address | re:'!(.*)$')) }}')",
+      "path": "/items/{{ p.workbook | rl }}/workbook/worksheets/{{ p.worksheet | rl }}/range(address='{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:(pre.address | re:'!([A-Z]+)') }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | add:(pre.address | re:'![A-Z]+([0-9]+)' | int) | sub:1 | default:(pre.address | re:'([0-9]+)$' | int | add:1)) }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:(pre.address | re:'!([A-Z]+[0-9]+)') }}{{ p.dataMode | ne:'raw' | then:':' }}{{ p.dataMode | ne:'raw' | then:(pre.address | re:':([A-Z]+)[0-9]+$') }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | add:(pre.address | re:'![A-Z]+([0-9]+)' | int) | sub:1 | default:(pre.address | re:'([0-9]+)$' | int | add:1)) }}{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:((pre.address | re:'([0-9]+)$' | int) | add:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | then:0 | default:1)) }}{{ p.dataMode | eq:'raw' | then:(p.range | default:(pre.address | re:'!(.*)$')) }}')",
       "fields": [
         {
           "key": "site",
@@ -420,7 +420,7 @@
             "updateAll",
             "appendAfterSelectedRange"
           ],
-          "help": "Updates the first row whose match column equals the value; when none matches the row is appended below the range. updateAll is not supported (first match only)."
+          "help": "Updates the first row whose match column equals the value (with updateAll: every such row); when none matches the row is appended below the range."
         }
       ],
       "before": {
@@ -432,8 +432,16 @@
         "values": {
           "$concat": [
             {
-              "$map": "{{ p.dataMode | ne:'raw' | then:'x' | split }}",
-              "$to": "{{ p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | row:pre.values,'null') }}"
+              "$map": "{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | ne:'true') | then:'x' | split }}",
+              "$to": "{{ (pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | then:(p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | row:pre.values,'null')) | default:(p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | set:p.columnToMatchOn,p.valueToMatchOn | row:pre.values,'null')) }}"
+            },
+            {
+              "$map": "{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:pre.values }}",
+              "$to": "{{ el | zip:pre.values.0 | get:p.columnToMatchOn | eq:(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:(item | get:p.columnToMatchOn)) | then:(idx | ne:'0' | then:(p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | row:pre.values,'null'))) | default:el }}"
+            },
+            {
+              "$map": "{{ p.dataMode | ne:'raw' | then:(p.options.updateAll | eq:'true') | then:((pre.values | find_row:p.columnToMatchOn,(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:item)) | not) | then:'x' | split }}",
+              "$to": "{{ p.dataMode | eq:'autoMap' | then:(item | row:pre.values,'null') | default:(p.fieldsUi.values | kv:'column,fieldValue' | set:p.columnToMatchOn,p.valueToMatchOn | row:pre.values,'null') }}"
             }
           ]
         }
@@ -443,7 +451,8 @@
         "to": {
           "$merge": "{{ el | zip:pre.values.0 }}"
         },
-        "to_when": "{{ p.options.rawData | default:false | ne:'true' }}"
+        "to_when": "{{ p.options.rawData | default:false | ne:'true' }}",
+        "where": "{{ p.options.updateAll | ne:'true' | default:(p.dataMode | eq:'raw') | default:(p.options.rawData | eq:'true') | default:(el | zip:pre.values.0 | get:p.columnToMatchOn | eq:(p.dataMode | eq:'define' | then:p.valueToMatchOn | default:(item | get:p.columnToMatchOn))) }}"
       }
     },
     {
