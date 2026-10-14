@@ -29,6 +29,9 @@ type executionDetailJSON struct {
 	ErrorClass  string                    `json:"error_class,omitempty"`
 	CreatedAt   string                    `json:"created_at"`
 	Nodes       []executionDetailNodeJSON `json:"nodes"`
+	// Waiting lists, for a WAITING execution, the replies it can be resumed
+	// through: a core.wait resume URL (webhook or form) or a node's reply links.
+	Waiting []workflow.PendingReply `json:"waiting_for,omitempty"`
 }
 
 // executionDetailNodeJSON is one node run. InputItems and OutputItems are
@@ -80,6 +83,14 @@ func (d Deps) newExecutionCmd() *cobra.Command {
 			}
 			if detail.ErrorClass != "" {
 				fmt.Fprintf(os.Stdout, "Class: %s\n", detail.ErrorClass)
+			}
+			for _, p := range detail.Waiting {
+				fmt.Fprintf(os.Stdout, "Waiting at %s for a %s reply: %s\n", p.NodeID, p.Kind, p.URL)
+				for _, l := range p.Links {
+					if l.URL != p.URL {
+						fmt.Fprintf(os.Stdout, "  %s: %s\n", l.Label, l.URL)
+					}
+				}
 			}
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "NODE\tNAME\tSTATUS\tSTARTED AT\tFINISHED AT\tERROR")
@@ -138,7 +149,15 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 		n.InputItems, n.OutputItems = redactedItemsJSON(in), redactedItemsJSON(out)
 		d.Nodes = append(d.Nodes, n)
 	}
-	return d, rows.Err()
+	if err := rows.Err(); err != nil {
+		return d, err
+	}
+	if d.Status == "WAITING" {
+		if d.Waiting, err = workflow.PendingReplies(ctx, db, executionID); err != nil {
+			return d, err
+		}
+	}
+	return d, nil
 }
 
 // redactedItemsJSON runs a stored input_items/output_items value through the

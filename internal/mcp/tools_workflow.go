@@ -307,7 +307,19 @@ func toolWorkflowStatus(ctx context.Context, s *Server, args json.RawMessage) (i
 	for i := range exec.Nodes {
 		exec.Nodes[i].OutputItems = workflow.RedactAndTruncateItems(exec.Nodes[i].OutputItems)
 	}
-	return exec, nil
+	if exec.Status != "WAITING" {
+		return exec, nil
+	}
+	// A run paused for a reply (core.wait webhook/form, approval links) is
+	// resumed only through its URL: name it.
+	waiting, err := workflow.PendingReplies(ctx, rt.db.DB, exec.ID)
+	if err != nil {
+		return nil, err
+	}
+	return struct {
+		*workflow.WorkflowExecution
+		Waiting []workflow.PendingReply `json:"waiting_for,omitempty"`
+	}{exec, waiting}, nil
 }
 
 // clampTimeoutSeconds maps the workflow_run timeout_seconds argument to a
