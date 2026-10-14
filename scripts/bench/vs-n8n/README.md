@@ -5,38 +5,54 @@ limits: idle memory, cold start, throughput of a trivial webhook workflow, and
 install size. `run.sh` does everything and writes `results.json`; the numbers
 below are from the committed `results.json`.
 
-Published under LICENSE section 5. Versions tested: **Mono Agent v0.135.0**
-(commit `2d2c135f`) and **n8n 2.43.4** (`docker.n8n.io/n8nio/n8n:2.43.4`,
+Published under LICENSE section 5. Versions tested: **Mono Agent at
+`integration/research-wave` e9d76126** (`v0.135.0-1120-ge9d76126`, the build
+the next release is cut from) and **n8n 2.43.4** (`docker.n8n.io/n8nio/n8n:2.43.4`,
 digest `sha256:c34ee9107a42b837e25cec0c8a927ab90a45b776aa2ccbf15e5b9cda466fad2c`).
 
-## Results (2026-10-13, median of 3 rounds)
+## Results (2026-10-14, median of 3 rounds, host load 6-12)
 
-| | Mono Agent v0.135.0 | n8n 2.43.4 |
+| | Mono Agent e9d76126 | n8n 2.43.4 |
 |---|---:|---:|
-| Idle memory, RSS of all processes, 60 s after ready | **49 MiB** | 448 MiB |
-| Idle memory, container cgroup `memory.current` | 60 MiB | 459 MiB |
-| Cold start, process start to first accepted webhook | **0.22 s** | 9.6 s |
-| 1,000 runs, first request to last run persisted | **5.8 s** | 129 s |
-| Throughput | **171 runs/s** | 7.7 runs/s |
-| Peak cgroup memory during the 1,000 runs | 204 MiB | 787 MiB |
-| Webhook requests that timed out (> 10 s, of 3 × 1,000) | 0 | 98 (all still ran) |
+| Idle memory, RSS of all processes, 60 s after ready | **101 MiB** | 447 MiB |
+| Idle memory, container cgroup `memory.current` | 116 MiB | 468 MiB |
+| Cold start, process start to first accepted webhook | **0.52 s** | 5.8 s |
+| 1,000 runs, first request to last run persisted | **5.2 s** | 74 s |
+| Throughput | **191 runs/s** | 13.4 runs/s |
+| Peak cgroup memory during the 1,000 runs | 267 MiB | 780 MiB |
+| Webhook requests that timed out (> 10 s, of 3 × 1,000) | 0 | 0 |
 | Runs missing after the load (of 3 × 1,000) | 0 | 0 |
-| Install size | **88.6 MB** static binary (102 MB as an Alpine image) | 1.69 GB Docker image |
+| Install size | **131 MB** static binary | 1.69 GB Docker image |
 
-Per round:
+Per round (from the run log):
 
-| Round | Tool | Cold start | Idle RSS | 1,000 runs | runs/s | Peak cgroup |
-|---|---|---:|---:|---:|---:|---:|
-| 1 | Mono Agent | 243 ms | 40.7 MiB | 6.6 s | 151.3 | 205 MiB |
-| 1 | n8n | 12,224 ms | 441 MiB | 129.1 s | 7.7 | 760 MiB |
-| 2 | Mono Agent | 218 ms | 50.3 MiB | 4.0 s | 248.9 | 161 MiB |
-| 2 | n8n | 8,313 ms | 452 MiB | 234.5 s | 4.3 | 787 MiB |
-| 3 | Mono Agent | 167 ms | 49.3 MiB | 5.8 s | 171.3 | 204 MiB |
-| 3 | n8n | 9,585 ms | 448 MiB | 93.5 s | 10.7 | 790 MiB |
+| Round | Tool | Cold start | 1,000 runs |
+|---|---|---:|---:|
+| 1 | Mono Agent | 324 ms | 5.2 s |
+| 1 | n8n | 5,804 ms | 74.4 s |
+| 2 | Mono Agent | 523 ms | 3.1 s |
+| 2 | n8n | 4,692 ms | 88.6 s |
+| 3 | Mono Agent | 523 ms | 5.6 s |
+| 3 | n8n | 6,228 ms | 68.1 s |
 
-The rounds vary a lot, especially for throughput, because the host was busy
-(see Caveats). The ratios hold in every round: Mono Agent uses about a ninth of
-the memory, becomes ready about 40× sooner and completes the 1,000 runs 16-58× faster.
+Ratios: Mono Agent finished 1,000 runs about 14x faster, was ready about 11x
+sooner, idled in about 4.4x less memory, and installs in about 13x less space.
+
+### Earlier run: v0.135.0 (2026-10-13, busy host, load 39 -> 18)
+
+| | Mono Agent v0.135.0 (2d2c135f) | n8n 2.43.4 |
+|---|---:|---:|
+| Idle memory (RSS) | 49 MiB | 448 MiB |
+| Cold start | 0.22 s | 9.6 s |
+| 1,000 runs | 5.8 s (171 runs/s) | 129 s (7.7 runs/s) |
+| Peak cgroup memory | 204 MiB | 787 MiB |
+| Install size | 88.6 MB | 1.69 GB |
+
+Between v0.135.0 and e9d76126 (the research wave: 370+ node types incl. ~240
+embedded API packages, the n8n importer), Mono Agent's idle memory went from
+49 to 101 MiB, cold start from 0.22 to 0.52 s and the binary from 88.6 to
+131 MB. That is the cost of the larger built-in catalog; it is reported as a
+follow-up (load the API-package catalog lazily).
 
 ## Method
 
@@ -148,9 +164,9 @@ changed or bypassed.
 
 ## Caveats
 
-- **Busy host.** The machine was shared with other builds while this ran: load
-  average 39 (1 min) at the start and 18 at the end, after peaks above 160
-  earlier in the day. `--cpus 1` caps a container at one CPU but does not
+- **Shared host.** The machine was shared with other work in both runs: load
+  average 12 -> 8 for the 2026-10-14 run (24 CPUs), 39 -> 18 for the
+  2026-10-13 run. `--cpus 1` caps a container at one CPU but does not
   guarantee it one, so absolute numbers, throughput above all, are noisy and
   probably pessimistic for both. Re-run on an idle 1 GB VM for headline
   numbers; the ratios are the robust part.
@@ -163,7 +179,7 @@ changed or bypassed.
   it still answers some concurrent requests with 404 "webhook is not
   registered" (seen in trial runs with a 5-10 s wait). The 60 s idle wait is
   past that window: no request got a 404 in the measured rounds.
-- **n8n timeouts.** In round 2, 98 of n8n's requests took longer than the
+- **n8n timeouts.** In round 2 of the 2026-10-13 run (none on 2026-10-14), 98 of n8n's requests took longer than the
   10 s client timeout to be acknowledged; n8n still ran all of them (1,000
   executions recorded), so throughput counts them.
 - **Mono Agent under heavy contention.** In a 200-run trial while the host load
@@ -176,7 +192,7 @@ changed or bypassed.
 - **Container overhead excluded.** Cold start starts at process start.
   Container creation by `docker run` took 15-40 s on this busy host whatever
   the image, which says more about the host than about either tool.
-- RSS counts shared file-backed pages (the 88 MB binary, node's modules);
+- RSS counts shared file-backed pages (the 131 MB binary, node's modules);
   cgroup memory is the container's own charge. Both are reported.
 - The load generator, the poller and `sqlite3` run outside the limited
   container and use the host's other CPUs.

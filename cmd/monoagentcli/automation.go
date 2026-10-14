@@ -1,11 +1,7 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
 	"io"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/automation"
@@ -72,14 +68,6 @@ func automationDeps(cfg *globalConfig) automationcli.Deps {
 // printIssues prints validation issues (validate and install share it with the package).
 var printIssues = automationcli.PrintIssues
 
-// orDash is s, or "-" when s is empty.
-func orDash(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
-}
-
 // withJSONErrors makes a failing command also print {"error": "…"} on
 // stdout when --json is set (clicore.WithJSONErrors).
 func withJSONErrors(cfg *globalConfig, cmd *cobra.Command) {
@@ -111,30 +99,3 @@ func openAutomationRegistry() (*automation.Registry, error) {
 
 // writeJSONTo writes v as indented JSON to w.
 func writeJSONTo(w io.Writer, v any) error { return clicore.WriteJSONTo(w, v) }
-
-// confirmYes asks a y/N question on in; anything but y/yes is a no.
-func confirmYes(in io.Reader, out io.Writer, question string) bool {
-	fmt.Fprintf(out, "%s [y/N]: ", question)
-	line, _ := bufio.NewReader(in).ReadString('\n')
-	switch strings.ToLower(strings.TrimSpace(line)) {
-	case "y", "yes":
-		return true
-	}
-	return false
-}
-
-// splitCSV splits a comma-separated flag value, dropping empty items.
-func splitCSV(s string) []string {
-	var out []string
-	for _, p := range strings.Split(s, ",") {
-		if p = strings.TrimSpace(p); p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
-// stderrf prints a note on stderr (kept off stdout so --json stays parseable).
-func stderrf(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, format, a...)
-}

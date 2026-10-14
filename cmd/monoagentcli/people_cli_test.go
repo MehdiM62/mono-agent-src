@@ -51,38 +51,6 @@ func exitCode(err error) int {
 	return 0
 }
 
-// newStatusCLITestDB applies every real migration (via the same
-// storage.NewDatabase/ApplyMigrations path initDB uses) to a fresh SQLite
-// file, then seeds one person, "p1", under profile "default". Each command
-// under test opens its own connection through initDB afterward; since
-// schema_migrations is already populated, ApplyMigrations is a no-op there.
-func newStatusCLITestDB(t *testing.T) string {
-	t.Helper()
-	dbPath := filepath.Join(t.TempDir(), "cli-status-test.db")
-
-	db, err := storage.NewDatabase(dbPath)
-	if err != nil {
-		t.Fatalf("NewDatabase: %v", err)
-	}
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatalf("ApplyMigrations: %v", err)
-	}
-	if _, err := db.DB.Exec(`INSERT INTO people (id, platform_username, platform, profile_id) VALUES ('p1','alice','x','default')`); err != nil {
-		t.Fatalf("seeding p1: %v", err)
-	}
-	// initDB resolves --profile against a real row in `profiles` (by id or
-	// name) before running any command logic, so a "work" profile must exist
-	// for tests to reach person/profile-scoping behavior rather than failing
-	// earlier on profile resolution.
-	if _, err := db.DB.Exec(`INSERT OR IGNORE INTO profiles (id, name) VALUES ('work', 'Work')`); err != nil {
-		t.Fatalf("seeding work profile: %v", err)
-	}
-	if err := db.DB.Close(); err != nil {
-		t.Fatalf("closing seed db: %v", err)
-	}
-	return dbPath
-}
-
 // captureStdout redirects os.Stdout for the duration of fn and returns
 // everything written to it — many commands print directly via
 // fmt.Fprintf(os.Stdout, ...), not through cobra's OutOrStdout(), so this
