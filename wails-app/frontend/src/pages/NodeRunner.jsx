@@ -21,7 +21,7 @@ import {
 import { SaveModal, WorkflowsModal, TriggerInputModal } from './NodeRunnerModals.jsx'
 import WorkflowImportDialog from './WorkflowImportDialog.jsx'
 import PublishToMonoesDialog from '../components/library/PublishToMonoesDialog.jsx'
-import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom, credentialPickerMode, connectionLabel, fieldIsVisible, jsonTextError, curlImportConfig, isFormFieldsField } from './nodeInspectorRules.js'
+import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom, credentialPickerMode, connectionLabel, fieldIsVisible, fieldValueFor, configDefaults, configAfterChange, jsonTextError, curlImportConfig, isFormFieldsField } from './nodeInspectorRules.js'
 import { CollectionField, AnyPlatformConnections, CurlImport, FormFieldsEditor } from './NodeInspectorWidgets.jsx'
 import { onAutomationsChanged } from '../lib/appEvents.js'
 import { arrangePaletteCategories, DEPRECATED, paletteCategoryLabel, paletteSectionOf, splitPaletteSections } from './paletteSections.js'
@@ -606,7 +606,7 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                 if (!fieldIsVisible(f, node.config, fields)) return null
                 // Skip credential_id text field when a credential picker is rendered above
                 if (f.key === 'credential_id' && pickerMode) return null
-                const rawVal0 = node.config?.[f.key] ?? f.default ?? ''
+                const rawVal0 = fieldValueFor(f, node.config, fields) ?? ''
                 // A list/object value in a text editor (e.g. core.switch cases
                 // edited in the textarea fallback) shows as JSON, not "[object Object]".
                 const val = rawVal0 !== null && typeof rawVal0 === 'object' ? JSON.stringify(rawVal0) : rawVal0
@@ -678,6 +678,11 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                       className="select-compact"
                       style={selectStyle}
                     >
+                      {/* A value the options don't list (no default yet, or
+                          an imported one) shows as itself, not as option one. */}
+                      {!(f.options || []).map(String).includes(String(val)) && (
+                        <option value={val}>{val === '' ? '— choose —' : val}</option>
+                      )}
                       {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   )
@@ -701,7 +706,8 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                       style={inputStyle}
                     />
                   )
-                } else if (f.type === 'array') {
+                } else if (f.type === 'array' || f.type === 'tag_list') {
+                  // tag_list (service.youtube tags) is a list of strings too.
                   const rawVal = node.config?.[f.key]
                   const arrValue = arrayFieldItems(rawVal)
                   return (
@@ -1095,9 +1101,7 @@ function resolvePortIdx(ports, handle) {
 
 // Default config a freshly dropped node starts with (mirrors addNode).
 function schemaDefaults(fields) {
-  const d = {}
-  ;(fields || []).forEach(f => { d[f.key] = f.default ?? '' })
-  return d
+  return configDefaults(fields)
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -1522,8 +1526,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const addNode = useCallback((template, worldX, worldY) => {
     const cam = cameraRef.current
     const rect = wrapperRef.current?.getBoundingClientRect() || { width: 900, height: 600 }
-    const defaults = {}
-    template.configFields?.forEach(f => { defaults[f.key] = f.default ?? '' })
+    const defaults = configDefaults(template.configFields)
     const id = uid(new Set(nodesRef.current.map(n => n.id)))
     const node = withAiPorts({
       id, label: template.label, subtype: template.subtype,
@@ -1579,8 +1582,11 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
     // (or drop) this node's outgoing edges by handle id.
     const portsChange = node && portsDependOnConfig(node.subtype, key) && isCaseListSettled(val)
     const outputs = portsChange ? deriveOutputs(node.subtype, { ...node.config, [key]: val }) : null
+    // Fields sharing a key (an operation select per resource) follow the
+    // change: see configAfterChange.
+    const fieldsOf = n => resolveSchema(n, liveSchemas)?.fields || n.configFields
     setNodes(prev => prev.map(n => n.id === nodeId
-      ? { ...n, config: { ...n.config, [key]: val }, ...(outputs ? { outputs } : {}) }
+      ? { ...n, config: configAfterChange(fieldsOf(n), n.config, key, val), ...(outputs ? { outputs } : {}) }
       : n))
     if (outputs) setEdges(prev => remapSourceEdges(prev, nodeId, outputs, node.outputs))
     setIsDirty(true)
