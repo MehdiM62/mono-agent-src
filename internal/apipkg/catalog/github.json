@@ -1830,6 +1830,65 @@
     },
     {
       "resource": "workflow",
+      "operation": "dispatchAndWait",
+      "title": "Dispatch a workflow run and wait for it to call back",
+      "description": "The run's inputs get resumeUrl, the execution's resume URL; the node waits until the GitHub workflow calls it (e.g. curl -X POST -d '{...}' \"${{ inputs.resumeUrl }}\") and outputs the call's JSON body.",
+      "method": "POST",
+      "path": "/repos/{{ p.owner | rl }}/{{ p.repository | rl }}/actions/workflows/{{ p.workflowId | rl }}/dispatches",
+      "fields": [
+        {
+          "key": "owner",
+          "label": "Repository owner",
+          "type": "text",
+          "required": true,
+          "help": "User or organization (resource locator or name)"
+        },
+        {
+          "key": "repository",
+          "label": "Repository",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "workflowId",
+          "label": "Workflow ID or file name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "ref",
+          "label": "Branch or tag",
+          "type": "text",
+          "default": "main"
+        },
+        {
+          "key": "inputs",
+          "label": "Inputs (JSON)",
+          "type": "json",
+          "default": "{}",
+          "help": "resumeUrl is added; the GitHub workflow must declare it as a workflow_dispatch input"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "help": "limitWaitTime: {values: {limitType: afterTimeInterval (resumeAmount, resumeUnit) or atSpecifiedTime (maxDateAndTime)}} gives up waiting and passes the input items on"
+        }
+      ],
+      "body": {
+        "ref": "{{ p.ref | rl }}",
+        "!inputs": {
+          "$merge": "{{ p.inputs | fromjson }}",
+          "resumeUrl": "{{ hook.url }}"
+        }
+      },
+      "wait": {
+        "method": "POST",
+        "limit": "options.limitWaitTime.values"
+      }
+    },
+    {
+      "resource": "workflow",
       "operation": "disable",
       "title": "Disable a workflow",
       "method": "PUT",

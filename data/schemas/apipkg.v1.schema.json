@@ -363,6 +363,14 @@
         "error_message": { "type": "string" },
         "query_style": { "type": "string", "enum": ["", "brackets"] },
         "stream": { "$ref": "#/$defs/stream" },
+        "wait": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "method": { "type": "string" },
+            "limit": { "type": "string" }
+          }
+        },
         "poll": {
           "type": "object",
           "required": ["method", "path", "until"],

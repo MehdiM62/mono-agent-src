@@ -1032,6 +1032,32 @@
       "token": "ghp"
     }
   },
+  "workflow.dispatchAndWait": {
+    "params": {
+      "owner": {
+        "__rl": true,
+        "mode": "list",
+        "value": "octo"
+      },
+      "repository": "hello",
+      "workflowId": "deploy.yml",
+      "inputs": "{\"env\":\"prod\"}"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/repos/octo/hello/actions/workflows/deploy.yml/dispatches",
+      "body": {
+        "ref": "main",
+        "inputs": {
+          "env": "prod",
+          "resumeUrl": "<any>"
+        }
+      }
+    },
+    "credential": {
+      "token": "ghp"
+    }
+  },
   "workflow.disable": {
     "params": {
       "owner": {

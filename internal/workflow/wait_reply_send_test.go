@@ -207,3 +207,15 @@ func TestSendAndWait_ThroughEngine(t *testing.T) {
 	}
 	t.Fatalf("no successful send-and-wait node in %+v", exec.Nodes)
 }
+
+// A dispatch-and-wait callback's body becomes the items, as n8n's resume
+// webhook outputs it.
+func TestCallBodyItems(t *testing.T) {
+	list := callBodyItems([]interface{}{map[string]interface{}{"a": 1.0}, "x"})
+	if len(list) != 2 || list[0].JSON["a"] != 1.0 || list[1].JSON["data"] != "x" {
+		t.Fatalf("list = %+v", list)
+	}
+	if one := callBodyItems(nil); len(one) != 1 || len(one[0].JSON) != 0 {
+		t.Fatalf("empty body = %+v", one)
+	}
+}

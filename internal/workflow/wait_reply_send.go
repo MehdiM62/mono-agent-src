@@ -19,6 +19,44 @@ type ReplySender func(ctx context.Context, reply WaitReply) error
 // drops the reply, so a retry sends a new one; a re-run before the answer
 // never sends twice.
 func SendAndWait(ctx context.Context, input NodeInput, spec WaitReplySpec, send ReplySender) ([]NodeOutput, error) {
+	return sendAndWait(ctx, input, spec, send, (*WaitReplyResult).Items)
+}
+
+// WaitForCall is n8n's dispatch-and-wait for a node that hands a callback
+// URL to another system (a GitHub workflow dispatch): on the node's first
+// run it opens a webhook reply on the execution's resume URL
+// ($execution.resumeUrl), calls send with it (reply.URL) and pauses until
+// the URL is called; spec.HTTPMethod and spec.Limit apply. The reply is
+// open before send, so a callback that comes back at once is not lost.
+// Once called, the output is the call's JSON body, as n8n's resume webhook
+// outputs it: an object is one item, a list one item per element. Past the
+// limit the input items continue.
+func WaitForCall(ctx context.Context, input NodeInput, spec WaitReplySpec, send ReplySender) ([]NodeOutput, error) {
+	spec.Kind, spec.ExecutionURL = WaitReplyWebhook, true
+	return sendAndWait(ctx, input, spec, send, func(r *WaitReplyResult) []Item { return callBodyItems(r.Answer["body"]) })
+}
+
+// callBodyItems turns a call's decoded body into items.
+func callBodyItems(body interface{}) []Item {
+	list, ok := body.([]interface{})
+	if !ok {
+		list = []interface{}{body}
+	}
+	items := make([]Item, 0, len(list))
+	for _, v := range list {
+		switch m := v.(type) {
+		case map[string]interface{}:
+			items = append(items, Item{JSON: m})
+		case nil:
+			items = append(items, Item{JSON: map[string]interface{}{}})
+		default:
+			items = append(items, Item{JSON: map[string]interface{}{"data": m}})
+		}
+	}
+	return items
+}
+
+func sendAndWait(ctx context.Context, input NodeInput, spec WaitReplySpec, send ReplySender, answered func(*WaitReplyResult) []Item) ([]NodeOutput, error) {
 	res, err := WaitReplyAnswer(ctx, input)
 	if err != nil {
 		return nil, err
@@ -28,7 +66,7 @@ func SendAndWait(ctx context.Context, input NodeInput, spec WaitReplySpec, send 
 		case res.Status == WaitReplyExpired:
 			return []NodeOutput{{Handle: "main", Items: input.Items}}, nil
 		case res.Status == WaitReplyAnswered:
-			return []NodeOutput{{Handle: "main", Items: res.Items()}}, nil
+			return []NodeOutput{{Handle: "main", Items: answered(res)}}, nil
 		case res.Sent:
 			return nil, res.Pause()
 		}
