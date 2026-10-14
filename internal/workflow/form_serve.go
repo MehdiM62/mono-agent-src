@@ -16,6 +16,9 @@ type formRoute struct {
 	Path       string
 	Spec       *formSpec
 	TriggerFn  func(items []Item) // when the server has no runner
+	// HasPages holds a submission until the run shows its next form page
+	// or ending (form_pages.go).
+	HasPages bool
 }
 
 // formRoutes are the server's forms, by path.
@@ -49,7 +52,8 @@ func (s *WebhookServer) DeregisterForm(path string) {
 }
 
 // activateForm serves a trigger.form node's form.
-func (tm *TriggerManager) activateForm(workflowID string, node *WorkflowNode) error {
+func (tm *TriggerManager) activateForm(w *Workflow, node *WorkflowNode) error {
+	workflowID := w.ID
 	if node.Config == nil {
 		if err := node.ParseConfig(); err != nil {
 			return fmt.Errorf("parse config: %w", err)
@@ -65,7 +69,7 @@ func (tm *TriggerManager) activateForm(workflowID string, node *WorkflowNode) er
 		return err
 	}
 	wfID, nID := workflowID, node.ID
-	route := &formRoute{WorkflowID: wfID, NodeID: nID, Path: path, Spec: spec,
+	route := &formRoute{WorkflowID: wfID, NodeID: nID, Path: path, Spec: spec, HasPages: workflowHasFormSteps(w),
 		TriggerFn: func(items []Item) { tm.triggerFn(wfID, nID, items) }}
 
 	tm.mu.Lock()
@@ -139,14 +143,18 @@ func (s *WebhookServer) submitForm(w http.ResponseWriter, r *http.Request, route
 	s.mu.RLock()
 	run := s.runner
 	s.mu.RUnlock()
+	var execID string
 	if run == nil {
 		route.TriggerFn(items)
-	} else if _, err := run(route.WorkflowID, route.NodeID, items, nil); err != nil {
+	} else if execID, err = run(route.WorkflowID, route.NodeID, items, nil); err != nil {
 		code, msg := webhookStartStatus(err)
 		if code >= 500 && code != http.StatusServiceUnavailable {
 			s.logger.Error().Err(err).Str("workflow_id", route.WorkflowID).Msg("form: starting the run")
 		}
 		renderFormMessage(w, code, route.Spec.Title, "Your response could not be recorded ("+msg+"). Please try again later.")
+		return
+	}
+	if route.HasPages && execID != "" && s.continueFormFlow(w, r, execID) {
 		return
 	}
 	if route.Spec.RespondWith == "redirect" {

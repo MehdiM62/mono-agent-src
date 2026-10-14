@@ -24,6 +24,11 @@ const (
 	WaitReplyFreeText   = "freeText"
 	WaitReplyCustomForm = "customForm"
 	WaitReplyWebhook    = "webhook"
+	// WaitReplyFormPage is a core.form page and WaitReplyFormEnd its
+	// ending (form_pages.go): the next steps of a trigger.form's browser
+	// session, on the execution's resume URL.
+	WaitReplyFormPage = "formPage"
+	WaitReplyFormEnd  = "formEnd"
 )
 
 // Outcomes of a reply (WaitReplyResult.Status).
@@ -65,6 +70,12 @@ type WaitReplySpec struct {
 	// ($execution.resumeUrl) instead of a URL of its own, as n8n's Wait node
 	// does. One such reply should be pending per execution at a time.
 	ExecutionURL bool `json:"execution_url,omitempty"`
+	// RespondWith, RedirectURL and ResponseText are a form ending's: "text"
+	// shows Title and Message, "redirect" sends the browser to RedirectURL,
+	// "showText" shows ResponseText as the page.
+	RespondWith  string `json:"respond_with,omitempty"`
+	RedirectURL  string `json:"redirect_url,omitempty"`
+	ResponseText string `json:"response_text,omitempty"`
 }
 
 // WaitReplyField is one field of a reply form.
@@ -184,7 +195,7 @@ func replyOf(token, kind string, spec WaitReplySpec) WaitReply {
 			r.Links = append(r.Links, ReplyLink{Label: orDefault(spec.DisapproveLabel, "Disapprove"), URL: r.DisapproveURL})
 		}
 		r.Links = append(r.Links, ReplyLink{Label: orDefault(spec.ApproveLabel, "Approve"), URL: r.ApproveURL, Primary: true})
-	case WaitReplyFreeText, WaitReplyCustomForm:
+	case WaitReplyFreeText, WaitReplyCustomForm, WaitReplyFormPage:
 		r.FormURL = r.URL
 		r.Links = []ReplyLink{{Label: orDefault(spec.LinkLabel, "Respond"), URL: r.FormURL, Primary: true}}
 	}
@@ -213,12 +224,12 @@ func replyDB(ctx context.Context) (*sql.DB, error) {
 func NewWaitReply(ctx context.Context, input NodeInput, spec WaitReplySpec) (WaitReply, error) {
 	switch spec.Kind {
 	case WaitReplyApproval, WaitReplyFreeText, WaitReplyWebhook:
-	case WaitReplyCustomForm:
+	case WaitReplyCustomForm, WaitReplyFormPage:
 		if len(spec.FormFields) == 0 {
 			return WaitReply{}, fmt.Errorf("%w: wait reply: a custom form needs at least one field", ErrInvalidConfig)
 		}
 	default:
-		return WaitReply{}, fmt.Errorf("%w: wait reply: kind must be approval, freeText, customForm or webhook, got %q", ErrInvalidConfig, spec.Kind)
+		return WaitReply{}, fmt.Errorf("%w: wait reply: kind must be approval, freeText, customForm, formPage or webhook, got %q", ErrInvalidConfig, spec.Kind)
 	}
 	if input.ExecutionID == "" || input.NodeID == "" {
 		return WaitReply{}, errors.New("wait reply: a reply needs a running execution")
