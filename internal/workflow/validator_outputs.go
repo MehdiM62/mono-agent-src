@@ -34,6 +34,9 @@ func newOutputGraph(nodes []WorkflowNode, conns []WorkflowConnection) *outputGra
 		g.byID[n.ID] = n
 	}
 	for _, c := range conns {
+		if IsSubNodeHandle(c.SourceHandle) || IsSubNodeHandle(c.TargetHandle) {
+			continue // an attached AI sub-node carries no items
+		}
 		g.preds[c.TargetNodeID] = append(g.preds[c.TargetNodeID], c)
 	}
 	return g
