@@ -17,10 +17,10 @@ import (
 // A new site fails TestEveryEntryPointIsAccountedFor until it is added here, which
 // is the moment to ask whether a locked account can reach work through it.
 var doors = map[string]string{
-	"cmd/monoagentcli/httpapi.go":         "HTTP API listener: httpapi.Server.ListenAndServe behind accountGate",
 	"internal/account/oauth.go":           "the sign-in redirect catcher: open by design, it is how a login lands",
 	"internal/cli/apiruntime/runtime.go":  "dedicated /v1 listener: Gateway.Serve, every route behind Gateway.auth",
 	"internal/cli/daemon/daemon.go":       "HTTP API listener: httpapi.Server.Serve behind accountGate",
+	"internal/cli/httpapicli/httpapi.go":  "HTTP API listener: httpapi.Server.ListenAndServe behind accountGate",
 	"internal/connections/oauth.go":       "a connection's OAuth redirect catcher, started by a gated command or by the app; stores a token, starts no work",
 	"internal/connections/oauth1_flow.go": "a connection's OAuth 1.0a redirect catcher, started by a gated command or by the app; stores a token, starts no work",
 	"internal/extension/cdp.go":           "/monoagent/cdp upgrade: token, then account (upgrade and each command)",
