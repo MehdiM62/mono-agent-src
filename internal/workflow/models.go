@@ -41,6 +41,29 @@ type NodeInput struct {
 	Vars     map[string]interface{}
 	RunIndex int
 	PrevNode string
+	// SubNodes are the AI sub-nodes attached to this node through "ai_…"
+	// connections, with their config resolved for this run. They never run
+	// as steps: the node uses them (a model, a memory, an output parser …).
+	SubNodes []SubNode
+}
+
+// SubNode is one AI sub-node attached to a root node.
+type SubNode struct {
+	ID, Name, Type string
+	Kind           string // the connection handle, e.g. "ai_languageModel"
+	Config         map[string]interface{}
+	SubNodes       []SubNode // the sub-node's own sub-nodes
+}
+
+// SubNodesOf returns the attached sub-nodes of one kind.
+func (in NodeInput) SubNodesOf(kind string) []SubNode {
+	var out []SubNode
+	for _, s := range in.SubNodes {
+		if s.Kind == kind {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // ItemContext is the expression context for a node evaluating its own

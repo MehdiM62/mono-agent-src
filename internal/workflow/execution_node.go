@@ -232,6 +232,12 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		_ = secrets.ResolveConfig(ctx, vaultDB, vault.ProfileIDFromContext(ctx), resolvedConfig)
 	}
 
+	// AI sub-nodes attached through ai_… connections, resolved for the node.
+	subNodes, err := r.resolveSubNodes(node.ID, exprCtx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("node %s (%s): %w", node.ID, node.Name, err)
+	}
+
 	if dag.isLoopNode(node.ID) {
 		if err := r.countLoopIteration(node, inputItems, resolvedConfig); err != nil {
 			return nil, err
@@ -269,6 +275,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 			NodeID:      node.ID,
 			NodeName:    node.Name,
 			Location:    exprCtx.Location,
+			SubNodes:    subNodes,
 			Trigger:     exprCtx.Trigger,
 			Vars:        exprCtx.Vars,
 			RunIndex:    exprCtx.RunIndex,
