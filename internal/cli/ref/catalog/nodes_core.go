@@ -220,6 +220,29 @@ may return a promise, and code with a top-level return or await runs as an
 async function body (n8n style): return $input.all().map(...)`,
 	},
 	{
+		Type:     "core.data_table",
+		Category: "core",
+		Short:    "Keep rows across runs in a data table (n8n Data tables)",
+		Config: `{
+  "operation": "upsert",
+  "table": "Leads",
+  "filters": [{"column": "email", "condition": "eq", "value": "{{ $json.email }}"}],
+  "values": {"email": "{{ $json.email }}", "score": "{{ $json.score }}"}
+}`,
+		Inputs:  "any items (each item runs the operation once)",
+		Outputs: "the rows written or found; rowExists/rowNotExists pass the matching input items",
+		Notes: `Tables belong to the profile; manage them with monoagentcli table
+list|create|show|rows|delete, or resource "table" (create, list, update to
+rename, clear, delete). Row operations: insert, get, update, upsert,
+deleteRows, rowExists, rowNotExists. "table" is a name or id; "values"
+(or "columns_mode": "auto" for the item's JSON) and "filters" are resolved
+per item. Columns are typed string, number, boolean or date; a value for a
+column the table lacks adds that column. Conditions: eq, neq, gt, gte, lt,
+lte, like/ilike (% wildcard), isEmpty, isNotEmpty, isTrue, isFalse; "match":
+"all" requires every one (default any). Rows carry id, createdAt and
+updatedAt; "dry_run" shows before/after without writing.`,
+	},
+	{
 		Type:     "core.noop",
 		Category: "core",
 		Short:    "Pass items through unchanged",

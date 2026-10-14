@@ -218,6 +218,7 @@ var readOnlyByConfig = map[string]func(map[string]interface{}) bool{
 	"comm.outlook_read":    outlookLegacyReadOnly,
 	"comm.outlook_send":    outlookLegacyReadOnly,
 	"service.outlook_mail": outlookLegacyReadOnly,
+	"core.data_table":      dataTableReadOnly,
 }
 
 // httpReadOnly: GET (the node's default) and HEAD. A templated method is
@@ -243,6 +244,22 @@ func outlookLegacyReadOnly(cfg map[string]interface{}) bool {
 		}
 	}
 	return true
+}
+
+// dataTableReadOnly: reading rows or listing tables, and inserting rows or
+// creating a table (bookkeeping in the profile's own tables, overwriting
+// nothing). Updates, deletes, renames and clears change what other runs
+// may own.
+func dataTableReadOnly(cfg map[string]interface{}) bool {
+	op, _ := cfg["operation"].(string)
+	if res, _ := cfg["resource"].(string); res == "table" {
+		return op == "list" || op == "create" || op == ""
+	}
+	switch op {
+	case "", "insert", "get", "rowExists", "rowNotExists":
+		return true
+	}
+	return false
 }
 
 func spreadsheetReadOnly(cfg map[string]interface{}) bool {

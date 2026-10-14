@@ -2,7 +2,6 @@
   {"key": "@n8n/n8n-nodes-langchain.chat", "category": "engine", "reason": "replies into the chat window of a Chat Trigger session (and waits for the user); mono-agent has no hosted chat session"},
   {"key": "n8n-nodes-base.code#language=python", "category": "engine", "reason": "core.code runs JavaScript only; Python code needs a Python runtime in the engine"},
   {"key": "n8n-nodes-base.code#language=pythonNative", "category": "engine", "reason": "core.code runs JavaScript only; Python code needs a Python runtime in the engine"},
-  {"key": "n8n-nodes-base.dataTable", "category": "engine", "reason": "n8n Data Tables are storage inside the n8n instance; mono-agent has no built-in table store"},
   {"key": "n8n-nodes-base.evaluation", "category": "engine", "reason": "n8n's evaluation framework (datasets, metrics, evaluation runs) has no mono-agent counterpart"},
   {"key": "n8n-nodes-base.form", "category": "engine", "reason": "form pages after a Form Trigger need the engine to serve each page and wait for the answer"},
   {"key": "n8n-nodes-base.github#workflow.dispatchAndWait", "category": "engine", "reason": "waits until the GitHub workflow calls the execution's resume URL; mono-agent has no per-execution resume webhook"},
