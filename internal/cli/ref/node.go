@@ -261,7 +261,14 @@ func writeNodeRefField(out io.Writer, indent string, f NodeRefField) {
 		writeIndented(out, "", sub, f.Help)
 	}
 	if f.ShownWhen != nil {
-		fmt.Fprintf(out, "%sshown when %s is %s\n", sub, f.ShownWhen.Key, strings.Join(f.ShownWhen.Values, "|"))
+		vals := make([]string, len(f.ShownWhen.Values))
+		for i, v := range f.ShownWhen.Values {
+			if v == "" {
+				v = "(not set)"
+			}
+			vals[i] = v
+		}
+		fmt.Fprintf(out, "%sshown when %s is %s\n", sub, f.ShownWhen.Key, strings.Join(vals, "|"))
 	}
 }
 
