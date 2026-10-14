@@ -312,7 +312,8 @@ func TestQueueTriggerImportsValidate(t *testing.T) {
 }
 
 // The IMAP trigger's trackLastMessageId (on unless turned off) becomes the
-// read step's since_last_run cursor.
+// read step's since_last_run cursor, with baseline on: n8n's first
+// activation emitted nothing.
 func TestEmailReadImapTracksLastMessage(t *testing.T) {
 	for _, c := range []struct {
 		params map[string]interface{}
@@ -329,10 +330,20 @@ func TestEmailReadImapTracksLastMessage(t *testing.T) {
 				if got := n.Config["since_last_run"]; got != c.want {
 					t.Errorf("%v: since_last_run = %v, want %v", c.params, got, c.want)
 				}
+				if got, _ := n.Config["baseline"].(bool); got != c.want {
+					t.Errorf("%v: baseline = %v, want %v", c.params, got, c.want)
+				}
 			}
 		}
 		if !found {
 			t.Fatalf("%v: no comm.email_read step", c.params)
 		}
 	}
+}
+
+// The RSS trigger reads only new entries, and nothing on its first poll.
+func TestRSSTriggerReadsOnlyNewEntries(t *testing.T) {
+	wf, _ := convertNode(t, "n8n-nodes-base.rssFeedReadTrigger", 1, map[string]interface{}{"feedUrl": "https://blog.example/feed"})
+	wantConfig(t, node(t, wf, "Trigger"), map[string]interface{}{
+		"url": "https://blog.example/feed", "since_last_run": true, "baseline": true})
 }

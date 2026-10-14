@@ -201,7 +201,7 @@ func mapPollTrigger(c *MapContext, spec pollSpec) Mapping {
 		{Type: nodeType, Suffix: " (list)", Config: cfg},
 		{Type: "core.remove_duplicates", Config: dedupe},
 	}
-	c.Note("polls %s %s on the n8n schedule and passes on only records no earlier run saw; the first run passes every listed record", nodeType, what)
+	c.Note("polls %s %s on the n8n schedule and passes on only records no earlier run saw; the first run passes every listed record (n8n's trigger passed nothing on its first poll)", nodeType, what)
 	return m
 }
 
