@@ -35,11 +35,7 @@ func (n *IfNode) Execute(ctx context.Context, input workflow.NodeInput, config m
 
 	if mode == "all" {
 		// Evaluate condition using the first item's context (or empty if no items).
-		exprCtx := workflow.ExpressionContext{
-			Node:        input.NodeOutputs,
-			WorkflowID:  input.WorkflowID,
-			ExecutionID: input.ExecutionID,
-		}
+		exprCtx := input.ItemContext(nil)
 		if len(input.Items) > 0 {
 			exprCtx.JSON = input.Items[0].JSON
 		}
@@ -57,12 +53,7 @@ func (n *IfNode) Execute(ctx context.Context, input workflow.NodeInput, config m
 	} else {
 		// per_item: evaluate condition for each item independently.
 		for _, item := range input.Items {
-			exprCtx := workflow.ExpressionContext{
-				JSON:        item.JSON,
-				Node:        input.NodeOutputs,
-				WorkflowID:  input.WorkflowID,
-				ExecutionID: input.ExecutionID,
-			}
+			exprCtx := input.ItemContext(item.JSON)
 
 			result, err := engine.EvaluateBool(condition, exprCtx)
 			if err != nil {

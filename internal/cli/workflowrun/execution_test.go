@@ -294,3 +294,54 @@ func TestReadProcessCommandLineSelf(t *testing.T) {
 		t.Fatalf("self: %q, alive=%v, %v", cmdline, alive, err)
 	}
 }
+
+// A run paused at core.wait (resume webhook or form) or at a node's reply
+// links can only be resumed through its URL, so the detail names it.
+func TestWorkflowExecutionDetailShowsResumeURL(t *testing.T) {
+	cfg, db := seedExecutionDB(t)
+	t.Setenv("MONOAGENT_PUBLIC_URL", "http://127.0.0.1:19721")
+	if _, err := db.DB.Exec(`INSERT INTO workflow_executions (id, workflow_id, status, trigger_type, profile_id, created_at) VALUES
+		('e-wait','w1','WAITING','trigger.manual','default','2026-09-26 10:00:00');
+		INSERT INTO wait_replies (execution_id, node_id, run_index, workflow_id, token, kind, spec) VALUES
+		('e-wait','wait',0,'w1','tokWait','webhook','{"kind":"webhook","execution_url":true}'),
+		('e-wait','ask',0,'w1','tokAsk','approval','{"kind":"approval","approval_type":"double"}'),
+		('e-done','wait',0,'w1','tokOld','webhook','{"kind":"webhook"}')`); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runWorkflowCmdIn(t, cfg, "", "execution", "e-wait")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d executionDetailJSON
+	if err := json.Unmarshal([]byte(out), &d); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if len(d.Waiting) != 2 || d.Waiting[0].NodeID != "wait" || d.Waiting[0].URL != "http://127.0.0.1:19721/reply/tokWait" ||
+		d.Waiting[1].Kind != "approval" || len(d.Waiting[1].Links) != 2 ||
+		d.Waiting[1].Links[1].URL != "http://127.0.0.1:19721/reply/tokAsk/approve" {
+		t.Fatalf("waiting_for = %+v", d.Waiting)
+	}
+
+	cfg.JSONOutput = false
+	out, err = runWorkflowCmdIn(t, cfg, "", "execution", "e-wait")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Waiting at wait for a webhook reply: http://127.0.0.1:19721/reply/tokWait",
+		"Approve: http://127.0.0.1:19721/reply/tokAsk/approve", "Disapprove: http://127.0.0.1:19721/reply/tokAsk/decline"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("text detail lacks %q:\n%s", want, out)
+		}
+	}
+
+	// A finished run's leftover reply is not offered.
+	cfg.JSONOutput = true
+	out, err = runWorkflowCmdIn(t, cfg, "", "execution", "e-done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "waiting_for") {
+		t.Errorf("finished execution shows waiting_for:\n%s", out)
+	}
+}

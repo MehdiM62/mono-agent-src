@@ -84,12 +84,14 @@ func NewWorkflowEngineWithStore(store WorkflowStore, db *sql.DB, scheduler Sched
 		func(workflowID string, nodeID string, items []Item) { e.handleTrigger(workflowID, nodeID, items) },
 		logger,
 	)
+	e.triggerMgr.RegisterProvider(LocalFileTriggerType, localFileSource{})
 	e.queue = NewExecutionQueue(cfg.QueueCapacity, cfg.MaxConcurrent,
 		func(ctx context.Context, req ExecutionRequest) { e.handleExecution(ctx, req) },
 		logger,
 	)
 	e.queue.claim = e.claimLocal
 	e.wireWebhookRuns()
+	e.wireWaitReplies()
 	return e
 }
 
@@ -147,7 +149,13 @@ func (e *WorkflowEngine) Start(ctx context.Context) error {
 		if !isAddrInUse(err) {
 			return fmt.Errorf("engine: start webhook server: %w", err)
 		}
-		e.logger.Warn().Err(err).Str("addr", e.webhookServer.addr).
+		// Expected for a one-shot command while the daemon serves webhooks,
+		// so only the daemon warns.
+		ev := e.logger.Debug()
+		if e.allowAllProfiles {
+			ev = e.logger.Warn()
+		}
+		ev.Err(err).Str("addr", e.webhookServer.addr).
 			Msg("engine: webhook port already in use by another monoagent process — this engine will not serve webhooks yet, retrying every 30s, everything else runs normally")
 		go e.webhookRetryLoop(e.ctx)
 	}

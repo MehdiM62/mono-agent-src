@@ -1,10 +1,12 @@
-// Package apiconfig is `monoagentcli api config show|set|unset`: the saved settings of the
-// OpenAI-compatible API's server (the documents are internal/apiconfig's). Everything the
-// commands need from the CLI around them comes in through Deps, so they can be tested in
-// isolation.
+// Package apiconfig is `monoagentcli api config show|set|unset`, `api models` and `api status`:
+// the saved settings of the OpenAI-compatible API's server, what it serves and where it listens
+// (the documents are internal/apiconfig's). Everything the commands need from the CLI around
+// them comes in through Deps, so they can be tested in isolation.
 package apiconfig
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -33,6 +35,11 @@ type Deps struct {
 	AsCLIError func(error) error
 	// WriteJSON writes the --json document.
 	WriteJSON func(w io.Writer, v any) error
+	// ProfileID is the profile in effect; read after OpenDB, which resolves --profile
+	// (`api models`: the auto model's state is the profile's).
+	ProfileID func() string
+	// SavedEnv is the environment with the settings `api config` saved under it.
+	SavedEnv func(ctx context.Context, db *sql.DB) (func(string) string, error)
 }
 
 // NewCommand is the group that shows, changes and removes the settings of the

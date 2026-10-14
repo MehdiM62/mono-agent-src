@@ -247,6 +247,7 @@ func newWorkflowCmd(cfg *globalConfig) *cobra.Command {
 		newWorkflowExecutionsCmd(cfg),
 		newWorkflowExecutionCmd(cfg),
 		newWorkflowCancelCmd(cfg),
+		newWorkflowRetryCmd(cfg),
 		newWorkflowSaveCmd(cfg),
 		newWorkflowNodeCmd(cfg),
 		newWorkflowConnectCmd(cfg),

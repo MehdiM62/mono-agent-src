@@ -26,6 +26,7 @@ const (
 	ClassRateLimited        ErrorClass = "rate_limited"
 	ClassUpstream5xx        ErrorClass = "upstream_5xx"
 	ClassTimeout            ErrorClass = "timeout"
+	ClassNetwork            ErrorClass = "network"
 	ClassRejected           ErrorClass = "rejected"
 	ClassCancelled          ErrorClass = "cancelled"
 	ClassUnknown            ErrorClass = "unknown"
@@ -34,7 +35,7 @@ const (
 // AllErrorClasses lists every class ClassifyError can return.
 var AllErrorClasses = []ErrorClass{
 	ClassInvalidConfig, ClassNotSetup, ClassBrowserUnavailable, ClassSelectorMissing,
-	ClassAuth, ClassRateLimited, ClassUpstream5xx, ClassTimeout, ClassRejected,
+	ClassAuth, ClassRateLimited, ClassUpstream5xx, ClassTimeout, ClassNetwork, ClassRejected,
 	ClassCancelled, ClassUnknown,
 }
 
@@ -56,9 +57,10 @@ var errorHints = map[ErrorClass]string{
 	ClassRateLimited:        "The service is rate limiting requests. Wait before retrying, lower the batch size, or add a retry_policy with backoff.",
 	ClassUpstream5xx:        "The remote service had a server error. This is usually temporary: retry later or add a retry_policy.",
 	ClassTimeout:            "The step took too long. Raise the node's timeout, reduce its input, or check that the service is reachable.",
+	ClassNetwork:            "The host could not be reached (connection refused, unknown host or network down). Check the URL and that the service is running, or add a retry_policy for a flaky connection.",
 	ClassRejected:           "A reviewer rejected the item. Wire the Human-in-Loop node's `rejected` output to handle rejections without failing the run.",
 	ClassCancelled:          "The run was cancelled before it finished.",
-	ClassUnknown:            "Read the error message and the node's input; `monoagentcli workflow status <execution-id>` shows the whole run.",
+	ClassUnknown:            "Read the error message and the node's input; `monoagentcli workflow execution <execution-id>` shows the whole run.",
 }
 
 // ErrorHint returns a one-line suggestion for fixing a failure of class c,
@@ -115,6 +117,8 @@ var messageRules = []struct {
 	{ClassRateLimited, []string{"rate limit", "rate-limit", "too many requests", "quota exceeded"}},
 	{ClassUpstream5xx, []string{"bad gateway", "service unavailable", "internal server error", "gateway timeout"}},
 	{ClassTimeout, []string{"timed out", "timeout", "deadline exceeded"}},
+	{ClassNetwork, []string{"connection refused", "no such host", "connection reset", "network is unreachable",
+		"host is unreachable", "no route to host", "server misbehaving"}},
 }
 
 // ClassifyMessage classifies a stored error message — all an execution row

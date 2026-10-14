@@ -288,6 +288,7 @@ var (
 		"error_message": map[string]interface{}{"type": "string"},
 		"created_at":    map[string]interface{}{"type": "string"},
 		"nodes":         map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "object"}},
+		"waiting_for":   map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "object"}},
 	}, "id", "workflow_id", "status")
 )
 

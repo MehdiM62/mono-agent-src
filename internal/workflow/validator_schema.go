@@ -48,16 +48,17 @@ type ValidateOptions struct {
 }
 
 // genericConfigKeys are config keys the engine (or every node) reads
-// whatever the node type: execution.go's on_error, retry_policy and
-// credential_id (plus the credential/username it injects), the profile
+// whatever the node type: execution.go's on_error, retry_policy,
+// node_timeout and credential_id (plus the credential/username it injects), the profile
 // a node runs under, and editor metadata.
 var genericConfigKeys = map[string]bool{
 	"on_error": true, "retry_policy": true, "credential_id": true,
 	"credential": true, "username": true, "profile_id": true,
 	"continue_on_fail": true, "timeout": true, "timeout_seconds": true,
 	"notes": true, "disabled": true, "description": true, "label": true,
-	"always_output_data": true, "execute_once": true,
+	"always_output_data": true, "execute_once": true, "executeOnce": true,
 	"max_tries": true, "wait_between_tries": true,
+	"execute_once_per_item": true, "node_timeout": true,
 }
 
 func isGenericConfigKey(k string) bool {
@@ -75,7 +76,7 @@ func ValidateWorkflow(w *Workflow, opts ValidateOptions) ValidationReport {
 		r.Errors = append(r.Errors, err.Error())
 		r.Issues = append(r.Issues, ValidationIssue{Code: IssueInvalidWorkflow, Severity: "error", Message: err.Error()})
 	}
-	for _, is := range schemaIssues(w, opts) {
+	for _, is := range append(schemaIssues(w, opts), settingsIssues(w)...) {
 		r.Issues = append(r.Issues, is)
 		msg := is.Message
 		if is.NodeID != "" {
@@ -166,7 +167,11 @@ func schemaIssues(w *Workflow, opts ValidateOptions) []ValidationIssue {
 		sort.Strings(keys)
 		for _, k := range keys {
 			walkStrings(n.Config[k], k, func(path, s string) {
-				out = append(out, expressionIssues(n.ID, path, s, refNames)...)
+				// Code without "{{" runs as written: its "}}" closes nested
+				// JavaScript blocks, not a template.
+				if fieldTypes[k] != "code" || strings.Contains(s, "{{") {
+					out = append(out, expressionIssues(n.ID, path, s, refNames)...)
+				}
 				out = append(out, g.upstreamFieldIssues(n, path, s)...)
 			})
 		}

@@ -316,8 +316,11 @@ func (c *MapContext) pollTrigger() Mapping {
 func mapRSSTrigger(c *MapContext) Mapping {
 	m := c.pollTrigger()
 	m.EntrySuffix = " (poll)"
-	c.Note("polls the feed on the n8n schedule; mono-agent returns the latest entries each time, not only new ones")
-	m.Chain = []ChainStep{{Type: "system.rss_read", Config: map[string]interface{}{"url": c.Str("feedUrl", "")}}}
+	// n8n passed on only entries dated after its previous poll, and nothing
+	// on the first one.
+	c.Note("polls the feed on the n8n schedule and passes on only new entries; the first poll records the feed and passes nothing, as n8n did")
+	m.Chain = []ChainStep{{Type: "system.rss_read", Config: map[string]interface{}{
+		"url": c.Str("feedUrl", ""), "since_last_run": true, "baseline": true}}}
 	return m
 }
 
@@ -333,8 +336,14 @@ func mapEmailTrigger(c *MapContext) Mapping {
 		"tls":         true,
 		"mailbox":     c.Str("mailbox", "INBOX"),
 		"unread_only": true,
-		// n8n v2.1+ remembers the last message id unless told not to.
-		"since_last_run": c.Bool("options.trackLastMessageId", true),
+	}
+	// n8n v2.1+ remembers the last message id unless told not to, and its
+	// first activation leaves the mailbox alone: only mail arriving later
+	// starts the workflow.
+	if c.Bool("options.trackLastMessageId", true) {
+		cfg["since_last_run"], cfg["baseline"] = true, true
+	} else {
+		cfg["since_last_run"] = false
 	}
 	c.Warn("credentials", nil, "set imap_host and username on the read step (they are not in an n8n export)")
 	if c.Literal("postProcessAction", "read") == "nothing" {

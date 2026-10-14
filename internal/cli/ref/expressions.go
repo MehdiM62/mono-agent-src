@@ -33,9 +33,12 @@ BUILT-IN VARIABLES
   $execution.id               execution run ID string
   $env.MY_VAR                 OS environment variable; gated — resolves
                               to empty unless MONOAGENT_ALLOW_ENV_TEMPLATES=1
-  $now                        current UTC time; prints as RFC3339, and has
+  $now                        current time; prints as RFC3339, and has
                               time methods: $now.Format "2006-01-02", $now.Unix
-  $today                      midnight UTC of the current day (like $now)
+  $today                      midnight of the current day (like $now)
+                              Both are UTC unless the workflow sets
+                              settings.timezone (IANA name, e.g. "Europe/Berlin")
+                              or MONOAGENT_TIMEZONE is set
   $trigger.field              the execution's trigger data
   $vars.name                  workflow variables, when the caller sets them
                               (empty otherwise; never holds secrets)
@@ -61,6 +64,12 @@ STRING OPERATIONS
   split <sep> <s>             split string → []string
   join <sep> <parts>          join []string → string
   replace <old> <new> <s>     replace all occurrences
+  contains <sub> <s>          true if s contains sub
+  startsWith <prefix> <s>     true if s starts with prefix
+  endsWith <suffix> <s>       true if s ends with suffix
+  matches <regex> <s>         true if the Go regular expression matches s
+                              (the string comes last, so they pipe:
+                              {{ $json.title | contains "Go" }})
 
 MAP HELPERS
   hasKey <map> <key>          returns bool
@@ -86,6 +95,8 @@ EXAMPLES
   {{ upper $json.title }}                    — function call
   {{ index $json.titles 0 }}                 — first element of an array
   {{ replace "foo" "bar" $json.text }}       — string replace
+  {{ if matches "^[0-9]+$" $json.id }}…{{ end }}
+                                             — regex test
   {{ json $json.items }}                     — marshal to JSON
   {{ default "n/a" $json.optional_field }}   — default value
   {{ $node["RSS Feed"].json.title }}         — previous node output

@@ -45,12 +45,7 @@ func (n *FilterNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 	rejected := make([]workflow.Item, 0)
 
 	for _, item := range input.Items {
-		exprCtx := workflow.ExpressionContext{
-			JSON:        item.JSON,
-			Node:        input.NodeOutputs,
-			WorkflowID:  input.WorkflowID,
-			ExecutionID: input.ExecutionID,
-		}
+		exprCtx := input.ItemContext(item.JSON)
 
 		result, err := engine.EvaluateBool(condition, exprCtx)
 		if err != nil {

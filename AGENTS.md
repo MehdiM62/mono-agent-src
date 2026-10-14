@@ -252,8 +252,10 @@ The desktop app does everything through these commands; they are equally usable 
 - **Image vault:** `image list|search|get|data|add|label|delete|stats|export`, scoped to the active profile. `image data` returns a data URL. `image sync` scans the profile folder and reconciles discovered images. `image delete` keeps files that live in the profile folder and hides them from later syncs; `image unignore <path>` or `image add <path>` brings one back.
 - **Workflows:**
   - `workflow save` creates or replaces a workflow from the editor's document on stdin.
-  - `workflow execution <id>` shows run detail with redacted items.
+  - `workflow execution <id>` shows run detail with redacted items; a WAITING run
+    lists its resume or reply URLs (`waiting_for` in --json).
   - `workflow cancel <execution-id>` stops the recorded process (never the daemon), marks the run cancelled and rejects its pending HIL items. It leaves a finished run alone.
+  - `workflow retry <execution-id> [--json] [--timeout]` runs a finished execution again with its trigger data (a new execution, current workflow version) and waits like `workflow run`. A queued, running or waiting execution, or one an org started, is refused (exit 3).
   - `workflow delete <id> --yes` refuses a workflow that an org uses; `--force` also revokes its grants.
   - `workflow get`, `workflow export` and `workflow delete` are profile-scoped.
 - **Sessions and connections:**
@@ -738,7 +740,7 @@ existing MCP client config that relies on them.
   shell tool, is not stopped by it. Nothing registers it for you.
 
 **Workflows as tools.** `monoagentcli mcp --allow-mutations --workflow-tools`
-(or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`) also serves every saved workflow of the
+(or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`) also serves every active workflow of the
 profile as a tool `wf_<slug>`; `--workflow-tools=<id|name>,...` serves only
 those. A tool's input schema comes from the workflow's trigger fields
 (`workflow inputs`), and a call runs it as `workflow_run` does (same wait,

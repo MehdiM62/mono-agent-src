@@ -112,7 +112,8 @@ func (d Deps) newVersionsRestoreCmd() *cobra.Command {
 		Use:   "restore <workflow-id> <version>",
 		Short: "Make a saved version the workflow's definition again (recorded as a new version)",
 		Long: "Saves the workflow with the definition of the given version. History is kept: " +
-			"the restore is recorded as a new version. Whether the workflow is active is unchanged.",
+			"the restore is recorded as a new version. Whether the workflow is active is unchanged. " +
+			"A version that fails `workflow validate` is restored anyway, with a warning for each error.",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			n, err := d.parseVersionArg(args[1])
@@ -128,12 +129,21 @@ func (d Deps) newVersionsRestoreCmd() *cobra.Command {
 				if err := store.SaveWorkflowWithNote(ctx, restored, fmt.Sprintf("restored from version %d", n)); err != nil {
 					return fmt.Errorf("restore version %d: %w", n, err)
 				}
+				// An old version may not pass today's checks: say so, but
+				// restore it anyway.
+				warnings := []string{}
+				for _, e := range workflow.ValidateWorkflow(restored, workflow.ValidateOptions{}).Errors {
+					warnings = append(warnings, "fails `workflow validate`: "+e)
+				}
 				if d.JSONOutput() {
 					return json.NewEncoder(os.Stdout).Encode(map[string]any{
-						"workflow_id": wf.ID, "restored_from": n, "version": restored.Version,
+						"workflow_id": wf.ID, "restored_from": n, "version": restored.Version, "warnings": warnings,
 					})
 				}
 				fmt.Fprintf(os.Stdout, "Restored workflow %s to version %d (now version %d)\n", wf.ID, n, restored.Version)
+				for _, w := range warnings {
+					fmt.Fprintln(os.Stderr, "Warning:", w)
+				}
 				return nil
 			})
 		},

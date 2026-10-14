@@ -36,6 +36,10 @@ func TestClassifyError(t *testing.T) {
 		{"http 502", errors.New("linear: status 502 Bad Gateway"), ClassUpstream5xx},
 		{"http 503 words", errors.New("service unavailable (503)"), ClassUpstream5xx},
 		{"timed out", errors.New("dial tcp: i/o timeout"), ClassTimeout},
+		{"connection refused", errors.New(`Get "http://127.0.0.1:1/": dial tcp 127.0.0.1:1: connect: connection refused`), ClassNetwork},
+		{"unknown host", errors.New("dial tcp: lookup nope.invalid: no such host"), ClassNetwork},
+		{"connection reset", errors.New("read tcp 10.0.0.2:5000->10.0.0.3:443: read: connection reset by peer"), ClassNetwork},
+		{"unreachable", errors.New("dial tcp 10.9.9.9:80: connect: network is unreachable"), ClassNetwork},
 		{"other", errors.New("something odd happened"), ClassUnknown},
 		{"permanent keeps inner class", Permanent(fmt.Errorf("%w: bad", ErrInvalidConfig)), ClassInvalidConfig},
 	}

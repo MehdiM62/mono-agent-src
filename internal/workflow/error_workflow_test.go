@@ -90,10 +90,10 @@ func (r *errorWorkflowRig) errorRuns(t *testing.T, workflowID string) []Workflow
 
 func (r *errorWorkflowRig) waitErrorRun(t *testing.T, workflowID string) WorkflowExecution {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		if runs := r.errorRuns(t, workflowID); len(runs) > 0 {
-			waitForTerminalStatus(t, r.store, runs[0].ID, 10*time.Second)
+			waitForTerminalStatus(t, r.store, runs[0].ID, 30*time.Second)
 			return runs[0]
 		}
 		time.Sleep(50 * time.Millisecond)

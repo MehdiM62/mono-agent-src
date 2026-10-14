@@ -14,64 +14,6 @@ func init() {
 	Register(lc+"openAi", mapOpenAI)
 }
 
-// modelRuntimes maps n8n chat model sub-node types to the local agent
-// runtime that runs the same vendor's models.
-var modelRuntimes = map[string]string{
-	lc + "lmChatOpenAi": "codex", lc + "lmOpenAi": "codex", lc + "lmChatAzureOpenAi": "codex",
-	lc + "lmChatAnthropic": "claude",
-}
-
-// modelName reads the model a sub-node selects (plain string or locator).
-func modelName(params map[string]interface{}) string {
-	for _, k := range []string{"model", "modelName", "modelId"} {
-		switch v := params[k].(type) {
-		case string:
-			return strings.TrimPrefix(v, "models/")
-		case map[string]interface{}:
-			return strings.TrimPrefix(fmt.Sprint(v["value"]), "models/")
-		}
-	}
-	return ""
-}
-
-// applyModel picks runtime and model from the attached chat model and
-// reports the sub-nodes agent.ask cannot use.
-func applyModel(c *MapContext, cfg map[string]interface{}) {
-	cfg["runtime"] = "claude"
-	found := false
-	for _, s := range c.SubNodes {
-		switch s.Kind {
-		case "ai_languageModel":
-			if found {
-				c.Warn("fallback model", s.Name, "agent.ask has no fallback model")
-				continue
-			}
-			found = true
-			model := modelName(s.Parameters)
-			if rt, ok := modelRuntimes[s.Type]; ok {
-				cfg["runtime"] = rt
-				if model != "" {
-					cfg["model"] = model
-				}
-				c.Note("model %q (%s) runs through the local %s agent", model, shortType(s.Type), rt)
-			} else {
-				c.Note("model %q (%s) has no local agent runtime; the claude runtime is used — set runtime/model to choose another", model, shortType(s.Type))
-			}
-		case "ai_tool":
-			c.Warn("tools", s.Name, "tool %q (%s) is not available: agent.ask answers without tools", s.Name, shortType(s.Type))
-		case "ai_memory":
-			c.Warn("memory", s.Name, "conversation memory (%s) is not kept between runs", shortType(s.Type))
-		case "ai_outputParser":
-			c.Warn("outputParser", s.Name, "structured output parsing (%s) is not applied; ask for JSON in the prompt", shortType(s.Type))
-		default:
-			c.Warn(s.Kind, s.Name, "sub-node %s is not supported", shortType(s.Type))
-		}
-	}
-	if !found {
-		c.Note("no chat model is attached; the claude runtime is used")
-	}
-}
-
 // llmPrompt reads the prompt of an agent or LLM chain.
 func llmPrompt(c *MapContext) string {
 	def := "={{ $json.chatInput }}"

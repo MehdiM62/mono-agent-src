@@ -361,6 +361,11 @@ var registryMore = map[string]PlatformDef{
 		CredentialField{Key: "api_key", Label: "API Key", Secret: true, Required: true, HelpText: "console.mistral.ai/api-keys"}),
 	"gemini_api": apiKeyPlatform("gemini_api", "Google Gemini API", "ai", "🧠",
 		CredentialField{Key: "api_key", Label: "API Key", Secret: true, Required: true, HelpText: "aistudio.google.com/apikey"}),
+	"google_service_account": apiKeyPlatform("google_service_account", "Google Cloud service account", "ai", "🔑",
+		CredentialField{Key: "client_email", Label: "Service Account Email", Required: true, HelpText: "client_email of the JSON key file"},
+		CredentialField{Key: "private_key", Label: "Private Key (PEM)", Secret: true, Required: true, HelpText: "private_key of the JSON key file"},
+		CredentialField{Key: "project_id", Label: "Project ID", HelpText: "Defaults for Vertex AI calls; a node's own project wins."},
+		CredentialField{Key: "location", Label: "Location", HelpText: "Vertex AI region (or global, eu, us); defaults to us-central1."}),
 	"aws": apiKeyPlatform("aws", "AWS (access keys)", "ai", "☁️",
 		CredentialField{Key: "access_key_id", Label: "Access Key ID", Required: true},
 		CredentialField{Key: "secret_access_key", Label: "Secret Access Key", Secret: true, Required: true},
@@ -390,6 +395,9 @@ var registryMore = map[string]PlatformDef{
 		CredentialField{Key: "api_key", Label: "API Key / Token", Secret: true},
 		CredentialField{Key: "tenant", Label: "Tenant", HelpText: "Defaults to default_tenant."},
 		CredentialField{Key: "database", Label: "Database", HelpText: "Defaults to default_database."}),
+	"azure_ai_search": apiKeyPlatform("azure_ai_search", "Azure AI Search", "database", "🔎",
+		CredentialField{Key: "endpoint", Label: "Endpoint", Required: true, HelpText: "https://<service>.search.windows.net"},
+		CredentialField{Key: "api_key", Label: "Admin API Key", Secret: true, Required: true, HelpText: "Search service → Keys"}),
 
 	// ─── More databases, queues and directory (db.* / queue.* nodes) ─────────
 

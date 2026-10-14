@@ -88,8 +88,10 @@ var Manifest = []ManifestEntry{
 
 	// --- agent.* / ai.* (local-agent nodes, not the deprecated ai.* provider stubs) ---
 	{NodeType: "agent.ask", GoFile: "internal/nodes/agent/ask_schema.go", StructName: "AskNodeSchema"},
+	{NodeType: "agent.memory", GoFile: "internal/nodes/agent/memory_schema.go", StructName: "MemoryNodeSchema"},
 	{NodeType: "browser.jev", GoFile: "internal/nodes/browserjev/schema.go", StructName: "NodeSchema"},
 	{NodeType: "ai.choose", GoFile: "internal/nodes/ai/choose/choose_schema.go", StructName: "ChooseNodeSchema"},
+	{NodeType: "ai.guardrails", GoFile: "internal/nodes/guardrails/guardrails_schema.go", StructName: "GuardrailsNodeSchema"},
 	{NodeType: "ai.extract_page", GoFile: "internal/nodes/ai/crawl/extract_page_schema.go", StructName: "ExtractPageNodeSchema"},
 	{NodeType: "ai.read_page", GoFile: "internal/nodes/ai/crawl/read_page_schema.go", StructName: "ReadPageNodeSchema"},
 
@@ -97,6 +99,7 @@ var Manifest = []ManifestEntry{
 	{NodeType: "trigger.schedule", GoFile: "internal/workflow/trigger_schema.go", StructName: "ScheduleTriggerSchema"},
 	{NodeType: "trigger.webhook", GoFile: "internal/workflow/trigger_schema.go", StructName: "WebhookTriggerSchema"},
 	{NodeType: "trigger.sse", GoFile: "internal/workflow/trigger_schema.go", StructName: "SSETriggerSchema"},
+	{NodeType: "trigger.local_file", GoFile: "internal/workflow/trigger_local_file.go", StructName: "LocalFileTriggerSchema"},
 
 	// --- comm.* ---
 	{NodeType: "comm.bluesky", GoFile: "internal/nodes/comm/bluesky_schema.go", StructName: "BlueskyNodeSchema"},

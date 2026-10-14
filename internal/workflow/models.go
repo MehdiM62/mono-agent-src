@@ -32,6 +32,55 @@ type NodeInput struct {
 	// ItemKeys, when set, holds the idempotency key of each item in Items
 	// (see ItemKey). Nil means the keys follow the items' positions.
 	ItemKeys []string
+	// Location is the workflow's timezone (settings.timezone), for the
+	// $now/$today of expressions a node evaluates itself. Nil means UTC.
+	Location *time.Location
+	// Trigger, Vars, RunIndex and PrevNode are $trigger, $vars, $runIndex
+	// and $prevNode for the expressions a node evaluates itself.
+	Trigger  map[string]interface{}
+	Vars     map[string]interface{}
+	RunIndex int
+	PrevNode string
+	// SubNodes are the AI sub-nodes attached to this node through "ai_…"
+	// connections, with their config resolved for this run. They never run
+	// as steps: the node uses them (a model, a memory, an output parser …).
+	SubNodes []SubNode
+}
+
+// SubNode is one AI sub-node attached to a root node.
+type SubNode struct {
+	ID, Name, Type string
+	Kind           string // the connection handle, e.g. "ai_languageModel"
+	Config         map[string]interface{}
+	SubNodes       []SubNode // the sub-node's own sub-nodes
+}
+
+// SubNodesOf returns the attached sub-nodes of one kind.
+func (in NodeInput) SubNodesOf(kind string) []SubNode {
+	var out []SubNode
+	for _, s := range in.SubNodes {
+		if s.Kind == kind {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// ItemContext is the expression context for a node evaluating its own
+// expressions against one item: the same variables the engine resolves
+// config templates with.
+func (in NodeInput) ItemContext(json map[string]interface{}) ExpressionContext {
+	return ExpressionContext{
+		JSON:        json,
+		Node:        in.NodeOutputs,
+		WorkflowID:  in.WorkflowID,
+		ExecutionID: in.ExecutionID,
+		Trigger:     in.Trigger,
+		Vars:        in.Vars,
+		RunIndex:    in.RunIndex,
+		PrevNode:    in.PrevNode,
+		Location:    in.Location,
+	}
 }
 
 // NodeOutput is returned by NodeExecutor.Execute.
@@ -91,8 +140,10 @@ type Workflow struct {
 
 	// Settings holds workflow-level options, e.g. "error_workflow" (the id
 	// of the workflow to run when this one fails), "parallel_branches",
-	// "variables" ($vars) and "executionTimeout" (seconds of active running
-	// time; see ExecutionTimeoutSetting).
+	// "variables" ($vars), "executionTimeout" (seconds of active running
+	// time; see ExecutionTimeoutSetting), "per_item_execution"
+	// (PerItemExecutionSetting), "disabled_nodes" (DisabledNodesSetting)
+	// and "timezone" (TimezoneSetting).
 	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
@@ -293,6 +344,7 @@ type ExpressionContext struct {
 	Vars     map[string]interface{} // $vars: workflow variables (never secrets)
 	RunIndex int                    // $runIndex: loop iteration, 0 outside a loop
 	PrevNode string                 // $prevNode: name of the node that fed this one
+	Location *time.Location         // zone of $now/$today; nil means UTC
 
 	base *exprBase // cached derived data; see Prepared
 }

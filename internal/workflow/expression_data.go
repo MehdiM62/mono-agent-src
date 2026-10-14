@@ -23,6 +23,7 @@ type templateNeeds struct {
 	node bool // $node, $items
 	env  bool // $env
 	now  bool // $now, $today
+	exec bool // $execution (its resume URLs are signed)
 }
 
 // needsOf walks every tree of t and reports the data keys user code
@@ -38,8 +39,10 @@ func needsOf(t *template.Template, preLen int) templateNeeds {
 			n.env = true
 		case "now", "today":
 			n.now = true
+		case "execution":
+			n.exec = true
 		case "$":
-			n = templateNeeds{node: true, env: true, now: true}
+			n = templateNeeds{node: true, env: true, now: true, exec: true}
 		}
 	}
 	var walk func(parse.Node)
@@ -133,12 +136,17 @@ type exprBase struct {
 }
 
 func newExprBase(ctx ExpressionContext) *exprBase {
-	now := time.Now().UTC()
+	loc := ctx.Location
+	if loc == nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
+	y, m, d := now.Date()
 	return &exprBase{
 		srcNode: ctx.Node,
 		srcEnv:  ctx.Env,
 		now:     exprTime{now},
-		today:   exprTime{now.Truncate(24 * time.Hour)},
+		today:   exprTime{time.Date(y, m, d, 0, 0, 0, 0, loc)},
 	}
 }
 
@@ -234,7 +242,7 @@ func buildData(ctx ExpressionContext, needs templateNeeds) map[string]interface{
 	data := map[string]interface{}{
 		"json":      jsonMap,
 		"workflow":  map[string]interface{}{"id": ctx.WorkflowID},
-		"execution": map[string]interface{}{"id": ctx.ExecutionID},
+		"execution": executionData(ctx.ExecutionID, needs.exec),
 		"trigger":   ctx.Trigger,
 		"vars":      ctx.Vars,
 		"runIndex":  ctx.RunIndex,

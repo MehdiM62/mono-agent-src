@@ -68,7 +68,7 @@ func nodeTypeToPlatform(nodeType string) string {
 	return nodeType
 }
 
-// NewCommand returns the `node` command with subcommands; the CLI adds `node palette`.
+// NewCommand returns the `node` command with subcommands.
 func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "node",
@@ -79,6 +79,7 @@ func NewCommand(d Deps) *cobra.Command {
 		d.newNodeRunCmd(),
 		d.newNodeSchemaCmd(),
 		d.newNodeCurlCmd(),
+		d.newNodePaletteCmd(),
 	)
 	return cmd
 }
@@ -124,8 +125,20 @@ func nodeTypeCategory(t string) string {
 
 // triggerNodeTypes are the trigger types the engine handles itself: they are
 // never in the node registry (execution.go passes them through), so `node
-// list` adds them to the registered types.
-var triggerNodeTypes = []string{"trigger.manual", "trigger.org", "trigger.schedule", "trigger.sse", "trigger.webhook", "trigger.form"}
+// list` adds them to the registered types. They are read from the embedded
+// schemas, as MCP node_list does, so a new trigger (trigger.error,
+// trigger.execute_workflow, the queue triggers) cannot be left out.
+var triggerNodeTypes = embeddedTriggerTypes()
+
+func embeddedTriggerTypes() []string {
+	var out []string
+	for _, t := range workflow.ListEmbeddedSchemas() {
+		if strings.HasPrefix(t, "trigger.") {
+			out = append(out, t)
+		}
+	}
+	return out
+}
 
 // newNodeListCmd lists all registered node types and the engine's triggers.
 func (d Deps) newNodeListCmd() *cobra.Command {

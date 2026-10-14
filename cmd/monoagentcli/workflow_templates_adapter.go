@@ -34,9 +34,3 @@ func newWorkflowTemplatesCmd(cfg *globalConfig) *cobra.Command {
 func newWorkflowSearchCmd(cfg *globalConfig) *cobra.Command {
 	return workflowTemplatesDeps(cfg).NewSearchCmd()
 }
-
-var (
-	instantiateTemplate = workflowtemplates.InstantiateTemplate
-	inputKeyList        = workflowtemplates.InputKeyList
-	exampleInputJSON    = workflowtemplates.ExampleInputJSON
-)

@@ -12,6 +12,7 @@ var globalNames = map[string]bool{
 	"$execution": true, "$workflow": true, "String": true, "Number": true, "parseInt": true,
 	"parseFloat": true, "Boolean": true, "encodeURIComponent": true, "encodeURI": true,
 	"JSON": true, "Math": true, "DateTime": true, "Object": true, "Date": true, "Array": true,
+	"$fromAI": true, "$fromAi": true, "$fromai": true,
 }
 
 func (e *emitter) ident(name string) (val, error) {
@@ -23,8 +24,7 @@ func (e *emitter) ident(name string) (val, error) {
 	case "$now", "$today":
 		return val{obj: objDateTime, name: strings.TrimPrefix(name, "$")}, nil
 	case "$runIndex":
-		e.note("$runIndex is always 0 in mono-agent (loops run in one pass)")
-		return numVal(0), nil
+		return val{p: "$runIndex"}, nil
 	}
 	if globalNames[name] {
 		return val{obj: objGlobal, name: name}, nil
@@ -242,6 +242,8 @@ func (e *emitter) callFunc(name string, args []*jsNode) (val, error) {
 			}
 		}
 		return val{obj: objItemsList, name: s}, nil
+	case "$fromAI", "$fromAi", "$fromai":
+		return e.fromAI(args)
 	}
 	if len(args) == 0 {
 		return val{}, unsupported("%s()", name)
@@ -275,6 +277,29 @@ func (e *emitter) callFunc(name string, args []*jsNode) (val, error) {
 		return call(tStr, "urlquery", x.p), nil
 	}
 	return val{}, unsupported("%s()", name)
+}
+
+// fromAI translates $fromAI(key, description, type, default), the value an
+// agent fills in when it calls the node as a tool: the tool call's
+// arguments are the item, so it reads $json.key.
+func (e *emitter) fromAI(args []*jsNode) (val, error) {
+	key, ok := literalString(first(args))
+	if !ok || key == "" {
+		return val{}, unsupported("$fromAI() without a literal key")
+	}
+	p := "$json." + key
+	if !goIdent.MatchString(key) {
+		p = "(index $json " + strconv.Quote(key) + ")"
+	}
+	e.note("$fromAI(%q) reads the tool call's argument %q from the item", key, key)
+	if len(args) >= 4 {
+		d, err := e.value(args[3])
+		if err != nil {
+			return val{}, err
+		}
+		return call(tAny, "default", d.p, p), nil
+	}
+	return val{p: p}, nil
 }
 
 func first(args []*jsNode) *jsNode {
