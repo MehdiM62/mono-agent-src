@@ -1,6 +1,6 @@
 // Package workflowrun is the part of `monoagentcli workflow` that runs workflows and bundled
-// templates and shows or cancels their executions: `workflow run`, `workflow templates run`,
-// `workflow execution` and `workflow cancel`. Everything the commands need from the CLI around
+// templates and shows, cancels or retries their executions: `workflow run`, `workflow templates run`,
+// `workflow execution`, `workflow cancel` and `workflow retry`. Everything the commands need from the CLI around
 // them comes in through Deps, so they can be tested in isolation.
 package workflowrun
 
@@ -35,3 +35,4 @@ func (d Deps) NewRunCmd() *cobra.Command          { return d.newRunCmd() }
 func (d Deps) NewTemplatesRunCmd() *cobra.Command { return d.newTemplatesRunCmd() }
 func (d Deps) NewExecutionCmd() *cobra.Command    { return d.newExecutionCmd() }
 func (d Deps) NewCancelCmd() *cobra.Command       { return d.newCancelCmd() }
+func (d Deps) NewRetryCmd() *cobra.Command        { return d.newRetryCmd() }
