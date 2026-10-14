@@ -8,4 +8,8 @@ func RegisterAll(r *workflow.NodeTypeRegistry) {
 	r.Register("vector.split_text", func() workflow.NodeExecutor { return &SplitTextNode{} })
 	r.Register("vector.load_document", func() workflow.NodeExecutor { return &LoadDocumentNode{} })
 	r.Register("vector.store", func() workflow.NodeExecutor { return &StoreNode{} })
+	for _, s := range subNodeTypes {
+		s := s
+		r.Register(s.typ, func() workflow.NodeExecutor { return &s })
+	}
 }

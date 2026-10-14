@@ -61,8 +61,14 @@ func validates(t *testing.T, wf *workflow.WorkflowFile) {
 func TestAgentWithBufferWindowMemoryKeepsConversation(t *testing.T) {
 	wf, rep := convertRaw(t, chatWithMemory("@n8n/n8n-nodes-langchain.memoryBufferWindow", 1.3,
 		map[string]interface{}{"contextWindowLength": 8}))
-	n := node(t, wf, "AI Agent")
-	wantConfig(t, n, map[string]interface{}{"memory": map[string]interface{}{"session_key": "{{ $json.sessionId }}", "window": 16}})
+	mem := attachedSub(t, wf, "AI Agent", "ai_memory")
+	if mem.Type != "ai.memory" {
+		t.Errorf("memory sub-node type %s", mem.Type)
+	}
+	wantConfig(t, mem, map[string]interface{}{"session_key": "{{ $json.sessionId }}", "window": 16})
+	if _, set := node(t, wf, "AI Agent").Config["memory"]; set {
+		t.Error("memory folded into the agent's config")
+	}
 	nr := nodeReport(t, rep, "AI Agent")
 	text := issueText(rep, "AI Agent")
 	if nr.Status != n8nimport.StatusFull || !strings.Contains(text, "local chat memory") || strings.Contains(text, "not kept") {
@@ -93,10 +99,9 @@ func TestAgentMemorySessionKeysAndBackends(t *testing.T) {
 	}
 	for _, c := range cases {
 		wf, rep := convertRaw(t, chatWithMemory("@n8n/n8n-nodes-langchain."+c.typ, c.version, c.params))
-		n := node(t, wf, "AI Agent")
-		mem, _ := n.Config["memory"].(map[string]interface{})
-		if mem == nil || mem["session_key"] != c.session || mem["window"] != c.window {
-			t.Errorf("%s %v: memory = %#v", c.typ, c.version, n.Config["memory"])
+		mem := attachedSub(t, wf, "AI Agent", "ai_memory").Config
+		if mem["session_key"] != c.session || !equalJSON(mem["window"], c.window) {
+			t.Errorf("%s %v: memory = %#v", c.typ, c.version, mem)
 		}
 		text := issueText(rep, "AI Agent")
 		if c.noteBackend != "" && !strings.Contains(text, "instead of "+c.noteBackend) {
@@ -165,8 +170,8 @@ func TestMemoryManagerOperations(t *testing.T) {
 		if n.Type != "agent.memory" {
 			t.Fatalf("%s: type %s:\n%s", c.name, n.Type, issueText(rep, "Mem"))
 		}
-		c.want["session_key"] = "{{ $json.chatId }}"
 		wantConfig(t, n, c.want)
+		wantConfig(t, attachedSub(t, wf, "Mem", "ai_memory"), map[string]interface{}{"session_key": "{{ $json.chatId }}"})
 		text := issueText(rep, "Mem")
 		if nr := nodeReport(t, rep, "Mem"); nr.Status != n8nimport.StatusFull || !strings.Contains(text, "instead of Redis") {
 			t.Errorf("%s: status %s:\n%s", c.name, nr.Status, text)
@@ -183,8 +188,8 @@ func TestMemoryManagerOperations(t *testing.T) {
 func TestMemoryChatRetriever(t *testing.T) {
 	wf, rep := convertRaw(t, memoryWorkflow("memoryChatRetriever", 1, map[string]interface{}{}))
 	n := node(t, wf, "Mem")
-	wantConfig(t, n, map[string]interface{}{"operation": "get", "format": "pairs", "group": false,
-		"execute_once": true, "session_key": "{{ $json.chatId }}"})
+	wantConfig(t, n, map[string]interface{}{"operation": "get", "format": "pairs", "group": false, "execute_once": true})
+	wantConfig(t, attachedSub(t, wf, "Mem", "ai_memory"), map[string]interface{}{"session_key": "{{ $json.chatId }}"})
 	if nr := nodeReport(t, rep, "Mem"); nr.Status != n8nimport.StatusFull {
 		t.Errorf("status %s:\n%s", nr.Status, issueText(rep, "Mem"))
 	}

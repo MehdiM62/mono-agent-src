@@ -258,8 +258,9 @@ func (tm *TriggerManager) registerAppHook(ctx context.Context, w *Workflow, node
 	if rec != nil && rec.Secret != "" {
 		hook.Secret = rec.Secret
 	}
-	if rec != nil && rec.Registrar == name && rec.ConfigHash == hash && rec.HookID != "" {
-		stored := AppWebhookHook{ID: rec.HookID, Extra: rec.Extra}
+	expired := rec != nil && !rec.ExpiresAt.IsZero() && !time.Now().Before(rec.ExpiresAt)
+	if rec != nil && rec.Registrar == name && rec.ConfigHash == hash && rec.HookID != "" && !expired {
+		stored := AppWebhookHook{ID: rec.HookID, Extra: rec.Extra, ExpiresAt: rec.ExpiresAt}
 		keep := true
 		if c, ok := r.(WebhookChecker); ok {
 			exists, err := c.Exists(ctx, hook, stored)
@@ -275,7 +276,8 @@ func (tm *TriggerManager) registerAppHook(ctx context.Context, w *Workflow, node
 			return st, nil
 		}
 	} else if rec != nil {
-		// Registered with other inputs (or another app): remove that one.
+		// Registered with other inputs (or another app), or expired:
+		// remove that one.
 		tm.unregisterRecord(ctx, profile, rec)
 	}
 
@@ -286,6 +288,7 @@ func (tm *TriggerManager) registerAppHook(ctx context.Context, w *Workflow, node
 	err = store.put(ctx, appWebhookRecord{
 		WorkflowID: w.ID, NodeID: node.ID, Registrar: name, HookID: got.ID, URL: hook.URL,
 		Secret: hook.Secret, Config: cfg, ConfigHash: hash, Extra: got.Extra,
+		ExpiresAt: got.ExpiresAt, RenewedAt: renewedAt(got.ExpiresAt),
 	})
 	if err != nil {
 		// Without the id nothing could remove the hook later.
@@ -299,6 +302,15 @@ func (tm *TriggerManager) registerAppHook(ctx context.Context, w *Workflow, node
 	return st, nil
 }
 
+// renewedAt is the RenewedAt of a hook just given expiry expires: now, or
+// zero for a hook that does not expire.
+func renewedAt(expires time.Time) time.Time {
+	if expires.IsZero() {
+		return time.Time{}
+	}
+	return time.Now()
+}
+
 // unregisterAppHook removes a deactivated node's registration from the app.
 func (tm *TriggerManager) unregisterAppHook(st *appHookState) {
 	ctx, cancel := context.WithTimeout(context.Background(), appHookTimeout)
@@ -310,6 +322,33 @@ func (tm *TriggerManager) unregisterAppHook(st *appHookState) {
 	}
 	if rec != nil {
 		tm.unregisterRecord(ctx, st.profileID, rec)
+	}
+}
+
+// unregisterStoredAppHooks removes from the apps the stored hooks of a
+// workflow's nodes this manager has no active trigger for, and forgets them.
+// A process that did not register them (the CLI deactivating or deleting a
+// workflow whose hooks the daemon registered) would otherwise leave them
+// registered with the vendor.
+func (tm *TriggerManager) unregisterStoredAppHooks(ctx context.Context, workflowID, profileID string) {
+	store := tm.appDeps().store
+	if store == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, appHookTimeout)
+	defer cancel()
+	recs, err := store.list(ctx, workflowID)
+	if err != nil {
+		tm.logger.Error().Err(err).Str("workflow_id", workflowID).Msg("app webhook: listing the stored hooks")
+		return
+	}
+	for i := range recs {
+		tm.mu.Lock()
+		active := tm.active[workflowID][recs[i].NodeID] != nil
+		tm.mu.Unlock()
+		if !active {
+			tm.unregisterRecord(ctx, profileID, &recs[i])
+		}
 	}
 }
 

@@ -30,12 +30,14 @@ type triggerReconciler struct {
 // Activations, deactivations, deletions and trigger edits made by other
 // processes (the GUI and the CLI each run their own short-lived engine) only
 // reach the store, so the long-running daemon has to look for them itself.
-// Only an AllowAllProfiles engine (the daemon) runs it; it is started once.
+// Only an AllowAllProfiles engine (the daemon) runs it; it is started once,
+// together with the renewal of expiring app webhooks (webhook_renew.go).
 func (e *WorkflowEngine) startTriggerReconcile(ctx context.Context) {
 	if !e.allowAllProfiles {
 		return
 	}
 	e.reconciler.once.Do(func() {
+		e.triggerMgr.startAppHookRenewal(ctx)
 		go func() {
 			t := time.NewTicker(triggerReconcileInterval)
 			defer t.Stop()

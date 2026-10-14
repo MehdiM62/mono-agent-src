@@ -165,11 +165,13 @@ func (s *SQLiteWorkflowStore) SetExecutionStarted(ctx context.Context, id string
 
 // SetExecutionFinished records finished_at, final status and optional error.
 // It also clears any resume_state — a finished execution is never resumed.
+// A row already CANCELLED (`workflow cancel` from another process) stays
+// CANCELLED whatever the run ended with.
 func (s *SQLiteWorkflowStore) SetExecutionFinished(ctx context.Context, id string, status string, errMsg string) error {
 	now := time.Now().UTC()
 	_, err := s.db.ExecContext(ctx,
-		"UPDATE workflow_executions SET status = ?, finished_at = ?, error_message = ?, resume_state = '' WHERE id = ?",
-		status, now, errMsg, id,
+		"UPDATE workflow_executions SET status = ?, finished_at = ?, error_message = ?, resume_state = '' WHERE id = ? AND (status <> 'CANCELLED' OR ? = 'CANCELLED')",
+		status, now, errMsg, id, status,
 	)
 	if err != nil {
 		return fmt.Errorf("setting execution finished %s: %w", id, err)
