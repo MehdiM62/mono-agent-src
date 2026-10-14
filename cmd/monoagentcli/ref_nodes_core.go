@@ -199,6 +199,10 @@ or per workflow with scope "workflow"; historySize caps the stored values).
 }`,
 		Inputs:  "any items",
 		Outputs: "items returned by the code",
+		Notes: `$input has all(), first(), last() and item; $json is the first item;
+$('Node Name') gives another node's output with the same accessors. Code
+may return a promise, and code with a top-level return or await runs as an
+async function body (n8n style): return $input.all().map(...)`,
 	},
 	{
 		Type:     "core.compare_datasets",
