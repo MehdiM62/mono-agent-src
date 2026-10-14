@@ -1,4 +1,4 @@
-package main
+package jevcli
 
 import (
 	"bytes"
@@ -12,16 +12,72 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zalando/go-keyring"
+
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/jev/jevtest"
 	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/testhome"
 )
+
+// Tests never touch the real ~/.monoagent or the OS keychain.
+func TestMain(m *testing.M) {
+	keyring.MockInit()
+	testhome.Main(m)
+}
+
+// testConfig is the CLI around the commands: a migrated database, the profile and --json.
+type testConfig struct {
+	DBPath     string
+	ProfileID  string
+	JSONOutput bool
+}
+
+// stdinTTY is what Deps.StdinIsTerminal answers (setJevTTY).
+var stdinTTY = false
+
+func (c *testConfig) deps() Deps {
+	return Deps{
+		JSONOutput: func() bool { return c.JSONOutput },
+		ProfileID:  func() string { return c.ProfileID },
+		OpenDB: func() (*storage.Database, error) {
+			db, err := storage.NewDatabase(c.DBPath)
+			if err != nil {
+				return nil, err
+			}
+			if err := db.ApplyMigrations(); err != nil {
+				db.Close()
+				return nil, err
+			}
+			return db, nil
+		},
+		StdinIsTerminal: func() bool { return stdinTTY },
+	}
+}
+
+// newTestDB is a migrated database in a temp dir.
+func newTestDB(t *testing.T) string {
+	t.Helper()
+	dbPath := filepath.Join(t.TempDir(), "jev-test.db")
+	db, err := storage.NewDatabase(dbPath)
+	if err != nil {
+		t.Fatalf("NewDatabase: %v", err)
+	}
+	if err := db.ApplyMigrations(); err != nil {
+		t.Fatalf("ApplyMigrations: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("closing seed db: %v", err)
+	}
+	return dbPath
+}
 
 // runJev runs `jev <args>` against a fresh config and returns stdout,
 // stderr and the error.
-func runJev(t *testing.T, cfg *globalConfig, stdin string, args ...string) (string, string, error) {
+func runJev(t *testing.T, cfg *testConfig, stdin string, args ...string) (string, string, error) {
 	t.Helper()
-	cmd := newJevCmd(cfg)
+	cmd := NewCommand(cfg.deps())
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
@@ -33,15 +89,15 @@ func runJev(t *testing.T, cfg *globalConfig, stdin string, args ...string) (stri
 	return out.String(), errOut.String(), err
 }
 
-func jevTestCfg(t *testing.T, jsonOut bool) *globalConfig {
+func jevTestCfg(t *testing.T, jsonOut bool) *testConfig {
 	t.Helper()
 	t.Setenv("TYPESAFE_API_KEY", "")
 	t.Setenv("TYPESAFE_DEFAULT_MODEL", "")
 	t.Setenv("TYPESAFE_BASE_URL", "")
-	return &globalConfig{DBPath: newHILTestDB(t), ProfileID: "default", JSONOutput: jsonOut}
+	return &testConfig{DBPath: newTestDB(t), ProfileID: "default", JSONOutput: jsonOut}
 }
 
-func openJevDB(t *testing.T, cfg *globalConfig) *sql.DB {
+func openJevDB(t *testing.T, cfg *testConfig) *sql.DB {
 	t.Helper()
 	db, err := storage.NewDatabase(cfg.DBPath)
 	if err != nil {
@@ -53,9 +109,9 @@ func openJevDB(t *testing.T, cfg *globalConfig) *sql.DB {
 
 func setJevTTY(t *testing.T, tty bool) {
 	t.Helper()
-	old := jevStdinIsTerminal
-	jevStdinIsTerminal = func() bool { return tty }
-	t.Cleanup(func() { jevStdinIsTerminal = old })
+	old := stdinTTY
+	stdinTTY = tty
+	t.Cleanup(func() { stdinTTY = old })
 }
 
 type jevStatusJSON struct {
@@ -122,7 +178,7 @@ func TestJevStatusText(t *testing.T) {
 func TestJevEnableUnknownSurface(t *testing.T) {
 	cfg := jevTestCfg(t, false)
 	_, _, err := runJev(t, cfg, "", "enable", "nope", "--yes")
-	if err == nil || exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "people_review") {
+	if err == nil || clicore.ExitCodeFor(err) != 3 || !strings.Contains(err.Error(), "people_review") {
 		t.Fatalf("err = %v", err)
 	}
 }
@@ -131,7 +187,7 @@ func TestJevEnableNeedsYesWithoutTTY(t *testing.T) {
 	setJevTTY(t, false)
 	cfg := jevTestCfg(t, false)
 	out, _, err := runJev(t, cfg, "", "enable", "hil")
-	if err == nil || exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "--yes") {
+	if err == nil || clicore.ExitCodeFor(err) != 3 || !strings.Contains(err.Error(), "--yes") {
 		t.Fatalf("err = %v", err)
 	}
 	if !strings.Contains(out, "This sends to TypeSafe") {
@@ -165,7 +221,7 @@ func TestJevEnableYesAndThreshold(t *testing.T) {
 	if jevconf.Enabled(db, "default", jevconf.Capture) {
 		t.Fatal("still enabled after disable")
 	}
-	if _, _, err := runJev(t, cfg, "", "disable", "bogus"); exitCodeFor(err) != 3 {
+	if _, _, err := runJev(t, cfg, "", "disable", "bogus"); clicore.ExitCodeFor(err) != 3 {
 		t.Fatalf("disable bogus: %v", err)
 	}
 }
@@ -196,7 +252,7 @@ func TestJevEnableAPIAutoSaysWhatItSends(t *testing.T) {
 func TestJevEnableBadThreshold(t *testing.T) {
 	cfg := jevTestCfg(t, false)
 	for _, v := range []string{"0", "1.5", "-1"} {
-		if _, _, err := runJev(t, cfg, "", "enable", "hil", "--yes", "--threshold", v); exitCodeFor(err) != 3 {
+		if _, _, err := runJev(t, cfg, "", "enable", "hil", "--yes", "--threshold", v); clicore.ExitCodeFor(err) != 3 {
 			t.Fatalf("threshold %s: %v", v, err)
 		}
 	}
@@ -277,7 +333,7 @@ func TestJevUsage(t *testing.T) {
 	if len(v.Surfaces) != 1 || v.Surfaces[0].Calls != 2 || v.Surfaces[0].Failures != 1 || v.Total.InputTokens != 4000 {
 		t.Fatalf("usage = %+v", v)
 	}
-	if _, _, err := runJev(t, cfg, "", "usage", "--since", "soon"); exitCodeFor(err) != 3 {
+	if _, _, err := runJev(t, cfg, "", "usage", "--since", "soon"); clicore.ExitCodeFor(err) != 3 {
 		t.Fatalf("bad --since: %v", err)
 	}
 	cfg.JSONOutput = false
@@ -319,14 +375,14 @@ func TestJevAsk(t *testing.T) {
 		t.Fatalf("usage rows for cli = %d", n)
 	}
 
-	if _, _, err := runJev(t, cfg, `{"state":{}}`, "ask", "--request", "-"); exitCodeFor(err) != 3 {
+	if _, _, err := runJev(t, cfg, `{"state":{}}`, "ask", "--request", "-"); clicore.ExitCodeFor(err) != 3 {
 		t.Fatalf("no questions: %v", err)
 	}
-	if _, _, err := runJev(t, cfg, "", "ask"); exitCodeFor(err) != 3 {
+	if _, _, err := runJev(t, cfg, "", "ask"); clicore.ExitCodeFor(err) != 3 {
 		t.Fatalf("no --request: %v", err)
 	}
 	t.Setenv("TYPESAFE_API_KEY", "")
-	if _, _, err := runJev(t, cfg, req, "ask", "--request", "-"); exitCodeFor(err) != 4 {
+	if _, _, err := runJev(t, cfg, req, "ask", "--request", "-"); clicore.ExitCodeFor(err) != 4 {
 		t.Fatalf("no key: %v", err)
 	}
 }
@@ -353,32 +409,7 @@ func TestJevModels(t *testing.T) {
 		t.Fatalf("models json: %v %q", err, out)
 	}
 	t.Setenv("TYPESAFE_API_KEY", "")
-	if _, _, err := runJev(t, cfg, "", "models"); exitCodeFor(err) != 4 {
+	if _, _, err := runJev(t, cfg, "", "models"); clicore.ExitCodeFor(err) != 4 {
 		t.Fatalf("no key: %v", err)
-	}
-}
-
-// Doctor's JevKey hook tolerates a missing or unmigrated database: the vault
-// lookup failing only means the key is not in the vault.
-func TestHealthEnvJevKeyHook(t *testing.T) {
-	t.Setenv("TYPESAFE_API_KEY", "")
-	missing := &globalConfig{DBPath: filepath.Join(t.TempDir(), "none.db")}
-	unmigrated := filepath.Join(t.TempDir(), "raw.db")
-	raw, err := storage.NewDatabase(unmigrated)
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw.Close()
-	for name, cfg := range map[string]*globalConfig{"no db": missing, "unmigrated": {DBPath: unmigrated}} {
-		env, closeFn := newHealthEnv(cfg)
-		t.Setenv("TYPESAFE_API_KEY", "")
-		if src, err := env.JevKey(t.Context()); err == nil || src != "" {
-			t.Errorf("%s without key: %q %v", name, src, err)
-		}
-		t.Setenv("TYPESAFE_API_KEY", "k")
-		if src, err := env.JevKey(t.Context()); err != nil || src != jevconf.SourceEnv {
-			t.Errorf("%s with env key: %q %v", name, src, err)
-		}
-		closeFn()
 	}
 }

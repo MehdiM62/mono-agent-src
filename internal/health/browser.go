@@ -26,6 +26,12 @@ const (
 	FixBridgeServiceRestart = "browser.bridge.service.restart"
 )
 
+// ClientPairing's answers (extension.PairingState's values).
+const (
+	ClientPairingOK       = "ok"
+	ClientPairingMismatch = "mismatch"
+)
+
 var browserFeatures = []string{"crawling", "page capture", "platform logins"}
 
 func browserChecks() []Check {
@@ -49,7 +55,7 @@ func browserFixes() []Fix {
 		{FixInfo: FixInfo{ID: FixExtensionInstall, Label: "Load the MonoAgent extension", Safety: SafetyManual,
 			Command: "open chrome://extensions → enable Developer mode → Load unpacked → the chrome-extension folder"}, Apply: manual},
 		{FixInfo: FixInfo{ID: FixExtensionPair, Label: "Pair the extension", Safety: SafetyManual,
-			Command: "monoagentcli extension pair"}, Apply: manual},
+			Command: "monoagentcli extension pair --open"}, Apply: manual},
 		{FixInfo: FixInfo{ID: FixExtensionPermission, Label: "Grant Full Disk Access", Safety: SafetyManual,
 			Command: "System Settings → Privacy & Security → Full Disk Access → enable your terminal app, then re-run doctor"}, Apply: manual},
 		{FixInfo: FixInfo{ID: FixBridgeRestart, Label: "Restart the daemon (it runs the extension bridge)", Safety: SafetyConfirm,
@@ -303,6 +309,15 @@ func checkPaired(ctx context.Context, env *Env) Result {
 	b, ok := env.Bridge(ctx)
 	if !ok {
 		return Result{Status: StatusSkip, Summary: "bridge not running"}
+	}
+	// The bridge's status is about the extension; whether it serves THIS app
+	// is a separate question, asked with this app's token (`extension status`
+	// asks it the same way).
+	if env.ClientPairing != nil && b.URL != "" && env.ClientPairing(ctx, b.URL) == ClientPairingMismatch {
+		return Result{Status: StatusWarn, Summary: "the bridge doesn't accept this app's pairing token",
+			Detail: "the bridge on " + b.Addr + " was started with another token (another HOME, or the token was reset since) — " +
+				"restart the bridge from this install, then pair the extension",
+			FixID: FixExtensionPair}
 	}
 	switch b.Status {
 	case "connected":

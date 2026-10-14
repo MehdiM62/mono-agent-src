@@ -164,9 +164,18 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 	N8nPrefix + "vectorStoreZep":            {Role: N8nRoleNode, OurType: "vector.store", Coverage: "unsupported", Notes: zepNote},
 	N8nPrefix + "vectorStoreZepInsert":      {Role: N8nRoleNode, OurType: "vector.store", Coverage: "unsupported", Notes: zepNote},
 	N8nPrefix + "vectorStoreZepLoad":        {Role: N8nRoleNode, OurType: "vector.store", Coverage: "unsupported", Notes: zepNote},
-	N8nPrefix + "vectorStoreAzureAISearch":  {Role: N8nRoleNode, OurType: "vector.store", Coverage: "unsupported", Notes: "no Azure AI Search provider"},
-	N8nPrefix + "vectorStoreDatabricks":     {Role: N8nRoleNode, OurType: "vector.store", Coverage: "unsupported", Notes: "no Databricks provider"},
-	N8nPrefix + "vectorStoreOracleDBVector": {Role: N8nRoleNode, OurType: "vector.store", Coverage: "unsupported", Notes: "no Oracle DB provider"},
+	N8nPrefix + "vectorStoreAzureAISearch": storeNode(StoreAzureSearch, "", map[string]string{
+		"indexName": "collection", "options.queryType": "query_type", "options.filter": "filter",
+		"options.semanticConfiguration": "semantic_configuration", "options.clearIndex": "clear",
+		"options.metadataKeysToInsert": "metadata_keys",
+	}, "full", ""),
+	N8nPrefix + "vectorStoreDatabricks": storeNode(StoreDatabricks, "", map[string]string{
+		"databricksIndex": "collection", "contentColumn": "content_column", "options.metadataColumns": "metadata_columns",
+		"options.searchMode": "search_mode",
+	}, "partial", "Databricks deletes by primary key only, so clearing the index before an insert is not available"),
+	N8nPrefix + "vectorStoreOracleDBVector": storeNode(StoreOracle, "", map[string]string{
+		"tableName": "collection", "options.distanceStrategy": "distance", "options.metadata.metadataValues": "filter",
+	}, "partial", "new tables use id VARCHAR2, text CLOB, metadata JSON and embedding VECTOR columns; a table created by n8n (RAW ids) can be searched but ids come back as raw bytes"),
 
 	// ── text splitters ──────────────────────────────────────────────────────
 	N8nPrefix + "textSplitterCharacterTextSplitter": {Role: N8nRoleSplitter, OurType: "vector.split_text",
@@ -242,6 +251,12 @@ var N8nCredentialMappings = map[string]N8nCredentialMapping{
 	"milvusApi":           {"milvus", map[string]string{"baseUrl": "url", "username": "username", "password": "password"}},
 	"chromaSelfHostedApi": {"chroma", map[string]string{"baseUrl": "url", "apiKey": "api_key", "token": "api_key"}},
 	"chromaCloudApi":      {"chroma", map[string]string{"baseUrl": "url", "apiKey": "api_key", "tenant": "tenant", "database": "database"}},
+	"azureAiSearchApi":    {"azure_ai_search", map[string]string{"endpoint": "endpoint", "apiKey": "api_key"}},
+	"databricksApi":       {"databricks", map[string]string{"host": "host", "token": "access_token"}},
+	"databricksOAuth2Api": {"databricks_sp", map[string]string{"host": "host", "clientId": "client_id", "clientSecret": "client_secret"}},
+	// oracleDBApi splits user, password and connectString; connect an
+	// oracle connection with its connection_string.
+	"oracleDBApi": {"oracle", nil},
 	// postgres / mongoDb / redis credentials split host, port, user … in
 	// n8n; the importer builds connection_string for postgresql / mongodb
 	// / redis the same way it does for the db.* nodes.

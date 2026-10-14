@@ -1,4 +1,4 @@
-package main
+package jevcli
 
 import (
 	"context"
@@ -170,13 +170,13 @@ func TestRedactRetryError(t *testing.T) {
 		{"no_such_host_for_this_very_long_identifier_name", "no_such_host_for_this_very_long_identifier_name", ""},
 	}
 	for _, c := range cases {
-		got := redactRetryError(c.in)
+		got := RedactRetryError(c.in)
 		if !strings.Contains(got, c.mustKeep) || (c.mustDrop != "" && strings.Contains(got, c.mustDrop)) {
-			t.Errorf("redactRetryError(%q) = %q (keep %q, drop %q)", c.in, got, c.mustKeep, c.mustDrop)
+			t.Errorf("RedactRetryError(%q) = %q (keep %q, drop %q)", c.in, got, c.mustKeep, c.mustDrop)
 		}
 	}
 	long := strings.Repeat("é", 3000)
-	if got := redactRetryError(long); len([]rune(got)) > maxRetryErrorChars {
+	if got := RedactRetryError(long); len([]rune(got)) > maxRetryErrorChars {
 		t.Fatalf("not capped: %d runes", len([]rune(got)))
 	}
 }
