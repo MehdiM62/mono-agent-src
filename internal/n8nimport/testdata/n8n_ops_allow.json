@@ -66,8 +66,5 @@
   {"key": "n8n-nodes-base.airtop#agent.run", "category": "ours-todo", "reason": "Airtop agent runs are not in the airtop package yet"},
   {"key": "n8n-nodes-base.airtop#file.load", "category": "ours-todo", "reason": "waits for the file on Airtop's session event stream (server-sent events), which apipkg cannot read yet"},
   {"key": "n8n-nodes-base.airtop#file.upload", "category": "ours-todo", "reason": "presigned upload plus availability polling not in the airtop package yet"},
-  {"key": "n8n-nodes-base.airtop#session.waitForDownload", "category": "ours-todo", "reason": "waits on Airtop's session event stream (server-sent events), which apipkg cannot read yet"},
-  {"key": "n8n-nodes-base.ftp#rename", "category": "ours-todo", "reason": "http.ftp has no rename operation (internal/nodes/http)"},
-  {"key": "n8n-nodes-base.ssh#file.download", "category": "ours-todo", "reason": "http.ssh runs commands only; SFTP file transfer is not implemented (internal/nodes/http)"},
-  {"key": "n8n-nodes-base.ssh#file.upload", "category": "ours-todo", "reason": "http.ssh runs commands only; SFTP file transfer is not implemented (internal/nodes/http)"}
+  {"key": "n8n-nodes-base.airtop#session.waitForDownload", "category": "ours-todo", "reason": "waits on Airtop's session event stream (server-sent events), which apipkg cannot read yet"}
 ]
