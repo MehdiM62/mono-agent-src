@@ -164,6 +164,7 @@
             "expand_merge_path": { "type": "string" },
             "to": {},
             "to_when": { "type": "string" },
+            "match_after_to": { "type": "boolean" },
             "firestore": { "type": "string" },
             "schema_rows": { "type": "string" },
             "numbers": { "type": "string" },
@@ -205,11 +206,37 @@
             "download_base64": { "type": "string" },
             "property": { "type": "string" },
             "properties": { "type": "string" },
-            "upload_text": { "type": "string" }
+            "upload_text": { "type": "string" },
+            "upload_session": {
+              "type": "object",
+              "required": ["create"],
+              "additionalProperties": false,
+              "properties": {
+                "min_size": { "type": "integer" },
+                "chunk_size": { "type": "integer" },
+                "url_path": { "type": "string" },
+                "create": {
+                  "type": "object",
+                  "required": ["method", "path"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "when": { "type": "string" },
+                    "method": { "type": "string" },
+                    "path": { "type": "string", "minLength": 1 },
+                    "base_url": { "type": "string" },
+                    "query": { "type": "object" },
+                    "body": {},
+                    "body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none"] },
+                    "headers": { "$ref": "#/$defs/stringMap" }
+                  }
+                }
+              }
+            }
           }
         },
         "n8n_param_map": { "$ref": "#/$defs/stringMap" },
         "batch": { "type": "boolean" },
+        "scope_group": { "type": "string" },
         "query_style": { "type": "string", "enum": ["", "brackets"] },
         "poll": {
           "type": "object",

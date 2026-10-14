@@ -82,9 +82,7 @@ func (p *Package) check() []string {
 		}
 	}
 	probs = append(probs, checkTemplates("base_url", p.BaseURL, nil, credKeys)...)
-	for k, v := range p.Headers {
-		probs = append(probs, checkTemplates("headers."+k, v, nil, credKeys)...)
-	}
+	probs = append(probs, checkHeaderTemplates("package", p.Headers, nil, credKeys)...)
 
 	if p.Extends != "" {
 		native := nativeOperations(p.Extends)
@@ -120,6 +118,7 @@ func (p *Package) check() []string {
 			add("resources: %q has no operations", r.Value)
 		}
 	}
+	probs = append(probs, p.checkScopeGroups()...)
 	return probs
 }
 
@@ -256,9 +255,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	probs = append(probs, checkTemplates(where+" path", o.Path, fields, credKeys)...)
 	probs = append(probs, checkTemplates(where+" query", o.Query, fields, credKeys)...)
 	probs = append(probs, checkTemplates(where+" body", o.Body, fields, credKeys)...)
-	for k, v := range o.Headers {
-		probs = append(probs, checkTemplates(where+" headers."+k, v, fields, credKeys)...)
-	}
+	probs = append(probs, checkHeaderTemplates(where, o.Headers, fields, credKeys)...)
 	if o.Output != nil && o.Output.Expand != nil {
 		st := o.Output.Expand
 		for _, v := range []any{st.When, st.BaseURL, st.Path, st.Query, st.Body} {
@@ -292,9 +289,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		for _, v := range []any{st.When, st.ForEach, st.BaseURL, st.Path, st.Query, st.Body} {
 			probs = append(probs, checkTemplates(sw, v, fields, credKeys)...)
 		}
-		for k, v := range st.Headers {
-			probs = append(probs, checkTemplates(sw+" headers."+k, v, fields, credKeys)...)
-		}
+		probs = append(probs, checkHeaderTemplates(sw, st.Headers, fields, credKeys)...)
 	}
 	bt := o.effectiveBodyType()
 	if (bt == BodyForm || bt == BodyMultipart) && o.Body != nil {
@@ -327,6 +322,21 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 			}
 		}
 		probs = append(probs, checkTemplates(where+" binary", []any{b.FileName, b.MimeType}, fields, credKeys)...)
+		if us := b.UploadSession; us != nil {
+			if b.UploadField == "" {
+				add("binary.upload_session needs binary.upload_field")
+			}
+			if !validMethods[strings.ToUpper(us.Create.Method)] || us.Create.Path == "" {
+				add("binary.upload_session.create: needs a method (POST, …) and a path")
+			}
+			if us.MinSize < 0 || us.ChunkSize < 0 {
+				add("binary.upload_session: min_size and chunk_size must not be negative")
+			}
+			for _, v := range []any{us.Create.When, us.Create.BaseURL, us.Create.Path, us.Create.Query, us.Create.Body} {
+				probs = append(probs, checkTemplates(where+" binary.upload_session.create", v, fields, credKeys)...)
+			}
+			probs = append(probs, checkHeaderTemplates(where+" binary.upload_session.create", us.Create.Headers, fields, credKeys)...)
+		}
 	}
 	for n8n, ours := range o.N8nParamMap {
 		if !fields[ours] {

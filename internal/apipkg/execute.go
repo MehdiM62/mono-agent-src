@@ -111,11 +111,7 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 			pkg.ID, pkg.PrimaryPlatform(), pkg.PrimaryPlatform())
 	}
 	credDef := pkg.selectCredential(cred)
-	if credDef != nil && credDef.ScopeGroup != "" && ScopeCheck != nil {
-		if err := ScopeCheck(cred, credDef.ScopeGroup); err != nil {
-			return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
-		}
-	}
+	scopes := scopeChecker{pkg: pkg, cred: cred, credDef: credDef}
 	if credDef != nil && credDef.hasMethod("client_credentials") && isEmpty(cred["access_token"]) {
 		tok, err := clientCredentialsToken(ctx, credDef, cred)
 		if err != nil {
@@ -148,6 +144,9 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		op, err := pkg.resolveOp(params)
 		if err != nil {
+			return nil, err
+		}
+		if err := scopes.check(op); err != nil {
 			return nil, err
 		}
 		applyDefaults(op, params)
@@ -343,7 +342,7 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		}
 		return items, nil
 	}
-	resp, err := r.send(ctx, pageParams{})
+	resp, err := r.sendMain(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -657,32 +656,9 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			}
 		}
 	}
-	if m := o.Match; m != nil {
-		rowsV, err := renderString(m.Rows, r.scope)
-		if err != nil {
-			return nil, r.errf("output.match.rows: %w", err)
-		}
-		conds, _ := rowsV.([]any)
-		if len(conds) > 0 {
-			combine, err := renderText(m.Combine, r.scope)
-			if err != nil {
-				return nil, r.errf("output.match.combine: %w", err)
-			}
-			first, err := renderString(m.First, r.scope)
-			if err != nil {
-				return nil, r.errf("output.match.first: %w", err)
-			}
-			or := strings.EqualFold(combine, "OR")
-			kept := make([]any, 0, len(list))
-			for _, el := range list {
-				if matchRow(el, conds, m.Column, m.Value, or) {
-					kept = append(kept, el)
-					if b, _ := toBool(first); b == true {
-						break
-					}
-				}
-			}
-			list = kept
+	if !o.MatchAfterTo {
+		if list, err = r.applyMatch(list); err != nil {
+			return nil, err
 		}
 	}
 	if o.Firestore != "" {
@@ -749,24 +725,12 @@ func (r *opRun) shapeOutput(ctx context.Context, v any) (any, error) {
 			}
 		}
 	}
-	return list, nil
-}
-
-// matchRow reports whether el satisfies the condition rows (each names a
-// field via colKey and a wanted value via valKey), all (AND) or any (OR).
-func matchRow(el any, conds []any, colKey, valKey string, or bool) bool {
-	obj, _ := el.(map[string]any)
-	for _, c := range conds {
-		cm, _ := c.(map[string]any)
-		ok := stringify(obj[stringify(cm[colKey])]) == stringify(cm[valKey])
-		if or && ok {
-			return true
-		}
-		if !or && !ok {
-			return false
+	if o.MatchAfterTo {
+		if list, err = r.applyMatch(list); err != nil {
+			return nil, err
 		}
 	}
-	return !or
+	return list, nil
 }
 
 // renderOutputKey renders an output path/each value, which may be a
