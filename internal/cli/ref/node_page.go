@@ -1,4 +1,4 @@
-package main
+package ref
 
 import (
 	"fmt"
@@ -8,9 +8,9 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// nodeRefField is one config field as `ref node` documents it, taken from
+// NodeRefField is one config field as `ref node` documents it, taken from
 // the node type's schema.
-type nodeRefField struct {
+type NodeRefField struct {
 	Key         string      `json:"key"`
 	Label       string      `json:"label,omitempty"`
 	Type        string      `json:"type,omitempty"`
@@ -25,18 +25,18 @@ type nodeRefField struct {
 	ShownWhen *workflow.FieldDependency `json:"shown_when,omitempty"`
 }
 
-// nodeRefOperation is one value of the operation selector and the fields
+// NodeRefOperation is one value of the operation selector and the fields
 // the schema shows for it.
-type nodeRefOperation struct {
+type NodeRefOperation struct {
 	Name    string         `json:"name"`
 	Default bool           `json:"default,omitempty"`
-	Fields  []nodeRefField `json:"fields"`
+	Fields  []NodeRefField `json:"fields"`
 }
 
-// nodeRefPage is everything `ref node <type>` prints: the schema-derived
+// NodeRefPage is everything `ref node <type>` prints: the schema-derived
 // reference (credential platform, fields, operations) with the hand-written
-// prose from nodeDocs layered on top when the type has an entry.
-type nodeRefPage struct {
+// prose from the node catalogue layered on top when the type has an entry.
+type NodeRefPage struct {
 	Type            string `json:"type"`
 	Category        string `json:"category"`
 	Registered      bool   `json:"registered"`
@@ -55,40 +55,40 @@ type nodeRefPage struct {
 	// OperationKey is the selector field the operations hang off (usually
 	// "operation"); empty when the schema has none.
 	OperationKey string             `json:"operation_key,omitempty"`
-	Fields       []nodeRefField     `json:"fields"`
-	Operations   []nodeRefOperation `json:"operations,omitempty"`
+	Fields       []NodeRefField     `json:"fields"`
+	Operations   []NodeRefOperation `json:"operations,omitempty"`
 }
 
-// refNodeTypes is the set of node types the manual covers: every type the
+// NodeTypes is the set of node types the manual covers: every type the
 // node registry builds (the same registry `node run` uses), plus the
 // hand-documented triggers, which run through the trigger manager rather
 // than the registry. Hand entries for types this build does not register
 // (e.g. social nodes in a nosocial build) are left out.
-func refNodeTypes(reg *workflow.NodeTypeRegistry) []string {
+func (d Deps) NodeTypes(reg *workflow.NodeTypeRegistry) []string {
 	seen := map[string]bool{}
 	var types []string
 	for _, t := range reg.Types() {
 		seen[t] = true
 		types = append(types, t)
 	}
-	for _, d := range nodeDocs {
-		if !seen[d.Type] && strings.HasPrefix(d.Type, "trigger.") {
-			seen[d.Type] = true
-			types = append(types, d.Type)
+	for _, doc := range d.NodeDocs() {
+		if !seen[doc.Type] && strings.HasPrefix(doc.Type, "trigger.") {
+			seen[doc.Type] = true
+			types = append(types, doc.Type)
 		}
 	}
 	sort.Strings(types)
 	return types
 }
 
-// buildNodeRefPage assembles the page for typ. Legacy aliases (e.g. "slack")
+// BuildNodeRefPage assembles the page for typ. Legacy aliases (e.g. "slack")
 // resolve to their canonical type. It fails only for a type that is neither
 // registered nor hand-documented.
-func buildNodeRefPage(reg *workflow.NodeTypeRegistry, typ string) (*nodeRefPage, error) {
+func (d Deps) BuildNodeRefPage(reg *workflow.NodeTypeRegistry, typ string) (*NodeRefPage, error) {
 	if canonical, ok := reg.Aliases()[typ]; ok {
 		typ = canonical
 	}
-	doc := findNodeDoc(typ)
+	doc := d.FindNodeDoc(typ)
 	if doc != nil {
 		typ = doc.Type // canonical casing
 	}
@@ -101,7 +101,7 @@ func buildNodeRefPage(reg *workflow.NodeTypeRegistry, typ string) (*nodeRefPage,
 	if err != nil {
 		return nil, err
 	}
-	page := &nodeRefPage{Type: typ, Category: nodeRefCategory(typ), Registered: registered}
+	page := &NodeRefPage{Type: typ, Category: d.nodeRefCategory(typ), Registered: registered}
 	if hint, ok := workflow.IsDeprecatedNodeType(typ); ok {
 		page.Deprecated, page.DeprecationHint = true, hint
 	}
@@ -120,9 +120,9 @@ func buildNodeRefPage(reg *workflow.NodeTypeRegistry, typ string) (*nodeRefPage,
 }
 
 // nodeRefCategory is the hand entry's category, else the type's prefix.
-func nodeRefCategory(typ string) string {
-	if d := findNodeDoc(typ); d != nil && d.Category != "" {
-		return d.Category
+func (d Deps) nodeRefCategory(typ string) string {
+	if doc := d.FindNodeDoc(typ); doc != nil && doc.Category != "" {
+		return doc.Category
 	}
 	prefix, _, _ := strings.Cut(typ, ".")
 	return prefix
@@ -155,19 +155,19 @@ func operationSelector(fields []workflow.NodeSchemaField) *workflow.NodeSchemaFi
 
 // splitByOperation divides schema fields into the ones shown for every
 // operation and, per operation, the ones whose depends_on names it.
-func splitByOperation(fields []workflow.NodeSchemaField) (string, []nodeRefField, []nodeRefOperation) {
+func splitByOperation(fields []workflow.NodeSchemaField) (string, []NodeRefField, []NodeRefOperation) {
 	sel := operationSelector(fields)
-	common := []nodeRefField{}
+	common := []NodeRefField{}
 	if sel == nil {
 		for _, f := range fields {
 			common = append(common, toRefField(f))
 		}
 		return "", common, nil
 	}
-	ops := make([]nodeRefOperation, len(sel.Options))
+	ops := make([]NodeRefOperation, len(sel.Options))
 	index := map[string]int{}
 	for i, o := range sel.Options {
-		ops[i] = nodeRefOperation{Name: o, Default: fmt.Sprint(sel.Default) == o, Fields: []nodeRefField{}}
+		ops[i] = NodeRefOperation{Name: o, Default: fmt.Sprint(sel.Default) == o, Fields: []NodeRefField{}}
 		index[o] = i
 	}
 	for _, f := range fields {
@@ -186,8 +186,8 @@ func splitByOperation(fields []workflow.NodeSchemaField) (string, []nodeRefField
 	return sel.Key, common, ops
 }
 
-func toRefField(f workflow.NodeSchemaField) nodeRefField {
-	return nodeRefField{
+func toRefField(f workflow.NodeSchemaField) NodeRefField {
+	return NodeRefField{
 		Key: f.Key, Label: f.Label, Type: f.Type, Required: f.Required,
 		Default: f.Default, Options: f.Options, Placeholder: f.Placeholder,
 		Help: f.Help, ShownWhen: f.DependsOn,

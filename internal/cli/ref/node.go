@@ -1,4 +1,4 @@
-package main
+package ref
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ var refNodeCategoryOrder = []string{"trigger", "system", "core", "http", "data",
 
 // ── ref nodes ─────────────────────────────────────────────────────────────────
 
-func refNodesCmd() *cobra.Command {
+func refNodesCmd(d Deps) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
 		Use:   "nodes",
@@ -29,14 +29,15 @@ hint) are hidden; --all shows them. Types marked [schema only] have no
 hand-written guide — 'ref node <type>' still documents their fields and
 operations from the schema.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			writeRefNodes(cmd.OutOrStdout(), refNodeRegistry(), all)
+			d.WriteRefNodes(cmd.OutOrStdout(), d.Registry(), all)
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "Include deprecated node types")
 	return cmd
 }
 
-func writeRefNodes(out io.Writer, reg *workflow.NodeTypeRegistry, all bool) {
+// WriteRefNodes prints `ref nodes`: reg's types by category, deprecated ones only with all.
+func (d Deps) WriteRefNodes(out io.Writer, reg *workflow.NodeTypeRegistry, all bool) {
 	fmt.Fprintln(out, "╔══════════════════════════════════════════════════════════════╗")
 	fmt.Fprintln(out, "║                  monoagentcli — node type reference                ║")
 	fmt.Fprintln(out, "╚══════════════════════════════════════════════════════════════╝")
@@ -46,20 +47,20 @@ func writeRefNodes(out io.Writer, reg *workflow.NodeTypeRegistry, all bool) {
 
 	byCategory := map[string][]string{}
 	hidden := 0
-	for _, t := range refNodeTypes(reg) {
+	for _, t := range d.NodeTypes(reg) {
 		if _, deprecated := workflow.IsDeprecatedNodeType(t); deprecated && !all {
 			hidden++
 			continue
 		}
-		cat := nodeRefCategory(t)
+		cat := d.nodeRefCategory(t)
 		byCategory[cat] = append(byCategory[cat], t)
 	}
 	for _, cat := range refCategoriesInOrder(byCategory) {
 		fmt.Fprintf(out, "\n  ── %s %s\n", strings.ToUpper(cat), strings.Repeat("─", max(0, 60-len(cat))))
-		for _, t := range refTypesInDocOrder(byCategory[cat]) {
+		for _, t := range d.refTypesInDocOrder(byCategory[cat]) {
 			short := ""
-			if d := findNodeDoc(t); d != nil {
-				short = d.Short
+			if doc := d.FindNodeDoc(t); doc != nil {
+				short = doc.Short
 			} else {
 				short = strings.TrimSpace("[schema only] " + workflow.SchemaTitle(t))
 			}
@@ -96,10 +97,10 @@ func refCategoriesInOrder(byCategory map[string][]string) []string {
 
 // refTypesInDocOrder keeps hand-documented types in catalogue order (as the
 // manual always listed them) and appends undocumented ones alphabetically.
-func refTypesInDocOrder(types []string) []string {
+func (d Deps) refTypesInDocOrder(types []string) []string {
 	pos := map[string]int{}
-	for i, d := range nodeDocs {
-		pos[d.Type] = i
+	for i, doc := range d.NodeDocs() {
+		pos[doc.Type] = i
 	}
 	out := append([]string(nil), types...)
 	sort.SliceStable(out, func(i, j int) bool {
@@ -119,7 +120,7 @@ func refTypesInDocOrder(types []string) []string {
 
 // ── ref node <type> ───────────────────────────────────────────────────────────
 
-func refNodeCmd() *cobra.Command {
+func refNodeCmd(d Deps) *cobra.Command {
 	var jsonOut bool
 	cmd := &cobra.Command{
 		Use:   "node <type>",
@@ -132,7 +133,7 @@ hand-written guide (config example, inputs, outputs, notes) when one exists.
 --json prints the same page as a JSON document.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			page, err := buildNodeRefPage(refNodeRegistry(), args[0])
+			page, err := d.BuildNodeRefPage(d.Registry(), args[0])
 			if err != nil {
 				return err
 			}
@@ -141,7 +142,7 @@ hand-written guide (config example, inputs, outputs, notes) when one exists.
 				enc.SetIndent("", "  ")
 				return enc.Encode(page)
 			}
-			writeNodeRefPage(cmd.OutOrStdout(), page)
+			WriteNodeRefPage(cmd.OutOrStdout(), page)
 			return nil
 		},
 	}
@@ -149,9 +150,9 @@ hand-written guide (config example, inputs, outputs, notes) when one exists.
 	return cmd
 }
 
-// writeNodeRefPage prints a page as text: the hand-written prose (as the
+// WriteNodeRefPage prints a page as text: the hand-written prose (as the
 // manual always showed it), then the schema-derived reference.
-func writeNodeRefPage(out io.Writer, p *nodeRefPage) {
+func WriteNodeRefPage(out io.Writer, p *NodeRefPage) {
 	sep := strings.Repeat("═", 62)
 	fmt.Fprintln(out, sep)
 	fmt.Fprintf(out, "  NODE: %s\n", p.Type)
@@ -185,7 +186,7 @@ func writeNodeRefPage(out io.Writer, p *nodeRefPage) {
 	fmt.Fprintln(out)
 }
 
-func writeNodeRefSchema(out io.Writer, p *nodeRefPage) {
+func writeNodeRefSchema(out io.Writer, p *NodeRefPage) {
 	fmt.Fprintln(out, "\n  "+strings.Repeat("─", 60))
 	if p.CredentialPlatform != "" {
 		fmt.Fprintf(out, "  Credential platform: %s\n", p.CredentialPlatform)
@@ -230,7 +231,7 @@ func writeNodeRefSchema(out io.Writer, p *nodeRefPage) {
 
 // writeNodeRefField prints "key  Label · type · required · default=… ·
 // options: a|b", then the placeholder, help and visibility condition.
-func writeNodeRefField(out io.Writer, indent string, f nodeRefField) {
+func writeNodeRefField(out io.Writer, indent string, f NodeRefField) {
 	parts := []string{}
 	if f.Label != "" {
 		parts = append(parts, f.Label)
@@ -285,18 +286,4 @@ func writeIndented(out io.Writer, lead, indent, text string) {
 	for _, line := range strings.Split(text, "\n") {
 		fmt.Fprintf(out, "%s%s\n", indent, line)
 	}
-}
-
-// refNodeRegistry is the registry `ref` documents. No database: the manual
-// is offline, and the DB-backed packages register their types without one.
-func refNodeRegistry() *workflow.NodeTypeRegistry {
-	return buildNodeRegistry(false, nil)
-}
-
-// max returns the larger of two ints (Go 1.21 builtin not always available).
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
