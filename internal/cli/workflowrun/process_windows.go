@@ -1,6 +1,6 @@
 //go:build windows
 
-package main
+package workflowrun
 
 // signalWorkflowPID is a no-op on Windows: POSIX signals are not supported
 // (Process.Signal always errors), so the recorded-pid cancel path never
