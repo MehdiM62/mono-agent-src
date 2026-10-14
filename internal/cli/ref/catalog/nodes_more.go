@@ -53,6 +53,8 @@ The bind address is loopback by default; set MONOAGENT_WEBHOOK_ADDR (e.g.
   "response_timeout": 30,           // lastNode/responseNode: seconds to wait, then 202
   "dedupe_header": "X-GitHub-Delivery", // optional: a repeated delivery id starts no run
   "verify_token": "",               // optional: hub.verify_token a hub.challenge check must carry
+  "challenge_format": "text",       // optional: "json" answers {"hub.challenge": ...} (Strava)
+  "answer_get": false,              // optional: answer a GET without a query 200, no run (Mailchimp)
   "register_with": "typeform",      // optional: register the URL with this app on activation
   "public_url": "https://my-tunnel.example", // base the app reaches; default MONOAGENT_PUBLIC_URL
   "credential_id": "typeform",      // connection whose token registers the hook
@@ -74,8 +76,10 @@ answers with the output of the node that ran last; responseNode with what a
 core.respond_webhook node sends; a failed run answers 500. A duplicate
 delivery answers {"success":true,"duplicate":true,"execution_id":<first run>}.
 Vendor URL checks are answered without starting a run: HEAD (200), GET
-?hub.mode=subscribe&hub.challenge (Meta, WebSub; verify_token when set),
-?validationToken (Microsoft Graph), an X-Hook-Secret header (Asana, Keap:
+?hub.mode=subscribe&hub.challenge (Meta, WebSub; verify_token when set;
+JSON with challenge_format "json" for Strava), GET ?check as the only
+parameter (Onfleet, echoed), a GET without a query when answer_get is set
+(Mailchimp), ?validationToken (Microsoft Graph), an X-Hook-Secret header (Asana, Keap:
 echoed and kept, and a later X-Hook-Signature must match it), Slack
 url_verification, and an AWS SNS SubscriptionConfirmation (its https
 amazonaws.com SubscribeURL is visited).
