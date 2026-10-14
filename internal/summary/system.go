@@ -261,7 +261,7 @@ func jevSection(ctx context.Context, o Options) *JevSection {
 		s.Error = noDB
 		return s
 	}
-	if src, err := jevconf.KeySource(ctx, o.DB, o.ProfileID); err == nil {
+	if src, err := jevconf.KeySource(ctx, o.DB); err == nil {
 		s.KeyConfigured, s.KeySource = true, src
 	}
 	for _, surf := range jevconf.Surfaces {

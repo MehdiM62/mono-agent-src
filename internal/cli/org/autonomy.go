@@ -243,7 +243,7 @@ func (env *orgEnv) checkDeciderAvailable(ctx context.Context, db *sql.DB, profil
 	case orgdesign.DeciderModel:
 		return env.checkDeciderModel(ctx, a)
 	case orgdesign.DeciderJev:
-		if _, _, err := jevconf.ResolveKey(ctx, db, profileID, ""); err != nil {
+		if _, _, err := jevconf.ResolveKey(ctx, db, ""); err != nil {
 			return env.d.InvalidInput("decider jev needs a TypeSafe API key: store one with `monoagentcli secret add --kind secret --name %s` (value on stdin) or set TYPESAFE_API_KEY (%v)", jevconf.SecretName, err)
 		}
 		return env.checkDeciderModel(ctx, a)

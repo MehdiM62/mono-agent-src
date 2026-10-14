@@ -34,7 +34,7 @@ func DefaultAuto(db *sql.DB) AutoFuncs {
 				return AutoStatus{Missing: missingSurface}
 			}
 			// KeySource never decrypts: listing the models must not trigger a keyring prompt.
-			source, err := jevconf.KeySource(ctx, db, profileID)
+			source, err := jevconf.KeySource(ctx, db)
 			if err != nil {
 				return AutoStatus{Missing: missingJevKey}
 			}

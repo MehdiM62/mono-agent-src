@@ -104,7 +104,7 @@ func (a *App) JevStatus() (JevStatusInfo, error) {
 	return st, nil
 }
 
-// JevSetKey stores the TypeSafe key in the profile's vault. The key is
+// JevSetKey stores the TypeSafe key in the machine-wide vault. The key is
 // passed only on stdin.
 func (a *App) JevSetKey(key string) (JevKeySetResult, error) {
 	key = strings.TrimSpace(key)

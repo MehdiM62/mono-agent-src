@@ -187,10 +187,10 @@ func NewHealthEnv(d EnvDeps, projects []string) (*health.Env, func()) {
 	// KeySource only lists vault entry names: doctor never decrypts (no
 	// keyring/passphrase prompt just to report where the key lives).
 	env.JevKey = func(ctx context.Context) (string, error) {
-		return jevconf.KeySource(ctx, env.DB, env.ProfileID)
+		return jevconf.KeySource(ctx, env.DB)
 	}
 	env.JevModels = func(ctx context.Context) error {
-		key, _, err := jevconf.ResolveKey(ctx, env.DB, env.ProfileID, "")
+		key, _, err := jevconf.ResolveKey(ctx, env.DB, "")
 		if err != nil {
 			return err
 		}

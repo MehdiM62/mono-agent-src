@@ -31,8 +31,7 @@ func NewCommand(d Deps) *cobra.Command {
 			"from a closed set of options, and every implicit surface is off until\n" +
 			"`jev enable <surface>` for the profile.\n" +
 			"\n" +
-			"Key: the profile's vault (`jev key set`, key on stdin; an entry named\n" +
-			"\"typesafe\" or e.g. \"Jev Api key\" is found), else TYPESAFE_API_KEY. TYPESAFE_DEFAULT_MODEL and\n" +
+			"Key: the machine-wide vault, shared by all profiles (`jev key set`, key on stdin; a key still in a profile's vault is moved there), else TYPESAFE_API_KEY. TYPESAFE_DEFAULT_MODEL and\n" +
 			"TYPESAFE_BASE_URL override the model and API host.",
 	}
 	cmd.AddCommand(
@@ -124,10 +123,10 @@ func newJevStatusCmd(d Deps) *cobra.Command {
 			defer db.Close()
 			st := jevStatus{ProfileID: d.ProfileID(), KeySource: "none", Model: jevModel(), BaseURL: jevBaseURL()}
 			// KeySource never decrypts, so status never prompts for a keyring.
-			if source, err := jevconf.KeySource(cmd.Context(), db.DB, d.ProfileID()); err == nil {
+			if source, err := jevconf.KeySource(cmd.Context(), db.DB); err == nil {
 				st.KeySource = source
 			}
-			if name, ok := jevconf.VaultKeyName(cmd.Context(), db.DB, d.ProfileID()); ok {
+			if name, ok := jevconf.VaultKeyName(cmd.Context(), db.DB); ok {
 				st.KeyEntry = name
 			}
 			for _, s := range jevconf.Surfaces {
@@ -218,7 +217,7 @@ func newJevEnableCmd(d Deps) *cobra.Command {
 				return err
 			}
 			eff := jevconf.Threshold(db.DB, d.ProfileID(), s, jevconf.DefaultThreshold[s])
-			if _, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, d.ProfileID(), ""); err != nil {
+			if _, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, ""); err != nil {
 				fmt.Fprintln(cmd.ErrOrStderr(), "note: no TypeSafe key yet, so the surface stays inactive — store one with `monoagentcli jev key set` or set TYPESAFE_API_KEY")
 			}
 			if d.JSONOutput() {
@@ -412,7 +411,7 @@ func newJevModelsCmd(d Deps) *cobra.Command {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			key, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, d.ProfileID(), "")
+			key, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, "")
 			if err != nil {
 				return jevKeyErr(err)
 			}

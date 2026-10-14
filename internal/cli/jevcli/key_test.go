@@ -78,7 +78,7 @@ func TestJevKeySetStatusTestRemove(t *testing.T) {
 		t.Fatalf("second set: %v %s", err, out)
 	}
 	db := openJevDB(t, cfg)
-	entries, _ := secrets.List(t.Context(), db, "default")
+	entries, _ := secrets.List(t.Context(), db, jevconf.VaultScope)
 	n := 0
 	for _, e := range entries {
 		if e.Name == "typesafe" {
@@ -97,7 +97,7 @@ func TestJevKeySetStatusTestRemove(t *testing.T) {
 	}
 }
 
-// A key already stored under a natural name is updated in place.
+// A key a profile vault holds under a natural name is moved to the machine vault, then updated.
 func TestJevKeySetUpdatesNaturallyNamedEntry(t *testing.T) {
 	cfg := jevKeyTestCfg(t)
 	db := openJevDB(t, cfg)
@@ -105,10 +105,10 @@ func TestJevKeySetUpdatesNaturallyNamedEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, _, err := runJev(t, cfg, "new-key", "key", "set")
-	if err != nil || !strings.Contains(out, `"key_entry": "Jev Api key"`) || !strings.Contains(out, `"replaced": true`) {
+	if err != nil || !strings.Contains(out, `"key_entry": "typesafe"`) || !strings.Contains(out, `"replaced": true`) {
 		t.Fatalf("set: %v %s", err, out)
 	}
-	key, src, err := jevconf.ResolveKey(t.Context(), db, "default", "")
+	key, src, err := jevconf.ResolveKey(t.Context(), db, "")
 	if err != nil || key != "new-key" || src != "vault" {
 		t.Fatalf("resolve = %q %q %v", key, src, err)
 	}
