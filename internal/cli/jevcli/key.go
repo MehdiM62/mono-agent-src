@@ -1,4 +1,4 @@
-package main
+package jevcli
 
 import (
 	"database/sql"
@@ -7,6 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	secretcli "github.com/monoes/mono-agent/internal/cli/secret"
 	"github.com/monoes/mono-agent/internal/jev"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/secrets"
@@ -14,16 +16,16 @@ import (
 
 // newJevKeyCmd groups the TypeSafe key's lifecycle: store it in the
 // profile's vault, check it works, remove it. The settings UI calls these.
-func newJevKeyCmd(cfg *globalConfig) *cobra.Command {
+func newJevKeyCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "key",
 		Short: "Store, test or remove the TypeSafe API key in the profile's vault",
 	}
-	cmd.AddCommand(newJevKeySetCmd(cfg), newJevKeyTestCmd(cfg), newJevKeyRemoveCmd(cfg))
+	cmd.AddCommand(newJevKeySetCmd(d), newJevKeyTestCmd(d), newJevKeyRemoveCmd(d))
 	return cmd
 }
 
-func newJevKeySetCmd(cfg *globalConfig) *cobra.Command {
+func newJevKeySetCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set",
 		Short: "Store the TypeSafe API key (read from stdin) in the profile's vault",
@@ -34,38 +36,38 @@ func newJevKeySetCmd(cfg *globalConfig) *cobra.Command {
 		Example: "  printf '%s' \"$KEY\" | monoagentcli jev key set",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			key, err := readSecretValue(cmd.InOrStdin())
+			key, err := secretcli.ReadValue(cmd.InOrStdin())
 			if err != nil {
-				return errInvalidInput("%v", err)
+				return clicore.InvalidInput("%v", err)
 			}
 			key = strings.TrimSpace(key)
 			if key == "" {
-				return errInvalidInput("empty key")
+				return clicore.InvalidInput("empty key")
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 			ctx := cmd.Context()
 			fields := map[string]string{"secret": key}
-			entry, replaced := jevconf.VaultKeyName(ctx, db.DB, cfg.ProfileID)
+			entry, replaced := jevconf.VaultKeyName(ctx, db.DB, d.ProfileID())
 			if replaced {
-				id, err := jevVaultEntryID(cmd, db.DB, cfg.ProfileID, entry)
+				id, err := jevVaultEntryID(cmd, db.DB, d.ProfileID(), entry)
 				if err != nil {
 					return err
 				}
-				if err := secrets.Update(ctx, db.DB, cfg.ProfileID, id, nil, nil, nil, nil, fields); err != nil {
+				if err := secrets.Update(ctx, db.DB, d.ProfileID(), id, nil, nil, nil, nil, fields); err != nil {
 					return fmt.Errorf("updating vault entry %q: %w", entry, err)
 				}
 			} else {
 				entry = jevconf.SecretName
-				if _, err := secrets.Add(ctx, db.DB, cfg.ProfileID, "secret", entry, fields, "", "", "TypeSafe Jev API key"); err != nil {
+				if _, err := secrets.Add(ctx, db.DB, d.ProfileID(), "secret", entry, fields, "", "", "TypeSafe Jev API key"); err != nil {
 					return fmt.Errorf("storing key in the vault: %w", err)
 				}
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJevJSON(out, map[string]any{"key_source": jevconf.SourceVault, "key_entry": entry, "replaced": replaced})
 			}
 			verb := "Stored"
@@ -78,14 +80,14 @@ func newJevKeySetCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newJevKeyTestCmd(cfg *globalConfig) *cobra.Command {
+func newJevKeyTestCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "test",
 		Short: "Check the key works by listing the models it can use",
 		Long:  "Resolves the key (config, vault, TYPESAFE_API_KEY) and lists models with it.\nWith --json the result is always printed with exit 0: {ok, key_source, models, error}.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -93,12 +95,12 @@ func newJevKeyTestCmd(cfg *globalConfig) *cobra.Command {
 			res := map[string]any{"ok": false, "key_source": "none", "models": []string{}, "error": ""}
 			fail := func(e error) error {
 				res["error"] = e.Error()
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return writeJevJSON(cmd.OutOrStdout(), res)
 				}
 				return jevKeyErr(e)
 			}
-			key, source, err := jevconf.ResolveKey(cmd.Context(), db.DB, cfg.ProfileID, "")
+			key, source, err := jevconf.ResolveKey(cmd.Context(), db.DB, d.ProfileID(), "")
 			if err != nil {
 				return fail(err)
 			}
@@ -116,7 +118,7 @@ func newJevKeyTestCmd(cfg *globalConfig) *cobra.Command {
 				ids = append(ids, m.ID)
 			}
 			res["ok"], res["models"] = true, ids
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJevJSON(cmd.OutOrStdout(), res)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Key works (%s). Models: %s\n", source, strings.Join(ids, ", "))
@@ -125,29 +127,29 @@ func newJevKeyTestCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newJevKeyRemoveCmd(cfg *globalConfig) *cobra.Command {
+func newJevKeyRemoveCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove",
 		Short: "Delete the vault entry holding the TypeSafe key",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			entry, ok := jevconf.VaultKeyName(cmd.Context(), db.DB, cfg.ProfileID)
+			entry, ok := jevconf.VaultKeyName(cmd.Context(), db.DB, d.ProfileID())
 			if !ok {
-				return errNotFound("no TypeSafe key in this profile's vault")
+				return clicore.NotFound("no TypeSafe key in this profile's vault")
 			}
-			id, err := jevVaultEntryID(cmd, db.DB, cfg.ProfileID, entry)
+			id, err := jevVaultEntryID(cmd, db.DB, d.ProfileID(), entry)
 			if err != nil {
 				return err
 			}
-			if err := secrets.Delete(cmd.Context(), db.DB, cfg.ProfileID, id); err != nil {
+			if err := secrets.Delete(cmd.Context(), db.DB, d.ProfileID(), id); err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJevJSON(cmd.OutOrStdout(), map[string]any{"removed": entry})
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Removed vault entry %q.\n", entry)
@@ -166,5 +168,5 @@ func jevVaultEntryID(cmd *cobra.Command, db *sql.DB, profileID, name string) (st
 			return e.ID, nil
 		}
 	}
-	return "", errNotFound("vault entry %q not found", name)
+	return "", clicore.NotFound("vault entry %q not found", name)
 }

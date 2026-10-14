@@ -129,7 +129,7 @@ under data_property_name (default "data").`,
 	{
 		Type:     "http.ftp",
 		Category: "http",
-		Short:    "Upload / download files via FTP",
+		Short:    "Upload, download, list, delete or rename files via FTP",
 		Config: `{
   "host":     "ftp.example.com",
   "port":     21,
@@ -140,12 +140,13 @@ under data_property_name (default "data").`,
   "local_path":  "/tmp/file.csv"
 }`,
 		Inputs:  "none for download; local file path for upload",
-		Outputs: "success, path, size_bytes",
+		Outputs: "success, path (list: entries; download: contents base64 or local_path; rename: old_path, new_path)",
+		Notes:   "operation rename takes old_path and new_path (n8n oldPath/newPath); create_directories makes new_path's missing parent directories first.",
 	},
 	{
 		Type:     "http.ssh",
 		Category: "http",
-		Short:    "Execute commands on a remote host via SSH",
+		Short:    "Execute commands, or upload / download files over SFTP, on a remote host via SSH",
 		Config: `{
   "host":     "server.example.com",
   "port":     22,
@@ -153,8 +154,9 @@ under data_property_name (default "data").`,
   "password": "secret",
   "command":  "ls -la /var/log"
 }`,
-		Inputs:  "none",
-		Outputs: "stdout, stderr, exit_code",
+		Inputs:  "none for a command; for resource file, one transfer per input item",
+		Outputs: "command: stdout, stderr, exit_code; file upload: success, path, file_size; file download: the input item plus file_name, mime_type, file_size, path and the file in binary_property",
+		Notes:   `resource "file" transfers files over SFTP (n8n's SSH file resource): operation "upload" sends each input item's binary_property (default "data"; bytes or a base64 field) into the remote directory path, named file_name, else the item's file_name, else the property name; operation "download" reads the remote file path into binary_property. A leading ~/ in path is the login user's home.`,
 	},
 }
 

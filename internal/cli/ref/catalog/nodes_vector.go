@@ -104,7 +104,7 @@ chunk_size, chunk_overlap, separator(s)).`,
 	{
 		Type:     "vector.store",
 		Category: "vector",
-		Short:    "Insert, search, update or delete documents in a vector database (Qdrant, Pinecone, pgvector, Supabase, …)",
+		Short:    "Insert, search, update or delete documents in a vector database (Qdrant, Pinecone, pgvector, Supabase, Azure AI Search, Databricks, Oracle, …)",
 		Description: `One node for every vector database. mode:
   insert  items → documents (text from content_field or pageContent/text/content,
           metadata from "metadata" + metadata_fields, id from id_field or a new UUID,
@@ -135,10 +135,21 @@ Providers (collection = collection / index / table / class; filter format differ
                  text_field — filter: $vectorSearch pre-filter object
   redis          connection_string (RediSearch); key_prefix — filter: RediSearch query
   chroma         url, api_key, tenant, database — filter: Chroma where object
+  azure_ai_search endpoint, api_key (admin); index; query_type vector|hybrid|
+                 semantic_hybrid (+ semantic_configuration); metadata_keys stored —
+                 filter: OData text such as metadata/source eq 'a.pdf'
+  databricks     host + access_token, or client_id/client_secret (service
+                 principal); index catalog.schema.index (must exist); content_column,
+                 metadata_columns, search_mode ANN|HYBRID — inserts need a Direct
+                 Access index; a managed-embedding index is searched by query text
+                 with no embedding block; delete by ids only — filter: filters_json object
+  oracle         connection_string (23ai); table id/text/metadata/embedding (VECTOR);
+                 distance COSINE|DOT|EUCLIDEAN|MANHATTAN|EUCLIDEAN_SQUARED|HAMMING —
+                 filter: metadata object (equality on JSON_VALUE)
   memory         memory_key; lives in this process only (lost on restart; a one-shot
                  "workflow run" starts empty) — filter: metadata key/value object
-Qdrant, Milvus, Chroma, Redis and pgvector create the collection / index / table on
-first insert. Score is the provider's similarity (higher = closer; distance-based
+Qdrant, Milvus, Chroma, Redis, pgvector, Azure AI Search and Oracle create the
+collection / index / table on first insert. Score is the provider's similarity (higher = closer; distance-based
 providers report 1 - distance).`,
 		Config: `{
   "provider":   "qdrant",
