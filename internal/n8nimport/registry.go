@@ -3,7 +3,6 @@ package n8nimport
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"sync"
 )
 
@@ -94,7 +93,8 @@ type AppMapper struct {
 	Trigger bool
 	// PackageID names the API package, for report messages.
 	PackageID string
-	// VersionDefaults: n8n typeVersion ("1", "2", "1.1") → param defaults
+	// VersionDefaults: n8n typeVersion ("1", "2", "1.1", or a comparison
+	// such as "<3") → param defaults
 	// filled in when the export omits them.
 	VersionDefaults map[string]map[string]any
 }
@@ -238,7 +238,7 @@ func mapApp(a AppMapper, c *MapContext) Mapping {
 		key = resource + "." + operation
 	}
 	rename := a.ParamMap[key]
-	for k, v := range a.VersionDefaults[strconv.FormatFloat(c.TypeVersion, 'f', -1, 64)] {
+	for k, v := range versionDefaults(a.VersionDefaults, c.TypeVersion) {
 		if _, set := c.Params[k]; !set {
 			dst := k
 			if r, ok := rename[k]; ok {

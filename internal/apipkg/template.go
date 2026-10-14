@@ -44,6 +44,8 @@ type Scope struct {
 	Req  map[string]any
 	// Up is the enclosing element inside a nested $map (the outer el).
 	Up any
+	// Batch lists the chunk's items as {p, item, index} in a bulk request.
+	Batch []any
 }
 
 // headerMap holds response headers; lookupPath matches its keys
@@ -82,6 +84,8 @@ func (s Scope) root(name string) any {
 		return s.Page
 	case "req":
 		return s.Req
+	case "batch":
+		return s.Batch
 	case "now":
 		return time.Now().UTC().Format(time.RFC3339)
 	case "uuid":
@@ -123,7 +127,7 @@ type filterCall struct {
 
 // multiArgFilters take comma-separated arguments, passed to applyFilter
 // as a []any.
-var multiArgFilters = map[string][2]int{"find": {2, 2}, "find_row": {2, 2}, "row": {1, 2}, "replace": {2, 2}, "zip": {1, 3}}
+var multiArgFilters = map[string][2]int{"find": {2, 2}, "find_row": {2, 2}, "row": {1, 2}, "replace": {2, 2}, "zip": {1, 3}, "set": {2, 2}}
 
 type filterArg struct {
 	lit  any   // a quoted string, number, bool or null
@@ -264,9 +268,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "up", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now", "idx", "page", "req":
+	case "p", "cred", "item", "el", "up", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now", "idx", "page", "req", "batch":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., up., res., main., hdr., pre., pres., bin., page., req. or be uuid / now / idx", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., up., res., main., hdr., pre., pres., bin., page., req., batch or be uuid / now / idx", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {
@@ -475,10 +479,10 @@ func renderValue(v any, sc Scope) (any, error) {
 		return renderString(t, sc)
 	case map[string]any:
 		if src, ok := t["$map"]; ok {
-			return renderMap(src, t["$to"], sc)
+			return uniqueBuilt(t, sc)(renderMap(src, t["$to"], sc))
 		}
 		if parts, ok := t["$concat"]; ok {
-			return renderConcat(parts, sc)
+			return uniqueBuilt(t, sc)(renderConcat(parts, sc))
 		}
 		if parts, ok := t["$list"]; ok {
 			// Positional lists keep every element, empty ones included
@@ -785,6 +789,29 @@ func renderEntries(src, key, val any, sc Scope) (any, error) {
 		return nil, nil
 	}
 	return out, nil
+}
+
+// uniqueBuilt applies a list builder's "$unique" key to its result: true
+// drops repeated elements, a path (text) compares objects by that value
+// (SeaTable merges the row's assets with the uploaded ones).
+func uniqueBuilt(m map[string]any, sc Scope) func(any, error) (any, error) {
+	return func(v any, err error) (any, error) {
+		u, ok := m["$unique"]
+		if err != nil || !ok || v == nil {
+			return v, err
+		}
+		if b, isBool := u.(bool); isBool {
+			if !b {
+				return v, nil
+			}
+			return uniqueList(v, nil)
+		}
+		path, err := renderText(stringify(u), sc)
+		if err != nil {
+			return nil, fmt.Errorf("$unique: %w", err)
+		}
+		return uniqueList(v, path)
+	}
 }
 
 // isListBuilder reports whether a template value builds a list.

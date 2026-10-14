@@ -30,6 +30,7 @@ var knownFilters = map[string]bool{
 	"len": true, "urlencode": true,
 	"md5": true, "sha1": true, "sha256": true, "mod": true, "weekday": true, "dotnet_date": true,
 	"wrap": true, "mime_parts": true, "sealbox": true,
+	"unique": true, "set": true, "not": true, "bind": true, "base64_chunks": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -53,6 +54,13 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return nil, nil
 	case "ne":
 		if stringify(v) != stringify(arg) {
+			return true, nil
+		}
+		return nil, nil
+	case "set":
+		return setKey(v, arg) // nil is {}: the object is built from nothing
+	case "not":
+		if unset(v) {
 			return true, nil
 		}
 		return nil, nil
@@ -391,6 +399,12 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return wrapLines(v, arg)
 	case "mime_parts":
 		return mimeParts(v, arg)
+	case "unique":
+		return uniqueList(v, arg)
+	case "bind":
+		return bindParams(v, arg)
+	case "base64_chunks":
+		return base64Chunks(v, arg)
 	case "lower":
 		return strings.ToLower(stringify(v)), nil
 	case "upper":

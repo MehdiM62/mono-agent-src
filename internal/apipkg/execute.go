@@ -99,6 +99,8 @@ type opRun struct {
 	// onPage, when set, sees each page's results while paginating;
 	// returning true stops (output.walk stops at its cap).
 	onPage func(results []any) bool
+	// lastPage is the last decoded page of a paginated run.
+	lastPage any
 }
 
 func (r *opRun) errf(format string, a ...any) error {
@@ -182,6 +184,19 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 				all = append(all, x.JSON)
 			}
 			r.scope.Items = all
+		}
+		if i == 0 && op.Bulk != nil {
+			on, err := r.bulkOn()
+			if err != nil {
+				return nil, err
+			}
+			if on {
+				res, err := r.runBulk(ctx, engine, config, held, items, input)
+				if err != nil {
+					return nil, err
+				}
+				return []workflow.NodeOutput{{Handle: "main", Items: res}}, nil
+			}
 		}
 		res, err := r.execute(ctx)
 		if err != nil {
@@ -342,6 +357,11 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		if err != nil {
 			return nil, err
 		}
+		// also steps follow the last page (Elasticsearch closes its PIT
+		// with the id the last page returned); main is the first page.
+		if err := r.runAlso(ctx, r.lastPage, r.scope.Res); err != nil {
+			return nil, err
+		}
 		var all any = results
 		if o := r.op.Output; o != nil && o.Walk != nil {
 			if all, err = r.walk(ctx, results, results); err != nil {
@@ -367,7 +387,11 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 	if resp, err = r.poll(ctx, resp); err != nil {
 		return nil, err
 	}
-	if err := r.runAlso(ctx, resp); err != nil {
+	var res any
+	if len(strings.TrimSpace(string(resp.body))) > 0 {
+		res = decodeBody(resp.body)
+	}
+	if err := r.runAlso(ctx, res, res); err != nil {
 		return nil, err
 	}
 	r.scope.Hdr = headerMap{}
@@ -548,18 +572,15 @@ func asObject(v any) map[string]any {
 }
 
 // runAlso sends the operation's follow-up requests in order, each with res
-// bound to the main response. A step whose "when" renders empty is skipped.
-func (r *opRun) runAlso(ctx context.Context, main *response) error {
+// bound to the main response (the last page of a paginated op) and main to
+// the first. A step whose "when" renders empty is skipped.
+func (r *opRun) runAlso(ctx context.Context, res, main any) error {
 	if len(r.op.Also) == 0 {
 		return nil
 	}
-	var res any
-	if len(strings.TrimSpace(string(main.body))) > 0 {
-		res = decodeBody(main.body)
-	}
 	for i, st := range r.op.Also {
 		sc := r.scope
-		sc.Res, sc.Main = res, res
+		sc.Res, sc.Main = res, main
 		if st.ForEach != "" {
 			lv, err := renderString(st.ForEach, sc)
 			if err != nil {
@@ -603,6 +624,9 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 	op.Method, op.Path, op.BaseURL = st.Method, st.Path, st.BaseURL
 	op.Query, op.Body, op.BodyType, op.Headers = st.Query, st.Body, st.BodyType, st.Headers
 	op.Pagination, op.Also, op.Before = nil, nil, nil
+	if st.ErrorWhen != "" {
+		op.ErrorWhen, op.ErrorMessage = st.ErrorWhen, st.ErrorMessage
+	}
 	if st.Upload && r.op.Binary != nil && r.op.Binary.UploadField != "" {
 		b := *r.op.Binary
 		b.UploadWhen, b.DownloadWhen, b.Download, b.DownloadBase64 = "", "", false, ""
