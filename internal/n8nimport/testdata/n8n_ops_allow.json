@@ -1,6 +1,5 @@
 [
   {"key": "@n8n/n8n-nodes-langchain.chat", "category": "engine", "reason": "replies into the chat window of a Chat Trigger session (and waits for the user); mono-agent has no hosted chat session"},
-  {"key": "n8n-nodes-base.evaluation", "category": "engine", "reason": "n8n's evaluation framework (datasets, metrics, evaluation runs) has no mono-agent counterpart"},
   {"key": "n8n-nodes-base.form", "category": "engine", "reason": "form pages after a Form Trigger need the engine to serve each page and wait for the answer"},
   {"key": "n8n-nodes-base.github#workflow.dispatchAndWait", "category": "engine", "reason": "waits until the GitHub workflow calls the execution's resume URL; mono-agent has no per-execution resume webhook"},
   {"key": "@n8n/n8n-nodes-langchain.chatHubVectorStorePGVector", "category": "impossible", "reason": "per-user vector store of n8n's Chat Hub, bound to n8n's own chat users"},
@@ -22,5 +21,15 @@
   {"key": "@n8n/n8n-nodes-langchain.googleGemini", "category": "agents", "reason": "Gemini vendor node (text, image, audio, video, file search): no Gemini API runtime in agent.ask"},
   {"key": "@n8n/n8n-nodes-langchain.minimax", "category": "agents", "reason": "MiniMax vendor node: no agent runtime for it"},
   {"key": "@n8n/n8n-nodes-langchain.moonshot", "category": "agents", "reason": "Moonshot (Kimi) vendor node: no agent runtime mapping for it yet"},
-  {"key": "@n8n/n8n-nodes-langchain.ollama", "category": "agents", "reason": "Ollama vendor node: no local-model runtime mapping in agent.ask yet"}
+  {"key": "@n8n/n8n-nodes-langchain.ollama", "category": "agents", "reason": "Ollama vendor node: no local-model runtime mapping in agent.ask yet"},
+  {"key": "n8n-nodes-base.evaluation#sheet.append", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"},
+  {"key": "n8n-nodes-base.evaluation#sheet.appendOrUpdate", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"},
+  {"key": "n8n-nodes-base.evaluation#sheet.clear", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"},
+  {"key": "n8n-nodes-base.evaluation#sheet.create", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"},
+  {"key": "n8n-nodes-base.evaluation#sheet.delete", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"},
+  {"key": "n8n-nodes-base.evaluation#sheet.read", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"},
+  {"key": "n8n-nodes-base.evaluation#sheet.remove", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"},
+  {"key": "n8n-nodes-base.evaluation#sheet.update", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"},
+  {"key": "n8n-nodes-base.evaluation#spreadsheet.create", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"},
+  {"key": "n8n-nodes-base.evaluation#spreadsheet.deleteSpreadsheet", "category": "impossible", "reason": "not an operation of n8n's Evaluation node, whose only operations are setInputs, setOutputs, setMetrics and checkIfEvaluating (its execute throws Unsupported Operation for any other)"}
 ]
