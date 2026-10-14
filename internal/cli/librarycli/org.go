@@ -1,4 +1,4 @@
-package main
+package librarycli
 
 import (
 	"context"
@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/org"
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/library"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 )
@@ -15,10 +18,10 @@ import (
 // (replace it). The org arrives stopped; grants and automation roles in
 // the document only survive where this profile has rows backing them, as
 // with `org create-json`.
-func (e *libEnv) installOrg(ctx context.Context, it *library.Item, data []byte, sum string, o libInstallOptions, res *libInstallResult) error {
+func (e *libEnv) installOrg(ctx context.Context, it *library.Item, data []byte, sum string, o libInstallOptions, res *InstallResult) error {
 	var d orgdesign.Doc
 	if err := json.Unmarshal(data, &d); err != nil {
-		return errInvalidInput("the library's org file does not parse: %v", err)
+		return clicore.InvalidInput("the library's org file does not parse: %v", err)
 	}
 	orig := d.Name
 	if orig == "" {
@@ -29,15 +32,16 @@ func (e *libEnv) installOrg(ctx context.Context, it *library.Item, data []byte, 
 		name = o.rename
 	}
 	if !orgdesign.ValidOrgName(name) {
-		return errInvalidInput("%q is not a valid org name (letters, digits, - and _; pass --rename <name>)", name)
+		return clicore.InvalidInput("%q is not a valid org name (letters, digits, - and _; pass --rename <name>)", name)
 	}
 	renameOrg(&d, orig, name)
 	d.Status = "stopped" // installing never starts an org
 	if err := orgdesign.Validate(&d); err != nil {
-		return errInvalidInput("the library's org is not valid: %v", err)
+		return clicore.InvalidInput("the library's org is not valid: %v", err)
 	}
 
-	env := &orgEnv{cfg: e.cfg}
+	env := orgenv.New(orgenv.Deps{OpenDB: e.deps.OpenDB, ProfileID: e.deps.ProfileID,
+		OpenWorkflowStore: e.deps.OpenWorkflowStore, Project: func() string { return "" }})
 	defer env.Close()
 	db, profileID, root, err := env.Profile()
 	if err != nil {
@@ -45,18 +49,18 @@ func (e *libEnv) installOrg(ctx context.Context, it *library.Item, data []byte, 
 	}
 	path, err := orgdesign.ConfigPath(root, name)
 	if err != nil {
-		return errInvalidInput("%v", err)
+		return clicore.InvalidInput("%v", err)
 	}
 	_, statErr := os.Stat(path)
 	exists := statErr == nil
 	if exists && !o.yes {
-		return errInvalidInput("an org named %q already exists in this profile: pass --rename <new-name> to install a copy, or --yes to replace it", name)
+		return clicore.InvalidInput("an org named %q already exists in this profile: pass --rename <new-name> to install a copy, or --yes to replace it", name)
 	}
 	if !exists {
-		if other, err := orgNameInUse(db.DB, name, profileID); err != nil {
+		if other, err := org.NameInUse(db.DB, name, profileID); err != nil {
 			return err
 		} else if other != "" {
-			return errInvalidInput("org name %q is already used in profile %q (org names are unique on this machine): pass --rename <new-name>", name, other)
+			return clicore.InvalidInput("org name %q is already used in profile %q (org names are unique on this machine): pass --rename <new-name>", name, other)
 		}
 	}
 	res.LocalID = name
@@ -66,10 +70,10 @@ func (e *libEnv) installOrg(ctx context.Context, it *library.Item, data []byte, 
 	}
 	if exists {
 		res.Warnings = append(res.Warnings, fmt.Sprintf("replaced the existing org %q", name))
-	} else if err := ensureNewOrgAutonomy(ctx, db, profileID, &d, "library"); err != nil {
+	} else if err := org.EnsureNewAutonomy(ctx, db, profileID, &d, "library"); err != nil {
 		return err
 	}
-	rep, err := saveOrgReconciled(ctx, db, profileID, root, &d, env.genOptions(profileID))
+	rep, err := orgenv.SaveReconciled(ctx, db, profileID, root, &d, env.GenOptions(profileID))
 	if err != nil {
 		return err
 	}
