@@ -18,9 +18,10 @@ type imapCursor struct {
 
 // imapSince is the since_last_run state of one comm.email_read run.
 type imapSince struct {
-	sd   *workflow.StaticData
-	key  string
-	prev imapCursor
+	sd    *workflow.StaticData
+	key   string
+	prev  imapCursor
+	found bool
 }
 
 // loadIMAPSince reads the cursor of input's node for this account and
@@ -31,7 +32,7 @@ func loadIMAPSince(ctx context.Context, input workflow.NodeInput, opts imapReadO
 		return nil, err
 	}
 	s := &imapSince{sd: sd, key: "imap_cursor:" + opts.username + "@" + opts.host + ":" + strconv.Itoa(opts.port) + "/" + opts.mailbox}
-	if _, err := sd.Get(ctx, s.key, &s.prev); err != nil {
+	if s.found, err = sd.Get(ctx, s.key, &s.prev); err != nil {
 		return nil, err
 	}
 	return s, nil

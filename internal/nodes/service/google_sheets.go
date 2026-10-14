@@ -110,7 +110,7 @@ func (n *GoogleSheetsNode) Execute(ctx context.Context, input workflow.NodeInput
 		values, _ := data["values"].([]interface{})
 		items = sheetsValuesToItems(values, useHeaderRow)
 		if boolVal(config, "since_last_run") {
-			if items, err = sheetsRowsSinceLastRun(ctx, input, spreadsheetID, rangeStr, len(values), items); err != nil {
+			if items, err = sheetsRowsSinceLastRun(ctx, input, spreadsheetID, rangeStr, len(values), items, workflow.PollBaseline(config)); err != nil {
 				return nil, fmt.Errorf("google_sheets read_rows: since_last_run: %w", err)
 			}
 		}

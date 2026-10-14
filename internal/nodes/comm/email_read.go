@@ -24,6 +24,9 @@ import (
 //	"since_last_run" (bool, default false): only return messages with a UID
 //	                 above the highest one an earlier run returned
 //	                 (email_read_cursor.go)
+//	"baseline"       (bool, default false): with since_last_run, the first
+//	                 run only records the mailbox's highest UID and returns
+//	                 nothing
 //
 // Returns each message as an Item with fields, newest first:
 // "uid", "subject", "from", "date", "body", "message_id", "read"
@@ -69,6 +72,7 @@ func (n *EmailReadNode) Execute(ctx context.Context, input workflow.NodeInput, c
 			return nil, fmt.Errorf("comm.email_read: since_last_run: %w", err)
 		}
 		opts.since = &since.prev
+		opts.baselineOnly = !since.found && workflow.PollBaseline(config)
 	}
 
 	res, err := readIMAPMail(ctx, opts)

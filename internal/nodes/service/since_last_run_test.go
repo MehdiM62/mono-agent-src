@@ -338,3 +338,35 @@ func TestSheetsReadRowsSinceLastRunNeedsWorkflowState(t *testing.T) {
 		t.Fatalf("err = %v, want ErrNoWorkflowState", err)
 	}
 }
+
+func TestGmailListSinceLastRunBaseline(t *testing.T) {
+	f := newFakeGmail(t)
+	ctx := newStateContext(t)
+	cfg := map[string]interface{}{"access_token": "tok", "operation": "list_messages", "since_last_run": true, "baseline": true}
+
+	f.add("a", 1_000_000_000_000)
+	f.add("b", 1_000_000_005_500)
+	if got, err := listGmail(t, ctx, cfg); err != nil || got != "" {
+		t.Fatalf("baseline first run = %q, %v; want nothing", got, err)
+	}
+	f.add("c", 1_000_000_009_000)
+	if got, err := listGmail(t, ctx, cfg); err != nil || got != "c" {
+		t.Fatalf("second run = %q, %v; want c", got, err)
+	}
+}
+
+func TestSheetsReadRowsSinceLastRunBaseline(t *testing.T) {
+	f := newFakeSheet(t)
+	ctx := newStateContext(t)
+	cfg := map[string]interface{}{"access_token": "tok", "operation": "read_rows", "spreadsheet_id": "S1",
+		"sheet_name": "Leads", "use_header_row": true, "since_last_run": true, "baseline": true}
+
+	f.set("name|mail", "ann|a@x", "bob|b@x")
+	if got, err := readSheet(t, ctx, cfg); err != nil || got != "" {
+		t.Fatalf("baseline first run = %q, %v; want nothing", got, err)
+	}
+	f.set("name|mail", "ann|a@x", "bob|b@x", "cat|c@x")
+	if got, _ := readSheet(t, ctx, cfg); got != "cat@4" {
+		t.Fatalf("second run = %q, want cat", got)
+	}
+}
