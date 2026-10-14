@@ -1,4 +1,4 @@
-package main
+package login
 
 import (
 	"context"
@@ -47,9 +47,9 @@ var accountNameJS = map[string]string{
 // resolveAccountName reads the account name logged in on page: the package
 // manifest's usernameFrom probe when it has one, else the platform's built-in
 // reader. "" when it can't tell.
-func resolveAccountName(page browserpkg.PageInterface, platform string) string {
+func (d Deps) resolveAccountName(page browserpkg.PageInterface, platform string) string {
 	platform = strings.ToLower(platform)
-	if m, err := loginAutomation(platform); err == nil && m.Login != nil && m.Login.UsernameFrom != nil {
+	if m, err := d.loginAutomation(platform); err == nil && m.Login != nil && m.Login.UsernameFrom != nil {
 		if u := automation.DisplayUsername(readLoginUsername(page, m.Login.UsernameFrom)); u != "" {
 			return u
 		}
@@ -68,7 +68,7 @@ func resolveAccountName(page browserpkg.PageInterface, platform string) string {
 // newLoginNamesCmd fills in the account name of sessions that were saved
 // without one (the "unknown" placeholder): it opens each platform in the
 // browser, whose cookies are the account, and reads who is logged in.
-func newLoginNamesCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newLoginNamesCmd() *cobra.Command {
 	var only string
 	cmd := &cobra.Command{
 		Use:   "names",
@@ -79,24 +79,24 @@ func newLoginNamesCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli login names --platform x`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
-			platforms, err := nameless(cmd.Context(), db.DB, cfg.ProfileID, strings.ToLower(only))
+			platforms, err := nameless(cmd.Context(), db.DB, d.ProfileID(), strings.ToLower(only))
 			if err != nil {
 				return err
 			}
 			names := map[string]string{}
 			if len(platforms) > 0 {
-				bridge := setupProfileBridge(cfg.ProfileID, newExtensionBridgeLogger(), 3*time.Second)
-				if err := ensureExtensionConnected(bridge, 30*time.Second); err != nil {
+				bridge, err := d.ConnectBridge(d.ProfileID())
+				if err != nil {
 					return err
 				}
 				for _, p := range platforms {
-					names[p] = readAccountName(bridge, p)
+					names[p] = d.readAccountName(bridge, p)
 				}
 			}
 			saved := map[string]string{}
@@ -107,13 +107,13 @@ func newLoginNamesCmd(cfg *globalConfig) *cobra.Command {
 				if _, err := db.DB.ExecContext(cmd.Context(),
 					`UPDATE crawler_sessions SET username = ? WHERE platform = ? AND username = ? AND profile_id = ?
 					 AND NOT EXISTS (SELECT 1 FROM crawler_sessions WHERE platform = ? AND username = ? AND profile_id = ?)`,
-					name, p, automation.UnknownUsername, cfg.ProfileID, p, name, cfg.ProfileID); err != nil {
+					name, p, automation.UnknownUsername, d.ProfileID(), p, name, d.ProfileID()); err != nil {
 					return fmt.Errorf("saving %s's name: %w", p, err)
 				}
 				saved[p] = name
 			}
-			if cfg.JSONOutput {
-				return printReviewJSON(map[string]interface{}{"names": saved, "checked": platforms})
+			if d.JSONOutput() {
+				return printJSON(map[string]interface{}{"names": saved, "checked": platforms})
 			}
 			for _, p := range platforms {
 				if n := saved[p]; n != "" {
@@ -152,7 +152,7 @@ func nameless(ctx context.Context, db *sql.DB, profileID, only string) ([]string
 
 // readAccountName opens platform's start page in a tab, reads the account
 // name and closes the tab again.
-func readAccountName(bridge browserpkg.ExtensionBridge, platform string) string {
+func (d Deps) readAccountName(bridge browserpkg.ExtensionBridge, platform string) string {
 	tabID, err := bridge.CreateTab(browserpkg.StartURL(platform))
 	if err != nil {
 		return ""
@@ -162,7 +162,7 @@ func readAccountName(bridge browserpkg.ExtensionBridge, platform string) string 
 	_ = page.WaitLoad()
 	_ = page.WaitDOMStable(10 * time.Second)
 	for i := 0; i < 3; i++ { // the page's own scripts may still be drawing the nav
-		if name := resolveAccountName(page, platform); name != "" {
+		if name := d.resolveAccountName(page, platform); name != "" {
 			return name
 		}
 		time.Sleep(2 * time.Second)

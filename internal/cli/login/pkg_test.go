@@ -1,4 +1,4 @@
-package main
+package login
 
 import (
 	"bytes"
@@ -13,8 +13,6 @@ import (
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	"github.com/monoes/mono-agent/internal/chromecookies"
 	"github.com/monoes/mono-agent/internal/nodes"
-	"github.com/monoes/mono-agent/internal/storage"
-	"github.com/zalando/go-keyring"
 )
 
 // loginFakePage answers Has/Element for the login probes; every other
@@ -47,6 +45,7 @@ func (e *loginFakeElement) Attribute(n string) (*string, error) {
 }
 
 func TestLoginCheckLoggedIn(t *testing.T) {
+	t.Parallel()
 	page := &loginFakePage{present: map[string]*loginFakeElement{"#me": {text: "pg"}}}
 	jar := []chromecookies.Cookie{{Name: "user", Value: "pg&abc"}}
 
@@ -68,6 +67,7 @@ func TestLoginCheckLoggedIn(t *testing.T) {
 }
 
 func TestLoginReadUsername(t *testing.T) {
+	t.Parallel()
 	page := &loginFakePage{present: map[string]*loginFakeElement{
 		"#me":     {text: "  pg \n"},
 		".avatar": {attrs: map[string]string{"title": "jane"}},
@@ -97,8 +97,8 @@ func TestLoginReadUsername(t *testing.T) {
 }
 
 // useTestLoginRegistry boots a registry with the built-in seed in a temp
-// home and routes login through it.
-func useTestLoginRegistry(t *testing.T) {
+// home and returns Deps that route login through it, on the database at dbPath.
+func useTestLoginRegistry(t *testing.T, dbPath string) Deps {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -110,47 +110,37 @@ func useTestLoginRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BootAutomations: %v", err)
 	}
-	prev := openLoginRegistry
-	openLoginRegistry = func() (*automation.Registry, error) { return reg, nil }
-	t.Cleanup(func() { openLoginRegistry = prev })
+	d := testDeps(dbPath, "default", false)
+	d.OpenRegistry = func() (*automation.Registry, error) { return reg, nil }
+	return d
 }
 
 func TestLoginAutomation_Lookup(t *testing.T) {
-	useTestLoginRegistry(t)
+	d := useTestLoginRegistry(t, "")
 
 	// gemini is standard tier: installed and available in every build.
-	m, err := loginAutomation("Gemini")
+	m, err := d.loginAutomation("Gemini")
 	if err != nil {
 		t.Fatalf("gemini: %v", err)
 	}
 	if m.Login == nil || m.Login.URL == "" || m.ID != "gemini" {
 		t.Errorf("gemini manifest: %+v", m)
 	}
-	if _, err := loginAutomation("no-such-automation"); err == nil || !strings.HasPrefix(err.Error(), "unknown automation") {
+	if _, err := d.loginAutomation("no-such-automation"); err == nil || !strings.HasPrefix(err.Error(), "unknown automation") {
 		t.Errorf("unknown: %v", err)
 	}
-	err = unsupportedLoginError("no-such-automation", errors.New(`unknown automation "no-such-automation"`))
+	err = d.unsupportedLoginError("no-such-automation", errors.New(`unknown automation "no-such-automation"`))
 	if !strings.Contains(err.Error(), "supported:") || !strings.Contains(err.Error(), "gemini") {
 		t.Errorf("unsupported message: %v", err)
 	}
 }
 
 func TestLoginStatus_ListsAutomationsWithoutSession(t *testing.T) {
-	useTestLoginRegistry(t)
-
-	dbPath := t.TempDir() + "/login-status-pkg.db"
-	keyring.MockInit()
-	db, err := storage.NewDatabase(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.DB.Close() })
+	db, dbPath := newTestDB(t)
+	d := useTestLoginRegistry(t, dbPath)
 	status := func() string {
 		t.Helper()
-		cmd := newLoginCmd(&globalConfig{DBPath: dbPath})
+		cmd := NewCommand(d)
 		cmd.SetArgs([]string{"status"})
 		var out bytes.Buffer
 		cmd.SetOut(&out)
@@ -186,6 +176,7 @@ func TestLoginStatus_ListsAutomationsWithoutSession(t *testing.T) {
 }
 
 func TestLoginCheckURL(t *testing.T) {
+	t.Parallel()
 	m := func(u string, domains ...string) *automation.Manifest {
 		return &automation.Manifest{ID: "acme", Login: &automation.Login{URL: u},
 			Site: automation.Site{Domains: domains}}

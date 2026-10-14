@@ -1,4 +1,4 @@
-package main
+package login
 
 import (
 	"fmt"
@@ -48,12 +48,12 @@ func loginStatusJSON(sessions []sessionRow) []loginStatusRow {
 	return out
 }
 
-func newLoginStatusCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newLoginStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show login status for all platforms and browser automations",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -61,7 +61,7 @@ func newLoginStatusCmd(cfg *globalConfig) *cobra.Command {
 
 			rows, err := db.DB.Query(
 				`SELECT id, username, platform, expiry, when_added FROM crawler_sessions WHERE profile_id = ? ORDER BY platform`,
-				cfg.ProfileID,
+				d.ProfileID(),
 			)
 			if err != nil {
 				return fmt.Errorf("querying sessions: %w", err)
@@ -90,14 +90,14 @@ func newLoginStatusCmd(cfg *globalConfig) *cobra.Command {
 				hasSession[strings.ToLower(sessions[i].Platform)] = true
 			}
 			// Installed automations with a login but no session yet.
-			for _, a := range loginAutomations() {
+			for _, a := range d.loginAutomations() {
 				if !hasSession[a.ID] {
 					sessions = append(sessions, sessionRow{Platform: a.ID, Status: "logged_out"})
 				}
 			}
 
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), loginStatusJSON(sessions))
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), loginStatusJSON(sessions))
 			}
 
 			if len(sessions) == 0 {
@@ -105,7 +105,7 @@ func newLoginStatusCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			table := newPlainTable(cmd.OutOrStdout(), []string{"ID", "Platform", "Username", "Status", "Expires", "Added"},
+			table := d.NewTable(cmd.OutOrStdout(), []string{"ID", "Platform", "Username", "Status", "Expires", "Added"},
 				[]tw.Align{tw.AlignRight, tw.AlignLeft, tw.AlignLeft, tw.AlignLeft, tw.AlignLeft, tw.AlignLeft})
 
 			for _, s := range sessions {
@@ -128,7 +128,7 @@ func newLoginStatusCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newLogoutCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newLogoutCmd() *cobra.Command {
 	var all bool
 
 	cmd := &cobra.Command{
@@ -139,14 +139,14 @@ func newLogoutCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli logout --all`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
 			if all {
-				count, err := deleteSessions(cmd.Context(), db.DB, profileOrDefault(cfg), "1 = 1")
+				count, err := deleteSessions(cmd.Context(), db.DB, d.profileOrDefault(), "1 = 1")
 				if err != nil {
 					return fmt.Errorf("deleting all sessions: %w", err)
 				}
@@ -159,7 +159,7 @@ func newLogoutCmd(cfg *globalConfig) *cobra.Command {
 			}
 
 			platform := strings.ToLower(args[0])
-			count, err := deleteSessions(cmd.Context(), db.DB, profileOrDefault(cfg), "platform = ?", platform)
+			count, err := deleteSessions(cmd.Context(), db.DB, d.profileOrDefault(), "platform = ?", platform)
 			if err != nil {
 				return fmt.Errorf("deleting session for %s: %w", platform, err)
 			}

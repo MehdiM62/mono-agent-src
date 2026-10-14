@@ -1,67 +1,52 @@
-package main
+package login
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/storage"
-	"github.com/zalando/go-keyring"
 )
 
-// sessionsTestEnv is a temp HOME with a migrated DB holding a "work"
-// profile beside "default".
+// sessionsTestEnv is a migrated DB holding a "work" profile beside "default".
 type sessionsTestEnv struct {
-	home   string
 	dbPath string
 	db     *storage.Database
 }
 
 func newSessionsTestEnv(t *testing.T) *sessionsTestEnv {
 	t.Helper()
-	keyring.MockInit()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-	dbPath := filepath.Join(home, ".monoagent", "monoagent.db")
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	db, err := storage.NewDatabase(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.DB.Close() })
+	db, dbPath := newTestDB(t)
 	if _, err := db.DB.Exec(`INSERT OR IGNORE INTO profiles (id, name, created_at) VALUES ('default', 'Default', '2026-01-01'), ('work', 'Work', '2026-01-01')`); err != nil {
 		t.Fatal(err)
 	}
-	return &sessionsTestEnv{home: home, dbPath: dbPath, db: db}
+	return &sessionsTestEnv{dbPath: dbPath, db: db}
 }
 
-// run executes `monoagentcli <args>` with stdin and returns stdout, stderr
-// and the exit code main would use.
+// run executes `[--profile P] [--json] login|logout <args>` with stdin and returns stdout,
+// stderr and the exit code main would use.
 func (e *sessionsTestEnv) run(t *testing.T, stdin string, args ...string) (string, string, int) {
 	t.Helper()
-	root := newRootCmd()
-	var out, errOut bytes.Buffer
-	root.SetOut(&out)
-	root.SetErr(&errOut)
-	root.SetIn(strings.NewReader(stdin))
-	root.SetArgs(append(args, "--db-path", e.dbPath))
-	err := root.Execute()
-	if err != nil {
-		errOut.WriteString(err.Error())
+	profile, jsonOut := "", false
+	for len(args) > 0 && strings.HasPrefix(args[0], "--") {
+		switch args[0] {
+		case "--profile":
+			profile, args = args[1], args[2:]
+		case "--json":
+			jsonOut, args = true, args[1:]
+		default:
+			t.Fatalf("run: unexpected flag %s", args[0])
+		}
 	}
-	return out.String(), errOut.String(), exitCodeFor(err)
+	d := testDeps(e.dbPath, profile, jsonOut)
+	cmd := NewCommand(d)
+	if args[0] == "logout" {
+		cmd = NewLogoutCommand(d)
+	}
+	return runCmd(cmd, stdin, args[1:]...)
 }
 
 // seedSession adds a crawler_sessions row whose cookies live in the vault.
@@ -79,6 +64,7 @@ func (e *sessionsTestEnv) seedSession(t *testing.T, profile, platform, user stri
 }
 
 func TestLoginTestSession(t *testing.T) {
+	t.Parallel()
 	e := newSessionsTestEnv(t)
 	good := e.seedSession(t, "work", "linkedin", "me", 24*time.Hour)
 	expired := e.seedSession(t, "work", "x", "me", -time.Hour)
@@ -121,6 +107,7 @@ func TestLoginTestSession(t *testing.T) {
 }
 
 func TestLoginDeleteSessionRemovesVaultEntry(t *testing.T) {
+	t.Parallel()
 	e := newSessionsTestEnv(t)
 	id := e.seedSession(t, "work", "linkedin", "me", 24*time.Hour)
 	other := e.seedSession(t, "default", "linkedin", "me", 24*time.Hour)
@@ -148,6 +135,7 @@ func TestLoginDeleteSessionRemovesVaultEntry(t *testing.T) {
 
 // logout <platform> takes the cookies' vault entry with the session.
 func TestLogoutRemovesVaultEntry(t *testing.T) {
+	t.Parallel()
 	e := newSessionsTestEnv(t)
 	id := e.seedSession(t, "work", "linkedin", "me", 24*time.Hour)
 	var ref string

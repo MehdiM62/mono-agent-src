@@ -1,4 +1,4 @@
-package main
+package login
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/action"
@@ -17,28 +16,17 @@ import (
 	"github.com/monoes/mono-agent/internal/bot"
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	"github.com/monoes/mono-agent/internal/chromecookies"
-	"github.com/monoes/mono-agent/internal/nodes"
 )
 
 // Login for installed automation packages that declare a manifest "login"
 // block (spec §4.2). Built-in social platforms with a compiled bot keep the
 // bot-driven flow in login.go; everything else goes through here.
 
-// openLoginRegistry returns the booted automation registry, or nil when there
-// is none. Test binaries get nil unless a test swaps this out, so they never
-// touch the real ~/.monoagent.
-var openLoginRegistry = func() (*automation.Registry, error) {
-	if testing.Testing() {
-		return nil, nil
-	}
-	return nodes.BootAutomations("")
-}
-
 // loginAutomation returns the manifest of an installed, enabled and
 // available automation that declares a login block.
-func loginAutomation(id string) (*automation.Manifest, error) {
+func (d Deps) loginAutomation(id string) (*automation.Manifest, error) {
 	id = strings.ToLower(strings.TrimSpace(id))
-	reg, err := openLoginRegistry()
+	reg, err := d.OpenRegistry()
 	if err != nil {
 		return nil, fmt.Errorf("automation registry: %w", err)
 	}
@@ -67,8 +55,8 @@ func loginAutomation(id string) (*automation.Manifest, error) {
 
 // loginAutomations lists the installed, enabled automations with a login
 // block, sorted by id ("" registry → none).
-func loginAutomations() []automation.InstalledInfo {
-	reg, err := openLoginRegistry()
+func (d Deps) loginAutomations() []automation.InstalledInfo {
+	reg, err := d.OpenRegistry()
 	if err != nil || reg == nil {
 		return nil
 	}
@@ -91,19 +79,19 @@ func loginAutomations() []automation.InstalledInfo {
 
 // startPackageLogin opens the manifest's login URL in the user's browser and
 // records the tab for `login confirm`.
-func startPackageLogin(cfg *globalConfig, m *automation.Manifest) error {
+func (d Deps) startPackageLogin(m *automation.Manifest) error {
 	if err := checkLoginURL(m); err != nil {
 		return err
 	}
-	bridge := setupProfileBridge(browserProfile(cfg), newExtensionBridgeLogger(), 3*time.Second)
-	if err := ensureExtensionConnected(bridge, 30*time.Second); err != nil {
+	bridge, err := d.ConnectBridge(d.BrowserProfile())
+	if err != nil {
 		return err
 	}
 	tabID, err := bridge.CreateTab(m.Login.URL)
 	if err != nil {
 		return fmt.Errorf("opening login tab: %w", err)
 	}
-	if err := saveLoginTabID(cfg.ProfileID, m.ID, tabID); err != nil {
+	if err := saveLoginTabID(d.ProfileID(), m.ID, tabID); err != nil {
 		return fmt.Errorf("recording login tab: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "Opened %s login in your Chrome — please log in manually in that tab.\n", m.Name)
@@ -131,13 +119,13 @@ func checkLoginURL(m *automation.Manifest) error {
 // confirmPackageLogin captures the session from the login tab: it checks the
 // manifest's loggedIn probe, reads the username (usernameFrom) and stores the
 // cookies with the manifest's session TTL.
-func confirmPackageLogin(ctx context.Context, cfg *globalConfig, db *sql.DB, m *automation.Manifest) error {
-	tabID, err := readLoginTabID(cfg.ProfileID, m.ID)
+func (d Deps) confirmPackageLogin(ctx context.Context, db *sql.DB, m *automation.Manifest) error {
+	tabID, err := readLoginTabID(d.ProfileID(), m.ID)
 	if err != nil {
 		return err
 	}
-	bridge := setupProfileBridge(cfg.ProfileID, newExtensionBridgeLogger(), 3*time.Second)
-	if err := ensureExtensionConnected(bridge, 30*time.Second); err != nil {
+	bridge, err := d.ConnectBridge(d.ProfileID())
+	if err != nil {
 		return err
 	}
 	page := bridge.NewPage(tabID)
@@ -166,7 +154,7 @@ func confirmPackageLogin(ctx context.Context, cfg *globalConfig, db *sql.DB, m *
 	if m.Login.SessionTTLDays > 0 {
 		ttl = time.Duration(m.Login.SessionTTLDays) * 24 * time.Hour
 	}
-	if err := upsertSessionRowTTL(ctx, db, cfg.ProfileID, m.ID, username, cookiesJSON, ttl); err != nil {
+	if err := upsertSessionRowTTL(ctx, db, d.ProfileID(), m.ID, username, cookiesJSON, ttl); err != nil {
 		return fmt.Errorf("saving session: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "Captured %d cookie(s) for %s (%s). Session saved.\n", len(cookies), m.Name, accountPhrase(username))
@@ -231,7 +219,7 @@ func readLoginUsername(page browserpkg.PageInterface, from *automation.AttrProbe
 
 // unsupportedLoginError explains a login target that is neither a compiled
 // platform bot nor a usable automation.
-func unsupportedLoginError(arg string, err error) error {
+func (d Deps) unsupportedLoginError(arg string, err error) error {
 	if !strings.HasPrefix(err.Error(), "unknown automation") {
 		return err
 	}
@@ -239,7 +227,7 @@ func unsupportedLoginError(arg string, err error) error {
 	for k := range bot.PlatformRegistry {
 		supported = append(supported, strings.ToLower(k))
 	}
-	for _, a := range loginAutomations() {
+	for _, a := range d.loginAutomations() {
 		if _, isBot := bot.PlatformRegistry[strings.ToUpper(a.ID)]; !isBot {
 			supported = append(supported, a.ID)
 		}
