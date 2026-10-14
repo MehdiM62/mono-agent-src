@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/monoes/mono-agent/internal/noderegistry"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // ---------------------------------------------------------------------------
@@ -327,7 +329,7 @@ func (mt *MonoagentTools) listNodeTypes(args string) (string, error) {
 		}
 	}
 	reg := noderegistry.Build(mt.db)
-	types := reg.Types()
+	types := append(reg.Types(), triggerNodeTypes()...)
 	sort.Strings(types)
 	out := make([]string, 0, len(types))
 	for _, t := range types {
@@ -354,8 +356,8 @@ func (mt *MonoagentTools) addWorkflowNode(args string) (string, error) {
 	if err := mt.checkWorkflowOwnership(a.WorkflowID); err != nil {
 		return "", err
 	}
-	if !noderegistry.Build(mt.db).Has(a.NodeType) {
-		return "", fmt.Errorf("unknown node_type %q — call list_node_types to see what's available", a.NodeType)
+	if !noderegistry.Build(mt.db).Has(a.NodeType) && !isTriggerNodeType(a.NodeType) {
+		return "", fmt.Errorf("unknown node_type %q — call list_node_types (MCP: node_list) to see what's available", a.NodeType)
 	}
 	if a.Config == nil {
 		a.Config = map[string]interface{}{}
@@ -396,4 +398,20 @@ func (mt *MonoagentTools) listTemplates(string) (string, error) {
 		out = append(out, t)
 	}
 	return marshalJSON(map[string]interface{}{"templates": out})
+}
+
+// triggerNodeTypes lists the trigger types: they have embedded schemas but
+// run through the trigger manager, so the node registry does not hold them.
+func triggerNodeTypes() []string {
+	var out []string
+	for _, t := range workflow.ListEmbeddedSchemas() {
+		if strings.HasPrefix(t, "trigger.") {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func isTriggerNodeType(t string) bool {
+	return slices.Contains(triggerNodeTypes(), t)
 }

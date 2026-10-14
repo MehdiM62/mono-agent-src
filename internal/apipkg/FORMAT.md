@@ -275,6 +275,7 @@ through, so an unset param stays unset:
 | `not` | `true` when the value is unset (as for `then`), else nil: `"/{{ p.pit \| not \| then:p.indexId }}{{ p.pit \| not \| then:'/' }}_search"` |
 | `bind:params` | n8n query parameters: every string value or object key that is exactly `$1`, `$2`, … is replaced by that element of `params` (a list or its JSON text) — a parameter never adds structure. A key placeholder must give a plain name not starting with `$` that the object doesn't already have; a placeholder without a value or an unused parameter is an error; an empty list changes nothing: `{{ p.options.query \| fromjson \| bind:p.options.queryParameters }}` (Elasticsearch) |
 | `base64_chunks:n` | base64 data → list of its `n`-byte pieces, each base64 (chunked uploads: `"for_each": "{{ bin.files.0.base64 \| base64_chunks:5242880 }}"` with `idx` as the segment index) |
+| `map:'from=to,…'` | a value found in the table → its replacement, others unchanged; a list is mapped per element (n8n event names → the vendor's: `{{ p.event \| map:'balanceCredit=balances#credit' }}`) |
 | `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -901,3 +902,117 @@ Optional keys the engine added (the design's keys are unchanged):
 | steps | `error_when` / `error_message` per step | §6 |
 | package | `n8n_version_defaults` comparison keys (`<3`) | §12 |
 | operation, steps | `stream` (read server-sent events until one matches); step `repeat`; poll `max_wait_seconds`; binary `upload_url` | §9, §10 |
+| package | `webhook` (app trigger registration: `fields`, `create`, `id`, `extra`, `delete`, `check`, `verify`); root `hook`; filter `map` | §17 |
+
+## 17. App webhooks (`webhook`)
+
+Most n8n app triggers register a webhook with the vendor's API when the
+workflow is activated and remove it when it is deactivated. A package's
+`webhook` block does the same: apipkg registers a `workflow.WebhookRegistrar`
+named after the package id, and a `trigger.webhook` with
+`"register_with": "<id>"` uses it. On activation the engine serves the
+webhook route, then calls `create`; on deactivation, deletion or a trigger
+change it calls `delete`. The hook id and `extra` values are kept in the
+`app_webhooks` table, so any process can remove the hook later. The vendor
+must reach the URL: the node's `public_url` or `MONOAGENT_PUBLIC_URL` is the
+public base (e.g. a tunnel), else activation fails and says so.
+
+The engine's built-in registrars (`typeform`, `calendly`) keep their names:
+a package with one of those ids gets no registrar, so leave its block out.
+A package installed while the app runs is registered on the next start; an
+updated block of an already registered package is used at once.
+
+```jsonc
+"webhook": {
+  "fields": [                                  // the register config keys: n8n's trigger param names
+    { "key": "events", "label": "Events", "type": "array", "required": true },
+    { "key": "scope", "label": "Scope", "type": "text", "default": "team" }
+  ],
+  "create": [                                  // one or more steps, in order (pre/pres see earlier ones)
+    { "method": "POST", "path": "/hooks",
+      "body": { "url": "{{ hook.url }}", "events": "{{ p.events }}", "secret": "{{ hook.secret }}" } }
+  ],
+  "id": "{{ res.id }}",                        // the hook id to keep; empty → create fails
+  "extra": { "secret": "{{ res.secret }}" },   // more values to keep (hook.extra.secret)
+  "delete": [ { "method": "DELETE", "path": "/hooks/{{ hook.id }}" } ],
+  "check": { "method": "GET", "path": "/hooks/{{ hook.id }}" },   // optional
+  "verify": { "signature": "{{ hdr.X-Hub-Signature-256 }}", "prefix": "sha256=" }  // optional
+}
+```
+
+Steps are the operation step shape (§9 `also`): `method`, `path`,
+`base_url`, `query`, `body`, `body_type`, `headers`, `when`, `for_each`,
+`auth` (false: send without the credential, e.g. a login step or an API on
+another host with its own header), `error_when`. They are sent with the
+package's credential injection, so OAuth 2/OAuth 1/basic/SigV4/header
+credentials all work, and client-credentials tokens, assumed roles and
+metadata are fetched first as for operations.
+
+Template roots:
+
+| Root | What |
+|---|---|
+| `p.<key>` | the register config: the trigger node's config with `register_config` merged on top, field defaults filled in; every `p.X` must be one of `fields` |
+| `cred.<key>` | the node's connection (`credential_id`) |
+| `hook.url`, `hook.path`, `hook.secret` | the public URL the vendor calls, its `/webhook/` path, and a random secret, stable per node (give it to vendors that sign deliveries) |
+| `hook.id`, `hook.extra.<key>` | the stored registration (delete, check, verify) |
+| `hook.workflow_id`, `hook.node_id` | the node |
+| `pre`, `pres.<i>`, `el`, `idx` | as in `before` steps: earlier create steps, the `for_each` element |
+| `res`, `hdr` | in `id`/`extra`: the last create response (a list of responses when that step has `for_each`) and its headers (`{{ hdr.Resource-Id }}`); in `check.exists_when`: the check response |
+
+- **delete** runs every step; a 404 or 410 counts as already removed, other
+  errors are reported (the engine logs the hook id so it can be removed by
+  hand). One hook per element: `"for_each": "{{ p.listIds | split }}"` on
+  create, `"extra": {"ids": "{{ res | pluck:'id' }}"}`, and
+  `"for_each": "{{ hook.extra.ids }}"` on delete (Flow).
+- **check** (optional) tells whether the stored hook still exists when a
+  workflow is activated again with unchanged settings: 2xx yes (or
+  `exists_when`, a template over `res`), 404/410 no — the engine then
+  registers again. Without `check` the stored hook is reused.
+- **verify** (optional) checks each delivery; a delivery that fails is
+  answered 401 and starts no run:
+
+| Key | Meaning |
+|---|---|
+| `signature` | template over `hdr` (the delivery's headers), `req.body` (its raw body as text), `hook`, `cred`, `p`: the signature to check (`{{ hdr.Stripe-Signature \| re:'v1=([0-9a-f]+)' }}`) |
+| `message` | template for the signed text; default: the raw body (Stripe: `{{ hdr.Stripe-Signature \| re:'t=([0-9]+)' }}.{{ req.body }}`) |
+| `secret` | template; default `{{ hook.secret }}`; `{{ hook.extra.secret }}` for a vendor-issued secret, `{{ cred.signing_secret }}` for an account one. An empty secret skips the check |
+| `alg` | `sha256` (default), `sha1`, `sha512` — HMAC; `token`: the signature must equal the secret (GitLab `X-Gitlab-Token`, Telegram, a secret echoed in the body: `{{ req.body \| fromjson \| get:'secret' }}`) |
+| `encoding` | `hex` (default, case-insensitive) or `base64` |
+| `prefix` | stripped from the signature; a signature without it fails (`sha256=`) |
+| `secret_encoding` | `hex` or `base64`: decode the secret into the HMAC key (Onfleet) |
+
+URL checks some vendors send before delivering (Asana/Keap `X-Hook-Secret`,
+Meta `hub.challenge`, SNS confirmations, …) are answered by the webhook
+server itself; a block needs nothing for them.
+
+**Testing.** `catalog/testdata/webhook/<id>.json` is required for every
+package with a block; `TestCatalogWebhooks/<id>` runs it against the mock
+server:
+
+```jsonc
+{
+  "params": { "events": ["push"] },              // the register config
+  "credential": { "access_token": "t" },         // optional, as in §13
+  "create_responses": [ { "id": 314 } ],         // answers to the create steps, in order
+  "response_headers": { "Resource-ID": "880" },  // optional, sent with every answer
+  "expect_create": [ { "method": "POST", "path": "/repos/o/r/hooks", "body": { … } } ],
+  "hook_id": "314",                              // what Register must return
+  "extra": { "secret": "whsec_x" },              // optional
+  "expect_delete": [ { "method": "DELETE", "path": "/repos/o/r/hooks/314" } ],
+  "check": { "response": { "id": 314 }, "exists": true, "expect": { "method": "GET", "path": "…" } },
+  "verify": { "headers": { "X-Hub-Signature-256": "sha256=…" }, "body": "{…}" }
+}
+```
+
+The hook is `https://hooks.example.test/webhook/wh-path` with secret
+`test-secret`, workflow `wf-1`, node `node-1`. Every request is compared as
+in §13 (method, path, exact query and body, listed headers, credential
+injection — pin `"Authorization"` in `headers` for steps with `auth: false`).
+The harness also checks that a 404 on delete counts as removed, that a 404
+on check means gone, that the signed `verify` sample passes and that the
+same sample with a changed body fails.
+
+The n8n importer sets `register_with`, `register_config` (the trigger's
+params named by `fields`) and `credential_id` on the `trigger.webhook` it
+writes for the package's `n8n_trigger_types`.

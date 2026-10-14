@@ -64,15 +64,35 @@ func TestRemoveDuplicatesPlainDedupeValueWarns(t *testing.T) {
 	}
 }
 
-// The high-water-mark logics have no counterpart.
-func TestRemoveDuplicatesIncrementalLogicUnsupported(t *testing.T) {
-	for _, logic := range []string{"removeItemsUpToStoredIncrementalKey", "removeItemsUpToStoredDate"} {
-		_, nr, text := convertRemoveDuplicates(t, map[string]interface{}{
-			"operation": "removeItemsSeenInPreviousExecutions", "logic": logic, "incrementalDedupeValue": "={{ $json.n }}",
+// The high-water-mark logics map to core.remove_duplicates' logic, each
+// reading its own n8n value parameter into dedupeValue.
+func TestRemoveDuplicatesHighWaterMarkLogics(t *testing.T) {
+	for logic, param := range map[string]string{
+		"removeItemsUpToStoredIncrementalKey": "incrementalDedupeValue",
+		"removeItemsUpToStoredDate":           "dateDedupeValue",
+	} {
+		n, nr, text := convertRemoveDuplicates(t, map[string]interface{}{
+			"operation": "removeItemsSeenInPreviousExecutions", "logic": logic, param: "={{ $json.n }}",
+			"dedupeValue": "={{ $json.ignored }}", "options": map[string]interface{}{"scope": "workflow"},
 		})
-		if nr.Status != n8nimport.StatusUnmapped || !strings.Contains(text, logic) {
-			t.Errorf("%s: status %s:\n%s", logic, nr.Status, text)
+		if n.Type != "core.remove_duplicates" || nr.Status != n8nimport.StatusFull {
+			t.Errorf("%s: type %s, status %s:\n%s", logic, n.Type, nr.Status, text)
+			continue
 		}
+		wantConfig(t, n, map[string]interface{}{
+			"operation": "removeItemsRepeatedWithinPreviousExecutions", "logic": logic, "scope": "workflow"})
+		if v, _ := n.Config["dedupeValue"].(string); !strings.Contains(v, "{{") || !strings.Contains(v, ".n") || strings.Contains(v, "ignored") {
+			t.Errorf("%s: dedupeValue %q, want the %s expression", logic, v, param)
+		}
+	}
+}
+
+func TestRemoveDuplicatesUnknownLogicUnsupported(t *testing.T) {
+	_, nr, text := convertRemoveDuplicates(t, map[string]interface{}{
+		"operation": "removeItemsSeenInPreviousExecutions", "logic": "removeItemsSomehow",
+	})
+	if nr.Status != n8nimport.StatusUnmapped || !strings.Contains(text, "removeItemsSomehow") {
+		t.Errorf("status %s:\n%s", nr.Status, text)
 	}
 }
 

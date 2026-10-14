@@ -137,7 +137,10 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 	if err := nodeCopy.ParseConfig(); err != nil {
 		return nil, fmt.Errorf("node %s (%s): parse config: %w", node.ID, node.Name, err)
 	}
-	config := nodeCopy.Config
+	// A copy: credential injection and the per-item field split below edit
+	// the config, and a loop node's body runs this node again on the next
+	// pass with the workflow's own (unchanged) config.
+	config, _ := cloneConfigValue(nodeCopy.Config).(map[string]interface{})
 	if config == nil {
 		config = make(map[string]interface{})
 	}

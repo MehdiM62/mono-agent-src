@@ -12,9 +12,11 @@ import (
 // since the last poll. Both are rebuilt from mono nodes:
 //
 //   - webhook triggers (webhookTriggers) become a trigger.webhook on the
-//     n8n node's webhookId; the report says which URL and events to
-//     register with the vendor, since mono-agent does not register app
-//     webhooks itself;
+//     n8n node's webhookId. Where trigger.webhook has a registrar for the
+//     app (Typeform, Calendly built in; the app's API package's webhook
+//     block, registerWithApp) activation registers the hook with the
+//     vendor; for the others the report says which URL and events to
+//     register by hand;
 //   - polling triggers (pollTriggers) become a trigger.schedule on the n8n
 //     poll times, the app package's list operation and a
 //     core.remove_duplicates step that remembers what earlier runs saw, so
@@ -31,6 +33,10 @@ type hookSpec struct {
 	// Handshake describes a verification request the vendor sends before
 	// it delivers events, which mono-agent webhooks do not answer.
 	Handshake string
+	// Register, when set, fills trigger.webhook's register_with,
+	// register_config and credential_id so activation registers the hook
+	// with the vendor; it reads (and so consumes) its n8n parameters.
+	Register func(c *MapContext, cfg map[string]interface{})
 	// DedupeHeader is a delivery-id header the vendor repeats on retries.
 	DedupeHeader string
 	// Shape returns a step reshaping the payload the way the n8n trigger
@@ -115,6 +121,21 @@ func mapHookTrigger(c *MapContext, spec hookSpec) Mapping {
 		}
 	}
 	c.Ignore(triggerParamsIgnored...)
+	registered := spec.Register != nil
+	if registered {
+		spec.Register(c, cfg)
+	} else {
+		registered = registerWithApp(c, cfg)
+	}
+	if registered {
+		c.Warn("webhook", nil, "activation registers https://<public URL>/webhook/%s with %s and removes it on deactivation; "+
+			"%s must reach the webhook server from the internet: set the trigger's public_url or MONOAGENT_PUBLIC_URL (e.g. a tunnel to 127.0.0.1:9321)",
+			path, spec.Vendor, spec.Vendor)
+		if spec.Handshake != "" {
+			c.Warn("webhook", nil, "%s verifies the URL first (%s); mono-agent webhooks do not answer that check yet", spec.Vendor, spec.Handshake)
+		}
+		return m
+	}
 	where := spec.Where
 	if where == "" {
 		where = spec.Vendor + "'s webhook settings"
@@ -189,7 +210,7 @@ func mapPollTrigger(c *MapContext, spec pollSpec) Mapping {
 		{Type: nodeType, Suffix: " (list)", Config: cfg},
 		{Type: "core.remove_duplicates", Config: dedupe},
 	}
-	c.Note("polls %s %s on the n8n schedule and passes on only records no earlier run saw; the first run passes every listed record", nodeType, what)
+	c.Note("polls %s %s on the n8n schedule and passes on only records no earlier run saw; the first run passes every listed record (n8n's trigger passed nothing on its first poll)", nodeType, what)
 	return m
 }
 

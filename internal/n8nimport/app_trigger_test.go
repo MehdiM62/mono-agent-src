@@ -1,6 +1,7 @@
 package n8nimport_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -32,16 +33,20 @@ func nodeReport(t *testing.T, rep *n8nimport.Report, name string) n8nimport.Node
 	return n8nimport.NodeReport{}
 }
 
-// A Typeform trigger becomes a webhook on n8n's webhookId, followed by a
-// code step that simplifies the answers as n8n did; the report says what
-// to register with Typeform.
+// A Typeform trigger becomes a webhook on n8n's webhookId that registers
+// itself with Typeform on activation, followed by a code step that
+// simplifies the answers as n8n did.
 func TestTypeformTriggerImportsAsWebhook(t *testing.T) {
 	wf, rep := convertFile(t, "app_triggers.json")
 	hook := node(t, wf, "Typeform Trigger (receive)")
 	if hook.Type != "trigger.webhook" {
 		t.Fatalf("entry type %s", hook.Type)
 	}
-	wantConfig(t, hook, map[string]interface{}{"path": "5f1c2d9e-7a3b-4c11-9d2e-1b2c3d4e5f60", "method": "POST"})
+	wantConfig(t, hook, map[string]interface{}{"path": "5f1c2d9e-7a3b-4c11-9d2e-1b2c3d4e5f60", "method": "POST",
+		"register_with": "typeform", "credential_id": "typeform"})
+	if rc, _ := hook.Config["register_config"].(map[string]interface{}); rc["form_id"] != "u6nXL7" {
+		t.Errorf("register_config %v", hook.Config["register_config"])
+	}
 	if n := node(t, wf, "Typeform Trigger"); n.Type != "core.code" {
 		t.Fatalf("shaping step type %s", n.Type)
 	}
@@ -50,22 +55,22 @@ func TestTypeformTriggerImportsAsWebhook(t *testing.T) {
 	if nr.Status != n8nimport.StatusPartial || nr.MonoType != "trigger.webhook → core.code" {
 		t.Errorf("status %s, mono type %s", nr.Status, nr.MonoType)
 	}
-	for _, want := range []string{
-		"/webhook/5f1c2d9e-7a3b-4c11-9d2e-1b2c3d4e5f60 (POST)",
-		"Typeform (the form's Connect → Webhooks)",
-		`formId = "u6nXL7"`,
-		"mono-agent does not",
-	} {
+	for _, want := range []string{"/webhook/5f1c2d9e-7a3b-4c11-9d2e-1b2c3d4e5f60 with Typeform", "public_url or MONOAGENT_PUBLIC_URL"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("report lacks %q:\n%s", want, text)
 		}
 	}
-	if len(rep.Credentials) != 0 {
-		for _, c := range rep.Credentials {
-			if strings.Contains(strings.Join(c.Nodes, ","), "Typeform") {
-				t.Errorf("a webhook trigger needs no connection: %+v", c)
-			}
+	if strings.Contains(text, "register https://") || strings.Contains(text, "mono-agent does not") {
+		t.Errorf("report still asks for registering by hand:\n%s", text)
+	}
+	found := false
+	for _, c := range rep.Credentials {
+		if c.Platform == "typeform" && strings.Contains(strings.Join(c.Nodes, ","), "Typeform Trigger") {
+			found = true
 		}
+	}
+	if !found {
+		t.Errorf("the registering trigger needs the typeform connection: %+v", rep.Credentials)
 	}
 
 	payload := map[string]interface{}{"event_type": "form_response", "form_response": map[string]interface{}{
@@ -209,4 +214,35 @@ func TestJotformTriggerDecodesRawRequest(t *testing.T) {
 	}
 	expectJSON(t, "jotform answers", runNode(t, wf, "Jotform", []map[string]interface{}{item}),
 		`[{"name":{"first":"Ada","last":"L"},"email":"ada@example.test"}]`)
+}
+
+// A Calendly trigger registers its webhook subscription on activation; the
+// organization (and user) n8n looked up must be filled in.
+func TestCalendlyTriggerRegistersOnActivation(t *testing.T) {
+	wf, rep := convertNode(t, "n8n-nodes-base.calendlyTrigger", 2, map[string]interface{}{
+		"scope": "user", "events": []interface{}{"invitee.created", "invitee.canceled"},
+	})
+	hook := node(t, wf, "Trigger")
+	wantConfig(t, hook, map[string]interface{}{"register_with": "calendly", "credential_id": "calendly"})
+	raw, _ := json.Marshal(hook.Config["register_config"])
+	if string(raw) != `{"events":["invitee.created","invitee.canceled"],"scope":"user"}` {
+		t.Errorf("register_config %s", raw)
+	}
+	wantIssue(t, rep, "organization and user")
+	wantIssue(t, rep, "with Calendly and removes it")
+}
+
+// Vendor URL checks the webhook server answers are no longer reported;
+// the ones it does not answer still are.
+func TestWebhookHandshakeNotes(t *testing.T) {
+	for _, typ := range []string{"slackTrigger", "trelloTrigger", "asanaTrigger", "whatsAppTrigger", "microsoftTeamsTrigger", "awsSnsTrigger"} {
+		_, rep := convertNode(t, "n8n-nodes-base."+typ, 1, nil)
+		if text := issueText(rep, "Trigger"); strings.Contains(text, "verifies the URL") {
+			t.Errorf("%s: handshake still reported:\n%s", typ, text)
+		}
+	}
+	for typ, want := range map[string]string{"stravaTrigger": "as JSON", "onfleetTrigger": "check parameter", "mailchimpTrigger": "405"} {
+		_, rep := convertNode(t, "n8n-nodes-base."+typ, 1, nil)
+		wantIssue(t, rep, want)
+	}
 }

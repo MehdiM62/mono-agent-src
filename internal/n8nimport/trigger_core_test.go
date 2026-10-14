@@ -40,36 +40,108 @@ func wantIssue(t *testing.T, rep *n8nimport.Report, want string) {
 	}
 }
 
-// A Form Trigger becomes a webhook on the form's path; the code step names
-// the posted field-<n> answers by label and converts them as n8n did.
-func TestFormTriggerImportsAsWebhookWithNamedAnswers(t *testing.T) {
+// A Form Trigger becomes trigger.form: the engine serves the page and
+// checks required fields, so the import carries the fields, title and
+// completion page over and reports what the form cannot show.
+func TestFormTriggerImportsAsForm(t *testing.T) {
 	wf, rep := convertNode(t, "n8n-nodes-base.formTrigger", 2.2, map[string]interface{}{
-		"path": "contact", "formTitle": "Contact", "responseMode": "lastNode",
+		"path": "contact", "formTitle": "Contact", "formDescription": "Say hi", "responseMode": "lastNode",
 		"formFields": map[string]interface{}{"values": []interface{}{
-			map[string]interface{}{"fieldLabel": "Name", "requiredField": true},
+			map[string]interface{}{"fieldLabel": "Name", "requiredField": true, "placeholder": "Ada"},
 			map[string]interface{}{"fieldLabel": "Age", "fieldType": "number"},
-			map[string]interface{}{"fieldLabel": "Pick", "fieldType": "checkbox"},
-			map[string]interface{}{"fieldLabel": "Note", "fieldType": "textarea"},
+			map[string]interface{}{"fieldLabel": "Pick", "fieldType": "checkbox",
+				"fieldOptions": map[string]interface{}{"values": []interface{}{map[string]interface{}{"option": "a"}, map[string]interface{}{"option": "b"}}}},
+			map[string]interface{}{"fieldLabel": "Size", "fieldType": "radio",
+				"fieldOptions": map[string]interface{}{"values": []interface{}{map[string]interface{}{"option": "S"}}}},
+			map[string]interface{}{"fieldLabel": "Tags", "fieldType": "dropdown", "multiselect": true,
+				"fieldOptions": map[string]interface{}{"values": []interface{}{map[string]interface{}{"option": "x"}}}},
+			map[string]interface{}{"fieldLabel": "Secret", "fieldType": "password"},
+			map[string]interface{}{"fieldLabel": "CV", "fieldType": "file", "multipleFiles": true},
+			map[string]interface{}{"fieldType": "html", "elementName": "intro", "html": "<b>hi</b>"},
+			map[string]interface{}{"fieldName": "src", "fieldType": "hiddenField", "fieldValue": "ad"},
+			map[string]interface{}{"fieldLabel": "When", "fieldType": "date", "formatDate": "dd/MM/yyyy"},
+		}},
+		"options": map[string]interface{}{
+			"buttonLabel": "Send", "customCss": "body{}",
+			"respondWithOptions": map[string]interface{}{"values": map[string]interface{}{"respondWith": "redirect", "redirectUrl": "https://example.com/thanks"}},
+		},
+	})
+	if len(wf.Nodes) != 1 {
+		t.Fatalf("nodes: %+v (want the form trigger alone)", wf.Nodes)
+	}
+	form := node(t, wf, "Trigger")
+	if form.Type != "trigger.form" {
+		t.Fatalf("type %s", form.Type)
+	}
+	wantConfig(t, form, map[string]interface{}{"path": "contact", "formTitle": "Contact", "formDescription": "Say hi",
+		"buttonLabel": "Send", "respondWith": "redirect", "redirectUrl": "https://example.com/thanks"})
+	raw, _ := json.Marshal(form.Config["formFields"])
+	want := `[{"fieldLabel":"Name","fieldType":"text","placeholder":"Ada","requiredField":true},` +
+		`{"fieldLabel":"Age","fieldType":"number"},` +
+		`{"fieldLabel":"Pick","fieldOptions":["a","b"],"fieldType":"checkbox"},` +
+		`{"fieldLabel":"Size","fieldOptions":["S"],"fieldType":"dropdown"},` +
+		`{"fieldLabel":"Tags","fieldOptions":["x"],"fieldType":"checkbox"},` +
+		`{"fieldLabel":"Secret","fieldType":"text"},` +
+		`{"fieldLabel":"When","fieldType":"date"}]`
+	if string(raw) != want {
+		t.Errorf("formFields\n got %s\nwant %s", raw, want)
+	}
+	for _, w := range []string{"file upload fields are not supported", "custom HTML is not supported", "hidden fields are not supported",
+		"plain text inputs", "YYYY-MM-DD", "custom CSS is not applied", "does not wait for the workflow", "/form/contact"} {
+		wantIssue(t, rep, w)
+	}
+	if text := issueText(rep, "Trigger"); strings.Contains(text, "does not serve the form") || strings.Contains(text, "no mono-agent equivalent") {
+		t.Errorf("stale or unread-parameter report:\n%s", text)
+	}
+}
+
+// From version 2.4 a field's answer is keyed by its field name; the form
+// shows that name so downstream expressions keep working.
+func TestFormTriggerFieldNameKeysAnswers(t *testing.T) {
+	wf, rep := convertNode(t, "n8n-nodes-base.formTrigger", 2.4, map[string]interface{}{
+		"options": map[string]interface{}{"path": "/signup/", "respondWithOptions": map[string]interface{}{
+			"values": map[string]interface{}{"respondWith": "text", "formSubmittedText": "Welcome"}}},
+		"formFields": map[string]interface{}{"values": []interface{}{
+			map[string]interface{}{"fieldLabel": "Your email", "fieldName": "email", "fieldType": "email"},
 		}},
 	})
-	hook := node(t, wf, "Trigger (receive)")
-	if hook.Type != "trigger.webhook" {
-		t.Fatalf("entry type %s", hook.Type)
+	form := node(t, wf, "Trigger")
+	wantConfig(t, form, map[string]interface{}{"path": "signup", "responseText": "Welcome"})
+	raw, _ := json.Marshal(form.Config["formFields"])
+	if string(raw) != `[{"fieldLabel":"email","fieldType":"email"}]` {
+		t.Errorf("formFields %s", raw)
 	}
-	wantConfig(t, hook, map[string]interface{}{"path": "contact", "method": "POST", "response_mode": "lastNode", "response_data": "noData"})
-	wantIssue(t, rep, "/webhook/contact")
-	wantIssue(t, rep, "required fields (Name)")
-	got := runNode(t, wf, "Trigger", []map[string]interface{}{{"body": map[string]interface{}{
-		"field-0": " Ada ", "field-1": "3", "field-2": `["a","b"]`}}})
-	if len(got) != 1 {
-		t.Fatalf("items: %v", got)
+	wantIssue(t, rep, `shows the field name "email"`)
+}
+
+// A form whose only fields cannot be shown is an error, not a silent empty form.
+func TestFormTriggerWithoutShowableFields(t *testing.T) {
+	_, rep := convertNode(t, "n8n-nodes-base.formTrigger", 2.2, map[string]interface{}{
+		"path": "up", "formFields": map[string]interface{}{"values": []interface{}{
+			map[string]interface{}{"fieldLabel": "File", "fieldType": "file"}}},
+	})
+	wantIssue(t, rep, "no field trigger.form can show")
+}
+
+// The SSE Trigger keeps the stream open with trigger.sse; a code step
+// passes on unnamed events' data the way n8n emitted it.
+func TestSSETriggerImportsAsStream(t *testing.T) {
+	wf, rep := convertNode(t, "n8n-nodes-base.sseTrigger", 1, map[string]interface{}{"url": "https://feed.example/events"})
+	if nr := nodeReport(t, rep, "Trigger"); nr.Status != n8nimport.StatusFull {
+		t.Errorf("status %s:\n%s", nr.Status, issueText(rep, "Trigger"))
 	}
-	out := got[0]
-	if out["Name"] != "Ada" || fmt.Sprint(out["Age"]) != "3" || out["formMode"] != "production" || out["submittedAt"] == nil || out["Note"] != nil {
-		t.Errorf("answers: %v", out)
+	stream := node(t, wf, "Trigger (stream)")
+	if stream.Type != "trigger.sse" {
+		t.Fatalf("entry type %s", stream.Type)
 	}
-	if pick, _ := out["Pick"].([]interface{}); len(pick) != 2 {
-		t.Errorf("checkbox answer: %v", out["Pick"])
+	wantConfig(t, stream, map[string]interface{}{"url": "https://feed.example/events"})
+	got := runNode(t, wf, "Trigger", []map[string]interface{}{
+		{"event": "message", "data": map[string]interface{}{"n": 1.0}, "id": "1"},
+		{"event": "ping", "data": "x", "id": "2"},
+		{"event": "message", "data": "plain", "id": "3"},
+	})
+	if len(got) != 2 || fmt.Sprint(got[0]["n"]) != "1" || got[1]["data"] != "plain" {
+		t.Errorf("items %v", got)
 	}
 }
 
@@ -240,7 +312,8 @@ func TestQueueTriggerImportsValidate(t *testing.T) {
 }
 
 // The IMAP trigger's trackLastMessageId (on unless turned off) becomes the
-// read step's since_last_run cursor.
+// read step's since_last_run cursor, with baseline on: n8n's first
+// activation emitted nothing.
 func TestEmailReadImapTracksLastMessage(t *testing.T) {
 	for _, c := range []struct {
 		params map[string]interface{}
@@ -257,10 +330,20 @@ func TestEmailReadImapTracksLastMessage(t *testing.T) {
 				if got := n.Config["since_last_run"]; got != c.want {
 					t.Errorf("%v: since_last_run = %v, want %v", c.params, got, c.want)
 				}
+				if got, _ := n.Config["baseline"].(bool); got != c.want {
+					t.Errorf("%v: baseline = %v, want %v", c.params, got, c.want)
+				}
 			}
 		}
 		if !found {
 			t.Fatalf("%v: no comm.email_read step", c.params)
 		}
 	}
+}
+
+// The RSS trigger reads only new entries, and nothing on its first poll.
+func TestRSSTriggerReadsOnlyNewEntries(t *testing.T) {
+	wf, _ := convertNode(t, "n8n-nodes-base.rssFeedReadTrigger", 1, map[string]interface{}{"feedUrl": "https://blog.example/feed"})
+	wantConfig(t, node(t, wf, "Trigger"), map[string]interface{}{
+		"url": "https://blog.example/feed", "since_last_run": true, "baseline": true})
 }

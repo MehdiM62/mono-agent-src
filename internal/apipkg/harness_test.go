@@ -70,6 +70,8 @@ type mockServer struct {
 	first []byte
 	seq   [][]byte
 	code  int
+	// header is sent with every answer (set before the first request).
+	header map[string]string
 }
 
 func newMockServer(t *testing.T, response any, status int, responses ...any) *mockServer {
@@ -88,7 +90,11 @@ func newMockServer(t *testing.T, response any, status int, responses ...any) *mo
 		m.mu.Lock()
 		m.reqs = append(m.reqs, captured{r.Method, r.URL.EscapedPath(), r.URL.Query(), r.Header.Clone(), b})
 		n := len(m.reqs)
+		hdr := m.header
 		m.mu.Unlock()
+		for k, v := range hdr {
+			w.Header().Set(k, v)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		if len(m.seq) > 0 {
 			if n <= len(m.seq) {
