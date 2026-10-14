@@ -10,6 +10,7 @@
   {"key": "@n8n/n8n-nodes-langchain.chatHubVectorStorePinecone", "category": "impossible", "reason": "per-user vector store of n8n's Chat Hub, bound to n8n's own chat users"},
   {"key": "@n8n/n8n-nodes-langchain.chatHubVectorStoreQdrant", "category": "impossible", "reason": "per-user vector store of n8n's Chat Hub, bound to n8n's own chat users"},
   {"key": "@n8n/n8n-nodes-langchain.vectorStoreZep", "category": "impossible", "reason": "Zep's vector store is deprecated upstream; re-point the workflow at another vector store"},
+  {"key": "@n8n/n8n-nodes-langchain.vectorStoreZepLoad", "category": "impossible", "reason": "Zep's vector store is deprecated upstream; re-point the workflow at another vector store"},
   {"key": "@n8n/n8n-nodes-langchain.vectorStoreZepInsert", "category": "impossible", "reason": "Zep's vector store is deprecated upstream; re-point the workflow at another vector store"},
   {"key": "n8n-nodes-base.dynamicCredentialCheck", "category": "impossible", "reason": "checks n8n's own dynamic credential resolution; nothing to check outside n8n"},
   {"key": "n8n-nodes-base.e2eTest", "category": "impossible", "reason": "n8n's internal end-to-end test fixture node"},
@@ -58,6 +59,6 @@
   {"key": "@n8n/n8n-nodes-langchain.retrieverMultiQuery", "category": "agents", "reason": "retriever sub-node: its parent, chainRetrievalQa, has no mono equivalent yet"},
   {"key": "@n8n/n8n-nodes-langchain.retrieverVectorStore", "category": "agents", "reason": "retriever sub-node: its parent, chainRetrievalQa, has no mono equivalent yet"},
   {"key": "@n8n/n8n-nodes-langchain.retrieverWorkflow", "category": "agents", "reason": "retriever sub-node: its parent, chainRetrievalQa, has no mono equivalent yet"},
-  {"key": "@n8n/n8n-nodes-langchain.toolExecutor", "category": "agents", "reason": "runs a tool sub-node directly; tools are not available outside agents yet"},
+  {"key": "@n8n/n8n-nodes-langchain.toolExecutor", "category": "agents", "reason": "n8n's node for running a tool without an agent (query maps tool names to arguments): the tool imports as a disabled node, but nothing calls it by name; agent.ask has no tool calling to hand it to"},
   {"key": "n8n-nodes-base.messageAnAgent", "category": "agents", "reason": "sends a message to an n8n-hosted agent; needs an agents-stream counterpart"}
 ]
