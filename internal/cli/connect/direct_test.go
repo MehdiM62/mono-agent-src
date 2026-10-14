@@ -1,4 +1,4 @@
-package main
+package connect
 
 import (
 	"encoding/json"
@@ -148,6 +148,7 @@ func TestConnectOAuthClientRoundTrip(t *testing.T) {
 }
 
 func TestNodeCredentialPlatform(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string]string{
 		"action.instagram.publish_post": "instagram",
 		"action.x.post":                 "x",

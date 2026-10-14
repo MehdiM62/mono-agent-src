@@ -1,4 +1,4 @@
-package main
+package connect
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ import (
 // a JSON object on stdin — never argv, where other local users could read
 // them in the process list. It is the non-interactive counterpart of
 // `connect <platform>`, used by the desktop app's connection form.
-func newConnectSaveCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConnectSaveCmd() *cobra.Command {
 	var method string
 	var stdinJSON bool
 
@@ -30,22 +30,22 @@ func newConnectSaveCmd(cfg *globalConfig) *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !stdinJSON {
-				return errInvalidInput("pass --stdin-json and the field values as a JSON object on stdin")
+				return d.InvalidInput("pass --stdin-json and the field values as a JSON object on stdin")
 			}
 			if _, ok := connections.Get(args[0]); !ok {
-				return errInvalidInput("unknown platform %q", args[0])
+				return d.InvalidInput("unknown platform %q", args[0])
 			}
 			if method == "" {
-				return errInvalidInput("--method is required")
+				return d.InvalidInput("--method is required")
 			}
 			secrets.MarkStdinConsumed()
 			var fields map[string]interface{}
 			if err := json.NewDecoder(cmd.InOrStdin()).Decode(&fields); err != nil {
 				// The decoder's message can quote the payload; keep it out.
-				return errInvalidInput("stdin must be a JSON object of field values")
+				return d.InvalidInput("stdin must be a JSON object of field values")
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -55,12 +55,12 @@ func newConnectSaveCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			conn, err := mgr.SaveFields(cmd.Context(), args[0], connections.AuthMethod(method), fields, profileOrDefault(cfg))
+			conn, err := mgr.SaveFields(cmd.Context(), args[0], connections.AuthMethod(method), fields, d.profileOrDefault())
 			if err != nil {
-				return errAuthConnection("%s", scrubSecrets(err, connectionSecrets(&connections.Connection{Data: fields})...))
+				return d.AuthFailed("%s", d.ScrubSecrets(err, d.ConnectionSecrets(&connections.Connection{Data: fields})...))
 			}
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), conn.Redact())
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), conn.Redact())
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "✓ Saved as %s (id: %s)\n", conn.Label, conn.ID)
 			return nil
@@ -85,7 +85,7 @@ type oauthClientView struct {
 // newConnectGetOAuthClientCmd shows the OAuth app credentials stored for a
 // platform under the active profile. Like `secret reveal`, the client
 // secret is printed only when --reveal is passed.
-func newConnectGetOAuthClientCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConnectGetOAuthClientCmd() *cobra.Command {
 	var reveal bool
 
 	cmd := &cobra.Command{
@@ -96,23 +96,23 @@ func newConnectGetOAuthClientCmd(cfg *globalConfig) *cobra.Command {
 			"nothing is stored.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			profileID := profileOrDefault(cfg)
+			profileID := d.profileOrDefault()
 			clientID, clientSecret := connections.NewStore(db.DB).GetOAuthClient(cmd.Context(), args[0], profileID)
 			if clientID == "" && clientSecret == "" {
-				return errNotFound("no OAuth client stored for %s (profile: %s)", args[0], profileID)
+				return d.NotFound("no OAuth client stored for %s (profile: %s)", args[0], profileID)
 			}
 			view := oauthClientView{Platform: args[0], ProfileID: profileID, ClientID: clientID, HasClientSecret: clientSecret != ""}
 			if reveal {
 				view.ClientSecret = &clientSecret
 			}
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), view)
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), view)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "client_id: %s\n", clientID)
 			switch {
@@ -176,13 +176,13 @@ func nodeCredentialPlatform(nodeType string) string {
 
 // newConnectForNodeCmd lists the active profile's connections a workflow
 // node type can use — the node editor's credential picker.
-func newConnectForNodeCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConnectForNodeCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "for-node <node-type>",
 		Short: "List saved connections usable by a workflow node type",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -193,7 +193,7 @@ func newConnectForNodeCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 			platform := nodeCredentialPlatform(args[0])
-			conns, err := mgr.ListUsable(cmd.Context(), platform, profileOrDefault(cfg))
+			conns, err := mgr.ListUsable(cmd.Context(), platform, d.profileOrDefault())
 			if err != nil {
 				return err
 			}
@@ -201,8 +201,8 @@ func newConnectForNodeCmd(cfg *globalConfig) *cobra.Command {
 			for _, c := range conns {
 				opts = append(opts, credentialOption{ID: c.ID, Label: c.Label, Platform: c.Platform, Method: string(c.Method)})
 			}
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), opts)
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), opts)
 			}
 			if len(opts) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "No matching connections.")
@@ -229,7 +229,7 @@ type oauthProgress struct {
 // Progress goes to stderr, one JSON object per line with --json, so the
 // desktop app can stream it; the saved connection (no credentials) goes to
 // stdout.
-func newConnectOAuthCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConnectOAuthCmd() *cobra.Command {
 	var scopeGroups []string
 	cmd := &cobra.Command{
 		Use:   "oauth <platform>",
@@ -238,13 +238,13 @@ func newConnectOAuthCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, ok := connections.Get(args[0])
 			if !ok {
-				return errInvalidInput("unknown platform %q", args[0])
+				return d.InvalidInput("unknown platform %q", args[0])
 			}
 			if p.OAuth == nil {
-				return errInvalidInput("platform %s does not support OAuth", args[0])
+				return d.InvalidInput("platform %s does not support OAuth", args[0])
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -254,10 +254,10 @@ func newConnectOAuthCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			profileID := profileOrDefault(cfg)
+			profileID := d.profileOrDefault()
 			errOut := cmd.ErrOrStderr()
 			progress := func(msg, kind string) {
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					b, _ := json.Marshal(oauthProgress{Message: msg, Kind: kind})
 					fmt.Fprintln(errOut, string(b))
 					return
@@ -267,11 +267,11 @@ func newConnectOAuthCmd(cfg *globalConfig) *cobra.Command {
 			conn, err := mgr.ConnectOAuthWithScopes(cmd.Context(), args[0], progress, "", "", profileID, scopeGroups)
 			if err != nil {
 				_, clientSecret := connections.NewStore(db.DB).GetOAuthClient(cmd.Context(), args[0], profileID)
-				return errAuthConnection("%s", scrubSecrets(err, clientSecret))
+				return d.AuthFailed("%s", d.ScrubSecrets(err, clientSecret))
 			}
-			warnIfAccountProfileMismatch(db.DB, cfg, conn)
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), conn.Redact())
+			d.warnIfAccountProfileMismatch(db.DB, conn)
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), conn.Redact())
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "✓ Saved as %s (id: %s)\n", conn.Label, conn.ID)
 			return nil
