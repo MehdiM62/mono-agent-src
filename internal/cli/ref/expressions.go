@@ -61,6 +61,12 @@ STRING OPERATIONS
   split <sep> <s>             split string → []string
   join <sep> <parts>          join []string → string
   replace <old> <new> <s>     replace all occurrences
+  contains <sub> <s>          true if s contains sub
+  startsWith <prefix> <s>     true if s starts with prefix
+  endsWith <suffix> <s>       true if s ends with suffix
+  matches <regex> <s>         true if the Go regular expression matches s
+                              (the string comes last, so they pipe:
+                              {{ $json.title | contains "Go" }})
 
 MAP HELPERS
   hasKey <map> <key>          returns bool
@@ -86,6 +92,8 @@ EXAMPLES
   {{ upper $json.title }}                    — function call
   {{ index $json.titles 0 }}                 — first element of an array
   {{ replace "foo" "bar" $json.text }}       — string replace
+  {{ if matches "^[0-9]+$" $json.id }}…{{ end }}
+                                             — regex test
   {{ json $json.items }}                     — marshal to JSON
   {{ default "n/a" $json.optional_field }}   — default value
   {{ $node["RSS Feed"].json.title }}         — previous node output

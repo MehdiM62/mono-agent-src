@@ -121,8 +121,9 @@ Built-in variables:
 
 Encoding:     json <v> | jsonParse <s>
 Conversions:  toString / toInt / toFloat / toBool
-String:       upper, lower, trim, replace, split, join, contains,
-              hasPrefix, hasSuffix, default, truncate
+String:       upper, lower, trim, replace, split, join, default, truncate,
+              contains / startsWith / endsWith / matches <arg> <s>
+              (string last; matches takes a Go regex)
 Math:         add, sub, mul, div, mod
 Logic:        eq, ne, lt, le, gt, ge, and, or, not, len, index
 Time:         now, unix, formatDate
