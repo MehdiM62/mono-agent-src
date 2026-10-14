@@ -1,4 +1,4 @@
-package main
+package node
 
 import (
 	"database/sql"
@@ -13,8 +13,8 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// paletteNode is one node type as the desktop app's node palette shows it.
-type paletteNode struct {
+// PaletteNode is one node type as the desktop app's node palette shows it.
+type PaletteNode struct {
 	Type        string               `json:"type"`
 	Label       string               `json:"label"`
 	Category    string               `json:"category"`
@@ -28,10 +28,10 @@ type paletteNode struct {
 	CategoryLabel string `json:"category_label,omitempty"`
 }
 
-// Palette sections (paletteNode.Section).
+// Palette sections (PaletteNode.Section).
 const (
-	paletteSectionWebAutomation = "web_automation"
-	paletteSectionNodes         = "nodes"
+	PaletteSectionWebAutomation = "web_automation"
+	PaletteSectionNodes         = "nodes"
 )
 
 // newNodePaletteCmd prints the node palette: every runnable node type,
@@ -42,7 +42,7 @@ const (
 // Deprecated node types (workflow.DeprecatedNodeTypes) stay registered so
 // old workflows load and fail with their migration hint, but are left out
 // of the palette unless --all is given.
-func newNodePaletteCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newNodePaletteCmd() *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
 		Use:   "palette",
@@ -51,30 +51,30 @@ func newNodePaletteCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Best-effort DB, as `node list`: AI nodes need it to register.
 			var rawDB *sql.DB
-			if db, err := initDB(cfg); err == nil {
+			if db, err := d.OpenDB(); err == nil {
 				rawDB = db.DB
 				defer db.Close()
 			}
-			return json.NewEncoder(cmd.OutOrStdout()).Encode(nodePalette(rawDB, all))
+			return json.NewEncoder(cmd.OutOrStdout()).Encode(Palette(rawDB, all))
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "Include deprecated node types")
 	return cmd
 }
 
-// nodePalette is the hand-written catalog reconciled against the live node
+// Palette is the hand-written catalog reconciled against the live node
 // registry (the same one `node run` uses), so the palette always matches
 // what can actually run: stale entries drop out, and newly registered
 // types appear with a derived label. Deprecated types are left out unless
 // includeDeprecated is set.
-func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
-	mkNode := func(t, label, cat, desc string) paletteNode {
+func Palette(db *sql.DB, includeDeprecated bool) map[string][]PaletteNode {
+	mkNode := func(t, label, cat, desc string) PaletteNode {
 		schema, _ := workflow.LoadDefaultSchema(t)
-		return paletteNode{Type: t, Label: label, Category: cat, Description: desc, Schema: schema}
+		return PaletteNode{Type: t, Label: label, Category: cat, Description: desc, Schema: schema}
 	}
 
-	catalog := map[string][]paletteNode{
-		"triggers": []paletteNode{
+	catalog := map[string][]PaletteNode{
+		"triggers": []PaletteNode{
 			mkNode("trigger.manual", "Manual Trigger", "triggers", "Start a workflow run manually"),
 			mkNode("trigger.schedule", "Schedule", "triggers", "Run workflow on a cron or interval schedule"),
 			mkNode("trigger.webhook", "Webhook", "triggers", "Start workflow on incoming HTTP request"),
@@ -84,7 +84,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("trigger.error", "Error Trigger", "triggers", "Run when a workflow that names this one as its error workflow fails"),
 			mkNode("trigger.local_file", "Local File Trigger", "triggers", "Run when a file in a watched path is added, changed or removed"),
 		},
-		"control": []paletteNode{
+		"control": []PaletteNode{
 			mkNode("core.if", "If", "control", "Branch execution based on a condition"),
 			mkNode("core.switch", "Switch", "control", "Route execution to one of multiple branches"),
 			mkNode("core.merge", "Merge", "control", "Merge multiple input branches into one"),
@@ -104,7 +104,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("core.human_in_loop", "Human in Loop", "control", "Pause and wait for a human to review, edit, and approve the data"),
 			mkNode("core.noop", "No Operation", "control", "Pass items through unchanged"),
 		},
-		"data": []paletteNode{
+		"data": []PaletteNode{
 			mkNode("data.datetime", "Date & Time", "data", "Parse, format, and manipulate date/time values"),
 			mkNode("data.crypto", "Crypto", "data", "Hash, encrypt, or sign data"),
 			mkNode("data.html", "HTML", "data", "Parse or generate HTML"),
@@ -114,22 +114,22 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("data.compression", "Compression", "data", "Compress or decompress files"),
 			mkNode("data.write_binary_file", "Write Binary File", "data", "Write binary data to disk"),
 		},
-		"http": []paletteNode{
+		"http": []PaletteNode{
 			mkNode("http.request", "HTTP Request", "http", "Make an HTTP/S request"),
 			mkNode("http.ftp", "FTP", "http", "Transfer files via FTP/SFTP"),
 			mkNode("http.ssh", "SSH", "http", "Execute commands over SSH"),
 		},
-		"system": []paletteNode{
+		"system": []PaletteNode{
 			mkNode("system.execute_command", "Execute Command", "system", "Run a shell command on the host"),
 			mkNode("system.rss_read", "RSS Read", "system", "Fetch and parse an RSS/Atom feed"),
 		},
-		"db": []paletteNode{
+		"db": []PaletteNode{
 			mkNode("db.mysql", "MySQL", "db", "Query a MySQL/MariaDB database"),
 			mkNode("db.postgres", "Postgres", "db", "Query a PostgreSQL database"),
 			mkNode("db.mongodb", "MongoDB", "db", "Interact with a MongoDB collection"),
 			mkNode("db.redis", "Redis", "db", "Read/write keys in a Redis store"),
 		},
-		"comm": []paletteNode{
+		"comm": []PaletteNode{
 			mkNode("comm.email_send", "Send Email", "comm", "Send an email via SMTP"),
 			mkNode("comm.email_read", "Read Email", "comm", "Read emails via IMAP"),
 			mkNode("comm.slack", "Slack", "comm", "Send or read Slack messages"),
@@ -138,7 +138,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("comm.twilio", "Twilio", "comm", "Send SMS or make calls via Twilio"),
 			mkNode("comm.whatsapp", "WhatsApp", "comm", "Send WhatsApp messages"),
 		},
-		"service": []paletteNode{
+		"service": []PaletteNode{
 			mkNode("service.github", "GitHub", "service", "Interact with GitHub repositories and issues"),
 			mkNode("service.airtable", "Airtable", "service", "Read/write Airtable bases"),
 			mkNode("service.notion", "Notion", "service", "Read/write Notion pages and databases"),
@@ -156,7 +156,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("service.huggingface", "HuggingFace", "service", "Generate images via HuggingFace Inference API"),
 			mkNode("service.openrouter", "OpenRouter (deprecated)", "service", "Deprecated — replace with Agent Ask"),
 		},
-		"ai": []paletteNode{
+		"ai": []PaletteNode{
 			mkNode("agent.ask", "Agent Ask", "ai", "Ask a locally-installed AI agent (claude, codex, …) one turn via the monomind engine"),
 			mkNode("mcp.call", "MCP Call", "ai", "List or call the tools of an MCP server (stdio or Streamable HTTP) — Zapier, Pipedream, vendor servers, or monoagent's own"),
 			mkNode("browser.jev", "Browser Agent (Jev)", "ai", "Reach a goal on any website in your own browser — TypeSafe Jev picks each click/type/select"),
@@ -178,7 +178,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 		// (instagram, linkedin, x, tiktok, gemini, hackernews, producthunt)
 		// must match groupOf's platform-prefix fallback below, which is also
 		// what the desktop app's NodeRunner.jsx's CAT_COLOR keys off of.
-		"instagram": []paletteNode{
+		"instagram": []PaletteNode{
 			mkNode("instagram.find_by_keyword", "Find By Keyword", "instagram", "Search Instagram users or posts by keyword"),
 			mkNode("instagram.export_followers", "Export Followers", "instagram", "Export a profile's follower list"),
 			mkNode("instagram.scrape_profile_info", "Scrape Profile Info", "instagram", "Collect profile metadata"),
@@ -198,7 +198,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("instagram.list_user_posts", "List User Posts", "instagram", "List posts from a user profile"),
 			mkNode("instagram.reply_to_comments", "Reply To Comments", "instagram", "Reply to comments on posts"),
 		},
-		"linkedin": []paletteNode{
+		"linkedin": []PaletteNode{
 			mkNode("linkedin.find_by_keyword", "Find By Keyword", "linkedin", "Search LinkedIn profiles by keyword"),
 			mkNode("linkedin.export_followers", "Export Followers", "linkedin", "Export a profile's connections/followers"),
 			mkNode("linkedin.scrape_profile_info", "Scrape Profile Info", "linkedin", "Collect LinkedIn profile metadata"),
@@ -212,7 +212,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("linkedin.list_post_comments", "List Post Comments", "linkedin", "List comments on a LinkedIn post"),
 			mkNode("linkedin.list_user_posts", "List User Posts", "linkedin", "List posts from a LinkedIn profile"),
 		},
-		"x": []paletteNode{
+		"x": []PaletteNode{
 			mkNode("x.find_by_keyword", "Find By Keyword", "x", "Search X/Twitter by keyword"),
 			mkNode("x.export_followers", "Export Followers", "x", "Export a profile's followers on X"),
 			mkNode("x.scrape_profile_info", "Scrape Profile Info", "x", "Collect X profile metadata"),
@@ -221,7 +221,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("x.auto_reply_dms", "Auto Reply DMs", "x", "Automatically reply to X DMs"),
 			mkNode("x.publish_post", "Publish Post", "x", "Publish a post on X"),
 		},
-		"tiktok": []paletteNode{
+		"tiktok": []PaletteNode{
 			mkNode("tiktok.find_by_keyword", "Find By Keyword", "tiktok", "Search TikTok by keyword"),
 			mkNode("tiktok.export_followers", "Export Followers", "tiktok", "Export a TikTok profile's followers"),
 			mkNode("tiktok.scrape_profile_info", "Scrape Profile Info", "tiktok", "Collect TikTok profile metadata"),
@@ -239,28 +239,28 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("tiktok.share_video", "Share Video", "tiktok", "Copy a TikTok video's share link (replaces the clipboard)"),
 			mkNode("tiktok.stitch_video", "Stitch Video", "tiktok", "Open the stitch creator for a TikTok video (nothing is published)"),
 		},
-		"gemini": []paletteNode{
+		"gemini": []PaletteNode{
 			mkNode("gemini.generate_text", "Generate Text", "gemini", "Send a prompt to Gemini and get a text response"),
 			mkNode("gemini.generate_image", "Generate Image", "gemini", "Send a prompt to Gemini and download generated images"),
 			mkNode("gemini.chat_session", "Chat Session", "gemini", "Hold a multi-turn Gemini chat session"),
 			mkNode("gemini.chat_session_many", "Chat Session (Batch)", "gemini", "Run a Gemini chat session over multiple inputs"),
 		},
-		"hackernews": []paletteNode{
+		"hackernews": []PaletteNode{
 			mkNode("hackernews.submit_post", "Submit Post", "hackernews", "Submit a new post to Hacker News"),
 			mkNode("hackernews.list_comments", "List Comments", "hackernews", "List comments on a Hacker News post"),
 			mkNode("hackernews.reply_to_comment", "Reply To Comment", "hackernews", "Reply to a Hacker News comment"),
 			mkNode("hackernews.get_post_metrics", "Get Post Metrics", "hackernews", "Get score/comment-count metrics for a post"),
 		},
-		"producthunt": []paletteNode{
+		"producthunt": []PaletteNode{
 			mkNode("producthunt.comment_on_launch", "Comment On Launch", "producthunt", "Comment on a Product Hunt launch"),
 			mkNode("producthunt.list_comments", "List Comments", "producthunt", "List comments on a Product Hunt launch"),
 			mkNode("producthunt.get_launch_metrics", "Get Launch Metrics", "producthunt", "Get upvote/comment metrics for a launch"),
 		},
-		"people": []paletteNode{
+		"people": []PaletteNode{
 			mkNode("people.save", "Save to People", "people", "Upsert items into the People tab"),
 			mkNode("people.sync_outlook_message", "Sync Email to People", "people", "Upsert the sender as a person and save the message to their history"),
 		},
-		"org": []paletteNode{
+		"org": []PaletteNode{
 			mkNode("org.run", "Run Org", "org", "Start a monomind agent organization and wait for its boss role to signal completion"),
 		},
 	}
@@ -340,9 +340,9 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 
 	for group, list := range catalog {
 		for i := range list {
-			list[i].Section = paletteSectionNodes
+			list[i].Section = PaletteSectionNodes
 			if id, ok := automationOf(list[i].Type); ok {
-				list[i].Section = paletteSectionWebAutomation
+				list[i].Section = PaletteSectionWebAutomation
 				list[i].CategoryLabel = webAutomations[id]
 			}
 		}
