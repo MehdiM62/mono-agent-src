@@ -65,7 +65,7 @@ Exit codes: 0 ok, 1 general, 2 not-found, 3 invalid-input/validation, 4 auth/con
 	"nodes": `NODE TYPES (category.type; full schemas via the node_schema tool)
 
 Core/control: core.set, core.if, core.switch, core.filter, core.sort,
-  core.limit, core.aggregate, core.merge, core.code,
+  core.limit, core.aggregate, core.merge, core.code, core.noop,
   core.wait (duration, or resume timeInterval/specificTime),
   core.remove_duplicates (within a run or across earlier runs),
   core.split_in_batches (loop: outputs "loop" per batch and "done" at the
@@ -79,7 +79,8 @@ Triggers: trigger.schedule (6-field cron: sec min hour day month weekday;
   webhook port; response_mode onReceived|lastNode|responseNode),
   trigger.execute_workflow (called by core.execute_workflow),
   trigger.error (runs when a workflow naming this one as its error
-  workflow fails)
+  workflow fails), trigger.local_file (path; events add|change|unlink;
+  one run per change while the daemon runs)
 HTTP: http.request (method/url/headers/body; auth modes incl. OAuth2)
 System: system.execute_command, system.rss_read, system.read_write_file
 Data: data.datetime, data.crypto, data.html, data.xml, data.markdown,
@@ -110,7 +111,8 @@ Built-in variables:
   $node["NodeName"].json.f   first output item of a previous node (by name)
   $node["NodeName"].all      every output item of that node (.items: same)
   $items["NodeName"]    same list as $node["NodeName"].all
-  $now / $today         current UTC time / midnight UTC today
+  $now / $today         current time / midnight today; UTC unless
+                        settings.timezone (or MONOAGENT_TIMEZONE) names a zone
   $trigger.field        the execution's trigger data
   $vars.name            workflow variables (settings.variables)
   $runIndex             loop iteration number, 0 outside a loop
@@ -121,8 +123,9 @@ Built-in variables:
 
 Encoding:     json <v> | jsonParse <s>
 Conversions:  toString / toInt / toFloat / toBool
-String:       upper, lower, trim, replace, split, join, contains,
-              hasPrefix, hasSuffix, default, truncate
+String:       upper, lower, trim, replace, split, join, default, truncate,
+              contains / startsWith / endsWith / matches <arg> <s>
+              (string last; matches takes a Go regex)
 Math:         add, sub, mul, div, mod
 Logic:        eq, ne, lt, le, gt, ge, and, or, not, len, index
 Time:         now, unix, formatDate

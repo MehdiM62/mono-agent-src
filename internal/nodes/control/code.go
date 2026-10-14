@@ -15,9 +15,13 @@ import (
 //
 //	"code" (string, required): JavaScript code to execute.
 //	    The JS environment exposes:
-//	    - $input: object with all() method returning all items as JS objects
+//	    - $input: all() returning all items as JS objects, first(),
+//	      last(), and item (the first item)
 //	    - $json: first item's JSON map (shorthand)
-//	    The code must return an array of objects (or a single object).
+//	    - $('Node Name'): that node's output, with $input's accessors
+//	    The code must return an array of objects (or a single object), or
+//	    a promise of one; a top-level return or await runs the code as an
+//	    async function body.
 //	    Each returned object becomes an Item on the "main" handle.
 //	"timeout_seconds" (number, optional): execution timeout, default 30,
 //	    clamped to 1-600.
@@ -59,25 +63,16 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 		limiter.SetMemoryLimit(memLimitMB << 20)
 	}
 
-	// Build the array of item JSON maps for $input.all().
-	itemMaps := make([]interface{}, len(input.Items))
-	for i, item := range input.Items {
-		m := make(map[string]interface{})
-		for k, v := range item.JSON {
-			m[k] = v
-		}
-		itemMaps[i] = m
-	}
-
-	// $input object with all() method.
+	// $input with all(), first(), last() and item over the input items.
 	inputObj := rt.NewObject()
-	if err := inputObj.Set("all", func(call goja.FunctionCall) goja.Value {
-		return rt.ToValue(itemMaps)
-	}); err != nil {
-		return nil, fmt.Errorf("code node: failed to set $input.all: %w", err)
+	if err := setItemAccessors(rt, inputObj, jsonMaps(input.Items)); err != nil {
+		return nil, fmt.Errorf("code node: failed to set $input: %w", err)
 	}
 	if err := rt.Set("$input", inputObj); err != nil {
 		return nil, fmt.Errorf("code node: failed to set $input: %w", err)
+	}
+	if err := setNodeAccessor(rt, input.NodeOutputs); err != nil {
+		return nil, fmt.Errorf("code node: failed to set $: %w", err)
 	}
 
 	// $json — first item's JSON, or empty map.
@@ -117,7 +112,14 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 		}
 	}()
 
-	val, err := rt.RunString(code)
+	prg, err := compileCode(code)
+	var val goja.Value
+	if err == nil {
+		val, err = rt.RunProgram(prg)
+	}
+	if err == nil {
+		val, err = settle(val)
+	}
 	close(done)
 
 	if err != nil {

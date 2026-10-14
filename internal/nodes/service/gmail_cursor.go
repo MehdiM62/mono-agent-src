@@ -26,16 +26,19 @@ type gmailSince struct {
 	key   string
 	prev  gmailCursor
 	found bool
+	// baseline makes a run without a stored cursor record what it lists
+	// and return nothing (workflow.PollBaseline).
+	baseline bool
 }
 
 // loadGmailSince reads the cursor of input's node for this query and label
 // filter, so changing either starts over.
-func loadGmailSince(ctx context.Context, input workflow.NodeInput, query string, labelIDs []string) (*gmailSince, error) {
+func loadGmailSince(ctx context.Context, input workflow.NodeInput, query string, labelIDs []string, baseline bool) (*gmailSince, error) {
 	sd, err := workflow.StaticDataFor(ctx, input, workflow.StateScopeNode)
 	if err != nil {
 		return nil, err
 	}
-	s := &gmailSince{sd: sd, key: "gmail_cursor:" + query + "\x00" + strings.Join(labelIDs, ",")}
+	s := &gmailSince{sd: sd, key: "gmail_cursor:" + query + "\x00" + strings.Join(labelIDs, ","), baseline: baseline}
 	if s.found, err = sd.Get(ctx, s.key, &s.prev); err != nil {
 		return nil, err
 	}
@@ -59,7 +62,7 @@ func (s *gmailSince) query(q string) string {
 // filter fetches each listed message's internalDate, adds it to the item
 // and keeps the messages the previous run did not see: an id not already
 // emitted and not dated before the newest message seen so far. The first
-// run keeps every message. The cursor is saved only once every lookup has
+// run keeps every message, or none with baseline on. The cursor is saved only once every lookup has
 // succeeded, so a failed run is retried in full by the next one.
 func (s *gmailSince) filter(ctx context.Context, accessToken string, messages []map[string]interface{}) ([]workflow.Item, error) {
 	seen := make(map[string]bool, len(s.prev.IDs))
@@ -94,7 +97,7 @@ func (s *gmailSince) filter(ctx context.Context, accessToken string, messages []
 		if dates[i] == next.NewestMs {
 			next.IDs = append(next.IDs, id)
 		}
-		if s.found && (seen[id] || dates[i] < s.prev.NewestMs) {
+		if (s.found && (seen[id] || dates[i] < s.prev.NewestMs)) || (!s.found && s.baseline) {
 			continue
 		}
 		msg["internalDate"] = strconv.FormatInt(dates[i], 10)

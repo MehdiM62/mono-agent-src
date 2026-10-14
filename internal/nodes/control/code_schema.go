@@ -19,7 +19,7 @@ package control
 //     limit default 512MB) that had no field in the hand-written schema at
 //     all.
 type CodeNodeSchema struct {
-	Code string `json:"code" schema:"label=Code,type=code,required,language=javascript,help=Return an array of objects. Each object becomes an output item. Access input via $input.all() or $json (first item)."`
+	Code string `json:"code" schema:"label=Code,type=code,required,language=javascript,help=Return an array of objects. Each object becomes an output item. Access input via $input.all() or $json (first item) and another node's output via $('Node Name').all(). A top-level return or await runs the code as an async function."`
 
 	TimeoutSeconds float64 `json:"timeout_seconds" schema:"label=Timeout (seconds),type=number,default=30,min=1,max=600,help=Execution timeout in seconds."`
 

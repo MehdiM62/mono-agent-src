@@ -25,6 +25,10 @@ type imapReadOpts struct {
 	// since is the previous run's cursor when since_last_run is on (a zero
 	// cursor on the first run); nil when it is off.
 	since *imapCursor
+	// baselineOnly reads no messages: it only finds the mailbox's highest
+	// UID, so a first since_last_run run with baseline on starts the cursor
+	// there and returns nothing.
+	baselineOnly bool
 }
 
 // imapReadResult is the messages read, newest first, plus the mailbox
@@ -126,7 +130,7 @@ func readIMAPMail(ctx context.Context, opts imapReadOpts) (*imapReadResult, erro
 	if res.afterUID > 0 {
 		criteria = fmt.Sprintf("UID %d:*", res.afterUID+1)
 	}
-	if opts.unreadOnly {
+	if opts.unreadOnly && !opts.baselineOnly {
 		criteria += " UNSEEN"
 	}
 	lines, err = run("A3", "UID SEARCH "+criteria)
@@ -147,6 +151,12 @@ func readIMAPMail(ctx context.Context, opts imapReadOpts) (*imapReadResult, erro
 		}
 	}
 	sort.Slice(uids, func(i, j int) bool { return uids[i] < uids[j] })
+	if opts.baselineOnly {
+		if len(uids) > 0 {
+			res.maxUID = uids[len(uids)-1]
+		}
+		uids = nil
+	}
 	if len(uids) > opts.limit {
 		if res.afterUID > 0 {
 			uids = uids[:opts.limit]

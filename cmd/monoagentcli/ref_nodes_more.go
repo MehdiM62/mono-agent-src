@@ -12,6 +12,24 @@ func init() {
 var moreNodeDocs = []nodeDoc{
 	// ── Triggers ──────────────────────────────────────────────────────────────
 	{
+		Type:     "trigger.local_file",
+		Category: "trigger",
+		Short:    "Run workflow when a watched file is added, changed or removed",
+		Description: `While "monoagentcli daemon" runs, scans a file or folder every few seconds
+and starts one run per change. Files already there when the workflow is
+activated fire nothing. The path need not exist yet.`,
+		Config: `{
+  "path":             "~/inbox",        // required: absolute (or ~/) file or folder
+  "events":           "add,change",     // add | change | unlink; empty: all three
+  "recursive":        false,            // also watch subfolders
+  "ignore":           "*.tmp,.git",     // globs on the name or the path below "path"
+  "interval_seconds": 2                 // scan interval, 1-3600
+}`,
+		Inputs:  "none",
+		Outputs: `one item per change: {"event": "add"|"change"|"unlink", "path": "/abs/path"}`,
+		Notes:   `Polls (no OS file events), so a file changed and changed back between two scans fires nothing. A watch over 50000 files fails to activate.`,
+	},
+	{
 		Type:     "trigger.manual",
 		Category: "trigger",
 		Short:    "Run workflow on demand (CLI, GUI, MCP, or HTTP API)",

@@ -68,6 +68,7 @@ type ExpressionEngine struct {
 func NewExpressionEngine() *ExpressionEngine {
 	e := &ExpressionEngine{}
 	e.funcs = e.buildFuncMap()
+	addStringMatchFuncs(e.funcs)
 	return e
 }
 

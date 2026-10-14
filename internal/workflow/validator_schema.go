@@ -56,8 +56,9 @@ var genericConfigKeys = map[string]bool{
 	"credential": true, "username": true, "profile_id": true,
 	"continue_on_fail": true, "timeout": true, "timeout_seconds": true,
 	"notes": true, "disabled": true, "description": true, "label": true,
-	"always_output_data": true, "execute_once": true,
+	"always_output_data": true, "execute_once": true, "executeOnce": true,
 	"max_tries": true, "wait_between_tries": true,
+	"execute_once_per_item": true,
 }
 
 func isGenericConfigKey(k string) bool {
@@ -75,7 +76,7 @@ func ValidateWorkflow(w *Workflow, opts ValidateOptions) ValidationReport {
 		r.Errors = append(r.Errors, err.Error())
 		r.Issues = append(r.Issues, ValidationIssue{Code: IssueInvalidWorkflow, Severity: "error", Message: err.Error()})
 	}
-	for _, is := range schemaIssues(w, opts) {
+	for _, is := range append(schemaIssues(w, opts), settingsIssues(w)...) {
 		r.Issues = append(r.Issues, is)
 		msg := is.Message
 		if is.NodeID != "" {

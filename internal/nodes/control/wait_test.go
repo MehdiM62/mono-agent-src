@@ -98,7 +98,7 @@ func TestWait_ConfigErrors(t *testing.T) {
 		"negative":        {"duration": -1},
 		"bad unit":        {"resume": "timeInterval", "amount": 1, "unit": "weeks"},
 		"bad dateTime":    {"resume": "specificTime", "dateTime": "soon"},
-		"webhook resume":  {"resume": "webhook"},
+		"unknown resume":  {"resume": "never"},
 		"non-number":      {"duration": "ten"},
 		"negative amount": {"amount": -2, "unit": "seconds"},
 	}

@@ -82,6 +82,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("trigger.form", "Form", "triggers", "Serve a web form and start a run with each submission"),
 			mkNode("trigger.execute_workflow", "When Called by Another Workflow", "triggers", "Start this workflow from an Execute Workflow node"),
 			mkNode("trigger.error", "Error Trigger", "triggers", "Run when a workflow that names this one as its error workflow fails"),
+			mkNode("trigger.local_file", "Local File Trigger", "triggers", "Run when a file in a watched path is added, changed or removed"),
 		},
 		"control": []paletteNode{
 			mkNode("core.if", "If", "control", "Branch execution based on a condition"),
@@ -101,6 +102,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("core.compare_datasets", "Compare Datasets", "control", "Compare two datasets and output differences"),
 			mkNode("core.aggregate", "Aggregate", "control", "Aggregate multiple items into one"),
 			mkNode("core.human_in_loop", "Human in Loop", "control", "Pause and wait for a human to review, edit, and approve the data"),
+			mkNode("core.noop", "No Operation", "control", "Pass items through unchanged"),
 		},
 		"data": []paletteNode{
 			mkNode("data.datetime", "Date & Time", "data", "Parse, format, and manipulate date/time values"),
