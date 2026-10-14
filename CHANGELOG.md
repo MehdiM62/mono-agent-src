@@ -52,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Old operation and field names keep working** through aliases where nodes moved to n8n-style names.
 - **The database is snapshotted before pending migrations**, and `doctor` reports a database newer than the binary. `~/.monoagent` and its files are created private to your user.
 - **The task board no longer limits agents to 20 new tasks an hour.**
+- **`workflow validate` checks node settings against each node's schema.** Workflows with a missing required field, an unknown option or a dangling `$node[...]` reference now fail validation where they used to pass. Saving, activating and running are unchanged; scripts that check validate's exit code may start failing.
+- **`install.sh` installs to `~/.local/bin` when `/usr/local/bin` needs sudo**, and warns if an older copy elsewhere on your PATH would run instead.
 
 ### Security
 - **Go standard library and `golang.org/x/net` updated.** The pinned toolchain moves from go1.26.6 to go1.26.9 and `golang.org/x/net` from v0.59.0 to v0.60.0, which fixes 12 standard-library advisories (net/http, crypto/tls, mime/multipart, html/template, os; GO-2026-6599 through GO-2026-6617) that `govulncheck` reported against released binaries. The vulnerability scan is clean again.
