@@ -1,13 +1,15 @@
-package main
+package releasecli
 
 import (
 	"bytes"
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/release"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/zalando/go-keyring"
@@ -15,7 +17,7 @@ import (
 
 func TestReleaseKeygenStdoutPrivate(t *testing.T) {
 	keyring.MockInit()
-	cmd := newReleaseCmd()
+	cmd := NewCommand()
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
@@ -51,7 +53,7 @@ func TestReleaseKeygenStdoutPrivate(t *testing.T) {
 
 func TestReleaseKeygenStdoutPrivateRejectsForce(t *testing.T) {
 	keyring.MockInit()
-	cmd := newReleaseCmd()
+	cmd := NewCommand()
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
 	cmd.SetArgs([]string{"keygen", "--stdout-private", "--force"})
@@ -62,7 +64,7 @@ func TestReleaseKeygenStdoutPrivateRejectsForce(t *testing.T) {
 
 func TestReleaseKeygenKeyringPathUnchanged(t *testing.T) {
 	keyring.MockInit()
-	cmd := newReleaseCmd()
+	cmd := NewCommand()
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"keygen"})
@@ -71,5 +73,32 @@ func TestReleaseKeygenKeyringPathUnchanged(t *testing.T) {
 	}
 	if _, err := secrets.ReleaseSigningKey(); err != nil {
 		t.Errorf("default keygen must store the key: %v", err)
+	}
+}
+
+func TestReleaseVerifyRefusals(t *testing.T) {
+	dir := t.TempDir()
+	manifest, sig := dir+"/manifest.json", dir+"/manifest.json.sig"
+	for _, f := range []string{manifest, sig} {
+		if err := os.WriteFile(f, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, tc := range []struct {
+		args []string
+		code int
+	}{
+		{[]string{"verify", dir + "/none", sig}, 2},
+		{[]string{"verify", manifest, dir + "/none"}, 2},
+		{[]string{"verify", manifest, sig, "--pubkey", "bogus"}, 3},
+		{[]string{"verify", manifest, sig}, 3},
+	} {
+		cmd := NewCommand()
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetArgs(tc.args)
+		if got := clicore.ExitCodeFor(cmd.Execute()); got != tc.code {
+			t.Errorf("%v: exit code %d, want %d", tc.args, got, tc.code)
+		}
 	}
 }

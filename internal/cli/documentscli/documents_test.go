@@ -1,4 +1,4 @@
-package main
+package documentscli
 
 import (
 	"bytes"
@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/documents"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -41,8 +44,11 @@ func newDocumentsCLITestDB(t *testing.T) string {
 
 func runDocumentsCmd(t *testing.T, dbPath string, args ...string) (string, error) {
 	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true}
-	cmd := newDocumentsCmd(cfg)
+	cmd := NewCommand(Deps{
+		JSONOutput: func() bool { return true },
+		ProfileID:  func() string { return "" },
+		OpenDB:     func() (*storage.Database, error) { return storage.NewDatabase(dbPath) },
+	})
 	cmd.SetArgs(args)
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -78,5 +84,42 @@ func TestDocumentsRenderRejectsUnknownType(t *testing.T) {
 	}
 	if _, err := runDocumentsCmd(t, dbPath, "render", "--type", "nonsense", "--data-file", dataFile); err == nil {
 		t.Fatal("expected error for unknown --type, got nil")
+	}
+}
+
+// A data file that is missing is a plain failure; one that does not parse as the type's data is
+// invalid input (exit 3); both are found before anything is generated.
+func TestDocumentsRenderRefusesBadData(t *testing.T) {
+	dbPath := newDocumentsCLITestDB(t)
+	if _, err := runDocumentsCmd(t, dbPath, "render", "--type", "cv", "--data-file", filepath.Join(t.TempDir(), "absent.json")); err == nil || !strings.HasPrefix(err.Error(), "reading data file: ") {
+		t.Errorf("missing file: %v", err)
+	}
+	bad := filepath.Join(t.TempDir(), "bad.json")
+	if err := os.WriteFile(bad, []byte(`{"name":`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, typ := range []string{"cv", "cover_letter", "tender_proposal"} {
+		_, err := runDocumentsCmd(t, dbPath, "render", "--type", typ, "--data-file", bad)
+		if err == nil || !strings.HasPrefix(err.Error(), "parsing --data-file: ") || clicore.ExitCodeFor(err) != 3 {
+			t.Errorf("%s: %v", typ, err)
+		}
+	}
+}
+
+func TestDocumentsRenderNeedsTypeAndDataFile(t *testing.T) {
+	t.Parallel()
+	cmd := NewCommand(Deps{})
+	render, _, err := cmd.Find([]string{"render"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"type", "data-file"} {
+		f := render.Flags().Lookup(name)
+		if f == nil || len(f.Annotations[cobra.BashCompOneRequiredFlag]) == 0 {
+			t.Errorf("--%s is not required", name)
+		}
+	}
+	if render.Flags().Lookup("application-id") == nil {
+		t.Error("no --application-id")
 	}
 }

@@ -286,3 +286,39 @@ func TestAskMemoryNeedsSessionKeyAndDB(t *testing.T) {
 		t.Fatal("bad window accepted")
 	}
 }
+
+// skip_when_missing: an item without a session key runs as a fresh
+// conversation (nothing read, nothing stored); with a key, memory works.
+func TestAskMemorySkipWhenMissing(t *testing.T) {
+	var prompts []string
+	fakeTurns(t, func(o monomind.ExecOptions) (*monomind.TurnResult, error) {
+		prompts = append(prompts, o.Prompt)
+		return &monomind.TurnResult{ResultText: "ok"}, nil
+	})
+	ctx, db := memCtx(t)
+	cfg := map[string]interface{}{"runtime": "claude", "prompt": "hi",
+		"memory": map[string]interface{}{"skip_when_missing": true}}
+	if _, err := (&AskNode{}).Execute(ctx, workflow.NodeInput{Items: items(1)}, cfg); err != nil {
+		t.Fatalf("no sessionId with skip_when_missing: %v", err)
+	}
+	if prompts[0] != "hi" {
+		t.Errorf("prompt without a session = %q", prompts[0])
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM chat_memory_messages`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("a turn without a session was stored (%d rows)", n)
+	}
+	if _, err := (&AskNode{}).Execute(ctx, workflow.NodeInput{Items: session("s")}, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (&AskNode{}).Execute(ctx, workflow.NodeInput{Items: session("s")}, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(prompts[2], "Earlier messages") {
+		t.Errorf("second turn on session s did not see the first: %q", prompts[2])
+	}
+	cfg["memory"] = map[string]interface{}{"skip_when_missing": "yes"}
+	if _, err := (&AskNode{}).Execute(ctx, workflow.NodeInput{Items: session("s")}, cfg); err == nil {
+		t.Error("non-boolean skip_when_missing accepted")
+	}
+}

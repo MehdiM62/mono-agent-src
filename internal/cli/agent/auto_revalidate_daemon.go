@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monoes/mono-agent/internal/agentroster"
-	agentcli "github.com/monoes/mono-agent/internal/cli/agent"
 	"github.com/monoes/mono-agent/internal/cli/orgsvc"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -17,17 +16,17 @@ import (
 
 // The daemon's automatic re-validation of stale roster entries
 // (monoes/mono-agent#230): the scheduler and its Busy check. The setting and
-// its status are `agent roster auto-revalidate` (internal/cli/agent).
+// its status are `agent roster auto-revalidate` (auto_revalidate.go).
 
 // chatTurnActiveWindow bounds how long an "active" chat turn row counts as
 // running without any update: a turn left active by a crash stops blocking
 // re-validation after this long.
 const chatTurnActiveWindow = 2 * time.Hour
 
-// appBusy reports whether a chat turn, a workflow run or an org run is
+// AppBusy reports whether a chat turn, a workflow run or an org run is
 // active. Every check is a cheap read: two queries and each profile
 // folder's `org serve` heartbeat file.
-func appBusy(ctx context.Context, db *sql.DB) (bool, string) {
+func AppBusy(ctx context.Context, db *sql.DB) (bool, string) {
 	var n int
 	since := time.Now().Add(-chatTurnActiveWindow).UTC().Format(time.RFC3339)
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM ai_chat_turns WHERE status = 'active' AND updated_at >= ?`, since).Scan(&n); err == nil && n > 0 {
@@ -59,29 +58,30 @@ func appBusy(ctx context.Context, db *sql.DB) (bool, string) {
 }
 
 // newAutoRevalidator is the daemon's scheduler over the real roster,
-// monomind and validation lock.
-func newAutoRevalidator(db *sql.DB, logf func(string, ...interface{})) *agentroster.AutoScheduler {
+// monomind and validation lock. busy is its Busy check (AppBusy, and the
+// account's lock as the CLI judges it).
+func newAutoRevalidator(db *sql.DB, logf func(string, ...interface{}), busy func(context.Context, *sql.DB) (bool, string)) *agentroster.AutoScheduler {
 	var scan *monomind.ScanResult // the last Pick's scan, reused by Validate
 	return &agentroster.AutoScheduler{
 		DB:   db,
 		Now:  time.Now,
-		Busy: func(ctx context.Context) (bool, string) { return busyOrLocked(ctx, db) },
+		Busy: func(ctx context.Context) (bool, string) { return busy(ctx, db) },
 		Pick: func(ctx context.Context, maxModels int) (*agentroster.AutoPlan, error) {
 			s, err := monomind.Scan(ctx)
 			if err != nil {
 				return nil, err
 			}
 			scan = s
-			return agentcli.AutoRosterPick(ctx, db, s, maxModels)
+			return autoRosterPick(ctx, db, s, maxModels)
 		},
 		Repick: func(ctx context.Context, maxModels int) (*agentroster.AutoPlan, error) {
-			return agentcli.AutoRosterPick(ctx, db, scan, maxModels)
+			return autoRosterPick(ctx, db, scan, maxModels)
 		},
 		Validate: func(ctx context.Context, p agentroster.AutoPlan) (agentroster.AutoRunResult, error) {
 			return runAutoRevalidation(ctx, db, scan, p)
 		},
 		Lock: func() (func(), bool) {
-			release, err := agentcli.LockValidation()
+			release, err := lockValidation()
 			return release, err == nil
 		},
 		Logf: func(format string, args ...any) { logf(format, args...) },
@@ -110,11 +110,11 @@ func runAutoRevalidation(ctx context.Context, db *sql.DB, scan *monomind.ScanRes
 	return out, agentroster.FinishRun(saveCtx, db, runID, out.Summary, time.Now())
 }
 
-// startAutoRevalidation runs the scheduler until ctx ends; wait blocks
+// StartAutoRevalidation runs the scheduler until ctx ends; wait blocks
 // until it has stopped (a run in progress is cancelled and its finished
-// results stored).
-func startAutoRevalidation(ctx context.Context, db *sql.DB, logf func(string, ...interface{})) (wait func()) {
-	s := newAutoRevalidator(db, logf)
+// results stored). busy is the scheduler's Busy check.
+func StartAutoRevalidation(ctx context.Context, db *sql.DB, logf func(string, ...interface{}), busy func(context.Context, *sql.DB) (bool, string)) (wait func()) {
+	s := newAutoRevalidator(db, logf, busy)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
