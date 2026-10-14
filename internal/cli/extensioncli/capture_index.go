@@ -1,8 +1,9 @@
-package main
+package extensioncli
 
 import (
 	"database/sql"
 
+	capturecli "github.com/monoes/mono-agent/internal/cli/capture"
 	"github.com/monoes/mono-agent/internal/cli/capturehooks"
 )
 
@@ -15,7 +16,7 @@ const captureIndexStartupDelay = capturehooks.IndexStartupDelay
 
 // openCaptureIndexDB opens the database for one indexing pass.
 func openCaptureIndexDB() (*sql.DB, func(), error) {
-	db, err := openProfileDB(defaultDBPath)
+	db, err := capturecli.OpenProfileDB(capturecli.DefaultDBPath)
 	if err != nil {
 		return nil, nil, err
 	}

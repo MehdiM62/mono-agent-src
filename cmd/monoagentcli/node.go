@@ -16,6 +16,7 @@ import (
 	_ "github.com/monoes/mono-agent/internal/bot/tiktok"
 	_ "github.com/monoes/mono-agent/internal/bot/x"
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
+	"github.com/monoes/mono-agent/internal/cli/bridge"
 	nodecli "github.com/monoes/mono-agent/internal/cli/node"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/extension"
@@ -88,30 +89,12 @@ func resolveCredentialData(ctx context.Context, store *connections.Store, creden
 	return conn.Data, nil
 }
 
-// extensionListenAddr is the address this process's own extension server
-// tries to bind: the env override (extension.ExtensionPortEnv) when set,
-// otherwise the shared default port — whose EADDRINUSE fallback to 9323
-// (e.g. when Chrome's own CDP holds 9222) lives in extension.Server.
-func extensionListenAddr() string {
-	if p := strings.TrimSpace(os.Getenv(extension.ExtensionPortEnv)); p != "" {
-		return "127.0.0.1:" + p
-	}
-	return "127.0.0.1:" + extension.DefaultExtensionPort
-}
+// extensionListenAddr is the address this process's own extension server tries to bind
+// (bridge.ListenAddr).
+func extensionListenAddr() string { return bridge.ListenAddr() }
 
-// extensionProbeAddrs lists the HTTP base URLs where an already-running
-// monoagent relay may be found: the env-overridden port when set, otherwise
-// the default port and its 9323 fallback (mirroring extension.Server's bind
-// candidates).
-func extensionProbeAddrs() []string {
-	if p := strings.TrimSpace(os.Getenv(extension.ExtensionPortEnv)); p != "" {
-		return []string{"http://127.0.0.1:" + p}
-	}
-	return []string{
-		"http://127.0.0.1:" + extension.DefaultExtensionPort,
-		"http://127.0.0.1:" + extension.FallbackExtensionPort,
-	}
-}
+// extensionProbeAddrs lists where an already-running relay may be found (bridge.ProbeAddrs).
+func extensionProbeAddrs() []string { return bridge.ProbeAddrs() }
 
 // waitForRelay polls addr until a monoagent relay answers its health endpoint,
 // returning a bridge through it, or nil if none appears within timeout. The
