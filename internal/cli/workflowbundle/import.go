@@ -1,4 +1,4 @@
-package main
+package workflowbundle
 
 import (
 	"crypto/sha256"
@@ -20,9 +20,9 @@ import (
 // report bundled packages as present / missing / differs, install missing
 // ones after a pinned review, and never replace an installed one silently.
 
-// bundleImportItem reports what `workflow import` did (or would do) with
+// ImportItem reports what `workflow import` did (or would do) with
 // one bundled automation.
-type bundleImportItem struct {
+type ImportItem struct {
 	ID               string `json:"id"`
 	Version          string `json:"version"`
 	Status           string `json:"status"` // present | differs | replaced | conflict | missing | installed | failed
@@ -47,11 +47,11 @@ type bundleImportItem struct {
 	// the installed copy for "differs".
 	Changes      *automation.ReviewChanges `json:"changes,omitempty"`
 	Review       string                    `json:"review,omitempty"`
-	ReviewDetail *bundleReviewDetail       `json:"reviewDetail,omitempty"`
+	ReviewDetail *ReviewDetail             `json:"reviewDetail,omitempty"`
 }
 
-// bundleReviewDetail is the structured form of bundleReviewLine.
-type bundleReviewDetail struct {
+// ReviewDetail is the structured form of bundleReviewLine.
+type ReviewDetail struct {
 	ID           string               `json:"id"`
 	Version      string               `json:"version"`
 	Publisher    string               `json:"publisher,omitempty"`
@@ -65,24 +65,24 @@ type bundleReviewDetail struct {
 	Visibility      map[string][]string     `json:"visibility"`
 }
 
-// bundleImportOptions controls handleBundledAutomations.
-type bundleImportOptions struct {
-	yes         bool // install missing packages without asking
-	replace     bool // --replace-automations: replace installed packages whose bundled copy differs
-	interactive bool // a person can answer a prompt on in
-	in          io.Reader
-	out         io.Writer // prompts and reviews
+// ImportOptions controls handleBundledAutomations.
+type ImportOptions struct {
+	Yes         bool // install missing packages without asking
+	Replace     bool // --replace-automations: replace installed packages whose bundled copy differs
+	Interactive bool // a person can answer a prompt on In
+	In          io.Reader
+	Out         io.Writer // prompts and reviews
 }
 
-// handleBundledAutomations reads the "automations" field of raw workflow
+// HandleBundledAutomations reads the "automations" field of raw workflow
 // JSON. Bundled packages that are already installed are "present"; the
 // others are installed with --yes (or after a prompt), and otherwise
 // reported as "missing". Returns nil when the file bundles nothing.
 // Failures are reported per package and never fail the workflow import.
-func handleBundledAutomations(raw []byte, o bundleImportOptions) []bundleImportItem {
+func (d Deps) HandleBundledAutomations(raw []byte, o ImportOptions) []ImportItem {
 	var doc struct {
-		Automations map[string]bundledAutomation   `json:"automations"`
-		Unbundled   map[string]unbundledAutomation `json:"unbundledAutomations"`
+		Automations map[string]BundledAutomation   `json:"automations"`
+		Unbundled   map[string]UnbundledAutomation `json:"unbundledAutomations"`
 	}
 	if json.Unmarshal(raw, &doc) != nil || len(doc.Automations)+len(doc.Unbundled) == 0 {
 		return nil
@@ -92,11 +92,11 @@ func handleBundledAutomations(raw []byte, o bundleImportOptions) []bundleImportI
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	items := make([]bundleImportItem, 0, len(ids))
-	reg, err := openAutomationRegistry()
+	items := make([]ImportItem, 0, len(ids))
+	reg, err := d.OpenRegistry()
 	if err != nil {
 		for _, id := range ids {
-			items = append(items, bundleImportItem{ID: id, Version: doc.Automations[id].Version, Status: "failed", Error: err.Error()})
+			items = append(items, ImportItem{ID: id, Version: doc.Automations[id].Version, Status: "failed", Error: err.Error()})
 		}
 		return items
 	}
@@ -104,7 +104,7 @@ func handleBundledAutomations(raw []byte, o bundleImportOptions) []bundleImportI
 	all, err := reg.List(true)
 	if err != nil {
 		for _, id := range ids {
-			items = append(items, bundleImportItem{ID: id, Version: doc.Automations[id].Version, Status: "failed", Error: err.Error()})
+			items = append(items, ImportItem{ID: id, Version: doc.Automations[id].Version, Status: "failed", Error: err.Error()})
 		}
 		return items
 	}
@@ -114,7 +114,7 @@ func handleBundledAutomations(raw []byte, o bundleImportOptions) []bundleImportI
 	}
 	for _, id := range ids {
 		b := doc.Automations[id]
-		item := bundleImportItem{ID: id, Version: b.Version, Status: "missing"}
+		item := ImportItem{ID: id, Version: b.Version, Status: "missing"}
 		// Never install over an installed id, including an uninstalled
 		// built-in (its index entry stays, marked removed).
 		if info, ok := known[id]; ok {
@@ -122,12 +122,12 @@ func handleBundledAutomations(raw []byte, o bundleImportOptions) []bundleImportI
 			if info.Removed {
 				item.Status, item.Error = "conflict", "a removed built-in has this id; reinstall it from monoes.me (`monoagentcli library login`, then `monoagentcli library install automation "+id+"`)"
 			} else if info.Version == b.Version {
-				checkDiffers(reg, id, b, o, &item)
+				d.checkDiffers(reg, id, b, o, &item)
 			}
 			items = append(items, item)
 			continue
 		}
-		if o.yes || o.interactive {
+		if o.Yes || o.Interactive {
 			if err := installBundledAutomation(reg, id, b, o); err != nil {
 				item.Status, item.Error = "failed", err.Error()
 			} else {
@@ -136,7 +136,7 @@ func handleBundledAutomations(raw []byte, o bundleImportOptions) []bundleImportI
 		} else if review, err := reviewBundledAutomation(reg, id, b); err != nil {
 			item.Error = err.Error() // still "missing": --yes would fail the same way
 		} else {
-			item.Review, item.ReviewDetail = bundleReviewLine(review), newBundleReviewDetail(review)
+			item.Review, item.ReviewDetail = bundleReviewLine(review), NewReviewDetail(review)
 		}
 		items = append(items, item)
 	}
@@ -145,8 +145,8 @@ func handleBundledAutomations(raw []byte, o bundleImportOptions) []bundleImportI
 
 // unbundledItems reports packages the exporter could not bundle: present
 // when installed here, otherwise missing with the exporter's reason and hint.
-func unbundledItems(unbundled map[string]unbundledAutomation, bundled map[string]bundledAutomation,
-	known map[string]automation.InstalledInfo) []bundleImportItem {
+func unbundledItems(unbundled map[string]UnbundledAutomation, bundled map[string]BundledAutomation,
+	known map[string]automation.InstalledInfo) []ImportItem {
 	ids := make([]string, 0, len(unbundled))
 	for id := range unbundled {
 		if _, dup := bundled[id]; !dup {
@@ -154,10 +154,10 @@ func unbundledItems(unbundled map[string]unbundledAutomation, bundled map[string
 		}
 	}
 	sort.Strings(ids)
-	var items []bundleImportItem
+	var items []ImportItem
 	for _, id := range ids {
 		u := unbundled[id]
-		item := bundleImportItem{ID: id, Version: u.Version, Status: "missing", NotBundled: true,
+		item := ImportItem{ID: id, Version: u.Version, Status: "missing", NotBundled: true,
 			LocalOnly: u.LocalOnly, Error: "not in the bundle: " + u.Reason,
 			Hint: fmt.Sprintf("Recreate %s on this machine, or ask the sender for it.", id)}
 		if u.Hint != "" {
@@ -177,7 +177,7 @@ func unbundledItems(unbundled map[string]unbundledAutomation, bundled map[string
 // pinned through to the install, the package's manifest id must equal its
 // bundle key, and a one-line review summary is always printed (also with
 // --yes) before anything is written.
-func installBundledAutomation(reg *automation.Registry, id string, b bundledAutomation, o bundleImportOptions) error {
+func installBundledAutomation(reg *automation.Registry, id string, b BundledAutomation, o ImportOptions) error {
 	path, cleanup, err := stageBundledAutomation(id, b)
 	if err != nil {
 		return err
@@ -187,12 +187,12 @@ func installBundledAutomation(reg *automation.Registry, id string, b bundledAuto
 	if err != nil {
 		return err
 	}
-	out := o.out
+	out := o.Out
 	if out == nil {
 		out = io.Discard
 	}
 	fmt.Fprintln(out, bundleReviewLine(review))
-	if !o.yes && !confirmYes(o.in, out, fmt.Sprintf("Install %s %s?", review.ID, review.Version)) {
+	if !o.Yes && !confirmYes(o.In, out, fmt.Sprintf("Install %s %s?", review.ID, review.Version)) {
 		return errors.New("install declined")
 	}
 	res, err := reg.Install(path, automation.InstallOptions{Source: automation.SourceImported, ExpectSHA256: strings.ToLower(b.SHA256)})
@@ -207,7 +207,7 @@ func installBundledAutomation(reg *automation.Registry, id string, b bundledAuto
 
 // reviewBundledAutomation is the dry-run half of installBundledAutomation:
 // the same sha256 pinning and id checks, and nothing is installed.
-func reviewBundledAutomation(reg *automation.Registry, id string, b bundledAutomation) (*automation.InstallResult, error) {
+func reviewBundledAutomation(reg *automation.Registry, id string, b BundledAutomation) (*automation.InstallResult, error) {
 	path, cleanup, err := stageBundledAutomation(id, b)
 	if err != nil {
 		return nil, err
@@ -219,7 +219,7 @@ func reviewBundledAutomation(reg *automation.Registry, id string, b bundledAutom
 // stageBundledAutomation decodes one bundled package, checks it against its
 // pinned sha256 and writes it to a private temp file. The caller runs
 // cleanup.
-func stageBundledAutomation(id string, b bundledAutomation) (string, func(), error) {
+func stageBundledAutomation(id string, b BundledAutomation) (string, func(), error) {
 	data, err := base64.StdEncoding.DecodeString(b.Mpkg)
 	if err != nil {
 		return "", nil, fmt.Errorf("decode bundled package: %w", err)
@@ -246,7 +246,7 @@ func stageBundledAutomation(id string, b bundledAutomation) (string, func(), err
 
 // reviewStagedBundle opens a staged bundle, checks its manifest id and runs
 // the install dry run (pinned to the bundle's sha256).
-func reviewStagedBundle(reg *automation.Registry, id string, b bundledAutomation, path string) (*automation.InstallResult, error) {
+func reviewStagedBundle(reg *automation.Registry, id string, b BundledAutomation, path string) (*automation.InstallResult, error) {
 	pkg, err := automation.OpenFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("open bundled package %s: %w", id, err)
@@ -267,13 +267,13 @@ func reviewStagedBundle(reg *automation.Registry, id string, b bundledAutomation
 	return review, nil
 }
 
-// newBundleReviewDetail is bundleReviewLine as data.
-func newBundleReviewDetail(r *automation.InstallResult) *bundleReviewDetail {
+// NewReviewDetail is bundleReviewLine as data.
+func NewReviewDetail(r *automation.InstallResult) *ReviewDetail {
 	rv := r.Review
 	// The registry's plain-language capabilities, then the short technical
 	// list the review line prints (steps, scripts, downloads, tier).
 	caps := append(append([]string{}, rv.Capabilities...), bundleCapabilities(rv)...)
-	return &bundleReviewDetail{
+	return &ReviewDetail{
 		ID: r.ID, Version: r.Version, Publisher: rv.Publisher,
 		Domains: append([]string{}, rv.Domains...), Capabilities: caps,
 		Replaces:        rv.Replaces,
@@ -319,8 +319,8 @@ func bundleCapabilities(rv automation.Review) []string {
 	return caps
 }
 
-// printBundleImport prints the human summary of handleBundledAutomations.
-func printBundleImport(out io.Writer, items []bundleImportItem) {
+// PrintBundleImport prints the human summary of handleBundledAutomations.
+func PrintBundleImport(out io.Writer, items []ImportItem) {
 	missing := 0
 	for _, it := range items {
 		if it.NotBundled && it.Status == "missing" {
@@ -353,7 +353,7 @@ func printBundleImport(out io.Writer, items []bundleImportItem) {
 // checkDiffers turns a "present" item into "differs" when the bundled copy
 // of the same version has other content, and replaces it only with
 // --replace-automations (after the review, and confirmation unless --yes).
-func checkDiffers(reg *automation.Registry, id string, b bundledAutomation, o bundleImportOptions, item *bundleImportItem) {
+func (d Deps) checkDiffers(reg *automation.Registry, id string, b BundledAutomation, o ImportOptions, item *ImportItem) {
 	review, err := bundleDiffers(reg, id, b)
 	if err != nil {
 		item.Error = "could not compare with the bundled copy: " + err.Error()
@@ -363,7 +363,7 @@ func checkDiffers(reg *automation.Registry, id string, b bundledAutomation, o bu
 		return // same content
 	}
 	item.Status = "differs"
-	item.Review, item.ReviewDetail = bundleReviewLine(review), newBundleReviewDetail(review)
+	item.Review, item.ReviewDetail = bundleReviewLine(review), NewReviewDetail(review)
 	item.Changes = review.Review.Changes
 	item.Hint = "Re-import with --replace-automations to review and replace it, or install the bundled copy with `automation install <file> --replace`."
 	item.Error = differsSummary(review) + "; the installed copy was kept. To replace it, re-import with --replace-automations (shows this review and asks), or install the bundled copy with `automation install <file> --replace`"
@@ -378,12 +378,12 @@ func checkDiffers(reg *automation.Registry, id string, b bundledAutomation, o bu
 		return
 	}
 	item.Replaceable = &replaceable
-	if !o.replace {
+	if !o.Replace {
 		return
 	}
-	if err := replaceBundledAutomation(reg, id, b, review, o); err != nil {
+	if err := d.replaceBundledAutomation(reg, id, b, review, o); err != nil {
 		item.Error = "not replaced: " + err.Error()
-		if errors.Is(err, errConfirmationRequired) {
+		if errors.Is(err, d.ErrConfirmationRequired) {
 			item.Hint = "Add --yes (or run in a terminal to confirm) together with --replace-automations."
 		}
 		return

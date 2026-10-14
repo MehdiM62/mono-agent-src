@@ -1,4 +1,4 @@
-package main
+package workflowbundle
 
 import (
 	"bytes"
@@ -63,7 +63,7 @@ func sameContent(a, b *automation.Package) (bool, error) {
 // bundleDiffers checks a bundled package against the installed one of the
 // same id and version. It returns the install dry-run review (with its
 // Changes) when the content differs, or nil when it is the same.
-func bundleDiffers(reg *automation.Registry, id string, b bundledAutomation) (*automation.InstallResult, error) {
+func bundleDiffers(reg *automation.Registry, id string, b BundledAutomation) (*automation.InstallResult, error) {
 	path, cleanup, err := stageBundledAutomation(id, b)
 	if err != nil {
 		return nil, err
@@ -108,17 +108,17 @@ func differsSummary(r *automation.InstallResult) string {
 // replaceBundledAutomation replaces an installed package with the bundled
 // copy: pinned bytes, review line and diff printed, confirmation asked
 // unless --yes, installed with Replace.
-func replaceBundledAutomation(reg *automation.Registry, id string, b bundledAutomation, review *automation.InstallResult, o bundleImportOptions) error {
-	out := o.out
+func (d Deps) replaceBundledAutomation(reg *automation.Registry, id string, b BundledAutomation, review *automation.InstallResult, o ImportOptions) error {
+	out := o.Out
 	if out == nil {
 		out = io.Discard
 	}
 	fmt.Fprintf(out, "%s\n  %s\n", bundleReviewLine(review), differsSummary(review))
-	if !o.yes {
-		if !o.interactive {
-			return errConfirmationRequired
+	if !o.Yes {
+		if !o.Interactive {
+			return d.ErrConfirmationRequired
 		}
-		if !confirmYes(o.in, out, fmt.Sprintf("Replace the installed %s %s with the bundled copy?", id, review.Version)) {
+		if !confirmYes(o.In, out, fmt.Sprintf("Replace the installed %s %s with the bundled copy?", id, review.Version)) {
 			return errors.New("replace declined")
 		}
 	}
