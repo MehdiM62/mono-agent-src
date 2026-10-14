@@ -127,6 +127,7 @@ func subTree(subs map[string][]SubNode, name string, depth int) []SubNode {
 
 func (b *builder) mapNodes() {
 	subs, parent := b.subNodes()
+	tools := b.toolNodes(subs)
 	for _, n := range b.src.Nodes {
 		b.reports[n.Name] = len(b.rep.Nodes)
 		b.rep.Nodes = append(b.rep.Nodes, NodeReport{Name: n.Name, N8nType: n.Type, TypeVersion: n.TypeVersion})
@@ -140,6 +141,10 @@ func (b *builder) mapNodes() {
 			continue
 		}
 		if p, ok := parent[n.Name]; ok {
+			if tools[n.Name] {
+				b.keepTool(n, p, subs, nr)
+				continue
+			}
 			nr.Status = StatusFolded
 			nr.Issues = append(nr.Issues, Issue{Severity: SevInfo, Message: fmt.Sprintf("sub-node folded into %q", p)})
 			continue
@@ -157,6 +162,10 @@ func (b *builder) runMapper(ctx *MapContext, nr *NodeReport) Mapping {
 	var m Mapping
 	native, hasNative := lookup(ctx.Type)
 	app, hasApp := lookupApp(ctx.Type)
+	if !hasNative && !hasApp && toolVariant(ctx) {
+		native, hasNative = lookup(ctx.Type)
+		app, hasApp = lookupApp(ctx.Type)
+	}
 	saw := rewriteSendAndWait(ctx)
 	switch {
 	case hasNative:
@@ -164,6 +173,10 @@ func (b *builder) runMapper(ctx *MapContext, nr *NodeReport) Mapping {
 		if ctx.opUnsupported && hasApp {
 			fresh := newMapContext(b.byName[ctx.NodeName], b.rep.Workflow)
 			fresh.SubNodes, fresh.OnErrorOutput, fresh.Params = ctx.SubNodes, ctx.OnErrorOutput, ctx.Params
+			if fresh.Type != ctx.Type {
+				fresh.Type = ctx.Type
+				ignoreToolParams(fresh)
+			}
 			*ctx = *fresh
 			m = mapApp(app, ctx)
 		}

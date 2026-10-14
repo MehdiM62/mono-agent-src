@@ -10,6 +10,7 @@
   {"key": "@n8n/n8n-nodes-langchain.chatHubVectorStorePinecone", "category": "impossible", "reason": "per-user vector store of n8n's Chat Hub, bound to n8n's own chat users"},
   {"key": "@n8n/n8n-nodes-langchain.chatHubVectorStoreQdrant", "category": "impossible", "reason": "per-user vector store of n8n's Chat Hub, bound to n8n's own chat users"},
   {"key": "@n8n/n8n-nodes-langchain.vectorStoreZep", "category": "impossible", "reason": "Zep's vector store is deprecated upstream; re-point the workflow at another vector store"},
+  {"key": "@n8n/n8n-nodes-langchain.vectorStoreZepLoad", "category": "impossible", "reason": "Zep's vector store is deprecated upstream; re-point the workflow at another vector store"},
   {"key": "@n8n/n8n-nodes-langchain.vectorStoreZepInsert", "category": "impossible", "reason": "Zep's vector store is deprecated upstream; re-point the workflow at another vector store"},
   {"key": "n8n-nodes-base.dynamicCredentialCheck", "category": "impossible", "reason": "checks n8n's own dynamic credential resolution; nothing to check outside n8n"},
   {"key": "n8n-nodes-base.e2eTest", "category": "impossible", "reason": "n8n's internal end-to-end test fixture node"},

@@ -1,4 +1,4 @@
-package main
+package accountcli
 
 import (
 	"context"
@@ -8,13 +8,12 @@ import (
 	"github.com/monoes/mono-agent/internal/account"
 )
 
-// startServingGuard starts the refresher of the process guard at once. A process
+// StartServingGuard starts the refresher of the process guard at once. A process
 // that serves (daemon, httpapi, mcp, extension serve, org serve --foreground)
 // must not wait the account.LateRefresher that every other process waits (spec
 // section 6.4): a daemon that sat out its first minutes could not notice a
-// refusal in time. With no guard installed there is nothing to start. A test
-// replaces it.
-var startServingGuard = func(ctx context.Context) {
+// refusal in time. With no guard installed there is nothing to start.
+func StartServingGuard(ctx context.Context) {
 	g := account.Current()
 	if g == nil {
 		return
@@ -25,15 +24,15 @@ var startServingGuard = func(ctx context.Context) {
 	g.StartRefresher(ctx)
 }
 
-// servingCommand marks c as a command that serves for as long as it runs: its pre-run
-// starts the account guard's refresher. when, if given, narrows that to the
-// invocations that really serve (`org serve` without --foreground starts a
+// ServingCommand marks c as a command that serves for as long as it runs: its pre-run
+// calls start (StartServingGuard, as the CLI hands it over). when, if given, narrows that
+// to the invocations that really serve (`org serve` without --foreground starts a
 // background process and exits). The command's own PreRun, if any, still runs.
-func servingCommand(c *cobra.Command, when ...func(*cobra.Command) bool) *cobra.Command {
+func ServingCommand(c *cobra.Command, start func(context.Context), when ...func(*cobra.Command) bool) *cobra.Command {
 	prev := c.PreRun
 	c.PreRun = func(cmd *cobra.Command, args []string) {
 		if len(when) == 0 || when[0](cmd) {
-			startServingGuard(cmd.Context())
+			start(cmd.Context())
 		}
 		if prev != nil {
 			prev(cmd, args)

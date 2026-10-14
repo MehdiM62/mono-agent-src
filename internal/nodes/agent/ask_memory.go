@@ -23,6 +23,9 @@ const defaultMemoryWindow = 10
 type memoryOption struct {
 	sessionKey string // template, resolved per item
 	window     int    // messages; 0 sends the whole session
+	// skipMissing runs an item whose session key resolves to nothing
+	// without memory (a fresh conversation) instead of failing it.
+	skipMissing bool
 }
 
 // parseMemoryOption reads the memory config (an object or a JSON string of
@@ -55,6 +58,13 @@ func parseMemoryOption(v interface{}) (*memoryOption, error) {
 		}
 	}
 	opt := &memoryOption{sessionKey: configString(m, "session_key", DefaultSessionKey), window: defaultMemoryWindow}
+	if v, ok := m["skip_when_missing"]; ok {
+		b, isBool := v.(bool)
+		if !isBool {
+			return nil, fmt.Errorf("memory.skip_when_missing must be true or false")
+		}
+		opt.skipMissing = b
+	}
 	switch w := m["window"].(type) {
 	case nil:
 	case float64:
@@ -95,6 +105,9 @@ func (t *asker) memoryStart(ctx context.Context, item workflow.Item) (*memoryTur
 		return nil, fmt.Errorf("agent.ask: memory.session_key: %w", err)
 	}
 	if session = strings.TrimSpace(session); session == "" {
+		if opt.skipMissing {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("agent.ask: memory.session_key %q resolved to nothing for this item (the default reads the item's sessionId field)", opt.sessionKey)
 	}
 	mt := &memoryTurn{profile: vault.ProfileIDFromContext(ctx), session: session}

@@ -1,4 +1,4 @@
-package main
+package crashreport
 
 import (
 	"os"
@@ -22,7 +22,7 @@ func TestReportCrashLocalOnlyDefault(t *testing.T) {
 	t.Setenv("PATH", "")
 
 	before := time.Now().Unix()
-	reportCrash("boom test panic", []byte("goroutine 1 [running]:\nfake stack"))
+	Report("boom test panic", []byte("goroutine 1 [running]:\nfake stack"), Build{Version: "v9.9.9", BuildDate: "2026-10-14T00:00:00Z", Repo: "owner/repo"})
 
 	crashDir := filepath.Join(home, ".monoagent", "crashes")
 	entries, err := os.ReadDir(crashDir)
@@ -49,7 +49,7 @@ func TestReportCrashLocalOnlyDefault(t *testing.T) {
 		t.Fatalf("read crash file: %v", err)
 	}
 	s := string(content)
-	for _, want := range []string{"boom test panic", "goroutine 1 [running]", "timestamp:", "version:"} {
+	for _, want := range []string{"boom test panic", "goroutine 1 [running]", "timestamp:", "version: v9.9.9 (built 2026-10-14T00:00:00Z)", "Version: v9.9.9"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("crash record missing %q:\n%s", want, s)
 		}
@@ -73,7 +73,7 @@ func TestReportCrashLocalWhenNotOptedIn(t *testing.T) {
 	}
 	t.Setenv("PATH", binDir)
 
-	reportCrash("local only", []byte("stack"))
+	Report("local only", []byte("stack"), Build{Version: "v9.9.9", Repo: "owner/repo"})
 
 	if _, err := os.Stat(probe); err == nil {
 		t.Fatal("monomind was invoked without MONOAGENT_CRASH_REPORT=1")

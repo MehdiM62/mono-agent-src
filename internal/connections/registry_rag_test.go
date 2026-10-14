@@ -5,7 +5,7 @@ import "testing"
 // ragPlatformIDs are the embedding-provider and vector-database platforms
 // the vector.* nodes use.
 var ragPlatformIDs = []string{
-	"openai", "azure_openai", "ollama", "cohere", "mistral", "gemini_api", "aws",
+	"openai", "azure_openai", "ollama", "cohere", "mistral", "gemini_api", "google_service_account", "aws",
 	"qdrant", "pinecone", "supabase", "weaviate", "milvus", "chroma", "azure_ai_search",
 }
 

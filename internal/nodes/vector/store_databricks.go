@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -64,29 +62,11 @@ func (b *databricksBackend) authorize(ctx context.Context) error {
 	if b.token != "" {
 		return nil
 	}
-	form := url.Values{"grant_type": {"client_credentials"}, "scope": {"all-apis"}}
-	req, err := http.NewRequestWithContext(ctx, "POST", b.host+"/oidc/v1/token", strings.NewReader(form.Encode()))
+	tok, err := databricksToken(ctx, b.host, b.clientID, b.secret)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(b.clientID, b.secret)
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("databricks token: %w", err)
-	}
-	defer resp.Body.Close()
-	data, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("databricks token: HTTP %d: %s", resp.StatusCode, errorBodyEcho(data))
-	}
-	var tok struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(data, &tok); err != nil || tok.AccessToken == "" {
-		return fmt.Errorf("databricks token: no access_token in the response")
-	}
-	b.token = tok.AccessToken
+	b.token = tok
 	return nil
 }
 
