@@ -22,6 +22,8 @@ type triggerReconciler struct {
 	once sync.Once
 	mu   sync.Mutex
 	keys map[string]string // workflowID → change key last reconciled
+	// disarmed: the account was locked and every trigger was disarmed (account_triggers.go).
+	disarmed bool
 }
 
 // startTriggerReconcile runs the reconcile loop for the engine's lifetime.
@@ -57,6 +59,9 @@ func (e *WorkflowEngine) reconcileTriggers(ctx context.Context) {
 	r := &e.reconciler
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if e.disarmTriggersIfLocked() {
+		return
+	}
 	if r.keys == nil {
 		r.keys = make(map[string]string)
 	}

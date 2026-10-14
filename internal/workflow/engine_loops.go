@@ -47,6 +47,9 @@ func (e *WorkflowEngine) staleReapLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if account.Require(ctx) != nil { // a locked account runs no housekeeping either
+				continue
+			}
 			dctx, cancel := dbCtx()
 			if err := e.store.ReapStaleRunningExecutions(dctx, time.Now().UTC().Add(-staleRunningAge)); err != nil {
 				e.logger.Warn().Err(err).Msg("engine: reap stale RUNNING executions")
@@ -214,7 +217,11 @@ func (e *WorkflowEngine) pruneLoop(ctx context.Context) {
 }
 
 // runPrune iterates over all workflows and prunes execution history.
+// A locked account prunes nothing.
 func (e *WorkflowEngine) runPrune(ctx context.Context) {
+	if account.Require(ctx) != nil {
+		return
+	}
 	workflows, err := e.store.ListWorkflows(ctx, e.profileID)
 	if err != nil {
 		e.logger.Warn().Err(err).Msg("engine: prune: failed to list workflows")
@@ -230,7 +237,11 @@ func (e *WorkflowEngine) runPrune(ctx context.Context) {
 }
 
 // reregisterTriggers loads all active workflows and activates their triggers.
+// A locked account arms none (account_triggers.go).
 func (e *WorkflowEngine) reregisterTriggers(ctx context.Context) error {
+	if e.triggersLocked() {
+		return nil
+	}
 	workflows, err := e.store.ListWorkflows(ctx, e.profileID)
 	if err != nil {
 		return fmt.Errorf("list workflows: %w", err)
