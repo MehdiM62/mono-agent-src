@@ -85,6 +85,7 @@ func (p *Package) check() []string {
 	probs = append(probs, checkTemplates("base_url", p.BaseURL, nil, credKeys)...)
 	probs = append(probs, checkHeaderTemplates("package", p.Headers, nil, credKeys)...)
 	probs = append(probs, checkTemplates("error_when", []any{p.ErrorWhen, p.ErrorMessage}, anyField, credKeys)...)
+	probs = append(probs, checkOutputDecls("outputs", p.Outputs)...)
 
 	if p.Extends != "" {
 		native := nativeOperations(p.Extends)
@@ -114,6 +115,7 @@ func (p *Package) check() []string {
 			add("%s: resource %q set but the package has no resources[]", where, o.Resource)
 		}
 		probs = append(probs, o.check(where, credKeys)...)
+		probs = append(probs, checkOutputDecls(where+": outputs", o.Outputs)...)
 	}
 	for _, r := range p.Resources {
 		if !used[r.Value] {

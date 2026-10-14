@@ -537,6 +537,17 @@ one item per element. Objects are one item; scalars become `{"data": v}`; a
 non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 `{"success": true}`; a path that resolves to nothing yields no items.
 
+**What the items carry (`outputs`).** The node schema (`node schema app.<id>`, MCP `node_schema`) lists every op's output keys, so workflow authors and the validator know what `$json.<key>` a downstream node can read. They are derived from the op: a `binary.download` gives `mime_type`, `file_name`, `size`, `binary_property`; an `output.to` object gives its keys (plus `data`, for a scalar response `to` leaves alone); paginated ops add `pagination_truncated`; anything else is the open key `<API response fields>` (the API's own fields — the validator never flags a reference to an open key). Declare them instead when the API's response fields are known:
+
+```jsonc
+"outputs": [
+  { "key": "id", "type": "string", "description": "the event id" },
+  { "key": "<API response fields>", "type": "any" }   // keep the set open
+]
+```
+
+`type` is one of `string`, `number`, `boolean`, `object`, `array`, `any`; keys are unique. A package-level `outputs` applies to every op that declares none (it replaces derivation). A declared list without a `<…>` key is closed: the validator warns on references to other keys, so list every key the op can emit. Node schema outputs don't vary by operation: each entry carries `visible_for` (the ops that emit it) and, when not every op does, names them in its `description`.
+
 **Follow-up requests (`also`).** Some n8n operations make several calls (update fields, then tags, then star). List them in order under `also`; each runs after the main request with `res` bound to the main response (on a paginated op: `res` = the last page, `main` = the first), auth injected the same way, and is skipped when its `when` template renders empty or false. The output is still the main response.
 ```json
 "also": [
@@ -916,6 +927,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | operation, steps | `stream` (read server-sent events until one matches); step `repeat`; poll `max_wait_seconds`; binary `upload_url` | §9, §10 |
 | package | `webhook` (app trigger registration: `fields`, `create`, `id`, `extra`, `delete`, `check`, `verify`); root `hook`; filter `map` | §17 |
 | templates | literal braces `\{{` / `\}}`; `hdr` = the previous webhook step's response headers | §5, §17 |
+| package, operation | `outputs` (declared output keys; else derived); schema `outputs` with `visible_for` | §9 |
 | binary | `download_each` (one item per base64 file in a list); dotted `upload_field`/`property_field`; `property` for downloads; download `file_name`/`mime_type` fallback | §10 |
 
 ## 17. App webhooks (`webhook`)

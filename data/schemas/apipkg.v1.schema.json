@@ -28,9 +28,20 @@
     "credentials": { "type": "array", "items": { "$ref": "#/$defs/credential" } },
     "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } },
     "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } },
-    "webhook": { "$ref": "#/$defs/webhook" }
+    "webhook": { "$ref": "#/$defs/webhook" },
+    "outputs": { "type": "array", "items": { "$ref": "#/$defs/outputDecl" } }
   },
   "$defs": {
+    "outputDecl": {
+      "type": "object",
+      "required": ["key"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "enum": ["", "string", "number", "boolean", "object", "array", "any"] },
+        "description": { "type": "string" }
+      }
+    },
     "repeat": {
       "type": "object",
       "required": ["until"],
@@ -200,6 +211,7 @@
         "headers": { "$ref": "#/$defs/stringMap" },
         "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } },
         "pagination": { "$ref": "#/$defs/pagination" },
+        "outputs": { "type": "array", "items": { "$ref": "#/$defs/outputDecl" } },
         "output": {
           "type": "object",
           "additionalProperties": false,
