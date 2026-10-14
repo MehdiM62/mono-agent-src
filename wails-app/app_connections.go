@@ -100,6 +100,26 @@ func (a *App) ListPlatformsJSON(connectVia string) string {
 	return string(b)
 }
 
+// PlatformNames maps each platform id to its display name, from
+// `monoagentcli connect list --all --json` ("generic_api" → "Generic API
+// Key"); the credential picker labels its platform groups with it.
+func (a *App) PlatformNames() (map[string]string, error) {
+	var platforms []struct {
+		ID   string
+		Name string
+	}
+	if err := a.runConnCLI("", &platforms, "connect", "list", "--all"); err != nil {
+		return nil, err
+	}
+	names := make(map[string]string, len(platforms))
+	for _, p := range platforms {
+		if p.ID != "" && p.Name != "" {
+			names[p.ID] = p.Name
+		}
+	}
+	return names, nil
+}
+
 // TestConnection re-validates a connection by ID ("ok" or "error: …").
 // The id is tried as a saved connection (`connect test`, which refreshes an
 // expired OAuth token first), then as a browser session id (`login test`),

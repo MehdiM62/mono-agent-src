@@ -519,9 +519,13 @@ export function OrgSignatureReview(arg1:string):Promise<string>;
 
 export function OrgSignatureStatus(arg1:string):Promise<string>;
 
+export function PairExtension():Promise<string>;
+
 export function PauseOrgAutonomy(arg1:string,arg2:string):Promise<string>;
 
 export function PickCoderFolder():Promise<string>;
+
+export function PlatformNames():Promise<Record<string, string>>;
 
 export function PromoteRoleToRoot(arg1:string,arg2:string):Promise<string>;
 
