@@ -13,6 +13,8 @@ export default function AccountShell({ gate, renderShell }) {
   const { t } = useTranslation()
   const view = useAccountView(gate)
   useEffect(() => gate.start(), [gate])
+  // The Go side says when the session changed under it (a sign-out in a terminal, an expiry).
+  useEffect(() => subscribeEvent('account:changed', () => gate.check('manual')), [gate])
   // The release the app's own update check found, kept for a gate that comes up later.
   const [update, setUpdate] = useState(null)
   useEffect(() => subscribeEvent('update:available', info => { if (info?.update_available) setUpdate(info) }), [])

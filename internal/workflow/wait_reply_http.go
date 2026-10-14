@@ -32,6 +32,7 @@ type replyHandler struct {
 type replyRow struct {
 	executionID, nodeID string
 	run                 int
+	rowid               int64
 	kind, status        string
 	spec                WaitReplySpec
 	answer              map[string]interface{}
@@ -53,6 +54,14 @@ func (s *WebhookServer) serveReply(w http.ResponseWriter, r *http.Request) bool 
 	}
 	h.ServeHTTP(w, r)
 	return true
+}
+
+// NewReplyHandler serves /reply/ requests over db: reply pages and resume
+// calls. wake (nil: none) is called with the execution an answer is for.
+// The engine installs its own; this one is for serving replies elsewhere
+// and for tests.
+func NewReplyHandler(db *sql.DB, wake func(executionID string), logger zerolog.Logger) http.Handler {
+	return &replyHandler{db: db, wake: wake, logger: logger}
 }
 
 // SetReplyHandler installs the handler of /reply/ requests.
@@ -84,6 +93,10 @@ func (h *replyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if row.kind == WaitReplyWebhook {
 		h.serveWebhook(w, r, token, row)
+		return
+	}
+	if action == "" && (row.kind == WaitReplyFormPage || row.kind == WaitReplyFormEnd) {
+		h.serveFormStep(w, r, row)
 		return
 	}
 	if action == "decline" && (row.kind != WaitReplyApproval || row.spec.ApprovalType != "double") ||
@@ -223,7 +236,7 @@ func (h *replyHandler) executionWaits(ctx context.Context, executionID string) b
 	return status == "WAITING" || status == "RUNNING" || status == "QUEUED"
 }
 
-const replyColumns = `execution_id, node_id, run_index, kind, status, spec, answer, COALESCE(expires_at, '')`
+const replyColumns = `rowid, execution_id, node_id, run_index, kind, status, spec, answer, COALESCE(expires_at, '')`
 
 // load finds token's reply: the pending one if any (an execution URL is
 // reused by every core.wait in the run), else the latest.
@@ -243,7 +256,7 @@ func (h *replyHandler) loadRun(ctx context.Context, row *replyRow) (*replyRow, e
 func scanReplyRow(sc *sql.Row) (*replyRow, error) {
 	var row replyRow
 	var spec, answer, expires string
-	err := sc.Scan(&row.executionID, &row.nodeID, &row.run, &row.kind, &row.status, &spec, &answer, &expires)
+	err := sc.Scan(&row.rowid, &row.executionID, &row.nodeID, &row.run, &row.kind, &row.status, &spec, &answer, &expires)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

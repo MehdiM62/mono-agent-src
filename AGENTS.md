@@ -256,6 +256,7 @@ The desktop app does everything through these commands; they are equally usable 
     lists its resume or reply URLs (`waiting_for` in --json).
   - `workflow cancel <execution-id>` stops the recorded process (never the daemon), marks the run cancelled and rejects its pending HIL items. It leaves a finished run alone.
   - `workflow retry <execution-id> [--json] [--timeout]` runs a finished execution again with its trigger data (a new execution, current workflow version) and waits like `workflow run`. A queued, running or waiting execution, or one an org started, is refused (exit 3).
+  - `workflow evaluate <id> [--dataset <table>] [--timeout] [--json]` runs an n8n-style evaluation: one execution per row of the dataset its `trigger.evaluation` node names (a data table or a Google Sheet), where `core.evaluation` nodes record each case's inputs, outputs (written back into the row) and metrics; the run keeps each metric's mean. A run that cannot start (no evaluation trigger, no setMetrics node, no rows) is stored with its error code and exits 1. `workflow evaluations <id> [--run <run-id>]` lists past runs or shows one with its cases. A manual run never fires `trigger.evaluation`.
   - `workflow delete <id> --yes` refuses a workflow that an org uses; `--force` also revokes its grants.
   - `workflow get`, `workflow export` and `workflow delete` are profile-scoped.
 - **Sessions and connections:**
@@ -319,7 +320,7 @@ A monoes.me sign-in is required since 2026-10-11 (UTC): the CLI, the
 daemon, the desktop app, the HTTP and `/v1` APIs, the MCP server and the extension
 bridge refuse to work without a signed-in account. The date is `enforce_from` in
 `account status`. `monoagentcli ref account` is this section, offline and always
-current.
+current, once signed in.
 
 ```bash
 monoagentcli account login                       # browser sign-in (OAuth 2.1 + PKCE, loopback redirect on 127.0.0.1)
@@ -349,7 +350,7 @@ Signing out of the monoes.me website does not sign out an install.
 |---|---|---|
 | `ok` | verified and not expired | empty |
 | `grace` | verified and expired, within 24 hours of its issue time: work continues | why it was not refreshed: `unreachable`, `server_error`, `keyring_unavailable`, `unconfirmed` (a refresh whose answer never arrived: this machine stopped using its saved sign-in) |
-| `locked` | work is refused | `not_logged_in`, `expired` (24 hours without a refresh), `refused` (monoes.me answered `invalid_grant`: the account is blocked, the sign-in was revoked, or an already-used refresh token was presented, as from a copied session; work in flight is cancelled), `clock_rollback`, `clock_skew`, `key_unknown` (run `update`), `unconfirmed` (the grace of an unconfirmed machine is over: sign in again on it), `invalid` |
+| `locked` | work is refused | `not_logged_in`, `expired` (24 hours without a refresh), `refused` (monoes.me answered `invalid_grant`: the account is blocked, the sign-in was revoked, or an already-used refresh token was presented, as from a copied session). On any lock the daemon cancels the work in flight, `clock_rollback`, `clock_skew`, `key_unknown` (run `update`), `unconfirmed` (the grace of an unconfirmed machine is over: sign in again on it), `invalid` |
 
 Only an `invalid_grant` answer to a refresh is a refusal; every other failure counts
 as unreachable, so the 24-hour grace applies. A refresh whose outcome is unknown (the
@@ -364,14 +365,19 @@ machine ends it. A blocked account is locked at the next refresh, within about a
 is pinned in the binary, so a production machine session is verified locally. A gated
 command without a valid sign-in is refused (exit 4, `login_required`).
 
-**What is open** (never needs a sign-in): `version`, `help`, `completion` (including
-`__complete` and `__completeNoDesc`), `ref`, `update`, `doctor` (with `doctor fix`),
-`setup`, `release` (the maintainers' `keygen` and `verify`), the `account` commands, and
-`library login`, `library logout` and `library status`. Every other command is gated,
-local-only ones (`people`, `secret`, `image`, `profile`, `config`) included.
+**What is open** (never needs a sign-in) is the way in and nothing else: the `account`
+commands, `library login`, `library logout` and `library status`, `help` (and `--help` on
+any command; `monoagentcli` alone prints the help, which says to sign in first),
+`version`, and `update`, so that a broken install can be fixed. Every other command is
+gated: `ref`, `doctor` (with `doctor fix`), `setup`, `release`, `completion` and
+`__complete` (shell Tab completion) included, and local-only ones (`people`, `secret`,
+`image`, `profile`, `config`) too.
 
 **Serving commands** start even when locked and refuse their work instead, so a service manager or a container never respawns them in a
 loop: `daemon`, `httpapi`, `mcp` (including `--grant`) and `extension serve` (also `bridge serve`).
+While locked they run nothing: no schedule, webhook, queue, stream or file trigger is armed, the
+org services, the run memory, the capture indexing and the housekeeping loops wait, and a
+`--grant` MCP server lists no tools.
 `daemon install`, `daemon restart`, `daemon uninstall` and `org serve` are gated.
 
 **A refusal** does nothing else (no first-run writes, no database open) and exits 4.

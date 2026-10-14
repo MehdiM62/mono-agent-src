@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/capture"
 	"github.com/monoes/mono-agent/internal/captureindex"
 	"github.com/monoes/mono-agent/internal/extension"
@@ -26,6 +27,9 @@ import (
 // before it retries every profile's unindexed captures: long enough that
 // indexing never competes with the bridge and the daemon coming up.
 const IndexStartupDelay = 30 * time.Second
+
+// sweepAccountPoll is how often a sweep held back by a locked account looks again; a test shortens it.
+var sweepAccountPoll = account.PollInterval
 
 // newCaptureIndexQueue is the bridge's indexing queue. It starts on first
 // use, so a bridge that never sees a capture never runs a worker.
@@ -59,7 +63,8 @@ func handleIndexSummary(q *captureindex.Queue, dir string) {
 // sweepCaptureIndexAfter retries every profile's unindexed and failed
 // captures once, after delay: the catch-up for captures that landed while
 // no bridge was running, or failed on an older monomind. Cancelled with
-// ctx.
+// ctx. A locked monoes.me account indexes nothing: the sweep waits for a
+// valid login, checked every sweepAccountPoll.
 func sweepCaptureIndexAfter(ctx context.Context, q *captureindex.Queue, open func() (*sql.DB, func(), error), delay time.Duration) {
 	go func() {
 		t := time.NewTimer(delay)
@@ -68,6 +73,13 @@ func sweepCaptureIndexAfter(ctx context.Context, q *captureindex.Queue, open fun
 		case <-ctx.Done():
 			return
 		case <-t.C:
+		}
+		for account.Require(ctx) != nil {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(sweepAccountPoll):
+			}
 		}
 		db, closeDB, err := open()
 		if err != nil {

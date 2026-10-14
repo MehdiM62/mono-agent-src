@@ -23,8 +23,24 @@ func TestNodePaletteGroupsRunnableTypes(t *testing.T) {
 	if err := json.Unmarshal([]byte(buf.String()), &got); err != nil {
 		t.Fatalf("palette is not JSON: %v", err)
 	}
-	if len(got["triggers"]) != 8 {
-		t.Errorf("triggers = %+v", got["triggers"])
+	// The palette offers a curated set of triggers; each must be a trigger
+	// the engine knows (an embedded trigger schema), appear once, and carry
+	// its schema. A count would break with every new trigger.
+	known := map[string]bool{}
+	for _, typ := range triggerNodeTypes {
+		known[typ] = true
+	}
+	seen := map[string]bool{}
+	for _, n := range got["triggers"] {
+		if !known[n.Type] || seen[n.Type] || n.Schema == nil {
+			t.Errorf("palette trigger %s: known=%v duplicate=%v schema=%v", n.Type, known[n.Type], seen[n.Type], n.Schema != nil)
+		}
+		seen[n.Type] = true
+	}
+	for _, typ := range []string{"trigger.manual", "trigger.schedule", "trigger.webhook"} {
+		if !seen[typ] {
+			t.Errorf("palette is missing %s; triggers = %+v", typ, got["triggers"])
+		}
 	}
 	var ifNode *PaletteNode
 	for i, n := range got["control"] {

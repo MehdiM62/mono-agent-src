@@ -20,6 +20,9 @@ import (
 // HilSendList is `hil sends [--state S]`: every send item, oldest first.
 // state is "" (all) or pending|approved|rejected|sent|failed.
 func (a *App) HilSendList(state string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"hil", "sends"}
 	if state != "" {
 		args = append(args, "--state", state)
@@ -28,12 +31,20 @@ func (a *App) HilSendList(state string) string {
 }
 
 // HilSendShow is `hil show <id>`: one item's card payload.
-func (a *App) HilSendShow(id string) string { return a.jsonResult("hil", "show", id) }
+func (a *App) HilSendShow(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.jsonResult("hil", "show", id)
+}
 
 // HilSendEdit is `hil edit <id>`: change the text and/or subject of a pending
 // item (an empty string leaves that part alone). It stays pending; the
 // returned payload is the new preview.
 func (a *App) HilSendEdit(id, text, subject string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"hil", "edit", id}
 	if text != "" {
 		args = append(args, "--text", text)
@@ -50,6 +61,9 @@ func (a *App) HilSendEdit(id, text, subject string) string {
 // the item in state sent or failed. It can take as long as the send does, so it
 // has no short timeout.
 func (a *App) HilSendResolve(id string, approve bool, editText, editSubject string, alwaysAllow bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"hil", "resolve", id}
 	if !approve {
 		args = append(args, "--reject")
@@ -77,6 +91,9 @@ func (a *App) HilSendResolve(id string, approve bool, editText, editSubject stri
 // folder, the downloads folder or the coder workspace; an error otherwise.
 // Pass path to OpenPathWithOS to open the file.
 func (a *App) HilSendAttachment(id string, n int) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("hil", "attachment", id, strconv.Itoa(n))
 }
 
@@ -87,6 +104,9 @@ const maxSendPreviewBytes = 10 * 1024 * 1024
 // preview (images in the card). The CLI decides which file may be read; this
 // only encodes the path it returned.
 func (a *App) HilSendAttachmentData(id string, n int) (string, error) {
+	if err := a.signedOut(); err != nil {
+		return "", err
+	}
 	var f struct {
 		Path string `json:"path"`
 		Mime string `json:"mime"`
@@ -115,23 +135,42 @@ func (a *App) HilSendAttachmentData(id string, n int) (string, error) {
 // HilSendRecipient is `hil recipient <id>`: the recipient's people record
 // ({found, personId, name, profileUrl, platform, username, fullName, imageUrl,
 // contactDetails, website, introduction, jobTitle, category}).
-func (a *App) HilSendRecipient(id string) string { return a.jsonResult("hil", "recipient", id) }
+func (a *App) HilSendRecipient(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.jsonResult("hil", "recipient", id)
+}
 
 // HilSendAllowList is `hil allow list`: the always-allow rules.
-func (a *App) HilSendAllowList() string { return a.jsonResult("hil", "allow", "list") }
+func (a *App) HilSendAllowList() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.jsonResult("hil", "allow", "list")
+}
 
 // HilSendAllowAdd is `hil allow add`: always allow one destination.
 func (a *App) HilSendAllowAdd(action, platform, account, recipient string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("hil", "allow", "add", "--action", action, "--platform", platform, "--account", account, "--recipient", recipient)
 }
 
 // HilSendAllowRemove is `hil allow remove <rule-id>`.
 func (a *App) HilSendAllowRemove(ruleID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("hil", "allow", "remove", ruleID)
 }
 
 // HilSendSetApproval is `coder set --send-approval=<on>` (default on): whether
 // an agent's sends wait for approval. Returns coder status.
 func (a *App) HilSendSetApproval(on bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("coder", "set", "--send-approval="+strconv.FormatBool(on))
 }

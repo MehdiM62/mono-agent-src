@@ -15,8 +15,9 @@ import (
 const shortToken = 15 * time.Second
 
 // Acceptance 3: signed in, monoes.me unreachable: the work goes on until 24 hours after the newest
-// token was issued, then the machine is locked; work in flight at that moment finishes the node it is
-// in (this job has one node, so it ends SUCCESS; a run with a next node ends there, ruling R4).
+// token was issued, then the machine is locked and nothing runs without a valid sign-in: the daemon
+// cancels the work in flight at that moment (it ends CANCELLED and records login_required with the
+// lock's reason), as it does for every lock.
 func TestUnreachableIsGraceUntilTwentyFourHours(t *testing.T) {
 	r := newRig(t, rigOptions{enforce: past})
 	r.signIn()
@@ -38,13 +39,13 @@ func TestUnreachableIsGraceUntilTwentyFourHours(t *testing.T) {
 	r.waitFor("the job to be running in the daemon", 60*time.Second, func() bool { return r.execution(id).Status == "RUNNING" })
 	r.backdate(24*time.Hour + time.Minute)
 	r.waitFor("the daemon to lock", 60*time.Second, func() bool { return r.accountState() == "locked" })
-	if got := r.execution(id).Status; got != "RUNNING" {
-		t.Fatalf("the job was %s when the 24 hours ran out: unreachable is not a refusal, so the node in flight finishes", got)
-	}
 	r.assertLocked(r.run("--json", "workflow", "list"), "expired", true)
-	r.waitFor("the job to finish", 90*time.Second, func() bool { return r.execution(id).Status != "RUNNING" })
-	if got := r.execution(id).Status; got != "SUCCESS" {
-		t.Fatalf("the job ended %s, want SUCCESS", got)
+	r.waitFor("the job in flight to be cancelled", 90*time.Second, func() bool { return r.execution(id).Status != "RUNNING" })
+	if got := r.execution(id).Status; got != "CANCELLED" {
+		t.Fatalf("the job ended %s when the 24 hours ran out, want CANCELLED: nothing runs without a valid sign-in", got)
+	}
+	if msg := r.executionError(id); !strings.HasPrefix(msg, "login_required: the monoes.me account is locked (expired)") {
+		t.Fatalf("the cancelled job records %q, want login_required with the lock's reason", msg)
 	}
 
 	r.edge.set(modePass) // monoes.me is back: one sign-in and the machine works again
@@ -99,7 +100,8 @@ func TestAnswersThatAreNotARefusalKeepTheGrace(t *testing.T) {
 
 // Spec 4.7 and A9: a refreshed token signed by a key this build does not pin is not stored, and the
 // grace shows server_error; when the grace ends the verdict is locked(key_unknown), the case that
-// wants an update and not another sign-in, and doctor's fix is the update.
+// wants an update and not another sign-in: the refusal says so, doctor is refused like every other
+// gated command, and update stays open.
 func TestAnUnknownSigningKeyIsTheRunUpdateCase(t *testing.T) {
 	r := newRig(t, rigOptions{enforce: past})
 	r.signIn()
@@ -112,25 +114,14 @@ func TestAnUnknownSigningKeyIsTheRunUpdateCase(t *testing.T) {
 	if st, code := r.status(); st.State != "locked" || st.Reason != "key_unknown" || code != 4 {
 		t.Fatalf("at the end of the grace: exit %d, %+v, want locked(key_unknown)", code, st)
 	}
-	r.assertLocked(r.run("--json", "workflow", "list"), "key_unknown", true)
-	var report struct {
-		Results []struct {
-			ID, Status string
-			Fix        *struct{ ID string }
-		}
+	res := r.run("--json", "workflow", "list")
+	r.assertLocked(res, "key_unknown", true)
+	if !strings.Contains(res.stderr, "monoagentcli update") {
+		t.Fatalf("the refusal of an unknown key names the update:\n%s", res.stderr)
 	}
-	mustJSON(t, r.run("--json", "doctor", "--check", "core.monoes_account").stdout, &report)
-	found := false
-	for _, x := range report.Results {
-		if x.ID == "core.monoes_account" {
-			found = true
-			if x.Status != "fail" || x.Fix == nil || x.Fix.ID != "core.update.install" {
-				t.Fatalf("doctor row for an unknown key: %+v, want fail with the update as its fix", x)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("doctor has no core.monoes_account row")
+	r.assertLocked(r.run("--json", "doctor", "--check", "core.monoes_account"), "key_unknown", true)
+	if res := r.run("update", "--help"); res.code != 0 || strings.Contains(res.stderr, loginLine) {
+		t.Fatalf("update stays open: exit %d\n%s", res.code, res.stderr)
 	}
 }
 

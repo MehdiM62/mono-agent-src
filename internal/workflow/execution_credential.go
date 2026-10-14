@@ -62,6 +62,11 @@ func mergeCredential(ctx context.Context, connStore *connections.Store, logger z
 				}
 			}
 			config["credential"] = conn.Data
+			// Which service the connection is for, for nodes that serve
+			// several (agent.ask with a model vendor's key).
+			if isUnsetConfigValue(config["credential_platform"]) && conn.Platform != "" {
+				config["credential_platform"] = conn.Platform
+			}
 			injected = true
 		}
 	}

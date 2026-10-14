@@ -47,6 +47,9 @@ func (e *WorkflowEngine) staleReapLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			if account.Require(ctx) != nil { // a locked account runs no housekeeping either
+				continue
+			}
 			dctx, cancel := dbCtx()
 			if err := e.store.ReapStaleRunningExecutions(dctx, time.Now().UTC().Add(-staleRunningAge)); err != nil {
 				e.logger.Warn().Err(err).Msg("engine: reap stale RUNNING executions")
@@ -74,12 +77,14 @@ func (e *WorkflowEngine) resumeLoop(ctx context.Context) {
 	}
 }
 
-// resumeTick is one pass of resumeLoop. A locked account does neither half
+// resumeTick is one pass of resumeLoop. It first stops runs cancelled from
+// another process. A locked account does neither of the other halves
 // (spec D8: a locked daemon starts nothing new): adopting would claim queued
 // rows and resuming would flip paused runs to QUEUED, where the gate in
 // handleExecution would fail them for good. Left as they are, they run again
 // once the account is valid.
 func (e *WorkflowEngine) resumeTick(ctx context.Context) {
+	e.stopCancelledElsewhere(ctx)
 	if tickErr := account.Require(ctx); tickErr != nil {
 		return
 	}
@@ -92,6 +97,18 @@ func (e *WorkflowEngine) resumeTick(ctx context.Context) {
 	for _, id := range ids {
 		if err := e.ResumeExecution(id); err != nil {
 			e.logger.Warn().Err(err).Str("execution_id", id).Msg("engine: failed to resume execution")
+		}
+	}
+}
+
+// stopCancelledElsewhere cancels the runs this engine has in flight whose row
+// another process marked CANCELLED. `workflow cancel` never signals the
+// daemon, so for a run the daemon owns the row is all it changes; without
+// this the run went on to its end and overwrote CANCELLED with its result.
+func (e *WorkflowEngine) stopCancelledElsewhere(ctx context.Context) {
+	for _, id := range e.queue.RunningIDs() {
+		if st, err := e.store.GetExecutionStatus(ctx, id); err == nil && st == "CANCELLED" {
+			e.queue.CancelWithCause(id, nil)
 		}
 	}
 }
@@ -214,7 +231,11 @@ func (e *WorkflowEngine) pruneLoop(ctx context.Context) {
 }
 
 // runPrune iterates over all workflows and prunes execution history.
+// A locked account prunes nothing.
 func (e *WorkflowEngine) runPrune(ctx context.Context) {
+	if account.Require(ctx) != nil {
+		return
+	}
 	workflows, err := e.store.ListWorkflows(ctx, e.profileID)
 	if err != nil {
 		e.logger.Warn().Err(err).Msg("engine: prune: failed to list workflows")
@@ -230,7 +251,11 @@ func (e *WorkflowEngine) runPrune(ctx context.Context) {
 }
 
 // reregisterTriggers loads all active workflows and activates their triggers.
+// A locked account arms none (account_triggers.go).
 func (e *WorkflowEngine) reregisterTriggers(ctx context.Context) error {
+	if e.triggersLocked() {
+		return nil
+	}
 	workflows, err := e.store.ListWorkflows(ctx, e.profileID)
 	if err != nil {
 		return fmt.Errorf("list workflows: %w", err)

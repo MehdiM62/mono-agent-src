@@ -125,6 +125,9 @@ func peopleFilterArgs(platform, search string) []string {
 // GetPeople returns one page of the active profile's people, newest first —
 // `people list`. limit <= 0 means every person (and ignores offset).
 func (a *App) GetPeople(platform, search string, limit, offset int) []PersonInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	args := append([]string{"people", "list"}, peopleFilterArgs(platform, search)...)
 	if limit > 0 {
 		args = append(args, "--limit", strconv.Itoa(limit), "--offset", strconv.Itoa(offset))
@@ -150,6 +153,9 @@ func (a *App) GetPeople(platform, search string, limit, offset int) []PersonInfo
 // GetPeopleCount is the People page's total for the same filter —
 // `people count`.
 func (a *App) GetPeopleCount(platform, search string) int {
+	if a.signedOut() != nil {
+		return 0
+	}
 	var res struct {
 		Count int `json:"count"`
 	}
@@ -162,6 +168,9 @@ func (a *App) GetPeopleCount(platform, search string) int {
 // DeletePeople deletes people (and their saved photos) from the active
 // profile — `people delete`.
 func (a *App) DeletePeople(ids []string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	if len(ids) == 0 {
 		return nil
 	}
@@ -171,6 +180,9 @@ func (a *App) DeletePeople(ids []string) error {
 // GetPersonDetail returns one person, or nil when not in the active
 // profile — `people get`.
 func (a *App) GetPersonDetail(id string) *PersonDetailInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	var p struct {
 		PersonDetailInfo
 		PlatformUsername string `json:"platform_username"`
@@ -185,141 +197,14 @@ func (a *App) GetPersonDetail(id string) *PersonDetailInfo {
 // GetPersonInteractions lists what the profile's workflows did to a person,
 // newest first — `people interactions`.
 func (a *App) GetPersonInteractions(id string) []PersonInteraction {
+	if a.signedOut() != nil {
+		return nil
+	}
 	var out []PersonInteraction
 	if err := a.runMonoCLI("", &out, "people", "interactions", id); err != nil {
 		return nil
 	}
 	return out
-}
-
-// PersonMessage is one entry of `people messages … --json`. The app only
-// forwards what the CLI printed, so times stay the CLI's RFC 3339 strings.
-type PersonMessage struct {
-	ID         string  `json:"id"`
-	PersonID   string  `json:"person_id"`
-	Source     string  `json:"source"`
-	ExternalID string  `json:"external_id,omitempty"`
-	Direction  string  `json:"direction"`
-	Sender     string  `json:"sender,omitempty"`
-	Subject    string  `json:"subject,omitempty"`
-	Body       string  `json:"body,omitempty"`
-	Metadata   string  `json:"metadata,omitempty"`
-	Status     string  `json:"status,omitempty"` // draft | sent | failed
-	SentAt     string  `json:"sent_at,omitempty"`
-	CreatedAt  string  `json:"created_at"`
-	ReadAt     *string `json:"read_at,omitempty"` // nil = unread inbound
-}
-
-// PersonMessageWithPerson is a message of the cross-person feeds
-// (`people messages all|drafts`) with whom it belongs to.
-type PersonMessageWithPerson struct {
-	PersonMessage
-	PersonFullName         string `json:"person_full_name,omitempty"`
-	PersonPlatformUsername string `json:"person_platform_username"`
-	PersonPlatform         string `json:"person_platform"`
-}
-
-// PersonStatusUpdate is one entry of `people status … --json`.
-type PersonStatusUpdate struct {
-	ID        string `json:"id"`
-	PersonID  string `json:"person_id"`
-	Text      string `json:"text"`
-	CreatedAt string `json:"created_at"`
-}
-
-// GetPersonMessages lists a person's messages, newest first
-// (`people messages list <id>`). Each carries read_at.
-func (a *App) GetPersonMessages(personID string) []*PersonMessage {
-	out := []*PersonMessage{}
-	if err := a.runMonoCLI("", &out, "people", "messages", "list", personID, "--limit", "100"); err != nil {
-		return nil
-	}
-	return out
-}
-
-// GetAllPersonMessages is the cross-person feed (`people messages all`).
-func (a *App) GetAllPersonMessages(limit int) []*PersonMessageWithPerson {
-	if limit <= 0 {
-		limit = 100
-	}
-	out := []*PersonMessageWithPerson{}
-	if err := a.runMonoCLI("", &out, "people", "messages", "all", "--limit", strconv.Itoa(limit)); err != nil {
-		return nil
-	}
-	return out
-}
-
-// MarkPersonMessagesRead marks inbound messages read — the given ids, or
-// every message of personID when ids is empty (`people messages read`).
-func (a *App) MarkPersonMessagesRead(personID string, ids []string) error {
-	args := []string{"people", "messages", "read"}
-	if personID != "" {
-		args = append(args, "--person", personID)
-	}
-	return a.runMonoCLI("", nil, append(args, ids...)...)
-}
-
-// MarkPersonMessageUnread marks one inbound message unread again.
-func (a *App) MarkPersonMessageUnread(id string) error {
-	return a.runMonoCLI("", nil, "people", "messages", "unread", id)
-}
-
-// AddPersonMessage records a message/interaction for a person —
-// `people messages add`.
-func (a *App) AddPersonMessage(personID, source, externalID, direction, sender, subject, body string) error {
-	args := []string{"people", "messages", "add", "--source=" + source}
-	for _, f := range []struct{ flag, value string }{
-		{"external-id", externalID}, {"direction", direction}, {"sender", sender},
-		{"subject", subject}, {"body", body},
-	} {
-		if f.value != "" {
-			args = append(args, "--"+f.flag+"="+f.value)
-		}
-	}
-	return a.runMonoCLI("", nil, append(args, "--", personID)...)
-}
-
-// ComposePersonMessage sends (or drafts, when asDraft is true) an email to a
-// person via the given Outlook connection and records it on their message
-// history — `people messages compose`.
-func (a *App) ComposePersonMessage(personID, connectionID, subject, body string, asDraft bool) (*PersonMessage, error) {
-	args := []string{"people", "messages", "compose",
-		"--connection=" + connectionID, "--subject=" + subject, "--body=" + body}
-	if asDraft {
-		args = append(args, "--draft")
-	}
-	var msg PersonMessage
-	if err := a.runMonoCLI("", &msg, append(args, "--", personID)...); err != nil {
-		return nil, err
-	}
-	return &msg, nil
-}
-
-// GetDraftPersonMessages returns all draft (unsent) outbound messages for the
-// active profile, for review in the Human in Loop section —
-// `people messages drafts`.
-func (a *App) GetDraftPersonMessages() ([]*PersonMessageWithPerson, error) {
-	var drafts []*PersonMessageWithPerson
-	if err := a.runMonoCLI("", &drafts, "people", "messages", "drafts"); err != nil {
-		return nil, err
-	}
-	return drafts, nil
-}
-
-// SendDraftPersonMessage sends a previously-created draft and marks it as
-// sent — `people messages send-draft`.
-func (a *App) SendDraftPersonMessage(personMessageID string) (*PersonMessage, error) {
-	var msg PersonMessage
-	if err := a.runMonoCLI("", &msg, "people", "messages", "send-draft", personMessageID); err != nil {
-		return nil, err
-	}
-	return &msg, nil
-}
-
-// RejectDraftPersonMessage discards a draft, best-effort from the Outlook
-// Drafts folder too — `people messages reject-draft`.
-func (a *App) RejectDraftPersonMessage(personMessageID string) error {
-	return a.runMonoCLI("", nil, "people", "messages", "reject-draft", personMessageID)
 }
 
 // PendingPersonApproval represents a lead or contact waiting for human review in Human-in-Loop.
@@ -343,6 +228,9 @@ type PendingPersonApproval struct {
 // GetPendingPeopleApprovals returns the active profile's people staged for
 // review (category "pending_approval") — `people review list --suggest`.
 func (a *App) GetPendingPeopleApprovals() ([]*PendingPersonApproval, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	results := []*PendingPersonApproval{}
 	if err := a.runMonoCLI("", &results, "people", "review", "list", "--suggest"); err != nil {
 		return nil, err
@@ -356,6 +244,9 @@ func (a *App) GetPendingPeopleApprovals() ([]*PendingPersonApproval, error) {
 // when there is none, several or only an inactive one) and returns the run,
 // which starts here like any GUI run so it shows up in the run tracking.
 func (a *App) ApprovePendingPerson(personID, editedIntroduction string, sendNow bool) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	args := []string{"people", "review", "approve", personID}
 	if strings.TrimSpace(editedIntroduction) != "" {
 		args = append(args, "--intro", editedIntroduction)
@@ -387,12 +278,18 @@ func (a *App) ApprovePendingPerson(personID, editedIntroduction string, sendNow 
 
 // RejectPendingPerson takes a person out of the queue — `people review reject`.
 func (a *App) RejectPendingPerson(personID string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	return a.runMonoCLI("", nil, "people", "review", "reject", personID)
 }
 
 // GetLatestPersonStatus returns the most recent status update for a person,
 // or nil if none exists yet — `people status get`.
 func (a *App) GetLatestPersonStatus(personId string) *PersonStatusUpdate {
+	if a.signedOut() != nil {
+		return nil
+	}
 	var u *PersonStatusUpdate
 	if err := a.runMonoCLI("", &u, "people", "status", "get", personId); err != nil {
 		return nil
@@ -403,6 +300,9 @@ func (a *App) GetLatestPersonStatus(personId string) *PersonStatusUpdate {
 // AddPersonStatus appends a new status update for a person —
 // `people status set`.
 func (a *App) AddPersonStatus(personId, text string) (*PersonStatusUpdate, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var u PersonStatusUpdate
 	if err := a.runMonoCLI("", &u, "people", "status", "set", "--", personId, text); err != nil {
 		return nil, err
@@ -413,6 +313,9 @@ func (a *App) AddPersonStatus(personId, text string) (*PersonStatusUpdate, error
 // GetPersonStatusHistory returns every status update for a person, newest
 // first — `people status history`. limit <= 0 means no cap.
 func (a *App) GetPersonStatusHistory(personId string, limit int) []*PersonStatusUpdate {
+	if a.signedOut() != nil {
+		return nil
+	}
 	args := []string{"people", "status", "history", personId}
 	if limit > 0 {
 		args = append(args, "--limit", strconv.Itoa(limit))
@@ -427,6 +330,9 @@ func (a *App) GetPersonStatusHistory(personId string, limit int) []*PersonStatus
 // GetPersonPosts returns all scraped posts for a person, with
 // we_liked/we_commented flags — `people posts list`.
 func (a *App) GetPersonPosts(personID string) []PostSummary {
+	if a.signedOut() != nil {
+		return nil
+	}
 	posts := []PostSummary{}
 	if err := a.runMonoCLI("", &posts, "people", "posts", "list", personID); err != nil || posts == nil {
 		return []PostSummary{}
@@ -437,6 +343,9 @@ func (a *App) GetPersonPosts(personID string) []PostSummary {
 // GetPostDetail returns full metadata for a single post by ID —
 // `people posts get`.
 func (a *App) GetPostDetail(postID string) *PostDetail {
+	if a.signedOut() != nil {
+		return nil
+	}
 	var p PostDetail
 	if err := a.runMonoCLI("", &p, "people", "posts", "get", postID); err != nil {
 		return nil
@@ -447,6 +356,9 @@ func (a *App) GetPostDetail(postID string) *PostDetail {
 // GetPostComments returns all scraped comments for a post, oldest first —
 // `people posts comments`.
 func (a *App) GetPostComments(postID string) []PostComment {
+	if a.signedOut() != nil {
+		return nil
+	}
 	comments := []PostComment{}
 	if err := a.runMonoCLI("", &comments, "people", "posts", "comments", postID); err != nil || comments == nil {
 		return []PostComment{}

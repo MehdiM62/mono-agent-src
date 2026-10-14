@@ -319,6 +319,17 @@ func OpenPollCursor(ctx context.Context, input NodeInput, scope StateScope, key 
 // First reports whether no earlier run stored this cursor.
 func (c *PollCursor) First() bool { return !c.found }
 
+// PrevNewest returns the newest entry date the previous runs saw, and false
+// when there is none (no stored cursor, or only undated entries so far). A
+// source that can narrow its listing by date (Gmail's after:) asks for
+// entries from then on; IsNew still drops the ones already passed on.
+func (c *PollCursor) PrevNewest() (time.Time, bool) {
+	if !c.found || c.prev.Newest.IsZero() {
+		return time.Time{}, false
+	}
+	return c.prev.Newest, true
+}
+
 // IsNew records the entry for Save and reports whether to emit it. date is
 // nil for an undated entry, which only its id decides.
 func (c *PollCursor) IsNew(id string, date *time.Time) bool {

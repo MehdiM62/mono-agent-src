@@ -64,15 +64,20 @@ var readOnlyNodes = setOf(
 	// Triggers the engine passes through without running anything.
 	"trigger.manual", "trigger.org", "trigger.schedule", "trigger.webhook",
 	"trigger.local_file",
-	// Control flow and data shaping. core.code runs goja with only $input
-	// and $json bound; core.human_in_loop waits for a person.
-	"core.aggregate", "core.code", "core.compare_datasets", "core.filter",
+	// Control flow and data shaping (core.code: readOnlyByConfig);
+	// core.human_in_loop waits for a person.
+	"core.aggregate", "core.compare_datasets", "core.filter",
 	"core.human_in_loop", "core.if", "core.limit", "core.merge",
 	"core.remove_duplicates", "core.set", "core.sort", "core.split_in_batches",
 	"core.stop_error", "core.switch", "core.wait", "core.noop",
+	// core.form serves the next page of a trigger.form's form and waits.
+	"core.form",
 	// core.respond_webhook only answers the webhook request that started
 	// the run; in any other run (a granted call) it does nothing.
 	"core.respond_webhook",
+	// core.respond_chat only writes into the chat session that started the
+	// run (trigger.chat); without one it fails.
+	"core.respond_chat",
 	"data.compression", "data.crypto", "data.datetime", "data.html",
 	"data.markdown", "data.xml",
 	// n8n-parity data shaping: pure transforms of the items (convert/
@@ -109,7 +114,7 @@ var readOnlyNodes = setOf(
 	"applications.prepare", "applications.set_status", "applications.tag",
 	"discovery.search_jobs", "documents.render", "image.vault_save", "publication.register",
 	// Legacy unprefixed names (noderegistry.Build's aliases) of the above.
-	"aggregate", "code", "filter", "if", "limit", "merge", "set", "sort",
+	"aggregate", "filter", "if", "limit", "merge", "set", "sort",
 	"switch", "wait", "compression", "crypto", "datetime", "html",
 	"markdown", "xml", "email_read", "rss_read",
 )
@@ -218,6 +223,17 @@ var readOnlyByConfig = map[string]func(map[string]interface{}) bool{
 	"comm.outlook_read":    outlookLegacyReadOnly,
 	"comm.outlook_send":    outlookLegacyReadOnly,
 	"service.outlook_mail": outlookLegacyReadOnly,
+	"core.data_table":      dataTableReadOnly,
+	"core.evaluation":      evaluationReadOnly,
+	"core.code":            codeReadOnly,
+	"code":                 codeReadOnly,
+}
+
+// codeReadOnly: JavaScript runs in goja with only the items bound. Python
+// runs the system python3, which can do anything the user can.
+func codeReadOnly(cfg map[string]interface{}) bool {
+	lang, _ := cfg["language"].(string)
+	return lang != "python"
 }
 
 // httpReadOnly: GET (the node's default) and HEAD. A templated method is
@@ -243,6 +259,30 @@ func outlookLegacyReadOnly(cfg map[string]interface{}) bool {
 		}
 	}
 	return true
+}
+
+// evaluationReadOnly: recording a case's inputs, scoring it (model turns
+// only judge the text) and routing are bookkeeping; setOutputs (the
+// default operation) writes into the dataset row, a data table or a sheet.
+func evaluationReadOnly(cfg map[string]interface{}) bool {
+	op, _ := cfg["operation"].(string)
+	return op == "setInputs" || op == "setMetrics" || op == "checkIfEvaluating"
+}
+
+// dataTableReadOnly: reading rows or listing tables, and inserting rows or
+// creating a table (bookkeeping in the profile's own tables, overwriting
+// nothing). Updates, deletes, renames and clears change what other runs
+// may own.
+func dataTableReadOnly(cfg map[string]interface{}) bool {
+	op, _ := cfg["operation"].(string)
+	if res, _ := cfg["resource"].(string); res == "table" {
+		return op == "list" || op == "create" || op == ""
+	}
+	switch op {
+	case "", "insert", "get", "rowExists", "rowNotExists":
+		return true
+	}
+	return false
 }
 
 func spreadsheetReadOnly(cfg map[string]interface{}) bool {

@@ -112,6 +112,13 @@ Use n8n's parameter names verbatim as field keys (`taskId`, `additionalFields`,
 `returnAll`, `limit`, `updateFields`, …) so an n8n node's `parameters` object
 drops in unchanged. The API's own names go in `query`/`body` keys.
 
+**Dispatch and wait** (n8n's `dispatchAndWait`): `"wait": {"method": "POST",
+"limit": "options.limitWaitTime.values"}` sends the request once (first item)
+with `{{ hook.url }}` bound to the execution's resume URL, then pauses the run
+until that URL is called; the call's JSON body is the output (a list: one item
+per element). `limit` is the param path of n8n's wait limit; past it the input
+items continue. A failed request fails the node and leaves nothing waiting.
+
 ## 4. Fields
 
 Same shape as the workflow editor's `NodeSchemaField`:
@@ -587,7 +594,7 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 
 **Collecting before steps.** A `before` step with `for_each` runs once per element (`el`, `idx`; with `upload: true` and a list of binary property names, each element is uploaded) and its `pres.<i>`/`pre` entry is the LIST of responses (Twist uploads each attachment, then sends `attachments: {{ pre | json }}`).
 
-**Before request(s) (`before`).** One step — or a list of steps run in order, each seeing the earlier responses (`pres.0`, `pres.1`, …; `pre` = the latest) — sent before the main one (same keys as an `also` step); its decoded response is the `pre` root. Google Sheets append reads the header row, then orders the item by it:
+**Before request(s) (`before`).** One step — or a list of steps run in order, each seeing the earlier responses (`pres.0`, `pres.1`, …; `pre` = the latest) — sent before the main one (same keys as an `also` step); its decoded response is the `pre` root, and its response headers are `hdr` for the main request (a resumable upload's `"path": "{{ hdr.X-Goog-Upload-Url }}"`). Google Sheets append reads the header row, then orders the item by it:
 ```json
 "before": { "method": "GET", "path": "/v4/spreadsheets/{{ p.documentId | rl }}/values/{{ p.sheetName | rl }}!1:1" },
 "body": { "values": [ "{{ item | row:pre.values }}" ] }
@@ -598,7 +605,7 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - In `to`, `match` and `expand` templates `res` is the whole decoded response (the first page for paginated ops), so per-row shaping can read response-level headers.
 - `"schema_rows": "schema.fields"` (a path in the WHOLE response) turns BigQuery rows `{f: [{v}]}` at `output.path` into objects keyed by the schema's field names (RECORD recurses, REPEATED → list, BOOLEAN → bool); `"numbers": "{{ p.options.returnAsNumbers }}"` casts INTEGER/NUMERIC/FLOAT.
 - `"firestore": "{{ p.simple }}"` decodes Firestore documents into n8n's simple shape `{_name, _id, _createTime, _updateTime, …fields}` (use `"each": "found"` / `"document"` first for batchGet / runQuery).
-- `"from": "{{ res | values }}"` (template over `res`) replaces the decoded response before `path`/`split` (npm versions: `"{{ res.time | entries:'version,published_at' }}"`).
+- `"from": "{{ res | values }}"` (template over `res`, or a builder) replaces the decoded response before `path`/`split` (npm versions: `"{{ res.time | entries:'version,published_at' }}"`; MiniMax image URLs as objects: `{"$map": "{{ res.data.image_urls }}", "$to": {"imageUrl": "{{ el }}"}}`).
 - `"merge": true` folds a list of objects into one object (Hue update: `"each": "success", "merge": true`).
 - `"skip": 1` drops the first n elements (NextCloud lists the folder itself first); `"sort": "time"` orders by a path (numbers numerically, else as text), `"sort_desc": true` descending (npm getVersions).
 - `"limit": true` applies n8n's `returnAll`/`limit` params to a list the API returns whole (client-side slicing; replaces the `__no_next_page__` pagination trick).
@@ -694,11 +701,13 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 
 `binary.upload_url` (template): when it renders an http(s) URL, the engine first downloads that file (GET, without the credential) and uses it as the upload instead of the item's binary — name from the URL's last segment, type from the response's Content-Type (n8n's "upload from URL" sources; Airtop `"upload_url": "{{ p.source | ne:'binary' | then:p.url }}"`).
 
+`binary.upload_urls` (a template or builder giving a list, or comma text): every http(s) URL is downloaded the same way and added to `bin.files` after `binary.properties`' own files (properties `url_0`, `url_1`, …), for APIs that want media inline that n8n takes by URL — Ollama `"upload_urls": "{{ p.inputType | eq:'url' | then:p.imageUrls }}"` with `{"$map": "{{ bin.files }}", "$to": "{{ el.base64 }}"}` in the body; a `$map` builder keeps some URLs out (Gemini file URIs go in as `fileData`).
+
 `binary.upload_when` (template) decides per run whether to upload (n8n `sendBinaryData`); without the upload a multipart op sends its `body` as JSON (or nothing). `binary.multipart_field` may be a template, and `binary.property` (template) overrides the property read from `upload_field` — n8n's `"formField:binaryProperty"` values: `"multipart_field": "{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}"`, `"property": "{{ p.binaryPropertyName | split:':' | get:'-1' }}"`.
 
 **Files inside JSON.** Upload: `bin.base64` is the upload's bytes base64-encoded, for APIs that take file content in a JSON body (GitHub/GitLab `"content": "{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"` with `upload_when: "{{ p.binaryData }}"`). Download: `binary.download_base64` (template over `res`, e.g. `"{{ res.content }}"`) decodes a base64 file from the JSON response onto the item's binary (property from `property_field`, name from the `file_name` template, MIME type from `mime_type` or the name) and keeps the JSON as the item; gate it with `download_when`.
 
-**Several base64 files in one response (`download_each`).** `"download_each": "data"` (a response path to a list) turns each element into one item: `download_base64`, `file_name` and `mime_type` render with `el` = the element, the item's JSON is the element without the key that held the base64 text, plus `binary_property`, `file_name`, `mime_type` and `size` (OpenAI image generations: `"download_base64": "{{ el.b64_json }}"`). A file download (`download`) of an op that uploads nothing takes its name and type from `file_name`/`mime_type` when the response's headers give none.
+**Several base64 files in one response (`download_each`).** `"download_each": "data"` (a response path to a list; may be a template over `p`, e.g. Gemini `"{{ p.modelId | matches:'imagen' | then:'predictions' | default:'candidates' }}"`) turns each element into one item: `download_base64`, `file_name` and `mime_type` render with `el` = the element, the item's JSON is the element without the value that held the base64 text (at any depth: a Gemini candidate's `content.parts[].inlineData.data`), plus `binary_property`, `file_name`, `mime_type` and `size` (OpenAI image generations: `"download_base64": "{{ el.b64_json }}"`). A file download (`download`) of an op that uploads nothing takes its name and type from `file_name`/`mime_type` when the response's headers give none.
 
 **Fields inside collections.** `upload_field` and `property_field` may be dotted to read a key of a collection field (`"upload_field": "options.binaryPropertyNameReference"`); `binary.property` (a template) also names a download's output property (`"{{ p.options.binaryPropertyOutput | default:'data' }}"`).
 
@@ -706,7 +715,7 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 
 **Large files in chunks (`upload_session`).** `"binary": {"upload_field": "binaryPropertyName", "upload_session": {"create": {"method": "POST", "path": "/items/{{ p.parentId }}:/{{ p.fileName }}:/createUploadSession", "body": {"item": {"@microsoft.graph.conflictBehavior": "replace"}}}}}` — when the upload is larger than `min_size` bytes (default 4 MiB) the engine sends `create` (a step, with auth), reads the upload URL at `url_path` (default `uploadUrl`) of its response, and PUTs the file there in `chunk_size` pieces (default 10 MiB; Graph wants multiples of 320 KiB) with `Content-Range: bytes a-b/total` and no credential (the URL is pre-authorised). The last chunk's response is the op's response. Smaller files go in the op's single request as before (OneDrive / SharePoint upload).
 
-**Several files.** `binary.properties` (a template giving a list or comma text, e.g. n8n's `"attachments": "data,data2"`) uploads each property: in a multipart body one part per file, with `el = {property, index}` in the `multipart_field` template (`"attachment[{{ el.index }}]"`); for JSON bodies `bin.files` is the list of `{property, file_name, mime_type, file_extension, base64, file_size}` (`{"$map": "{{ bin.files }}", "$to": {"name": "{{ el.file_name }}", "content": "{{ el.base64 }}"}}`). `binary.properties` without `upload_field` only fills `bin.files` (nothing is uploaded), for bodies that embed the files themselves — Gmail builds a MIME message: `"binary": {"properties": "{{ p.options.attachmentsUi.attachmentsBinary | pluck:'property' | join:',' }}"}` with `{{ bin.files | mime_parts:'monoagent_mixed' }}` in its raw body.
+**Several files.** `binary.properties` (a template or builder giving a list, or comma text — `{"$map": "{{ p.refs.values }}", "$to": "{{ el.inputType | eq:'binary' | then:el.binaryPropertyName }}"}` picks the binary entries of an n8n collection; e.g. n8n's `"attachments": "data,data2"`) uploads each property: in a multipart body one part per file, with `el = {property, index}` in the `multipart_field` template (`"attachment[{{ el.index }}]"`); for JSON bodies `bin.files` is the list of `{property, file_name, mime_type, file_extension, base64, file_size}` (`{"$map": "{{ bin.files }}", "$to": {"name": "{{ el.file_name }}", "content": "{{ el.base64 }}"}}`). `binary.properties` without `upload_field` only fills `bin.files` (nothing is uploaded), for bodies that embed the files themselves — Gmail builds a MIME message: `"binary": {"properties": "{{ p.options.attachmentsUi.attachmentsBinary | pluck:'property' | join:',' }}"}` with `{{ bin.files | mime_parts:'monoagent_mixed' }}` in its raw body.
 
 ## 11. `extends` (apps with a native Go node)
 
@@ -794,7 +803,7 @@ and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
 
-**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`. A response `{"$sse": [{…}, {…}]}` is sent as a `text/event-stream` with one `data:` event per element (for `stream` ops and steps).
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`. `"response_headers": {"X-Goog-Upload-Url": "https://up.example.test/s?id=1"}` is sent with every answer. A response `{"$sse": [{…}, {…}]}` is sent as a `text/event-stream` with one `data:` event per element (for `stream` ops and steps).
 ```json
 "values.append": {
   "params": { "documentId": "abc", "sheetName": "Main" },
@@ -944,7 +953,9 @@ Optional keys the engine added (the design's keys are unchanged):
 | package | `webhook` (app trigger registration: `fields`, `create`, `id`, `extra`, `delete`, `check`, `verify`); root `hook`; filter `map` | §17 |
 | templates | literal braces `\{{` / `\}}`; `hdr` = the previous webhook step's response headers | §5, §17 |
 | package, operation | `outputs` (declared output keys; else derived); schema `outputs` with `visible_for` | §9 |
+| operation | `wait` (`method`, `limit`): dispatch and wait for a call to the execution's resume URL, root `hook.url` | §3 |
 | binary | `download_each` (one item per base64 file in a list); dotted `upload_field`/`property_field`; `property` for downloads; download `file_name`/`mime_type` fallback | §10 |
+| binary, output, steps | `upload_urls`; builder `properties` and `output.from`; templated `download_each`; `hdr` from `before` steps; harness `response_headers` | §9, §10, §13 |
 
 ## 17. App webhooks (`webhook`)
 

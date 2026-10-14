@@ -126,23 +126,27 @@ check "-expires-days 30 writes expires_at about 30 days out" $?
 
 # ── (4) release verify ───────────────────────────────────────────────────────
 echo "== 4: monoagentcli release verify"
-cli() { HOME="$home" env -u MONOAGENT_E2E_LOOPBACK "$@"; }
+# `release` needs a monoes.me sign-in; the e2e has none, so section 4 runs the release
+# verifier from a devaccount build in the warn period (same release keys and code).
+build_verify_cli() { (cd "$root" && go build -tags "releasee2e devaccount" -o "$1" ./cmd/monoagentcli); }
+build_verify_cli "$bin/verify-cli"
+cli() { HOME="$home" MONOAGENT_DEV_ENFORCE_FROM=2099-01-01T00:00:00Z env -u MONOAGENT_E2E_LOOPBACK "$@"; }
 m="$work/art-v9.9.9/manifest.json"; s="$m.sig"
-out="$(cli "$bin/old-cli" release verify "$m" "$s" --pubkey "$good_line" 2>&1)"; rc=$?
+out="$(cli "$bin/verify-cli" release verify "$m" "$s" --pubkey "$good_line" 2>&1)"; rc=$?
 grep -q "^OK: v9.9.9, 10 assets" <<<"$out"; check "verify --pubkey: good signature" $? "$out"
-out="$(MONOAGENT_E2E_PINNED_KEY="$good_line" cli "$bin/old-cli" release verify "$m" "$s" 2>&1)"
+out="$(MONOAGENT_E2E_PINNED_KEY="$good_line" cli "$bin/verify-cli" release verify "$m" "$s" 2>&1)"
 grep -q "^OK: v9.9.9" <<<"$out"; check "verify with the key pinned in the binary" $? "$out"
-out="$(cli "$bin/old-cli" release verify "$m" "$s" 2>&1)" && rc=0 || rc=$?
+out="$(cli "$bin/verify-cli" release verify "$m" "$s" 2>&1)" && rc=0 || rc=$?
 [ "$rc" -ne 0 ]; check "verify with no pinned key and no --pubkey is refused" $? "$out"
-cli "$bin/old-cli" release verify "$m" "$s" --pubkey "$other_line" >/dev/null 2>&1 && rc=0 || rc=$?
+cli "$bin/verify-cli" release verify "$m" "$s" --pubkey "$other_line" >/dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" -ne 0 ]; check "verify refuses the wrong key" $?
 sed 's/v9.9.9/v9.9.8/' "$m" > "$work/t.json"
-cli "$bin/old-cli" release verify "$work/t.json" "$s" --pubkey "$good_line" >/dev/null 2>&1 && rc=0 || rc=$?
+cli "$bin/verify-cli" release verify "$work/t.json" "$s" --pubkey "$good_line" >/dev/null 2>&1 && rc=0 || rc=$?
 [ "$rc" -ne 0 ]; check "verify refuses a tampered manifest" $?
 # expired: edit expires_at into the past and re-sign (what a stale manifest looks like)
 sed 's/"expires_at": "[^"]*"/"expires_at": "2020-01-01T00:00:00Z"/' "$work/exp/manifest.json" > "$work/expired.json"
 "$rm_tool" sign -manifest "$work/expired.json" -key-file "$work/good.key" >/dev/null
-out="$(cli "$bin/old-cli" release verify "$work/expired.json" "$work/expired.json.sig" --pubkey "$good_line" 2>&1)" && rc=0 || rc=$?
+out="$(cli "$bin/verify-cli" release verify "$work/expired.json" "$work/expired.json.sig" --pubkey "$good_line" 2>&1)" && rc=0 || rc=$?
 [ "$rc" -ne 0 ]; check "verify refuses an expired manifest" $? "$out"
 (cd "$root" && go test -count=1 -run 'TestReleaseKeygenAndVerify' ./cmd/monoagentcli/ >/dev/null 2>&1); check "release keygen (mock keyring Go test) + verify round-trip" $?
 

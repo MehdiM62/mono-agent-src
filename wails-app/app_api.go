@@ -182,6 +182,9 @@ func apiKeyID(id string) (string, error) {
 
 // APIStatus reports where the API listens and whether it answers.
 func (a *App) APIStatus() (APIStatusInfo, error) {
+	if err := a.signedOut(); err != nil {
+		return APIStatusInfo{}, err
+	}
 	var st APIStatusInfo
 	if err := a.runAPICLI(&st, "api", "status"); err != nil {
 		return APIStatusInfo{}, err
@@ -198,6 +201,9 @@ func (a *App) APIStatus() (APIStatusInfo, error) {
 // autoConfinement, "" for this app's own environment). Each value is attached
 // to its flag, so it can never be read as another one.
 func (a *App) APIModels(forListener, confinement, contextConfinement, autoConfinement string) (APIModelsInfo, error) {
+	if err := a.signedOut(); err != nil {
+		return APIModelsInfo{}, err
+	}
 	args := []string{"api", "models"}
 	for _, f := range [][2]string{
 		{"for", forListener}, {"confinement", confinement},
@@ -219,6 +225,9 @@ func (a *App) APIModels(forListener, confinement, contextConfinement, autoConfin
 
 // APIKeyList lists the active profile's active keys.
 func (a *App) APIKeyList() ([]APIKey, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var keys []APIKey
 	if err := a.runAPICLI(&keys, "api", "key", "list"); err != nil {
 		return nil, err
@@ -232,6 +241,9 @@ func (a *App) APIKeyList() ([]APIKey, error) {
 // APIKeyCreate creates a key. The result carries the key itself, which the CLI
 // prints once: the caller shows it once and keeps it nowhere.
 func (a *App) APIKeyCreate(name string, withContext bool) (APIKeyCreated, error) {
+	if err := a.signedOut(); err != nil {
+		return APIKeyCreated{}, err
+	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return APIKeyCreated{}, errors.New("enter a name for the key")
@@ -249,6 +261,9 @@ func (a *App) APIKeyCreate(name string, withContext bool) (APIKeyCreated, error)
 
 // APIKeySetContext switches a key's knowledge context on or off.
 func (a *App) APIKeySetContext(id string, on bool) (APIKey, error) {
+	if err := a.signedOut(); err != nil {
+		return APIKey{}, err
+	}
 	id, err := apiKeyID(id)
 	if err != nil {
 		return APIKey{}, err
@@ -270,6 +285,9 @@ func (a *App) APIKeySetContext(id string, on bool) (APIKey, error) {
 // metadata, which is all this decodes). The name rule and the clash with another
 // active key are the store's: the CLI refuses with exit 3 and the page words it.
 func (a *App) APIKeyRename(id, name string) (APIKey, error) {
+	if err := a.signedOut(); err != nil {
+		return APIKey{}, err
+	}
 	id, err := apiKeyID(id)
 	if err != nil {
 		return APIKey{}, err
@@ -288,6 +306,9 @@ func (a *App) APIKeyRename(id, name string) (APIKey, error) {
 // APIKeyRevoke revokes a key. The GUI asks before calling this, which stands
 // in for the CLI's own prompt (--yes).
 func (a *App) APIKeyRevoke(id string) (APIKey, error) {
+	if err := a.signedOut(); err != nil {
+		return APIKey{}, err
+	}
 	id, err := apiKeyID(id)
 	if err != nil {
 		return APIKey{}, err

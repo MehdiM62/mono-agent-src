@@ -209,7 +209,7 @@ func mapToolVectorStore(c *MapContext) Mapping {
 		if _, ok := known["mode"]; ok {
 			params["mode"] = "load"
 		}
-		res, err := vectornodes.CollapseN8nSubNodes(s.Type, params, c.vectorSubs(s.Children))
+		res, err := vectornodes.ConvertN8nTree(s.Type, params, c.vectorSubs(s.Children))
 		if err != nil {
 			c.issues = append(c.issues, Issue{Severity: SevError, Message: err.Error()})
 			return Mapping{Unmapped: true}
@@ -221,6 +221,7 @@ func mapToolVectorStore(c *MapContext) Mapping {
 		if platform, credType := vectorCredential(s.Credentials); platform != "" {
 			cfg["credential_id"] = c.Credential(platform, credType)
 		}
+		c.attachVector(c.searchSubs(s.Name, res.Attached), cfg)
 		c.Note("returns the documents %s finds; n8n had a model answer from them", shortType(s.Type))
 		return Mapping{Type: res.Node.Type, Config: cfg}
 	}

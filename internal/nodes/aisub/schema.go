@@ -4,9 +4,10 @@ package aisub
 // internal/nodes/control.SetNodeSchema's doc comment and
 // internal/tools/schemagen for the tag grammar.
 type ModelNodeSchema struct {
-	Runtime string `json:"runtime" schema:"label=Agent Runtime,type=text,required,help=Locally-installed agent runtime id — claude， codex， kimicode， qwen， … (list: monoagentcli agent scan --installed)， or auto to pick a validated one from the agent roster (monoagentcli agent validate)."`
+	Runtime string `json:"runtime" schema:"label=Agent Runtime,type=text,required,help=Locally-installed agent runtime id — claude， codex， kimicode， qwen， … (list: monoagentcli agent scan --installed)， or auto to pick a validated one from the agent roster (monoagentcli agent validate). Not needed with a model vendor account."`
 
-	Model string `json:"model" schema:"label=Model,type=text,help=Falls back to the runtime's default model."`
+	Model        string `json:"model" schema:"label=Model,type=text,help=Falls back to the runtime's default model."`
+	CredentialID string `json:"credential_id" schema:"label=Model Vendor Account,type=credential_picker,help=A saved Google Gemini， Ollama， Moonshot (Kimi)， MiniMax， Alibaba Cloud Model Studio or Databricks connection: the turn then runs on opencode against that vendor with your own key (runtime is set for you; model = the vendor model or Databricks serving endpoint)."`
 }
 
 // MemoryNodeSchema documents ai.memory's config: agent.ask's memory option.

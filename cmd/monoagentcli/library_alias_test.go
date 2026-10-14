@@ -24,8 +24,10 @@ func TestLibraryLoginNeedsTheAccountHost(t *testing.T) {
 }
 
 // A login a release before the machine session left in a profile's vault keeps
-// serving that profile's reads until a session replaces it, and `library logout`
-// forgets it (spec D21, D22: a dormant release changes nothing a user sees).
+// serving that profile's reads while the gate is dormant, and `library logout`
+// forgets it. `library status` reports the machine session only: it is open
+// signed out, so it opens no database, and with the gate live an older vault
+// login does not let anyone in; only an account (or library) login does.
 func TestAnOlderLibraryLoginKeepsWorkingAndLogoutForgetsIt(t *testing.T) {
 	noSeed(t)
 	f := newLibFixture(t)
@@ -41,8 +43,8 @@ func TestAnOlderLibraryLoginKeepsWorkingAndLogoutForgetsIt(t *testing.T) {
 
 	var st librarycli.Status
 	f.must(&st, "library", "status")
-	if !st.LoggedIn || st.Method != "pkce" {
-		t.Fatalf("the older login is not seen: %+v", st)
+	if st.LoggedIn {
+		t.Fatalf("library status reports the older vault login as a sign-in: %+v", st)
 	}
 	var list libList
 	f.must(&list, "library", "list", "--scope", "official")

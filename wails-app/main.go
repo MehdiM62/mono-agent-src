@@ -64,6 +64,10 @@ func vaultImageHandler(app *App) http.Handler {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		if app.signedOut() != nil {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		// Use filepath.Base to prevent path traversal.
 		name := filepath.Base(r.URL.Path)
 

@@ -29,17 +29,21 @@ var Manifest = []ManifestEntry{
 	{NodeType: "core.if", GoFile: "internal/nodes/control/if_schema.go", StructName: "IfNodeSchema"},
 	{NodeType: "core.aggregate", GoFile: "internal/nodes/control/aggregate_schema.go", StructName: "AggregateNodeSchema"},
 	{NodeType: "core.code", GoFile: "internal/nodes/control/code_schema.go", StructName: "CodeNodeSchema"},
+	{NodeType: "core.data_table", GoFile: "internal/nodes/control/data_table_schema.go", StructName: "DataTableNodeSchema"},
+	{NodeType: "core.evaluation", GoFile: "internal/nodes/evalnode/schema.go", StructName: "EvaluationNodeSchema"},
 	{NodeType: "core.compare_datasets", GoFile: "internal/nodes/control/compare_datasets_schema.go", StructName: "CompareDatasetsNodeSchema"},
 	{NodeType: "core.human_in_loop", GoFile: "internal/nodes/control/human_in_loop_schema.go", StructName: "HumanInLoopNodeSchema"},
 	{NodeType: "core.limit", GoFile: "internal/nodes/control/limit_schema.go", StructName: "LimitNodeSchema"},
 	{NodeType: "core.merge", GoFile: "internal/nodes/control/merge_schema.go", StructName: "MergeNodeSchema"},
 	{NodeType: "core.remove_duplicates", GoFile: "internal/nodes/control/remove_duplicates_schema.go", StructName: "RemoveDuplicatesNodeSchema"},
 	{NodeType: "core.respond_webhook", GoFile: "internal/nodes/control/respond_webhook_schema.go", StructName: "RespondWebhookNodeSchema"},
+	{NodeType: "core.respond_chat", GoFile: "internal/nodes/control/respond_chat_schema.go", StructName: "RespondChatNodeSchema"},
 	{NodeType: "core.sort", GoFile: "internal/nodes/control/sort_schema.go", StructName: "SortNodeSchema"},
 	{NodeType: "core.split_in_batches", GoFile: "internal/nodes/control/split_in_batches_schema.go", StructName: "SplitInBatchesNodeSchema"},
 	{NodeType: "core.stop_error", GoFile: "internal/nodes/control/stop_error_schema.go", StructName: "StopErrorNodeSchema"},
 	{NodeType: "core.switch", GoFile: "internal/nodes/control/switch_schema.go", StructName: "SwitchNodeSchema"},
 	{NodeType: "core.wait", GoFile: "internal/nodes/control/wait_schema.go", StructName: "WaitNodeSchema"},
+	{NodeType: "core.form", GoFile: "internal/nodes/control/form_schema.go", StructName: "FormNodeSchema"},
 	{NodeType: "core.execute_workflow", GoFile: "internal/nodes/control/execute_workflow_schema.go", StructName: "ExecuteWorkflowNodeSchema"},
 
 	// --- http.* ---
@@ -103,6 +107,7 @@ var Manifest = []ManifestEntry{
 	{NodeType: "trigger.webhook", GoFile: "internal/workflow/trigger_schema.go", StructName: "WebhookTriggerSchema"},
 	{NodeType: "trigger.sse", GoFile: "internal/workflow/trigger_schema.go", StructName: "SSETriggerSchema"},
 	{NodeType: "trigger.local_file", GoFile: "internal/workflow/trigger_local_file.go", StructName: "LocalFileTriggerSchema"},
+	{NodeType: "trigger.evaluation", GoFile: "internal/workflow/evaluation.go", StructName: "EvaluationTriggerSchema"},
 
 	// --- comm.* ---
 	{NodeType: "comm.bluesky", GoFile: "internal/nodes/comm/bluesky_schema.go", StructName: "BlueskyNodeSchema"},

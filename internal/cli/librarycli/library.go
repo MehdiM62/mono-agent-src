@@ -87,6 +87,38 @@ func (e *libEnv) open() (*library.Client, error) {
 	}
 	// The machine session serves every library call. The profile's own vault login is
 	// only what a release before the session left behind (spec D21, D22).
+	e.attachSession(c)
+	e.client = c
+	return c, nil
+}
+
+// openSession is the client of `library status`: the machine session alone, read as
+// `account status` reads it, with no database, so that the status of a signed-out
+// machine creates and migrates nothing. An older login of a profile is not
+// consulted: the first gated command adopts it into the session (spec D23).
+func (e *libEnv) openSession() (*library.Client, error) {
+	if e.client != nil {
+		return e.client, nil
+	}
+	c, err := library.NewClient(library.BaseURL(), nil)
+	if err != nil {
+		return nil, clicore.InvalidInput("%v", err)
+	}
+	e.attachSession(c)
+	e.client = c
+	return c, nil
+}
+
+// profile is the profile in effect, once the database has resolved it; "" without one.
+func (e *libEnv) profile() string {
+	if e.db == nil {
+		return ""
+	}
+	return e.deps.ProfileID()
+}
+
+// attachSession makes the machine session serve c's calls.
+func (e *libEnv) attachSession(c *library.Client) {
 	if store, err := account.DefaultStore(); err == nil {
 		if g, err := account.NewDefaultGuard(); err == nil {
 			e.guard = g
@@ -94,8 +126,6 @@ func (e *libEnv) open() (*library.Client, error) {
 			c.Session = e.session
 		}
 	}
-	e.client = c
-	return c, nil
 }
 
 func (e *libEnv) registry() (*automation.Registry, error) {
@@ -183,7 +213,7 @@ func (e *libEnv) print(cmd *cobra.Command, v any, human func(w io.Writer)) error
 // Status is `library status` (and the result of a login).
 type Status struct {
 	BaseURL   string        `json:"base_url"`
-	Profile   string        `json:"profile"`
+	Profile   string        `json:"profile,omitempty"` // empty for `library status`: the session is the machine's
 	LoggedIn  bool          `json:"logged_in"`
 	User      *library.User `json:"user"`
 	Scopes    []string      `json:"scopes"`
@@ -193,7 +223,7 @@ type Status struct {
 }
 
 func statusFrom(e *libEnv, t *library.Token) Status {
-	s := Status{BaseURL: e.client.BaseURL, Profile: e.deps.ProfileID(), Scopes: []string{}}
+	s := Status{BaseURL: e.client.BaseURL, Profile: e.profile(), Scopes: []string{}}
 	if t == nil {
 		return s
 	}
@@ -210,7 +240,7 @@ func statusFrom(e *libEnv, t *library.Token) Status {
 // statusFromAccount is the library's view of the machine session st: what
 // `library login` prints.
 func statusFromAccount(e *libEnv, st account.Status) Status {
-	s := Status{BaseURL: e.client.BaseURL, Profile: e.deps.ProfileID(), Scopes: []string{}, LoggedIn: true, Method: "session"}
+	s := Status{BaseURL: e.client.BaseURL, Profile: e.profile(), Scopes: []string{}, LoggedIn: true, Method: "session"}
 	if u := st.User; u != nil {
 		s.User = &library.User{ID: u.ID, Email: u.Email, Username: u.Username}
 	}
@@ -247,10 +277,10 @@ func newLibraryStatusCmd(e *libEnv) *cobra.Command {
 	var offline bool
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "Show whether this profile is logged in to monoes.me, and as whom",
+		Short: "Show whether this machine is logged in to monoes.me, and as whom",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := e.open()
+			c, err := e.openSession()
 			if err != nil {
 				return err
 			}

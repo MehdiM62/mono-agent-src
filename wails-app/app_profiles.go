@@ -55,6 +55,9 @@ func (p cliProfile) info(active bool) ProfileInfo {
 // to — rather than the CLI's persisted one; the two only differ while
 // another process switches profiles under a running app.
 func (a *App) GetProfiles() ([]ProfileInfo, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var rows []cliProfile
 	if err := a.cliJSON(profileCLITimeout, &rows, "profile", "list"); err != nil {
 		return nil, err
@@ -69,6 +72,9 @@ func (a *App) GetProfiles() ([]ProfileInfo, error) {
 
 // GetActiveProfile returns the app's active profile (`profile get`).
 func (a *App) GetActiveProfile() (*ProfileInfo, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var p cliProfile
 	if err := a.cliJSON(profileCLITimeout, &p, "profile", "get", a.getActiveProfileID()); err != nil {
 		return nil, fmt.Errorf("active profile not found: %w", err)
@@ -85,6 +91,9 @@ func (a *App) GetActiveProfile() (*ProfileInfo, error) {
 // manifest; leaving it empty is fine, the frontend falls back to a
 // placeholder.
 func (a *App) CreateProfile(name, rootDir, icon string) (*ProfileInfo, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	p, err := a.createProfile(name, rootDir, icon)
 	if err != nil {
 		return nil, err
@@ -122,6 +131,9 @@ func (a *App) createProfile(name, rootDir, icon string) (*cliProfile, error) {
 // kill any running workflow subprocesses — then moves the app itself over:
 // its active profile and the watchers scoped to it.
 func (a *App) SwitchProfile(id string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	switched, err := a.switchProfile(id)
 	if err != nil {
 		return err
@@ -152,6 +164,9 @@ func (a *App) switchProfile(id string) (string, error) {
 // absolute path, or "" if the user cancelled — same shape as ExportData's
 // existing use of the same dialog.
 func (a *App) ChooseProfileFolder() (string, error) {
+	if err := a.signedOut(); err != nil {
+		return "", err
+	}
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Choose a folder for this profile",
 	})
@@ -162,6 +177,9 @@ func (a *App) ChooseProfileFolder() (string, error) {
 // distinct from ChooseProfileFolder/MoveProfileFolder, which change where
 // the folder is; this just shows where it already is.
 func (a *App) RevealProfileFolder(profileID string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	dir, err := a.profileFolder(profileID)
 	if err != nil {
 		return err
@@ -236,6 +254,9 @@ func revealFolderCommand(goos, dir string) (string, []string) {
 // destination is checked first (`profile move --check`), so a folder the
 // move would refuse never stops anything.
 func (a *App) MoveProfileFolder(profileID, newRootDir string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	if err := a.moveProfileFolder(profileID, newRootDir); err != nil {
 		return err
 	}

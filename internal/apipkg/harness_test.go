@@ -36,8 +36,11 @@ type opCase struct {
 	ResponseStatus int `json:"response_status,omitempty"`
 	// Responses answer requests in order (before steps, main, also,
 	// expand…); requests past the list get {}. Overrides Response.
-	Responses []any     `json:"responses,omitempty"`
-	Expect    expectReq `json:"expect"`
+	Responses []any `json:"responses,omitempty"`
+	// ResponseHeaders are sent with every answer (a resumable upload's
+	// X-Goog-Upload-Url that the main request is sent to).
+	ResponseHeaders map[string]string `json:"response_headers,omitempty"`
+	Expect          expectReq         `json:"expect"`
 	// ExpectRequests checks every request in order. Without it, Expect
 	// checks the main request (the first one after any before steps).
 	ExpectRequests []expectReq `json:"expect_requests,omitempty"`
@@ -200,7 +203,12 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 		cred = fakeCredential(p)
 	}
 	srv := newMockServer(t, c.Response, c.ResponseStatus, c.Responses...)
-	items, err := runPackageOp(p, params, cred, c.Input)
+	srv.header = c.ResponseHeaders
+	run := runPackageOp
+	if op.Wait != nil {
+		run = runWaitOp(t) // sends, then pauses for the callback
+	}
+	items, err := run(p, params, cred, c.Input)
 	if err != nil {
 		t.Fatalf("%s: the op failed: %v\n  (fix the package or the case's params)", where, err)
 	}

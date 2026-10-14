@@ -21,29 +21,6 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// chatFlags are the chat command's flag values (newChatCmd registers them).
-type chatFlags struct {
-	runtime        string
-	model          string
-	effort         string
-	resume         string
-	canvasID       string
-	historyID      string
-	timeoutS       string
-	budget         float64
-	tools          string
-	noHistory      bool
-	promptStdin    bool
-	conversationID string
-	turnID         string
-	instanceID     string
-	mode           string
-	coderCwd       string
-	newWorkspace   bool
-	coderRoot      bool
-	profileFold    bool
-}
-
 // runChat is the chat command's RunE: one agent turn (see newChatCmd). The
 // flag values are copied into locals, so a turn that adopts a stored
 // conversation's runtime, model or session changes only its own run.

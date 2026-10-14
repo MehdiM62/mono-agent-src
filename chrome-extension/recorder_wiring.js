@@ -308,6 +308,8 @@
   root.MonoRecorderWiring = {
     install,
     flush: () => session && session.flush(),
+    // Signed out (background.js): the recording ends; what it recorded stays queued.
+    stop: () => session && later(() => session.stop("error"))(),
     handleFrame: (msg) => !!session && session.handleFrame(msg),
     PORT_NAME,
     RECORDER_FILES,

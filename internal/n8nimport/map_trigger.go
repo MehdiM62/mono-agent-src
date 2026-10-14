@@ -23,15 +23,6 @@ func mapManual(_ *MapContext) Mapping {
 	return Mapping{Type: "trigger.manual", Config: map[string]interface{}{}}
 }
 
-// mapChatTrigger becomes a manual trigger: the chat message is the run's
-// input ({"chatInput": "…"}), as in n8n.
-func mapChatTrigger(c *MapContext) Mapping {
-	c.Ignore("public", "mode", "authentication", "initialMessages", "options", "availableInChat",
-		"agentName", "agentDescription", "agentIcon", "suggestedPrompts")
-	c.Note("n8n's hosted chat is not available: run the workflow with input {\"chatInput\": \"…\"} (workflow run --input)")
-	return Mapping{Type: "trigger.manual", Config: map[string]interface{}{}}
-}
-
 // schedules turns trigger steps into a Mapping: the first cron is the
 // node, the others become alternate trigger nodes.
 func schedules(crons []string) Mapping {

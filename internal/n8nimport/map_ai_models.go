@@ -61,10 +61,11 @@ func modelName(params map[string]interface{}) string {
 	return ""
 }
 
-// applyModel picks runtime and model from the attached chat model and
-// reports the sub-nodes agent.ask cannot use.
+// applyModel keeps the attached chat model, memory and output parser as
+// ai.model / ai.memory / ai.output_parser sub-nodes of the node whose
+// config is cfg, and reports the sub-nodes agent.ask cannot use. Without a
+// chat model cfg runs on the claude runtime.
 func applyModel(c *MapContext, cfg map[string]interface{}) {
-	cfg["runtime"] = "claude"
 	found := false
 	for _, s := range c.SubNodes {
 		switch s.Kind {
@@ -74,27 +75,37 @@ func applyModel(c *MapContext, cfg map[string]interface{}) {
 				continue
 			}
 			found = true
-			useModel(c, cfg, s)
+			attachModel(c, cfg, s)
 		case "ai_tool":
 			c.Warn("tools", s.Name, "the %s tool is kept as the disabled node %q: agent.ask cannot call tools yet, so the agent answers without it",
 				shortType(s.Type), s.Name)
 		case "ai_memory":
-			if !applyChatMemory(c, cfg, s) {
+			if mem, ok := chatMemoryConfig(c, s); ok {
+				c.attach(s.Name, s.Kind, "ai.memory", mem, cfg)
+			} else {
 				c.Warn("memory", s.Name, "conversation memory (%s) is not kept between runs", shortType(s.Type))
 			}
 		case "ai_outputParser":
-			c.Warn("outputParser", s.Name, "structured output parsing (%s) is not applied; ask for JSON in the prompt", shortType(s.Type))
+			attachOutputParser(c, cfg, s)
 		default:
 			c.Warn(s.Kind, s.Name, "sub-node %s is not supported", shortType(s.Type))
 		}
 	}
 	if !found {
+		cfg["runtime"] = "claude"
 		c.Note("no chat model is attached; the claude runtime is used")
 	}
 }
 
-// useModel sets runtime and model from one chat model sub-node. A Model
-// Selector contributes its first model.
+// attachModel keeps chat model s as an ai.model sub-node of cfg's node.
+func attachModel(c *MapContext, cfg map[string]interface{}, s SubNode) {
+	model := map[string]interface{}{"runtime": "claude"}
+	useModel(c, model, s)
+	c.attach(s.Name, s.Kind, "ai.model", model, cfg)
+}
+
+// useModel sets runtime and model (ai.model's config) from one chat model
+// sub-node. A Model Selector contributes its first model.
 func useModel(c *MapContext, cfg map[string]interface{}, s SubNode) {
 	if s.Type == lc+"modelSelector" {
 		for _, m := range s.Children {
@@ -109,6 +120,9 @@ func useModel(c *MapContext, cfg map[string]interface{}, s SubNode) {
 		return
 	}
 	model := modelName(s.Parameters)
+	if useVendorAccount(c, cfg, s, model) {
+		return
+	}
 	route, ok := modelRoutes[s.Type]
 	if !ok {
 		c.Warn("model", s.Name, "model %q (%s) has no local agent runtime; the claude runtime is used — set runtime/model to choose another",
@@ -131,4 +145,51 @@ func useModel(c *MapContext, cfg map[string]interface{}, s SubNode) {
 		msg += "; " + route.note
 	}
 	c.Note("%s", msg)
+}
+
+// vendorAccounts are the chat models agent.ask runs with the user's own
+// vendor key: the n8n credential types and the mono connection platform
+// (agent.ask's Model Vendor Account).
+var vendorAccounts = map[string]struct {
+	platform string
+	n8nTypes []string
+}{
+	lc + "lmChatGoogleGemini": {"gemini_api", []string{"googlePalmApi"}},
+	lc + "lmChatOllama":       {"ollama", []string{"ollamaApi"}},
+	lc + "lmOllama":           {"ollama", []string{"ollamaApi"}},
+	lc + "lmChatMoonshot":     {"moonshot", []string{"moonshotApi"}},
+	lc + "lmChatMinimax":      {"minimax", []string{"minimaxApi"}},
+	lc + "lmChatAlibabaCloud": {"alibaba_cloud", []string{"alibabaCloudApi"}},
+	lc + "lmChatDatabricks":   {"databricks", []string{"databricksOAuth2Api", "databricksApi"}},
+}
+
+// useVendorAccount runs chat model s through its vendor connection when the
+// n8n node carries the vendor's credential: credential_id names the
+// connection, which supplies the runtime.
+func useVendorAccount(c *MapContext, cfg map[string]interface{}, s SubNode, model string) bool {
+	v, ok := vendorAccounts[s.Type]
+	if !ok {
+		return false
+	}
+	use := credUse{Platform: v.platform}
+	for _, t := range v.n8nTypes {
+		if cred, ok := s.Credentials[t]; ok {
+			use.N8nType, use.N8nName = t, cred.Name
+			break
+		}
+	}
+	if use.N8nType == "" {
+		return false
+	}
+	c.creds = append(c.creds, use)
+	delete(cfg, "runtime")
+	cfg["credential_id"] = v.platform
+	if model != "" {
+		cfg["model"] = model
+	}
+	c.Note("model %q (%s) runs with the key of the %s connection", model, shortType(s.Type), v.platform)
+	if use.N8nType == "databricksOAuth2Api" {
+		c.Note("the databricks connection needs the workspace host and a personal access token (access_token)")
+	}
+	return true
 }

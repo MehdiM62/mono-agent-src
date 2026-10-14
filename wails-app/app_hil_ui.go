@@ -15,6 +15,9 @@ import (
 
 // HILList returns the pending HIL items exactly as `hil list` prints them.
 func (a *App) HILList() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	var raw json.RawMessage
 	if err := a.runMonoCLI("", &raw, "hil", "list"); err != nil {
 		return aiError(err)
@@ -29,6 +32,9 @@ func (a *App) HILList() string {
 // workflow item's edited fields and editText a send item's edited text; an
 // edited send item is approved with {"text": editText} as its data.
 func (a *App) HILResolve(id string, approve bool, editText, dataJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if id == "" {
 		return aiError(fmt.Errorf("hil: no item id"))
 	}
@@ -62,6 +68,9 @@ func (a *App) HILResolve(id string, approve bool, editText, dataJSON string) str
 // HILAttachment returns attachment n of a send item for an inline preview
 // (`hil attachment <id> <n>`): {dataUrl, mime, name, size}.
 func (a *App) HILAttachment(id string, n int) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if id == "" || n < 0 {
 		return aiError(fmt.Errorf("hil: bad attachment reference"))
 	}

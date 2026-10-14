@@ -59,6 +59,7 @@ type askConfig struct {
 	schema                                                  map[string]interface{}
 	merge, auto                                             bool
 	memory                                                  *memoryOption
+	env                                                     map[string]string // a model vendor's turn setup
 }
 
 func (n *AskNode) Type() string { return "agent.ask" }
@@ -74,6 +75,13 @@ func (n *AskNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	config, err := withSubNodes(input, config)
 	if err != nil {
 		return nil, err
+	}
+	vend, err := vendorFor(config, configString(config, "model", ""))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", workflow.ErrInvalidConfig, err)
+	}
+	if vend != nil {
+		config["runtime"], config["model"] = vend.runtime, vend.model
 	}
 	runtime := configString(config, "runtime", "")
 	if runtime == "" {
@@ -107,6 +115,9 @@ func (n *AskNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		merge:          merge,
 		memory:         memory,
 	}
+	if vend != nil {
+		cfg.env = vend.env
+	}
 	concurrency := configInt(config, "concurrency", 1)
 	if concurrency < 1 {
 		concurrency = 1
@@ -131,7 +142,7 @@ func (n *AskNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		cfg.runtime, cfg.model, cfg.auto = choice.Runtime, choice.Model, true
 	}
 
-	t := &asker{bin: bin, cfg: cfg, input: input, db: db}
+	t := &asker{bin: bin, cfg: cfg, input: input, db: db, tools: buildTools(input)}
 	items := make([]workflow.Item, len(input.Items))
 	if concurrency == 1 || len(input.Items) <= 1 {
 		for i, item := range input.Items {
@@ -164,6 +175,12 @@ func withSubNodes(input workflow.NodeInput, config map[string]interface{}) (map[
 		out[k] = v
 	}
 	if m, ok := aisub.ModelOf(input); ok {
+		if m.Platform != "" {
+			out["credential_platform"], out["credential"] = m.Platform, m.Credential
+		}
+		if _, vendor := vendors[m.Platform]; vendor && m.Runtime == "" {
+			m.Runtime = "opencode" // set by the vendor connection
+		}
 		if m.Runtime == "" {
 			return nil, fmt.Errorf("%w: agent.ask: the attached chat model %q has no runtime (see `monoagentcli agent scan --installed`, or use \"auto\")", workflow.ErrInvalidConfig, m.Name)
 		}
@@ -188,6 +205,7 @@ type asker struct {
 	cfg   askConfig
 	input workflow.NodeInput
 	db    *sql.DB
+	tools *agentTools // ai_tool sub-nodes; nil = no tools
 }
 
 // askAll runs items up to n at a time into out (same order). The first
@@ -242,6 +260,8 @@ func (t *asker) askAll(ctx context.Context, items, out []workflow.Item, n int) e
 // ask runs one item: a turn, and with output_schema one re-ask on a mismatch.
 func (t *asker) ask(ctx context.Context, item workflow.Item) (workflow.Item, error) {
 	cfg := t.cfg
+	calls := &toolCallLog{}
+	ctx = context.WithValue(ctx, toolCallKey{}, calls)
 	prompt, err := t.resolve(cfg.promptTemplate, item)
 	if err != nil {
 		return workflow.Item{}, fmt.Errorf("agent.ask: prompt: %w", err)
@@ -293,6 +313,9 @@ func (t *asker) ask(ctx context.Context, item workflow.Item) (workflow.Item, err
 		}
 	}
 	outJSON["_agent_session_id"] = res.SessionID
+	if len(calls.calls) > 0 {
+		outJSON["_agent_tool_calls"] = calls.calls
+	}
 	if res.SandboxStatus != "" {
 		outJSON["_agent_sandbox"] = res.SandboxStatus
 	}
@@ -362,6 +385,9 @@ func (t *asker) turn(ctx context.Context, prompt, system, resume string) (*monom
 		// for every agent.ask turn, whichever workflow runs it.
 		Sandbox:          monomind.TurnSandboxMode,
 		WorkspacePurpose: monomind.WorkspaceAgentAsk,
+		Env:              cfg.env,
+		Tools:            t.toolSpecs(),
+		OnToolCall:       t.toolHandler(ctx),
 	}, func(ev monomind.Event) {
 		if ev.Type == monomind.EventStart && ev.Model != "" {
 			model = ev.Model

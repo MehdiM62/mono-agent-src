@@ -14,14 +14,14 @@ import (
 // its item. Like trigger.manual it needs no activation.
 const TriggerNodeTypeError = "trigger.error"
 
-// afterExecutionFinished runs once an execution's terminal status is
-// written: it records the execution's error class and, for a FAILED run,
-// starts the workflow's error workflow. Cancelled, rejected and successful
-// runs start nothing.
-func (e *WorkflowEngine) afterExecutionFinished(log zerolog.Logger, executionID, status, errMsg string) {
+// recordFinishedClass records the error class of an execution about to be
+// written with its terminal status. It runs before that write, so whoever
+// sees the terminal status also sees its class: written after it, a reader
+// polling the status (`workflow run`, a test) could catch the row CANCELLED
+// with the interrupted node's class (or none) instead of timeout.
+func (e *WorkflowEngine) recordFinishedClass(executionID, status, errMsg string) {
 	ctx := context.WithoutCancel(context.Background())
 	db := e.store.RawDB()
-	defer notifyExecutionFinished(db, executionID, status)
 	switch status {
 	case StatusRejected:
 		setExecutionErrorClass(ctx, db, executionID, ClassRejected, true)
@@ -35,11 +35,23 @@ func (e *WorkflowEngine) afterExecutionFinished(log zerolog.Logger, executionID,
 		}
 	case "FAILED":
 		setExecutionErrorClass(ctx, db, executionID, ClassifyMessage(errMsg), false)
-		if id, err := e.fireErrorWorkflow(ctx, executionID, errMsg); err != nil {
-			log.Warn().Err(err).Str("execution_id", executionID).Msg("engine: error workflow not started")
-		} else if id != "" {
-			log.Info().Str("execution_id", executionID).Str("error_execution_id", id).Msg("engine: error workflow started")
-		}
+	}
+}
+
+// afterExecutionFinished runs once an execution's terminal status is
+// written: for a FAILED run it starts the workflow's error workflow.
+// Cancelled, rejected and successful runs start nothing.
+func (e *WorkflowEngine) afterExecutionFinished(log zerolog.Logger, executionID, status, errMsg string) {
+	ctx := context.WithoutCancel(context.Background())
+	db := e.store.RawDB()
+	defer notifyExecutionFinished(db, executionID, status)
+	if status != "FAILED" {
+		return
+	}
+	if id, err := e.fireErrorWorkflow(ctx, executionID, errMsg); err != nil {
+		log.Warn().Err(err).Str("execution_id", executionID).Msg("engine: error workflow not started")
+	} else if id != "" {
+		log.Info().Str("execution_id", executionID).Str("error_execution_id", id).Msg("engine: error workflow started")
 	}
 }
 
@@ -159,6 +171,8 @@ func executionMode(triggerType string) string {
 		return "manual"
 	case TriggerNodeTypeWebhook:
 		return "webhook"
+	case TriggerTypeEvaluation:
+		return "evaluation"
 	}
 	return "trigger"
 }

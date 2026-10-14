@@ -1,7 +1,6 @@
 package n8nimport
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -9,10 +8,11 @@ import (
 )
 
 // n8n LangChain vector stores and document loaders in the main flow become
-// vector.* nodes: internal/nodes/vector folds their embedding, document
-// loader and text splitter sub-nodes into flat config
-// (CollapseN8nSubNodes). Embeddings, splitters and retrievers only appear
-// as sub-nodes and are folded into their parent.
+// vector.* nodes; their embedding, document loader and text splitter
+// sub-nodes become vector.embeddings / vector.document_loader /
+// vector.text_splitter sub-nodes attached through n8n's connection types
+// (internal/nodes/vector ConvertN8nTree). Retrievers only appear as
+// sub-nodes and become a search of their vector store.
 func init() {
 	for t, m := range vectornodes.N8nNodeMappings {
 		if m.Role == vectornodes.N8nRoleNode {
@@ -23,9 +23,9 @@ func init() {
 
 func mapVector(c *MapContext) Mapping {
 	for k := range c.Params {
-		c.Ignore(k) // the collapse reports unmapped parameters itself
+		c.Ignore(k) // the conversion reports unmapped parameters itself
 	}
-	res, err := vectornodes.CollapseN8nSubNodes(c.Type, withoutEmpty(c.Params), c.vectorSubs(c.SubNodes))
+	res, err := vectornodes.ConvertN8nTree(c.Type, withoutEmpty(c.Params), c.vectorSubs(c.SubNodes))
 	if err != nil {
 		c.issues = append(c.issues, Issue{Severity: SevError, Message: err.Error()})
 		return Mapping{Unmapped: true}
@@ -33,24 +33,37 @@ func mapVector(c *MapContext) Mapping {
 	for _, w := range res.Warnings {
 		c.Note("%s", w)
 	}
-	node := res.Node
-	node.Config = c.translateConfig(node.Config)
+	cfg := c.translateConfig(res.Node.Config)
 	if platform, credType := vectorCredential(c.Credentials); platform != "" {
-		node.Config["credential_id"] = c.Credential(platform, credType)
+		cfg["credential_id"] = c.Credential(platform, credType)
 		c.creds[len(c.creds)-1].Hint = vectorHint(platform, credType)
 	}
-	if len(res.Before) == 0 {
-		return Mapping{Type: node.Type, Config: node.Config}
+	c.attachVector(res.Attached, cfg)
+	return Mapping{Type: res.Node.Type, Config: cfg}
+}
+
+// attachVector keeps converted RAG sub-nodes (and theirs) as sub-nodes of
+// the node whose config is target.
+func (c *MapContext) attachVector(list []vectornodes.N8nAttached, target map[string]interface{}) {
+	for _, a := range list {
+		cfg := c.translateConfig(a.Node.Config)
+		c.attach(a.Name, a.Kind, a.Node.Type, cfg, target)
+		c.attachVector(a.Children, cfg)
 	}
-	// Loaders run first: incoming items reach the first one, the store
-	// keeps the n8n name and its outgoing connections.
-	first := res.Before[0]
-	var chain []ChainStep
-	for i, b := range res.Before[1:] {
-		chain = append(chain, ChainStep{Type: b.Type, Suffix: fmt.Sprintf(" (step %d)", i+2), Config: c.translateConfig(b.Config)})
+}
+
+// searchSubs keeps only the embeddings of a vector store that is searched
+// (by a retriever or a tool), noting a document loader it does not use.
+func (c *MapContext) searchSubs(store string, list []vectornodes.N8nAttached) []vectornodes.N8nAttached {
+	var out []vectornodes.N8nAttached
+	for _, a := range list {
+		if a.Kind == vectornodes.KindEmbedding {
+			out = append(out, a)
+		} else {
+			c.Note("the document loader attached to %q is not used: it is only searched", store)
+		}
 	}
-	chain = append(chain, ChainStep{Type: node.Type, Config: node.Config})
-	return Mapping{Type: first.Type, Config: c.translateConfig(first.Config), EntrySuffix: " (load documents)", Chain: chain}
+	return out
 }
 
 // translateConfig translates n8n expressions left in collapsed config.
@@ -67,7 +80,7 @@ func (c *MapContext) translateConfig(cfg map[string]interface{}) map[string]inte
 func (c *MapContext) vectorSubs(subs []SubNode) []vectornodes.N8nSubNode {
 	out := make([]vectornodes.N8nSubNode, 0, len(subs))
 	for _, s := range subs {
-		n := vectornodes.N8nSubNode{Type: s.Type, Parameters: withoutEmpty(s.Parameters), ConnectionType: s.Kind,
+		n := vectornodes.N8nSubNode{Name: s.Name, Type: s.Type, Parameters: withoutEmpty(s.Parameters), ConnectionType: s.Kind,
 			Children: c.vectorSubs(s.Children)}
 		if platform, credType := vectorCredential(s.Credentials); platform != "" {
 			n.CredentialID = platform

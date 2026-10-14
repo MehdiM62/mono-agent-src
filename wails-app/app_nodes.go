@@ -23,6 +23,9 @@ const nodePaletteTimeout = 30 * time.Second
 // grouped by category, each with a label, description and schema. An empty
 // palette when the CLI fails — the palette just shows nothing.
 func (a *App) GetWorkflowNodeTypes() map[string]interface{} {
+	if a.signedOut() != nil {
+		return nil
+	}
 	palette := map[string]interface{}{}
 	if err := a.cliJSON(nodePaletteTimeout, &palette, "node", "palette"); err != nil {
 		a.emitLog("SYSTEM", "WARN", "node palette: "+err.Error())
@@ -81,6 +84,9 @@ var legacyNodeTypes = map[string]string{
 }
 
 func (a *App) RunNode(req NodeRunRequest) NodeRunResult {
+	if a.signedOut() != nil {
+		return NodeRunResult{}
+	}
 	if mapped, ok := legacyNodeTypes[req.NodeType]; ok {
 		req.NodeType = mapped
 	}
@@ -197,6 +203,9 @@ func (a *App) RunNode(req NodeRunRequest) NodeRunResult {
 // (NodeRunResult.run_id). The interrupted RunNode call returns with its Error
 // field set to the kill signal.
 func (a *App) StopNodeRun(runID string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	runKey := "noderun:" + runID
 	a.runningMu.Lock()
 	cmd, ok := a.runningCmds[runKey]
@@ -228,6 +237,9 @@ type CurlImport struct {
 // (`node curl -`, the command on stdin). No global flags: `node curl`
 // passes everything after its name to the curl parser.
 func (a *App) NodeConfigFromCurl(command string) CurlImport {
+	if a.signedOut() != nil {
+		return CurlImport{}
+	}
 	res := CurlImport{Notes: []string{}}
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {

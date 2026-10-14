@@ -43,16 +43,15 @@ describe('account', () => {
     expect(await account.status()).toEqual({ status: OK })
   })
 
-  it('a binding that is missing, throws or answers a non-object defers to dormant: not enforced, so not locked', async () => {
+  it('a binding that is missing, throws or answers a non-object locks: the gate fails closed', async () => {
     go.AccountStatus.mockRejectedValue(new Error('bridge down'))
-    expect(await account.status()).toEqual(failure('cli_failed', 'bridge down', { enforced: false }))
+    expect(await account.status()).toEqual(failure('cli_failed', 'bridge down'))
     go.AccountStatus.mockImplementation(() => { throw new TypeError('AccountStatus is not a function') })
-    expect((await account.status()).failure).toMatchObject({ enforced: false })
+    expect((await account.status()).failure).toMatchObject({ enforced: true })
     for (const v of [undefined, null, 42]) {
       go.AccountStatus.mockResolvedValue(v)
       const view = viewOf({ phase: 'ready', ...(await account.status()) })
-      expect(view.locked, String(v)).toBe(false)
-      expect(view.warn).toBe(false)
+      expect(view.locked, String(v)).toBe(true)
     }
   })
 

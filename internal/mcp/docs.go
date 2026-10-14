@@ -71,13 +71,17 @@ Core/control: core.set, core.if, core.switch, core.filter, core.sort,
   core.split_in_batches (loop: outputs "loop" per batch and "done" at the
     end; an edge from the loop body back into it continues the loop),
   core.execute_workflow (run another workflow as a sub-workflow),
+  core.respond_chat (message into a trigger.chat session; sendAndWait),
   core.respond_webhook (answer a responseNode webhook),
+  core.form (next page or ending of a trigger.form's form),
   core.human_in_loop (pauses for approval — pair with hil_list/hil_approve;
     optional "rejected" output)
 Triggers: trigger.schedule (6-field cron: sec min hour day month weekday;
   overlap, catch_up), trigger.webhook (path config; POST to the daemon's
   webhook port; response_mode onReceived|lastNode|responseNode),
   trigger.execute_workflow (called by core.execute_workflow),
+  trigger.evaluation (one run per dataset row in monoagentcli workflow
+    evaluate; core.evaluation records metrics),
   trigger.error (runs when a workflow naming this one as its error
   workflow fails), trigger.local_file (path; events add|change|unlink;
   one run per change while the daemon runs)

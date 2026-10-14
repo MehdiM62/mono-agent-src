@@ -89,7 +89,9 @@ jobs:
   # runs the real `monoagentcli doctor` in a throwaway HOME and asserts its
   # JSON contract — schema v1, a required failure exits 1, `--fix` repairs
   # it over several passes, `doctor fix` streams NDJSON — so a change that
-  # breaks what the GUI's System health section parses fails CI.
+  # breaks what the GUI's System health section parses fails CI. doctor and
+  # setup need a monoes.me sign-in, so the build has the devaccount tag: the
+  # script runs the checks in the warn period and asserts the refusal after it.
   doctor-smoke:
     name: Doctor smoke test
     runs-on: ubuntu-latest
@@ -100,7 +102,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Build monoagentcli
-        run: go build -o "$RUNNER_TEMP/monoagentcli" ./cmd/monoagentcli
+        run: go build -tags devaccount -o "$RUNNER_TEMP/monoagentcli" ./cmd/monoagentcli
       - name: Run doctor smoke test
         run: scripts/doctor-smoke.sh "$RUNNER_TEMP/monoagentcli"
 

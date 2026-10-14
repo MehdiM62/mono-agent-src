@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/workflowrun"
 	"github.com/monoes/mono-agent/internal/connections"
@@ -41,13 +42,21 @@ func newRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// The way in (the root's help, help, version and the open commands of the
+			// account gate) reads no action and does no first-run work, and neither
+			// does a serving command while the account is locked.
+			open := !cmd.HasParent() || commandClass(cmd) == classOpen || !needsAutomations(cmd)
 			// Best-effort: install Claude Code skill on first run if Claude is detected.
-			runClaudeFirstRunCheck()
+			if !open && account.Require(cmd.Context()) == nil {
+				runClaudeFirstRunCheck()
+			}
 			// Put monoagent's managed Node on PATH for every child process
 			// (monomind, npm, agent CLIs). One stat when none is installed.
 			nodemgr.Activate(cmd.Context())
 			// Installed automation packages, before anything reads actions.
-			bootAutomationsFor(cmd)
+			if !open {
+				bootAutomationsFor(cmd)
+			}
 		},
 	}
 
@@ -74,6 +83,7 @@ func newRootCmd() *cobra.Command {
 		newInitCmd(),
 		newPeopleCmd(cfg),
 		newListCmd(cfg),
+		newTableCmd(cfg),
 		newTemplateCmd(cfg),
 		newConfigCmd(cfg),
 		newExportCmd(cfg),

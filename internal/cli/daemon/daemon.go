@@ -35,6 +35,7 @@ import (
 func NewCommand(d Deps) *cobra.Command {
 	var apiOn, allowMutations, bridgeOn bool
 	var apiAddr string
+	var stopGrace time.Duration
 	var api apiruntime.Flags
 	c := &cobra.Command{
 		Use:   "daemon",
@@ -78,6 +79,9 @@ func NewCommand(d Deps) *cobra.Command {
 				return fmt.Errorf("build engine: %w", err)
 			}
 			defer closeBrowsers()
+			// Runs in flight at shutdown get stopGrace to finish; the rest end
+			// CANCELLED "daemon stopping" (QUEUED ones wait for the next start).
+			engine.SetStopGrace(stopGrace)
 
 			// Stop the scheduler after the engine has stopped (defers run LIFO,
 			// and this is registered before engine.Stop below): the engine's
@@ -199,6 +203,7 @@ func NewCommand(d Deps) *cobra.Command {
 	c.Flags().StringVar(&apiAddr, "api-addr", "", "HTTP API address (default 127.0.0.1:9322, or MONOAGENT_HTTPAPI_ADDR)")
 	c.Flags().BoolVar(&allowMutations, "allow-mutations", false, "Serve mutating HTTP API endpoints (the endpoint receiver is served either way)")
 	api.Bind(c)
+	c.Flags().DurationVar(&stopGrace, "stop-grace", 10*time.Second, "On shutdown, how long runs in flight may take to finish before they are cancelled (a service manager kills the daemon about 35s after asking it to stop)")
 	c.Flags().BoolVar(&bridgeOn, "bridge", true, "Hold the Chrome extension bridge open in this process (same bridge 'extension serve' runs standalone)")
 	c.AddCommand(newDaemonInstallCmd(), newDaemonUninstallCmd(), NewRestartCommand(d))
 	return c

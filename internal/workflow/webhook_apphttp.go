@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,6 +26,7 @@ import (
 //	config.<key>               a node config value (after Defaults)
 //	credential.<key>           a value of the node's credential
 //	extra.<key>                a value kept from the create response
+//	expires_at                 now + Lifetime, RFC 3339 UTC (create, renew)
 //
 // "{{a|b}}" takes the first that is set. A missing value is an error, except
 // in a body string that is exactly "{{?name}}", whose key is then left out.
@@ -52,6 +54,15 @@ type HTTPRegistrar struct {
 	Delete HTTPCall
 	// Check, when set, answers whether the hook exists (2xx yes, 404 no).
 	Check *HTTPCall
+	// Lifetime, when set, is how long a hook lives after create or renew:
+	// Register reports now + Lifetime as its expiry, or the RFC 3339 time
+	// at ExpiresPath in the answer when that is set, and the daemon renews
+	// it with RenewCall before then (WebhookRenewer).
+	Lifetime    time.Duration
+	ExpiresPath string
+	// RenewCall, when set, extends the hook (e.g. Microsoft Graph PATCH
+	// /subscriptions/{{hook_id}} with {"expirationDateTime": "{{expires_at}}"}).
+	RenewCall *HTTPCall
 	// Verify, when set, checks a delivery with the registration's secret.
 	Verify func(header http.Header, body []byte, secret string) error
 	// Client defaults to a 20-second-timeout client.
@@ -69,8 +80,9 @@ var placeholderRe = regexp.MustCompile(`\{\{\s*(\??)([^{}]+?)\s*\}\}`)
 
 // templateVars resolves placeholder names for one call.
 type templateVars struct {
-	hook   AppWebhook
-	stored AppWebhookHook
+	hook    AppWebhook
+	stored  AppWebhookHook
+	expires string // expires_at
 }
 
 func (v templateVars) lookup(name string) (interface{}, bool) {
@@ -97,6 +109,8 @@ func (v templateVars) lookupOne(name string) interface{} {
 		return v.hook.WorkflowID
 	case "node_id":
 		return v.hook.NodeID
+	case "expires_at":
+		return v.expires
 	}
 	scope, key, ok := strings.Cut(name, ".")
 	if !ok {
@@ -215,6 +229,9 @@ func (h *HTTPRegistrar) do(ctx context.Context, call HTTPCall, hook AppWebhook, 
 		return 0, nil, err
 	}
 	vars := templateVars{hook: hook, stored: stored}
+	if h.Lifetime > 0 {
+		vars.expires = h.expiry().Format(time.RFC3339)
+	}
 	target, err := h.callURL(vars, call.URL)
 	if err != nil {
 		return 0, nil, err
@@ -289,7 +306,7 @@ func callError(what string, status int, body []byte) error {
 	if len(msg) > 300 {
 		msg = msg[:300] + "…"
 	}
-	return fmt.Errorf("%s: the app answered %d: %s", what, status, msg)
+	return fmt.Errorf("%s: the app answered HTTP %d: %s", what, status, msg)
 }
 
 // Register implements WebhookRegistrar.
@@ -318,7 +335,58 @@ func (h *HTTPRegistrar) Register(ctx context.Context, hook AppWebhook) (AppWebho
 			got.Extra[k] = v
 		}
 	}
+	if h.Lifetime > 0 {
+		if got.ExpiresAt, err = h.answeredExpiry(doc); err != nil {
+			return AppWebhookHook{}, fmt.Errorf("create: %w", err)
+		}
+	}
 	return got, nil
+}
+
+// expiry is the expiry a create or renew made now asks for.
+func (h *HTTPRegistrar) expiry() time.Time {
+	return time.Now().UTC().Add(h.Lifetime).Truncate(time.Second)
+}
+
+// expiryLayouts are the time formats an ExpiresPath value may have: RFC
+// 3339 (Graph) and Jira's "2026-11-13T09:00:00.000+0000".
+var expiryLayouts = []string{time.RFC3339Nano, "2006-01-02T15:04:05.000-0700", "2006-01-02T15:04:05-0700"}
+
+// answeredExpiry reads the expiry from a create or renew answer: the time
+// at ExpiresPath, or now + Lifetime without one.
+func (h *HTTPRegistrar) answeredExpiry(doc interface{}) (time.Time, error) {
+	if h.ExpiresPath == "" {
+		return h.expiry(), nil
+	}
+	raw, _ := jsonPath(doc, h.ExpiresPath).(string)
+	for _, layout := range expiryLayouts {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("the answer has no expiry time at %s (got %q)", h.ExpiresPath, raw)
+}
+
+// Renew implements WebhookRenewer: it sends RenewCall and returns the new
+// expiry. A registrar without RenewCall cannot extend its hooks.
+func (h *HTTPRegistrar) Renew(ctx context.Context, hook AppWebhook, stored AppWebhookHook) (time.Time, error) {
+	if h.RenewCall == nil || h.Lifetime <= 0 {
+		return time.Time{}, errors.New("renew: this app registrar has no renew call")
+	}
+	status, body, err := h.do(ctx, *h.RenewCall, hook, stored)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("renew: %w", err)
+	}
+	if status < 200 || status > 299 {
+		return time.Time{}, callError("renew", status, body)
+	}
+	var doc interface{}
+	_ = json.Unmarshal(body, &doc)
+	exp, err := h.answeredExpiry(doc)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("renew: %w", err)
+	}
+	return exp, nil
 }
 
 // Unregister implements WebhookRegistrar.
@@ -359,15 +427,23 @@ func (h *HTTPRegistrar) VerifyDelivery(header http.Header, body []byte, hook App
 	return h.Verify(header, body, hook.Secret)
 }
 
-// jsonPath walks a dotted path through decoded JSON objects.
+// jsonPath walks a dotted path through decoded JSON objects; a number
+// part indexes a list ("webhookRegistrationResult.0.createdWebhookId").
 func jsonPath(doc interface{}, path string) interface{} {
 	cur := doc
 	for _, part := range strings.Split(path, ".") {
-		m, ok := cur.(map[string]interface{})
-		if !ok {
+		switch t := cur.(type) {
+		case map[string]interface{}:
+			cur = t[part]
+		case []interface{}:
+			i, err := strconv.Atoi(part)
+			if err != nil || i < 0 || i >= len(t) {
+				return nil
+			}
+			cur = t[i]
+		default:
 			return nil
 		}
-		cur = m[part]
 	}
 	return cur
 }

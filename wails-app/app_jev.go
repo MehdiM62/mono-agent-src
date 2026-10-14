@@ -94,6 +94,9 @@ func jevArg(what, v string) (string, error) {
 
 // JevStatus returns the key source, model and every surface's state.
 func (a *App) JevStatus() (JevStatusInfo, error) {
+	if err := a.signedOut(); err != nil {
+		return JevStatusInfo{}, err
+	}
 	var st JevStatusInfo
 	if err := a.runMonoCLI("", &st, "jev", "status"); err != nil {
 		return JevStatusInfo{}, err
@@ -107,6 +110,9 @@ func (a *App) JevStatus() (JevStatusInfo, error) {
 // JevSetKey stores the TypeSafe key in the profile's vault. The key is
 // passed only on stdin.
 func (a *App) JevSetKey(key string) (JevKeySetResult, error) {
+	if err := a.signedOut(); err != nil {
+		return JevKeySetResult{}, err
+	}
 	key = strings.TrimSpace(key)
 	if key == "" {
 		return JevKeySetResult{}, errors.New("paste a TypeSafe API key first")
@@ -120,6 +126,9 @@ func (a *App) JevSetKey(key string) (JevKeySetResult, error) {
 
 // JevTestKey asks TypeSafe (via the CLI) which models the key can use.
 func (a *App) JevTestKey() (JevKeyTestResult, error) {
+	if err := a.signedOut(); err != nil {
+		return JevKeyTestResult{}, err
+	}
 	var res JevKeyTestResult
 	if err := a.runMonoCLI("", &res, "jev", "key", "test"); err != nil {
 		return JevKeyTestResult{}, err
@@ -132,6 +141,9 @@ func (a *App) JevTestKey() (JevKeyTestResult, error) {
 
 // JevRemoveKey deletes the key's vault entry.
 func (a *App) JevRemoveKey() (JevKeyRemoveResult, error) {
+	if err := a.signedOut(); err != nil {
+		return JevKeyRemoveResult{}, err
+	}
 	var res JevKeyRemoveResult
 	if err := a.runMonoCLI("", &res, "jev", "key", "remove"); err != nil {
 		return JevKeyRemoveResult{}, err
@@ -145,6 +157,9 @@ func (a *App) JevRemoveKey() (JevKeyRemoveResult, error) {
 // the gate (a threshold-only change is an enable with the new value);
 // threshold <= 0 keeps the current one.
 func (a *App) JevSetSurface(surface string, enabled bool, threshold float64) (JevSurfaceResult, error) {
+	if err := a.signedOut(); err != nil {
+		return JevSurfaceResult{}, err
+	}
 	s, err := jevArg("surface", surface)
 	if err != nil {
 		return JevSurfaceResult{}, err
@@ -169,6 +184,9 @@ func (a *App) JevSetSurface(surface string, enabled bool, threshold float64) (Je
 // JevUsage reports calls, tokens and estimated cost per surface since
 // `since` ago (e.g. "7d", "24h"; default 7d).
 func (a *App) JevUsage(since string) (JevUsageReport, error) {
+	if err := a.signedOut(); err != nil {
+		return JevUsageReport{}, err
+	}
 	if strings.TrimSpace(since) == "" {
 		since = "7d"
 	}

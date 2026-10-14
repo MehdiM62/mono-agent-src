@@ -14,6 +14,9 @@ type MonomindProjectInfo struct {
 // a profile). Never errors: an empty result just means the modal shows no
 // suggestions.
 func (a *App) ListMonomindProjects() []MonomindProjectInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	projects := []MonomindProjectInfo{}
 	if err := a.cliJSON(profileCLITimeout, &projects, "profile", "projects"); err != nil || projects == nil {
 		return []MonomindProjectInfo{}

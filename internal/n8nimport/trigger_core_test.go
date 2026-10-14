@@ -251,24 +251,8 @@ func TestWebhookResponseModesAndRespondNode(t *testing.T) {
 		"response_headers": map[string]interface{}{"Location": "https://example.com/done"}})
 }
 
-func TestEvaluationAndMCPTriggers(t *testing.T) {
-	wf, _ := convertNode(t, "n8n-nodes-base.evaluationTrigger", 4.6, map[string]interface{}{
-		"documentId": map[string]interface{}{"__rl": true, "mode": "id", "value": "sheet-1"},
-		"sheetName":  map[string]interface{}{"__rl": true, "mode": "name", "value": "Cases"},
-		"limitRows":  true, "maxRows": 5.0,
-	})
-	if n := node(t, wf, "Trigger (start)"); n.Type != "trigger.manual" {
-		t.Fatalf("entry %s", n.Type)
-	}
-	wantConfig(t, node(t, wf, "Trigger (read)"), map[string]interface{}{"spreadsheet_id": "sheet-1", "sheet_name": "Cases", "operation": "read_rows"})
-	wantConfig(t, node(t, wf, "Trigger"), map[string]interface{}{"max_items": 5.0})
-
-	_, rep := convertNode(t, "n8n-nodes-base.evaluationTrigger", 4.7, map[string]interface{}{})
-	if nr := nodeReport(t, rep, "Trigger"); nr.Status != n8nimport.StatusUnmapped {
-		t.Errorf("data table source: %s", nr.Status)
-	}
-
-	wf, rep = convertNode(t, "@n8n/n8n-nodes-langchain.mcpTrigger", 2, map[string]interface{}{"path": "tools"})
+func TestMCPTriggerImportsAsManual(t *testing.T) {
+	wf, rep := convertNode(t, "@n8n/n8n-nodes-langchain.mcpTrigger", 2, map[string]interface{}{"path": "tools"})
 	if n := node(t, wf, "Trigger"); n.Type != "trigger.manual" {
 		t.Errorf("mcpTrigger → %s", n.Type)
 	}

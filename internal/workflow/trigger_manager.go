@@ -82,6 +82,7 @@ type TriggerManager struct {
 	fingerprints  map[string]string                   // workflowID → triggerFingerprint registered
 	providers     map[string]TriggerSource            // node type → provider
 	apps          appWebhookDeps                      // app webhook registration (webhook_appactivate.go)
+	renewFails    appRenewFailures                    // app webhook renewal retries (webhook_renew.go)
 	logger        zerolog.Logger
 }
 
@@ -207,7 +208,12 @@ func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) err
 			}
 
 		case TriggerNodeTypeForm:
-			if err := tm.activateForm(w.ID, node); err != nil {
+			if err := tm.activateForm(w, node); err != nil {
+				errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
+			}
+
+		case TriggerNodeTypeChat:
+			if err := tm.activateChat(w.ID, node); err != nil {
 				errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
 			}
 
@@ -473,6 +479,10 @@ func (tm *TriggerManager) deactivateEntry(key string, entry *triggerEntry) {
 	case "form":
 		tm.webhookServer.DeregisterForm(entry.webhookPath)
 		tm.logger.Info().Str("key", key).Str("path", entry.webhookPath).Msg("form trigger deactivated")
+
+	case "chat":
+		tm.webhookServer.DeregisterChat(entry.webhookPath)
+		tm.logger.Info().Str("key", key).Str("path", entry.webhookPath).Msg("chat trigger deactivated")
 
 	case "provider":
 		if entry.deactivate != nil {

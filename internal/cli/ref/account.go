@@ -68,15 +68,19 @@ STATES
   Clock rollback can lock work; a freshly verified token resets the clock guard.
 
 WHAT STAYS OPEN
-  Open: version, help, completion (including __complete and __completeNoDesc),
-  ref, update, doctor (including doctor fix), setup, release (maintainer tools),
-  account (all subcommands), library login, library logout, library status.
-  doctor has a core.monoes_account row (fix: account login).
+  Open: account (all subcommands), library login, library logout, library
+  status, help (and --help on any command), version, update (so a broken
+  install can be fixed). monoagentcli with no arguments prints the help.
+  Everything else is gated, ref (this page), doctor, doctor fix, setup,
+  release, completion and __complete included, and local-only commands,
+  daemon install, daemon restart, daemon uninstall and org serve.
+  Signed in, doctor has a core.monoes_account row (fix: account login).
   Serving: daemon, httpapi, mcp (including --grant), extension serve (also the
-  bridge serve alias). They start while locked and refuse work; they stay up
-  so service managers do not repeatedly respawn them.
-  Every other command is gated, including local-only commands, daemon install,
-  daemon restart, daemon uninstall and org serve.
+  bridge serve alias). They start while locked and run nothing: no schedule,
+  webhook, queue, stream or file trigger is armed, no request is served but the
+  status a client needs to say "sign in", and the org services, the run memory,
+  the capture indexing and the housekeeping loops wait. They stay up so service
+  managers do not repeatedly respawn them.
 
 REFUSAL
   Exit 4; first line: Log in to monoes.me first: monoagentcli account login
@@ -85,8 +89,10 @@ REFUSAL
   HTTP API and /v1: 401 login_required. GET /health stays open and reports the
   account. Webhooks: 503 without execution. Extension bridge: account_locked.
   MCP: tool error. A refused workflow run records FAILED / login_required:.
-  A locked daemon stays up, starts no new work, stops its org services and
-  resumes when a valid sign-in appears. The Docker version health check only
+  A locked daemon stays up, starts no new work, cancels the work in flight
+  (whatever ended the session: the 24-hour offline grace running out, a
+  logout, a refusal; the run records CANCELLED / login_required:), stops its
+  org services and resumes when a valid sign-in appears. The Docker version health check only
   tests liveness, not permission to work.
 
 HEADLESS AND DOCKER

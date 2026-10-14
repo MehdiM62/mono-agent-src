@@ -67,6 +67,7 @@ describe("highlight_page.js in a browser", { skip, concurrency: 1 }, () => {
     fixtures = await mkdtemp(join(tmpdir(), "mono-hl-fixture-"));
     page = join(fixtures, "fixture.html");
     url = fileUrl(page);
+    const account = await readFile(join(HERE, "account_state.js"), "utf8");
     const highlights = await readFile(join(HERE, "highlights.js"), "utf8");
     const shell = await readFile(join(HERE, "highlight_panel.js"), "utf8");
     const highlighter = await readFile(join(HERE, "highlight_page.js"), "utf8");
@@ -114,24 +115,31 @@ describe("highlight_page.js in a browser", { skip, concurrency: 1 }, () => {
           }
           return null;
         }
+        // The last bridge report the highlighter reads (account_state.js):
+        // signed in unless the test says otherwise.
+        const seen = __SIGNED__ ? { state: "ok", at: Date.now() } : null;
         window.chrome = {
           runtime: {
             lastError: undefined,
             sendMessage(msg, cb) { handle(msg).then((r) => cb(r), () => cb(null)); },
             onMessage: { addListener(fn) { window.__onMessage = fn; } },
           },
+          storage: {
+            local: { get: async () => (seen ? { accountSeen: seen } : {}) },
+            onChanged: { addListener() {} },
+          },
         };
       })();
     `;
-    bootstrapSource = `${highlights}\n${worker}\n${shell}\n${highlighter}`;
+    bootstrapSource = `${account}\n${highlights}\n${worker}\n${shell}\n${highlighter}`;
   }
 
   /** open (re)writes the fixture, seeds the stub store, and loads the page. */
-  async function open({ html = FIXTURE, seed = "[]", reload = false } = {}) {
+  async function open({ html = FIXTURE, seed = "[]", reload = false, signedIn = true } = {}) {
     await prepare();
     await writeFile(page, html, "utf8");
     if (injected) await browser.removeNewDocumentScript(injected);
-    injected = await browser.onNewDocument(bootstrapSource.replace("__SEED__", JSON.stringify(seed)));
+    injected = await browser.onNewDocument(bootstrapSource.replace("__SEED__", JSON.stringify(seed)).replace("__SIGNED__", String(signedIn)));
     if (reload) await browser.reload();
     else await browser.navigate(url);
     await browser.evaluate("document.fonts.ready.then(() => true)");
@@ -248,6 +256,20 @@ describe("highlight_page.js in a browser", { skip, concurrency: 1 }, () => {
     const seed = await browser.evaluate("window.__dump()");
     await open({ seed, reload: true });
     assert.equal(await browser.evaluate("window.__markText()"), painted, "the highlight did not come back");
+  });
+
+  it("signed out, offers nothing on a selection and paints nothing stored (gate.js)", async () => {
+    await open();
+    await select("#one", 25, "#one", 75);
+    await clickButton("Highlight (yellow)");
+    const seed = await browser.evaluate("window.__dump()");
+    await open({ seed, reload: true, signedIn: false });
+    await browser.evaluate("new Promise((r) => setTimeout(r, 150))");
+    assert.equal(await browser.evaluate("window.__markText()"), "", "a stored highlight was painted signed out");
+    await select("#two", 5, "#two", 40);
+    await browser.evaluate("new Promise((r) => setTimeout(r, 80))");
+    assert.deepEqual(JSON.parse(await browser.evaluate("JSON.stringify(window.__buttons())")), [], "the panel opened signed out");
+    assert.equal(await browser.evaluate("window.__dump()"), seed, "the stored highlight is kept");
   });
 
   it("finds its quote again when the page has moved underneath it", async () => {
