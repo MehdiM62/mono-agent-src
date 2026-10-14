@@ -1,4 +1,4 @@
-package main
+package httpapicli
 
 import (
 	"context"
@@ -10,27 +10,18 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/apiruntime"
 	"github.com/monoes/mono-agent/internal/httpapi"
-	"github.com/monoes/mono-agent/internal/storage"
 )
 
-// openGatewayDB opens the database for the OpenAI-compatible API on a copy of
-// the configuration. initDB resolves cfg.ProfileID to the active profile when
-// no --profile was given, and the HTTP API server must keep seeing what it
-// always saw, or its own fallback (MONOAGENT_PROFILE) is lost.
-func openGatewayDB(cfg *globalConfig) (*storage.Database, error) {
-	c := *cfg
-	return initDB(&c)
-}
-
-// newHTTPAPICmd runs the REST/JSON HTTP API server in the foreground,
+// NewCommand runs the REST/JSON HTTP API server in the foreground,
 // mirroring `monoagentcli daemon`'s signal handling. Unlike daemon (which
 // keeps triggers alive across all profiles), the HTTP API is scoped to the
 // active --profile, exactly like every other read/write command.
-func newHTTPAPICmd(cfg *globalConfig) *cobra.Command {
+func NewCommand(d Deps) *cobra.Command {
 	var addr string
 	var allowMutations bool
-	var api apiFlags
+	var api apiruntime.Flags
 
 	cmd := &cobra.Command{
 		Use:   "httpapi",
@@ -56,24 +47,24 @@ func newHTTPAPICmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// The OpenAI-compatible API (/v1) reads API keys and the roster
 			// from the database, so this command opens it for the gateway.
-			db, err := openGatewayDB(cfg)
+			db, err := d.OpenGatewayDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
-			apiRT, err := newAPIRuntime(db.DB, api, func(format string, args ...any) {
+			apiRT, err := apiruntime.New(db.DB, api, func(format string, args ...any) {
 				fmt.Fprintf(os.Stderr, "api: "+format+"\n", args...)
-			})
+			}, d.API)
 			if err != nil {
 				return err
 			}
 
 			srv, err := httpapi.NewServer(httpapi.Options{
-				DBPath:         cfg.DBPath,
-				Profile:        cfg.ProfileID,
+				DBPath:         d.DBPath(),
+				Profile:        d.ProfileID(),
 				Addr:           addr,
 				AllowMutations: allowMutations,
-				Version:        version,
+				Version:        d.Version(),
 				ExtraRoutes:    apiRT.MainMount(httpapi.ResolveAddr(addr)),
 			})
 			if err != nil {
@@ -127,7 +118,7 @@ func newHTTPAPICmd(cfg *globalConfig) *cobra.Command {
 	api.Bind(cmd)
 	cmd.Flags().BoolVar(&allowMutations, "allow-mutations", false,
 		"Serve mutating endpoints (workflow run/activate/deactivate, hil approve/reject); also settable via MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1")
-	return servingCommand(cmd)
+	return d.Serving(cmd)
 }
 
 func mutationsLabel(allowed bool) string {
