@@ -42,7 +42,7 @@ const waitReplyPoll = time.Hour
 type WaitReplySpec struct {
 	Kind string `json:"kind"`
 	// ApproveLabel and DisapproveLabel are the approval buttons' captions
-	// ("" = Approve / Decline). ApprovalType "double" offers both buttons;
+	// ("" = Approve / Disapprove). ApprovalType "double" offers both buttons;
 	// "single" (or "") only Approve.
 	ApproveLabel    string `json:"approve_label,omitempty"`
 	DisapproveLabel string `json:"disapprove_label,omitempty"`
@@ -54,6 +54,8 @@ type WaitReplySpec struct {
 	Title       string `json:"title,omitempty"`
 	Message     string `json:"message,omitempty"`
 	ButtonLabel string `json:"button_label,omitempty"`
+	// LinkLabel captions a form's link in the message ("" = Respond).
+	LinkLabel string `json:"link_label,omitempty"`
 	// Limit, when set, is when the wait gives up: the reply then reports
 	// WaitReplyExpired. Zero waits until someone answers.
 	Limit time.Time `json:"limit,omitempty"`
@@ -96,7 +98,17 @@ type WaitReply struct {
 	// ApproveURL and DisapproveURL are an approval's one-button links
 	// (DisapproveURL only for ApprovalType "double"); FormURL is a form's.
 	ApproveURL, DisapproveURL, FormURL string
-	Limit                              time.Time
+	// Links are the links to show in the message, in order, with their
+	// captions: Disapprove then Approve, or the form's one link.
+	Links []ReplyLink
+	Limit time.Time
+}
+
+// ReplyLink is one captioned link of a reply.
+type ReplyLink struct {
+	Label, URL string
+	// Primary marks the main action (Approve, Respond) for styling.
+	Primary bool
 }
 
 // Pause is the error a node returns to wait for this reply: the run waits
@@ -168,11 +180,21 @@ func replyOf(token, kind string, spec WaitReplySpec) WaitReply {
 		r.ApproveURL = r.URL + "/approve"
 		if spec.ApprovalType == "double" {
 			r.DisapproveURL = r.URL + "/decline"
+			r.Links = append(r.Links, ReplyLink{Label: orDefault(spec.DisapproveLabel, "Disapprove"), URL: r.DisapproveURL})
 		}
+		r.Links = append(r.Links, ReplyLink{Label: orDefault(spec.ApproveLabel, "Approve"), URL: r.ApproveURL, Primary: true})
 	case WaitReplyFreeText, WaitReplyCustomForm:
 		r.FormURL = r.URL
+		r.Links = []ReplyLink{{Label: orDefault(spec.LinkLabel, "Respond"), URL: r.FormURL, Primary: true}}
 	}
 	return r
+}
+
+func orDefault(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
 }
 
 func replyDB(ctx context.Context) (*sql.DB, error) {

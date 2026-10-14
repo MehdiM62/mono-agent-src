@@ -85,13 +85,7 @@ func renderReplyDone(w http.ResponseWriter, status int, spec WaitReplySpec, done
 // renderApprovalPage shows the approval buttons: both on the reply page,
 // or the one a link named (action) as a confirmation.
 func renderApprovalPage(w http.ResponseWriter, spec WaitReplySpec, token, action string) {
-	approve, decline := spec.ApproveLabel, spec.DisapproveLabel
-	if approve == "" {
-		approve = "Approve"
-	}
-	if decline == "" {
-		decline = "Decline"
-	}
+	approve, decline := orDefault(spec.ApproveLabel, "Approve"), orDefault(spec.DisapproveLabel, "Disapprove")
 	var buttons []replyButton
 	switch action {
 	case "approve":
@@ -99,10 +93,10 @@ func renderApprovalPage(w http.ResponseWriter, spec WaitReplySpec, token, action
 	case "decline":
 		buttons = []replyButton{{Action: "", Label: decline, No: true}}
 	default:
-		buttons = []replyButton{{Action: token + "/approve", Label: approve}}
 		if spec.ApprovalType == "double" {
 			buttons = append(buttons, replyButton{Action: token + "/decline", Label: decline, No: true})
 		}
+		buttons = append(buttons, replyButton{Action: token + "/approve", Label: approve})
 	}
 	writeReplyPage(w, http.StatusOK, replyPageData{Title: spec.Title, Message: spec.Message, Buttons: buttons})
 }
@@ -189,7 +183,7 @@ func answerSummary(row *replyRow) string {
 		if approved {
 			return "The answer recorded is: approved."
 		}
-		return "The answer recorded is: declined."
+		return "The answer recorded is: disapproved."
 	}
 	return "The answer has been recorded."
 }

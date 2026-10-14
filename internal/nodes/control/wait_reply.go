@@ -2,9 +2,7 @@ package control
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -73,93 +71,21 @@ func waitReplySpec(config map[string]interface{}, resume string, now time.Time) 
 		spec.Title, _ = config["formTitle"].(string)
 		spec.Message, _ = config["formDescription"].(string)
 		spec.ButtonLabel, _ = config["buttonLabel"].(string)
-		fields, err := waitFormFields(config["formFields"])
+		fields, err := workflow.ParseReplyFormFields(config["formFields"])
 		if err != nil {
-			return spec, err
+			return spec, fmt.Errorf("wait node: %w", err)
 		}
 		if len(fields) == 0 {
 			return spec, fmt.Errorf("%w: wait node \"formFields\" needs at least one field for resume form", workflow.ErrInvalidConfig)
 		}
 		spec.FormFields = fields
 	}
-	if on, _ := config["limitWaitTime"].(bool); !on {
-		return spec, nil
-	}
-	switch limitType, _ := config["limitType"].(string); limitType {
-	case "", "afterTimeInterval":
-		amount := 1.0
-		if v, ok := config["resumeAmount"]; ok {
-			f, err := toFloat(v)
-			if err != nil || f < 0 {
-				return spec, fmt.Errorf("%w: wait node \"resumeAmount\" must be a number of at least 0", workflow.ErrInvalidConfig)
-			}
-			amount = f
+	if on, _ := config["limitWaitTime"].(bool); on {
+		limit, err := workflow.ParseReplyLimit(config, now)
+		if err != nil {
+			return spec, fmt.Errorf("wait node: %w", err)
 		}
-		unit, _ := config["resumeUnit"].(string)
-		per, ok := map[string]time.Duration{
-			"": time.Hour, "seconds": time.Second, "minutes": time.Minute, "hours": time.Hour, "days": 24 * time.Hour,
-		}[unit]
-		if !ok {
-			return spec, fmt.Errorf("%w: wait node \"resumeUnit\" must be seconds, minutes, hours or days, got %q", workflow.ErrInvalidConfig, unit)
-		}
-		spec.Limit = now.Add(time.Duration(amount * float64(per)))
-	case "atSpecifiedTime":
-		s, _ := config["maxDateAndTime"].(string)
-		t, ok := parseWaitDateTime(s)
-		if !ok {
-			return spec, fmt.Errorf("%w: wait node \"maxDateAndTime\" must be a date and time, got %q", workflow.ErrInvalidConfig, s)
-		}
-		spec.Limit = t
-	default:
-		return spec, fmt.Errorf("%w: wait node \"limitType\" must be afterTimeInterval or atSpecifiedTime, got %q", workflow.ErrInvalidConfig, limitType)
+		spec.Limit = limit
 	}
 	return spec, nil
-}
-
-// waitFormFields reads n8n-style form fields.
-func waitFormFields(raw interface{}) ([]workflow.WaitReplyField, error) {
-	if s, ok := raw.(string); ok {
-		if strings.TrimSpace(s) == "" {
-			return nil, nil
-		}
-		if err := json.Unmarshal([]byte(s), &raw); err != nil {
-			return nil, fmt.Errorf("%w: wait node \"formFields\" is not JSON: %v", workflow.ErrInvalidConfig, err)
-		}
-	}
-	if m, ok := raw.(map[string]interface{}); ok {
-		raw = m["values"]
-	}
-	list, _ := raw.([]interface{})
-	var out []workflow.WaitReplyField
-	for i, v := range list {
-		m, ok := v.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("%w: wait node \"formFields\"[%d] must be an object", workflow.ErrInvalidConfig, i)
-		}
-		f := workflow.WaitReplyField{}
-		f.Label, _ = m["fieldLabel"].(string)
-		f.Name, _ = m["fieldName"].(string)
-		f.Type, _ = m["fieldType"].(string)
-		f.Required, _ = m["requiredField"].(bool)
-		f.Placeholder, _ = m["placeholder"].(string)
-		f.Multiple, _ = m["multiselect"].(bool)
-		if f.Label == "" && f.Name == "" {
-			return nil, fmt.Errorf("%w: wait node \"formFields\"[%d] needs a fieldLabel", workflow.ErrInvalidConfig, i)
-		}
-		if f.Label == "" {
-			f.Label = f.Name
-		}
-		if opts, ok := m["fieldOptions"].(map[string]interface{}); ok {
-			vals, _ := opts["values"].([]interface{})
-			for _, o := range vals {
-				if om, ok := o.(map[string]interface{}); ok {
-					if s, ok := om["option"].(string); ok {
-						f.Options = append(f.Options, s)
-					}
-				}
-			}
-		}
-		out = append(out, f)
-	}
-	return out, nil
 }

@@ -92,7 +92,7 @@ func TestWaitReply_ApprovalLinks(t *testing.T) {
 	}
 
 	// Opening a link only shows a page: a link scanner answers nothing.
-	if rec := f.do(http.MethodGet, path(r.DisapproveURL), nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Decline") {
+	if rec := f.do(http.MethodGet, path(r.DisapproveURL), nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Disapprove") {
 		t.Fatalf("GET decline = %d %s", rec.Code, rec.Body.String())
 	}
 	if rec := f.do(http.MethodGet, path(r.URL), nil); !strings.Contains(rec.Body.String(), r.Token+"/approve") {
@@ -102,14 +102,14 @@ func TestWaitReply_ApprovalLinks(t *testing.T) {
 		t.Fatalf("a GET recorded an answer: %+v", res)
 	}
 
-	if rec := f.do(http.MethodPost, path(r.DisapproveURL), nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "declined") {
+	if rec := f.do(http.MethodPost, path(r.DisapproveURL), nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "disapproved") {
 		t.Fatalf("POST decline = %d %s", rec.Code, rec.Body.String())
 	}
 	if id := <-f.woken; id != "e1" {
 		t.Fatalf("woke %q", id)
 	}
 	// A second click (either button) shows the recorded answer.
-	if rec := f.do(http.MethodPost, path(r.ApproveURL), nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "declined") {
+	if rec := f.do(http.MethodPost, path(r.ApproveURL), nil); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "disapproved") {
 		t.Fatalf("second click = %d %s", rec.Code, rec.Body.String())
 	}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -133,15 +132,4 @@ func waitTarget(config map[string]interface{}, now time.Time) (time.Time, error)
 }
 
 // parseWaitDateTime accepts RFC 3339 or a local date/time without zone.
-func parseWaitDateTime(s string) (time.Time, bool) {
-	s = strings.TrimSpace(s)
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t, true
-	}
-	for _, layout := range []string{"2006-01-02T15:04:05", "2006-01-02T15:04", "2006-01-02 15:04:05", "2006-01-02 15:04", "2006-01-02"} {
-		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
-			return t, true
-		}
-	}
-	return time.Time{}, false
-}
+func parseWaitDateTime(s string) (time.Time, bool) { return workflow.ParseDateTime(s) }
