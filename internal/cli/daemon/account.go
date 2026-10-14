@@ -37,17 +37,17 @@ type accountSupervisor struct {
 
 func newAccountSupervisor(orgs *orgsvc.Services, engine *workflow.WorkflowEngine) *accountSupervisor {
 	return &accountSupervisor{
-		status:        account.CurrentStatus,
-		poll:          account.PollInterval,
-		startOrg:      func(ctx context.Context) { orgs.Start(ctx, engine) },
-		waitOrg:       orgs.Wait,
+		status:   account.CurrentStatus,
+		poll:     account.PollInterval,
+		startOrg: func(ctx context.Context) { orgs.Start(ctx, engine) },
+		waitOrg:  orgs.Wait,
 		cancelRunning: func(st account.Status) int {
 			if st.Reason == account.ReasonRefused {
 				return engine.CancelRunning() // records that monoes.me refused the account
 			}
 			return engine.CancelRunningLocked(string(st.Reason))
 		},
-		logf:          orgs.Logf,
+		logf: orgs.Logf,
 	}
 }
 

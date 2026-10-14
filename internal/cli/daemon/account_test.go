@@ -45,8 +45,11 @@ func newSupRig(t *testing.T, first account.Status) *supRig {
 			r.with(func() { ended = r.drained; r.calls = append(r.calls, "wait") })
 			return ended
 		},
-		cancelRunning: func(account.Status) int { r.with(func() { r.cancels++; r.calls = append(r.calls, "cancel") }); return 2 },
-		logf:          func(f string, a ...any) { r.with(func() { r.logs = append(r.logs, fmt.Sprintf(f, a...)) }) },
+		cancelRunning: func(account.Status) int {
+			r.with(func() { r.cancels++; r.calls = append(r.calls, "cancel") })
+			return 2
+		},
+		logf: func(f string, a ...any) { r.with(func() { r.logs = append(r.logs, fmt.Sprintf(f, a...)) }) },
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { sup.run(ctx); close(r.done) }()
