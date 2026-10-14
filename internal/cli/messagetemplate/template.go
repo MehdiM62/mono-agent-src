@@ -1,4 +1,4 @@
-package main
+package messagetemplate
 
 import (
 	"database/sql"
@@ -7,12 +7,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 )
 
-func newTemplateCmd(cfg *globalConfig) *cobra.Command {
+// NewCommand returns `message-template` with its subcommands.
+func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "message-template",
 		Aliases: []string{"template"},
@@ -23,23 +25,23 @@ func newTemplateCmd(cfg *globalConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		newTemplateListCmd(cfg),
-		newTemplateGetCmd(cfg),
-		newTemplateCreateCmd(cfg),
-		newTemplateDeleteCmd(cfg),
+		d.newTemplateListCmd(),
+		d.newTemplateGetCmd(),
+		d.newTemplateCreateCmd(),
+		d.newTemplateDeleteCmd(),
 	)
 
 	return cmd
 }
 
-func newTemplateListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTemplateListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all templates",
 		Example: `  monoagentcli message-template list
   monoagentcli message-template list --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -66,7 +68,7 @@ func newTemplateListCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("iterating templates: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				if templates == nil {
 					templates = []storage.Template{}
 				}
@@ -80,15 +82,15 @@ func newTemplateListCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			table := newPlainTable(cmd.OutOrStdout(), []string{"ID", "Name", "Subject", "Body", "Created"},
+			table := clicore.NewPlainTable(cmd.OutOrStdout(), []string{"ID", "Name", "Subject", "Body", "Created"},
 				[]tw.Align{tw.AlignRight, tw.AlignLeft, tw.AlignLeft, tw.AlignLeft, tw.AlignLeft})
 
 			for _, t := range templates {
 				table.Append([]string{
 					fmt.Sprintf("%d", t.ID),
-					truncateStr(t.Name, 20),
-					truncateStr(t.Subject, 20),
-					truncateStr(t.Body, 30),
+					clicore.TruncateStr(t.Name, 20),
+					clicore.TruncateStr(t.Subject, 20),
+					clicore.TruncateStr(t.Body, 30),
 					t.CreatedAt.Format("2006-01-02 15:04"),
 				})
 			}
@@ -99,7 +101,7 @@ func newTemplateListCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newTemplateGetCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTemplateGetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <id>",
 		Short: "Show template details",
@@ -110,7 +112,7 @@ func newTemplateGetCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("invalid template ID %q: must be an integer", args[0])
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -131,20 +133,20 @@ func newTemplateGetCmd(cfg *globalConfig) *cobra.Command {
 			t.Subject = subject.String
 			t.Metadata = metadata.String
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(t)
 			}
 
-			table := newPlainTable(os.Stdout, []string{"Field", "Value"}, []tw.Align{tw.AlignRight, tw.AlignLeft})
+			table := clicore.NewPlainTable(os.Stdout, []string{"Field", "Value"}, []tw.Align{tw.AlignRight, tw.AlignLeft})
 
 			table.Append([]string{"ID", fmt.Sprintf("%d", t.ID)})
 			table.Append([]string{"Name", t.Name})
 			table.Append([]string{"Subject", t.Subject})
 			table.Append([]string{"Body", t.Body})
 			if t.Metadata != "" {
-				table.Append([]string{"Metadata", truncateStr(t.Metadata, 60)})
+				table.Append([]string{"Metadata", clicore.TruncateStr(t.Metadata, 60)})
 			}
 			table.Append([]string{"Created", t.CreatedAt.Format("2006-01-02 15:04:05")})
 			table.Append([]string{"Updated", t.UpdatedAt.Format("2006-01-02 15:04:05")})
@@ -155,7 +157,7 @@ func newTemplateGetCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newTemplateCreateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTemplateCreateCmd() *cobra.Command {
 	var (
 		name    string
 		body    string
@@ -175,7 +177,7 @@ func newTemplateCreateCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("--body is required")
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -199,7 +201,7 @@ func newTemplateCreateCmd(cfg *globalConfig) *cobra.Command {
 
 			id, _ := result.LastInsertId()
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]interface{}{
@@ -224,7 +226,7 @@ func newTemplateCreateCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newTemplateDeleteCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTemplateDeleteCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete <id>",
 		Short: "Delete a template",
@@ -235,7 +237,7 @@ func newTemplateDeleteCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("invalid template ID %q: must be an integer", args[0])
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
