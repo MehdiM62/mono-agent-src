@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/vault"
 )
@@ -22,6 +21,9 @@ type nodeTask struct {
 	onError     string
 	execNode    *WorkflowExecutionNode
 	ctx         context.Context // the run's context plus this node's state slot
+
+	perItem      *perItemPlan // non-nil: run once per input item
+	itemFailures int          // per-item failures on_error tolerated
 
 	outputs []NodeOutput
 	execErr error
@@ -185,6 +187,10 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 	}
 	executor := factory()
 
+	if executeOnce(config) && len(inputItems) > 1 {
+		inputItems = inputItems[:1]
+	}
+
 	// Build expression context from the first input item (if any).
 	var currentItemJSON map[string]interface{}
 	if len(inputItems) > 0 {
@@ -203,6 +209,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 	if resolver, ok := executor.(PerItemConfigResolver); ok {
 		perItemFields = resolver.PerItemConfigFields()
 	}
+	plan := r.planPerItem(node, executor, config, len(inputItems), perItemFields, exprCtx)
 	fieldState := extractPerItemFields(config, perItemFields)
 	resolvedConfig, err := r.expr.ResolveConfig(config, exprCtx)
 	if err != nil {
@@ -260,32 +267,8 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		onError:     extractOnError(resolvedConfig),
 		execNode:    execNode,
 		ctx:         WithNodeState(ctx, r.nodeState[node.ID]),
+		perItem:     plan,
 	}, nil
-}
-
-// runTask executes a prepared node with retry. Safe to call concurrently
-// for independent tasks: it touches only the task and the store.
-func (r *runner) runTask(t *nodeTask) {
-	ctx := t.ctx
-	logger := r.logger
-	t.outputs, t.execErr = executeWithRetry(ctx, t.executor, t.input, t.config, t.retryPolicy, func(outputs []NodeOutput) {
-		// Capture returned successful items even when another item failed. Tracking
-		// errors never change the publisher's outcome or retry decisions.
-		if db := vault.DBFromContext(ctx); db != nil {
-			pubOutputs := make([]publication.Output, 0, len(outputs))
-			for _, out := range outputs {
-				items := make([]map[string]interface{}, 0, len(out.Items))
-				for _, item := range out.Items {
-					items = append(items, item.JSON)
-				}
-				pubOutputs = append(pubOutputs, publication.Output{Handle: out.Handle, Items: items})
-			}
-			entries := publication.Normalize(publication.CaptureInput{NodeType: t.node.Type, Config: t.config, Outputs: pubOutputs,
-				Source: withNodeRun(PublicationSource(ctx, t.input), t.execNode.ID)})
-			publication.Record(ctx, publication.NewStore(db, vault.ProfileIDFromContext(ctx)), entries, func(msg string) { logger.Warn().Msg(msg) })
-		}
-
-	})
 }
 
 // finish records a task's outcome and routes its outputs. It reports
@@ -442,6 +425,9 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 	}
 
 	r.nodeOutputs[node.Name] = mainItems
+	if t.itemFailures > 0 {
+		r.nonFatalFailures = append(r.nonFatalFailures, node.Name)
+	}
 
 	// Persist success.
 	dbCtx3, dbCancel3 := dbCtx()
