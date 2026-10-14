@@ -120,6 +120,7 @@ func (r *runner) runTask(t *nodeTask) {
 	ctx := t.ctx
 	logger := r.logger
 	observe := func(outputs []NodeOutput) {
+		t.attempts++
 		// Capture returned successful items even when another item failed. Tracking
 		// errors never change the publisher's outcome or retry decisions.
 		if db := vault.DBFromContext(ctx); db != nil {
@@ -140,6 +141,7 @@ func (r *runner) runTask(t *nodeTask) {
 		t.outputs, t.execErr = r.runPerItem(t, observe)
 		return
 	}
+	t.runs = 1
 	t.outputs, t.execErr = executeWithRetry(ctx, t.executor, t.input, t.config, t.retryPolicy, observe)
 }
 
@@ -171,6 +173,7 @@ func (r *runner) runPerItem(t *nodeTask, observe func([]NodeOutput)) ([]NodeOutp
 		var outs []NodeOutput
 		if err == nil {
 			onError = extractOnError(config)
+			t.runs++
 			outs, err = executeWithRetry(t.ctx, t.executor, in, config, extractRetryPolicy(config), observe)
 		}
 		if err == nil {

@@ -25,6 +25,24 @@ func recordNodeFailure(ctx context.Context, store WorkflowStore, en *WorkflowExe
 	return ferr
 }
 
+// recordRetries stores how many times a node was retried (its attempts
+// beyond the first, summed over items for a per-item node) as the row's
+// retry_count. Best-effort like the class write above.
+func (r *runner) recordRetries(t *nodeTask) {
+	if t.attempts <= t.runs {
+		return
+	}
+	t.execNode.RetryCount = t.attempts - t.runs
+	db := r.store.RawDB()
+	if db == nil {
+		return
+	}
+	ctx, cancel := dbCtx()
+	defer cancel()
+	_, _ = db.ExecContext(ctx, `UPDATE workflow_execution_nodes SET retry_count = ? WHERE id = ?`,
+		t.execNode.RetryCount, t.execNode.ID)
+}
+
 // setExecutionErrorClass records class on the execution. Without force it
 // only fills an empty class, so the execution keeps its first failure's.
 func setExecutionErrorClass(ctx context.Context, db *sql.DB, executionID string, class ErrorClass, force bool) {

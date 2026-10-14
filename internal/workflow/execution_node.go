@@ -24,6 +24,8 @@ type nodeTask struct {
 
 	perItem      *perItemPlan // non-nil: run once per input item
 	itemFailures int          // per-item failures on_error tolerated
+	attempts     int          // node attempts run, retries included
+	runs         int          // executeWithRetry calls (one per item when perItem)
 
 	outputs []NodeOutput
 	execErr error
@@ -285,6 +287,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 	node, execNode, onError, execErr := t.node, t.execNode, t.onError, t.execErr
 	dag, logger, ctx := r.dag, r.logger, r.ctx
+	r.recordRetries(t)
 
 	if st := NodeStateFromContext(t.ctx); st != nil {
 		r.nodeState[node.ID] = st
