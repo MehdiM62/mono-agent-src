@@ -36,8 +36,10 @@ func workflowRunDeps(cfg *globalConfig) workflowrun.Deps {
 // the daemon holding the port, not by an engine that exits after one run.
 var oneShotRunLogs = []string{
 	"node execution failed",
+	"node emitted error output with no edge wired from the 'error' handle — failing node (wire an error edge or set on_error=continue/skip to tolerate)",
 	"engine: execution finished with error",
 	"engine: execution finished with non-fatal node failures",
+	"engine: execution cancelled",
 	"engine: webhook port already in use by another monoagent process — this engine will not serve webhooks yet, retrying every 30s, everything else runs normally",
 }
 

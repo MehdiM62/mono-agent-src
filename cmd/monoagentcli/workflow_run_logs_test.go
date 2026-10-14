@@ -17,24 +17,25 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// failingRunWorkflow builds and activates a workflow whose aggregate node has
-// no operation, so it fails when it runs.
+// failingRunWorkflow builds and activates a workflow whose HTTP node asks a
+// closed local port, so it fails when it runs.
 func failingRunWorkflow(t *testing.T, cfg *globalConfig) string {
 	t.Helper()
 	var created workflow.Workflow
 	if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "create", "failing-run")), &created); err != nil {
 		t.Fatal(err)
 	}
-	add := func(typ, name string) string {
+	add := func(typ, name string, extra ...string) string {
 		var n workflow.WorkflowNode
-		if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, "node", "add", created.ID, "--type", typ, "--name", name)), &n); err != nil {
+		args := append([]string{"node", "add", created.ID, "--type", typ, "--name", name}, extra...)
+		if err := json.Unmarshal([]byte(runWorkflowSubcmd(t, cfg, args...)), &n); err != nil {
 			t.Fatal(err)
 		}
 		return n.ID
 	}
 	trig := add("trigger.manual", "Start")
-	agg := add("core.aggregate", "Count")
-	runWorkflowSubcmd(t, cfg, "connect", created.ID, "--from", trig, "--to", agg)
+	fetch := add("http.request", "Fetch", "--config", `{"url":"http://127.0.0.1:1/","method":"GET"}`)
+	runWorkflowSubcmd(t, cfg, "connect", created.ID, "--from", trig, "--to", fetch)
 	runWorkflowSubcmd(t, cfg, "activate", created.ID)
 	return created.ID
 }
@@ -73,7 +74,7 @@ func TestWorkflowRunHumanModeQuietsFailureLogs(t *testing.T) {
 	if strings.Contains(logs, "level=") {
 		t.Errorf("human-mode run logged:\n%s", logs)
 	}
-	if !strings.Contains(stdout, "Status: FAILED") || !strings.Contains(stdout, "Error:  node") {
+	if !strings.Contains(stdout, "Status: FAILED") || !strings.Contains(stdout, "Error:  ") {
 		t.Errorf("summary does not report the failure:\n%s", stdout)
 	}
 	// The summary showed the error: main exits 1 without printing it again.
@@ -84,7 +85,7 @@ func TestWorkflowRunHumanModeQuietsFailureLogs(t *testing.T) {
 	}
 
 	logs, _, _ = runLogsFor(t, cfg, id, "--log-level=warn")
-	if !strings.Contains(logs, `msg="node execution failed"`) {
+	if !strings.Contains(logs, `msg="node emitted error output`) || !strings.Contains(logs, `msg="engine: execution finished with error"`) {
 		t.Errorf("--log-level=warn hid the node failure:\n%s", logs)
 	}
 }
@@ -102,7 +103,7 @@ func TestWorkflowRunJSONKeepsFailureLogs(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &rec); err != nil || rec.Status != "FAILED" {
 		t.Errorf("run --json = %q (%v)", stdout, err)
 	}
-	if !strings.Contains(logs, `msg="node execution failed"`) {
+	if !strings.Contains(logs, `msg="node emitted error output`) {
 		t.Errorf("--json run lost the engine's lines:\n%s", logs)
 	}
 	// --json reports the failure as before: the record above is the
@@ -133,9 +134,30 @@ func TestWorkflowRunLogFileGetsFailureLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`level=ERROR msg="node execution failed"`, `level=WARN msg="engine: execution finished with error"`} {
+	for _, want := range []string{`level=ERROR msg="node emitted error output`, `level=WARN msg="engine: execution finished with error"`} {
 		if !strings.Contains(string(data), want) {
 			t.Errorf("log file lacks %s:\n%s", want, data)
+		}
+	}
+}
+
+// Demotion matches the engine's messages by text: each must still be one.
+func TestOneShotRunLogsAreEngineMessages(t *testing.T) {
+	var src strings.Builder
+	files, _ := filepath.Glob(filepath.Join("..", "..", "internal", "workflow", "*.go"))
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		src.Write(b)
+	}
+	for _, msg := range oneShotRunLogs {
+		if !strings.Contains(src.String(), `Msg("`+msg+`")`) {
+			t.Errorf("internal/workflow logs no %q — update oneShotRunLogs", msg)
 		}
 	}
 }
