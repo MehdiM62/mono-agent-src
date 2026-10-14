@@ -64,10 +64,14 @@ func ignoreToolParams(ctx *MapContext) {
 	ctx.Ignore("toolDescription", "descriptionType", "toolAttribution")
 }
 
-// toolNodes names the nodes attached to another one as a tool.
-func toolNodes(subs map[string][]SubNode) map[string]bool {
+// toolNodes names the nodes attached to another one as a tool. A Tool
+// Executor's tool is left out: the executor runs it in its own chain.
+func (b *builder) toolNodes(subs map[string][]SubNode) map[string]bool {
 	out := map[string]bool{}
-	for _, list := range subs {
+	for parent, list := range subs {
+		if p := b.byName[parent]; p != nil && p.Type == lc+"toolExecutor" {
+			continue
+		}
 		for _, s := range list {
 			if s.Kind == "ai_tool" {
 				out[s.Name] = true

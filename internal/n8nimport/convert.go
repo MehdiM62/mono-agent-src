@@ -127,7 +127,7 @@ func subTree(subs map[string][]SubNode, name string, depth int) []SubNode {
 
 func (b *builder) mapNodes() {
 	subs, parent := b.subNodes()
-	tools := toolNodes(subs)
+	tools := b.toolNodes(subs)
 	for _, n := range b.src.Nodes {
 		b.reports[n.Name] = len(b.rep.Nodes)
 		b.rep.Nodes = append(b.rep.Nodes, NodeReport{Name: n.Name, N8nType: n.Type, TypeVersion: n.TypeVersion})

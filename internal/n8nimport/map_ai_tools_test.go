@@ -281,3 +281,21 @@ func TestVectorStoreAndSearchTools(t *testing.T) {
 		t.Errorf("unmapped:\n%s", rep.Text())
 	}
 }
+
+// A Tool Executor runs its tool in its own chain; the tool is not kept a
+// second time as a disabled node.
+func TestToolExecutorToolIsNotKeptTwice(t *testing.T) {
+	src := `{"name":"t","nodes":[
+	 {"name":"Run","type":"@n8n/n8n-nodes-langchain.toolExecutor","typeVersion":1,"position":[0,0],"parameters":{"query":"{\"Calc\":{\"input\":\"1+1\"}}"}},
+	 {"name":"Calc","type":"@n8n/n8n-nodes-langchain.toolCalculator","typeVersion":1,"position":[0,200],"parameters":{}}],
+	 "connections":{"Calc":{"ai_tool":[[{"node":"Run","type":"ai_tool","index":0}]]}}}`
+	wf, _, err := n8nimport.Convert([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range wf.Nodes {
+		if n.Disabled || n.Name == "Calc" && n.Type != "core.code" {
+			t.Errorf("unexpected node %s (%s, disabled %v)", n.Name, n.Type, n.Disabled)
+		}
+	}
+}
