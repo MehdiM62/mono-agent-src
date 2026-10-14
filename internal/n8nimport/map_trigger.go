@@ -333,6 +333,8 @@ func mapEmailTrigger(c *MapContext) Mapping {
 		"tls":         true,
 		"mailbox":     c.Str("mailbox", "INBOX"),
 		"unread_only": true,
+		// n8n v2.1+ remembers the last message id unless told not to.
+		"since_last_run": c.Bool("options.trackLastMessageId", true),
 	}
 	c.Warn("credentials", nil, "set imap_host and username on the read step (they are not in an n8n export)")
 	if c.Literal("postProcessAction", "read") == "nothing" {
@@ -344,7 +346,7 @@ func mapEmailTrigger(c *MapContext) Mapping {
 	if c.Bool("downloadAttachments", false) {
 		c.Unsupported("downloadAttachments")
 	}
-	c.Ignore("dataPropertyAttachmentsPrefixName", "options.forceReconnect", "options.trackLastMessageId", "options.allowUnauthorizedCerts")
+	c.Ignore("dataPropertyAttachmentsPrefixName", "options.forceReconnect", "options.allowUnauthorizedCerts")
 	if v := c.Raw("options.customEmailConfig"); v != nil && v != `["UNSEEN"]` {
 		c.Warn("options.customEmailConfig", v, "custom IMAP search criteria are not supported; unread mail is read")
 	}

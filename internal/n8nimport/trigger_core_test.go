@@ -238,3 +238,29 @@ func TestQueueTriggerImportsValidate(t *testing.T) {
 	wantConfig(t, node(t, wf, "Trigger"), map[string]interface{}{
 		"bindings": []interface{}{map[string]interface{}{"exchange": "events", "routing_key": "order.*"}}})
 }
+
+// The IMAP trigger's trackLastMessageId (on unless turned off) becomes the
+// read step's since_last_run cursor.
+func TestEmailReadImapTracksLastMessage(t *testing.T) {
+	for _, c := range []struct {
+		params map[string]interface{}
+		want   bool
+	}{
+		{map[string]interface{}{"mailbox": "INBOX"}, true},
+		{map[string]interface{}{"options": map[string]interface{}{"trackLastMessageId": false}}, false},
+	} {
+		wf, _ := convertNode(t, "n8n-nodes-base.emailReadImap", 2.1, c.params)
+		found := false
+		for _, n := range wf.Nodes {
+			if n.Type == "comm.email_read" {
+				found = true
+				if got := n.Config["since_last_run"]; got != c.want {
+					t.Errorf("%v: since_last_run = %v, want %v", c.params, got, c.want)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("%v: no comm.email_read step", c.params)
+		}
+	}
+}

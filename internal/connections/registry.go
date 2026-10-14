@@ -855,6 +855,35 @@ var Registry = map[string]PlatformDef{
 		},
 		IconEmoji: "🌐",
 	},
+	"generic_oauth1": {
+		ID:         "generic_oauth1",
+		Name:       "Generic OAuth 1.0a",
+		Category:   "custom",
+		ConnectVia: "API",
+		Methods:    []AuthMethod{MethodOAuth1, MethodAPIKey},
+		Fields: map[AuthMethod][]CredentialField{
+			MethodOAuth1: {
+				{Key: "base_url", Label: "Base URL", HelpText: "Completes the HTTP Request node's path-only URLs"},
+				{Key: OAuth1RequestTokenURL, Label: "Request Token URL", Required: true},
+				{Key: OAuth1AuthorizationURL, Label: "Authorization URL", Required: true},
+				{Key: OAuth1AccessTokenURL, Label: "Access Token URL", Required: true},
+				{Key: OAuth1ConsumerKey, Label: "Consumer Key", Required: true},
+				{Key: OAuth1ConsumerSecret, Label: "Consumer Secret", Secret: true, Required: true},
+				{Key: OAuth1SignatureMethod, Label: "Signature Method", HelpText: "HMAC-SHA1 (default), HMAC-SHA256, HMAC-SHA512 or PLAINTEXT"},
+			},
+			MethodAPIKey: {
+				{Key: "base_url", Label: "Base URL", HelpText: "Completes the HTTP Request node's path-only URLs"},
+				{Key: OAuth1ConsumerKey, Label: "Consumer Key", Required: true},
+				{Key: OAuth1ConsumerSecret, Label: "Consumer Secret", Secret: true, Required: true},
+				{Key: OAuth1Token, Label: "Access Token", Secret: true, Required: true},
+				{Key: OAuth1TokenSecret, Label: "Access Token Secret", Secret: true, Required: true},
+				{Key: OAuth1SignatureMethod, Label: "Signature Method", HelpText: "HMAC-SHA1 (default), HMAC-SHA256, HMAC-SHA512 or PLAINTEXT"},
+			},
+		},
+		// The endpoints are the connection's own fields.
+		OAuth1:    &OAuth1Config{},
+		IconEmoji: "🔏",
+	},
 
 	// ─── RAG: embedding providers and vector databases (vector.* nodes) ────────
 
