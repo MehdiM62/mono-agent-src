@@ -50,7 +50,7 @@ var $input = {
   params: {}
 };
 var $json = items.length ? items[0].json : {};
-var $runIndex = 0;
+var $runIndex = globalThis.$runIndex || 0;
 var $itemIndex = 0;
 var console = { log: function () {}, info: function () {}, warn: function () {}, error: function () {}, debug: function () {} };
 var $ = function (name) {

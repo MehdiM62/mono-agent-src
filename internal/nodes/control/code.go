@@ -21,6 +21,7 @@ import (
 //	    - $json: first item's JSON map (shorthand)
 //	    - $('Node Name'): that node's output, with $input's accessors
 //	    - $execution: id, resumeUrl and resumeFormUrl; $workflow: id
+//	    - $runIndex: the node's run in a loop (0 on the first pass)
 //	    The code must return an array of objects (or a single object), or
 //	    a promise of one; a top-level return or await runs the code as an
 //	    async function body.
@@ -102,6 +103,9 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 	}
 	if err := rt.Set("$workflow", map[string]interface{}{"id": input.WorkflowID}); err != nil {
 		return nil, fmt.Errorf("code node: failed to set $workflow: %w", err)
+	}
+	if err := rt.Set("$runIndex", input.RunIndex); err != nil {
+		return nil, fmt.Errorf("code node: failed to set $runIndex: %w", err)
 	}
 
 	// Enforce the timeout via goja's interrupt mechanism.
