@@ -1,8 +1,7 @@
-package main
+package people
 
 import (
 	"encoding/json"
-	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,7 +15,7 @@ import (
 // newReviewCLITestDB seeds a migrated DB with two people awaiting review
 // and returns a config pointing at it. HOME is isolated so the workflow
 // file store is empty.
-func newReviewCLITestDB(t *testing.T) (*globalConfig, *storage.Database) {
+func newReviewCLITestDB(t *testing.T) (*testConfig, *storage.Database) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	dbPath := filepath.Join(t.TempDir(), "review.db")
@@ -34,29 +33,18 @@ func newReviewCLITestDB(t *testing.T) (*globalConfig, *storage.Database) {
 		}
 	}
 	t.Cleanup(func() { db.Close() })
-	return &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}, db
+	return &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}, db
 }
 
-func runReview(t *testing.T, cfg *globalConfig, args ...string) (string, error) {
+func runReview(t *testing.T, cfg *testConfig, args ...string) (string, error) {
 	t.Helper()
 	var err error
 	out := captureStdout(t, func() {
-		cmd := newPeopleReviewCmd(cfg)
+		cmd := testDeps(cfg).newPeopleReviewCmd()
 		cmd.SetArgs(args)
 		err = cmd.Execute()
 	})
 	return out, err
-}
-
-func exitCode(err error) int {
-	var ce *cliError
-	if errors.As(err, &ce) {
-		return ce.code
-	}
-	if err != nil {
-		return 1
-	}
-	return 0
 }
 
 func category(t *testing.T, db *storage.Database, id string) string {

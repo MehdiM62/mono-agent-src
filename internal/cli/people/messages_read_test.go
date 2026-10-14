@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"encoding/json"
@@ -27,11 +27,11 @@ func TestPeopleMessagesReadUnread(t *testing.T) {
 		}
 	}
 	db.Close()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}
+	cfg := &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}
 	run := func(args ...string) (string, error) {
 		var err error
 		out := captureStdout(t, func() {
-			c := newPeopleMessagesCmd(cfg)
+			c := testDeps(cfg).newPeopleMessagesCmd()
 			c.SetArgs(args)
 			err = c.Execute()
 		})

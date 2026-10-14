@@ -1,9 +1,10 @@
-package main
+package people
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newPeopleMessagesCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "messages",
 		Aliases: []string{"history"},
@@ -20,25 +21,25 @@ func newPeopleMessagesCmd(cfg *globalConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		newPeopleMessagesAddCmd(cfg),
-		newPeopleMessagesListCmd(cfg),
-		newPeopleMessagesShowCmd(cfg),
-		newPeopleMessagesImportCmd(cfg),
-		newPeopleMessagesAllCmd(cfg),
-		newPeopleMessagesComposeCmd(cfg),
-		newPeopleMessagesReplyCmd(cfg),
-		newPeopleMessagesDraftsCmd(cfg),
-		newPeopleMessagesSendDraftCmd(cfg),
-		newPeopleMessagesRejectDraftCmd(cfg),
-		newPeopleMessagesClassifyCmd(cfg),
-		newPeopleMessagesReadCmd(cfg),
-		newPeopleMessagesUnreadCmd(cfg),
+		d.newPeopleMessagesAddCmd(),
+		d.newPeopleMessagesListCmd(),
+		d.newPeopleMessagesShowCmd(),
+		d.newPeopleMessagesImportCmd(),
+		d.newPeopleMessagesAllCmd(),
+		d.newPeopleMessagesComposeCmd(),
+		d.newPeopleMessagesReplyCmd(),
+		d.newPeopleMessagesDraftsCmd(),
+		d.newPeopleMessagesSendDraftCmd(),
+		d.newPeopleMessagesRejectDraftCmd(),
+		d.newPeopleMessagesClassifyCmd(),
+		d.newPeopleMessagesReadCmd(),
+		d.newPeopleMessagesUnreadCmd(),
 	)
 
 	return cmd
 }
 
-func newPeopleMessagesAllCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesAllCmd() *cobra.Command {
 	var (
 		source string
 		limit  int
@@ -52,13 +53,13 @@ func newPeopleMessagesAllCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli people messages all --source outlook --limit 50 --json
   monoagentcli people messages all --unread`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
-			messages, err := db.ListAllPersonMessagesFiltered(cfg.ProfileID, source, unread, limit, 0)
+			messages, err := db.ListAllPersonMessagesFiltered(d.ProfileID(), source, unread, limit, 0)
 			if err != nil {
 				return fmt.Errorf("listing messages: %w", err)
 			}
@@ -66,7 +67,7 @@ func newPeopleMessagesAllCmd(cfg *globalConfig) *cobra.Command {
 				messages = []*storage.PersonMessageWithPerson{} // [] not null in --json
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(messages)
@@ -77,7 +78,7 @@ func newPeopleMessagesAllCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			table := newPlainTable(os.Stdout, []string{"ID", "From", "Source", "Direction", "Subject", "Files", "Sent At"}, nil)
+			table := d.NewTable(os.Stdout, []string{"ID", "From", "Source", "Direction", "Subject", "Files", "Sent At"}, nil)
 
 			for _, m := range messages {
 				shortID := m.ID
@@ -115,7 +116,7 @@ func newPeopleMessagesAllCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newPeopleMessagesAddCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesAddCmd() *cobra.Command {
 	var (
 		source     string
 		externalID string
@@ -140,7 +141,7 @@ func newPeopleMessagesAddCmd(cfg *globalConfig) *cobra.Command {
 				direction = "inbound"
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -163,11 +164,11 @@ func newPeopleMessagesAddCmd(cfg *globalConfig) *cobra.Command {
 				msg.SentAt = t
 			}
 
-			if err := db.UpsertPersonMessage(msg, cfg.ProfileID); err != nil {
+			if err := db.UpsertPersonMessage(msg, d.ProfileID()); err != nil {
 				return fmt.Errorf("saving message: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(msg)
 			}
 			fmt.Fprintf(os.Stdout, "Saved message %s for person %s.\n", msg.ID, msg.PersonID)
@@ -228,7 +229,7 @@ func parseMessageMetadata(raw string) messageMetadata {
 // newPeopleMessagesShowCmd prints one message in full, together with its
 // provenance and the on-disk path of every attachment — everything a reader
 // (human or agent) needs to judge the message and open what came with it.
-func newPeopleMessagesShowCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesShowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <message-id>",
 		Short: "Show one message in full, with its source and attachment file paths",
@@ -239,13 +240,13 @@ func newPeopleMessagesShowCmd(cfg *globalConfig) *cobra.Command {
 		Example: `  monoagentcli people messages show 3f2a91c0
   monoagentcli --json people messages show 3f2a91c0`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
-			if err := assertMessageInProfile(db.DB, args[0], cfg.ProfileID); err != nil {
+			if err := assertMessageInProfile(db.DB, args[0], d.ProfileID()); err != nil {
 				return err
 			}
 			msg, err := db.GetPersonMessage(args[0])
@@ -256,7 +257,7 @@ func newPeopleMessagesShowCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("message %s not found", args[0])
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(msg)
@@ -334,7 +335,7 @@ func newPeopleMessagesShowCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newPeopleMessagesListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesListCmd() *cobra.Command {
 	var (
 		source string
 		limit  int
@@ -349,10 +350,10 @@ func newPeopleMessagesListCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli people messages list abc123 --source outlook --json
   monoagentcli people messages list abc123 --intent lead`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if intent != "" && !slicesContains(inboxIntents, intent) {
-				return errInvalidInput("--intent must be one of %s, got %q", strings.Join(inboxIntents, ", "), intent)
+			if intent != "" && !slices.Contains(inboxIntents, intent) {
+				return d.InvalidInput("--intent must be one of %s, got %q", strings.Join(inboxIntents, ", "), intent)
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -362,7 +363,7 @@ func newPeopleMessagesListCmd(cfg *globalConfig) *cobra.Command {
 			if intent != "" {
 				fetch = maxMessagesScan // filter first, then apply --limit
 			}
-			messages, err := db.ListPersonMessages(args[0], source, cfg.ProfileID, fetch, 0)
+			messages, err := db.ListPersonMessages(args[0], source, d.ProfileID(), fetch, 0)
 			if err != nil {
 				return fmt.Errorf("listing messages: %w", err)
 			}
@@ -373,7 +374,7 @@ func newPeopleMessagesListCmd(cfg *globalConfig) *cobra.Command {
 				messages = []*storage.PersonMessage{} // [] not null in --json
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(messages)
@@ -384,7 +385,7 @@ func newPeopleMessagesListCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			table := newPlainTable(os.Stdout, []string{"ID", "Source", "Direction", "Sender", "Subject", "Files", "Sent At"}, nil)
+			table := d.NewTable(os.Stdout, []string{"ID", "Source", "Direction", "Sender", "Subject", "Files", "Sent At"}, nil)
 
 			for _, m := range messages {
 				shortID := m.ID
@@ -418,7 +419,7 @@ func newPeopleMessagesListCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newPeopleMessagesImportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesImportCmd() *cobra.Command {
 	var (
 		filePath string
 		source   string
@@ -437,7 +438,7 @@ func newPeopleMessagesImportCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("--source is required")
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -469,7 +470,7 @@ func newPeopleMessagesImportCmd(cfg *globalConfig) *cobra.Command {
 						msg.SentAt = t
 					}
 				}
-				if err := db.UpsertPersonMessage(msg, cfg.ProfileID); err != nil {
+				if err := db.UpsertPersonMessage(msg, d.ProfileID()); err != nil {
 					return fmt.Errorf("importing message: %w", err)
 				}
 				imported++

@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"database/sql"
@@ -12,20 +12,20 @@ import (
 
 // newPeopleMessagesDraftsCmd lists draft messages awaiting confirmation —
 // the same set shown in the GUI's Human in Loop page.
-func newPeopleMessagesDraftsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesDraftsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "drafts",
 		Short: "List draft messages awaiting confirmation (also shown in the GUI's Human in Loop page)",
 		Example: `  monoagentcli people messages drafts
   monoagentcli people messages drafts --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
-			drafts, err := db.ListPersonMessagesByStatus(cfg.ProfileID, "draft")
+			drafts, err := db.ListPersonMessagesByStatus(d.ProfileID(), "draft")
 			if err != nil {
 				return fmt.Errorf("listing drafts: %w", err)
 			}
@@ -33,7 +33,7 @@ func newPeopleMessagesDraftsCmd(cfg *globalConfig) *cobra.Command {
 				drafts = []*storage.PersonMessageWithPerson{}
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(drafts)
@@ -44,7 +44,7 @@ func newPeopleMessagesDraftsCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			table := newPlainTable(os.Stdout, []string{"ID", "To", "Subject", "Created"}, nil)
+			table := d.NewTable(os.Stdout, []string{"ID", "To", "Subject", "Created"}, nil)
 			for _, d := range drafts {
 				to := d.PersonFullName
 				if to == "" {
@@ -65,13 +65,13 @@ func newPeopleMessagesDraftsCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newPeopleMessagesSendDraftCmd sends a previously-created draft as-is.
-func newPeopleMessagesSendDraftCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesSendDraftCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "send-draft <message-id>",
 		Short: "Send a previously-created draft message",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -84,7 +84,7 @@ func newPeopleMessagesSendDraftCmd(cfg *globalConfig) *cobra.Command {
 			if msg == nil {
 				return fmt.Errorf("message %s not found", args[0])
 			}
-			if err := assertMessageInProfile(db.DB, args[0], cfg.ProfileID); err != nil {
+			if err := assertMessageInProfile(db.DB, args[0], d.ProfileID()); err != nil {
 				return err
 			}
 			if msg.Status != "draft" {
@@ -103,7 +103,7 @@ func newPeopleMessagesSendDraftCmd(cfg *globalConfig) *cobra.Command {
 			if err := db.UpdatePersonMessageStatus(args[0], "sending"); err != nil {
 				return fmt.Errorf("updating status: %w", err)
 			}
-			outputs, err := runOutlookNode(cmd, cfg, db.DB, connectionID, config)
+			outputs, err := d.runOutlookNode(cmd, db.DB, connectionID, config)
 			if err != nil {
 				if rErr := db.UpdatePersonMessageStatus(args[0], "draft"); rErr != nil {
 					return fmt.Errorf("%w (restoring draft status also failed: %v)", err, rErr)
@@ -126,7 +126,7 @@ func newPeopleMessagesSendDraftCmd(cfg *globalConfig) *cobra.Command {
 					msg.ExternalID = newID
 				}
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(msg)
 			}
 			fmt.Fprintf(os.Stdout, "Sent draft %s.\n", args[0])
@@ -138,13 +138,13 @@ func newPeopleMessagesSendDraftCmd(cfg *globalConfig) *cobra.Command {
 
 // newPeopleMessagesRejectDraftCmd discards a draft: best-effort removes it
 // from the mailbox's Drafts folder too, then deletes the local history row.
-func newPeopleMessagesRejectDraftCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleMessagesRejectDraftCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "reject-draft <message-id>",
 		Short: "Discard a draft message",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -157,7 +157,7 @@ func newPeopleMessagesRejectDraftCmd(cfg *globalConfig) *cobra.Command {
 			if msg == nil {
 				return fmt.Errorf("message %s not found", args[0])
 			}
-			if err := assertMessageInProfile(db.DB, args[0], cfg.ProfileID); err != nil {
+			if err := assertMessageInProfile(db.DB, args[0], d.ProfileID()); err != nil {
 				return err
 			}
 			// Only drafts may be discarded: without this guard reject-draft
@@ -168,13 +168,13 @@ func newPeopleMessagesRejectDraftCmd(cfg *globalConfig) *cobra.Command {
 			}
 			if connectionID, cErr := draftMessageConnectionID(msg); cErr == nil && msg.ExternalID != "" {
 				config := map[string]interface{}{"operation": "delete_message", "message_id": msg.ExternalID}
-				_, _ = runOutlookNode(cmd, cfg, db.DB, connectionID, config) // best-effort
+				_, _ = d.runOutlookNode(cmd, db.DB, connectionID, config) // best-effort
 			}
 
 			if err := db.DeletePersonMessage(args[0]); err != nil {
 				return fmt.Errorf("deleting message: %w", err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printReviewJSON(map[string]string{"id": args[0], "status": "discarded"})
 			}
 			fmt.Fprintf(os.Stdout, "Discarded draft %s.\n", args[0])

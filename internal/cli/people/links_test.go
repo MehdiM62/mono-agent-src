@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
-func newLinksCLITestDB(t *testing.T) (*globalConfig, *storage.Database) {
+func newLinksCLITestDB(t *testing.T) (*testConfig, *storage.Database) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("TYPESAFE_API_KEY", "test-key")
@@ -32,7 +32,7 @@ func newLinksCLITestDB(t *testing.T) (*globalConfig, *storage.Database) {
 			t.Fatal(err)
 		}
 	}
-	return &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}, db
+	return &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}, db
 }
 
 func TestPeopleLinksSuggestDisabled(t *testing.T) {

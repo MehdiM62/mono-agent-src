@@ -1,9 +1,7 @@
-package main
+package people
 
 import (
 	"bytes"
-	"io"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -42,37 +40,11 @@ func newStatusCLITestDB(t *testing.T) string {
 	return dbPath
 }
 
-// captureStdout redirects os.Stdout for the duration of fn and returns
-// everything written to it — the `set`/`get`/`history` commands print
-// human-readable output directly via fmt.Fprintf(os.Stdout, ...), not
-// through cobra's OutOrStdout(), so this is the only way to observe it.
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("os.Pipe: %v", err)
-	}
-	orig := os.Stdout
-	os.Stdout = w
-	defer func() { os.Stdout = orig }()
-
-	fn()
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("closing pipe writer: %v", err)
-	}
-	out, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatalf("reading captured stdout: %v", err)
-	}
-	return string(out)
-}
-
 func TestPeopleStatusSetAndGet(t *testing.T) {
 	dbPath := newStatusCLITestDB(t)
-	cfg := &globalConfig{DBPath: dbPath, ProfileID: "default"}
+	cfg := &testConfig{DBPath: dbPath, ProfileID: "default"}
 
-	setCmd := newPeopleStatusSetCmd(cfg)
+	setCmd := testDeps(cfg).newPeopleStatusSetCmd()
 	setCmd.SetArgs([]string{"p1", "Just closed the Q1 deal"})
 	setOut := captureStdout(t, func() {
 		if err := setCmd.Execute(); err != nil {
@@ -83,7 +55,7 @@ func TestPeopleStatusSetAndGet(t *testing.T) {
 		t.Errorf("set output = %q, want it to mention 'Posted status update'", setOut)
 	}
 
-	getCmd := newPeopleStatusGetCmd(cfg)
+	getCmd := testDeps(cfg).newPeopleStatusGetCmd()
 	getCmd.SetArgs([]string{"p1"})
 	getOut := captureStdout(t, func() {
 		if err := getCmd.Execute(); err != nil {
@@ -97,9 +69,9 @@ func TestPeopleStatusSetAndGet(t *testing.T) {
 
 func TestPeopleStatusGetNoneSetYet(t *testing.T) {
 	dbPath := newStatusCLITestDB(t)
-	cfg := &globalConfig{DBPath: dbPath, ProfileID: "default"}
+	cfg := &testConfig{DBPath: dbPath, ProfileID: "default"}
 
-	getCmd := newPeopleStatusGetCmd(cfg)
+	getCmd := testDeps(cfg).newPeopleStatusGetCmd()
 	getCmd.SetArgs([]string{"p1"})
 	out := captureStdout(t, func() {
 		if err := getCmd.Execute(); err != nil {
@@ -113,17 +85,17 @@ func TestPeopleStatusGetNoneSetYet(t *testing.T) {
 
 func TestPeopleStatusHistoryNewestFirst(t *testing.T) {
 	dbPath := newStatusCLITestDB(t)
-	cfg := &globalConfig{DBPath: dbPath, ProfileID: "default"}
+	cfg := &testConfig{DBPath: dbPath, ProfileID: "default"}
 
 	for _, text := range []string{"first update", "second update"} {
-		setCmd := newPeopleStatusSetCmd(cfg)
+		setCmd := testDeps(cfg).newPeopleStatusSetCmd()
 		setCmd.SetArgs([]string{"p1", text})
 		if err := setCmd.Execute(); err != nil {
 			t.Fatalf("set(%q): %v", text, err)
 		}
 	}
 
-	historyCmd := newPeopleStatusHistoryCmd(cfg)
+	historyCmd := testDeps(cfg).newPeopleStatusHistoryCmd()
 	historyCmd.SetArgs([]string{"p1"})
 	out := captureStdout(t, func() {
 		if err := historyCmd.Execute(); err != nil {
@@ -154,16 +126,16 @@ func TestPeopleStatusWrongProfile(t *testing.T) {
 	// p1 belongs to "default". Try to post a status for it while the active
 	// profile is "work" — must fail, not silently attach to the wrong
 	// profile's person.
-	wrongProfileCfg := &globalConfig{DBPath: dbPath, ProfileID: "work"}
-	setCmd := newPeopleStatusSetCmd(wrongProfileCfg)
+	wrongProfileCfg := &testConfig{DBPath: dbPath, ProfileID: "work"}
+	setCmd := testDeps(wrongProfileCfg).newPeopleStatusSetCmd()
 	setCmd.SetArgs([]string{"p1", "should not be allowed"})
 	if err := setCmd.Execute(); err == nil {
 		t.Fatal("set: expected an error when person does not belong to the active profile, got nil")
 	}
 
 	// Now post a real status for p1 under its correct profile ("default").
-	correctCfg := &globalConfig{DBPath: dbPath, ProfileID: "default"}
-	okSetCmd := newPeopleStatusSetCmd(correctCfg)
+	correctCfg := &testConfig{DBPath: dbPath, ProfileID: "default"}
+	okSetCmd := testDeps(correctCfg).newPeopleStatusSetCmd()
 	okSetCmd.SetArgs([]string{"p1", "visible only in default"})
 	if err := okSetCmd.Execute(); err != nil {
 		t.Fatalf("set under correct profile: %v", err)
@@ -171,7 +143,7 @@ func TestPeopleStatusWrongProfile(t *testing.T) {
 
 	// Reading it back "as work" (the wrong profile for p1) must show nothing,
 	// not the status just posted under "default".
-	getCmd := newPeopleStatusGetCmd(wrongProfileCfg)
+	getCmd := testDeps(wrongProfileCfg).newPeopleStatusGetCmd()
 	getCmd.SetArgs([]string{"p1"})
 	out := captureStdout(t, func() {
 		if err := getCmd.Execute(); err != nil {

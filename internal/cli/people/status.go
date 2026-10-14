@@ -1,4 +1,4 @@
-package main
+package people
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 // manually-written, freeform status update per person (e.g. "Just closed the
 // Q1 deal") — an append-only personal-CRM-style log, entirely unrelated to
 // the draft/sent/failed status tracked by `people messages`.
-func newPeopleStatusCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Manage a person's status updates (freeform notes, e.g. \"Just closed the deal\")",
@@ -21,33 +21,33 @@ func newPeopleStatusCmd(cfg *globalConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		newPeopleStatusSetCmd(cfg),
-		newPeopleStatusGetCmd(cfg),
-		newPeopleStatusHistoryCmd(cfg),
+		d.newPeopleStatusSetCmd(),
+		d.newPeopleStatusGetCmd(),
+		d.newPeopleStatusHistoryCmd(),
 	)
 
 	return cmd
 }
 
-func newPeopleStatusSetCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleStatusSetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "set <person-id> <text>",
 		Short:   "Post a new status update for a person",
 		Args:    cobra.ExactArgs(2),
 		Example: `  monoagentcli people status set abc123 "Just closed the Q1 deal"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
-			update, err := db.AddPersonStatusUpdate(args[0], cfg.ProfileID, args[1])
+			update, err := db.AddPersonStatusUpdate(args[0], d.ProfileID(), args[1])
 			if err != nil {
 				return fmt.Errorf("saving status update: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(update)
@@ -58,25 +58,25 @@ func newPeopleStatusSetCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newPeopleStatusGetCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleStatusGetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "get <person-id>",
 		Short:   "Show a person's latest status update",
 		Args:    cobra.ExactArgs(1),
 		Example: `  monoagentcli people status get abc123`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
-			update, err := db.GetLatestPersonStatusUpdate(args[0], cfg.ProfileID)
+			update, err := db.GetLatestPersonStatusUpdate(args[0], d.ProfileID())
 			if err != nil {
 				return fmt.Errorf("getting status update: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(update)
@@ -91,7 +91,7 @@ func newPeopleStatusGetCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newPeopleStatusHistoryCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newPeopleStatusHistoryCmd() *cobra.Command {
 	var limit int
 
 	cmd := &cobra.Command{
@@ -101,13 +101,13 @@ func newPeopleStatusHistoryCmd(cfg *globalConfig) *cobra.Command {
 		Example: `  monoagentcli people status history abc123
   monoagentcli people status history abc123 --limit 10 --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 
-			updates, err := db.ListPersonStatusUpdates(args[0], cfg.ProfileID, limit)
+			updates, err := db.ListPersonStatusUpdates(args[0], d.ProfileID(), limit)
 			if err != nil {
 				return fmt.Errorf("listing status updates: %w", err)
 			}
@@ -115,7 +115,7 @@ func newPeopleStatusHistoryCmd(cfg *globalConfig) *cobra.Command {
 				updates = []*storage.PersonStatusUpdate{}
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(updates)
@@ -126,7 +126,7 @@ func newPeopleStatusHistoryCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			table := newPlainTable(os.Stdout, []string{"ID", "Text", "Posted At"}, nil)
+			table := d.NewTable(os.Stdout, []string{"ID", "Text", "Posted At"}, nil)
 			for _, u := range updates {
 				shortID := u.ID
 				if len(shortID) > 8 {
