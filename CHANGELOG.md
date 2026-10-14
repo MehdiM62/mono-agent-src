@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **n8n parity and import.** `workflow import --from n8n` (and `workflow convert`) brings in n8n workflows with an unmapped-node report that runs `workflow validate`. About 458 n8n node types and 3,650 operations are covered, mostly through declarative API packages (`apipkg.v1`, also generated from OpenAPI with `integration import-openapi`). All 115 n8n trigger types import, and 63 of 71 vendor webhooks register themselves when a workflow is activated. A short list of n8n-internal or discontinued nodes stays unsupported, each with a reason.
+- **Engine building blocks:**
+  - n8n-style loops through `core.split_in_batches`
+  - `core.wait` that survives restarts (long waits pause and free their slot)
+  - sub-workflows (`core.execute_workflow`)
+  - error workflows (`trigger.error`)
+  - a REJECTED status and output for human-in-the-loop rejections
+  - version history with pinned runs
+  - opt-in parallel branches, schedule overlap policy, node timeouts and per-item retries
+  - queue, database, SSE and polling triggers in the daemon
+  - send-and-wait replies, form triggers and pages, and webhook response modes
+  - `workflow retry <execution-id>`
+- **Agent surfaces:**
+  - MCP authoring tools (connect, disconnect, update, delete, save, search, templates, node run)
+  - saved workflows served as `wf_` MCP tools
+  - an `mcp.call` node
+  - `agent.ask` with JSON output schemas, `runtime: auto` and per-item concurrency
+  - conversation memory, guardrails, AI sub-nodes (model, memory, output parser, tools) and retrieval chains
+  - `workflow generate "<description>"`
+  - schema-aware `workflow validate` with error classes and fix hints
+  - run memory in the knowledge graph
+  - Jev selector repairs that stick
+  - an agent eval suite (`scripts/evals`)
+- **Integrations:**
+  - full `http.request` options, including saved-connection auth, pagination and cURL import, plus `http.graphql`
+  - one Google and one Microsoft account for all their nodes
+  - Google Calendar, Docs and Forms; Microsoft Excel, Teams and OneDrive
+  - form and lead intake nodes
+  - vector stores and embeddings
+  - recorder capture of a site's API calls into HTTP presets, and recorded replay with an AI fallback
+- **Desktop app and CLI:**
+  - a first-run checklist, and extension pairing from the app
+  - editor support for loop back-edges, AI ports and a visual form builder
+  - clearer run errors
+  - `extension install`, and installing without sudo
+  - one shared logger with `--log-level` and a run id across processes
+  - JSON errors under `--json`
+
+### Changed
+- **`doctor` registers the MCP server with `--allow-mutations`** for Claude Code, Codex, Gemini and opencode, so connected agents can build and run workflows.
+- **Each run executes exactly once.** A run waiting for a free slot could be picked up twice; the daemon also follows activations and edits made from the app or CLI without a restart.
+- **Old operation and field names keep working** through aliases where nodes moved to n8n-style names.
+- **The database is snapshotted before pending migrations**, and `doctor` reports a database newer than the binary. `~/.monoagent` and its files are created private to your user.
+- **The task board no longer limits agents to 20 new tasks an hour.**
+- **`workflow validate` checks node settings against each node's schema.** Workflows with a missing required field, an unknown option or a dangling `$node[...]` reference now fail validation where they used to pass. Saving, activating and running are unchanged; scripts that check validate's exit code may start failing.
+- **`install.sh` installs to `~/.local/bin` when `/usr/local/bin` needs sudo**, and warns if an older copy elsewhere on your PATH would run instead.
+
 ### Security
 - **Go standard library and `golang.org/x/net` updated.** The pinned toolchain moves from go1.26.6 to go1.26.9 and `golang.org/x/net` from v0.59.0 to v0.60.0, which fixes 12 standard-library advisories (net/http, crypto/tls, mime/multipart, html/template, os; GO-2026-6599 through GO-2026-6617) that `govulncheck` reported against released binaries. The vulnerability scan is clean again.
 

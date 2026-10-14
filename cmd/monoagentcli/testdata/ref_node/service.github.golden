@@ -17,6 +17,7 @@
   Fields (every operation):
     credential_id        GitHub Account · credential_picker · required
     operation            Operation · select · required · default="list_repos"
+                         shown when resource is (not set)
     resource             Resource · select · default="" · options: |issue|file|organization|pullRequest|release|repository|review|user|workflow
                          Leave empty for the built-in operations; pick a resource for the GitHub API package operations.
     operation            Issue Operation · select · required · default="create"

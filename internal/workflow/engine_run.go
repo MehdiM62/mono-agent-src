@@ -255,7 +255,7 @@ func (e *WorkflowEngine) TriggerWorkflow(ctx context.Context, workflowID string,
 
 	if err := e.queue.Enqueue(req); err != nil {
 		e.persistExecutionFinished(e.logger, exec.ID, "FAILED", "queue full")
-		return exec.ID, fmt.Errorf("engine: trigger workflow: %w", ErrQueueFull)
+		return exec.ID, fmt.Errorf("engine: %w", ErrQueueFull)
 	}
 
 	e.logger.Info().
@@ -292,16 +292,16 @@ func (e *WorkflowEngine) TriggerWorkflowPersistOnly(ctx context.Context, workflo
 func (e *WorkflowEngine) newManualExecution(ctx context.Context, workflowID string, data map[string]interface{}, pid int) (*WorkflowExecution, error) {
 	wf, err := e.store.GetWorkflow(ctx, workflowID)
 	if err != nil {
-		return nil, fmt.Errorf("engine: trigger workflow: %w", err)
+		return nil, fmt.Errorf("engine: %w", err)
 	}
 	if wf == nil {
-		return nil, fmt.Errorf("engine: trigger workflow: %w", ErrWorkflowNotFound)
+		return nil, fmt.Errorf("engine: %w", ErrWorkflowNotFound)
 	}
 	if err := e.checkWorkflowProfile(wf); err != nil {
-		return nil, fmt.Errorf("engine: trigger workflow: %w", err)
+		return nil, fmt.Errorf("engine: %w", err)
 	}
 	if !wf.IsActive {
-		return nil, fmt.Errorf("engine: trigger workflow: %w", ErrWorkflowInactive)
+		return nil, fmt.Errorf("engine: %w", ErrWorkflowInactive)
 	}
 
 	if data == nil {
@@ -319,7 +319,7 @@ func (e *WorkflowEngine) newManualExecution(ctx context.Context, workflowID stri
 	}
 
 	if err := e.store.CreateExecution(ctx, exec); err != nil {
-		return nil, fmt.Errorf("engine: trigger workflow: create execution: %w", err)
+		return nil, fmt.Errorf("engine: create execution: %w", err)
 	}
 	return exec, nil
 }

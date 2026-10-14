@@ -28,6 +28,15 @@ type PaletteNode struct {
 	CategoryLabel string `json:"category_label,omitempty"`
 }
 
+// brandWords spells the words of derived labels that are names or
+// acronyms the way their owners do ("youtube" reads "YouTube", not "Youtube").
+var brandWords = map[string]string{
+	"amqp": "AMQP", "cratedb": "CrateDB", "devto": "Dev.to", "graphql": "GraphQL",
+	"ical": "iCal", "jwt": "JWT", "ldap": "LDAP", "mqtt": "MQTT", "mssql": "Microsoft SQL",
+	"producthunt": "Product Hunt", "questdb": "QuestDB", "rabbitmq": "RabbitMQ",
+	"timescaledb": "TimescaleDB", "totp": "TOTP", "youtube": "YouTube",
+}
+
 // Palette sections (PaletteNode.Section).
 const (
 	PaletteSectionWebAutomation = "web_automation"
@@ -116,6 +125,7 @@ func Palette(db *sql.DB, includeDeprecated bool) map[string][]PaletteNode {
 		},
 		"http": []PaletteNode{
 			mkNode("http.request", "HTTP Request", "http", "Make an HTTP/S request"),
+			mkNode("http.graphql", "GraphQL", "http", "Send a GraphQL query or mutation"),
 			mkNode("http.ftp", "FTP", "http", "Transfer files via FTP/SFTP"),
 			mkNode("http.ssh", "SSH", "http", "Execute commands over SSH"),
 		},
@@ -295,7 +305,9 @@ func Palette(db *sql.DB, includeDeprecated bool) map[string][]PaletteNode {
 	title := func(s string) string {
 		words := strings.Split(strings.ReplaceAll(s, "_", " "), " ")
 		for i, w := range words {
-			if w != "" {
+			if b, ok := brandWords[w]; ok {
+				words[i] = b
+			} else if w != "" {
 				words[i] = strings.ToUpper(w[:1]) + w[1:]
 			}
 		}

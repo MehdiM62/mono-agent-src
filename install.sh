@@ -463,6 +463,16 @@ case ":${PATH}:" in
     ;;
 esac
 
+# An older copy elsewhere on PATH (e.g. a previous sudo install into
+# /usr/local/bin) would shadow this one.
+found="$(command -v "${BIN}" 2>/dev/null || true)"
+if [ -n "$found" ] && [ "$found" != "${INSTALL_DIR}/${BIN}" ]; then
+  echo
+  echo "Note: ${found} comes first on your PATH and is not the copy just installed."
+  echo "Remove it (it may need sudo) or put ${INSTALL_DIR} earlier on your PATH."
+  echo
+fi
+
 echo "Verify with:  ${INSTALL_DIR}/${BIN} version"
 echo "Sign in to monoes.me (required; nothing else works before it):  ${INSTALL_DIR}/${BIN} account login"
 echo "Account and offline behavior:  ${INSTALL_DIR}/${BIN} ref account"
