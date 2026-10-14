@@ -1,4 +1,4 @@
-package main
+package action
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
-	"github.com/monoes/mono-agent/internal/action"
+	actiondef "github.com/monoes/mono-agent/internal/action"
 	"github.com/monoes/mono-agent/internal/automation"
 	"github.com/monoes/mono-agent/internal/statedir"
 	"github.com/spf13/cobra"
@@ -31,7 +31,7 @@ func userCaptureDir() (string, error) {
 	return dir, nil
 }
 
-func newActionTemplateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newActionTemplateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "template",
 		Short: "Manage action templates for new platforms",
@@ -46,8 +46,8 @@ Workflow:
 
 	cmd.AddCommand(
 		newActionTemplateCaptureCmd(),
-		newActionTemplateInstallCmd(cfg),
-		newActionTemplateListCmd(cfg),
+		d.newActionTemplateInstallCmd(),
+		d.newActionTemplateListCmd(),
 	)
 
 	return cmd
@@ -141,7 +141,7 @@ func newActionTemplateCaptureCmd() *cobra.Command {
 // newActionTemplateInstallCmd is the deprecated alias kept for one release
 // (spec §5.2): the single ActionDef JSON is wrapped into a generated local
 // package (id = its automation/platform field) and merged via AddAction.
-func newActionTemplateInstallCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newActionTemplateInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "install <file>",
 		Short:   "Install an ActionDef JSON (deprecated: use 'action import' or 'automation install')",
@@ -149,7 +149,7 @@ func newActionTemplateInstallCmd(cfg *globalConfig) *cobra.Command {
 		Example: `  monoagent action template install ~/Downloads/example_scrape_profile.json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(cmd.ErrOrStderr(), "note: 'action template install' is deprecated; use 'monoagentcli action import <file>' (or 'automation install' for packages)\n")
-			reg, err := openAutomationRegistry()
+			reg, err := d.Install.OpenRegistry()
 			if err != nil {
 				return err
 			}
@@ -159,15 +159,15 @@ func newActionTemplateInstallCmd(cfg *globalConfig) *cobra.Command {
 			}
 			defer cleanup()
 			res, err := addActions(reg, src.Manifest.ID, src, automation.InstallOptions{Source: automation.SourceLocal})
-			if err = withInstallResult(err, res); err != nil {
-				printFailedIssues(cmd, cfg, err)
+			if err = d.Install.WithInstallResult(err, res); err != nil {
+				d.Install.PrintFailedIssues(cmd, err)
 				return err
 			}
 			name := src.Manifest.Actions[0]
 			// Invalidate loader cache so the next node run picks up the new action.
-			action.GetLoader().Invalidate(res.ID, name)
+			actiondef.GetLoader().Invalidate(res.ID, name)
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.Install.JSONOutput() {
 				return writeJSONTo(out, res)
 			}
 			fmt.Fprintf(out, "Installed: %s.%s -> %s\n", res.ID, name, res.Dir)
@@ -175,21 +175,21 @@ func newActionTemplateInstallCmd(cfg *globalConfig) *cobra.Command {
 			return nil
 		},
 	}
-	withJSONErrors(cfg, cmd)
+	d.WithJSONErrors(cmd)
 	return cmd
 }
 
 // newActionTemplateListCmd lists the actions of the user's own packages
 // (trust local or recorded), or of every installed package with --all.
 // The node_type/file keys are kept from the pre-package output.
-func newActionTemplateListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newActionTemplateListCmd() *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List the actions of local and recorded automation packages",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, err := openAutomationRegistry()
+			reg, err := d.Install.OpenRegistry()
 			if err != nil {
 				return err
 			}
@@ -224,7 +224,7 @@ func newActionTemplateListCmd(cfg *globalConfig) *cobra.Command {
 				}
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.Install.JSONOutput() {
 				return writeJSONTo(out, entries)
 			}
 			if len(entries) == 0 {
@@ -241,6 +241,6 @@ func newActionTemplateListCmd(cfg *globalConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "Include built-in and imported packages")
-	withJSONErrors(cfg, cmd)
+	d.WithJSONErrors(cmd)
 	return cmd
 }
