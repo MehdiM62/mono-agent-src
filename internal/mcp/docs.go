@@ -65,7 +65,7 @@ Exit codes: 0 ok, 1 general, 2 not-found, 3 invalid-input/validation, 4 auth/con
 	"nodes": `NODE TYPES (category.type; full schemas via the node_schema tool)
 
 Core/control: core.set, core.if, core.switch, core.filter, core.sort,
-  core.limit, core.aggregate, core.merge, core.code,
+  core.limit, core.aggregate, core.merge, core.code, core.noop,
   core.wait (duration, or resume timeInterval/specificTime),
   core.remove_duplicates (within a run or across earlier runs),
   core.split_in_batches (loop: outputs "loop" per batch and "done" at the

@@ -205,6 +205,14 @@ may return a promise, and code with a top-level return or await runs as an
 async function body (n8n style): return $input.all().map(...)`,
 	},
 	{
+		Type:     "core.noop",
+		Category: "core",
+		Short:    "Pass items through unchanged",
+		Config:   `{}`,
+		Inputs:   "any items",
+		Outputs:  "the same items",
+	},
+	{
 		Type:     "core.compare_datasets",
 		Category: "core",
 		Short:    "Compare two datasets and emit differences",
