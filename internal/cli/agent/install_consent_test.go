@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 // --approve-script approves exactly the URL that was shown: a recipe that
 // now names another script is refused, not run.
 func TestScriptConsent(t *testing.T) {
+	t.Parallel()
 	shown := "https://hermes.example/install.sh"
 	r := agentinstall.Recipe{Kind: agentinstall.KindScript, ScriptURL: shown, Shell: "bash"}
 	changed := agentinstall.Recipe{Kind: agentinstall.KindScript, ScriptURL: "https://other.example/install.sh", Shell: "bash"}

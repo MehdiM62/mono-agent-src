@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"bufio"
@@ -72,7 +72,7 @@ func runAgentCLI(t *testing.T, dbPath string, args ...string) (string, error) {
 	t.Helper()
 	var err error
 	out := captureStdout(t, func() {
-		cmd := newAgentCmd(&globalConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+		cmd := NewCommand(testDeps(dbPath, true))
 		cmd.SetArgs(args)
 		cmd.SilenceErrors, cmd.SilenceUsage = true, true
 		err = cmd.Execute()
@@ -119,7 +119,7 @@ func rosterByRuntime(t *testing.T, dbPath string) map[string]agentroster.Runtime
 // previous costs without calling a model, and a runtime version change
 // makes its models stale (and back in a --stale-only run).
 func TestAgentValidateAllEndToEnd(t *testing.T) {
-	dbPath := newChatCLITestDB(t)
+	dbPath := newTestDBPath(t)
 	versionFile, argsLog := writeRosterMonomind(t)
 	execCalls := func() int {
 		b, _ := os.ReadFile(argsLog)
@@ -217,7 +217,7 @@ func TestAgentValidateAllEndToEnd(t *testing.T) {
 }
 
 func TestAgentValidateAllRejectsAFilter(t *testing.T) {
-	dbPath := newChatCLITestDB(t)
+	dbPath := newTestDBPath(t)
 	writeRosterMonomind(t)
 	if _, err := runAgentCLI(t, dbPath, "validate", "--all", "--runtime", "alpha"); exitCodeFor(err) != 3 {
 		t.Errorf("--all with --runtime = %v, want an invalid-input error", err)
@@ -225,6 +225,7 @@ func TestAgentValidateAllRejectsAFilter(t *testing.T) {
 }
 
 func TestPlanCost(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		plan agentroster.Plan
 		want string
@@ -273,7 +274,7 @@ func TestValidateEmitterShowsSignIn(t *testing.T) {
 
 // `agent roster` shows an auth row's login hint in the table and the JSON.
 func TestAgentRosterShowsLoginHint(t *testing.T) {
-	dbPath := newStatusCLITestDB(t)
+	dbPath := newTestDBPath(t)
 	db, err := storage.NewDatabase(dbPath)
 	if err != nil {
 		t.Fatal(err)
@@ -285,8 +286,8 @@ func TestAgentRosterShowsLoginHint(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, jsonOut := range []bool{false, true} {
-		cfg := &globalConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: jsonOut}
-		cmd := newAgentRosterCmd(cfg)
+		d := testDeps(dbPath, jsonOut)
+		cmd := d.newAgentRosterCmd()
 		cmd.SetArgs([]string{"--no-scan"})
 		out := captureStdout(t, func() {
 			if err := cmd.Execute(); err != nil {

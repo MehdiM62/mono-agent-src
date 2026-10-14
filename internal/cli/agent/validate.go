@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 
 // newAgentValidateCmd tests which runtime × model pairs actually answer
 // (monoes/mono-agent#225) and stores the results as the agent roster.
-func newAgentValidateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAgentValidateCmd() *cobra.Command {
 	var (
 		runtimes, models []string
 		staleOnly, dry   bool
@@ -43,10 +43,10 @@ func newAgentValidateCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli agent validate --stale-only --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if all && (len(runtimes) > 0 || len(models) > 0) {
-				return errInvalidInput("--all tests every installed runtime; drop --runtime/--model or --all")
+				return d.InvalidInput("--all tests every installed runtime; drop --runtime/--model or --all")
 			}
 			if len(models) > 0 && len(runtimes) != 1 {
-				return errInvalidInput("--model needs exactly one --runtime")
+				return d.InvalidInput("--model needs exactly one --runtime")
 			}
 			timeout, err := parseDurationFlag(timeoutRaw)
 			if err != nil {
@@ -58,7 +58,7 @@ func newAgentValidateCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return err
 			}
@@ -85,7 +85,7 @@ func newAgentValidateCmd(cfg *globalConfig) *cobra.Command {
 				plan.Checker = agentroster.CheckerAgentTest
 			}
 			runID := uuid.NewString()
-			emit := validateEmitter(cfg.JSONOutput)
+			emit := validateEmitter(d.JSONOutput())
 			emit(agentroster.Line{Type: "validate.plan", RunID: runID, Plan: &plan})
 			if dry || len(plan.Targets) == 0 {
 				return nil
@@ -187,7 +187,7 @@ func planCost(p *agentroster.Plan) string {
 }
 
 // newAgentRosterCmd prints the stored roster; no model calls.
-func newAgentRosterCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAgentRosterCmd() *cobra.Command {
 	var (
 		readyOnly, noScan bool
 		runtimes          []string
@@ -207,7 +207,7 @@ func newAgentRosterCmd(cfg *globalConfig) *cobra.Command {
   monoagentcli agent roster remove codex gpt-5.5-mini`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return err
 			}
@@ -227,14 +227,14 @@ func newAgentRosterCmd(cfg *globalConfig) *cobra.Command {
 			if q, err := agentroster.LoadQuality(ctx, db.DB, time.Now()); err == nil {
 				agentroster.AttachQuality(roster, q)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printJSON(map[string]any{"v": 1, "runtimes": roster})
 			}
 			if len(roster) == 0 {
 				fmt.Println("No roster yet. Run `monoagentcli agent validate`.")
 				return nil
 			}
-			table := newPlainTable(os.Stdout, []string{"Runtime", "Model", "State", "Status", "Latency", "Validated", "Track record", "Sign in"}, nil)
+			table := d.NewTable(os.Stdout, []string{"Runtime", "Model", "State", "Status", "Latency", "Validated", "Track record", "Sign in"}, nil)
 			for _, rr := range roster {
 				if len(rr.Models) == 0 {
 					table.Append([]string{rr.Runtime, "—", "not validated", "", "", "", "", ""})
@@ -262,7 +262,7 @@ func newAgentRosterCmd(cfg *globalConfig) *cobra.Command {
 	cmd.Flags().BoolVar(&noScan, "no-scan", false, "Skip 'agent scan' (no version or install checks)")
 	cmd.Flags().StringSliceVar(&runtimes, "runtime", nil, "Only these runtimes")
 	cmd.Flags().DurationVar(&maxAge, "max-age", agentroster.DefaultMaxAge, "How long a passing result counts as ready")
-	cmd.AddCommand(newAgentRosterAddCmd(cfg), newAgentRosterRemoveCmd(cfg), newAgentRosterAutoCmd(cfg))
+	cmd.AddCommand(d.newAgentRosterAddCmd(), d.newAgentRosterRemoveCmd(), d.newAgentRosterAutoCmd())
 	return cmd
 }
 
@@ -310,13 +310,13 @@ func filterRoster(in []agentroster.RuntimeRoster, runtimes []string, readyOnly b
 	return out
 }
 
-func newAgentRosterAddCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAgentRosterAddCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "add <runtime> <model>",
 		Short: "Add a model id a runtime doesn't list; it is tested by the next `agent validate`",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return err
 			}
@@ -324,7 +324,7 @@ func newAgentRosterAddCmd(cfg *globalConfig) *cobra.Command {
 			if err := agentroster.AddManual(cmd.Context(), db.DB, args[0], args[1]); err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printJSON(map[string]any{"added": true, "runtime": args[0], "model": args[1]})
 			}
 			fmt.Printf("Added %s/%s. Test it with: monoagentcli agent validate --runtime %s --model %s\n", args[0], args[1], args[0], args[1])
@@ -333,13 +333,13 @@ func newAgentRosterAddCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newAgentRosterRemoveCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAgentRosterRemoveCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <runtime> <model>",
 		Short: "Remove a model from the roster",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return err
 			}
@@ -347,7 +347,7 @@ func newAgentRosterRemoveCmd(cfg *globalConfig) *cobra.Command {
 			if err := agentroster.Remove(cmd.Context(), db.DB, args[0], args[1]); err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printJSON(map[string]any{"removed": true, "runtime": args[0], "model": args[1]})
 			}
 			fmt.Printf("Removed %s/%s\n", args[0], args[1])

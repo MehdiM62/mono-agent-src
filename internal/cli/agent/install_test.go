@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -44,6 +44,7 @@ func (f *fakeMachine) machine() runtimeMachine {
 var yesScript = func(agentinstall.Recipe) bool { return true }
 
 func TestInstallRuntimeFreebuffUsesScanRecipe(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "freebuff")
 	entry := monomind.ScanEntry{ID: "freebuff", InstallHint: "npm install -g freebuff",
@@ -85,6 +86,7 @@ func npmEntry(id string, installed bool, bin, version string) monomind.ScanEntry
 }
 
 func TestInstallRuntimeUnknownID(t *testing.T) {
+	t.Parallel()
 	f := &fakeMachine{before: monomind.ScanResult{Agents: []monomind.ScanEntry{npmEntry("codex", false, "", ""), npmEntry("claude", false, "", "")}}}
 	_, err := installRuntime(context.Background(), f.machine(), "nope", false, yesScript, func(string) {})
 	if exitCodeFor(err) != 2 || !strings.Contains(err.Error(), "known: claude, codex") {
@@ -96,6 +98,7 @@ func TestInstallRuntimeUnknownID(t *testing.T) {
 }
 
 func TestInstallRuntimeAlreadyInstalledIsANoOp(t *testing.T) {
+	t.Parallel()
 	f := &fakeMachine{before: monomind.ScanResult{Agents: []monomind.ScanEntry{npmEntry("claude", true, "/usr/bin/claude", "2.0.1")}}}
 	msg, err := installRuntime(context.Background(), f.machine(), "claude", false, yesScript, func(string) {})
 	if err != nil || len(f.installed) != 0 {
@@ -107,6 +110,7 @@ func TestInstallRuntimeAlreadyInstalledIsANoOp(t *testing.T) {
 }
 
 func TestInstallRuntimeFreshInstall(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "claude")
 	f := &fakeMachine{binDir: dir,
@@ -126,6 +130,7 @@ func TestInstallRuntimeFreshInstall(t *testing.T) {
 // --force on a runtime that came from somewhere else (mise) would npm-install
 // a second copy that the first still shadows: refused before installing.
 func TestInstallRuntimeForceRefusesAShadowedCopy(t *testing.T) {
+	t.Parallel()
 	f := &fakeMachine{binDir: t.TempDir(),
 		before: monomind.ScanResult{Agents: []monomind.ScanEntry{npmEntry("claude", true, "/home/u/.local/share/mise/installs/node/24/bin/claude", "2.0.1")}}}
 	_, err := installRuntime(context.Background(), f.machine(), "claude", true, yesScript, func(string) {})
@@ -140,6 +145,7 @@ func TestInstallRuntimeForceRefusesAShadowedCopy(t *testing.T) {
 // --force where npm installs over the same copy: an update when the
 // version changed, and said plainly when it did not.
 func TestInstallRuntimeForceReportsWhatChanged(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "claude")
 	f := &fakeMachine{binDir: dir,
@@ -158,6 +164,7 @@ func TestInstallRuntimeForceReportsWhatChanged(t *testing.T) {
 }
 
 func TestInstallRuntimeManualIsRefused(t *testing.T) {
+	t.Parallel()
 	e := monomind.ScanEntry{ID: "grok", InstallHint: "install the Grok CLI per https://docs.x.ai"}
 	f := &fakeMachine{before: monomind.ScanResult{Agents: []monomind.ScanEntry{e}}}
 	_, err := installRuntime(context.Background(), f.machine(), "grok", false, yesScript, func(string) {})
@@ -167,6 +174,7 @@ func TestInstallRuntimeManualIsRefused(t *testing.T) {
 }
 
 func TestInstallRuntimeDeclinedScriptIsNotRun(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("no vendor scripts on Windows")
 	}
@@ -181,6 +189,7 @@ func TestInstallRuntimeDeclinedScriptIsNotRun(t *testing.T) {
 }
 
 func TestInstallRuntimeInstallerFailure(t *testing.T) {
+	t.Parallel()
 	f := &fakeMachine{binDir: t.TempDir(), installErr: errors.New("npm exploded"),
 		before: monomind.ScanResult{Agents: []monomind.ScanEntry{npmEntry("codex", false, "", "")}}}
 	if _, err := installRuntime(context.Background(), f.machine(), "codex", false, yesScript, func(string) {}); err == nil || !strings.Contains(err.Error(), "npm exploded") {
@@ -189,6 +198,7 @@ func TestInstallRuntimeInstallerFailure(t *testing.T) {
 }
 
 func TestSignInHint(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX paths")
 	}
@@ -217,15 +227,30 @@ func TestSignInHint(t *testing.T) {
 	}
 }
 
-// `agent install <id> --json` for a runtime that is already there ends
-// with a done event that says so, not a bare {"kind":"done"}.
-func TestFinishStreamedNoOpSaysAlreadyInstalled(t *testing.T) {
-	var out strings.Builder
-	msg := "claude is already installed (2.0.1 at /usr/bin/claude) — nothing to do; use --force to reinstall"
-	if err := finishStreamed(&out, true, nil, msg); err != nil {
+func TestKiloInstallUsesScanRecipe(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "kilo")
+	entry := monomind.ScanEntry{ID: "kilo", InstallHint: "npm install -g @kilocode/cli",
+		Install: &monomind.InstallRecipe{Kind: "npm", Packages: []string{"@kilocode/cli"}}, LoginHint: sp("kilo auth login")}
+	after := entry
+	after.Installed, after.Binary = true, sp(bin)
+	f := &fakeMachine{binDir: dir, before: monomind.ScanResult{Agents: []monomind.ScanEntry{entry}},
+		after: monomind.ScanResult{Agents: []monomind.ScanEntry{after}}}
+	var lines []string
+	_, err := installRuntime(context.Background(), f.machine(), "kilo", false, yesScript, func(l string) { lines = append(lines, l) })
+	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), `"kind":"done"`) || !strings.Contains(out.String(), "already installed") {
-		t.Fatalf("done event %s", out.String())
+	if len(f.installed) != 1 || f.installed[0].Kind != agentinstall.KindNpm || len(f.installed[0].Packages) != 1 || f.installed[0].Packages[0] != "@kilocode/cli" {
+		t.Fatalf("wrong recipe: %+v", f.installed)
+	}
+	if log := strings.Join(lines, "\n"); !strings.Contains(log, "kilo auth login") {
+		t.Fatalf("missing scan login hint: %s", log)
+	}
+	old := &fakeMachine{before: monomind.ScanResult{Agents: []monomind.ScanEntry{npmEntry("codex", true, "", "")}}}
+	_, err = installRuntime(context.Background(), old.machine(), "kilo", false, yesScript, func(string) {})
+	if exitCodeFor(err) != 2 || len(old.installed) != 0 {
+		t.Fatalf("unknown Kilo installed: %v, %+v", err, old.installed)
 	}
 }

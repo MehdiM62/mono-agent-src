@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"strings"
@@ -8,6 +8,7 @@ import (
 )
 
 func TestTurnPrinter(t *testing.T) {
+	t.Parallel()
 	say := func(text string) monomind.Event { return monomind.Event{Type: monomind.EventAssistant, Text: text} }
 	done := monomind.Event{Type: monomind.EventDone}
 	cases := []struct {
