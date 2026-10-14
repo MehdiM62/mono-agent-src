@@ -38,9 +38,6 @@ func (f *fakeNarrowed) CreateTab(string) (int, error)        { return 1, nil }
 func (f *fakeNarrowed) CloseTab(int) error                   { return nil }
 func (f *fakeNarrowed) NewPage(int) browserpkg.PageInterface { return nil }
 
-// plainBridge is a bridge that cannot route (e.g. a test double).
-type plainBridge struct{ fakeNarrowed }
-
 func TestLazyProviderUsesTheRunsProfile(t *testing.T) {
 	r := &fakeRouter{}
 	p := &lazyBrowserSessionProvider{
