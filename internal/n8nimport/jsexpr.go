@@ -11,6 +11,10 @@ import (
 // variables.
 var unavailableInCode = regexp.MustCompile(`\$\(|\$node\b|\$items\b|\$binary\b|\$execution\b|\$workflow\b|\$env\b|\$vars\b|\$prevNode\b|\$parameter\b|\$jmespath\b|\$evaluateExpression\b|\bthis\.|\$getWorkflowStaticData\b|\brequire\s*\(`)
 
+// unavailableInCodeNode is unavailableInCode for a Code node's own
+// JavaScript, where $('Node') and $node read other nodes' output.
+var unavailableInCodeNode = regexp.MustCompile(`\$items\b|\$binary\b|\$execution\b|\$workflow\b|\$env\b|\$vars\b|\$prevNode\b|\$parameter\b|\$jmespath\b|\$evaluateExpression\b|\bthis\.|\$getWorkflowStaticData\b|\brequire\s*\(`)
+
 // expressionFails reports whether an n8n value is an expression the
 // template translator cannot express.
 func expressionFails(v interface{}) bool {
