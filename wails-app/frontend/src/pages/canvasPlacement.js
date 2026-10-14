@@ -3,6 +3,8 @@
 // Pure functions over the canvas's nodes ({ id, x, y, inputs, outputs })
 // and edges ({ source, sourcePortIdx, ... }); sizes come from the caller.
 
+import { freeSubInput, isAiEdge, subEdge } from './aiSubNodes.js'
+
 export const DEFAULT_CAMERA = { x: 60, y: 60, zoom: 1 }
 
 // fitCamera frames every node in a view of size { width, height }, never
@@ -51,6 +53,31 @@ export function autoConnect(anchor, newNode, edges) {
     source: anchor.id, sourcePortIdx: 0, sourcePortId: anchor.outputs[0]?.id,
     target: newNode.id, targetPortIdx: 0, targetPortId: newNode.inputs[0]?.id,
   }
+}
+
+// autoConnectSub is the edge from a new sub-node into anchor's matching
+// sub-input (the new node's sub_output kind), or null when anchor takes no
+// such sub-node or that input is full.
+export function autoConnectSub(anchor, newNode, edges) {
+  const kind = newNode?.subOutput
+  if (!kind || !anchor || !freeSubInput(anchor, kind, edges)) return null
+  return subEdge(newNode.id, anchor.id, kind)
+}
+
+// placeBelow is the position for a sub-node under anchor: in the row below
+// it, right of the sub-nodes already attached there, moved further right
+// until it covers no other node.
+export function placeBelow(anchor, nodes, edges, newNode, { nodeW, nodeH, gapX = 40, gapY = 60 }) {
+  const attached = new Set((edges || []).filter(e => e.target === anchor.id && isAiEdge(e)).map(e => e.source))
+  const row = (nodes || []).filter(n => attached.has(n.id))
+  const pos = { ...newNode, x: anchor.x, y: anchor.y + nodeH(anchor) + gapY }
+  if (row.length) pos.x = Math.max(...row.map(n => n.x)) + nodeW + gapX
+  for (let i = 0; i < 50; i++) {
+    const hit = (nodes || []).find(n => overlaps(pos, n, nodeW, nodeH))
+    if (!hit) break
+    pos.x = hit.x + nodeW + gapX
+  }
+  return { x: pos.x, y: pos.y }
 }
 
 // panToShow moves camera cam (zoom kept) just enough that the box
