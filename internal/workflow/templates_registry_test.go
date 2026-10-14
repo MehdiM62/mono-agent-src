@@ -14,6 +14,10 @@ import (
 // registers once installed — both are outside the static registry.
 func TestBundledTemplates_NodeTypesRegistered(t *testing.T) {
 	registry := noderegistry.Build(nil)
+	// Build installs the process-wide outbound-send guard (hilsend); left in
+	// place, it answers for publish nodes in this package's later tests
+	// (the next -count pass of the publication tests) instead of the node.
+	t.Cleanup(func() { workflow.SetExecGuard(nil) })
 	for _, meta := range workflow.ListTemplates() {
 		wf, ok := workflow.GetTemplate(meta.ID)
 		if !ok {
