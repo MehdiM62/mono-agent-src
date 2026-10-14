@@ -161,10 +161,14 @@ that value. Use it to keep importer-only fields (legacy toggles that
 A required `select` whose `default` is empty or not one of its `options`
 starts on its first option; set `default` when another option is the
 sensible start.
-On a native node a package `extends` with resources, the native
-`operation` select gets `depends_on: {"key": "resource", "values": [""]}`:
-it shows while no resource is picked and each resource's own `operation`
-select (with its own `default`) takes over once one is.
+On a native node a package `extends` with resources, every native field
+but the account picker applies only while no resource is picked: a field
+with no condition (the native `operation` select included) gets
+`depends_on: {"key": "resource", "values": [""]}`; one that depends on
+another key keeps that `depends_on` and gets `visible_for` entries
+`{"resource": "", <key>: <value>}`. Once a resource is picked, its own
+`operation` select (with its own `default`) and fields take over, and
+native required fields are not asked for.
 
 Every field is resolved **per input item** from workflow expressions
 (`{{ $json.id }}` in the node config), so one node run makes one request per

@@ -286,7 +286,7 @@ func (p *Package) extendSchema(base []byte) ([]byte, bool) {
 			}
 		}
 	} else {
-		hideNativeOperation(fields)
+		hideNativeFields(fields)
 		for _, f := range p.selectorFields(true) {
 			fields = append(fields, f)
 		}
@@ -301,17 +301,47 @@ func (p *Package) extendSchema(base []byte) ([]byte, bool) {
 	return marshalSchema(doc)
 }
 
-// hideNativeOperation shows the native "operation" select only while no
-// resource is picked: a resource brings its own operation select, and both
-// side by side read as two operation pickers. Native configs carry no
-// resource, so they still validate against the native options.
-func hideNativeOperation(fields []any) {
+// hideNativeFields limits the native fields to configs with no resource:
+// a resource brings its own operation select and fields, and native ones
+// beside them read as a second form (and would impose native required
+// fields on package ops). The account picker stays shared. A field with no
+// condition gets depends_on {resource: [""]}; one with depends_on on
+// another key keeps it (the validator needs both to hold) and gets
+// visible_for entries {resource: "", key: value} (the editor reads
+// visible_for first); an existing visible_for gains resource "".
+// Native configs carry no resource, so they validate as before.
+func hideNativeFields(fields []any) {
 	for _, f := range fields {
 		m, ok := f.(map[string]any)
-		if !ok || m["key"] != "operation" || m["depends_on"] != nil || m["visible_for"] != nil {
+		if !ok || m["key"] == "resource" || m["type"] == "credential_picker" ||
+			m["key"] == "credential_id" || m["key"] == "credential" {
 			continue
 		}
-		m["depends_on"] = map[string]any{"key": "resource", "values": []string{""}}
+		if vf, ok := m["visible_for"].([]any); ok && len(vf) > 0 {
+			for _, e := range vf {
+				if em, ok := e.(map[string]any); ok {
+					if _, has := em["resource"]; !has {
+						em["resource"] = ""
+					}
+				}
+			}
+			continue
+		}
+		dep, _ := m["depends_on"].(map[string]any)
+		if dep == nil {
+			m["depends_on"] = map[string]any{"key": "resource", "values": []string{""}}
+			continue
+		}
+		key, _ := dep["key"].(string)
+		vals, _ := dep["values"].([]any)
+		if key == "" || key == "resource" {
+			continue
+		}
+		var vf []map[string]string
+		for _, v := range vals {
+			vf = append(vf, map[string]string{"resource": "", key: fmt.Sprint(v)})
+		}
+		m["visible_for"] = vf
 	}
 }
 
