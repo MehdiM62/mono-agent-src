@@ -1,4 +1,4 @@
-package main
+package crawl
 
 import (
 	"fmt"
@@ -11,11 +11,13 @@ import (
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
 	"github.com/go-rod/rod/lib/proto"
+	"github.com/monoes/mono-agent/internal/cli/integrations"
 	"github.com/monoes/mono-agent/internal/statedir"
 	"github.com/spf13/cobra"
 )
 
-func newCrawlCmd(cfg *globalConfig) *cobra.Command {
+// NewCommand returns `crawl` with its `capture` subcommand.
+func NewCommand(d Deps) *cobra.Command {
 	var headless bool
 	var waitSecs int
 
@@ -107,7 +109,7 @@ For the full guide:  monoagentcli ref crawling`,
 			// Check whether the Claude skill is installed.
 			claudeDir := filepath.Join(home, ".claude")
 			skillInstalled := false
-			if _, err := os.Stat(claudeSkillFile(filepath.Join(claudeDir, "skills"), claudeSkillNames[0])); err == nil {
+			if _, err := os.Stat(integrations.ClaudeSkillFile(filepath.Join(claudeDir, "skills"), integrations.ClaudeSkillNames[0])); err == nil {
 				skillInstalled = true
 			}
 
@@ -139,7 +141,7 @@ For the full guide:  monoagentcli ref crawling`,
 		},
 	}
 
-	cmd.AddCommand(newCrawlCaptureCmd(cfg))
+	cmd.AddCommand(d.newCrawlCaptureCmd())
 
 	cmd.Flags().BoolVar(&headless, "headless", false, "Run browser headlessly (no window)")
 	cmd.Flags().IntVar(&waitSecs, "wait", 8, "Seconds to wait for JS rendering")
