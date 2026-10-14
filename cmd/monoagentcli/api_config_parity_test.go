@@ -117,7 +117,7 @@ func TestSavedSettingsAreHeldToTheRuleOfTheFlagsAndTheEnvironment(t *testing.T) 
 			if sp.ServerFlag != "" && r.text != "" {
 				var f apiFlags
 				cmd := &cobra.Command{Use: "x"}
-				f.bind(cmd)
+				f.Bind(cmd)
 				accepted := cmd.ParseFlags([]string{sp.ServerFlag + "=" + r.text}) == nil
 				if accepted {
 					accepted = parityAPIRuntime(t, db, f, nil) == nil
@@ -148,7 +148,7 @@ func TestSavedSettingsAreHeldToTheRuleOfTheFlagsAndTheEnvironment(t *testing.T) 
 func TestSpecsNameTheFlagsAndVariablesTheServerHas(t *testing.T) {
 	var f apiFlags
 	cmd := &cobra.Command{Use: "x"}
-	f.bind(cmd)
+	f.Bind(cmd)
 	for _, sp := range apiconfig.Specs() {
 		dashed := strings.ReplaceAll(sp.Key, "_", "-")
 		fl := cmd.Flags().Lookup(dashed)
