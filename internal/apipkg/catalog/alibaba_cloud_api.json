@@ -1,0 +1,717 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "alibaba_cloud_api",
+  "node_type": "app.alibaba_cloud_api",
+  "title": "Alibaba Cloud Model Studio",
+  "description": "Qwen chat and image analysis, Qwen/Wan/Z-Image image generation and Wan video generation through Model Studio (DashScope) with your own key",
+  "category": "app",
+  "docs_url": "https://www.alibabacloud.com/help/en/model-studio/",
+  "n8n_types": [
+    "@n8n/n8n-nodes-langchain.alibabaCloud"
+  ],
+  "base_url": "{{ cred.region | eq:'eu-central-1' | then:(cred.workspace_id | prefix:'https://' | suffix:'.eu-central-1.maas.aliyuncs.com') | default:(cred.region | default:'ap-southeast-1' | map:'ap-southeast-1=https://dashscope-intl.aliyuncs.com,us-east-1=https://dashscope-us.aliyuncs.com,cn-beijing=https://dashscope.aliyuncs.com,cn-hongkong=https://cn-hongkong.dashscope.aliyuncs.com') }}",
+  "credentials": [
+    {
+      "platform": "alibaba_cloud",
+      "name": "Alibaba Cloud Model Studio",
+      "n8n_credential": "alibabaCloudApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "region": "region",
+        "workspaceId": "workspace_id"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "ap-southeast-1 (Singapore, default), us-east-1, cn-beijing, cn-hongkong or eu-central-1"
+        },
+        {
+          "key": "workspace_id",
+          "label": "Workspace ID",
+          "help": "Only for eu-central-1 (Frankfurt)."
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "text",
+      "label": "Text"
+    },
+    {
+      "value": "image",
+      "label": "Image"
+    },
+    {
+      "value": "video",
+      "label": "Video"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "text",
+      "operation": "message",
+      "title": "Message a model",
+      "description": "Qwen generation (multimodal endpoint unless the model is a coder/math one). Tools attached as n8n sub-nodes are not called.",
+      "method": "POST",
+      "path": "/api/v1/services/aigc/{{ ((p.modelId | rl | default:'qwen3.5-flash') | lower | matches:'coder|math' | not) | then:'multimodal-generation' | default:'text-generation' }}/generation",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "qwen3.5-flash",
+          "help": "Plain id or n8n model locator."
+        },
+        {
+          "key": "messages",
+          "label": "Messages",
+          "type": "collection",
+          "default": {
+            "messageValues": [
+              {
+                "content": "",
+                "role": "user"
+              }
+            ]
+          },
+          "options": [
+            "messageValues"
+          ],
+          "help": "messageValues: [{content, role (user|assistant)}]."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "enableSearch",
+            "maxTokens",
+            "maxToolsIterations",
+            "repetitionPenalty",
+            "seed",
+            "stop",
+            "system",
+            "temperature",
+            "topK",
+            "topP"
+          ],
+          "help": "stop: comma-separated."
+        }
+      ],
+      "body": {
+        "model": "{{ (p.modelId | rl | default:'qwen3.5-flash') }}",
+        "input": {
+          "messages": {
+            "$concat": [
+              [
+                {
+                  "$when": "{{ p.options.system | then:((p.modelId | rl | default:'qwen3.5-flash') | lower | matches:'coder|math' | not) }}",
+                  "role": "system",
+                  "content": [
+                    {
+                      "text": "{{ p.options.system }}"
+                    }
+                  ]
+                },
+                {
+                  "$when": "{{ p.options.system | then:(((p.modelId | rl | default:'qwen3.5-flash') | lower | matches:'coder|math' | not) | not) }}",
+                  "role": "system",
+                  "content": "{{ p.options.system }}"
+                }
+              ],
+              {
+                "$map": "{{ ((p.modelId | rl | default:'qwen3.5-flash') | lower | matches:'coder|math' | not) | then:p.messages.messageValues }}",
+                "$to": {
+                  "role": "{{ el.role | default:'user' }}",
+                  "content": [
+                    {
+                      "!text": "{{ el.content }}"
+                    }
+                  ]
+                }
+              },
+              {
+                "$map": "{{ ((p.modelId | rl | default:'qwen3.5-flash') | lower | matches:'coder|math' | not) | not | then:p.messages.messageValues }}",
+                "$to": {
+                  "role": "{{ el.role | default:'user' }}",
+                  "!content": "{{ el.content }}"
+                }
+              }
+            ]
+          }
+        },
+        "!parameters": {
+          "temperature": "{{ p.options.temperature }}",
+          "top_p": "{{ p.options.topP }}",
+          "top_k": "{{ p.options.topK }}",
+          "max_tokens": "{{ p.options.maxTokens }}",
+          "repetition_penalty": "{{ p.options.repetitionPenalty }}",
+          "stop": "{{ p.options.stop | split }}",
+          "enable_search": "{{ p.options.enableSearch }}",
+          "seed": "{{ p.options.seed }}"
+        }
+      },
+      "output": {
+        "to": {
+          "!content": "{{ el.output.choices.0.message.content.0.text | default:el.output.text | default:el.output.choices.0.message.content | default:'' }}",
+          "$merge": {
+            "$when": "{{ p.simplify | eq:'false' }}",
+            "model": "{{ p.modelId | rl }}",
+            "usage": "{{ el.usage }}",
+            "fullResponse": "{{ el }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "image",
+      "operation": "generate",
+      "title": "Generate an image",
+      "description": "Qwen Image / Z-Image answer at once; Wan models run as a task that is waited for. The image is downloaded unless Download image is off.",
+      "method": "POST",
+      "path": "/api/v1/services/aigc/{{ (((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | then:'image2image/image-synthesis' | default:(((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wanx-v1($|-)|^wanx?[01][.][0-9]+|^wanx?2[.][0-5]([^0-9]|$)')) | then:'text2image/image-synthesis') | default:(((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:(((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wanx-v1($|-)|^wanx?[01][.][0-9]+|^wanx?2[.][0-5]([^0-9]|$)')) | not)) | then:'image-generation/generation') | default:'multimodal-generation/generation' }}",
+      "headers": {
+        "X-DashScope-Async": "{{ (((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:'enable' }}"
+      },
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "z-image-turbo",
+          "help": "qwen-image, wan2.6-t2i, wan2.6-image, z-image-turbo, … Plain id or n8n model locator."
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "referenceImages",
+          "label": "Reference images",
+          "type": "collection",
+          "default": {
+            "values": [
+              {
+                "inputType": "url",
+                "imageUrl": "",
+                "binaryPropertyName": "data"
+              }
+            ]
+          },
+          "options": [
+            "values"
+          ],
+          "help": "values: [{inputType (url|binary), imageUrl, binaryPropertyName}] — for Wan image-edit (-image, -i2i) models."
+        },
+        {
+          "key": "downloadImage",
+          "label": "Download image",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "imageOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "size",
+            "promptExtend"
+          ],
+          "help": "size: e.g. 1024*1024 (Wan models default to 1280*1280, 1024*1024 before 2.5)."
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId | rl | default:'z-image-turbo' }}",
+        "input": {
+          "$merge": [
+            {
+              "$when": "{{ (((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | default:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wanx-v1($|-)|^wanx?[01][.][0-9]+|^wanx?2[.][0-5]([^0-9]|$)')) }}",
+              "prompt": "{{ p.prompt }}",
+              "images": {
+                "$concat": [
+                  {
+                    "$map": "{{ (((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | then:(bin.files | len) | then:bin.files }}",
+                    "$to": "data:{{ el.mime_type }};base64,{{ el.base64 }}"
+                  },
+                  {
+                    "$map": "{{ (((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | then:p.referenceImages.values }}",
+                    "$to": "{{ el.inputType | ne:'binary' | then:(el.imageUrl | matches:'^data:' | then:el.imageUrl) }}"
+                  }
+                ]
+              }
+            },
+            {
+              "$when": "{{ (((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | default:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wanx-v1($|-)|^wanx?[01][.][0-9]+|^wanx?2[.][0-5]([^0-9]|$)')) | not }}",
+              "messages": [
+                {
+                  "role": "user",
+                  "content": {
+                    "$concat": [
+                      [
+                        {
+                          "text": "{{ p.prompt }}"
+                        }
+                      ],
+                      {
+                        "$map": "{{ (((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:(((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wanx-v1($|-)|^wanx?[01][.][0-9]+|^wanx?2[.][0-5]([^0-9]|$)')) | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-image') | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-t2i' | not)) | then:(bin.files | len) | then:bin.files }}",
+                        "$to": {
+                          "image": "data:{{ el.mime_type }};base64,{{ el.base64 }}"
+                        }
+                      },
+                      {
+                        "$map": "{{ (((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:(((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wanx-v1($|-)|^wanx?[01][.][0-9]+|^wanx?2[.][0-5]([^0-9]|$)')) | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-image') | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-t2i' | not)) | then:p.referenceImages.values }}",
+                        "$to": {
+                          "image": "{{ el.inputType | ne:'binary' | then:(el.imageUrl | matches:'^data:' | then:el.imageUrl) }}"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "parameters": {
+          "prompt_extend": "{{ p.imageOptions.promptExtend | default:false }}",
+          "n": "{{ (((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:1 }}",
+          "size": "{{ p.imageOptions.size | default:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:(((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wanx-v1($|-)|^wanx?[01][.][0-9]+|^wanx?2[.][0-4]([^0-9]|$)') | then:'1024*1024' | default:'1280*1280')) }}"
+        }
+      },
+      "binary": {
+        "properties": {
+          "$map": "{{ ((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | default:(((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:(((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wanx-v1($|-)|^wanx?[01][.][0-9]+|^wanx?2[.][0-5]([^0-9]|$)')) | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-image') | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-t2i' | not))) | then:p.referenceImages.values }}",
+          "$to": "{{ el.inputType | eq:'binary' | then:(el.binaryPropertyName | default:'data') }}"
+        },
+        "upload_urls": {
+          "$map": "{{ ((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | default:(((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:(((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | then:((((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i')) | not) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wanx-v1($|-)|^wanx?[01][.][0-9]+|^wanx?2[.][0-5]([^0-9]|$)')) | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-image') | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-t2i' | not))) | then:p.referenceImages.values }}",
+          "$to": "{{ el.inputType | ne:'binary' | then:(el.imageUrl | matches:'^data:' | not | then:el.imageUrl) }}"
+        }
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/api/v1/tasks/{{ main.output.task_id }}",
+        "interval_ms": 10000,
+        "max_wait_ms": 1800000,
+        "error_when": "{{ res.output.task_status | in:'FAILED,CANCELED' }}",
+        "error_message": "Task {{ res.output.task_status | lower }}: [{{ res.output.code | default:res.code | default:'UNKNOWN' }}] {{ res.output.message | default:res.message | default:'Task failed' }}",
+        "until": "{{ (((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'^wan' | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'(^|-)(t2v|i2v)(-|$)' | not)) | then:((p.modelId | rl | default:'z-image-turbo' | lower) | matches:'-i2i|^wanx-v1($|-)|^wanx?[0-9]+[.][0-9]+')) | not | default:(res.output.task_status | in:'SUCCEEDED,FAILED,CANCELED') }}"
+      },
+      "output": {
+        "download": {
+          "when": "{{ p.downloadImage | then:(el.output.choices.0.message.content | pluck:'image' | get:'0' | default:el.output.results.0.url) }}",
+          "auth": false,
+          "method": "GET",
+          "path": "{{ el.output.choices.0.message.content | pluck:'image' | get:'0' | default:el.output.results.0.url }}"
+        },
+        "to": {
+          "model": "{{ p.modelId | rl | default:'z-image-turbo' }}",
+          "!imageUrl": "{{ el.output.choices.0.message.content | pluck:'image' | get:'0' | default:el.output.results.0.url | default:'' }}",
+          "usage": "{{ el.usage }}"
+        }
+      }
+    },
+    {
+      "resource": "image",
+      "operation": "analyze",
+      "title": "Analyze an image",
+      "method": "POST",
+      "path": "/api/v1/services/aigc/multimodal-generation/generation",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "qwen3-vl-flash",
+          "help": "Qwen-VL model. Plain id or n8n model locator."
+        },
+        {
+          "key": "inputType",
+          "label": "Input",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "imageUrl",
+          "label": "Image URL",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "question",
+          "label": "Question",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "visionOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "temperature",
+            "maxTokens"
+          ]
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId | rl }}",
+        "input": {
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "image": "{{ (p.inputType | eq:'binary') | not | then:p.imageUrl }}{{ (p.inputType | eq:'binary') | then:'data:' }}{{ (p.inputType | eq:'binary') | then:(bin.files | find:'property',p.binaryPropertyName | get:'mime_type' | default:'image/png') }}{{ (p.inputType | eq:'binary') | then:';base64,' }}{{ (p.inputType | eq:'binary') | then:(bin.files | find:'property',p.binaryPropertyName | get:'base64') }}"
+                },
+                {
+                  "text": "{{ p.question }}"
+                }
+              ]
+            }
+          ]
+        },
+        "!parameters": {
+          "temperature": "{{ p.visionOptions.temperature }}",
+          "max_tokens": "{{ p.visionOptions.maxTokens }}"
+        }
+      },
+      "binary": {
+        "properties": "{{ p.inputType | eq:'binary' | then:p.binaryPropertyName }}"
+      },
+      "output": {
+        "to": {
+          "!content": "{{ el.output.choices.0.message.content.0.text | default:'' }}",
+          "$merge": {
+            "$when": "{{ p.simplify | eq:'false' }}",
+            "model": "{{ p.modelId | rl }}",
+            "usage": "{{ el.usage }}",
+            "fullResponse": "{{ el }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "textToVideo",
+      "title": "Generate a video from text",
+      "description": "Creates the Wan video task, waits for it and downloads the video unless Download video is off",
+      "method": "POST",
+      "path": "/api/v1/services/aigc/video-generation/video-synthesis",
+      "headers": {
+        "X-DashScope-Async": "enable"
+      },
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "wan2.6-t2v",
+          "help": "Plain id or n8n model locator."
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "resolution",
+          "label": "Resolution",
+          "type": "select",
+          "default": "1080P",
+          "options": [
+            "720P",
+            "1080P"
+          ]
+        },
+        {
+          "key": "duration",
+          "label": "Duration (seconds)",
+          "type": "number",
+          "default": 5,
+          "min": 2,
+          "max": 15
+        },
+        {
+          "key": "shotType",
+          "label": "Shot type",
+          "type": "select",
+          "default": "single",
+          "options": [
+            "single",
+            "multi"
+          ]
+        },
+        {
+          "key": "downloadVideo",
+          "label": "Download video",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "videoOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "promptExtend",
+            "audio",
+            "audioInputType",
+            "audioUrl",
+            "audioBinaryPropertyName"
+          ],
+          "help": "audioInputType: url (default) or binary (audioBinaryPropertyName, default audio)."
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId | rl }}",
+        "input": {
+          "prompt": "{{ p.prompt }}",
+          "audio_url": "{{ (p.videoOptions.audioInputType | eq:'binary') | not | then:(p.videoOptions.audioInputType | eq:'binary' | not | then:p.videoOptions.audioUrl) }}{{ (p.videoOptions.audioInputType | eq:'binary') | then:'data:' }}{{ (p.videoOptions.audioInputType | eq:'binary') | then:(bin.files | find:'property',(p.videoOptions.audioBinaryPropertyName | default:'audio') | get:'mime_type' | default:'audio/mpeg') }}{{ (p.videoOptions.audioInputType | eq:'binary') | then:';base64,' }}{{ (p.videoOptions.audioInputType | eq:'binary') | then:(bin.files | find:'property',(p.videoOptions.audioBinaryPropertyName | default:'audio') | get:'base64') }}"
+        },
+        "parameters": {
+          "resolution": "{{ p.resolution }}",
+          "duration": "{{ p.duration }}",
+          "shot_type": "{{ p.shotType }}",
+          "prompt_extend": "{{ p.videoOptions.promptExtend }}",
+          "audio": "{{ p.videoOptions.audio }}"
+        }
+      },
+      "binary": {
+        "properties": ",{{ p.videoOptions.audioInputType | eq:'binary' | then:(p.videoOptions.audioBinaryPropertyName | default:'audio') }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/api/v1/tasks/{{ main.output.task_id }}",
+        "interval_ms": 10000,
+        "max_wait_ms": 1800000,
+        "error_when": "{{ res.output.task_status | in:'FAILED,CANCELED' }}",
+        "error_message": "Task {{ res.output.task_status | lower }}: [{{ res.output.code | default:res.code | default:'UNKNOWN' }}] {{ res.output.message | default:res.message | default:'Task failed' }}",
+        "until": "{{ res.output.task_status | in:'SUCCEEDED,FAILED,CANCELED' }}"
+      },
+      "output": {
+        "download": {
+          "when": "{{ p.downloadVideo | then:el.output.video_url }}",
+          "auth": false,
+          "method": "GET",
+          "path": "{{ el.output.video_url }}",
+          "file_name": "video.mp4"
+        },
+        "to": {
+          "!videoUrl": "{{ el.output.video_url | default:'' }}",
+          "$merge": {
+            "$when": "{{ p.simplify | eq:'false' }}",
+            "model": "{{ p.modelId | rl }}",
+            "taskId": "{{ el.output.task_id }}",
+            "usage": "{{ el.usage }}",
+            "taskStatus": "{{ el.output.task_status }}",
+            "submitTime": "{{ el.output.submit_time }}",
+            "endTime": "{{ el.output.end_time }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "imageToVideo",
+      "title": "Generate a video from an image",
+      "description": "Creates the Wan video task, waits for it and downloads the video unless Download video is off",
+      "method": "POST",
+      "path": "/api/v1/services/aigc/video-generation/video-synthesis",
+      "headers": {
+        "X-DashScope-Async": "enable"
+      },
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "wan2.6-i2v-flash",
+          "help": "Plain id or n8n model locator."
+        },
+        {
+          "key": "inputType",
+          "label": "Image from",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "imgUrl",
+          "label": "Image URL",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": "",
+          "required": false
+        },
+        {
+          "key": "resolution",
+          "label": "Resolution",
+          "type": "select",
+          "default": "1080P",
+          "options": [
+            "720P",
+            "1080P"
+          ]
+        },
+        {
+          "key": "duration",
+          "label": "Duration (seconds)",
+          "type": "number",
+          "default": 5,
+          "min": 2,
+          "max": 15
+        },
+        {
+          "key": "shotType",
+          "label": "Shot type",
+          "type": "select",
+          "default": "single",
+          "options": [
+            "single",
+            "multi"
+          ]
+        },
+        {
+          "key": "downloadVideo",
+          "label": "Download video",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "imageToVideoOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "promptExtend",
+            "audio",
+            "audioInputType",
+            "audioUrl",
+            "audioBinaryPropertyName"
+          ],
+          "help": "audioInputType: url (default) or binary (audioBinaryPropertyName, default audio)."
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId | rl }}",
+        "input": {
+          "img_url": "{{ (p.inputType | eq:'binary') | not | then:p.imgUrl }}{{ (p.inputType | eq:'binary') | then:'data:' }}{{ (p.inputType | eq:'binary') | then:(bin.files | find:'property',p.binaryPropertyName | get:'mime_type' | default:'image/png') }}{{ (p.inputType | eq:'binary') | then:';base64,' }}{{ (p.inputType | eq:'binary') | then:(bin.files | find:'property',p.binaryPropertyName | get:'base64') }}",
+          "prompt": "{{ p.prompt }}",
+          "audio_url": "{{ (p.imageToVideoOptions.audioInputType | eq:'binary') | not | then:(p.imageToVideoOptions.audioInputType | eq:'binary' | not | then:p.imageToVideoOptions.audioUrl) }}{{ (p.imageToVideoOptions.audioInputType | eq:'binary') | then:'data:' }}{{ (p.imageToVideoOptions.audioInputType | eq:'binary') | then:(bin.files | find:'property',(p.imageToVideoOptions.audioBinaryPropertyName | default:'audio') | get:'mime_type' | default:'audio/mpeg') }}{{ (p.imageToVideoOptions.audioInputType | eq:'binary') | then:';base64,' }}{{ (p.imageToVideoOptions.audioInputType | eq:'binary') | then:(bin.files | find:'property',(p.imageToVideoOptions.audioBinaryPropertyName | default:'audio') | get:'base64') }}"
+        },
+        "parameters": {
+          "resolution": "{{ p.resolution }}",
+          "duration": "{{ p.duration }}",
+          "shot_type": "{{ p.shotType }}",
+          "prompt_extend": "{{ p.imageToVideoOptions.promptExtend }}",
+          "audio": "{{ p.imageToVideoOptions.audio }}"
+        }
+      },
+      "binary": {
+        "properties": "{{ p.inputType | eq:'binary' | then:p.binaryPropertyName }},{{ p.imageToVideoOptions.audioInputType | eq:'binary' | then:(p.imageToVideoOptions.audioBinaryPropertyName | default:'audio') }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/api/v1/tasks/{{ main.output.task_id }}",
+        "interval_ms": 10000,
+        "max_wait_ms": 1800000,
+        "error_when": "{{ res.output.task_status | in:'FAILED,CANCELED' }}",
+        "error_message": "Task {{ res.output.task_status | lower }}: [{{ res.output.code | default:res.code | default:'UNKNOWN' }}] {{ res.output.message | default:res.message | default:'Task failed' }}",
+        "until": "{{ res.output.task_status | in:'SUCCEEDED,FAILED,CANCELED' }}"
+      },
+      "output": {
+        "download": {
+          "when": "{{ p.downloadVideo | then:el.output.video_url }}",
+          "auth": false,
+          "method": "GET",
+          "path": "{{ el.output.video_url }}",
+          "file_name": "video.mp4"
+        },
+        "to": {
+          "!videoUrl": "{{ el.output.video_url | default:'' }}",
+          "$merge": {
+            "$when": "{{ p.simplify | eq:'false' }}",
+            "model": "{{ p.modelId | rl }}",
+            "taskId": "{{ el.output.task_id }}",
+            "usage": "{{ el.usage }}",
+            "taskStatus": "{{ el.output.task_status }}",
+            "submitTime": "{{ el.output.submit_time }}",
+            "endTime": "{{ el.output.end_time }}"
+          }
+        }
+      }
+    }
+  ]
+}

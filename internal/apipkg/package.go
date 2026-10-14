@@ -406,9 +406,11 @@ type Output struct {
 	// (Gong call transcripts).
 	ExpandMergeKey  string `json:"expand_merge_key,omitempty"`
 	ExpandMergePath string `json:"expand_merge_path,omitempty"`
-	// From (a template over res) replaces the decoded response before
-	// path/split: "{{ res | values }}" for maps keyed by id.
-	From string `json:"from,omitempty"`
+	// From (a template over res, or a builder such as $map) replaces the
+	// decoded response before path/split: "{{ res | values }}" for maps
+	// keyed by id; {"$map": "{{ res.data.urls }}", "$to": {"url": "{{ el }}"}}
+	// turns a list of strings into objects.
+	From any `json:"from,omitempty"`
 	// Merge folds a list of objects into one object (Hue update results).
 	Merge bool `json:"merge,omitempty"`
 	// Skip drops the first n elements (NextCloud lists the folder itself
@@ -483,10 +485,12 @@ type Binary struct {
 	// off (default: json when the op has a body, else none).
 	FallbackBodyType string `json:"fallback_body_type,omitempty"`
 	Property         string `json:"property,omitempty"`
-	// Properties (a template giving a list or comma text) uploads several
-	// binary properties: one multipart part each (el = {property, index}
-	// in multipart_field), and bin.files lists them for JSON bodies.
-	Properties string `json:"properties,omitempty"`
+	// Properties (a template or builder giving a list, or comma text)
+	// uploads several binary properties: one multipart part each (el =
+	// {property, index} in multipart_field), and bin.files lists them for
+	// JSON bodies. A $map builder picks them from a collection
+	// ({"$map": "{{ p.refs.values }}", "$to": "{{ el.inputType | eq:'binary' | then:el.binaryPropertyName }}"}).
+	Properties any `json:"properties,omitempty"`
 	// FileName and MimeType are templates for the uploaded part.
 	FileName string `json:"file_name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`
@@ -500,6 +504,12 @@ type Binary struct {
 	// is fetched (GET, without the credential) and uploaded in place of
 	// the input item's binary (Airtop's "upload from URL" source).
 	UploadURL string `json:"upload_url,omitempty"`
+	// UploadURLs (a template or builder giving a list, or comma text)
+	// fetches every http(s) URL (GET, without the credential) and adds
+	// each file to bin.files after binary.properties' own (property
+	// "url_<i>"): media given by URL that the API wants inline (Gemini,
+	// Ollama image analysis).
+	UploadURLs any `json:"upload_urls,omitempty"`
 	// UploadSession sends files larger than MinSize in chunks through a
 	// resumable upload session (Microsoft Graph createUploadSession)
 	// instead of one raw request.
@@ -508,9 +518,9 @@ type Binary struct {
 	// file base64-encoded in JSON (GitHub contents), decode it onto the
 	// item's binary and keep the JSON response as the item's json.
 	DownloadBase64 string `json:"download_base64,omitempty"`
-	// DownloadEach is a response path to a list of base64 files: each
-	// element (el in download_base64, file_name, mime_type) becomes one
-	// item (OpenAI image generations with n > 1).
+	// DownloadEach is a response path (may be a template over p) to a list
+	// of base64 files: each element (el in download_base64, file_name,
+	// mime_type) becomes one item (OpenAI image generations with n > 1).
 	DownloadEach string `json:"download_each,omitempty"`
 }
 

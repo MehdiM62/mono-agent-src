@@ -1,0 +1,693 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "minimax_api",
+  "node_type": "app.minimax_api",
+  "title": "MiniMax",
+  "description": "MiniMax chat, image generation, text to speech and Hailuo/H3 video generation with your own key",
+  "category": "app",
+  "docs_url": "https://platform.minimax.io/docs/api-reference/api-overview",
+  "n8n_types": [
+    "@n8n/n8n-nodes-langchain.minimax"
+  ],
+  "n8n_version_defaults": {
+    "1": {
+      "legacyTextModel": true,
+      "legacyVideoModel": true
+    }
+  },
+  "base_url": "{{ cred.region | eq:'china' | then:'https://api.minimaxi.com' | default:'https://api.minimax.io' }}",
+  "error_when": "{{ res.base_resp | then:(res.base_resp.status_code | ne:'0') }}",
+  "error_message": "{{ res.base_resp.status_msg | default:'Unknown error' }}",
+  "credentials": [
+    {
+      "platform": "minimax",
+      "name": "MiniMax",
+      "n8n_credential": "minimaxApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "international (api.minimax.io, default) or china (api.minimaxi.com)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "text",
+      "label": "Text"
+    },
+    {
+      "value": "audio",
+      "label": "Audio"
+    },
+    {
+      "value": "image",
+      "label": "Image"
+    },
+    {
+      "value": "video",
+      "label": "Video"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "text",
+      "operation": "message",
+      "title": "Message a model",
+      "description": "Chat completion. Tools attached as n8n sub-nodes are not called.",
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "help": "MiniMax-M3, MiniMax-M2.7, …; empty means MiniMax-M3 (MiniMax-M2.7 with Legacy default model)."
+        },
+        {
+          "key": "messages",
+          "label": "Messages",
+          "type": "collection",
+          "default": {
+            "values": [
+              {
+                "content": "",
+                "role": "user"
+              }
+            ]
+          },
+          "options": [
+            "values"
+          ],
+          "help": "values: [{content, role (user|assistant)}]."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "hideThinking",
+            "maxTokens",
+            "maxToolsIterations",
+            "temperature",
+            "topP",
+            "system"
+          ],
+          "help": "hideThinking (default on): keep the reasoning out of the answer text."
+        },
+        {
+          "key": "legacyTextModel",
+          "label": "Legacy default model",
+          "type": "boolean",
+          "default": false,
+          "help": "An empty Model means MiniMax-M2.7 (n8n node version 1)."
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId | rl | default:(p.legacyTextModel | then:'MiniMax-M2.7' | default:'MiniMax-M3') }}",
+        "messages": {
+          "$concat": [
+            [
+              {
+                "$when": "{{ p.options.system }}",
+                "role": "system",
+                "content": "{{ p.options.system }}"
+              }
+            ],
+            {
+              "$map": "{{ p.messages.values }}",
+              "$to": {
+                "role": "{{ el.role | default:'user' }}",
+                "!content": "{{ el.content }}"
+              }
+            }
+          ]
+        },
+        "max_tokens": "{{ p.options.maxTokens | default:1024 }}",
+        "reasoning_split": "{{ p.options.hideThinking | ne:'false' | then:true }}",
+        "temperature": "{{ p.options.temperature }}",
+        "top_p": "{{ p.options.topP }}"
+      },
+      "output": {
+        "to_when": "{{ p.simplify | ne:'false' }}",
+        "to": {
+          "!content": "{{ el.choices.0.message.content | default:'' }}",
+          "reasoning_content": "{{ p.options.hideThinking | eq:'false' | then:el.choices.0.message.reasoning_content }}"
+        }
+      }
+    },
+    {
+      "resource": "audio",
+      "operation": "textToSpeech",
+      "title": "Text to speech",
+      "description": "t2a_v2 with a URL answer; the audio is downloaded unless Download audio is off",
+      "method": "POST",
+      "path": "/v1/t2a_v2",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "speech-2.8-hd"
+        },
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "voiceId",
+          "label": "Voice",
+          "type": "text",
+          "default": "English_Graceful_Lady"
+        },
+        {
+          "key": "downloadAudio",
+          "label": "Download audio",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "audioFormat",
+            "emotion",
+            "languageBoost",
+            "pitch",
+            "speed",
+            "volume"
+          ],
+          "help": "audioFormat: mp3 (default), pcm, flac, wav."
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId }}",
+        "text": "{{ p.text }}",
+        "stream": false,
+        "output_format": "url",
+        "voice_setting": {
+          "voice_id": "{{ p.voiceId }}",
+          "speed": "{{ p.options.speed | default:1 }}",
+          "vol": "{{ p.options.volume | default:1 }}",
+          "pitch": "{{ p.options.pitch | default:0 }}",
+          "emotion": "{{ p.options.emotion }}"
+        },
+        "audio_setting": {
+          "format": "{{ p.options.audioFormat | default:'mp3' }}"
+        },
+        "language_boost": "{{ p.options.languageBoost }}"
+      },
+      "error_when": "{{ res.base_resp | then:(res.base_resp.status_code | ne:'0' | default:(res.data.audio | not)) }}",
+      "error_message": "{{ res.base_resp.status_code | ne:'0' | then:res.base_resp.status_msg | default:'No audio data returned' }}",
+      "output": {
+        "download": {
+          "when": "{{ p.downloadAudio }}",
+          "auth": false,
+          "method": "GET",
+          "path": "{{ el.data.audio }}",
+          "file_name": "speech.{{ p.options.audioFormat | default:'mp3' }}"
+        },
+        "to": {
+          "audioLength": "{{ el.extra_info.audio_length }}",
+          "audioFormat": "{{ el.extra_info.audio_format }}",
+          "audioSize": "{{ el.extra_info.audio_size }}",
+          "wordCount": "{{ el.extra_info.word_count }}",
+          "usageCharacters": "{{ el.extra_info.usage_characters }}",
+          "audioUrl": "{{ p.downloadAudio | not | then:el.data.audio }}"
+        }
+      }
+    },
+    {
+      "resource": "image",
+      "operation": "generate",
+      "title": "Generate images",
+      "description": "One item per image; each is downloaded unless Download image is off",
+      "method": "POST",
+      "path": "/v1/image_generation",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "image-01"
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "aspectRatio",
+          "label": "Aspect ratio",
+          "type": "select",
+          "default": "1:1",
+          "options": [
+            "1:1",
+            "16:9",
+            "2:3",
+            "21:9",
+            "3:2",
+            "3:4",
+            "4:3",
+            "9:16"
+          ]
+        },
+        {
+          "key": "numberOfImages",
+          "label": "Number of images",
+          "type": "number",
+          "default": 1,
+          "min": 1,
+          "max": 9
+        },
+        {
+          "key": "downloadImage",
+          "label": "Download image",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "promptOptimizer",
+            "seed"
+          ]
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId }}",
+        "prompt": "{{ p.prompt }}",
+        "aspect_ratio": "{{ p.aspectRatio }}",
+        "n": "{{ p.numberOfImages }}",
+        "response_format": "url",
+        "prompt_optimizer": "{{ p.options.promptOptimizer }}",
+        "seed": "{{ p.options.seed }}"
+      },
+      "error_when": "{{ res.base_resp | then:(res.base_resp.status_code | ne:'0' | default:(res.data.image_urls | len | eq:'0')) }}",
+      "error_message": "{{ res.base_resp.status_code | ne:'0' | then:res.base_resp.status_msg | default:'No images were generated' }}",
+      "output": {
+        "from": {
+          "$map": "{{ res.data.image_urls }}",
+          "$to": {
+            "imageUrl": "{{ el }}"
+          }
+        },
+        "download": {
+          "when": "{{ p.downloadImage }}",
+          "auth": false,
+          "method": "GET",
+          "path": "{{ el.imageUrl }}"
+        }
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "textToVideo",
+      "title": "Generate a video from text",
+      "description": "Creates the video job, waits for it and downloads the video unless Download video is off",
+      "method": "POST",
+      "path": "/v{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | then:'2' | default:'1' }}/video_generation",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "help": "MiniMax-H3 (default), MiniMax-Hailuo-2.3, …"
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "duration",
+          "label": "Duration (seconds)",
+          "type": "number",
+          "default": 6,
+          "help": "Hailuo models: 6 or 10."
+        },
+        {
+          "key": "resolution",
+          "label": "Resolution",
+          "type": "text",
+          "default": "768P",
+          "help": "Hailuo models: 512P, 768P or 1080P."
+        },
+        {
+          "key": "h3Duration",
+          "label": "Duration (seconds, MiniMax-H3)",
+          "type": "number",
+          "default": 5,
+          "min": 4,
+          "max": 15
+        },
+        {
+          "key": "h3Resolution",
+          "label": "Resolution (MiniMax-H3)",
+          "type": "select",
+          "default": "2K",
+          "options": [
+            "768P",
+            "2K"
+          ]
+        },
+        {
+          "key": "ratio",
+          "label": "Aspect ratio (MiniMax-H3)",
+          "type": "select",
+          "default": "16:9",
+          "options": [
+            "1:1",
+            "16:9",
+            "21:9",
+            "3:4",
+            "4:3",
+            "9:16"
+          ]
+        },
+        {
+          "key": "downloadVideo",
+          "label": "Download video",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "promptOptimizer"
+          ],
+          "help": "promptOptimizer: Hailuo models only."
+        },
+        {
+          "key": "legacyVideoModel",
+          "label": "Legacy default model",
+          "type": "boolean",
+          "default": false,
+          "help": "An empty Model means MiniMax-Hailuo-2.3 (n8n node version 1) instead of MiniMax-H3."
+        }
+      ],
+      "body": {
+        "model": "{{ (p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) }}",
+        "$merge": [
+          {
+            "$when": "{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') }}",
+            "content": [
+              {
+                "type": "text",
+                "text": "{{ p.prompt }}"
+              }
+            ],
+            "duration": "{{ p.h3Duration }}",
+            "resolution": "{{ p.h3Resolution }}",
+            "ratio": "{{ p.ratio }}"
+          },
+          {
+            "$when": "{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | not }}",
+            "prompt": "{{ p.prompt }}",
+            "duration": "{{ p.duration }}",
+            "resolution": "{{ p.resolution }}",
+            "prompt_optimizer": "{{ p.options.promptOptimizer }}"
+          }
+        ]
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/v{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | then:'2' | default:'1' }}/query/video_generation{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | then:'/' }}{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | then:main.task_id }}",
+        "query": {
+          "task_id": "{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | not | then:main.task_id }}"
+        },
+        "until": "{{ res.status | default:res.task.status | in:'Success,Fail,succeeded,failed,cancelled' }}",
+        "interval_ms": 10000,
+        "max_wait_ms": 1800000,
+        "error_when": "{{ res.status | eq:'Fail' | default:(res.task.status | in:'failed,cancelled') }}",
+        "error_message": "Task failed: [{{ res.base_resp.status_code | default:res.task.error.code | default:'UNKNOWN' }}] {{ res.base_resp.status_msg | default:res.task.error.message | default:'Video generation task failed' }}"
+      },
+      "output": {
+        "expand": {
+          "when": "{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | not }}",
+          "method": "GET",
+          "path": "/v1/files/retrieve",
+          "query": {
+            "file_id": "{{ el.file_id }}"
+          }
+        },
+        "expand_merge_key": "file",
+        "expand_merge_path": "file",
+        "download": {
+          "when": "{{ p.downloadVideo }}",
+          "auth": false,
+          "method": "GET",
+          "path": "{{ el.file.download_url | default:el.task.content.url }}",
+          "file_name": "video.mp4"
+        },
+        "to": {
+          "videoUrl": "{{ el.file.download_url | default:el.task.content.url }}",
+          "taskId": "{{ main.task_id }}",
+          "fileId": "{{ el.file_id }}"
+        }
+      }
+    },
+    {
+      "resource": "video",
+      "operation": "imageToVideo",
+      "title": "Generate a video from an image",
+      "description": "First frame (and optional last frame / subject reference) from a URL or the item's binary",
+      "method": "POST",
+      "path": "/v{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | then:'2' | default:'1' }}/video_generation",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "help": "MiniMax-H3 (default), MiniMax-Hailuo-2.3, I2V-01, …"
+        },
+        {
+          "key": "imageInputType",
+          "label": "First frame from",
+          "type": "select",
+          "default": "url",
+          "options": [
+            "url",
+            "binary"
+          ]
+        },
+        {
+          "key": "imageUrl",
+          "label": "First frame URL",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "First frame binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "prompt",
+          "label": "Prompt",
+          "type": "textarea",
+          "default": "",
+          "help": "Required for MiniMax-H3."
+        },
+        {
+          "key": "duration",
+          "label": "Duration (seconds)",
+          "type": "number",
+          "default": 6,
+          "help": "Hailuo models: 6 or 10."
+        },
+        {
+          "key": "resolution",
+          "label": "Resolution",
+          "type": "text",
+          "default": "768P",
+          "help": "Hailuo models: 512P, 768P or 1080P."
+        },
+        {
+          "key": "h3Duration",
+          "label": "Duration (seconds, MiniMax-H3)",
+          "type": "number",
+          "default": 5,
+          "min": 4,
+          "max": 15
+        },
+        {
+          "key": "h3Resolution",
+          "label": "Resolution (MiniMax-H3)",
+          "type": "select",
+          "default": "2K",
+          "options": [
+            "768P",
+            "2K"
+          ]
+        },
+        {
+          "key": "downloadVideo",
+          "label": "Download video",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "promptOptimizer",
+            "lastFrameInputType",
+            "lastFrameImageUrl",
+            "lastFrameBinaryPropertyName",
+            "subjectReferenceInputType",
+            "subjectReferenceImageUrl",
+            "subjectReferenceBinaryPropertyName"
+          ],
+          "help": "lastFrameInputType / subjectReferenceInputType: none (default), url or binary; subject reference: Hailuo models only."
+        },
+        {
+          "key": "legacyVideoModel",
+          "label": "Legacy default model",
+          "type": "boolean",
+          "default": false,
+          "help": "An empty Model means MiniMax-Hailuo-2.3 (n8n node version 1) instead of MiniMax-H3."
+        }
+      ],
+      "body": {
+        "model": "{{ (p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) }}",
+        "$merge": [
+          {
+            "$when": "{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') }}",
+            "duration": "{{ p.h3Duration }}",
+            "resolution": "{{ p.h3Resolution }}",
+            "ratio": "adaptive",
+            "content": {
+              "$concat": [
+                [
+                  {
+                    "type": "text",
+                    "text": "{{ p.prompt }}"
+                  },
+                  {
+                    "type": "image_url",
+                    "image_url": {
+                      "url": "{{ (p.imageInputType | eq:'binary') | not | then:p.imageUrl }}{{ (p.imageInputType | eq:'binary') | then:'data:' }}{{ (p.imageInputType | eq:'binary') | then:(bin.files | find:'property',p.binaryPropertyName | get:'mime_type' | default:'image/png') }}{{ (p.imageInputType | eq:'binary') | then:';base64,' }}{{ (p.imageInputType | eq:'binary') | then:(bin.files | find:'property',p.binaryPropertyName | get:'base64') }}"
+                    },
+                    "role": "first_frame"
+                  },
+                  {
+                    "$when": "{{ p.options.lastFrameInputType | default:'none' | ne:'none' }}",
+                    "type": "image_url",
+                    "image_url": {
+                      "url": "{{ (p.options.lastFrameInputType | eq:'binary') | not | then:(p.options.lastFrameInputType | eq:'url' | then:p.options.lastFrameImageUrl) }}{{ (p.options.lastFrameInputType | eq:'binary') | then:'data:' }}{{ (p.options.lastFrameInputType | eq:'binary') | then:(bin.files | find:'property',(p.options.lastFrameBinaryPropertyName | default:'lastFrame') | get:'mime_type' | default:'image/png') }}{{ (p.options.lastFrameInputType | eq:'binary') | then:';base64,' }}{{ (p.options.lastFrameInputType | eq:'binary') | then:(bin.files | find:'property',(p.options.lastFrameBinaryPropertyName | default:'lastFrame') | get:'base64') }}"
+                    },
+                    "role": "last_frame"
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "$when": "{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | not }}",
+            "first_frame_image": "{{ (p.imageInputType | eq:'binary') | not | then:p.imageUrl }}{{ (p.imageInputType | eq:'binary') | then:'data:' }}{{ (p.imageInputType | eq:'binary') | then:(bin.files | find:'property',p.binaryPropertyName | get:'mime_type' | default:'image/png') }}{{ (p.imageInputType | eq:'binary') | then:';base64,' }}{{ (p.imageInputType | eq:'binary') | then:(bin.files | find:'property',p.binaryPropertyName | get:'base64') }}",
+            "duration": "{{ p.duration }}",
+            "resolution": "{{ p.resolution }}",
+            "prompt": "{{ p.prompt }}",
+            "prompt_optimizer": "{{ p.options.promptOptimizer }}",
+            "last_frame_image": "{{ (p.options.lastFrameInputType | eq:'binary') | not | then:(p.options.lastFrameInputType | eq:'url' | then:p.options.lastFrameImageUrl) }}{{ (p.options.lastFrameInputType | eq:'binary') | then:'data:' }}{{ (p.options.lastFrameInputType | eq:'binary') | then:(bin.files | find:'property',(p.options.lastFrameBinaryPropertyName | default:'lastFrame') | get:'mime_type' | default:'image/png') }}{{ (p.options.lastFrameInputType | eq:'binary') | then:';base64,' }}{{ (p.options.lastFrameInputType | eq:'binary') | then:(bin.files | find:'property',(p.options.lastFrameBinaryPropertyName | default:'lastFrame') | get:'base64') }}",
+            "subject_reference": {
+              "$concat": [
+                {
+                  "$when": "{{ p.options.subjectReferenceInputType | default:'none' | ne:'none' }}",
+                  "image": "{{ (p.options.subjectReferenceInputType | eq:'binary') | not | then:(p.options.subjectReferenceInputType | eq:'url' | then:p.options.subjectReferenceImageUrl) }}{{ (p.options.subjectReferenceInputType | eq:'binary') | then:'data:' }}{{ (p.options.subjectReferenceInputType | eq:'binary') | then:(bin.files | find:'property',(p.options.subjectReferenceBinaryPropertyName | default:'subjectReference') | get:'mime_type' | default:'image/png') }}{{ (p.options.subjectReferenceInputType | eq:'binary') | then:';base64,' }}{{ (p.options.subjectReferenceInputType | eq:'binary') | then:(bin.files | find:'property',(p.options.subjectReferenceBinaryPropertyName | default:'subjectReference') | get:'base64') }}"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "binary": {
+        "properties": "{{ p.imageInputType | eq:'binary' | then:p.binaryPropertyName }},{{ p.options.lastFrameInputType | eq:'binary' | then:(p.options.lastFrameBinaryPropertyName | default:'lastFrame') }},{{ p.options.subjectReferenceInputType | eq:'binary' | then:(p.options.subjectReferenceBinaryPropertyName | default:'subjectReference') }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/v{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | then:'2' | default:'1' }}/query/video_generation{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | then:'/' }}{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | then:main.task_id }}",
+        "query": {
+          "task_id": "{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | not | then:main.task_id }}"
+        },
+        "until": "{{ res.status | default:res.task.status | in:'Success,Fail,succeeded,failed,cancelled' }}",
+        "interval_ms": 10000,
+        "max_wait_ms": 1800000,
+        "error_when": "{{ res.status | eq:'Fail' | default:(res.task.status | in:'failed,cancelled') }}",
+        "error_message": "Task failed: [{{ res.base_resp.status_code | default:res.task.error.code | default:'UNKNOWN' }}] {{ res.base_resp.status_msg | default:res.task.error.message | default:'Video generation task failed' }}"
+      },
+      "output": {
+        "expand": {
+          "when": "{{ ((p.modelId | rl | default:(p.legacyVideoModel | then:'MiniMax-Hailuo-2.3' | default:'MiniMax-H3')) | eq:'MiniMax-H3') | not }}",
+          "method": "GET",
+          "path": "/v1/files/retrieve",
+          "query": {
+            "file_id": "{{ el.file_id }}"
+          }
+        },
+        "expand_merge_key": "file",
+        "expand_merge_path": "file",
+        "download": {
+          "when": "{{ p.downloadVideo }}",
+          "auth": false,
+          "method": "GET",
+          "path": "{{ el.file.download_url | default:el.task.content.url }}",
+          "file_name": "video.mp4"
+        },
+        "to": {
+          "videoUrl": "{{ el.file.download_url | default:el.task.content.url }}",
+          "taskId": "{{ main.task_id }}",
+          "fileId": "{{ el.file_id }}"
+        }
+      }
+    }
+  ]
+}

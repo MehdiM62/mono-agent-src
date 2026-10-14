@@ -1,0 +1,395 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "moonshot_api",
+  "node_type": "app.moonshot_api",
+  "title": "Moonshot Kimi",
+  "description": "Kimi chat (with web search and image attachments) and image analysis through the Moonshot API with your own key",
+  "category": "app",
+  "docs_url": "https://platform.moonshot.ai/docs/api/chat",
+  "n8n_types": [
+    "@n8n/n8n-nodes-langchain.moonshot"
+  ],
+  "base_url": "{{ cred.region | eq:'china' | then:'https://api.moonshot.cn/v1' | default:'https://api.moonshot.ai/v1' }}",
+  "credentials": [
+    {
+      "platform": "moonshot",
+      "name": "Moonshot (Kimi)",
+      "n8n_credential": "moonshotApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "region": "region"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "platform.moonshot.ai → API Keys"
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "international (api.moonshot.ai, default) or china (api.moonshot.cn)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "text",
+      "label": "Text"
+    },
+    {
+      "value": "image",
+      "label": "Image"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "text",
+      "operation": "message",
+      "title": "Message a model",
+      "description": "Chat completion; with web search one $web_search round is answered. Tools attached as n8n sub-nodes are not called.",
+      "method": "POST",
+      "path": "/chat/completions",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Kimi model id (kimi-k2.5, …). Plain id or n8n model locator."
+        },
+        {
+          "key": "messages",
+          "label": "Messages",
+          "type": "collection",
+          "default": {
+            "values": [
+              {
+                "content": "",
+                "role": "user"
+              }
+            ]
+          },
+          "options": [
+            "values"
+          ],
+          "help": "values: [{content, role (user|assistant)}]."
+        },
+        {
+          "key": "addAttachments",
+          "label": "Add attachments",
+          "type": "boolean",
+          "default": false,
+          "help": "Send the item's images with the last user message."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Attachment binary properties",
+          "type": "text",
+          "default": "data",
+          "help": "Comma-separated."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "frequencyPenalty",
+            "includeMergedResponse",
+            "maxTokens",
+            "maxToolsIterations",
+            "temperature",
+            "topP",
+            "presencePenalty",
+            "responseFormat",
+            "system",
+            "thinkingMode",
+            "webSearch"
+          ],
+          "help": "responseFormat: text or json_object; thinkingMode: reasoning (off with web search); webSearch: Kimi's built-in search."
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId | rl }}",
+        "messages": {
+          "$concat": [
+            [
+              {
+                "$when": "{{ p.options.system }}",
+                "role": "system",
+                "content": "{{ p.options.system }}"
+              }
+            ],
+            {
+              "$map": "{{ p.messages.values }}",
+              "$to": {
+                "$when": "{{ (idx | eq:(p.messages.values | len | sub:1) | then:(p.addAttachments | then:(el.role | default:'user' | eq:'user'))) | not }}",
+                "role": "{{ el.role | default:'user' }}",
+                "!content": "{{ el.content }}"
+              }
+            },
+            [
+              {
+                "$when": "{{ p.addAttachments }}",
+                "role": "user",
+                "content": {
+                  "$concat": [
+                    {
+                      "$map": "{{ bin.files }}",
+                      "$to": {
+                        "type": "image_url",
+                        "image_url": {
+                          "url": "data:{{ el.mime_type }};base64,{{ el.base64 }}"
+                        }
+                      }
+                    },
+                    [
+                      {
+                        "$when": "{{ (p.messages.values | get:'-1' | get:'role' | default:'user' | eq:'user') }}",
+                        "type": "text",
+                        "!text": "{{ p.messages.values | get:'-1' | get:'content' }}"
+                      }
+                    ]
+                  ]
+                }
+              }
+            ]
+          ]
+        },
+        "max_tokens": "{{ p.options.maxTokens | default:1024 }}",
+        "temperature": "{{ p.options.temperature }}",
+        "top_p": "{{ p.options.topP }}",
+        "frequency_penalty": "{{ p.options.frequencyPenalty }}",
+        "presence_penalty": "{{ p.options.presencePenalty }}",
+        "tools": {
+          "$concat": [
+            {
+              "$when": "{{ p.options.webSearch }}",
+              "type": "builtin_function",
+              "function": {
+                "name": "$web_search"
+              }
+            }
+          ]
+        },
+        "response_format": {
+          "$when": "{{ p.options.responseFormat | ne:'text' | then:p.options.responseFormat }}",
+          "type": "{{ p.options.responseFormat }}"
+        },
+        "thinking": {
+          "type": "{{ p.options.thinkingMode | then:(p.options.webSearch | not) | then:'enabled' | default:'disabled' }}"
+        }
+      },
+      "binary": {
+        "properties": "{{ p.addAttachments | then:p.binaryPropertyName }}"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/chat/completions",
+        "body": {
+          "model": "{{ p.modelId | rl }}",
+          "messages": {
+            "$concat": [
+              {
+                "$concat": [
+                  [
+                    {
+                      "$when": "{{ p.options.system }}",
+                      "role": "system",
+                      "content": "{{ p.options.system }}"
+                    }
+                  ],
+                  {
+                    "$map": "{{ p.messages.values }}",
+                    "$to": {
+                      "$when": "{{ (idx | eq:(p.messages.values | len | sub:1) | then:(p.addAttachments | then:(el.role | default:'user' | eq:'user'))) | not }}",
+                      "role": "{{ el.role | default:'user' }}",
+                      "!content": "{{ el.content }}"
+                    }
+                  },
+                  [
+                    {
+                      "$when": "{{ p.addAttachments }}",
+                      "role": "user",
+                      "content": {
+                        "$concat": [
+                          {
+                            "$map": "{{ bin.files }}",
+                            "$to": {
+                              "type": "image_url",
+                              "image_url": {
+                                "url": "data:{{ el.mime_type }};base64,{{ el.base64 }}"
+                              }
+                            }
+                          },
+                          [
+                            {
+                              "$when": "{{ (p.messages.values | get:'-1' | get:'role' | default:'user' | eq:'user') }}",
+                              "type": "text",
+                              "!text": "{{ p.messages.values | get:'-1' | get:'content' }}"
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  ]
+                ]
+              },
+              [
+                "{{ res.choices.0.message }}"
+              ],
+              {
+                "$map": "{{ res.choices.0.message.tool_calls }}",
+                "$to": {
+                  "role": "tool",
+                  "tool_call_id": "{{ el.id }}",
+                  "name": "{{ el.function.name }}",
+                  "!content": "{{ el.function.arguments }}"
+                }
+              }
+            ]
+          },
+          "max_tokens": "{{ p.options.maxTokens | default:1024 }}",
+          "temperature": "{{ p.options.temperature }}",
+          "top_p": "{{ p.options.topP }}",
+          "frequency_penalty": "{{ p.options.frequencyPenalty }}",
+          "presence_penalty": "{{ p.options.presencePenalty }}",
+          "tools": {
+            "$concat": [
+              {
+                "$when": "{{ p.options.webSearch }}",
+                "type": "builtin_function",
+                "function": {
+                  "name": "$web_search"
+                }
+              }
+            ]
+          },
+          "response_format": {
+            "$when": "{{ p.options.responseFormat | ne:'text' | then:p.options.responseFormat }}",
+            "type": "{{ p.options.responseFormat }}"
+          },
+          "thinking": {
+            "type": "{{ p.options.thinkingMode | then:(p.options.webSearch | not) | then:'enabled' | default:'disabled' }}"
+          }
+        },
+        "until": "{{ res.choices.0.finish_reason | eq:'tool_calls' | then:p.options.webSearch | not }}",
+        "interval_ms": 1,
+        "max_wait_ms": 600000
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ p.simplify | eq:'false' | then:el }}",
+          "content": "{{ p.simplify | ne:'false' | then:(el.choices.0.message.content | default:'') }}",
+          "reasoning_content": "{{ p.simplify | ne:'false' | then:(p.options.thinkingMode | then:el.choices.0.message.reasoning_content) }}",
+          "merged_response": "{{ p.options.includeMergedResponse | then:(el.choices.0.message.content | default:'') }}"
+        }
+      }
+    },
+    {
+      "resource": "image",
+      "operation": "analyze",
+      "title": "Analyze images",
+      "method": "POST",
+      "path": "/chat/completions",
+      "fields": [
+        {
+          "key": "modelId",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Kimi model id (kimi-k2.5, …). Plain id or n8n model locator."
+        },
+        {
+          "key": "text",
+          "label": "Question",
+          "type": "textarea",
+          "default": "What's in this image?"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary properties",
+          "type": "text",
+          "default": "data",
+          "help": "Comma-separated."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "maxTokens"
+          ],
+          "help": "maxTokens: default 1024."
+        }
+      ],
+      "body": {
+        "model": "{{ p.modelId | rl }}",
+        "max_tokens": "{{ p.options.maxTokens | default:1024 }}",
+        "thinking": {
+          "type": "disabled"
+        },
+        "messages": [
+          {
+            "role": "user",
+            "content": {
+              "$concat": [
+                {
+                  "$map": "{{ bin.files }}",
+                  "$to": {
+                    "type": "image_url",
+                    "image_url": {
+                      "url": "data:{{ el.mime_type }};base64,{{ el.base64 }}"
+                    }
+                  }
+                },
+                [
+                  {
+                    "type": "text",
+                    "!text": "{{ p.text }}"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "binary": {
+        "properties": "{{ p.binaryPropertyName }}"
+      },
+      "output": {
+        "to_when": "{{ p.simplify | ne:'false' }}",
+        "to": {
+          "!content": "{{ el.choices.0.message.content | default:'' }}"
+        }
+      }
+    }
+  ]
+}

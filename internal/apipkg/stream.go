@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"net/http"
-	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -178,28 +176,9 @@ func (r *opRun) fetchUploadURL(ctx context.Context) error {
 	if v = strings.TrimSpace(v); v == "" {
 		return nil
 	}
-	u, err := url.Parse(v)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
-		return r.errf("binary.upload_url: %q is not an http(s) URL", v)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, v, nil)
+	data, ct, u, err := r.getFile(ctx, v, "binary.upload_url")
 	if err != nil {
-		return r.errf("binary.upload_url: %w", err)
-	}
-	resp, err := r.client().Do(req)
-	if err != nil {
-		return r.errf("binary.upload_url: GET %s: %w", u.Redacted(), err)
-	}
-	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody+1))
-	if err != nil {
-		return r.errf("binary.upload_url: reading %s: %w", u.Redacted(), err)
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return r.errf("binary.upload_url: GET %s: HTTP %d: %s", u.Redacted(), resp.StatusCode, errorBodyEcho(data))
-	}
-	if len(data) > maxResponseBody {
-		return r.errf("binary.upload_url: the file exceeds %d MiB", maxResponseBody>>20)
+		return err
 	}
 	prop := r.uploadProperty()
 	it := workflow.Item{JSON: make(map[string]any, len(r.item.JSON)+2), Binary: make(map[string][]byte, len(r.item.Binary)+1)}
@@ -213,7 +192,7 @@ func (r *opRun) fetchUploadURL(ctx context.Context) error {
 	if name := path.Base(u.Path); name != "." && name != "/" {
 		it.JSON["file_name"] = name
 	}
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
+	if ct != "" {
 		it.JSON["mime_type"] = ct
 	}
 	delete(it.JSON, prop) // a stale base64 field must not shadow the fetched file
