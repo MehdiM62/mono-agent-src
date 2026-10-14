@@ -47,3 +47,21 @@ func TestNotionImportKeyCaseByVersion(t *testing.T) {
 		}
 	}
 }
+
+// n8n Twitter v1 tweet attachments name binary properties; v2 holds media
+// IDs. The package's "<2" version default tells them apart on import.
+func TestTwitterImportAttachmentsByVersion(t *testing.T) {
+	for ver, want := range map[string]any{"1": "binaryProperties", "2": nil} {
+		wf, _ := convertNodes(t, `{"name":"X","type":"n8n-nodes-base.twitter","typeVersion":`+ver+`,"position":[0,0],
+		  "parameters":{"text":"hi","additionalFields":{"attachments":"data"}},"credentials":{"twitterOAuth1Api":{"id":"1","name":"X"}}}`)
+		var cfg map[string]interface{}
+		for _, n := range wf.Nodes {
+			if n.Name == "X" {
+				cfg = n.Config
+			}
+		}
+		if cfg == nil || cfg["attachmentsAre"] != want {
+			t.Errorf("v%s: config %v", ver, cfg)
+		}
+	}
+}

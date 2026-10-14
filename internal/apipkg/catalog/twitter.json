@@ -9,6 +9,11 @@
   "n8n_types": [
     "n8n-nodes-base.twitter"
   ],
+  "n8n_version_defaults": {
+    "<2": {
+      "attachmentsAre": "binaryProperties"
+    }
+  },
   "base_url": "https://api.x.com/2",
   "credentials": [
     {
@@ -134,9 +139,15 @@
           "place_id": "{{ p.additionalFields.location }}"
         },
         "media": {
-          "media_ids": [
-            "{{ p.additionalFields.attachments }}"
-          ]
+          "media_ids": {
+            "$concat": [
+              "{{ p.attachmentsAre | ne:'binaryProperties' | then:p.additionalFields.attachments }}",
+              {
+                "$map": "{{ p.attachmentsAre | eq:'binaryProperties' | then:bin.files }}",
+                "$to": "{{ pres.0 | get:(idx | string) | get:'media_id_string' | default:(pres.3 | get:(idx | string) | get:'media_id_string') }}"
+              }
+            ]
+          }
         },
         "quote_tweet_id": "{{ p.additionalFields.inQuoteToStatusId | rl | re:'status/([0-9]+)' }}",
         "reply": {
@@ -165,8 +176,72 @@
             "location"
           ],
           "help": "attachments: a media ID; location: a place ID; quote/reply IDs accept a tweet URL"
+        },
+        {
+          "key": "attachmentsAre",
+          "label": "Attachments are",
+          "type": "select",
+          "default": "mediaIds",
+          "options": [
+            "mediaIds",
+            "binaryProperties"
+          ],
+          "help": "mediaIds: attachments holds media IDs (n8n node version 2); binaryProperties: comma-separated input binary properties, each uploaded through upload.twitter.com/1.1/media/upload and attached (n8n version 1; imported nodes get it from their version)"
         }
-      ]
+      ],
+      "before": [
+        {
+          "for_each": "{{ p.attachmentsAre | eq:'binaryProperties' | then:bin.files }}",
+          "when": "{{ el.mime_type | matches:'image' }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "media_data": "{{ el.base64 }}"
+          }
+        },
+        {
+          "for_each": "{{ p.attachmentsAre | eq:'binaryProperties' | then:bin.files }}",
+          "when": "{{ (el.mime_type | matches:'image') | not }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "INIT",
+            "total_bytes": "{{ el.file_size }}",
+            "media_type": "{{ el.mime_type }}"
+          }
+        },
+        {
+          "for_each": "{{ p.attachmentsAre | eq:'binaryProperties' | then:bin.files }}",
+          "when": "{{ (el.mime_type | matches:'image') | not }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "APPEND",
+            "media_id": "{{ pres.1 | get:(idx | string) | get:'media_id_string' }}",
+            "media_data": "{{ el.base64 }}",
+            "segment_index": 0,
+            "name": "{{ el.file_name }}"
+          }
+        },
+        {
+          "for_each": "{{ p.attachmentsAre | eq:'binaryProperties' | then:bin.files }}",
+          "when": "{{ (el.mime_type | matches:'image') | not }}",
+          "method": "POST",
+          "path": "https://upload.twitter.com/1.1/media/upload.json",
+          "body_type": "form",
+          "body": {
+            "command": "FINALIZE",
+            "media_id": "{{ pres.1 | get:(idx | string) | get:'media_id_string' }}"
+          }
+        }
+      ],
+      "binary": {
+        "properties": "{{ p.attachmentsAre | eq:'binaryProperties' | then:p.additionalFields.attachments }}"
+      },
+      "description": "With attachments as binary properties, each file is uploaded first (images in one request, other media by INIT/APPEND/FINALIZE as one segment, at most 5 MiB) and the media IDs attached."
     },
     {
       "resource": "tweet",

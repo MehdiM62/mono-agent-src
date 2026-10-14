@@ -152,3 +152,61 @@ func TestNotionKeyCase(t *testing.T) {
 		}
 	}
 }
+
+// n8n v1 tweet attachments are binary property names: each is uploaded
+// (an image in one call, other media by INIT/APPEND/FINALIZE) and the
+// tweet carries every media id in order. As media IDs (v2) they pass as is.
+func TestTwitterTweetAttachmentUploads(t *testing.T) {
+	p := catalogPkg(t, "twitter")
+	n := 0
+	var forms []url.Values
+	reqs := recServer(t, func(r seenReq) string {
+		if strings.HasSuffix(r.Path, "/media/upload.json") {
+			f, _ := url.ParseQuery(r.Body)
+			forms = append(forms, f)
+			if f.Get("command") == "" {
+				n++
+				return `{"media_id_string":"IMG` + string(rune('0'+n)) + `"}`
+			}
+			return `{"media_id_string":"VID"}`
+		}
+		return `{"data":{"id":"9"}}`
+	})
+	item := workflow.Item{
+		JSON: map[string]any{"binary": map[string]any{
+			"pic":  map[string]any{"mimeType": "image/png", "fileName": "a.png"},
+			"vid":  map[string]any{"mimeType": "video/mp4", "fileName": "b.mp4"},
+			"pic2": map[string]any{"mimeType": "image/jpeg", "fileName": "c.jpg"}}},
+		Binary: map[string][]byte{"pic": []byte("p1"), "vid": []byte("v"), "pic2": []byte("p2")},
+	}
+	cfg := map[string]any{"resource": "tweet", "operation": "create", "text": "hi", "attachmentsAre": "binaryProperties",
+		"additionalFields": map[string]any{"attachments": "pic, vid,pic2"}, "credential": map[string]any{"access_token": "t"}}
+	if _, err := runItems(t, p, cfg, item); err != nil {
+		t.Fatal(err)
+	}
+	var cmds []string
+	for _, f := range forms {
+		c := f.Get("command")
+		if c == "" {
+			c = "image"
+		}
+		if c == "APPEND" && (f.Get("media_id") != "VID" || f.Get("segment_index") != "0") {
+			t.Errorf("APPEND %v", f)
+		}
+		cmds = append(cmds, c)
+	}
+	if strings.Join(cmds, " ") != "image image INIT APPEND FINALIZE" {
+		t.Errorf("uploads %v", cmds)
+	}
+	tw := (*reqs)[len(*reqs)-1]
+	if tw.Path != "/2/tweets" || tw.Body != `{"media":{"media_ids":["IMG1","VID","IMG2"]},"text":"hi"}` {
+		t.Errorf("tweet %s %s", tw.Path, tw.Body)
+	}
+
+	reqs = recServer(t, func(seenReq) string { return `{"data":{"id":"9"}}` })
+	cfg = map[string]any{"resource": "tweet", "operation": "create", "text": "hi",
+		"additionalFields": map[string]any{"attachments": "55"}, "credential": map[string]any{"access_token": "t"}}
+	if _, err := runItems(t, p, cfg); err != nil || len(*reqs) != 1 || (*reqs)[0].Body != `{"media":{"media_ids":["55"]},"text":"hi"}` {
+		t.Errorf("media id tweet: %v %v", err, *reqs)
+	}
+}
