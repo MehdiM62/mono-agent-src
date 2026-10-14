@@ -118,7 +118,7 @@ func checkWebhookCase(t *testing.T, p *Package) {
 	}
 	checkHookRequests(t, p.ID+" delete", srv.requests(), c.ExpectDelete, credDef, cred, params)
 	srv = newMockServer(t, nil, http.StatusNotFound)
-	if err := reg.Unregister(context.Background(), hook, got); err != nil && len(p.Webhook.Delete) == 1 {
+	if err := reg.Unregister(context.Background(), hook, got); err != nil {
 		t.Errorf("%s webhook: a 404 on delete should count as removed, got %v", p.ID, err)
 	}
 
@@ -182,7 +182,7 @@ func checkHookRequests(t *testing.T, where string, reqs []captured, want []expec
 				t.Errorf("%s: header %s: got %q, want %q", w, k, g, v)
 			}
 		}
-		if e.Headers["Authorization"] == "" {
+		if _, pinned := e.Headers["Authorization"]; !pinned {
 			checkAuth(t, w, got, c, cred, params, nil, nil)
 		}
 	}

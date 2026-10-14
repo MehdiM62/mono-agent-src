@@ -55,6 +55,9 @@ type WebhookVerify struct {
 	Alg       string `json:"alg,omitempty"`      // sha256 (default), sha1, sha512, token
 	Encoding  string `json:"encoding,omitempty"` // hex (default) or base64
 	Prefix    string `json:"prefix,omitempty"`   // stripped from the signature ("sha256=")
+	// SecretEncoding "hex" or "base64" decodes the secret into the HMAC
+	// key (Onfleet's hex signing secret); default: its text.
+	SecretEncoding string `json:"secret_encoding,omitempty"`
 }
 
 // webhookRegistrar is the workflow.WebhookRegistrar of one package. It

@@ -63,7 +63,17 @@ func (v *WebhookVerify) check(sc Scope, body []byte) error {
 		}
 		msg = []byte(s)
 	}
-	mac := hmac.New(webhookAlgs[alg], []byte(secret))
+	key := []byte(secret)
+	switch v.SecretEncoding {
+	case "hex":
+		key, err = hex.DecodeString(secret)
+	case "base64":
+		key, err = base64.StdEncoding.DecodeString(secret)
+	}
+	if err != nil {
+		return fmt.Errorf("webhook verify secret: not %s: %w", v.SecretEncoding, err)
+	}
+	mac := hmac.New(webhookAlgs[alg], key)
 	mac.Write(msg)
 	var got []byte
 	if v.Encoding == "base64" {

@@ -543,7 +543,8 @@
             "secret": { "type": "string" },
             "alg": { "type": "string", "enum": ["sha256", "sha1", "sha512", "token"] },
             "encoding": { "type": "string", "enum": ["hex", "base64"] },
-            "prefix": { "type": "string" }
+            "prefix": { "type": "string" },
+            "secret_encoding": { "type": "string", "enum": ["hex", "base64"] }
           }
         }
       }

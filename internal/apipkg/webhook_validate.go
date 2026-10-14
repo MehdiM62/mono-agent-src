@@ -62,6 +62,9 @@ func (wh *Webhook) check(credKeys map[string]bool) []string {
 		if v.Encoding != "" && v.Encoding != "hex" && v.Encoding != "base64" {
 			add("verify.encoding %q must be hex or base64", v.Encoding)
 		}
+		if e := v.SecretEncoding; e != "" && e != "hex" && e != "base64" {
+			add("verify.secret_encoding %q must be hex or base64", e)
+		}
 		probs = append(probs, checkTemplates("webhook verify", []any{v.Signature, v.Message, v.Secret}, fields, credKeys)...)
 	}
 	return probs
