@@ -54,6 +54,7 @@ func applyWebhookOptions(reg *WebhookRegistration, config map[string]interface{}
 
 	header, _ := config["dedupe_header"].(string)
 	reg.DedupeHeader = strings.TrimSpace(header)
+	reg.VerifyToken, _ = config["verify_token"].(string)
 	return nil
 }
 

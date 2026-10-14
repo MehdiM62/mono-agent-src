@@ -86,7 +86,7 @@ func fixUntilStable(ctx context.Context, cfg *globalConfig, reg *health.Registry
 // exit code 1 without an {"error"} JSON line on stdout (the report already
 // is the JSON output).
 func errRequiredChecksFailed(n int) error {
-	return &cliError{code: 1, msg: fmt.Sprintf("%d required check(s) failed", n)}
+	return &cliError{Code: 1, Msg: fmt.Sprintf("%d required check(s) failed", n)}
 }
 
 func newDoctorCmd(cfg *globalConfig) *cobra.Command {
@@ -148,7 +148,7 @@ Exit code 1 means a required check failed.`,
 			if n := rep.RequiredFailures(); n > 0 {
 				if cfg.JSONOutput {
 					// The report above is the one JSON document.
-					return reportedError{errRequiredChecksFailed(n)}
+					return reportedError{Err: errRequiredChecksFailed(n)}
 				}
 				return errRequiredChecksFailed(n)
 			}

@@ -155,19 +155,19 @@ func libErr(err error) error {
 	case errors.As(err, &ae):
 		switch ae.Status {
 		case http.StatusNotFound:
-			return &cliError{code: 2, msg: err.Error()}
+			return &cliError{Code: 2, Msg: err.Error()}
 		case http.StatusBadRequest, http.StatusConflict, http.StatusRequestEntityTooLarge, http.StatusUnprocessableEntity:
-			return &cliError{code: 3, msg: err.Error()}
+			return &cliError{Code: 3, Msg: err.Error()}
 		case http.StatusForbidden, http.StatusTooManyRequests:
-			return &cliError{code: 4, msg: err.Error()}
+			return &cliError{Code: 4, Msg: err.Error()}
 		}
 		if ae.Status >= 500 {
-			return &cliError{code: 4, msg: err.Error()}
+			return &cliError{Code: 4, Msg: err.Error()}
 		}
 	case errors.Is(err, library.ErrSHA256Mismatch), errors.Is(err, automation.ErrSHA256Mismatch):
-		return &cliError{code: 3, msg: err.Error() + " — nothing was installed"}
+		return &cliError{Code: 3, Msg: err.Error() + " — nothing was installed"}
 	case strings.Contains(err.Error(), "monoes.me unreachable"):
-		return &cliError{code: 4, msg: err.Error()}
+		return &cliError{Code: 4, Msg: err.Error()}
 	}
 	return err
 }

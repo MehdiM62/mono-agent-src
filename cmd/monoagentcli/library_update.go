@@ -74,7 +74,7 @@ func newLibraryUpdateCmd(e *libEnv) *cobra.Command {
 			}
 			for _, u := range updates {
 				if u.Status == "failed" {
-					return reportedError{fmt.Errorf("some updates failed")}
+					return reportedError{Err: fmt.Errorf("some updates failed")}
 				}
 			}
 			return nil
@@ -115,7 +115,7 @@ func (e *libEnv) updateOne(ctx context.Context, c *library.Client, r library.Rec
 	if _, err := e.install(ctx, c, it, opts); err != nil {
 		u.Status, u.Error, u.loginRequired = "failed", err.Error(), isLoginRequired(err)
 		var ce *cliError
-		if errors.As(err, &ce) && ce.code == 3 && !yes {
+		if errors.As(err, &ce) && ce.Code == 3 && !yes {
 			u.Status = "needs_confirmation"
 		}
 		return u

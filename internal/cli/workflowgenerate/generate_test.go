@@ -1,4 +1,4 @@
-package main
+package workflowgenerate
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/ai/generate"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/storage"
 )
@@ -22,13 +23,11 @@ const genValid = "```json\n" + `{"name":"Fetch feed","nodes":[
 const genNoTrigger = `{"name":"Fetch feed","nodes":[
  {"id":"n2","type":"http.request","name":"Fetch","config":{}}],"connections":[]}`
 
-// fakeGenerateExec makes every turn answer from answers, in order (the
-// last one repeats), and counts the turns.
-func fakeGenerateExec(t *testing.T, answers ...string) *int {
+// fakeExec is an agent whose every turn answers from answers, in order (the last one
+// repeats); turns counts them.
+func fakeExec(t *testing.T, turns *int, answers ...string) func(context.Context, string, string) (generate.ExecFunc, error) {
 	t.Helper()
-	turns := 0
-	orig := generateExecFor
-	generateExecFor = func(_ context.Context, runtime, _ string) (generate.ExecFunc, error) {
+	return func(_ context.Context, runtime, _ string) (generate.ExecFunc, error) {
 		if runtime != "fake" {
 			t.Errorf("runtime = %q, want fake", runtime)
 		}
@@ -36,22 +35,22 @@ func fakeGenerateExec(t *testing.T, answers ...string) *int {
 			if !strings.Contains(system, "http.request") || !strings.Contains(system, "trigger.manual") {
 				t.Error("system prompt lacks the node catalog")
 			}
-			i := turns
+			i := *turns
 			if i >= len(answers) {
 				i = len(answers) - 1
 			}
-			turns++
+			*turns++
 			return answers[i], nil
 		}, nil
 	}
-	t.Cleanup(func() { generateExecFor = orig })
-	return &turns
 }
 
 func TestWorkflowGenerateSavesInactiveDraftAfterBadJSON(t *testing.T) {
+	t.Parallel()
 	home, cfg := persistTestEnv(t)
-	turns := fakeGenerateExec(t, "here you go: {broken", genValid)
-	out, err := runWorkflowCmdIn(t, cfg, "", "generate", "fetch", "example.com", "--runtime", "fake")
+	turns := new(int)
+	d := testDeps(cfg, fakeExec(t, turns, "here you go: {broken", genValid), nil)
+	out, err := runGenerate(t, d, "fetch", "example.com", "--runtime", "fake")
 	if err != nil {
 		t.Fatalf("generate: %v\n%s", err, out)
 	}
@@ -79,16 +78,22 @@ func TestWorkflowGenerateSavesInactiveDraftAfterBadJSON(t *testing.T) {
 	if got.Workflow.Nodes[0].ID == "n1" || got.Workflow.Connections[0].Source != got.Workflow.Nodes[0].ID {
 		t.Errorf("saved ids = %+v", got.Workflow)
 	}
-	if _, err := runWorkflowCmdIn(t, cfg, "", "validate", got.ID); err != nil {
-		t.Errorf("saved draft does not validate: %v", err)
+	saved, err := testStore(cfg)(db).GetWorkflow(context.Background(), got.ID)
+	if err != nil || saved == nil {
+		t.Fatalf("saved draft: %v", err)
+	}
+	if errs, _ := generate.Validator(testRegistry(nil).Has)(saved); len(errs) != 0 {
+		t.Errorf("saved draft does not validate: %v", errs)
 	}
 }
 
 func TestWorkflowGenerateRetriesValidationErrorsNoSave(t *testing.T) {
-	_, cfg := persistTestEnv(t)
+	t.Parallel()
+	home, cfg := persistTestEnv(t)
 	cfg.JSONOutput = false
-	turns := fakeGenerateExec(t, genNoTrigger, genValid)
-	out, err := runWorkflowCmdIn(t, cfg, "", "generate", "fetch example.com", "--runtime", "fake", "--no-save", "--name", "Mine")
+	turns := new(int)
+	d := testDeps(cfg, fakeExec(t, turns, genNoTrigger, genValid), nil)
+	out, err := runGenerate(t, d, "fetch example.com", "--runtime", "fake", "--no-save", "--name", "Mine")
 	if err != nil {
 		t.Fatalf("generate: %v", err)
 	}
@@ -109,18 +114,28 @@ func TestWorkflowGenerateRetriesValidationErrorsNoSave(t *testing.T) {
 	if doc.Name != "Mine" || doc.IsActive || len(doc.Nodes) != 2 || doc.Nodes[0].ID != "n1" {
 		t.Errorf("document = %+v", doc)
 	}
-	ws, err := runWorkflowCmdIn(t, &globalConfig{DBPath: cfg.DBPath, JSONOutput: true, ProfileID: "default"}, "", "list")
-	if err != nil || strings.Contains(ws, "Mine") {
-		t.Errorf("--no-save saved something: %s %v", ws, err)
+	db, err := openTestDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var n int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM workflows`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("--no-save saved %d workflow(s) (%v)", n, err)
+	}
+	if files, _ := os.ReadDir(filepath.Join(home, ".monoagent", "workflows")); len(files) != 0 {
+		t.Errorf("--no-save wrote %d workflow file(s)", len(files))
 	}
 }
 
 func TestWorkflowGenerateGivesUpAfterMaxAttempts(t *testing.T) {
+	t.Parallel()
 	_, cfg := persistTestEnv(t)
-	turns := fakeGenerateExec(t, genNoTrigger)
-	out, err := runWorkflowCmdIn(t, cfg, "", "generate", "fetch", "--runtime", "fake", "--max-attempts", "2")
-	var ce *cliError
-	if !errors.As(err, &ce) || ce.code != 3 {
+	turns := new(int)
+	d := testDeps(cfg, fakeExec(t, turns, genNoTrigger), nil)
+	out, err := runGenerate(t, d, "fetch", "--runtime", "fake", "--max-attempts", "2")
+	var ce *clicore.Error
+	if !errors.As(err, &ce) || ce.Code != 3 {
 		t.Fatalf("err = %v, want exit 3", err)
 	}
 	if *turns != 2 {
@@ -136,11 +151,10 @@ func TestWorkflowGenerateGivesUpAfterMaxAttempts(t *testing.T) {
 }
 
 func TestWorkflowGenerateAutoWithoutRuntimeSaysHowToSetUp(t *testing.T) {
+	t.Parallel()
 	_, cfg := persistTestEnv(t)
-	orig := generateScan
-	generateScan = func(context.Context) (*monomind.ScanResult, error) { return &monomind.ScanResult{}, nil }
-	t.Cleanup(func() { generateScan = orig })
-	_, err := runWorkflowCmdIn(t, cfg, "", "generate", "anything")
+	d := testDeps(cfg, nil, func(context.Context) (*monomind.ScanResult, error) { return &monomind.ScanResult{}, nil })
+	_, err := runGenerate(t, d, "anything")
 	if err == nil || !strings.Contains(err.Error(), "agent install") || !strings.Contains(err.Error(), "--runtime") {
 		t.Fatalf("err = %v", err)
 	}

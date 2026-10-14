@@ -40,6 +40,11 @@ The bind address is loopback by default; set MONOAGENT_WEBHOOK_ADDR (e.g.
   "response_data": "firstEntryJson",// lastNode: firstEntryJson | allEntries | noData
   "response_timeout": 30,           // lastNode/responseNode: seconds to wait, then 202
   "dedupe_header": "X-GitHub-Delivery", // optional: a repeated delivery id starts no run
+  "verify_token": "",               // optional: hub.verify_token a hub.challenge check must carry
+  "register_with": "typeform",      // optional: register the URL with this app on activation
+  "public_url": "https://my-tunnel.example", // base the app reaches; default MONOAGENT_PUBLIC_URL
+  "credential_id": "typeform",      // connection whose token registers the hook
+  "register_config": {"form_id": "abc123"}, // the app's own keys
   "max_body_bytes": 1048576         // optional: raise the 1MB body cap (max 32MB)
 }`,
 		Inputs: "none",
@@ -55,7 +60,72 @@ multipart/form-data and text/*. Answers {"success":true,"execution_id":"..."}
 required, queue full), 404 (workflow gone), 409 (workflow inactive). lastNode
 answers with the output of the node that ran last; responseNode with what a
 core.respond_webhook node sends; a failed run answers 500. A duplicate
-delivery answers {"success":true,"duplicate":true,"execution_id":<first run>}.`,
+delivery answers {"success":true,"duplicate":true,"execution_id":<first run>}.
+Vendor URL checks are answered without starting a run: HEAD (200), GET
+?hub.mode=subscribe&hub.challenge (Meta, WebSub; verify_token when set),
+?validationToken (Microsoft Graph), an X-Hook-Secret header (Asana, Keap:
+echoed and kept, and a later X-Hook-Signature must match it), Slack
+url_verification, and an AWS SNS SubscriptionConfirmation (its https
+amazonaws.com SubscribeURL is visited).
+register_with registers <public_url>/webhook/<path> with the app's API when
+the workflow is activated and removes it when it is deactivated, deleted or
+its trigger edited (stopping the daemon keeps it). Built in: typeform
+(register_config form_id, tag; deliveries checked against
+Typeform-Signature) and calendly (organization, events, scope, user;
+Calendly-Webhook-Signature). Activation fails when no public URL is set:
+the app cannot reach 127.0.0.1.`,
+	},
+	{
+		Type:     "trigger.form",
+		Category: "trigger",
+		Short:    "Serve a web form at /form/<path> and run the workflow with each submission",
+		Description: `Serves an HTML form at http://127.0.0.1:9321/form/<path> while "monoagentcli
+daemon" runs (MONOAGENT_WEBHOOK_ADDR changes the bind, as for trigger.webhook).
+A submission is checked (required fields, email, number, date, dropdown
+choice) and starts a run; an invalid one shows the form again with the errors.`,
+		Config: `{
+  "path":            "contact",              // required
+  "formTitle":       "Contact us",
+  "formDescription": "We answer within a day.",
+  "formFields": [                            // required: at least one
+    {"fieldLabel": "Name",  "requiredField": true},
+    {"fieldLabel": "Email", "fieldType": "email", "requiredField": true},
+    {"fieldLabel": "Topic", "fieldType": "dropdown", "fieldOptions": ["Sales", "Support"]},
+    {"fieldLabel": "Notes", "fieldType": "textarea", "placeholder": "Anything else?"}
+  ],                                         // fieldType: text | email | number | textarea | dropdown | date | checkbox
+  "buttonLabel":     "Submit",
+  "respondWith":     "text",                 // text | redirect
+  "responseText":    "Thanks, your response has been recorded.",
+  "redirectUrl":     ""                      // respondWith redirect: http(s) URL
+}`,
+		Inputs: "none",
+		Outputs: `one item: each answer keyed by its fieldLabel (a number for number fields,
+true/false for a checkbox, a list for a checkbox with options), plus
+submittedAt (RFC 3339, UTC) and formMode "production".`,
+		Notes: `The workflow must be activated and the daemon running. fieldOptions also
+accepts n8n's {"values":[{"option":"..."}]} and a comma-separated string;
+formFields may be given as JSON text. There is no login on the form: anyone
+who can reach the URL can submit it.`,
+	},
+	{
+		Type:     "trigger.sse",
+		Category: "trigger",
+		Short:    "Run workflow on each Server-Sent Event from a URL",
+		Description: `While "monoagentcli daemon" runs and the workflow is active, keeps a
+text/event-stream connection open to url and starts one run per event. A
+dropped connection is retried after the server's retry: time (3s until it sends
+one), doubling while it keeps failing up to a minute, and resumes with
+Last-Event-ID. A 204 answer stops the trigger until the workflow is activated
+again.`,
+		Config: `{
+  "url":     "https://example.com/events",              // required, http(s)
+  "headers": {"Authorization": "Bearer @secret:feed"}   // optional; object or JSON text
+}`,
+		Inputs: "none",
+		Outputs: `one item per event: event ("message" when the stream names none), data (the
+parsed JSON value when the event's data is JSON, else the text; multi-line data
+joined with newlines) and id (the last event id).`,
+		Notes: "Only the daemon opens the stream; `workflow activate` alone does not.",
 	},
 	{
 		Type:     "trigger.execute_workflow",

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/workflowrun"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/i18n"
 	"github.com/monoes/mono-agent/internal/nodemgr"
@@ -121,7 +123,7 @@ func newRootCmd() *cobra.Command {
 	// output items in the --json record (4KB truncation still applies).
 	// Registered here on the run subcommand to keep workflow.go untouched.
 	if runCmd, _, err := cmd.Find([]string{"workflow", "run"}); err == nil && runCmd != nil {
-		runCmd.Flags().BoolVar(&fullOutputsFlag, "full-outputs", false,
+		runCmd.Flags().BoolVar(&workflowrun.FullOutputs, "full-outputs", false,
 			"Include unredacted output items in the --json record (values under credential-like keys such as token/password/api_key are masked by default)")
 	}
 
@@ -190,16 +192,7 @@ func rejectUnknownSubcommands(cmd *cobra.Command) {
 }
 
 // expandPath expands ~ to the user's home directory.
-func expandPath(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(home, path[2:])
-	}
-	return path
-}
+func expandPath(path string) string { return clicore.ExpandPath(path) }
 
 // initDB creates and returns a database connection, applying migrations.
 // It also resolves cfg.ProfileID: if not set via --profile, reads it from the settings table.
