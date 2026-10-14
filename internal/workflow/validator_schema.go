@@ -167,7 +167,11 @@ func schemaIssues(w *Workflow, opts ValidateOptions) []ValidationIssue {
 		sort.Strings(keys)
 		for _, k := range keys {
 			walkStrings(n.Config[k], k, func(path, s string) {
-				out = append(out, expressionIssues(n.ID, path, s, refNames)...)
+				// Code without "{{" runs as written: its "}}" closes nested
+				// JavaScript blocks, not a template.
+				if fieldTypes[k] != "code" || strings.Contains(s, "{{") {
+					out = append(out, expressionIssues(n.ID, path, s, refNames)...)
+				}
 				out = append(out, g.upstreamFieldIssues(n, path, s)...)
 			})
 		}
