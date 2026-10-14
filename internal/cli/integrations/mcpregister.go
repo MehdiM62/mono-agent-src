@@ -1,4 +1,4 @@
-package main
+package integrations
 
 import (
 	"bytes"
@@ -143,9 +143,9 @@ func mcpRuntimeStates() []mcpRuntimeState {
 	return out
 }
 
-// agentsMCPRuntimes is the doctor's per-runtime view (one row per installed
+// AgentsMCPRuntimes is the doctor's per-runtime view (one row per installed
 // coding agent).
-func agentsMCPRuntimes() []health.MCPRuntime {
+func AgentsMCPRuntimes() []health.MCPRuntime {
 	var out []health.MCPRuntime
 	for _, st := range mcpRuntimeStates() {
 		if !st.Installed {
@@ -163,9 +163,9 @@ func agentsMCPRuntimes() []health.MCPRuntime {
 	return out
 }
 
-// agentsMCPRegistration is the doctor view over every installed runtime:
+// AgentsMCPRegistration is the doctor view over every installed runtime:
 // registered only when each of them has a current registration.
-func agentsMCPRegistration() (found, registered bool, where string) {
+func AgentsMCPRegistration() (found, registered bool, where string) {
 	var parts []string
 	registered = true
 	for _, st := range mcpRuntimeStates() {
@@ -181,10 +181,10 @@ func agentsMCPRegistration() (found, registered bool, where string) {
 	return found, found && registered, strings.Join(parts, "; ")
 }
 
-// registerAgentsMCP registers (or re-registers) the MCP server with every
+// RegisterAgentsMCP registers (or re-registers) the MCP server with every
 // installed runtime whose registration is missing or outdated. A runtime
 // that is not installed is never touched.
-func registerAgentsMCP(ctx context.Context, progress func(string)) error {
+func RegisterAgentsMCP(ctx context.Context, progress func(string)) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
