@@ -1,4 +1,4 @@
-package main
+package librarycli
 
 import (
 	"bytes"
@@ -16,7 +16,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/workflowio"
 	"github.com/monoes/mono-agent/internal/library"
+	"github.com/monoes/mono-agent/internal/noderegistry"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -26,8 +29,8 @@ type libInstallOptions struct {
 	rename               string
 }
 
-// libInstallResult is `library install --json`.
-type libInstallResult struct {
+// InstallResult is `library install --json`.
+type InstallResult struct {
 	Kind               string       `json:"kind"`
 	Item               library.Item `json:"item"`
 	SHA256             string       `json:"sha256"`
@@ -59,23 +62,23 @@ func newLibraryInstallCmd(e *libEnv) *cobra.Command {
 			if len(args) == 1 { // "automations/instagram", as a library page's URL names it
 				k, slug, ok := strings.Cut(args[0], "/")
 				if !ok {
-					return errInvalidInput("usage: library install <workflow|automation|org|api> <id | slug>")
+					return clicore.InvalidInput("usage: library install <workflow|automation|org|api> <id | slug>")
 				}
 				args = []string{k, k + "/" + slug}
 			}
 			kind, ref := library.NormalizeKind(args[0]), args[1]
 			if !library.ValidKind(kind) {
-				return errInvalidInput("kind must be workflow, automation, org or api, not %q", kind)
+				return clicore.InvalidInput("kind must be workflow, automation, org or api, not %q", kind)
 			}
 			if o.rename != "" && kind != library.KindOrg {
-				return errInvalidInput("--rename only applies to orgs")
+				return clicore.InvalidInput("--rename only applies to orgs")
 			}
 			ctx := cmd.Context()
 			c, err := e.requireLogin(ctx)
 			if err != nil {
 				return err
 			}
-			it, err := resolveItem(ctx, c, kind, ref)
+			it, err := e.resolveItem(ctx, c, kind, ref)
 			if err != nil {
 				return err
 			}
@@ -83,7 +86,7 @@ func newLibraryInstallCmd(e *libEnv) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return printLib(e.cfg, cmd, res, func(w io.Writer) { printInstall(w, res) })
+			return e.print(cmd, res, func(w io.Writer) { printInstall(w, res) })
 		},
 	}
 	cmd.Flags().BoolVarP(&o.yes, "yes", "y", false, "Don't ask: replace an org or API package of the same name or an installed copy, install bundled automations")
@@ -94,7 +97,7 @@ func newLibraryInstallCmd(e *libEnv) *cobra.Command {
 }
 
 // resolveItem finds kind's item by slug first, then by id.
-func resolveItem(ctx context.Context, c *library.Client, kind, ref string) (*library.Item, error) {
+func (e *libEnv) resolveItem(ctx context.Context, c *library.Client, kind, ref string) (*library.Item, error) {
 	var it *library.Item
 	var err error
 	if k, slug, ok := strings.Cut(ref, "/"); ok {
@@ -106,26 +109,26 @@ func resolveItem(ctx context.Context, c *library.Client, kind, ref string) (*lib
 	if it == nil {
 		var ae *library.APIError
 		if err != nil && !(errors.As(err, &ae) && ae.Status == 404) {
-			return nil, libErr(err)
+			return nil, e.deps.Err(err)
 		}
 		if it, err = c.Get(ctx, ref); err != nil {
-			return nil, libErr(err)
+			return nil, e.deps.Err(err)
 		}
 	}
 	if it.Kind != kind {
-		return nil, errInvalidInput("%s is a %s, not a %s", ref, it.Kind, kind)
+		return nil, clicore.InvalidInput("%s is a %s, not a %s", ref, it.Kind, kind)
 	}
 	return it, nil
 }
 
 // install downloads it (sha256-checked) and hands it to the kind's
 // installer.
-func (e *libEnv) install(ctx context.Context, c *library.Client, it *library.Item, o libInstallOptions) (*libInstallResult, error) {
+func (e *libEnv) install(ctx context.Context, c *library.Client, it *library.Item, o libInstallOptions) (*InstallResult, error) {
 	data, sum, err := c.Download(ctx, it)
 	if err != nil {
-		return nil, libErr(err)
+		return nil, e.deps.Err(err)
 	}
-	res := &libInstallResult{Kind: it.Kind, Item: *it, SHA256: sum, DryRun: o.dryRun,
+	res := &InstallResult{Kind: it.Kind, Item: *it, SHA256: sum, DryRun: o.dryRun,
 		Warnings: []string{}, MissingAutomations: []string{}}
 	if res.Item.Tags == nil {
 		res.Item.Tags = []string{}
@@ -180,7 +183,7 @@ func (e *libEnv) spool(b []byte, pattern string) (string, func(), error) {
 	return f.Name(), func() { os.Remove(f.Name()) }, nil
 }
 
-func (e *libEnv) installAutomation(it *library.Item, data []byte, sum string, o libInstallOptions, res *libInstallResult) error {
+func (e *libEnv) installAutomation(it *library.Item, data []byte, sum string, o libInstallOptions, res *InstallResult) error {
 	reg, err := e.registry()
 	if err != nil {
 		return err
@@ -200,12 +203,12 @@ func (e *libEnv) installAutomation(it *library.Item, data []byte, sum string, o 
 	}
 	if err != nil {
 		if errors.Is(err, automation.ErrReplaces) {
-			return withInstallResult(errInvalidInput("%v — pass --replace (or --yes) to replace it", err), ir)
+			return clicore.WithInstallResult(clicore.InvalidInput("%v — pass --replace (or --yes) to replace it", err), ir)
 		}
 		if errors.Is(err, automation.ErrInvalid) {
-			return withInstallResult(errInvalidInput("%v", err), ir)
+			return clicore.WithInstallResult(clicore.InvalidInput("%v", err), ir)
 		}
-		return withInstallResult(libErr(err), ir)
+		return clicore.WithInstallResult(e.deps.Err(err), ir)
 	}
 	res.Installed = ir.Installed
 	if ir.Review.Trust == automation.TrustBuiltin {
@@ -228,10 +231,10 @@ func (e *libEnv) runSubcommand(ctx context.Context, cmd *cobra.Command, args ...
 	return out.Bytes(), err
 }
 
-func (e *libEnv) installWorkflow(ctx context.Context, it *library.Item, data []byte, sum string, o libInstallOptions, res *libInstallResult) error {
-	wf, err := parseWorkflowDefinition(data)
+func (e *libEnv) installWorkflow(ctx context.Context, it *library.Item, data []byte, sum string, o libInstallOptions, res *InstallResult) error {
+	wf, err := workflowio.Deps{InvalidInput: clicore.InvalidInput}.ParseWorkflowDefinition(data)
 	if err != nil {
-		return errInvalidInput("the library's workflow file does not parse: %v", err)
+		return clicore.InvalidInput("the library's workflow file does not parse: %v", err)
 	}
 	if o.dryRun {
 		res.LocalID = ""
@@ -244,8 +247,6 @@ func (e *libEnv) installWorkflow(ctx context.Context, it *library.Item, data []b
 		return err
 	}
 	defer cleanup()
-	sub := *e.cfg
-	sub.JSONOutput = true
 	args := []string{"--file", path}
 	if o.yes {
 		args = append(args, "--yes")
@@ -254,7 +255,7 @@ func (e *libEnv) installWorkflow(ctx context.Context, it *library.Item, data []b
 	if prev := e.recordedLocalID(library.KindWorkflow, it.ID); prev != "" && e.localExists(ctx, library.KindWorkflow, prev) {
 		args = append(args, "--replace", prev)
 	}
-	out, err := e.runSubcommand(ctx, newWorkflowImportCmd(&sub), args...)
+	out, err := e.runSubcommand(ctx, e.deps.NewWorkflowImportJSONCmd(), args...)
 	if err != nil {
 		return err
 	}
@@ -273,7 +274,7 @@ func (e *libEnv) installWorkflow(ctx context.Context, it *library.Item, data []b
 	res.Warnings = append(res.Warnings, imp.Warnings...)
 	missing := e.missingAutomations(nodeTypes(wf.Nodes), it)
 	res.MissingAutomations = mergeSorted(missing, imp.MissingAutomations)
-	return e.record(it, library.KindWorkflow, e.cfg.ProfileID, imp.ID, sum)
+	return e.record(it, library.KindWorkflow, e.deps.ProfileID(), imp.ID, sum)
 }
 
 // recordedLocalID is the local id an earlier install of item got here.
@@ -282,9 +283,9 @@ func (e *libEnv) recordedLocalID(kind, itemID string) string {
 	if err != nil {
 		return ""
 	}
-	recs, _ := prov.List(e.cfg.ProfileID, kind)
+	recs, _ := prov.List(e.deps.ProfileID(), kind)
 	for _, r := range recs {
-		if r.ItemID == itemID && r.Profile == e.cfg.ProfileID {
+		if r.ItemID == itemID && r.Profile == e.deps.ProfileID() {
 			return r.LocalID
 		}
 	}
@@ -322,7 +323,7 @@ func (e *libEnv) missingAutomations(types []string, it *library.Item) []string {
 	if err != nil {
 		return []string{}
 	}
-	nodes := buildNodeRegistry(false, e.db.DB)
+	nodes := noderegistry.Build(e.db.DB)
 	builtin := map[string]bool{"trigger": true} // trigger.* run in the engine, not the registry
 	for _, t := range nodes.Types() {
 		if p, _, ok := strings.Cut(t, "."); ok {
@@ -367,7 +368,7 @@ func mergeSorted(a, b []string) []string {
 	return out
 }
 
-func printInstall(w io.Writer, r *libInstallResult) {
+func printInstall(w io.Writer, r *InstallResult) {
 	verb := "Installed"
 	if r.DryRun {
 		verb = "Would install"
@@ -380,7 +381,7 @@ func printInstall(w io.Writer, r *libInstallResult) {
 	if r.Trust != "" {
 		fmt.Fprintf(w, "Trust: %s\n", r.Trust)
 	}
-	if a, ok := r.Result.(*apiInstallResult); ok && r.Installed {
+	if a, ok := r.Result.(*APIInstallResult); ok && r.Installed {
 		if a.Extends != "" {
 			fmt.Fprintf(w, "Its operations are now part of the %s node (monoagentcli ref node %s).\n", a.Extends, a.Extends)
 		} else {

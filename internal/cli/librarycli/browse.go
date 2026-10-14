@@ -1,4 +1,4 @@
-package main
+package librarycli
 
 import (
 	"context"
@@ -12,23 +12,25 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/workflowio"
 	"github.com/monoes/mono-agent/internal/library"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
-// libInstalled is an item's local copy, as list/show report it.
-type libInstalled struct {
+// Installed is an item's local copy, as list/show report it.
+type Installed struct {
 	LocalID         string `json:"local_id"`
 	Version         string `json:"version"`
 	SHA256          string `json:"sha256,omitempty"`
 	UpdateAvailable bool   `json:"update_available"`
 }
 
-// libItem is a library item plus what this machine has of it.
-type libItem struct {
+// Item is a library item plus what this machine has of it.
+type Item struct {
 	library.Item
-	Installed *libInstalled `json:"installed"`
+	Installed *Installed `json:"installed"`
 }
 
 // newerThan reports whether the library item is newer than the local copy:
@@ -69,7 +71,7 @@ func (e *libEnv) localIndex(ctx context.Context) (*localIndex, error) {
 	if err != nil {
 		return nil, err
 	}
-	recs, err := prov.List(e.cfg.ProfileID, "")
+	recs, err := prov.List(e.deps.ProfileID(), "")
 	if err != nil {
 		return nil, err
 	}
@@ -99,9 +101,9 @@ func (e *libEnv) recordLive(ctx context.Context, li *localIndex, r library.Recor
 func (e *libEnv) localExists(ctx context.Context, kind, id string) bool {
 	switch kind {
 	case library.KindWorkflow:
-		return ownedWorkflow(ctx, openWorkflowStore(e.db), e.db.DB, e.cfg.ProfileID, id) != nil
+		return workflowio.OwnedWorkflow(ctx, e.deps.OpenWorkflowStore(e.db), e.db.DB, e.deps.ProfileID(), id) != nil
 	case library.KindOrg:
-		path, err := orgdesign.ConfigPath(profiledir.Root(e.db.DB, e.cfg.ProfileID), id)
+		path, err := orgdesign.ConfigPath(profiledir.Root(e.db.DB, e.deps.ProfileID()), id)
 		if err != nil {
 			return false
 		}
@@ -116,13 +118,13 @@ func (e *libEnv) localExists(ctx context.Context, kind, id string) bool {
 // annotate attaches the local copy to it. An official automation whose id
 // matches a built-in an older release seeded adopts it: the built-in is
 // recorded as coming from this item, so `library update` can update it.
-func (li *localIndex) annotate(it library.Item) libItem {
-	out := libItem{Item: it}
+func (li *localIndex) annotate(it library.Item) Item {
+	out := Item{Item: it}
 	if out.Tags == nil {
 		out.Tags = []string{}
 	}
 	if r, ok := li.byItem[it.ID]; ok {
-		out.Installed = &libInstalled{LocalID: r.LocalID, Version: r.Version, SHA256: r.SHA256,
+		out.Installed = &Installed{LocalID: r.LocalID, Version: r.Version, SHA256: r.SHA256,
 			UpdateAvailable: newerThan(&it, r.Version, r.SHA256)}
 		return out
 	}
@@ -137,7 +139,7 @@ func (li *localIndex) annotate(it library.Item) libItem {
 	if adopted, err := li.reg.SetLibraryOrigin(p.ID, origin); err == nil && adopted {
 		li.byItem[it.ID] = library.Record{Kind: library.KindAutomation, LocalID: p.ID, ItemID: it.ID, Version: p.Version, Official: true}
 	}
-	out.Installed = &libInstalled{LocalID: p.ID, Version: p.Version, UpdateAvailable: newerThan(&it, p.Version, "")}
+	out.Installed = &Installed{LocalID: p.ID, Version: p.Version, UpdateAvailable: newerThan(&it, p.Version, "")}
 	return out
 }
 
@@ -150,18 +152,18 @@ func newLibraryListCmd(e *libEnv) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			q.Kind = library.NormalizeKind(q.Kind)
 			if q.Kind != "" && !library.ValidKind(q.Kind) {
-				return errInvalidInput("--kind must be workflow, automation, org or api")
+				return clicore.InvalidInput("--kind must be workflow, automation, org or api")
 			}
 			switch q.Scope {
 			case "", "public", "official", "mine":
 			default:
-				return errInvalidInput("--scope must be public, official or mine")
+				return clicore.InvalidInput("--scope must be public, official or mine")
 			}
 			if q.Scope == "" {
 				q.Scope = "public"
 			}
 			if q.PerPage > 100 {
-				return errInvalidInput("--per-page is at most 100")
+				return clicore.InvalidInput("--per-page is at most 100")
 			}
 			ctx := cmd.Context()
 			c, err := e.requireLogin(ctx)
@@ -170,18 +172,18 @@ func newLibraryListCmd(e *libEnv) *cobra.Command {
 			}
 			res, err := c.List(ctx, q)
 			if err != nil {
-				return libErr(err)
+				return e.deps.Err(err)
 			}
 			li, err := e.localIndex(ctx)
 			if err != nil {
 				return err
 			}
-			items := make([]libItem, 0, len(res.Items))
+			items := make([]Item, 0, len(res.Items))
 			for _, it := range res.Items {
 				items = append(items, li.annotate(it))
 			}
 			out := map[string]any{"items": items, "page": res.Page, "per_page": res.PerPage, "total": res.Total, "scope": q.Scope}
-			return printLib(e.cfg, cmd, out, func(w io.Writer) { printItemTable(w, items, res.Total) })
+			return e.print(cmd, out, func(w io.Writer) { printItemTable(w, items, res.Total) })
 		},
 	}
 	cmd.Flags().StringVar(&q.Kind, "kind", "", "workflow, automation, org or api (default: all)")
@@ -193,7 +195,7 @@ func newLibraryListCmd(e *libEnv) *cobra.Command {
 	return cmd
 }
 
-func printItemTable(w io.Writer, items []libItem, total int) {
+func printItemTable(w io.Writer, items []Item, total int) {
 	if len(items) == 0 {
 		fmt.Fprintln(w, "No items.")
 		return
@@ -234,14 +236,14 @@ func newLibraryShowCmd(e *libEnv) *cobra.Command {
 			}
 			it, err := c.Get(ctx, ref)
 			if err != nil {
-				return libErr(err)
+				return e.deps.Err(err)
 			}
 			li, err := e.localIndex(ctx)
 			if err != nil {
 				return err
 			}
 			out := li.annotate(*it)
-			return printLib(e.cfg, cmd, out, func(w io.Writer) {
+			return e.print(cmd, out, func(w io.Writer) {
 				fmt.Fprintf(w, "%s (%s %s, %s)\n", out.Name, out.Kind, out.Version, out.Visibility)
 				fmt.Fprintf(w, "  id:      %s\n  slug:    %s\n  owner:   %s\n", out.ID, out.Slug, out.Owner.Username)
 				if out.Description != "" {
@@ -279,7 +281,7 @@ func (e *libEnv) installedRecords(ctx context.Context, kind string) ([]library.R
 		return nil, err
 	}
 	prov, _ := e.provenance()
-	recs, err := prov.List(e.cfg.ProfileID, kind)
+	recs, err := prov.List(e.deps.ProfileID(), kind)
 	if err != nil {
 		return nil, err
 	}
@@ -320,13 +322,13 @@ func newLibraryInstalledCmd(e *libEnv) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			kind = library.NormalizeKind(kind)
 			if kind != "" && !library.ValidKind(kind) {
-				return errInvalidInput("--kind must be workflow, automation, org or api")
+				return clicore.InvalidInput("--kind must be workflow, automation, org or api")
 			}
 			recs, err := e.installedRecords(cmd.Context(), kind)
 			if err != nil {
 				return err
 			}
-			return printLib(e.cfg, cmd, map[string]any{"items": recs}, func(w io.Writer) {
+			return e.print(cmd, map[string]any{"items": recs}, func(w io.Writer) {
 				if len(recs) == 0 {
 					fmt.Fprintln(w, "Nothing installed from monoes.me yet.")
 					return

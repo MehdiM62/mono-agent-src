@@ -1,4 +1,4 @@
-package main
+package librarycli
 
 import (
 	"errors"
@@ -9,6 +9,8 @@ import (
 	"regexp"
 
 	"github.com/monoes/mono-agent/internal/apipkg"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/workflowbundle"
 	"github.com/monoes/mono-agent/internal/library"
 )
 
@@ -16,8 +18,8 @@ import (
 // nothing else may reach the file system.
 var apiIDRe = regexp.MustCompile(`^[a-z0-9_]+$`)
 
-// apiInstallResult is the `result` of installing an API package.
-type apiInstallResult struct {
+// APIInstallResult is the `result` of installing an API package.
+type APIInstallResult struct {
 	ID         string `json:"id"`
 	NodeType   string `json:"node_type,omitempty"`
 	Extends    string `json:"extends,omitempty"`
@@ -59,13 +61,13 @@ func readAPIPackage(local string) ([]byte, *apipkg.Package, error) {
 			return nil, nil, err
 		}
 		if p, ok := apipkg.ByID(local); ok && p.Source == "catalog" {
-			return nil, nil, errInvalidInput("%q is a built-in API package; to publish a changed copy, install it as ~/.monoagent/apipkgs/%s/package.json or pass its file", local, local)
+			return nil, nil, clicore.InvalidInput("%q is a built-in API package; to publish a changed copy, install it as ~/.monoagent/apipkgs/%s/package.json or pass its file", local, local)
 		}
-		return nil, nil, errNotFound("no installed API package %q and no file %s", local, path)
+		return nil, nil, clicore.NotFound("no installed API package %q and no file %s", local, path)
 	}
 	p, err := apipkg.Parse(b, path)
 	if err != nil {
-		return nil, nil, errInvalidInput("%v", err)
+		return nil, nil, clicore.InvalidInput("%v", err)
 	}
 	return b, p, nil
 }
@@ -77,7 +79,7 @@ func (e *libEnv) apiRecord(id string) (library.Record, bool) {
 	if err != nil {
 		return library.Record{}, false
 	}
-	recs, _ := prov.List(e.cfg.ProfileID, library.KindAPI)
+	recs, _ := prov.List(e.deps.ProfileID(), library.KindAPI)
 	for _, r := range recs {
 		if r.LocalID == id && r.Profile == "" {
 			return r, true
@@ -90,19 +92,19 @@ func (e *libEnv) apiRecord(id string) (library.Record, bool) {
 // ~/.monoagent/apipkgs/<id>/package.json. It may replace a built-in package
 // of the same id (as any installed package does); replacing an installed
 // package that came from elsewhere needs --yes.
-func (e *libEnv) installAPI(it *library.Item, data []byte, sum string, o libInstallOptions, res *libInstallResult) error {
+func (e *libEnv) installAPI(it *library.Item, data []byte, sum string, o libInstallOptions, res *InstallResult) error {
 	p, err := apipkg.Parse(data, "the library's API package")
 	if err != nil {
-		return errInvalidInput("%v — nothing was installed", err)
+		return clicore.InvalidInput("%v — nothing was installed", err)
 	}
 	path, err := apiPackagePath(p.ID)
 	if err != nil {
-		return errInvalidInput("%v — nothing was installed", err)
+		return clicore.InvalidInput("%v — nothing was installed", err)
 	}
 	exists := apiPackageInstalled(p.ID)
 	if exists && !o.yes {
 		if r, ok := e.apiRecord(p.ID); !ok || r.ItemID != it.ID {
-			return errInvalidInput("an API package %q is already installed (%s) and did not come from this item: pass --yes to replace it", p.ID, path)
+			return clicore.InvalidInput("an API package %q is already installed (%s) and did not come from this item: pass --yes to replace it", p.ID, path)
 		}
 	}
 	// The loader keeps one package per node type: a second installed one
@@ -110,10 +112,10 @@ func (e *libEnv) installAPI(it *library.Item, data []byte, sum string, o libInst
 	pkgs, _ := apipkg.Load()
 	for _, q := range pkgs {
 		if q.ID != p.ID && q.Source != "catalog" && q.TargetType() == p.TargetType() {
-			return errInvalidInput("the installed API package %q already provides %s, so %q would not load — nothing was installed", q.ID, p.TargetType(), p.ID)
+			return clicore.InvalidInput("the installed API package %q already provides %s, so %q would not load — nothing was installed", q.ID, p.TargetType(), p.ID)
 		}
 	}
-	result := &apiInstallResult{ID: p.ID, NodeType: p.NodeTypeOf(), Extends: p.Extends, Path: path,
+	result := &APIInstallResult{ID: p.ID, NodeType: p.NodeTypeOf(), Extends: p.Extends, Path: path,
 		Operations: len(p.Operations), Replaces: exists}
 	res.LocalID, res.Result = p.ID, result
 	if o.dryRun {
@@ -122,7 +124,7 @@ func (e *libEnv) installAPI(it *library.Item, data []byte, sum string, o libInst
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	if err := writeFileAtomic(path, data); err != nil {
+	if err := workflowbundle.WriteFileAtomic(path, data); err != nil {
 		return err
 	}
 	apipkg.Reload()
