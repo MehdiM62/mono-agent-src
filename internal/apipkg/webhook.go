@@ -71,16 +71,24 @@ type webhookRegistrar struct{ id string }
 // engine's.
 func registerWebhooks() {
 	for _, p := range packages() {
-		if p.Webhook == nil {
-			continue
+		if name := p.webhookName(); name != "" {
+			workflow.RegisterWebhookRegistrar(name, webhookRegistrar{id: p.ID})
 		}
-		if r := workflow.WebhookRegistrarFor(p.ID); r != nil {
-			if _, ours := r.(webhookRegistrar); !ours {
-				continue
-			}
-		}
-		workflow.RegisterWebhookRegistrar(p.ID, webhookRegistrar{id: p.ID})
 	}
+}
+
+// webhookName is the registrar name of p's webhook block: its id, or ""
+// when p has no block or the engine owns that name.
+func (p *Package) webhookName() string {
+	if p.Webhook == nil {
+		return ""
+	}
+	if r := workflow.WebhookRegistrarFor(p.ID); r != nil {
+		if _, ours := r.(webhookRegistrar); !ours {
+			return ""
+		}
+	}
+	return p.ID
 }
 
 func (w webhookRegistrar) pkg() (*Package, error) {

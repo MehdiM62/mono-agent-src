@@ -12,9 +12,10 @@ import (
 // since the last poll. Both are rebuilt from mono nodes:
 //
 //   - webhook triggers (webhookTriggers) become a trigger.webhook on the
-//     n8n node's webhookId; the report says which URL and events to
-//     register with the vendor, since mono-agent does not register app
-//     webhooks itself;
+//     n8n node's webhookId. Where the app's API package has a webhook
+//     block (registerWithApp) activation registers the hook with the
+//     vendor; for the others the report says which URL and events to
+//     register by hand;
 //   - polling triggers (pollTriggers) become a trigger.schedule on the n8n
 //     poll times, the app package's list operation and a
 //     core.remove_duplicates step that remembers what earlier runs saw, so
@@ -115,6 +116,15 @@ func mapHookTrigger(c *MapContext, spec hookSpec) Mapping {
 		}
 	}
 	c.Ignore(triggerParamsIgnored...)
+	if registerWithApp(c, cfg) {
+		c.Warn("webhook", nil, "activation registers https://<public URL>/webhook/%s with %s and removes it on deactivation; "+
+			"%s must reach the webhook server from the internet: set the trigger's public_url or MONOAGENT_PUBLIC_URL (e.g. a tunnel to 127.0.0.1:9321)",
+			path, spec.Vendor, spec.Vendor)
+		if spec.Handshake != "" {
+			c.Warn("webhook", nil, "%s verifies the URL first (%s); mono-agent webhooks do not answer that check yet", spec.Vendor, spec.Handshake)
+		}
+		return m
+	}
 	where := spec.Where
 	if where == "" {
 		where = spec.Vendor + "'s webhook settings"
