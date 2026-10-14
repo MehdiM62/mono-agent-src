@@ -64,6 +64,12 @@ type WebhookRegistration struct {
 	// DedupeHeader names the request header carrying a delivery ID; a
 	// delivery whose ID was seen before starts no run.
 	DedupeHeader string
+	// VerifyToken, when set, must equal a hub.challenge check's
+	// hub.verify_token (webhook_handshake.go).
+	VerifyToken string
+	// Verify, when set, checks a delivery's signature (app webhooks whose
+	// vendor signs them); an error answers 401 and starts no run.
+	Verify func(header http.Header, body []byte) error
 }
 
 // WebhookServer is a standalone net/http server on a configurable port.
@@ -99,6 +105,10 @@ type WebhookServer struct {
 	deliveries WebhookDeliveries
 	// replies serves /reply/ (wait_reply_http.go); nil answers 404.
 	replies http.Handler
+	// handshakes answers vendor URL checks (webhook_handshake.go).
+	handshakes webhookHandshakes
+	// forms are the trigger.form pages at /form/<path> (form_serve.go).
+	forms formRoutes
 }
 
 // SetRunner makes the server start runs through run, which reports the
@@ -324,6 +334,10 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if s.refuseWhileLocked(w, r) || s.serveReply(w, r) {
 		return
 	}
+	if p, ok := strings.CutPrefix(r.URL.Path, "/form/"); ok {
+		s.serveForm(w, r, p)
+		return
+	}
 	// Parse path: must be /webhook/{path}
 	urlPath := r.URL.Path
 	const prefix = "/webhook/"
@@ -378,6 +392,12 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Vendor URL checks come before the method and auth checks: the vendor
+	// proves the URL before it is configured with either.
+	if s.answerHandshake(w, r, reg) {
+		return
+	}
+
 	// Validate HTTP method
 	if reg.Method != "ANY" {
 		if r.Method != reg.Method {
@@ -402,6 +422,9 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeJSONError(w, http.StatusRequestEntityTooLarge, "request body too large or read error")
+		return
+	}
+	if s.answerBodyHandshake(w, r, reg, bodyBytes) {
 		return
 	}
 
