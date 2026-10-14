@@ -1,4 +1,4 @@
-package main
+package apiconfig
 
 import (
 	"errors"
@@ -9,18 +9,16 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/apiconfig"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/openaiapi"
 )
 
 // The document `api models --json` prints is the one the MCP tool api_models_list
-// returns, so its types and the rules that fill them live in internal/openaiapi.
-type (
-	apiAutoJSON   = openaiapi.AutoReport
-	apiModelsJSON = openaiapi.ModelsReport
-)
+// returns (openaiapi.ModelsReport), so its types and the rules that fill them live in
+// internal/openaiapi.
 
-// autoNote is the line the text output gives for it.
-func autoNote(a apiAutoJSON) string {
+// AutoNote is the line the text output gives for it.
+func AutoNote(a openaiapi.AutoReport) string {
 	if !a.Available {
 		return "off, it needs " + a.Missing
 	}
@@ -47,7 +45,8 @@ func autoNote(a apiAutoJSON) string {
 const toolsNote = "tools: a model serves them only where monomind can apply the sandbox every turn with tools requires; " +
 	"a key created with --context is refused them unless --context-confinement (and the listener's policy) is above chat-only"
 
-func newAPIModelsCmd(cfg *globalConfig) *cobra.Command {
+// NewModelsCommand is `api models`.
+func (d Deps) NewModelsCommand() *cobra.Command {
 	var forListener, confinement, contextConfinement, autoConfinement string
 	cmd := &cobra.Command{
 		Use:   "models",
@@ -66,36 +65,36 @@ func newAPIModelsCmd(cfg *globalConfig) *cobra.Command {
 			"(and the listener's policy is too: it is held to the lower of the two).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			addr, err := representativeAddr(forListener)
+			addr, err := d.representativeAddr(forListener)
 			if err != nil {
 				return err
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			getenv, err := savedEnv(cmd.Context(), db.DB) // this shell's environment, with the saved settings under it
+			getenv, err := d.SavedEnv(cmd.Context(), db.DB) // this shell's environment, with the saved settings under it
 			if err != nil {
 				return err
 			}
-			policy, err := effectivePolicy(addr, confinement, getenv)
+			policy, err := d.effectivePolicy(addr, confinement, getenv)
 			if err != nil {
 				return err
 			}
-			if policy.ContextMax, err = effectiveContextMax(contextConfinement, getenv); err != nil {
+			if policy.ContextMax, err = d.effectiveContextMax(contextConfinement, getenv); err != nil {
 				return err
 			}
-			if policy.AutoMax, err = effectiveAutoMax(autoConfinement, getenv); err != nil {
+			if policy.AutoMax, err = d.effectiveAutoMax(autoConfinement, getenv); err != nil {
 				return err
 			}
 			imageRuntimes, err := openaiapi.EffectiveImageRuntimes(getenv)
 			if err != nil {
-				return errInvalidInput("%v", err)
+				return d.InvalidInput("%v", err)
 			}
 			toolRuntimes, err := openaiapi.EffectiveToolRuntimes(getenv)
 			if err != nil {
-				return errInvalidInput("%v", err)
+				return d.InvalidInput("%v", err)
 			}
 			forContext := policy.ForContextKey()
 			models, err := openaiapi.LoadModels(cmd.Context(), db.DB)
@@ -104,10 +103,10 @@ func newAPIModelsCmd(cfg *globalConfig) *cobra.Command {
 			}
 			out := openaiapi.NewModelsReport(openaiapi.ModelsReportInput{
 				For: forListener, Policy: policy, Source: openaiapi.ReportSourceShell, Models: models, ImageRuntimes: imageRuntimes, ToolRuntimes: toolRuntimes,
-				Auto: openaiapi.DefaultAuto(db.DB).Status(cmd.Context(), cfg.ProfileID),
+				Auto: openaiapi.DefaultAuto(db.DB).Status(cmd.Context(), d.ProfileID()),
 			})
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), out)
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), out)
 			}
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "Confinement policy for a %s listener: %s (keys created with --context: %s)\n", forListener, policy, forContext)
@@ -136,7 +135,7 @@ func newAPIModelsCmd(cfg *globalConfig) *cobra.Command {
 			if err := tw.Flush(); err != nil {
 				return err
 			}
-			fmt.Fprintf(w, "\nauto: %s\n", autoNote(out.Auto))
+			fmt.Fprintf(w, "\nauto: %s\n", AutoNote(out.Auto))
 			fmt.Fprintln(w, toolsNote)
 			return nil
 		},
@@ -153,10 +152,10 @@ func newAPIModelsCmd(cfg *globalConfig) *cobra.Command {
 
 // representativeAddr is a bind address of the given kind, for evaluating
 // the per-listener default policy.
-func representativeAddr(kind string) (string, error) {
+func (d Deps) representativeAddr(kind string) (string, error) {
 	addr, err := openaiapi.ListenerAddr(kind)
 	if err != nil {
-		return "", errInvalidInput("--for %v", err)
+		return "", d.InvalidInput("--for %v", err)
 	}
 	return addr, nil
 }
@@ -164,38 +163,38 @@ func representativeAddr(kind string) (string, error) {
 // effectiveContextMax is the strongest class a key created with --context may
 // use: the explicit value (a flag), else MONOAGENT_API_CONTEXT_CONFINEMENT,
 // else chat-only.
-func effectiveContextMax(explicit string, getenv func(string) string) (openaiapi.Class, error) {
+func (d Deps) effectiveContextMax(explicit string, getenv func(string) string) (openaiapi.Class, error) {
 	c, err := apiconfig.EffectiveContextMax(explicit, getenv)
-	return c, asCLIError(err)
+	return c, d.AsCLIError(err)
 }
 
 // effectiveAutoMax is the strongest class the auto model may pick: the explicit
 // value (a flag), else MONOAGENT_API_AUTO_CONFINEMENT, else chat-only.
-func effectiveAutoMax(explicit string, getenv func(string) string) (openaiapi.Class, error) {
+func (d Deps) effectiveAutoMax(explicit string, getenv func(string) string) (openaiapi.Class, error) {
 	c, err := apiconfig.EffectiveAutoMax(explicit, getenv)
-	return c, asCLIError(err)
+	return c, d.AsCLIError(err)
 }
 
 // effectivePolicy is the confinement policy of a listener bound to addr: the
 // explicit value (a flag), else MONOAGENT_API_CONFINEMENT, else the default
 // for that kind of bind.
-func effectivePolicy(addr, explicit string, getenv func(string) string) (openaiapi.Policy, error) {
+func (d Deps) effectivePolicy(addr, explicit string, getenv func(string) string) (openaiapi.Policy, error) {
 	p, err := apiconfig.EffectivePolicy(addr, explicit, getenv)
-	return p, asCLIError(err)
+	return p, d.AsCLIError(err)
 }
 
-// asCLIError gives the errors of internal/apiconfig the exit codes of the CLI, in one place: a
+// AsCLIError gives the errors of internal/apiconfig the exit codes of the CLI, in one place: a
 // value of a flag, a variable or a saved setting that fails its rule is invalid input (exit 3),
 // and so is a saved row that cannot be read (apiconfig.ErrDamaged): invalid saved data the user
 // can fix, whose message starts with apiconfig.DamagedMessage and names the repair, so that a
 // caller that has only the exit code and the last line of stderr can offer it. Each keeps the
 // message it has. Any other error is left as it is, a row in a newer format (ErrTooNew) and a
 // failing database included: neither is damage.
-func asCLIError(err error) error {
+func AsCLIError(err error) error {
 	var input *apiconfig.InputError
 	var invalid *apiconfig.ValidationError
 	if errors.As(err, &input) || errors.As(err, &invalid) || errors.Is(err, apiconfig.ErrDamaged) {
-		return errInvalidInput("%v", err)
+		return clicore.InvalidInput("%v", err)
 	}
 	return err
 }
