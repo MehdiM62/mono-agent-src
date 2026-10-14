@@ -95,6 +95,7 @@ func dedupeValueOf(engine *workflow.ExpressionEngine, expr string, item workflow
 	case strings.Contains(expr, "{{"):
 		v, err := engine.EvaluateString(expr, workflow.ExpressionContext{
 			JSON: item.JSON, Node: input.NodeOutputs, WorkflowID: input.WorkflowID, ExecutionID: input.ExecutionID,
+			Location: input.Location,
 		})
 		if err != nil {
 			return "", fmt.Errorf("dedupeValue: %w", err)

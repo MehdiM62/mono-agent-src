@@ -76,7 +76,7 @@ func ValidateWorkflow(w *Workflow, opts ValidateOptions) ValidationReport {
 		r.Errors = append(r.Errors, err.Error())
 		r.Issues = append(r.Issues, ValidationIssue{Code: IssueInvalidWorkflow, Severity: "error", Message: err.Error()})
 	}
-	for _, is := range schemaIssues(w, opts) {
+	for _, is := range append(schemaIssues(w, opts), settingsIssues(w)...) {
 		r.Issues = append(r.Issues, is)
 		msg := is.Message
 		if is.NodeID != "" {

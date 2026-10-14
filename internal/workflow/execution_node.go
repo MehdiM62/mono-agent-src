@@ -261,6 +261,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 			ExecutionID: r.exec.ID,
 			NodeID:      node.ID,
 			NodeName:    node.Name,
+			Location:    exprCtx.Location,
 		},
 		config: resolvedConfig,
 		// Extract retry policy and on_error behaviour from config.

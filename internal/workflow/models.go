@@ -32,6 +32,9 @@ type NodeInput struct {
 	// ItemKeys, when set, holds the idempotency key of each item in Items
 	// (see ItemKey). Nil means the keys follow the items' positions.
 	ItemKeys []string
+	// Location is the workflow's timezone (settings.timezone), for the
+	// $now/$today of expressions a node evaluates itself. Nil means UTC.
+	Location *time.Location
 }
 
 // NodeOutput is returned by NodeExecutor.Execute.
@@ -93,7 +96,8 @@ type Workflow struct {
 	// of the workflow to run when this one fails), "parallel_branches",
 	// "variables" ($vars), "executionTimeout" (seconds of active running
 	// time; see ExecutionTimeoutSetting), "per_item_execution"
-	// (PerItemExecutionSetting) and "disabled_nodes" (DisabledNodesSetting).
+	// (PerItemExecutionSetting), "disabled_nodes" (DisabledNodesSetting)
+	// and "timezone" (TimezoneSetting).
 	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
@@ -294,6 +298,7 @@ type ExpressionContext struct {
 	Vars     map[string]interface{} // $vars: workflow variables (never secrets)
 	RunIndex int                    // $runIndex: loop iteration, 0 outside a loop
 	PrevNode string                 // $prevNode: name of the node that fed this one
+	Location *time.Location         // zone of $now/$today; nil means UTC
 
 	base *exprBase // cached derived data; see Prepared
 }

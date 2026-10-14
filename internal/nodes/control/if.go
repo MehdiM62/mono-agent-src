@@ -39,6 +39,7 @@ func (n *IfNode) Execute(ctx context.Context, input workflow.NodeInput, config m
 			Node:        input.NodeOutputs,
 			WorkflowID:  input.WorkflowID,
 			ExecutionID: input.ExecutionID,
+			Location:    input.Location,
 		}
 		if len(input.Items) > 0 {
 			exprCtx.JSON = input.Items[0].JSON
@@ -62,6 +63,7 @@ func (n *IfNode) Execute(ctx context.Context, input workflow.NodeInput, config m
 				Node:        input.NodeOutputs,
 				WorkflowID:  input.WorkflowID,
 				ExecutionID: input.ExecutionID,
+				Location:    input.Location,
 			}
 
 			result, err := engine.EvaluateBool(condition, exprCtx)

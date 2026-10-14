@@ -110,7 +110,8 @@ Built-in variables:
   $node["NodeName"].json.f   first output item of a previous node (by name)
   $node["NodeName"].all      every output item of that node (.items: same)
   $items["NodeName"]    same list as $node["NodeName"].all
-  $now / $today         current UTC time / midnight UTC today
+  $now / $today         current time / midnight today; UTC unless
+                        settings.timezone (or MONOAGENT_TIMEZONE) names a zone
   $trigger.field        the execution's trigger data
   $vars.name            workflow variables (settings.variables)
   $runIndex             loop iteration number, 0 outside a loop
