@@ -350,7 +350,7 @@ Signing out of the monoes.me website does not sign out an install.
 |---|---|---|
 | `ok` | verified and not expired | empty |
 | `grace` | verified and expired, within 24 hours of its issue time: work continues | why it was not refreshed: `unreachable`, `server_error`, `keyring_unavailable`, `unconfirmed` (a refresh whose answer never arrived: this machine stopped using its saved sign-in) |
-| `locked` | work is refused | `not_logged_in`, `expired` (24 hours without a refresh), `refused` (monoes.me answered `invalid_grant`: the account is blocked, the sign-in was revoked, or an already-used refresh token was presented, as from a copied session; work in flight is cancelled), `clock_rollback`, `clock_skew`, `key_unknown` (run `update`), `unconfirmed` (the grace of an unconfirmed machine is over: sign in again on it), `invalid` |
+| `locked` | work is refused | `not_logged_in`, `expired` (24 hours without a refresh), `refused` (monoes.me answered `invalid_grant`: the account is blocked, the sign-in was revoked, or an already-used refresh token was presented, as from a copied session). On any lock the daemon cancels the work in flight, `clock_rollback`, `clock_skew`, `key_unknown` (run `update`), `unconfirmed` (the grace of an unconfirmed machine is over: sign in again on it), `invalid` |
 
 Only an `invalid_grant` answer to a refresh is a refusal; every other failure counts
 as unreachable, so the 24-hour grace applies. A refresh whose outcome is unknown (the

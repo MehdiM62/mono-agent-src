@@ -15,8 +15,9 @@ import (
 const shortToken = 15 * time.Second
 
 // Acceptance 3: signed in, monoes.me unreachable: the work goes on until 24 hours after the newest
-// token was issued, then the machine is locked; work in flight at that moment finishes the node it is
-// in (this job has one node, so it ends SUCCESS; a run with a next node ends there, ruling R4).
+// token was issued, then the machine is locked and nothing runs without a valid sign-in: the daemon
+// cancels the work in flight at that moment (it ends CANCELLED and records login_required with the
+// lock's reason), as it does for every lock.
 func TestUnreachableIsGraceUntilTwentyFourHours(t *testing.T) {
 	r := newRig(t, rigOptions{enforce: past})
 	r.signIn()
@@ -38,13 +39,13 @@ func TestUnreachableIsGraceUntilTwentyFourHours(t *testing.T) {
 	r.waitFor("the job to be running in the daemon", 60*time.Second, func() bool { return r.execution(id).Status == "RUNNING" })
 	r.backdate(24*time.Hour + time.Minute)
 	r.waitFor("the daemon to lock", 60*time.Second, func() bool { return r.accountState() == "locked" })
-	if got := r.execution(id).Status; got != "RUNNING" {
-		t.Fatalf("the job was %s when the 24 hours ran out: unreachable is not a refusal, so the node in flight finishes", got)
-	}
 	r.assertLocked(r.run("--json", "workflow", "list"), "expired", true)
-	r.waitFor("the job to finish", 90*time.Second, func() bool { return r.execution(id).Status != "RUNNING" })
-	if got := r.execution(id).Status; got != "SUCCESS" {
-		t.Fatalf("the job ended %s, want SUCCESS", got)
+	r.waitFor("the job in flight to be cancelled", 90*time.Second, func() bool { return r.execution(id).Status != "RUNNING" })
+	if got := r.execution(id).Status; got != "CANCELLED" {
+		t.Fatalf("the job ended %s when the 24 hours ran out, want CANCELLED: nothing runs without a valid sign-in", got)
+	}
+	if msg := r.executionError(id); !strings.HasPrefix(msg, "login_required: the monoes.me account is locked (expired)") {
+		t.Fatalf("the cancelled job records %q, want login_required with the lock's reason", msg)
 	}
 
 	r.edge.set(modePass) // monoes.me is back: one sign-in and the machine works again
