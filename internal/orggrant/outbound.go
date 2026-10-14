@@ -64,9 +64,9 @@ var readOnlyNodes = setOf(
 	// Triggers the engine passes through without running anything.
 	"trigger.manual", "trigger.org", "trigger.schedule", "trigger.webhook",
 	"trigger.local_file",
-	// Control flow and data shaping. core.code runs goja with only $input
-	// and $json bound; core.human_in_loop waits for a person.
-	"core.aggregate", "core.code", "core.compare_datasets", "core.filter",
+	// Control flow and data shaping (core.code: readOnlyByConfig);
+	// core.human_in_loop waits for a person.
+	"core.aggregate", "core.compare_datasets", "core.filter",
 	"core.human_in_loop", "core.if", "core.limit", "core.merge",
 	"core.remove_duplicates", "core.set", "core.sort", "core.split_in_batches",
 	"core.stop_error", "core.switch", "core.wait", "core.noop",
@@ -112,7 +112,7 @@ var readOnlyNodes = setOf(
 	"applications.prepare", "applications.set_status", "applications.tag",
 	"discovery.search_jobs", "documents.render", "image.vault_save", "publication.register",
 	// Legacy unprefixed names (noderegistry.Build's aliases) of the above.
-	"aggregate", "code", "filter", "if", "limit", "merge", "set", "sort",
+	"aggregate", "filter", "if", "limit", "merge", "set", "sort",
 	"switch", "wait", "compression", "crypto", "datetime", "html",
 	"markdown", "xml", "email_read", "rss_read",
 )
@@ -221,6 +221,16 @@ var readOnlyByConfig = map[string]func(map[string]interface{}) bool{
 	"comm.outlook_read":    outlookLegacyReadOnly,
 	"comm.outlook_send":    outlookLegacyReadOnly,
 	"service.outlook_mail": outlookLegacyReadOnly,
+	"core.data_table":      dataTableReadOnly,
+	"core.code":            codeReadOnly,
+	"code":                 codeReadOnly,
+}
+
+// codeReadOnly: JavaScript runs in goja with only the items bound. Python
+// runs the system python3, which can do anything the user can.
+func codeReadOnly(cfg map[string]interface{}) bool {
+	lang, _ := cfg["language"].(string)
+	return lang != "python"
 }
 
 // httpReadOnly: GET (the node's default) and HEAD. A templated method is
@@ -246,6 +256,22 @@ func outlookLegacyReadOnly(cfg map[string]interface{}) bool {
 		}
 	}
 	return true
+}
+
+// dataTableReadOnly: reading rows or listing tables, and inserting rows or
+// creating a table (bookkeeping in the profile's own tables, overwriting
+// nothing). Updates, deletes, renames and clears change what other runs
+// may own.
+func dataTableReadOnly(cfg map[string]interface{}) bool {
+	op, _ := cfg["operation"].(string)
+	if res, _ := cfg["resource"].(string); res == "table" {
+		return op == "list" || op == "create" || op == ""
+	}
+	switch op {
+	case "", "insert", "get", "rowExists", "rowNotExists":
+		return true
+	}
+	return false
 }
 
 func spreadsheetReadOnly(cfg map[string]interface{}) bool {

@@ -23,4 +23,5 @@ func RegisterAll(r *workflow.NodeTypeRegistry) {
 	r.Register("core.respond_webhook", func() workflow.NodeExecutor { return &RespondWebhookNode{} })
 	r.Register("core.respond_chat", func() workflow.NodeExecutor { return &RespondChatNode{} })
 	r.Register("core.noop", func() workflow.NodeExecutor { return &NoOpNode{} })
+	r.Register("core.data_table", func() workflow.NodeExecutor { return &DataTableNode{} })
 }

@@ -89,3 +89,48 @@ func TestPollBaseline(t *testing.T) {
 		}
 	}
 }
+
+// PrevNewest lets a source narrow its listing by date (Gmail's after:)
+// while IsNew still drops the boundary entries already passed on.
+func TestPollCursor_PrevNewest(t *testing.T) {
+	ctx := vault.ContextWithDB(context.Background(), newStateDB(t))
+	open := func() *PollCursor {
+		c, err := OpenPollCursor(ctx, stateInput("wf1", "poll"), StateScopeNode, "cursor:feed", PollCursorOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	if _, ok := open().PrevNewest(); ok {
+		t.Fatal("PrevNewest with no stored cursor")
+	}
+	// Undated entries only: still no date to narrow by.
+	pollRun(t, ctx, PollCursorOptions{}, pollEntry{"u", nil})
+	if _, ok := open().PrevNewest(); ok {
+		t.Fatal("PrevNewest after undated entries only")
+	}
+
+	at := func(sec int) *time.Time { v := time.Unix(1_790_000_000+int64(sec), 0).UTC(); return &v }
+	pollRun(t, ctx, PollCursorOptions{}, pollEntry{"m2", at(10)}, pollEntry{"m1", at(5)})
+	c := open()
+	newest, ok := c.PrevNewest()
+	if !ok || !newest.Equal(*at(10)) {
+		t.Fatalf("PrevNewest = %v, %v; want %v", newest, ok, *at(10))
+	}
+	// The next listing from newest's second on repeats m2; only m3 is new.
+	var fresh []string
+	for _, e := range []pollEntry{{"m3", at(12)}, {"m2", at(10)}} {
+		if c.IsNew(e.id, e.date) {
+			fresh = append(fresh, e.id)
+		}
+	}
+	if err := c.Save(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(fresh) != "[m3]" {
+		t.Fatalf("narrowed run = %v, want [m3]", fresh)
+	}
+	if newest, _ := open().PrevNewest(); !newest.Equal(*at(12)) {
+		t.Fatalf("PrevNewest after the narrowed run = %v", newest)
+	}
+}

@@ -71,8 +71,16 @@ func TestGuardrailsV2Classify(t *testing.T) {
 		"custom":         []interface{}{map[string]interface{}{"name": "Competitors", "prompt": "Flag mentions of ACME Corp.", "threshold": 0.5}},
 		"custom_regex":   []interface{}{map[string]interface{}{"name": "ORDER_ID", "pattern": `/ORD-\d{6}/i`}},
 		"system_message": "Only answer with JSON.",
-		"runtime":        "codex", "model": "gpt-4.1-mini",
 	})
+	if _, set := n.Config["runtime"]; set {
+		t.Errorf("runtime set on the root: %v", n.Config["runtime"])
+	}
+	m := attachedSub(t, wf, "Guardrails", "ai_languageModel")
+	if m.Type != "ai.model" || m.Name != "OpenAI Chat Model" {
+		t.Errorf("model sub-node %s %q", m.Type, m.Name)
+	}
+	wantConfig(t, m, map[string]interface{}{"runtime": "codex", "model": "gpt-4.1-mini"})
+	validates(t, wf)
 	if text, _ := n.Config["text"].(string); !strings.Contains(text, "{{") || !strings.Contains(text, "chatInput") {
 		t.Errorf("text %q", text)
 	}
