@@ -52,7 +52,9 @@ var ErrKeyUnreadable = errors.New("jev: the TypeSafe key is stored but cannot be
 //   - no explicit value → the machine vault entry "typesafe", then the
 //     profile's own "typesafe" entry (fallback), then TYPESAFE_API_KEY.
 //
-// The environment variable is the last resort in every case. With nothing
+// A profile's own entry wins an explicit ref because the ref is the node's own
+// configuration, written against that profile's vault; the machine vault is
+// what a ref falls back to. The environment variable is the last resort in every case. With nothing
 // found the error wraps jev.ErrNoAPIKey; if an entry exists but cannot be
 // read it wraps ErrKeyUnreadable instead. A literal "@secret:…" is never
 // returned.
@@ -234,11 +236,19 @@ func Adopt(ctx context.Context, db *sql.DB, from string) (Adopted, error) {
 	var lastErr error
 	for _, c := range cands {
 		key, _, err := entryValue(ctx, db, c.ProfileID, c.Name)
-		if err != nil || key == "" {
+		if err != nil {
 			lastErr = fmt.Errorf("profile %q key entry %q cannot be read: %v", c.ProfileID, c.Name, err)
 			continue
 		}
+		if key == "" {
+			lastErr = fmt.Errorf("profile %q key entry %q is empty", c.ProfileID, c.Name)
+			continue
+		}
 		if _, err := secrets.Add(ctx, db, VaultScope, "secret", SecretName, map[string]string{"secret": key}, "", "", "TypeSafe Jev API key"); err != nil {
+			// A concurrent `jev key set` or GUI save won the unique (profile, name) key.
+			if _, ok := vaultKeyName(ctx, db, VaultScope); ok {
+				return Adopted{}, ErrMachineKeyExists
+			}
 			return Adopted{}, fmt.Errorf("storing the TypeSafe key in the machine vault: %w", err)
 		}
 		return Adopted{FromProfile: c.ProfileID, Entry: SecretName, Candidates: len(cands)}, nil

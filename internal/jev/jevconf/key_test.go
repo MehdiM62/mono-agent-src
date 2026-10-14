@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -160,6 +161,17 @@ func TestAdopt(t *testing.T) {
 	}
 	if _, err := Adopt(ctx, db, VaultScope); err == nil {
 		t.Fatal("the machine scope is not a profile")
+	}
+}
+
+// An empty stored key is reported as empty, not as an unreadable nil error.
+func TestAdoptEmptyKey(t *testing.T) {
+	keyring.MockInit()
+	db := newDB(t)
+	seedKey(t, db, "alice", "typesafe", " ", "2026-01-01T00:00:00Z")
+	_, err := Adopt(context.Background(), db, "alice")
+	if !errors.Is(err, ErrKeyUnreadable) || !strings.Contains(err.Error(), "is empty") || strings.Contains(err.Error(), "<nil>") {
+		t.Fatalf("Adopt = %v", err)
 	}
 }
 
