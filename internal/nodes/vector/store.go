@@ -127,7 +127,15 @@ func (n *StoreNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 	if err != nil {
 		return nil, fmt.Errorf("vector.store: %w", err)
 	}
-	if sc.embedCfg != nil {
+	if e, ok := firstSub(input, KindEmbedding); ok {
+		// An attached embeddings sub-node wins over the inline block; the
+		// engine has merged its connection already.
+		ec, err := parseEmbedConfig(e.Config, "")
+		if err != nil {
+			return nil, fmt.Errorf("vector.store: embeddings %q: %w", subName(e), err)
+		}
+		sc.embed = &ec
+	} else if sc.embedCfg != nil {
 		if err := resolveNestedCredential(ctx, sc.embedCfg); err != nil {
 			return nil, fmt.Errorf("vector.store: %w", err)
 		}
@@ -146,7 +154,16 @@ func (n *StoreNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 	var items []workflow.Item
 	switch sc.mode {
 	case "insert", "update":
-		items, err = sc.runUpsert(ctx, be, input.Items)
+		docs, upsert := input.Items, sc
+		if loader, ok := firstSub(input, KindDocument); ok {
+			// The loader's documents carry their text in pageContent.
+			c := *sc
+			c.contentFields, upsert = nil, &c
+			docs, err = loadDocuments(ctx, input, loader)
+		}
+		if err == nil {
+			items, err = upsert.runUpsert(ctx, be, docs)
+		}
 	case "search":
 		items, err = sc.runSearch(ctx, be, input)
 	case "delete":

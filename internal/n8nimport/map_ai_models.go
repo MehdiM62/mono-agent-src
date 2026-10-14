@@ -61,10 +61,11 @@ func modelName(params map[string]interface{}) string {
 	return ""
 }
 
-// applyModel picks runtime and model from the attached chat model and
-// reports the sub-nodes agent.ask cannot use.
+// applyModel keeps the attached chat model, memory and output parser as
+// ai.model / ai.memory / ai.output_parser sub-nodes of the node whose
+// config is cfg, and reports the sub-nodes agent.ask cannot use. Without a
+// chat model cfg runs on the claude runtime.
 func applyModel(c *MapContext, cfg map[string]interface{}) {
-	cfg["runtime"] = "claude"
 	found := false
 	for _, s := range c.SubNodes {
 		switch s.Kind {
@@ -74,27 +75,37 @@ func applyModel(c *MapContext, cfg map[string]interface{}) {
 				continue
 			}
 			found = true
-			useModel(c, cfg, s)
+			attachModel(c, cfg, s)
 		case "ai_tool":
 			c.Warn("tools", s.Name, "the %s tool is kept as the disabled node %q: agent.ask cannot call tools yet, so the agent answers without it",
 				shortType(s.Type), s.Name)
 		case "ai_memory":
-			if !applyChatMemory(c, cfg, s) {
+			if mem, ok := chatMemoryConfig(c, s); ok {
+				c.attach(s.Name, s.Kind, "ai.memory", mem, cfg)
+			} else {
 				c.Warn("memory", s.Name, "conversation memory (%s) is not kept between runs", shortType(s.Type))
 			}
 		case "ai_outputParser":
-			c.Warn("outputParser", s.Name, "structured output parsing (%s) is not applied; ask for JSON in the prompt", shortType(s.Type))
+			attachOutputParser(c, cfg, s)
 		default:
 			c.Warn(s.Kind, s.Name, "sub-node %s is not supported", shortType(s.Type))
 		}
 	}
 	if !found {
+		cfg["runtime"] = "claude"
 		c.Note("no chat model is attached; the claude runtime is used")
 	}
 }
 
-// useModel sets runtime and model from one chat model sub-node. A Model
-// Selector contributes its first model.
+// attachModel keeps chat model s as an ai.model sub-node of cfg's node.
+func attachModel(c *MapContext, cfg map[string]interface{}, s SubNode) {
+	model := map[string]interface{}{"runtime": "claude"}
+	useModel(c, model, s)
+	c.attach(s.Name, s.Kind, "ai.model", model, cfg)
+}
+
+// useModel sets runtime and model (ai.model's config) from one chat model
+// sub-node. A Model Selector contributes its first model.
 func useModel(c *MapContext, cfg map[string]interface{}, s SubNode) {
 	if s.Type == lc+"modelSelector" {
 		for _, m := range s.Children {

@@ -92,29 +92,51 @@ func TestSplitOutAndSummarizeUseDataNodes(t *testing.T) {
 	}
 }
 
-// A vector store with an embedding sub-node and a document loader (with
-// its text splitter) collapses into vector.load_document → vector.store.
-func TestVectorStoreSubNodesCollapse(t *testing.T) {
+// A vector store's embedding sub-node and document loader (with its text
+// splitter) are kept as sub-nodes attached through n8n's connection types.
+func TestVectorStoreSubNodesAttach(t *testing.T) {
 	wf, rep := convertFile(t, "vector_rag.json")
-	loader := node(t, wf, "Qdrant Vector Store (load documents)")
-	if loader.Type != "vector.load_document" {
-		t.Fatalf("loader type = %s", loader.Type)
-	}
-	wantConfig(t, loader, map[string]interface{}{"source": "json", "split": true, "splitter": "recursive", "chunk_size": 500.0, "chunk_overlap": 50.0})
 	store := node(t, wf, "Qdrant Vector Store")
-	wantConfig(t, store, map[string]interface{}{"provider": "qdrant", "mode": "insert", "collection": "docs", "credential_id": "qdrant",
-		"embedding": map[string]interface{}{"provider": "openai_compatible", "model": "text-embedding-3-small", "credential_id": "openai"}})
+	wantConfig(t, store, map[string]interface{}{"provider": "qdrant", "mode": "insert", "collection": "docs", "credential_id": "qdrant"})
+	if _, set := store.Config["embedding"]; set {
+		t.Errorf("embedding folded into the store: %v", store.Config["embedding"])
+	}
+	emb := attachedSub(t, wf, "Qdrant Vector Store", "ai_embedding")
+	if emb.Type != "vector.embeddings" || emb.Name != "Embeddings OpenAI" {
+		t.Errorf("embeddings %s %q", emb.Type, emb.Name)
+	}
+	wantConfig(t, emb, map[string]interface{}{"provider": "openai_compatible", "model": "text-embedding-3-small", "credential_id": "openai"})
+	loader := attachedSub(t, wf, "Qdrant Vector Store", "ai_document")
+	if loader.Type != "vector.document_loader" || loader.Name != "Default Data Loader" {
+		t.Errorf("loader %s %q", loader.Type, loader.Name)
+	}
+	wantConfig(t, loader, map[string]interface{}{"source": "json"})
+	splitter := attachedSub(t, wf, "Default Data Loader", "ai_textSplitter")
+	if splitter.Type != "vector.text_splitter" {
+		t.Errorf("splitter %s", splitter.Type)
+	}
+	wantConfig(t, splitter, map[string]interface{}{"splitter": "recursive", "chunk_size": 500.0, "chunk_overlap": 50.0})
 	search := node(t, wf, "Search")
 	wantConfig(t, search, map[string]interface{}{"mode": "search", "top_k": 3.0, "query": "{{ $json.question }}"})
-	if len(wf.Nodes) != 4 {
-		t.Errorf("sub-nodes must fold away: %d nodes", len(wf.Nodes))
+	if e := attachedSub(t, wf, "Search", "ai_embedding"); e.Name != "Embeddings OpenAI 2" {
+		t.Errorf("search embeddings %q", e.Name)
 	}
-	linked := map[string]string{}
+	if len(wf.Nodes) != 7 {
+		t.Errorf("every n8n node is a mono node: %d nodes", len(wf.Nodes))
+	}
+	main := map[string]string{}
 	for _, c := range wf.Connections {
-		linked[c.Source] = c.Target
+		if c.SourceHandle == "main" {
+			main[c.Source] = c.Target
+		}
 	}
-	if linked["Manual"] != loader.ID || linked[loader.ID] != store.ID || linked[store.ID] != search.ID {
-		t.Errorf("connections: %+v", wf.Connections)
+	if len(main) != 2 || main["Manual"] != store.ID || main[store.ID] != search.ID {
+		t.Errorf("main connections: %+v", wf.Connections)
+	}
+	for _, name := range []string{"Embeddings OpenAI", "Default Data Loader", "Recursive Splitter", "Embeddings OpenAI 2"} {
+		if nr := nodeReport(t, rep, name); nr.Status != n8nimport.StatusFull || !strings.HasPrefix(nr.MonoType, "vector.") {
+			t.Errorf("%s: status %s type %s", name, nr.Status, nr.MonoType)
+		}
 	}
 	platforms := []string{}
 	for _, c := range rep.Credentials {
@@ -123,6 +145,7 @@ func TestVectorStoreSubNodesCollapse(t *testing.T) {
 	if strings.Join(platforms, ",") != "openai,qdrant" {
 		t.Errorf("credentials: %v", platforms)
 	}
+	validates(t, wf)
 }
 
 // HTTP Request 4.x uses http.request's n8n options; n8n's defaults that
@@ -191,4 +214,25 @@ func TestMarkdownAndEditImageUseParamTables(t *testing.T) {
 	if img.Type != "image.edit" || !rep.Complete {
 		t.Errorf("type %s; report: %s", img.Type, rep.Text())
 	}
+}
+
+// attachedSub returns the sub-node attached to the node named root through
+// a kind connection (source and target handle both kind).
+func attachedSub(t *testing.T, wf *workflow.WorkflowFile, root, kind string) workflow.WorkflowFileNode {
+	t.Helper()
+	r := node(t, wf, root)
+	for _, c := range wf.Connections {
+		if c.Target == r.ID && c.TargetHandle == kind {
+			if c.SourceHandle != kind {
+				t.Errorf("%s connection into %s leaves handle %q", kind, root, c.SourceHandle)
+			}
+			for _, n := range wf.Nodes {
+				if n.ID == c.Source {
+					return n
+				}
+			}
+		}
+	}
+	t.Fatalf("no %s sub-node attached to %q", kind, root)
+	return workflow.WorkflowFileNode{}
 }

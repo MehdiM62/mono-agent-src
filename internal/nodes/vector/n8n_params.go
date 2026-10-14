@@ -5,19 +5,19 @@ package vector
 // n8n builds RAG pipelines out of LangChain sub-nodes: an embedding node
 // hangs off a vector store through an ai_embedding connection, a document
 // loader hangs off an inserting store through ai_document, and a text
-// splitter hangs off the loader through ai_textSplitter. Mono's RAG nodes
-// are flat, so the importer folds that sub-node tree into plain config:
+// splitter hangs off the loader through ai_textSplitter. The importer keeps
+// that tree as mono sub-nodes on the same connection types:
 //
 //	n8n                                         mono
 //	─────────────────────────────────────────   ─────────────────────────────
-//	vectorStoreX ◄─ai_embedding── embeddingsY   vector.store {provider:x,
-//	                                             embedding:{provider:y,…}}
-//	vectorStoreX ◄─ai_document── loader         vector.load_document {…, split}
-//	     loader  ◄─ai_textSplitter── splitter   → vector.store (inserted before)
+//	vectorStoreX ◄─ai_embedding── embeddingsY   vector.store {provider:x}
+//	                                              ◄─ai_embedding── vector.embeddings {provider:y}
+//	vectorStoreX ◄─ai_document── loader           ◄─ai_document── vector.document_loader
+//	     loader  ◄─ai_textSplitter── splitter          ◄─ai_textSplitter── vector.text_splitter
 //	retrieverVectorStore ◄─ai_vectorStore── X   vector.store {mode:search,top_k}
 //
-// CollapseN8nSubNodes (n8n_collapse.go) applies these rules; the tables
-// below say how each node's parameters map.
+// ConvertN8nTree (n8n_tree.go) applies these rules; the tables below say
+// how each node's parameters map.
 
 // N8nPrefix is the package prefix of every n8n LangChain node type.
 const N8nPrefix = "@n8n/n8n-nodes-langchain."
@@ -25,9 +25,9 @@ const N8nPrefix = "@n8n/n8n-nodes-langchain."
 // N8n node roles.
 const (
 	N8nRoleNode      = "node"      // becomes a mono node of OurType
-	N8nRoleEmbedding = "embedding" // folded into its parent's "embedding" block
-	N8nRoleSplitter  = "splitter"  // folded into its parent loader's split settings
-	N8nRoleRetriever = "retriever" // folded with its ai_vectorStore child
+	N8nRoleEmbedding = "embedding" // a vector.embeddings sub-node of its store
+	N8nRoleSplitter  = "splitter"  // a vector.text_splitter sub-node of its loader
+	N8nRoleRetriever = "retriever" // a search of its ai_vectorStore child
 )
 
 // N8nNodeMapping says how one n8n node type maps onto mono.
@@ -226,7 +226,7 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 	// ── retrievers ──────────────────────────────────────────────────────────
 	N8nPrefix + "retrieverVectorStore": {Role: N8nRoleRetriever, OurType: "vector.store",
 		Fixed: map[string]interface{}{"mode": "search"}, Params: map[string]string{"topK": "top_k"}, Coverage: "full",
-		Notes: "folded into its ai_vectorStore child as a search"},
+		Notes: "becomes a search of its ai_vectorStore child"},
 	N8nPrefix + "retrieverContextualCompression": {Role: N8nRoleRetriever, Coverage: "unsupported", Notes: "needs an LLM in the retriever; use agent.ask on the search results"},
 	N8nPrefix + "retrieverMultiQuery":            {Role: N8nRoleRetriever, Coverage: "unsupported", Notes: "needs an LLM in the retriever; use agent.ask to rewrite the query first"},
 	N8nPrefix + "retrieverWorkflow":              {Role: N8nRoleRetriever, Coverage: "unsupported", Notes: "call the sub-workflow directly"},
