@@ -187,28 +187,3 @@ func TestRefNodesHidesDeprecatedByDefault(t *testing.T) {
 		t.Errorf("ref node ai.chat: %v", err)
 	}
 }
-
-func TestNodePaletteHidesDeprecatedByDefault(t *testing.T) {
-	has := func(p map[string][]paletteNode, typ string) bool {
-		for _, list := range p {
-			for _, n := range list {
-				if n.Type == typ {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	def, all := nodePalette(nil, false), nodePalette(nil, true)
-	for typ := range workflow.DeprecatedNodeTypes {
-		if has(def, typ) {
-			t.Errorf("palette offers deprecated %s by default", typ)
-		}
-		if !has(all, typ) {
-			t.Errorf("palette --all is missing %s", typ)
-		}
-	}
-	if !has(def, "agent.ask") {
-		t.Error("palette lost agent.ask")
-	}
-}

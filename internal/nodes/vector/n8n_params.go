@@ -80,6 +80,17 @@ func storeNode(provider, mode string, extra map[string]string, coverage, notes s
 		Params: storeParams(extra), Coverage: coverage, Notes: notes}
 }
 
+// oracleStoreNode maps n8n's Oracle vector store. n8n's tables key documents
+// by external_id (the RAW id column is filled by SYS_GUID), so imports read
+// and write that column and return the same ids n8n showed.
+func oracleStoreNode() N8nNodeMapping {
+	m := storeNode(StoreOracle, "", map[string]string{
+		"tableName": "collection", "options.distanceStrategy": "distance", "options.metadata.metadataValues": "filter",
+	}, "partial", "documents are keyed by the external_id column, as in n8n's tables; tested against a fake driver, not a live Oracle database")
+	m.Fixed["id_column"] = "external_id"
+	return m
+}
+
 func embedNode(provider string, params map[string]string, coverage, notes string) N8nNodeMapping {
 	return N8nNodeMapping{Role: N8nRoleEmbedding, OurType: "vector.embed",
 		Fixed: map[string]interface{}{"provider": provider}, Params: params, Coverage: coverage, Notes: notes}
@@ -173,9 +184,7 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 		"databricksIndex": "collection", "contentColumn": "content_column", "options.metadataColumns": "metadata_columns",
 		"options.searchMode": "search_mode",
 	}, "partial", "Databricks deletes by primary key only, so clearing the index before an insert is not available"),
-	N8nPrefix + "vectorStoreOracleDBVector": storeNode(StoreOracle, "", map[string]string{
-		"tableName": "collection", "options.distanceStrategy": "distance", "options.metadata.metadataValues": "filter",
-	}, "partial", "new tables use id VARCHAR2, text CLOB, metadata JSON and embedding VECTOR columns; a table created by n8n (RAW ids) can be searched but ids come back as raw bytes"),
+	N8nPrefix + "vectorStoreOracleDBVector": oracleStoreNode(),
 
 	// ── text splitters ──────────────────────────────────────────────────────
 	N8nPrefix + "textSplitterCharacterTextSplitter": {Role: N8nRoleSplitter, OurType: "vector.split_text",

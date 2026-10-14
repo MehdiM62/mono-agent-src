@@ -195,11 +195,19 @@ typed value (number, bool, object, array): `"labels": "{{ p.labels }}"` sends
 a JSON array. Anything else is string-interpolated: `"Bearer {{ cred.token }}"`;
 `nil` interpolates as `""`, objects/arrays as JSON.
 
+**Literal braces.** `\{{` and `\}}` stand for a literal `{{` and `}}` (in JSON:
+`"\\{{ticket.id\\}}"` → `{{ticket.id}}`), for APIs whose own placeholders use
+braces. They combine with expressions: `"\\{{{{ el }}\\}}"` → `{{ticket.id}}`
+when `el` is `ticket.id` (Zendesk trigger bodies).
+
 **Omit empty.** In `query` and `body` objects a key whose value resolves to
 `nil`, `""`, `[]` or `{}` is left out. `0` and `false` are kept. A nested
 object that ends up empty is left out too. Array elements that resolve
 empty are dropped. Write `"!key"` to send the value even when empty (a `$map`/`$concat` under `"!key"` sends `[]`)
-(`"!description": "{{ p.description }}"` sends `""`/`null`).
+(`"!description": "{{ p.description }}"` sends `""`/`null`). A forced object or
+array template is sent as `{}`/`[]` when everything inside it is empty
+(`"!configVars": {"$merge": "{{ p.vars }}"}` sends `"configVars": {}`), at any
+depth, and a `"!key"` inside a literal `$merge` object survives the spread.
 
 **`$merge`.** `"$merge": "{{ p.additionalFields }}"` spreads an object into
 the parent (its empty values are dropped). Explicit keys override merged
@@ -274,7 +282,7 @@ through, so an unset param stays unset:
 | `set:key,value` | the object (nil counts as `{}`) with `key` set to `value` (an empty key changes nothing): Excel upsert appends `{{ p.fieldsUi.values \| kv:'column,fieldValue' \| set:p.columnToMatchOn,p.valueToMatchOn }}` |
 | `not` | `true` when the value is unset (as for `then`), else nil: `"/{{ p.pit \| not \| then:p.indexId }}{{ p.pit \| not \| then:'/' }}_search"` |
 | `bind:params` | n8n query parameters: every string value or object key that is exactly `$1`, `$2`, … is replaced by that element of `params` (a list or its JSON text) — a parameter never adds structure. A key placeholder must give a plain name not starting with `$` that the object doesn't already have; a placeholder without a value or an unused parameter is an error; an empty list changes nothing: `{{ p.options.query \| fromjson \| bind:p.options.queryParameters }}` (Elasticsearch) |
-| `base64_chunks:n` | base64 data → list of its `n`-byte pieces, each base64 (chunked uploads: `"for_each": "{{ bin.files.0.base64 \| base64_chunks:5242880 }}"` with `idx` as the segment index) |
+| `base64_chunks:n` | base64 data → list of its `n`-byte pieces, each base64 (chunked uploads: `"for_each": "{{ bin.files.0.base64 \| base64_chunks:5242880 }}"` with `idx` as the segment index); a list such as `bin.files` gives one flat list of `{item, segment, data, file}` segments across its files |
 | `map:'from=to,…'` | a value found in the table → its replacement, others unchanged; a list is mapped per element (n8n event names → the vendor's: `{{ p.event \| map:'balanceCredit=balances#credit' }}`) |
 | `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
@@ -903,6 +911,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | package | `n8n_version_defaults` comparison keys (`<3`) | §12 |
 | operation, steps | `stream` (read server-sent events until one matches); step `repeat`; poll `max_wait_seconds`; binary `upload_url` | §9, §10 |
 | package | `webhook` (app trigger registration: `fields`, `create`, `id`, `extra`, `delete`, `check`, `verify`); root `hook`; filter `map` | §17 |
+| templates | literal braces `\{{` / `\}}`; `hdr` = the previous webhook step's response headers | §5, §17 |
 
 ## 17. App webhooks (`webhook`)
 
@@ -959,6 +968,7 @@ Template roots:
 | `hook.workflow_id`, `hook.node_id` | the node |
 | `pre`, `pres.<i>`, `el`, `idx` | as in `before` steps: earlier create steps, the `for_each` element |
 | `res`, `hdr` | in `id`/`extra`: the last create response (a list of responses when that step has `for_each`) and its headers (`{{ hdr.Resource-Id }}`); in `check.exists_when`: the check response |
+| `hdr` in a step | the previous step's response headers — a login step's session token: Form.io's `"inject": {"headers": {"x-jwt-token": "{{ hdr.X-Jwt-Token }}"}}` after a `POST /user/login` step with `auth: false` |
 
 - **delete** runs every step; a 404 or 410 counts as already removed, other
   errors are reported (the engine logs the hook id so it can be removed by
