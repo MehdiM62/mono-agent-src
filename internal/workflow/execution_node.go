@@ -379,7 +379,7 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 		}
 	}
 
-	outputs := t.outputs
+	outputs := alwaysOutputData(t.config, t.outputs)
 
 	// Auto-register any image files produced by the node into the image vault.
 	autoRegisterItemImages(ctx, outputs, r.wf.ID, r.exec.ID)

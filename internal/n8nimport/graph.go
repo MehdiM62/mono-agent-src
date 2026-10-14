@@ -278,10 +278,14 @@ func (b *builder) applyNodeSettings(n *n8nNode, m *Mapping, nr *NodeReport) {
 		cfg["retry_policy"] = map[string]interface{}{"max_retries": retries, "backoff_type": "fixed", "initial_delay": delay}
 	}
 	if n.AlwaysOutputData {
-		add(SevWarning, "alwaysOutputData", true, "has no mono-agent equivalent")
+		cfg["always_output_data"] = true
 	}
 	if n.ExecuteOnce {
-		add(SevWarning, "executeOnce", true, "has no mono-agent equivalent; the node runs for every item")
+		// The first node of a chain is the one that receives the items.
+		if m.Config == nil {
+			m.Config = map[string]interface{}{}
+		}
+		m.Config["execute_once"] = true
 	}
 	if strings.TrimSpace(n.Notes) != "" {
 		add(SevInfo, "notes", nil, "node notes are kept in the workflow description")
