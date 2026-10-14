@@ -1,4 +1,4 @@
-package main
+package workflowmanage
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ type triggerInputsJSON struct {
 // with no --input completed having done nothing at all. This makes the
 // requirement inspectable — for a person before `workflow run`, and for the
 // GUI, which asks the same question before offering its run dialog.
-func newWorkflowInputsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newInputsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "inputs <id>",
 		Short: "Show the trigger fields a workflow reads from `run --input`",
@@ -37,7 +37,7 @@ func newWorkflowInputsCmd(cfg *globalConfig) *cobra.Command {
 			"workflow needs no input.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			wf, err := loadWorkflowDefinition(cmd.Context(), cfg, args[0])
+			wf, err := d.LoadWorkflow(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
@@ -45,7 +45,7 @@ func newWorkflowInputsCmd(cfg *globalConfig) *cobra.Command {
 			fields := workflow.TriggerInputs(wf.Nodes, workflow.LoadDefaultSchema)
 			skeleton := workflow.TriggerInputSkeleton(fields)
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(triggerInputsJSON{
 					V: 1, Workflow: wf.ID, Fields: fields, Skeleton: skeleton,
 				})
