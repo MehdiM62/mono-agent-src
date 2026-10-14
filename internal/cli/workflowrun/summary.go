@@ -1,4 +1,4 @@
-package main
+package workflowrun
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -17,12 +18,12 @@ import (
 // server so both surfaces truncate identically.
 const maxOutputItemBytes = workflow.MaxOutputItemBytes
 
-// fullOutputsFlag is bound to `workflow run --full-outputs` (the flag is
+// FullOutputs is bound to `workflow run --full-outputs` (the flag is
 // registered on the run subcommand from root.go). When false (default),
 // output-item values stored under credential-like keys (token, password,
 // api_key, …) are masked with "***" before truncation; when true,
 // redaction is skipped but truncation still applies.
-var fullOutputsFlag bool
+var FullOutputs bool
 
 // executionNodeJSON is one entry of the "nodes" array in the run --json record.
 type executionNodeJSON struct {
@@ -63,8 +64,8 @@ const noWaitHint = "execution enqueued — a running `monoagentcli daemon` (or a
 // status + timestamps from the execution row, per-node records (incl. output
 // items) via the store's GetExecutionNodeOutputs, and node types from the
 // workflow definition (the execution-node table stores node ids, not types).
-func buildExecutionSummary(ctx context.Context, cfg *globalConfig, executionID string) (executionSummaryJSON, error) {
-	db, err := initDB(cfg)
+func (d Deps) buildExecutionSummary(ctx context.Context, executionID string) (executionSummaryJSON, error) {
+	db, err := d.OpenDB()
 	if err != nil {
 		return executionSummaryJSON{}, fmt.Errorf("open database: %w", err)
 	}
@@ -85,7 +86,7 @@ func executionSummaryFromStore(ctx context.Context, db *storage.Database, execut
 		return executionSummaryJSON{}, fmt.Errorf("get execution: %w", err)
 	}
 	if exec == nil {
-		return executionSummaryJSON{}, errNotFound("execution %q not found", executionID)
+		return executionSummaryJSON{}, clicore.NotFound("execution %q not found", executionID)
 	}
 
 	nodeOutputs, err := store.GetExecutionNodeOutputs(ctx, executionID)
@@ -128,7 +129,7 @@ func executionSummaryFromStore(ctx context.Context, db *storage.Database, execut
 // `workflow run --json`: redaction of credential-like keys (skipped when
 // --full-outputs is set) BEFORE the per-item 4KB truncation.
 func sanitizeOutputItems(items []workflow.Item) []workflow.Item {
-	if fullOutputsFlag {
+	if FullOutputs {
 		return truncateOutputItems(items)
 	}
 	return truncateOutputItems(redactOutputItems(items))
@@ -156,8 +157,8 @@ func truncateOutputItems(items []workflow.Item) []workflow.Item {
 // printExecutionNoWait emits the short --no-wait record: just enough for a
 // caller to poll `workflow executions` later, plus the hint that the
 // enqueued run only completes while an engine stays alive.
-func printExecutionNoWait(cfg *globalConfig, workflowID, executionID, status string) error {
-	if cfg.JSONOutput {
+func (d Deps) printExecutionNoWait(workflowID, executionID, status string) error {
+	if d.JSONOutput() {
 		return json.NewEncoder(os.Stdout).Encode(map[string]string{
 			"execution_id": executionID,
 			"workflow_id":  workflowID,

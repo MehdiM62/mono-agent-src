@@ -1,4 +1,4 @@
-package main
+package workflowrun
 
 import (
 	"bytes"
@@ -31,6 +31,7 @@ func items(n int) []workflow.Item {
 
 // Only the leaf's output is shown, not the trigger's or an inner node's.
 func TestPrintRunOutputShowsTheLeafNode(t *testing.T) {
+	t.Parallel()
 	s := executionSummaryJSON{Status: "SUCCESS", Nodes: []executionNodeJSON{
 		{NodeID: "t", Type: "trigger.manual", Status: "SUCCESS", OutputItems: items(1)},
 		{NodeID: "f", Type: "http.request", Status: "SUCCESS", OutputItems: []workflow.Item{{JSON: map[string]interface{}{"raw": "body"}}}},
@@ -45,6 +46,7 @@ func TestPrintRunOutputShowsTheLeafNode(t *testing.T) {
 }
 
 func TestPrintRunOutputCapsItemsAndLines(t *testing.T) {
+	t.Parallel()
 	s := executionSummaryJSON{Status: "SUCCESS_WITH_ERRORS", Nodes: []executionNodeJSON{
 		{NodeID: "k", Type: "core.set", Status: "SUCCESS", OutputItems: items(8)},
 	}}
@@ -72,6 +74,7 @@ func TestPrintRunOutputCapsItemsAndLines(t *testing.T) {
 }
 
 func TestPrintRunOutputPrintsNothingWithoutOutput(t *testing.T) {
+	t.Parallel()
 	for name, s := range map[string]executionSummaryJSON{
 		"failed":       {Status: "FAILED", Nodes: []executionNodeJSON{{NodeID: "k", Type: "core.set", Status: "SUCCESS", OutputItems: items(1)}}},
 		"waiting":      {Status: "WAITING", Nodes: []executionNodeJSON{{NodeID: "k", Type: "core.set", Status: "SUCCESS", OutputItems: items(1)}}},
