@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"encoding/json"
@@ -16,7 +16,7 @@ import (
 
 // `automation new`: scaffold a package from data/automation-templates/<t>.
 
-func newAutomationNewCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAutomationNewCmd() *cobra.Command {
 	var tmpl, dir, name, startURL string
 	var install bool
 	cmd := &cobra.Command{
@@ -48,7 +48,7 @@ letters, digits and dashes.`,
 				return fmt.Errorf("%s already exists", dir)
 			}
 			if install {
-				if err := refuseInstalledID(id); err != nil {
+				if err := d.refuseInstalledID(id); err != nil {
 					return err
 				}
 			}
@@ -65,17 +65,17 @@ letters, digits and dashes.`,
 			if install {
 				// The scaffold is the user's own package: local source and
 				// trust, no review prompt. It stays on disk if this fails.
-				res, err := installScaffold(abs)
+				res, err := d.installScaffold(abs)
 				if err != nil {
 					return fmt.Errorf("created %s, but installing it failed: %w", abs, err)
 				}
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return writeJSONTo(out, map[string]any{"dir": abs, "install": res})
 				}
 				fmt.Fprintf(out, "Created %s from template %q and installed %s %s (local)\n", abs, tmpl, res.ID, res.Version)
 				return nil
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJSONTo(out, map[string]string{"dir": abs})
 			}
 			fmt.Fprintf(out, "Created %s from template %q\n", abs, tmpl)
@@ -94,8 +94,8 @@ letters, digits and dashes.`,
 // refuseInstalledID stops `new --install` from overwriting an automation
 // that is already installed under id (a removed built-in does not count).
 // Checked before anything is written.
-func refuseInstalledID(id string) error {
-	reg, err := openAutomationRegistry()
+func (d Deps) refuseInstalledID(id string) error {
+	reg, err := d.OpenRegistry()
 	if err != nil {
 		return err
 	}
@@ -106,13 +106,13 @@ func refuseInstalledID(id string) error {
 }
 
 // installScaffold installs a freshly scaffolded package directory as local.
-func installScaffold(dir string) (*automation.InstallResult, error) {
-	reg, err := openAutomationRegistry()
+func (d Deps) installScaffold(dir string) (*automation.InstallResult, error) {
+	reg, err := d.OpenRegistry()
 	if err != nil {
 		return nil, err
 	}
 	res, err := reg.Install(dir, automation.InstallOptions{Source: automation.SourceLocal, Trust: automation.TrustLocal})
-	return res, withInstallResult(err, res)
+	return res, d.WithInstallResult(err, res)
 }
 
 // automationTemplate returns the named template tree.

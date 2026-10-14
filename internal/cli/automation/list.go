@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"database/sql"
@@ -34,14 +34,14 @@ type automationListRow struct {
 	PendingUpdate string            `json:"pendingUpdate"`
 }
 
-func newAutomationListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAutomationListCmd() *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List installed automation packages with their login state",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
@@ -49,7 +49,7 @@ func newAutomationListCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			sessions := loadAutomationSessions(cfg)
+			sessions := d.loadAutomationSessions()
 			rows := make([]automationListRow, 0, len(infos))
 			for _, info := range infos {
 				rows = append(rows, automationListRow{
@@ -59,10 +59,10 @@ func newAutomationListCmd(cfg *globalConfig) *cobra.Command {
 				})
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJSONTo(out, map[string]any{"automations": rows})
 			}
-			printAutomationTable(out, rows)
+			d.printAutomationTable(out, rows)
 			return nil
 		},
 	}
@@ -70,12 +70,12 @@ func newAutomationListCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func printAutomationTable(out io.Writer, rows []automationListRow) {
+func (d Deps) printAutomationTable(out io.Writer, rows []automationListRow) {
 	if len(rows) == 0 {
 		fmt.Fprintln(out, "No automations installed. Install one with: monoagentcli automation install <file.mpkg>")
 		return
 	}
-	table := newPlainTable(out, []string{"ID", "Version", "Source", "Status", "Actions", "Login", "Notes"},
+	table := d.NewTable(out, []string{"ID", "Version", "Source", "Status", "Actions", "Login", "Notes"},
 		[]tw.Align{tw.AlignLeft, tw.AlignLeft, tw.AlignLeft, tw.AlignLeft, tw.AlignRight, tw.AlignLeft, tw.AlignLeft})
 	for _, r := range rows {
 		status := "enabled"
@@ -150,18 +150,18 @@ func (s sessionIndex) lookupWith(id, legacy string) automationSession {
 // loadAutomationSessions reads login state from crawler_sessions (the same
 // source `login status` uses), scoped to the active or --profile profile.
 // It never creates a database: no DB yet means nobody has logged in.
-func loadAutomationSessions(cfg *globalConfig) sessionIndex {
+func (d Deps) loadAutomationSessions() sessionIndex {
 	idx := sessionIndex{}
-	if _, err := os.Stat(expandPath(cfg.DBPath)); err != nil {
+	if _, err := os.Stat(d.DBPath()); err != nil {
 		return idx
 	}
-	db, err := initDB(cfg)
+	db, err := d.OpenDB()
 	if err != nil {
 		stderrf("warning: login state unavailable: %v\n", err)
 		return idx
 	}
 	defer db.Close()
-	return querySessionIndex(db.DB, cfg.ProfileID, time.Now())
+	return querySessionIndex(db.DB, d.ProfileID(), time.Now())
 }
 
 // querySessionIndex keeps, per platform, the row expiring last. The platform
@@ -222,13 +222,13 @@ type automationInputJSON struct {
 	UI          map[string]any `json:"ui"`
 }
 
-func newAutomationShowCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAutomationShowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <id>",
 		Short: "Show an automation's manifest, actions, inputs and outputs",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
@@ -248,14 +248,14 @@ func newAutomationShowCmd(cfg *globalConfig) *cobra.Command {
 				issues = []automation.IssueJSON{}
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJSONTo(out, map[string]any{
 					"info": info, "manifest": pkg.Manifest, "actions": actions,
 					"fragments": fragments, "issues": issues,
-					"session": loadAutomationSessions(cfg).lookupInfo(*info),
+					"session": d.loadAutomationSessions().lookupInfo(*info),
 				})
 			}
-			printAutomationShow(out, info, pkg.Manifest, actions, fragments, issues)
+			d.printAutomationShow(out, info, pkg.Manifest, actions, fragments, issues)
 			return nil
 		},
 	}
@@ -375,7 +375,7 @@ func listFragments(fsys fs.FS) []string {
 	return out
 }
 
-func printAutomationShow(out io.Writer, info *automation.InstalledInfo, m automation.Manifest,
+func (d Deps) printAutomationShow(out io.Writer, info *automation.InstalledInfo, m automation.Manifest,
 	actions []automationActionJSON, fragments []string, issues []automation.IssueJSON) {
 	fmt.Fprintf(out, "%s (%s) %s\n", m.Name, m.ID, m.Version)
 	if m.Description != "" {
@@ -395,7 +395,7 @@ func printAutomationShow(out io.Writer, info *automation.InstalledInfo, m automa
 		fmt.Fprintf(out, "  scripts: %s\n", strings.Join(m.Permissions.Scripts, ", "))
 	}
 	fmt.Fprintln(out)
-	table := newPlainTable(out, []string{"Node type", "Effects", "Inputs", "Description"}, nil)
+	table := d.NewTable(out, []string{"Node type", "Effects", "Inputs", "Description"}, nil)
 	for _, a := range actions {
 		var ins []string
 		for _, in := range a.Inputs {

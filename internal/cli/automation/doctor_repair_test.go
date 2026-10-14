@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"bytes"
@@ -16,8 +16,8 @@ func TestAutomationDoctorRepairProposalAndAccept(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	installTestAutomation(t)
 
-	cfg := &globalConfig{DBPath: filepath.Join(t.TempDir(), "doctor.db"), JSONOutput: true, ProfileID: "default"}
-	db, err := initDB(cfg)
+	cfg := &testConfig{DBPath: filepath.Join(t.TempDir(), "doctor.db"), JSONOutput: true, ProfileID: "default"}
+	db, err := testDeps(cfg).OpenDB()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestAutomationDoctorRepairProposalAndAccept(t *testing.T) {
 	db.Close()
 
 	var out bytes.Buffer
-	cmd := newAutomationDoctorCmd(cfg)
+	cmd := testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&out)
 	cmd.SetArgs([]string{"acme-test"})
 	if err := cmd.Execute(); err != nil {
@@ -64,7 +64,7 @@ func TestAutomationDoctorRepairProposalAndAccept(t *testing.T) {
 
 	var human bytes.Buffer
 	cfg.JSONOutput = false
-	cmd = newAutomationDoctorCmd(cfg)
+	cmd = testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&human)
 	cmd.SetArgs([]string{"acme-test"})
 	if err := cmd.Execute(); err != nil {
@@ -78,7 +78,7 @@ func TestAutomationDoctorRepairProposalAndAccept(t *testing.T) {
 	// accept-repair replaces the selector and clears the proposal.
 	var acc bytes.Buffer
 	cfg.JSONOutput = true
-	cmd = newAutomationDoctorCmd(cfg)
+	cmd = testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&acc)
 	cmd.SetArgs([]string{"accept-repair", "acme-test", "page.title"})
 	if err := cmd.Execute(); err != nil {
@@ -88,7 +88,7 @@ func TestAutomationDoctorRepairProposalAndAccept(t *testing.T) {
 	if err := json.Unmarshal(acc.Bytes(), &res); err != nil || res.Key != "page.title" || len(res.Candidates) != 2 {
 		t.Fatalf("result %s: %v", acc.String(), err)
 	}
-	reg, err := openAutomationRegistry()
+	reg, err := openTestRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestAutomationDoctorRepairProposalAndAccept(t *testing.T) {
 	if e, ok := pkg.Context().Selector("page.title"); !ok || e.Candidates[0].CSS != "main h1" {
 		t.Fatalf("selector after accept = %+v", e)
 	}
-	db, err = initDB(cfg)
+	db, err = testDeps(cfg).OpenDB()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestAutomationDoctorRepairProposalAndAccept(t *testing.T) {
 	}
 
 	// Again: nothing to accept.
-	cmd = newAutomationDoctorCmd(cfg)
+	cmd = testDeps(cfg).newAutomationDoctorCmd()
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetArgs([]string{"accept-repair", "acme-test", "page.title"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "no repair proposal") {

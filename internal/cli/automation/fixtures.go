@@ -1,4 +1,4 @@
-package main
+package automation
 
 import (
 	"encoding/json"
@@ -35,7 +35,7 @@ type fixtureResult struct {
 	Message string `json:"message"`
 }
 
-func newAutomationTestCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newAutomationTestCmd() *cobra.Command {
 	var live, full bool
 	cmd := &cobra.Command{
 		Use:   "test <id|dir> [action]",
@@ -45,7 +45,7 @@ func newAutomationTestCmd(cfg *globalConfig) *cobra.Command {
 			if live {
 				return errors.New("automation test --live is not supported yet; use 'record verify' to replay against the browser")
 			}
-			pkg, err := openTestTarget(args[0])
+			pkg, err := d.openTestTarget(args[0])
 			if err != nil {
 				return err
 			}
@@ -63,12 +63,12 @@ func newAutomationTestCmd(cfg *globalConfig) *cobra.Command {
 					failed++
 				}
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				if err := writeJSONTo(out, map[string]any{"results": results}); err != nil {
 					return err
 				}
 			} else {
-				table := newPlainTable(out, []string{"Action", "Fixture", "Result", "Message"}, nil)
+				table := d.NewTable(out, []string{"Action", "Fixture", "Result", "Message"}, nil)
 				for _, r := range results {
 					table.Append([]string{r.Action, orDash(r.Fixture), r.Status, truncateStr(r.Message, 80)})
 				}
@@ -77,7 +77,7 @@ func newAutomationTestCmd(cfg *globalConfig) *cobra.Command {
 			if failed > 0 {
 				// The results already say why; with --json no second
 				// {"error"} object may follow them on stdout.
-				return reportedError{fmt.Errorf("%d test(s) failed", failed)}
+				return d.Reported(fmt.Errorf("%d test(s) failed", failed))
 			}
 			return nil
 		},
@@ -88,11 +88,11 @@ func newAutomationTestCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // openTestTarget accepts an installed id or a package directory.
-func openTestTarget(target string) (*automation.Package, error) {
+func (d Deps) openTestTarget(target string) (*automation.Package, error) {
 	if st, err := os.Stat(target); err == nil && st.IsDir() {
 		return automation.OpenDir(target)
 	}
-	reg, err := openAutomationRegistry()
+	reg, err := d.OpenRegistry()
 	if err != nil {
 		return nil, err
 	}
