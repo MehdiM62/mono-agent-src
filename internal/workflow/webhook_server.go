@@ -97,6 +97,8 @@ type WebhookServer struct {
 	// deliveries remembers delivery IDs for registrations with a
 	// DedupeHeader; nil disables dedupe.
 	deliveries WebhookDeliveries
+	// replies serves /reply/ (wait_reply_http.go); nil answers 404.
+	replies http.Handler
 }
 
 // SetRunner makes the server start runs through run, which reports the
@@ -319,7 +321,7 @@ func (s *WebhookServer) Deregister(path string) {
 // A locked monoes.me account refuses every request first (refuseWhileLocked),
 // before the body is read and before admitTrace writes to the org ledger.
 func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.refuseWhileLocked(w, r) {
+	if s.refuseWhileLocked(w, r) || s.serveReply(w, r) {
 		return
 	}
 	// Parse path: must be /webhook/{path}
