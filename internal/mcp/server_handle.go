@@ -71,6 +71,11 @@ func (s *Server) handleLine(ctx context.Context, line []byte) *rpcResponse {
 
 	case "tools/list":
 		if s.opts.Grant != "" {
+			// A grant's tools are the org's automations, read from the database: a locked
+			// account lists none and opens nothing.
+			if account.Require(ctx) != nil {
+				return s.result(req.ID, map[string]interface{}{"tools": []map[string]interface{}{}})
+			}
 			return s.result(req.ID, map[string]interface{}{"tools": s.grantToolDefinitions(ctx)})
 		}
 		return s.result(req.ID, map[string]interface{}{"tools": definitionsOf(s.servedTools(), s.opts.AllowMutations)})

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/account/accounttest"
 	"github.com/monoes/mono-agent/internal/cli/jevcli"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/testdb"
@@ -24,6 +26,7 @@ type memSyncCall struct {
 // error is classified and redacted, and SyncToKnowledgeGraph (stubbed) gets
 // the workflow's entities.
 func TestRunMemorySweepOverStore(t *testing.T) {
+	signedIn := accounttest.Install(t, accounttest.SignedIn)
 	db := testdb.Open(t)
 	ctx := context.Background()
 	store := workflow.NewSQLiteWorkflowStore(db.DB)
@@ -128,6 +131,12 @@ func TestRunMemorySweepOverStore(t *testing.T) {
 	if err := db.DB.QueryRow(`SELECT id FROM workflow_executions ORDER BY created_at DESC LIMIT 1`).Scan(&last); err != nil {
 		t.Fatal(err)
 	}
+	account.InstallForTest(t, nil) // strict, the date behind the clock, no guard: locked
+	runMemoryExecutionFinished(ctx, db.DB, last, "FAILED")
+	if len(calls) != 1 {
+		t.Fatalf("a locked account ingested a run: %d calls", len(calls))
+	}
+	account.InstallForTest(t, signedIn)
 	runMemoryExecutionFinished(ctx, db.DB, last, "FAILED")
 	if len(calls) != 2 {
 		t.Fatalf("hook did not ingest the new class: %d calls", len(calls))

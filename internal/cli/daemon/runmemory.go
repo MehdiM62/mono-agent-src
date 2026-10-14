@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/account"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/jevcli"
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -65,6 +66,10 @@ func runMemorySweeper(ctx context.Context, dbPath string) {
 			return
 		case <-t.C:
 		}
+		if account.Require(ctx) != nil { // a locked account sweeps nothing; the watermark waits for a login
+			t.Reset(runMemorySweepEvery)
+			continue
+		}
 		if db == nil {
 			d, err := storage.NewDatabase(dbPath)
 			if err != nil {
@@ -86,7 +91,7 @@ func runMemorySweeper(ctx context.Context, dbPath string) {
 // handler: it re-evaluates the workflow of executionID. Safe to call from a
 // goroutine.
 func runMemoryExecutionFinished(ctx context.Context, db *sql.DB, executionID, status string) {
-	if db == nil || executionID == "" {
+	if db == nil || executionID == "" || account.Require(ctx) != nil {
 		return
 	}
 	var workflowID string

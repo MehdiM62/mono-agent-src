@@ -35,6 +35,9 @@ const maxInlinePreviewBytes = 25 * 1024 * 1024
 // PDFs) without a file:// URL, which Wails' BrowserOpenURL explicitly
 // rejects and which the webview's CSP may also block.
 func (a *App) GetProfileDocumentData(id string) (string, error) {
+	if err := a.signedOut(); err != nil {
+		return "", err
+	}
 	path, err := a.documentPath(id)
 	if err != nil {
 		return "", err
@@ -57,6 +60,9 @@ func (a *App) GetProfileDocumentData(id string) (string, error) {
 // for file types previewed as plain text/source (txt, md, html, csv,
 // json, ...) rather than as a binary data URL.
 func (a *App) GetProfileDocumentText(id string) (string, error) {
+	if err := a.signedOut(); err != nil {
+		return "", err
+	}
 	path, err := a.documentPath(id)
 	if err != nil {
 		return "", err
@@ -72,6 +78,9 @@ func (a *App) GetProfileDocumentText(id string) (string, error) {
 // mechanism — the same as double-clicking it in a file manager. Used as the
 // fallback when no in-app viewer exists for a file's type.
 func (a *App) OpenPathWithOS(path string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("file not found: %w", err)
 	}

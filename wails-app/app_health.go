@@ -92,6 +92,9 @@ func healthReportJSON(cliBin string, stdout []byte, runErr error) string {
 // the doctor --json report, {"error", "cli_missing"} when there is no
 // monoagentcli to ask, or {"error", "cancelled"} after CancelHealthRun.
 func (a *App) RunHealthCheck(mode string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
 		b, _ := json.Marshal(map[string]any{"error": err.Error(), "cli_missing": true})
@@ -180,6 +183,9 @@ func endHealthRun(key string, run *healthRun) {
 // installers it started, and is killed only if it hasn't exited after
 // stopGracefully's grace period. Returns {"ok":true,"cancelled":bool}.
 func (a *App) CancelHealthRun(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	healthRunsMu.Lock()
 	run := healthRuns[runKey(id)]
 	healthRunsMu.Unlock()
@@ -206,6 +212,9 @@ type healthFixEvent struct {
 // "health:fixProgress" events, and returns at once. The frontend has
 // already asked the user for confirm fixes.
 func (a *App) RunHealthFix(fixID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
 		return aiError(err)
@@ -252,6 +261,9 @@ func agentInstallArgs(profileID, runtimeID string, update bool, approveURL strin
 // the background, relaying progress as "health:fixProgress" events keyed
 // "agent.install:<id>", and returns at once.
 func (a *App) InstallAgentRuntime(runtimeID string, update bool, approveURL string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
 		return aiError(err)

@@ -825,10 +825,10 @@ jobs:
               echo "::error::Signing key ${keyid} is already pinned in internal/release/keys.go, but RELEASE_SIGNING_BOOTSTRAP is still true. Owner: delete the variable (gh variable delete RELEASE_SIGNING_BOOTSTRAP) and re-run."
               exit 1
             fi
-            go run ./cmd/monoagentcli release verify signed/manifest.json signed/manifest.json.sig
+            MONOAGENT_DEV_ENFORCE_FROM=2099-01-01T00:00:00Z go run -tags devaccount ./cmd/monoagentcli release verify signed/manifest.json signed/manifest.json.sig
           elif [ "${BOOTSTRAP}" = "true" ]; then
             echo "::warning::Bootstrap: signing key ${keyid} is NOT pinned in internal/release/keys.go; verifying against the key derived from the secret. Unset RELEASE_SIGNING_BOOTSTRAP after this release."
-            go run ./cmd/monoagentcli release verify --pubkey "$(cat signed/signing-pubkey.txt)" signed/manifest.json signed/manifest.json.sig
+            MONOAGENT_DEV_ENFORCE_FROM=2099-01-01T00:00:00Z go run -tags devaccount ./cmd/monoagentcli release verify --pubkey "$(cat signed/signing-pubkey.txt)" signed/manifest.json signed/manifest.json.sig
           else
             echo "::error::Signing key ${keyid} is not pinned in internal/release/keys.go, so no client would trust this signature. Pin it, or (first release only) set the repository variable RELEASE_SIGNING_BOOTSTRAP=true."
             exit 1
@@ -899,7 +899,10 @@ jobs:
             [ -f "${signed}/${f}" ] || { echo "::error::signed-manifest artifact lacks ${f}; refusing to publish."; exit 1; }
           done
           go build -o "${RUNNER_TEMP}/release-manifest" ./cmd/release-manifest
-          go build -o "${RUNNER_TEMP}/monoagentcli" ./cmd/monoagentcli
+          # `release` needs a monoes.me sign-in like every other command; CI has none, so this
+          # verifier is a devaccount build run in the warn period (release keys are the same).
+          go build -tags devaccount -o "${RUNNER_TEMP}/monoagentcli-verify" ./cmd/monoagentcli
+          export MONOAGENT_DEV_ENFORCE_FROM=2099-01-01T00:00:00Z
 
           keyid=$(cut -d' ' -f1 "${signed}/manifest.json.sig")
           if grep -q "\"${keyid} " internal/release/keys.go; then
@@ -907,10 +910,10 @@ jobs:
               echo "::error::Signing key ${keyid} is already pinned in internal/release/keys.go, but RELEASE_SIGNING_BOOTSTRAP is still true. Owner: delete the variable (gh variable delete RELEASE_SIGNING_BOOTSTRAP) and re-run."
               exit 1
             fi
-            "${RUNNER_TEMP}/monoagentcli" release verify "${signed}/manifest.json" "${signed}/manifest.json.sig"
+            "${RUNNER_TEMP}/monoagentcli-verify" release verify "${signed}/manifest.json" "${signed}/manifest.json.sig"
           elif [ "${BOOTSTRAP}" = "true" ]; then
             echo "::warning::Bootstrap: key ${keyid} is not pinned; verifying against the key derived by sign-manifest."
-            "${RUNNER_TEMP}/monoagentcli" release verify --pubkey "$(cat "${signed}/signing-pubkey.txt")" "${signed}/manifest.json" "${signed}/manifest.json.sig"
+            "${RUNNER_TEMP}/monoagentcli-verify" release verify --pubkey "$(cat "${signed}/signing-pubkey.txt")" "${signed}/manifest.json" "${signed}/manifest.json.sig"
           else
             echo "::error::Signing key ${keyid} is not pinned in internal/release/keys.go and RELEASE_SIGNING_BOOTSTRAP is not true."
             exit 1

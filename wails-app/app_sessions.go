@@ -32,6 +32,9 @@ type cliLoginStatusRow struct {
 // installed automation without a session (a logged_out row, which has no
 // id) is not a session and is left out.
 func (a *App) GetSessions() []SessionInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	var rows []cliLoginStatusRow
 	if err := a.runMonoCLI("", &rows, "login", "status"); err != nil {
 		return nil
@@ -56,6 +59,9 @@ func (a *App) GetSessions() []SessionInfo {
 // TestSession checks that a browser session exists, hasn't expired and has
 // its cookies stored: "ok", or "error: <reason>".
 func (a *App) TestSession(id int) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if err := a.runConnCLI("", nil, "login", "test", strconv.Itoa(id)); err != nil {
 		return "error: " + err.Error()
 	}
@@ -65,6 +71,9 @@ func (a *App) TestSession(id int) string {
 // DeleteSession deletes a browser session and the vault entry holding its
 // cookies.
 func (a *App) DeleteSession(id int) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	if err := a.deleteSession(id); err != nil {
 		return err
 	}

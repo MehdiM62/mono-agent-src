@@ -99,7 +99,8 @@ func TestAnswersThatAreNotARefusalKeepTheGrace(t *testing.T) {
 
 // Spec 4.7 and A9: a refreshed token signed by a key this build does not pin is not stored, and the
 // grace shows server_error; when the grace ends the verdict is locked(key_unknown), the case that
-// wants an update and not another sign-in, and doctor's fix is the update.
+// wants an update and not another sign-in: the refusal says so, doctor is refused like every other
+// gated command, and update stays open.
 func TestAnUnknownSigningKeyIsTheRunUpdateCase(t *testing.T) {
 	r := newRig(t, rigOptions{enforce: past})
 	r.signIn()
@@ -112,25 +113,14 @@ func TestAnUnknownSigningKeyIsTheRunUpdateCase(t *testing.T) {
 	if st, code := r.status(); st.State != "locked" || st.Reason != "key_unknown" || code != 4 {
 		t.Fatalf("at the end of the grace: exit %d, %+v, want locked(key_unknown)", code, st)
 	}
-	r.assertLocked(r.run("--json", "workflow", "list"), "key_unknown", true)
-	var report struct {
-		Results []struct {
-			ID, Status string
-			Fix        *struct{ ID string }
-		}
+	res := r.run("--json", "workflow", "list")
+	r.assertLocked(res, "key_unknown", true)
+	if !strings.Contains(res.stderr, "monoagentcli update") {
+		t.Fatalf("the refusal of an unknown key names the update:\n%s", res.stderr)
 	}
-	mustJSON(t, r.run("--json", "doctor", "--check", "core.monoes_account").stdout, &report)
-	found := false
-	for _, x := range report.Results {
-		if x.ID == "core.monoes_account" {
-			found = true
-			if x.Status != "fail" || x.Fix == nil || x.Fix.ID != "core.update.install" {
-				t.Fatalf("doctor row for an unknown key: %+v, want fail with the update as its fix", x)
-			}
-		}
-	}
-	if !found {
-		t.Fatal("doctor has no core.monoes_account row")
+	r.assertLocked(r.run("--json", "doctor", "--check", "core.monoes_account"), "key_unknown", true)
+	if res := r.run("update", "--help"); res.code != 0 || strings.Contains(res.stderr, loginLine) {
+		t.Fatalf("update stays open: exit %d\n%s", res.code, res.stderr)
 	}
 }
 

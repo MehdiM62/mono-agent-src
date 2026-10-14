@@ -15,6 +15,9 @@ import (
 // after "--" so a leading "-" is never read as a flag.
 
 func (a *App) GetVaultImages(limit int) ([]map[string]interface{}, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 200
 	}
@@ -22,6 +25,9 @@ func (a *App) GetVaultImages(limit int) ([]map[string]interface{}, error) {
 }
 
 func (a *App) SearchVaultImages(query string) ([]map[string]interface{}, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	return a.imageRows("image", "search", "--", query)
 }
 
@@ -37,6 +43,9 @@ func (a *App) imageRows(args ...string) ([]map[string]interface{}, error) {
 }
 
 func (a *App) GetVaultImage(id string) (map[string]interface{}, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var out map[string]interface{}
 	if err := a.runMonoCLI("", &out, "image", "get", "--", id); err != nil {
 		return nil, err
@@ -48,6 +57,9 @@ func (a *App) GetVaultImage(id string) (map[string]interface{}, error) {
 // "data:image/png;base64,..."). This is the reliable way to display vault
 // images inside the Wails WebView without relying on the HTTP asset handler.
 func (a *App) GetVaultImageData(id string) (string, error) {
+	if err := a.signedOut(); err != nil {
+		return "", err
+	}
 	var out struct {
 		DataURL string `json:"data_url"`
 	}
@@ -58,6 +70,9 @@ func (a *App) GetVaultImageData(id string) (string, error) {
 }
 
 func (a *App) AddVaultImage(srcPath, label string) (map[string]interface{}, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	args := []string{"image", "add"}
 	if label != "" {
 		args = append(args, "--label", label)
@@ -84,6 +99,9 @@ var emitImageEvent = (*App).emitFolderEvent
 
 // OpenVaultFilePicker opens a native file picker and returns the selected file path (empty if cancelled).
 func (a *App) OpenVaultFilePicker() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Select Image",
 		Filters: []runtime.FileFilter{
@@ -99,6 +117,9 @@ func (a *App) OpenVaultFilePicker() string {
 // SaveVaultImageToFile opens a native Save File dialog pre-filled with suggestedName,
 // then copies the vault image file to the chosen path. Returns "" if the user cancels.
 func (a *App) SaveVaultImageToFile(id, suggestedName string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	// Check first, so an unknown id fails before the dialog is shown.
 	if _, err := a.GetVaultImage(id); err != nil {
 		return "error: image not found"
@@ -130,6 +151,9 @@ var saveImageDialog = func(a *App, suggestedName string) (string, error) {
 
 // UpdateVaultImageLabel renames an image; an empty label clears it.
 func (a *App) UpdateVaultImageLabel(id, label string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	args := []string{"image", "label", "--", id}
 	if label != "" {
 		args = append(args, label)
@@ -145,6 +169,9 @@ func (a *App) UpdateVaultImageLabel(id, label string) error {
 // profile folder keeps its file there (`image delete` removes only its row
 // and keeps later syncs from adding it back).
 func (a *App) DeleteVaultImage(id string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	if err := a.runMonoCLI("", nil, "image", "delete", "--", id); err != nil {
 		return err
 	}
@@ -153,6 +180,9 @@ func (a *App) DeleteVaultImage(id string) error {
 }
 
 func (a *App) GetVaultStats() (map[string]interface{}, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var out map[string]interface{}
 	if err := a.runMonoCLI("", &out, "image", "stats"); err != nil {
 		return nil, err

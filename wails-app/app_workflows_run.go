@@ -20,6 +20,9 @@ import (
 // trigger data. Kept as its own binding so existing callers (the Dashboard's
 // run button) are unchanged.
 func (a *App) RunWorkflow(id string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	return a.RunWorkflowWithInput(id, "")
 }
 
@@ -31,6 +34,9 @@ func (a *App) RunWorkflow(id string) error {
 // expression resolved to nothing, and the run did nothing. inputJSON must be
 // a JSON object; empty means no trigger data.
 func (a *App) RunWorkflowWithInput(id, inputJSON string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	trimmed := strings.TrimSpace(inputJSON)
 	if trimmed != "" {
 		var probe map[string]interface{}
@@ -201,6 +207,9 @@ const workflowPollCLITimeout = 20 * time.Second
 // GetWorkflowExecutions returns `workflow executions <id> --limit <n>`,
 // newest first (50 when limit is not positive).
 func (a *App) GetWorkflowExecutions(workflowID string, limit int) ([]WorkflowExecutionSummary, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 50
 	}
@@ -234,6 +243,9 @@ func (a *App) GetWorkflowExecutions(workflowID string, limit int) ([]WorkflowExe
 // per-node status, items already redacted by the CLI. The editor reads each
 // node's input_items/output_items as a JSON string, as it always has.
 func (a *App) GetExecutionDetail(executionID string) (map[string]interface{}, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var d struct {
 		ID          string `json:"id"`
 		WorkflowID  string `json:"workflow_id"`
@@ -306,6 +318,9 @@ func itemsString(raw json.RawMessage) string {
 // process started elsewhere, which must never be the daemon, and marking
 // the execution cancelled — is `workflow cancel <id>`.
 func (a *App) CancelWorkflow(executionID string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	a.runningMu.Lock()
 	if cmd, ok := a.runningCmds[executionID]; ok {
 		if cmd.Process != nil {

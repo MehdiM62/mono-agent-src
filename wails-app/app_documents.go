@@ -40,6 +40,9 @@ type KnowledgeSearchResult struct {
 // files discovered in its folder, and browser captures (the CLI syncs the
 // profile's capture inbox into the list before returning it).
 func (a *App) ListProfileDocuments() ([]ProfileDocument, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var raw []struct {
 		ID, Path, Filename, Source, ApplicationID, CreatedAt, IndexError, URL, CaptureDir, SummaryStatus string
 		SizeBytes                                                                                        int64
@@ -67,6 +70,9 @@ func (a *App) ListProfileDocuments() ([]ProfileDocument, error) {
 // that only need to re-validate one id rather than pay for and scan the
 // whole vault. nil+error on not-found rather than an empty result.
 func (a *App) GetProfileDocument(id string) (*ProfileDocument, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var doc ProfileDocument
 	if err := a.cliJSON(profileCLITimeout, &doc, "profile", "documents", "get", id); err != nil {
 		return nil, err
@@ -87,6 +93,9 @@ type UploadResult struct {
 // monomind isn't installed or this profile isn't monomind-init'd) --
 // Indexed/IndexError report that outcome so the caller can show it.
 func (a *App) UploadProfileDocument(path, source string) (*UploadResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	args := []string{"profile", "upload-document", path}
 	if source != "" {
 		args = append(args, "--source", source)
@@ -100,6 +109,9 @@ func (a *App) UploadProfileDocument(path, source string) (*UploadResult, error) 
 
 // DeleteProfileDocument removes a document from the vault.
 func (a *App) DeleteProfileDocument(id string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	return a.runMonoCLI("", nil, "profile", "documents", "rm", id)
 }
 
@@ -109,6 +121,9 @@ func (a *App) DeleteProfileDocument(id string) error {
 // UploadResult's shape exactly so the frontend can treat a manual index
 // and an upload's own immediate index attempt identically.
 func (a *App) IndexProfileDocument(id string) (*UploadResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var result UploadResult
 	if err := a.runMonoCLI("", &result, "profile", "documents", "index", id); err != nil {
 		return nil, err
@@ -119,6 +134,9 @@ func (a *App) IndexProfileDocument(id string) (*UploadResult, error) {
 // SearchProfileKnowledge searches indexed profile documents (the same
 // search chat uses automatically).
 func (a *App) SearchProfileKnowledge(query string) ([]KnowledgeSearchResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var raw []struct {
 		Path, Excerpt string
 		Score         float64
@@ -137,6 +155,9 @@ func (a *App) SearchProfileKnowledge(query string) ([]KnowledgeSearchResult, err
 // (profile documents can be PDF, DOCX, plain text, etc.) and returns the
 // selected path (empty string if cancelled).
 func (a *App) OpenAnyFilePicker(title string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{Title: title})
 	if err != nil {
 		return ""

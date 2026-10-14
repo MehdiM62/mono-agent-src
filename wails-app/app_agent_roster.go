@@ -21,12 +21,18 @@ const agentValidateKey = "agentvalidate"
 // AgentRoster returns `agent roster --json`: every runtime's models with
 // their state (ready, stale, failed, untested). No model calls.
 func (a *App) AgentRoster() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("agent", "roster")
 }
 
 // AgentValidatePlan returns the validate.plan line of a dry run: the calls a
 // validation would make and their estimated cost.
 func (a *App) AgentValidatePlan(runtimes, models []string, staleOnly bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult(validateArgs(runtimes, models, staleOnly, true)...)
 }
 
@@ -34,6 +40,9 @@ func (a *App) AgentValidatePlan(runtimes, models []string, staleOnly bool) strin
 // line is emitted as "agents:validate"; when the process ends,
 // "agents:validateClosed" follows. A second start replaces a running one.
 func (a *App) StartAgentValidation(runtimes, models []string, staleOnly bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
 		return aiError(err)
@@ -105,6 +114,9 @@ func validateClosed(err error, lastStderr string) map[string]interface{} {
 // StopAgentValidation cancels a running validation. Results already stored
 // are kept.
 func (a *App) StopAgentValidation() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	a.runningMu.Lock()
 	cmd, ok := a.runningCmds[agentValidateKey]
 	a.runningMu.Unlock()
@@ -117,11 +129,17 @@ func (a *App) StopAgentValidation() string {
 
 // AgentRosterAdd adds a model id a runtime doesn't list.
 func (a *App) AgentRosterAdd(runtimeID, model string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("agent", "roster", "add", runtimeID, model)
 }
 
 // AgentRosterRemove removes a model from the roster.
 func (a *App) AgentRosterRemove(runtimeID, model string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("agent", "roster", "remove", runtimeID, model)
 }
 
@@ -131,12 +149,18 @@ func (a *App) AgentRosterRemove(runtimeID, model string) string {
 // scan (the roster refresh already runs one), so the estimate covers
 // age staleness only.
 func (a *App) AgentRosterAutoRevalidate() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("agent", "roster", "auto-revalidate", "status", "--no-scan")
 }
 
 // SetAgentRosterAutoRevalidate turns automatic re-validation on or off. The
 // frontend turns it on only after the user confirmed that it costs money.
 func (a *App) SetAgentRosterAutoRevalidate(on bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	state := "off"
 	if on {
 		state = "on"

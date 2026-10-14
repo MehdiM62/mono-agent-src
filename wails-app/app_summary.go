@@ -50,16 +50,27 @@ func (a *App) cliJSON(timeout time.Duration, result interface{}, args ...string)
 }
 
 // GetSummary returns `monoagentcli summary --json` verbatim.
-func (a *App) GetSummary() string { return a.rawCLI(summaryCLITimeout, "summary") }
+func (a *App) GetSummary() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.rawCLI(summaryCLITimeout, "summary")
+}
 
 // GetSummarySections returns `summary --section <csv>` verbatim — the
 // cheap, Jev-free counts other surfaces poll (e.g. the HIL badge).
 func (a *App) GetSummarySections(sections string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.rawCLI(summaryCLITimeout, "summary", "--section", sections)
 }
 
 // GetOrgSummary returns `monoagentcli org summary [--fast]` verbatim.
 func (a *App) GetOrgSummary(fast bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"org", "summary"}
 	if fast {
 		args = append(args, "--fast")
@@ -111,6 +122,9 @@ type statsSummary struct {
 }
 
 func (a *App) GetDashboardStats() DashboardStats {
+	if a.signedOut() != nil {
+		return DashboardStats{}
+	}
 	stats := DashboardStats{ExecutionsByStatus: map[string]int{}, DBPath: a.dbPath}
 	var s statsSummary
 	// On failure the Sidebar/StatusBar show zeros; the dashboard itself
@@ -134,6 +148,9 @@ func (a *App) GetDashboardStats() DashboardStats {
 // GetRecentExecutions lists recent runs across the profile, newest first
 // (`workflow executions --all`).
 func (a *App) GetRecentExecutions(limit int) ([]WorkflowExecutionSummary, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 20
 	}

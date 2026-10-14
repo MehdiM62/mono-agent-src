@@ -44,6 +44,9 @@ func trackOAuthFlow(parent context.Context, platformID string) (context.Context,
 // reports an unknown platform or one without OAuth there. Returns
 // "started" immediately, or "error: ..." when the CLI cannot be found.
 func (a *App) ConnectPlatformOAuthFields(platformID string, fieldPairs []string, secretFieldsJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
@@ -83,6 +86,9 @@ func (a *App) ConnectPlatformOAuthFields(platformID string, fieldPairs []string,
 // ends with a "conn:done" event marked cancelled. "ok", or "error: ..."
 // when no flow is running.
 func (a *App) CancelPlatformOAuth(platformID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	f, ok := oauthFlows.LoadAndDelete(platformID)
 	if !ok {
 		return "error: no OAuth flow is running for " + platformID
@@ -191,6 +197,9 @@ func runOAuthConnect(ctx context.Context, cliBin string, args []string, stdin st
 // detect. Emits "conn:opened" (tab is up, waiting for the user) or
 // "conn:done" with success:false on failure to open it.
 func (a *App) LoginSocial(platform string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	pid := strings.ToLower(platform)
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
@@ -238,6 +247,9 @@ func (a *App) LoginSocial(platform string) string {
 // Progress/result are streamed via the same "conn:progress"/"conn:done"
 // events LoginSocial uses.
 func (a *App) ConfirmSocialLogin(platform string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	pid := strings.ToLower(platform)
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
