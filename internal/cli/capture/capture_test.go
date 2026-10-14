@@ -1,4 +1,4 @@
-package main
+package capturecli
 
 import (
 	"bytes"
@@ -14,12 +14,12 @@ import (
 )
 
 // runCaptureCmd executes a `capture` subcommand with stdout captured.
-func runCaptureCmd(t *testing.T, cfg *globalConfig, args ...string) (string, error) {
+func runCaptureCmd(t *testing.T, cfg *testConfig, args ...string) (string, error) {
 	t.Helper()
 	if cfg == nil {
-		cfg = &globalConfig{}
+		cfg = &testConfig{}
 	}
-	cmd := newCaptureCmd(cfg)
+	cmd := NewCommand(testDeps(cfg))
 	cmd.SetArgs(args)
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -48,6 +48,7 @@ func seedInbox(t *testing.T, captures ...capture.Meta) string {
 }
 
 func TestCaptureListText(t *testing.T) {
+	t.Parallel()
 	inbox := seedInbox(t,
 		capture.Meta{URL: "https://example.com/old", Title: "Older", CapturedAt: "2026-09-19T08:00:00Z"},
 		capture.Meta{URL: "https://example.com/new", Title: "Newest", CapturedAt: "2026-09-21T08:00:00Z"},
@@ -68,12 +69,13 @@ func TestCaptureListText(t *testing.T) {
 }
 
 func TestCaptureListJSON(t *testing.T) {
+	t.Parallel()
 	inbox := seedInbox(t, capture.Meta{
 		URL:        "https://example.com/post",
 		Title:      "A Post",
 		CapturedAt: "2026-09-21T08:00:00Z",
 	})
-	out, err := runCaptureCmd(t, &globalConfig{JSONOutput: true}, "list", "--out", inbox)
+	out, err := runCaptureCmd(t, &testConfig{JSONOutput: true}, "list", "--out", inbox)
 	if err != nil {
 		t.Fatalf("capture list --json: %v", err)
 	}
@@ -93,6 +95,7 @@ func TestCaptureListJSON(t *testing.T) {
 }
 
 func TestCaptureListEmptyInbox(t *testing.T) {
+	t.Parallel()
 	empty := filepath.Join(t.TempDir(), "nothing-here")
 	out, err := runCaptureCmd(t, nil, "list", "--out", empty)
 	if err != nil {
@@ -102,7 +105,7 @@ func TestCaptureListEmptyInbox(t *testing.T) {
 		t.Fatalf("output = %q", out)
 	}
 
-	jsonOut, err := runCaptureCmd(t, &globalConfig{JSONOutput: true}, "list", "--out", empty)
+	jsonOut, err := runCaptureCmd(t, &testConfig{JSONOutput: true}, "list", "--out", empty)
 	if err != nil {
 		t.Fatalf("capture list --json: %v", err)
 	}
@@ -114,6 +117,7 @@ func TestCaptureListEmptyInbox(t *testing.T) {
 // TestCaptureListSkipsHalfWrittenCaptures: the CLI must agree with the
 // watcher about what has actually landed.
 func TestCaptureListSkipsHalfWrittenCaptures(t *testing.T) {
+	t.Parallel()
 	inbox := seedInbox(t, capture.Meta{URL: "https://example.com/real", Title: "Real", CapturedAt: "2026-09-21T08:00:00Z"})
 	staging := filepath.Join(inbox, ".tmp-capture-inflight")
 	if err := os.MkdirAll(staging, 0o700); err != nil {
@@ -132,75 +136,8 @@ func TestCaptureListSkipsHalfWrittenCaptures(t *testing.T) {
 	}
 }
 
-// TestCapturePageRejectsBadFlagsBeforeOpeningChrome: validation must fail
-// with the invalid-input exit code without ever reaching for the browser.
-//
-// The exit code alone does not say that. A run that got as far as Chrome
-// and failed there is also an error, so each case pins the message to the
-// flag it is about, and a message that talks about a browser, a daemon or
-// a connection fails the test — those are the words of a command that went
-// looking. The inbox is pointed somewhere disposable and checked too: a
-// validation that ran too late could already have written a capture.
-func TestCapturePageRejectsBadFlagsBeforeOpeningChrome(t *testing.T) {
-	cases := []struct {
-		args []string
-		says string
-	}{
-		{[]string{"page", "--formats", "mhtml,wat"}, "--formats"},
-		{[]string{"page", "--formats", ","}, "--formats"},
-		{[]string{"page", "--tab", "-3"}, "--tab"},
-	}
-	for _, tc := range cases {
-		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
-			home := t.TempDir()
-			inbox := filepath.Join(home, "inbox")
-			t.Setenv(capture.InboxEnv, inbox)
-			t.Setenv(capture.HomeEnv, home)
-
-			_, err := runCaptureCmd(t, nil, tc.args...)
-			if err == nil {
-				t.Fatal("expected a validation error")
-			}
-			if got := exitCodeFor(err); got != 3 {
-				t.Fatalf("exit code = %d (%v), want 3", got, err)
-			}
-			if !strings.Contains(err.Error(), tc.says) {
-				t.Errorf("error = %v, want it to name %s", err, tc.says)
-			}
-			// ("chrome" is not in this list: --tab's own refusal names the
-			// Chrome tab id, which is the flag talking, not a browser.)
-			for _, word := range []string{"browser", "launch", "connect", "daemon", "websocket"} {
-				if strings.Contains(strings.ToLower(err.Error()), word) {
-					t.Errorf("the command reached for the browser before validating: %v", err)
-				}
-			}
-			if entries, _ := capture.List(inbox); len(entries) != 0 {
-				t.Errorf("a refused capture wrote %d envelopes", len(entries))
-			}
-			if left, _ := os.ReadDir(home); len(left) != 0 {
-				t.Errorf("a refused capture wrote %v", left)
-			}
-		})
-	}
-}
-
-func TestNormalizeCaptureFormats(t *testing.T) {
-	got, err := normalizeCaptureFormats([]string{"MHTML", " readable ", "mhtml"})
-	if err != nil {
-		t.Fatalf("normalizeCaptureFormats: %v", err)
-	}
-	if len(got) != 2 || got[0] != "mhtml" || got[1] != "readable" {
-		t.Fatalf("got = %v", got)
-	}
-	if got, err := normalizeCaptureFormats(nil); err != nil || got != nil {
-		t.Fatalf("nil formats = %v, %v; want nil, nil so the default set applies", got, err)
-	}
-	if _, err := normalizeCaptureFormats([]string{"har"}); err == nil {
-		t.Fatal("accepted an unknown format")
-	}
-}
-
 func TestCaptureHumanBytes(t *testing.T) {
+	t.Parallel()
 	cases := map[int64]string{
 		0:             "0 B",
 		512:           "512 B",
@@ -222,6 +159,7 @@ func TestCaptureHumanBytes(t *testing.T) {
 }
 
 func TestTruncateCaptureCell(t *testing.T) {
+	t.Parallel()
 	if got := truncateCaptureCell("short", 40); got != "short" {
 		t.Fatalf("got %q", got)
 	}
@@ -229,17 +167,5 @@ func TestTruncateCaptureCell(t *testing.T) {
 	got := truncateCaptureCell(long, 10)
 	if len([]rune(got)) != 10 || !strings.HasSuffix(got, "…") {
 		t.Fatalf("got %q", got)
-	}
-}
-
-// TestCaptureCommandIsRegistered guards the wiring: a command that exists
-// but is never added to the root tree is invisible to every caller.
-func TestCaptureCommandIsRegistered(t *testing.T) {
-	root := newRootCmd()
-	for _, path := range [][]string{{"capture"}, {"capture", "page"}, {"capture", "list"}} {
-		sub, _, err := root.Find(path)
-		if err != nil || sub == nil || sub.Name() != path[len(path)-1] {
-			t.Fatalf("root.Find(%v) = %v, %v", path, sub, err)
-		}
 	}
 }

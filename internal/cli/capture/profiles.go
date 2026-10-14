@@ -1,4 +1,4 @@
-package main
+package capturecli
 
 import (
 	"context"
@@ -76,10 +76,10 @@ type captureProfile struct {
 // rather than guessed at, because listing the wrong (empty) directory looks
 // exactly like "you have saved nothing", which is the most confusing
 // possible answer.
-func resolveCaptureProfile(db *sql.DB, idOrName string) (captureProfile, error) {
+func (d Deps) resolveCaptureProfile(db *sql.DB, idOrName string) (captureProfile, error) {
 	want := strings.TrimSpace(idOrName)
 	if want == "" {
-		return captureProfile{}, errInvalidInput("--profile was given but named no profile")
+		return captureProfile{}, d.InvalidInput("--profile was given but named no profile")
 	}
 	profiles, err := profiledir.List(context.Background(), db)
 	if err != nil {
@@ -94,7 +94,7 @@ func resolveCaptureProfile(db *sql.DB, idOrName string) (captureProfile, error) 
 			return captureProfile{Profile: p, Inbox: inbox}, nil
 		}
 	}
-	return captureProfile{}, errInvalidInput("no profile matches %q (checked both id and name); try `monoagentcli profile list`", want)
+	return captureProfile{}, d.InvalidInput("no profile matches %q (checked both id and name); try `monoagentcli profile list`", want)
 }
 
 // captureProfileInboxes returns every profile's inbox, for the listing that

@@ -1,4 +1,4 @@
-package main
+package capturecli
 
 import (
 	"context"
@@ -189,7 +189,7 @@ func classifyCaptureDir(ctx context.Context, db *sql.DB, profile, dir string) (c
 	return r, nil
 }
 
-func newCaptureClassifyCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newCaptureClassifyCmd() *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
 		Use:   "classify <path>",
@@ -210,20 +210,20 @@ func newCaptureClassifyCmd(cfg *globalConfig) *cobra.Command {
 			dir := expandPath(args[0])
 			meta, err := capture.ReadMeta(dir)
 			if err != nil {
-				return errInvalidInput("%s is not a capture: %v", args[0], err)
+				return d.InvalidInput("%s is not a capture: %v", args[0], err)
 			}
-			explicit := strings.TrimSpace(cfg.ProfileID)
-			db, err := initDB(cfg)
+			explicit := strings.TrimSpace(d.ProfileID())
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			profile := cfg.ProfileID
+			profile := d.ProfileID()
 			if explicit == "" && strings.TrimSpace(meta.Profile) != "" {
 				profile = strings.TrimSpace(meta.Profile)
 			}
 			if !force && !jevconf.Enabled(db.DB, profile, jevconf.Capture) {
-				return errInvalidInput("capture classification is off for profile %q: run `monoagentcli jev enable capture`"+
+				return d.InvalidInput("capture classification is off for profile %q: run `monoagentcli jev enable capture`"+
 					" to turn it on, or pass --force to classify this one capture anyway", profile)
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 60*time.Second)
@@ -232,7 +232,7 @@ func newCaptureClassifyCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("classifying capture: %w", err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(r)
@@ -269,7 +269,7 @@ func suggestedCaptures(entries []capture.Entry) []suggestedCapture {
 }
 
 // printSuggestedCaptures renders `capture list --suggested`.
-func printSuggestedCaptures(w io.Writer, jsonOut bool, entries []capture.Entry) error {
+func (d Deps) printSuggestedCaptures(w io.Writer, jsonOut bool, entries []capture.Entry) error {
 	rows := suggestedCaptures(entries)
 	if jsonOut {
 		enc := json.NewEncoder(w)
@@ -280,7 +280,7 @@ func printSuggestedCaptures(w io.Writer, jsonOut bool, entries []capture.Entry) 
 		fmt.Fprintln(w, "No captures with a suggested route.")
 		return nil
 	}
-	table := newPlainTable(w, []string{"CAPTURED", "KIND", "P", "ROUTE", "TITLE", "PATH"}, nil)
+	table := d.NewTable(w, []string{"CAPTURED", "KIND", "P", "ROUTE", "TITLE", "PATH"})
 	for _, r := range rows {
 		_ = table.Append([]string{
 			r.CapturedAt, r.Classification.Kind, fmt.Sprintf("%.2f", r.Classification.P),
