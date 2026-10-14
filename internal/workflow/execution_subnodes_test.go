@@ -2,6 +2,7 @@ package workflow_test
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -61,6 +62,57 @@ func TestRootGetsResolvedSubNodes(t *testing.T) {
 	}
 	if len(m.SubNodes) != 1 || m.SubNodes[0].Kind != "ai_embedding" || m.SubNodes[0].Config["k"] != "v" {
 		t.Errorf("nested sub-node %+v", m.SubNodes)
+	}
+}
+
+// A root that runs once per item gets its sub-nodes resolved against each
+// item, not the first one.
+func TestRootGetsSubNodesPerItem(t *testing.T) {
+	var subs []workflow.SubNode
+	reg := workflow.NewNodeTypeRegistry()
+	reg.Register("test.emit", func() workflow.NodeExecutor { return emitNode{n: 3} })
+	reg.Register("test.root", func() workflow.NodeExecutor { return rootNode{mu: &sync.Mutex{}, subs: &subs} })
+	reg.Register("test.sub", func() workflow.NodeExecutor { return failNode{} })
+	wf := &workflow.Workflow{ID: "wf", Nodes: []workflow.WorkflowNode{
+		{ID: "t", Type: "trigger.manual", Name: "T"},
+		{ID: "f", Type: "test.emit", Name: "F"},
+		{ID: "r", Type: "test.root", Name: "Root", Config: map[string]interface{}{"execute_once_per_item": true}},
+		{ID: "m", Type: "test.sub", Name: "Model", Config: map[string]interface{}{"model": "m-{{ $json.i }}"}},
+		{ID: "e", Type: "test.sub", Name: "Inner", Config: map[string]interface{}{"k": "k-{{ $json.i }}"}},
+	}, Connections: []workflow.WorkflowConnection{
+		conn("t", "main", "f"), conn("f", "main", "r"),
+		{SourceNodeID: "m", SourceHandle: "ai_languageModel", TargetNodeID: "r", TargetHandle: "ai_languageModel"},
+		{SourceNodeID: "e", SourceHandle: "ai_embedding", TargetNodeID: "m", TargetHandle: "ai_embedding"},
+	}}
+	if err := runWF(t, reg, wf, &recStore{}, ""); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(subs) != 3 {
+		t.Fatalf("root got %d sub-nodes over its runs, want 3 (one per item): %+v", len(subs), subs)
+	}
+	for i, s := range subs {
+		want := fmt.Sprintf("m-%d", i)
+		if s.Config["model"] != want || len(s.SubNodes) != 1 || s.SubNodes[0].Config["k"] != fmt.Sprintf("k-%d", i) {
+			t.Errorf("run %d: sub-node %+v, want model %q and nested k-%d", i, s, want, i)
+		}
+	}
+}
+
+// A node whose schema declares sub_output is a sub-node even with nothing
+// attached: it never runs as a step.
+func TestSubOutputNodeNeverRuns(t *testing.T) {
+	reg := workflow.NewNodeTypeRegistry()
+	reg.Register("test.sub", func() workflow.NodeExecutor { return failNode{} })
+	wf := &workflow.Workflow{ID: "wf", Nodes: []workflow.WorkflowNode{
+		{ID: "t", Type: "trigger.manual", Name: "T"},
+		{ID: "s", Type: "test.sub", Name: "Loose", Schema: &workflow.NodeSchema{SubOutput: "ai_tool"}},
+	}}
+	store := &recStore{}
+	if err := runWF(t, reg, wf, store, ""); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if st := store.statuses("s"); len(st) != 0 {
+		t.Errorf("sub_output node has rows %v, want none", st)
 	}
 }
 

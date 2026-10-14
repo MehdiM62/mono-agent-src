@@ -169,6 +169,10 @@ func (r *runner) runPerItem(t *nodeTask, observe func([]NodeOutput)) ([]NodeOutp
 		in.Items = []Item{item}
 		in.ItemKeys = []string{t.input.ItemKey(i)}
 		config, err := r.resolveFor(t, item)
+		if err == nil && len(t.input.SubNodes) > 0 {
+			// Sub-node config follows the item too, not the first one.
+			in.SubNodes, err = r.resolveSubNodes(t.node.ID, t.perItem.exprCtx.WithJSON(item.JSON), 0)
+		}
 		onError := t.onError
 		var outs []NodeOutput
 		if err == nil {

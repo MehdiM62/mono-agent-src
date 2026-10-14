@@ -74,3 +74,27 @@ func TestValidateAcceptsSubNodeConnections(t *testing.T) {
 		t.Fatalf("validate: %v", rep.Errors)
 	}
 }
+
+// A node whose schema declares sub_output is a sub-node: out of the order,
+// and refused in the main flow.
+func TestDAGSubOutputSchemaMakesSubNode(t *testing.T) {
+	nodes, conns := subWF()
+	nodes = append(nodes, WorkflowNode{ID: "s", Type: "test.loose", Name: "Loose", Schema: &NodeSchema{SubOutput: "ai_tool"}})
+	d, err := BuildDAG(nodes, conns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !d.IsSubNode("s") {
+		t.Fatal("sub_output node is not a sub-node")
+	}
+	order, _ := d.TopologicalSort()
+	for _, n := range order {
+		if n.ID == "s" {
+			t.Fatal("sub_output node in the run order")
+		}
+	}
+	conns = append(conns, WorkflowConnection{SourceNodeID: "a", SourceHandle: "main", TargetNodeID: "s", TargetHandle: "main"})
+	if _, err := BuildDAG(nodes, conns); !errors.Is(err, ErrSubNodeWiring) {
+		t.Fatalf("sub_output node in the main flow: err = %v", err)
+	}
+}
