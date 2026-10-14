@@ -116,6 +116,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 			defer db.Close()
 			orgs := newOrgServices(db, engine)
 			registerQueueTriggers(engine, orgs.logf)
+			engine.RegisterTriggerSource(workflow.TriggerNodeTypeSSE, workflow.NewSSETriggerSource(db.DB, orgs.logf))
 			apiRT, err := daemonAPIRuntime(db.DB, api, func(format string, args ...any) { orgs.logf("api: "+format, args...) })
 			if err != nil {
 				return err
