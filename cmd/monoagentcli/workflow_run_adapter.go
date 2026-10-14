@@ -43,11 +43,12 @@ var oneShotRunLogs = []string{
 
 // quietRunFailureLogs keeps oneShotRunLogs off the terminal of a human-mode run, so the
 // summary is not preceded by raw log lines repeating it. They drop to INFO; a level chosen by
-// --log-level or MONOAGENT_LOG_LEVEL, --verbose, or --json leaves them as they are. The daemon
+// --log-level or MONOAGENT_LOG_LEVEL, --verbose, --json, or --log-file (the lines then go to
+// the file, not the terminal) leaves them as they are. The daemon
 // and serve build their engines elsewhere and keep these lines.
 // It returns the undo (a no-op when nothing was demoted).
 func quietRunFailureLogs(cfg *globalConfig) (undo func()) {
-	if cfg.JSONOutput || cfg.Verbose || logging.LevelChosen() {
+	if cfg.JSONOutput || cfg.Verbose || cfg.LogFile != "" || logging.LevelChosen() {
 		return func() {}
 	}
 	return logging.Demote(slog.LevelInfo, oneShotRunLogs...)

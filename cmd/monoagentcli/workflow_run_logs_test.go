@@ -8,6 +8,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -110,6 +111,32 @@ func TestWorkflowRunJSONKeepsFailureLogs(t *testing.T) {
 	reportCommandError([]string{"--json", "workflow", "run", id}, err, &doc, &stderr)
 	if errors.As(err, new(clicore.Shown)) || exitCodeFor(err) != 1 || !strings.Contains(stderr.String(), "failed: ") {
 		t.Errorf("--json error %v: stdout %q stderr %q", err, doc.String(), stderr.String())
+	}
+}
+
+// With --log-file the engine's lines go to the file at their own level, and
+// none reach the terminal.
+func TestWorkflowRunLogFileGetsFailureLogs(t *testing.T) {
+	_, cfg := persistTestEnv(t)
+	id := failingRunWorkflow(t, cfg)
+	cfg.JSONOutput = false
+	cfg.LogFile = filepath.Join(t.TempDir(), "run.log")
+
+	logs, stdout, _ := runLogsFor(t, cfg, id, "--log-file", cfg.LogFile)
+	if logs != "" {
+		t.Errorf("terminal got logs with --log-file:\n%s", logs)
+	}
+	if !strings.Contains(stdout, "Status: FAILED") {
+		t.Errorf("summary:\n%s", stdout)
+	}
+	data, err := os.ReadFile(cfg.LogFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`level=ERROR msg="node execution failed"`, `level=WARN msg="engine: execution finished with error"`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("log file lacks %s:\n%s", want, data)
+		}
 	}
 }
 
