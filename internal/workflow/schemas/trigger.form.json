@@ -1,0 +1,98 @@
+{
+  "credential_platform": null,
+  "fields": [
+    {
+      "help": "The form is served at /form/<path> on the webhook server (http://127.0.0.1:9321 by default) while the workflow is active.",
+      "key": "path",
+      "label": "Form Path",
+      "placeholder": "contact",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "key": "formTitle",
+      "label": "Form Title",
+      "placeholder": "Contact us",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "key": "formDescription",
+      "label": "Form Description",
+      "required": false,
+      "type": "textarea"
+    },
+    {
+      "help": "A list of fields: {fieldLabel, fieldType (text, email, number, textarea, dropdown, date, checkbox), fieldOptions (dropdown and checkbox choices), requiredField, placeholder}. Answers are keyed by fieldLabel.",
+      "key": "formFields",
+      "label": "Form Fields (JSON)",
+      "language": "json",
+      "placeholder": "[{\"fieldLabel\": \"Email\", \"fieldType\": \"email\", \"requiredField\": true}]",
+      "required": true,
+      "rows": 6,
+      "type": "code"
+    },
+    {
+      "default": "Submit",
+      "key": "buttonLabel",
+      "label": "Button Label",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "text",
+      "help": "text: show the response text. redirect: send the browser to redirectUrl.",
+      "key": "respondWith",
+      "label": "After Submission",
+      "options": [
+        "text",
+        "redirect"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "Thanks, your response has been recorded.",
+      "depends_on": {
+        "key": "respondWith",
+        "values": [
+          "text"
+        ]
+      },
+      "key": "responseText",
+      "label": "Response Text",
+      "required": false,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "respondWith",
+        "values": [
+          "redirect"
+        ]
+      },
+      "key": "redirectUrl",
+      "label": "Redirect URL",
+      "placeholder": "https://example.com/thanks",
+      "required": false,
+      "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "each field's answer, keyed by its label: text, a number for number fields, true/false for a checkbox, a list for a checkbox with options",
+      "key": "<fieldLabel>",
+      "type": "any"
+    },
+    {
+      "description": "when the form was submitted (RFC 3339, UTC)",
+      "key": "submittedAt",
+      "type": "string"
+    },
+    {
+      "description": "always \"production\"",
+      "key": "formMode",
+      "type": "string"
+    }
+  ]
+}

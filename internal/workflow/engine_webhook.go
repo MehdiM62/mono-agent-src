@@ -28,11 +28,29 @@ func (e *WorkflowEngine) wireWebhookRuns() {
 	if e.store != nil {
 		db = e.store.RawDB()
 	}
+	e.webhookServer.SetStateDB(db)
+	e.triggerMgr.SetAppWebhooks(db, e.resolveCredential)
 	if db != nil {
 		e.webhookServer.SetDeliveryStore(NewSQLWebhookDeliveries(db))
 	} else {
 		e.webhookServer.SetDeliveryStore(NewMemoryWebhookDeliveries())
 	}
+}
+
+// resolveCredential returns a connection's data for app webhook
+// registration, the way a run resolves a node's credential_id.
+func (e *WorkflowEngine) resolveCredential(ctx context.Context, profileID, idOrPlatform string) (map[string]interface{}, error) {
+	if e.connStore == nil {
+		return nil, fmt.Errorf("no credential store")
+	}
+	conn, err := e.connStore.GetOrResolve(ctx, idOrPlatform, profileID)
+	if err != nil {
+		return nil, err
+	}
+	if conn == nil {
+		return nil, fmt.Errorf("no connection %q in profile %q", idOrPlatform, profileID)
+	}
+	return conn.Data, nil
 }
 
 // handleWebhookTrigger is handleTrigger for a webhook delivery: it creates

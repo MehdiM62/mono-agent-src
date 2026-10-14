@@ -18,6 +18,12 @@ import (
 // or inactive) is answered with a non-2xx status and a JSON error, and a
 // delivery ID seen before (DedupeHeader) with the first delivery's run.
 func (s *WebhookServer) serveRun(w http.ResponseWriter, r *http.Request, reg *WebhookRegistration, pathKey string, body []byte) {
+	if reg.Verify != nil {
+		if err := reg.Verify(r.Header, body); err != nil {
+			writeJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+	}
 	item, err := buildWebhookItem(r, body, pathKey, reg.AuthHeader)
 	if err != nil {
 		writeJSONError(w, http.StatusBadRequest, err.Error())
