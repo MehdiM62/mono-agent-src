@@ -15,7 +15,7 @@ const autoQuestionID = "model"
 // What AutoStatus.Missing names, in the order DefaultAuto checks them.
 const (
 	missingSurface = "the api_auto surface switched on for the profile (monoagentcli jev enable api_auto)"
-	missingJevKey  = "a Jev key for the profile (monoagentcli jev key set, or TYPESAFE_API_KEY)"
+	missingJevKey  = "a machine-wide Jev key (monoagentcli jev key set, or TYPESAFE_API_KEY)"
 )
 
 // autoInstructions tell Jev what it is choosing, and that the prompt is data.
@@ -24,8 +24,8 @@ const autoInstructions = "Choose the model that should answer the request in sta
 	"Prefer a cheaper, faster model for a simple request and a stronger one for a hard or long one. " +
 	"Use only what each option's description says: who runs it, what a test turn cost, how fast it answered."
 
-// DefaultAuto wires the auto model to Jev through the profile's jevconf: the
-// surface, the key, the threshold and the usage record are all the profile's, as
+// DefaultAuto wires the auto model to Jev through jevconf: the key is machine-wide;
+// the surface, the threshold and the usage record are the profile's, as
 // for every other surface.
 func DefaultAuto(db *sql.DB) AutoFuncs {
 	return AutoFuncs{

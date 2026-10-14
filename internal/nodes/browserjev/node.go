@@ -129,8 +129,8 @@ func (n *Node) Execute(ctx context.Context, input workflow.NodeInput, config map
 	return []workflow.NodeOutput{{Handle: "main", Items: out}}, nil
 }
 
-// jevClient resolves the key per plan D3 (explicit api_key → the profile's
-// vault entry → TYPESAFE_API_KEY; an unresolved @secret: ref is never sent)
+// jevClient resolves the key per plan D3 (explicit api_key → the machine-wide
+// key (`jev key set`; an @secret: ref also tries the profile vault) → TYPESAFE_API_KEY; an unresolved @secret: ref is never sent)
 // and records usage under node:browser.jev.
 func jevClient(ctx context.Context, config map[string]interface{}) (*jev.Client, error) {
 	return jevconf.NewClient(ctx, vault.DBFromContext(ctx), vault.ProfileIDFromContext(ctx),

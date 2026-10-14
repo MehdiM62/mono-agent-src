@@ -266,7 +266,7 @@ func TestEvaluateJevMissingKeyIsClearErrorWithoutFallback(t *testing.T) {
 	db, id, srv := setupJevTest(t, goldenAnswers())
 	t.Setenv("TYPESAFE_API_KEY", "")
 	_, err := Evaluate(context.Background(), db, "default", id, "jev")
-	if err == nil || !errors.Is(err, jev.ErrNoAPIKey) || !strings.Contains(err.Error(), "secret add") {
+	if err == nil || !errors.Is(err, jev.ErrNoAPIKey) || !strings.Contains(err.Error(), "jev key set") {
 		t.Fatalf("want a clear no-key error, got %v", err)
 	}
 	if srv.Calls() != 0 {
