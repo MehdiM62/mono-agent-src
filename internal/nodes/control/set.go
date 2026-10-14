@@ -16,6 +16,7 @@ import (
 //	    "field" (string): dot-path target key, e.g. "a.b.c"
 //	    "value" (string): template expression to evaluate
 //	    "type"  (string): conversion type — "string", "number", "bool", "json"
+//	                      (also "boolean", "integer", "float", "array", "object")
 //	"include_input" (bool, optional, default true): if false, output items contain only assigned fields
 type SetNode struct{}
 
@@ -157,6 +158,15 @@ func setNestedKey(m map[string]interface{}, path string, val interface{}) {
 
 // convertType coerces val into the requested type.
 func convertType(val interface{}, typeName string) (interface{}, error) {
+	// n8n's Set node spellings (imported workflows, agents that know n8n).
+	switch strings.ToLower(typeName) {
+	case "boolean":
+		typeName = "bool"
+	case "integer", "float":
+		typeName = "number"
+	case "array", "object":
+		typeName = "json"
+	}
 	switch typeName {
 	case "string":
 		if val == nil {
