@@ -122,6 +122,14 @@ func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 	if !e.allowAllProfiles {
 		return fmt.Errorf("engine: RestoreActiveWorkflows requires AllowAllProfiles")
 	}
+	loopCtx := e.ctx // the engine's lifetime; ctx when Start was never called
+	if loopCtx == nil {
+		loopCtx = ctx
+	}
+	if e.triggersLocked() { // nothing is armed; the reconcile loop arms it once a login is valid
+		e.startTriggerReconcile(loopCtx)
+		return nil
+	}
 	workflows, err := e.store.ListWorkflows(ctx, "")
 	if err != nil {
 		return fmt.Errorf("engine: restore active workflows: list: %w", err)
@@ -146,10 +154,6 @@ func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 		caughtUp += e.triggerMgr.CatchUp(ctx, full, time.Now())
 	}
 	e.logger.Info().Int("restored", restored).Int("failed", failed).Int("catch_up_runs", caughtUp).Msg("engine: restored active workflows")
-	loopCtx := e.ctx // the engine's lifetime; ctx when Start was never called
-	if loopCtx == nil {
-		loopCtx = ctx
-	}
 	e.startTriggerReconcile(loopCtx)
 	return nil
 }

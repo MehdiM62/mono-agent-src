@@ -49,8 +49,8 @@ func TestRefAccountFlagsExistOnCommands(t *testing.T) {
 		t.Fatalf("ref account missing: %v", err)
 	}
 	applyClassification(root)
-	if commandClass(cmd) != classOpen {
-		t.Fatal("offline account reference requires sign-in")
+	if commandClass(cmd) != classGated {
+		t.Fatal("ref account is open: signed out only the way in is (the account commands' own help says what to do)")
 	}
 }
 

@@ -59,7 +59,8 @@ func TestTheTableClassifiesTheTree(t *testing.T) {
 	t.Parallel()
 	root := testTree()
 	for path, want := range map[string]string{
-		"version": ClassOpen, "doctor": ClassOpen, "doctor fix": ClassOpen, "account login": ClassOpen, "ref node": ClassOpen,
+		"version": ClassOpen, "account login": ClassOpen,
+		"doctor": ClassGated, "doctor fix": ClassGated, "ref node": ClassGated,
 		"library login": ClassOpen, "library list": ClassGated,
 		"daemon": ClassServe, "daemon restart": ClassGated, "daemon install": ClassGated, "mcp": ClassServe,
 		"workflow": ClassGated, "workflow list": ClassGated, "people list": ClassGated,
@@ -92,9 +93,9 @@ func TestUnlistedAndMistypedCommandsAreGated(t *testing.T) {
 	if CommandClass(root) != ClassGated {
 		t.Error("the root's own stamp is never consulted, and nothing is open by default")
 	}
-	ref, _, _ := root.Find([]string{"ref"})
+	acct, _, _ := root.Find([]string{"account"})
 	child := &cobra.Command{Use: "page", RunE: noop}
-	ref.AddCommand(child)
+	acct.AddCommand(child)
 	if CommandClass(child) != ClassOpen {
 		t.Error("a child of an open command inherits open")
 	}
@@ -136,7 +137,22 @@ func TestInvocationClass(t *testing.T) {
 		{[]string{"--profile", "work", "workflow", "list"}, ClassGated},
 		{[]string{"--profile", "doctor", "workflow", "list"}, ClassGated}, // a command name as a flag value
 		{[]string{"--profile", "work", "account", "login"}, ClassOpen},
-		{[]string{"doctor", "--", "workflow", "run"}, ClassOpen}, // an open command's arguments are never commands
+		{[]string{"account", "status", "--", "workflow", "run"}, ClassOpen}, // an open command's arguments are never commands
+		{[]string{"doctor"}, ClassGated},
+		{[]string{"ref", "node"}, ClassGated},
+		// cobra's own commands: help is open, the completion scripts and the completion requests are not
+		{[]string{"help"}, ClassOpen},
+		{[]string{"help", "workflow", "list"}, ClassOpen},
+		{[]string{"--help"}, ClassOpen},
+		{[]string{"--profile", "work"}, ClassOpen}, // the root with a flag prints help
+		{[]string{"completion", "bash"}, ClassGated},
+		{[]string{"--profile", "work", "completion", "zsh"}, ClassGated},
+		{[]string{"completion", "bash", "--help"}, ClassGated}, // conservative: the help probe does not see cobra's commands; `help completion` is open
+		{[]string{"completion", "bash", "--help=false"}, ClassGated},
+		{[]string{"__complete", "work"}, ClassGated},
+		{[]string{"__completeNoDesc", "work"}, ClassGated},
+		{[]string{"__complete", "workflow", "--help"}, ClassGated}, // every word of a completion request is data
+		{[]string{"__complete", "-h"}, ClassGated},
 		{[]string{"daemon"}, ClassServe},
 		{[]string{"daemon", "restart"}, ClassGated},
 		{[]string{"mcp", "--json"}, ClassServe},
