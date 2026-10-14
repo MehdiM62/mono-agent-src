@@ -1,4 +1,4 @@
-package main
+package record
 
 import (
 	"bufio"
@@ -23,7 +23,7 @@ import (
 func ingestFormRecording(t *testing.T, id string, net ...recording.NetEntry) {
 	t.Helper()
 	recordTestHome(t)
-	f, err := os.Open(filepath.Join("..", "..", "internal", "recordanalyze", "testdata", "form-submit", "events.jsonl"))
+	f, err := os.Open(filepath.Join("..", "..", "recordanalyze", "testdata", "form-submit", "events.jsonl"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,18 +149,18 @@ func TestRecordReplayDryRunAndInputs(t *testing.T) {
 // is never reachable, so a run ends right after setup.
 func stubReplayBrowser(t *testing.T, healCalls *int) {
 	t.Helper()
-	oldPage, oldHeal, oldTerm := recordReplayPage, recordReplaySelfHeal, recordReplayIsTerminal
-	t.Cleanup(func() { recordReplayPage, recordReplaySelfHeal, recordReplayIsTerminal = oldPage, oldHeal, oldTerm })
-	recordReplayPage = func(context.Context, bool) (browserpkg.PageInterface, zerolog.Logger, error) {
+	oldPage, oldHeal, oldTerm := seams.ReplayPage, seams.SelfHeal, seams.StdinIsTerminal
+	t.Cleanup(func() { seams.ReplayPage, seams.SelfHeal, seams.StdinIsTerminal = oldPage, oldHeal, oldTerm })
+	seams.ReplayPage = func(context.Context, bool) (browserpkg.PageInterface, zerolog.Logger, error) {
 		return nil, zerolog.Nop(), errors.New("browser bridge not connected: stub")
 	}
-	recordReplaySelfHeal = func(context.Context, *globalConfig) (func(*action.ActionExecutor), func(), error) {
+	seams.SelfHeal = func(context.Context) (func(*action.ActionExecutor), func(), error) {
 		if healCalls != nil {
 			*healCalls++
 		}
 		return func(*action.ActionExecutor) {}, func() {}, nil
 	}
-	recordReplayIsTerminal = func() bool { return false }
+	seams.StdinIsTerminal = func() bool { return false }
 }
 
 func TestRecordReplaySelfHealIsOptIn(t *testing.T) {

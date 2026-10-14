@@ -1,4 +1,4 @@
-package main
+package record
 
 import (
 	"bytes"
@@ -40,14 +40,14 @@ const recordAnalyzeAnswer = `{
 func stubRecordAI(t *testing.T, answers ...string) *int {
 	t.Helper()
 	calls := 0
-	prev := recordAnalyzeRunner
-	recordAnalyzeRunner = func(string, string, time.Duration) recordanalyze.Runner {
+	prev := seams.AnalyzeRunner
+	seams.AnalyzeRunner = func(string, string, time.Duration) recordanalyze.Runner {
 		return recordanalyze.RunnerFunc(func(context.Context, string) (string, error) {
 			calls++
 			return answers[min(calls, len(answers))-1], nil
 		})
 	}
-	t.Cleanup(func() { recordAnalyzeRunner = prev })
+	t.Cleanup(func() { seams.AnalyzeRunner = prev })
 	return &calls
 }
 
@@ -103,11 +103,11 @@ func TestRecordAnalyzeErrorsAsJSON(t *testing.T) {
 
 func TestRecordAnalyzeVerifyNoBridge(t *testing.T) {
 	dir := analyzeRec1(t)
-	prev := recordVerifyExec
-	recordVerifyExec = func(context.Context, string, bool, bool, func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
+	prev := seams.VerifyExec
+	seams.VerifyExec = func(context.Context, string, bool, bool, func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
 		return nil, errors.New("browser bridge not connected")
 	}
-	t.Cleanup(func() { recordVerifyExec = prev })
+	t.Cleanup(func() { seams.VerifyExec = prev })
 	out, err := runRecordCLI(t, true, "verify", dir)
 	if err == nil || !strings.Contains(out, `"error":"browser bridge not connected"`) {
 		t.Errorf("err %v out %s", err, out)
@@ -116,8 +116,8 @@ func TestRecordAnalyzeVerifyNoBridge(t *testing.T) {
 
 func TestRecordAnalyzeVerifySafeStop(t *testing.T) {
 	dir := analyzeRec1(t)
-	prev := recordVerifyExec
-	recordVerifyExec = func(_ context.Context, id string, _, _ bool, _ func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
+	prev := seams.VerifyExec
+	seams.VerifyExec = func(_ context.Context, id string, _, _ bool, _ func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
 		if id != "example-go" {
 			t.Errorf("automation = %s", id)
 		}
@@ -132,7 +132,7 @@ func TestRecordAnalyzeVerifySafeStop(t *testing.T) {
 			}
 		}, nil
 	}
-	t.Cleanup(func() { recordVerifyExec = prev })
+	t.Cleanup(func() { seams.VerifyExec = prev })
 	out, err := runRecordCLI(t, true, "verify", dir)
 	if err != nil {
 		t.Fatalf("verify: %v\n%s", err, out)
@@ -168,8 +168,7 @@ func TestRecordAnalyzeSaveActionAndWorkflow(t *testing.T) {
 	}
 
 	dbPath := filepath.Join(t.TempDir(), "wf.db")
-	cfg := &globalConfig{JSONOutput: true, DBPath: dbPath}
-	cmd := newRecordCmd(cfg)
+	cmd := NewCommand(testDeps(true, dbPath))
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(io.Discard)
@@ -222,7 +221,7 @@ func TestRecordAnalyzeSaveRenameInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save: %v\n%s", err, out)
 	}
-	reg, err := openAutomationRegistry()
+	reg, err := openRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,14 +245,14 @@ func TestRecordAnalyzeSaveRenameInput(t *testing.T) {
 func TestRecordAnalyzeVerifyInputsFile(t *testing.T) {
 	dir := analyzeRec1(t)
 	var got map[string]any
-	prev := recordVerifyExec
-	recordVerifyExec = func(context.Context, string, bool, bool, func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
+	prev := seams.VerifyExec
+	seams.VerifyExec = func(context.Context, string, bool, bool, func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
 		return func(_ context.Context, _ *action.ActionDef, _ action.PackageContext, in map[string]any, _ bool, _ action.SelectorObserver) recordanalyze.RunOutcome {
 			got = in
 			return recordanalyze.RunOutcome{Result: &action.ExecutionResult{}, Err: errors.New("login with s3cr3t-pw failed")}
 		}, nil
 	}
-	t.Cleanup(func() { recordVerifyExec = prev })
+	t.Cleanup(func() { seams.VerifyExec = prev })
 	file := filepath.Join(t.TempDir(), "inputs.json")
 	if err := os.WriteFile(file, []byte(`{"label":"from-file","pw":"s3cr3t-pw"}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -288,22 +287,22 @@ func TestRecordAnalyzeVerifyVaultLookup(t *testing.T) {
 	_ = json.Unmarshal([]byte(out), &res)
 
 	var askedFor string
-	prevL := recordSecretLookup
-	recordSecretLookup = func(_ context.Context, _ *globalConfig, id string) (func(string) (string, bool), func()) {
+	prevL := seams.SecretLookup
+	seams.SecretLookup = func(_ context.Context, id string) (func(string) (string, bool), func()) {
 		askedFor = id
 		return func(name string) (string, bool) { return "vault-" + name, name == "pw" }, func() {}
 	}
 	var got map[string]any
 	var gotLookup bool
-	prevE := recordVerifyExec
-	recordVerifyExec = func(_ context.Context, _ string, _, _ bool, secrets func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
+	prevE := seams.VerifyExec
+	seams.VerifyExec = func(_ context.Context, _ string, _, _ bool, secrets func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
 		gotLookup = secrets != nil
 		return func(_ context.Context, _ *action.ActionDef, _ action.PackageContext, in map[string]any, _ bool, _ action.SelectorObserver) recordanalyze.RunOutcome {
 			got = in
 			return recordanalyze.RunOutcome{Result: &action.ExecutionResult{}, Err: errors.New("pw vault-pw rejected")}
 		}, nil
 	}
-	t.Cleanup(func() { recordSecretLookup, recordVerifyExec = prevL, prevE })
+	t.Cleanup(func() { seams.SecretLookup, seams.VerifyExec = prevL, prevE })
 
 	out, err = runRecordCLI(t, true, "verify", res.DraftDir)
 	failedVerifyReport(t, out, err)
@@ -338,8 +337,8 @@ func failedVerifyReport(t *testing.T, out string, err error) {
 // profile database and answers "not found" for a secret the vault lacks.
 func TestRecordAnalyzeDefaultSecretLookup(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	cfg := &globalConfig{DBPath: filepath.Join(t.TempDir(), "vault.db")}
-	lookup, release := recordSecretLookup(context.Background(), cfg, "example-go")
+	d := testDeps(false, filepath.Join(t.TempDir(), "vault.db"))
+	lookup, release := d.VaultSecretLookup(context.Background(), "example-go")
 	defer release()
 	if lookup == nil {
 		t.Fatal("no lookup for an openable database")
@@ -367,14 +366,14 @@ func TestRecordAnalyzeAllowAdvancedFlag(t *testing.T) {
 func TestRecordAnalyzeRelativeDraftPathAndKeepOpen(t *testing.T) {
 	dir := analyzeRec1(t)
 	var keep bool
-	prev := recordVerifyExec
-	recordVerifyExec = func(_ context.Context, _ string, _, keepOpen bool, _ func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
+	prev := seams.VerifyExec
+	seams.VerifyExec = func(_ context.Context, _ string, _, keepOpen bool, _ func(string) (string, bool)) (recordanalyze.ExecFunc, error) {
 		keep = keepOpen
 		return func(context.Context, *action.ActionDef, action.PackageContext, map[string]any, bool, action.SelectorObserver) recordanalyze.RunOutcome {
 			return recordanalyze.RunOutcome{Result: &action.ExecutionResult{}}
 		}, nil
 	}
-	t.Cleanup(func() { recordVerifyExec = prev })
+	t.Cleanup(func() { seams.VerifyExec = prev })
 	t.Chdir(filepath.Dir(dir))
 	rel := filepath.Join(".", filepath.Base(dir))
 	if out, err := runRecordCLI(t, true, "verify", "./"+filepath.Base(dir), "--keep-open"); err != nil || !keep {

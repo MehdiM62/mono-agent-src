@@ -1,66 +1,37 @@
-package main
+package record
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
-	"github.com/monoes/mono-agent/internal/logging"
-
-	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/action"
-	browserpkg "github.com/monoes/mono-agent/internal/browser"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/recordanalyze"
 	"github.com/monoes/mono-agent/internal/recording"
 	"github.com/monoes/mono-agent/internal/vault"
 )
 
-// recordReplayPage opens the tab a replay drives — the same connect path
-// as verify; tests replace it.
-var recordReplayPage = func(ctx context.Context, verbose bool) (browserpkg.PageInterface, zerolog.Logger, error) {
-	logger := logging.Zerolog().With().Str("component", "replay").Logger()
-	if verbose {
-		logger = logger.Level(zerolog.TraceLevel)
-	}
-	bridge := setupProfileBridge(vault.ProfileIDFromContext(ctx), logger, 3*time.Second)
-	if !bridge.IsConnected() {
-		if err := ensureExtensionConnected(bridge, 30*time.Second); err != nil {
-			return nil, logger, fmt.Errorf("browser bridge not connected: %w", err)
-		}
-	}
-	provider := &browserpkg.HybridSessionProvider{ExtBridge: bridge, Logger: logger}
-	page, err := provider.GetPage(ctx, recordanalyze.ReplayAutomationID, "")
-	if err != nil {
-		return nil, logger, fmt.Errorf("browser bridge not connected: %w", err)
-	}
-	return page, logger, nil
-}
-
-// recordReplaySelfHeal returns the hook that installs the Jev element
-// picker (--self-heal); tests replace it.
-var recordReplaySelfHeal = func(ctx context.Context, cfg *globalConfig) (func(*action.ActionExecutor), func(), error) {
-	db, err := initDB(cfg)
+// JevSelfHeal returns the hook that installs the Jev element picker
+// (--self-heal). It is the production Deps.SelfHeal.
+func (d Deps) JevSelfHeal(ctx context.Context) (func(*action.ActionExecutor), func(), error) {
+	db, err := d.OpenDB()
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("--self-heal: open database: %w", err)
 	}
-	client, err := jevconf.NewClient(ctx, db.DB, cfg.ProfileID, "", "", jevconf.ActionFallback)
+	client, err := jevconf.NewClient(ctx, db.DB, d.ProfileID(), "", "", jevconf.ActionFallback)
 	if err != nil {
 		db.Close()
 		return nil, func() {}, fmt.Errorf("--self-heal needs Jev (see `monoagentcli jev`): %w", err)
 	}
-	minP := jevconf.Threshold(db.DB, cfg.ProfileID, jevconf.ActionFallback, jevconf.DefaultThreshold[jevconf.ActionFallback])
+	minP := jevconf.Threshold(db.DB, d.ProfileID(), jevconf.ActionFallback, jevconf.DefaultThreshold[jevconf.ActionFallback])
 	return func(ae *action.ActionExecutor) { ae.SetJevPicker(client, minP) }, func() { db.Close() }, nil
 }
 
-// recordReplayIsTerminal says whether a person can be asked; tests replace it.
-var recordReplayIsTerminal = stdinIsTerminal
-
-func newRecordReplayCmd(cfg *globalConfig) *cobra.Command {
+func newRecordReplayCmd(d Deps) *cobra.Command {
 	var dryRun, selfHeal, yes, withLogin, keepOpen bool
 	var inputs []string
 	var inputsFile string
@@ -78,7 +49,7 @@ when every recorded selector for it missed; each such step is reported.`,
   monoagentcli record replay rec-20261013-101010-abcd --input account_password=… --yes`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := applyRecordScope(cfg); err != nil {
+			if err := applyRecordScope(d); err != nil {
 				return err
 			}
 			dir, err := recording.Find(args[0])
@@ -89,7 +60,7 @@ when every recorded selector for it missed; each such step is reported.`,
 			if err != nil {
 				return err
 			}
-			overrides, err := replayInputs(inputsFile, inputs)
+			overrides, err := d.replayInputs(inputsFile, inputs)
 			if err != nil {
 				return err
 			}
@@ -97,7 +68,7 @@ when every recorded selector for it missed; each such step is reported.`,
 			out := cmd.OutOrStdout()
 			var secrets func(string) (string, bool)
 			if !dryRun {
-				lookup, release := recordSecretLookup(ctx, cfg, recordanalyze.ReplayAutomationID)
+				lookup, release := d.SecretLookup(ctx, recordanalyze.ReplayAutomationID)
 				defer release()
 				secrets = lookup
 			}
@@ -113,19 +84,19 @@ when every recorded selector for it missed; each such step is reported.`,
 				return err
 			}
 			if dryRun {
-				if cfg.JSONOutput {
-					return writeJSONTo(out, plan)
+				if d.JSONOutput() {
+					return d.WriteJSON(out, plan)
 				}
 				printReplayPlan(out, plan)
 				return nil
 			}
 			if len(plan.Missing) > 0 {
-				return errInvalidInput("the recording typed secret value(s) it did not keep: pass --input %s=… (or add a vault secret of that name)",
+				return d.InvalidInput("the recording typed secret value(s) it did not keep: pass --input %s=… (or add a vault secret of that name)",
 					strings.Join(plan.Missing, "=… --input "))
 			}
 			run := recordanalyze.ReplayRunOptions{Secrets: secrets}
 			if selfHeal {
-				hook, release, err := recordReplaySelfHeal(ctx, cfg)
+				hook, release, err := d.SelfHeal(ctx)
 				if err != nil {
 					return err
 				}
@@ -138,13 +109,13 @@ when every recorded selector for it missed; each such step is reported.`,
 			switch {
 			case yes:
 				run.Confirm = func(recordanalyze.ReplayStep) bool { return true }
-			case !cfg.JSONOutput && recordReplayIsTerminal():
+			case !d.JSONOutput() && d.StdinIsTerminal():
 				in := cmd.InOrStdin()
 				run.Confirm = func(s recordanalyze.ReplayStep) bool {
 					return confirmYes(in, cmd.ErrOrStderr(), fmt.Sprintf("Step %s will %s, which changes the site. Run it?", s.ID, s.Describe))
 				}
 			}
-			page, logger, err := recordReplayPage(vault.ContextWithProfileID(ctx, browserProfile(cfg)), cfg.Verbose)
+			page, logger, err := d.ReplayPage(vault.ContextWithProfileID(ctx, d.BrowserProfile()), d.Verbose())
 			if err != nil {
 				return err
 			}
@@ -153,15 +124,15 @@ when every recorded selector for it missed; each such step is reported.`,
 			if !keepOpen && rep.OK && rep.StoppedAt == "" {
 				_ = page.Close()
 			}
-			if cfg.JSONOutput {
-				if err := writeJSONTo(out, rep); err != nil {
+			if d.JSONOutput() {
+				if err := d.WriteJSON(out, rep); err != nil {
 					return err
 				}
 			} else {
 				printReplayReport(out, rep)
 			}
 			if !rep.OK {
-				return reportedError{fmt.Errorf("replay failed: see the step results")}
+				return d.Reported(fmt.Errorf("replay failed: see the step results"))
 			}
 			return nil
 		},
@@ -177,7 +148,7 @@ when every recorded selector for it missed; each such step is reported.`,
 }
 
 // replayInputs merges --inputs-file and --input (which wins).
-func replayInputs(file string, kvs []string) (map[string]any, error) {
+func (d Deps) replayInputs(file string, kvs []string) (map[string]any, error) {
 	out := map[string]any{}
 	if file != "" {
 		fromFile, err := recordanalyze.ReadInputsFile(file)
@@ -189,7 +160,7 @@ func replayInputs(file string, kvs []string) (map[string]any, error) {
 	for _, kv := range kvs {
 		k, v, ok := strings.Cut(kv, "=")
 		if !ok || k == "" {
-			return nil, errInvalidInput("--input wants name=value")
+			return nil, d.InvalidInput("--input wants name=value")
 		}
 		out[k] = v
 	}
