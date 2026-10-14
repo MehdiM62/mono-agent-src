@@ -64,6 +64,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 			Str("node_id", node.ID).
 			Str("node_name", node.Name).
 			Msg("skipping disabled node")
+		r.passDisabled(node)
 		r.recordSkipped(node)
 		r.complete(node.ID)
 		return nil, nil

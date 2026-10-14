@@ -91,8 +91,9 @@ type Workflow struct {
 
 	// Settings holds workflow-level options, e.g. "error_workflow" (the id
 	// of the workflow to run when this one fails), "parallel_branches",
-	// "variables" ($vars) and "executionTimeout" (seconds of active running
-	// time; see ExecutionTimeoutSetting).
+	// "variables" ($vars), "executionTimeout" (seconds of active running
+	// time; see ExecutionTimeoutSetting), "per_item_execution"
+	// (PerItemExecutionSetting) and "disabled_nodes" (DisabledNodesSetting).
 	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
