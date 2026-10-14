@@ -195,15 +195,15 @@ func TestRunRefusalIsOneJSONDocumentUnderJSON(t *testing.T) {
 	}
 }
 
-// Tab completion, help, the completion scripts and the open commands keep
-// working for someone who is signed out: cobra adds its own commands after the
-// gate has looked, and the table opens the rest.
+// rootSignInLine is the root help's sign-in sentence: the bare root, which prints the help, is
+// open, and it tells a signed-out reader what to do first.
+const rootSignInLine = "Sign in first: monoagentcli account login."
+
+// Help and the open commands keep working for someone who is signed out: cobra adds help after
+// the gate has looked, and the table opens the rest. They write nothing to HOME.
 func TestOpenCommandsStayOpenWhenLocked(t *testing.T) {
 	accounttest.Install(t, accounttest.LockedRefused)
 	home := freshHome(t)
-	var called sync.Map
-	healthEnvHook = offlineEnv(t, &called)
-	t.Cleanup(func() { healthEnvHook = nil })
 
 	for _, tc := range []struct {
 		args     []string
@@ -211,14 +211,14 @@ func TestOpenCommandsStayOpenWhenLocked(t *testing.T) {
 		want     string // in stdout
 	}{
 		{[]string{"help", "workflow"}, 0, "Usage:"},
-		{[]string{"completion", "bash"}, 0, "bash completion"},
-		{[]string{"__complete", "work"}, 0, "workflow"},
-		{[]string{"__completeNoDesc", "work"}, 0, "workflow"},
+		{[]string{"help", "completion"}, 0, "Usage:"},
 		{[]string{"workflow", "list", "--help"}, 0, "Usage:"},
-		{[]string{"--help"}, 0, "Available Commands:"},
+		{[]string{"doctor", "--help"}, 0, "Usage:"},
+		{[]string{"--help"}, 0, rootSignInLine},
+		{[]string{}, 0, rootSignInLine},
 		{[]string{}, 0, "Available Commands:"},
-		// A fresh machine fails doctor's required data-folder check: exit 1, not 4.
-		{[]string{"--db-path", filepath.Join(home, ".monoagent", "monoagent.db"), "--json", "doctor", "--group", "core"}, 1, `"v": 1`},
+		{[]string{"version"}, 0, ""}, // printed on the process's own stdout
+		{[]string{"account"}, 0, "monoes.me"},
 	} {
 		code, stdout, stderr := runMain(t, tc.args...)
 		if code != tc.wantCode || !strings.Contains(stdout, tc.want) || strings.Contains(stderr, loginRequiredLine) {
@@ -226,6 +226,27 @@ func TestOpenCommandsStayOpenWhenLocked(t *testing.T) {
 				tc.args, code, tc.wantCode, tc.want, strings.Contains(stdout, tc.want), stderr)
 		}
 	}
+	requireEmpty(t, home)
+}
+
+// Signed out, everything else is refused with the one login_required line before it runs,
+// the reference, doctor, setup, release and the shell completion included: the scripts
+// (`completion bash`) and the requests a shell sends on Tab (`__complete`).
+func TestClosedCommandsAreRefusedWhenLocked(t *testing.T) {
+	accounttest.Install(t, accounttest.LockedRefused)
+	home := freshHome(t)
+	why := (&account.LoginRequiredError{Status: account.CurrentStatus()}).Error()
+	for _, args := range [][]string{
+		{"ref"}, {"ref", "account"}, {"ref", "node", "http.request"}, {"doctor"}, {"doctor", "fix"}, {"setup"},
+		{"release", "verify", "a", "b"}, {"completion", "bash"}, {"--profile", "work", "completion", "zsh"},
+		{"__complete", "work"}, {"__completeNoDesc", "work"}, {"__complete", "workflow", "--help"},
+	} {
+		code, stdout, stderr := runMain(t, args...)
+		if code != 4 || stdout != "" || stderr != why+"\n" {
+			t.Errorf("%q: exit %d, stdout %q, stderr %q", args, code, stdout, stderr)
+		}
+	}
+	requireEmpty(t, home)
 }
 
 // Allowed, a gated command runs (here `workflow list` opens the database).
@@ -290,7 +311,7 @@ func TestRunGivesOnlyGatedCommandsTheCancel(t *testing.T) {
 	cancelWhenRefused = func(*account.Guard, context.CancelFunc) { calls++ }
 	t.Cleanup(func() { cancelWhenRefused = prev })
 
-	runMain(t, "completion", "bash")
+	runMain(t, "version")
 	runMain(t, "doctor", "--help")
 	if calls != 0 {
 		t.Fatalf("%d cancels for open commands", calls)
@@ -327,8 +348,8 @@ func TestCancelWhenRefusedEndsTheContext(t *testing.T) {
 
 // With nobody signed in, an open command makes the guard run installs create
 // no file, even once the gate is enforced: the clock-guard record (A25) is
-// written by a guard pass, and an open command runs none (scripts/doctor-smoke.sh
-// asserts the same of the real binary). run removes the guard it built. A guard
+// written by a guard pass, and an open command runs none. run removes the guard
+// it built. A guard
 // installed beforehand is left alone.
 func TestRunCreatesNothingForOpenCommands(t *testing.T) {
 	account.InstallForTest(t, nil)
@@ -342,18 +363,17 @@ func TestRunCreatesNothingForOpenCommands(t *testing.T) {
 	newDefaultGuard = func() (*account.Guard, error) { built++; return account.NewDefaultGuard() }
 	t.Cleanup(func() { newDefaultGuard = prev })
 
-	code, _, _ := runMain(t, "--db-path", filepath.Join(home, ".monoagent", "monoagent.db"), "--json", "doctor", "--group", "core")
-	if code != 1 { // a fresh home fails the required data-folder check
-		t.Fatalf("doctor exit %d, want 1", code)
+	for _, args := range [][]string{{"version"}, {"account"}, {"account", "status"}, {"help"}, {}} {
+		runMain(t, args...)
 	}
-	if built != 1 || account.Current() != nil {
+	if built != 5 || account.Current() != nil {
 		t.Errorf("built %d default guards, still installed: %v", built, account.Current() != nil)
 	}
 	requireEmpty(t, home)
 
 	g := accounttest.Install(t, accounttest.SignedIn)
-	runMain(t, "completion", "bash")
-	if built != 1 || account.Current() != g {
+	runMain(t, "version")
+	if built != 5 || account.Current() != g {
 		t.Error("run replaced or removed a guard that was installed before it")
 	}
 }
@@ -397,7 +417,7 @@ func TestRunLetsGoOfTheSignalsBeforeItReleasesTheGuard(t *testing.T) {
 	}
 	t.Cleanup(func() { notifyContext = prevNotify })
 
-	if code, _, _ := runMain(t, "completion", "bash"); code != 0 {
+	if code, _, _ := runMain(t, "version"); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	if guardWhenLetGo != g {
