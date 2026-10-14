@@ -167,6 +167,9 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
+		if err := r.fetchUploadURL(ctx); err != nil {
+			return nil, err
+		}
 		if op.Binary != nil && (op.Binary.UploadField != "" || op.Binary.Properties != "") {
 			// Filled for every step: a before step that requests an upload
 			// slot needs the file's name and type (Pushbullet, S3 presigned).
@@ -471,6 +474,9 @@ type response struct {
 
 // send builds and sends one request; non-2xx responses are errors.
 func (r *opRun) send(ctx context.Context, pp pageParams) (*response, error) {
+	if r.op.Stream != nil {
+		return r.sendStream(ctx, pp)
+	}
 	b, err := r.buildRequest(ctx, pp)
 	if err != nil {
 		return nil, err
@@ -623,7 +629,7 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 	op := *r.op
 	op.Method, op.Path, op.BaseURL = st.Method, st.Path, st.BaseURL
 	op.Query, op.Body, op.BodyType, op.Headers = st.Query, st.Body, st.BodyType, st.Headers
-	op.Pagination, op.Also, op.Before = nil, nil, nil
+	op.Pagination, op.Also, op.Before, op.Stream = nil, nil, nil, st.Stream
 	if st.ErrorWhen != "" {
 		op.ErrorWhen, op.ErrorMessage = st.ErrorWhen, st.ErrorMessage
 	}
@@ -647,7 +653,11 @@ func (r *opRun) sendStep(ctx context.Context, st Step, sc Scope) (*response, err
 	if st.Auth != nil && !*st.Auth {
 		step.credDef = nil
 	}
-	return step.send(ctx, pageParams{})
+	resp, err := step.send(ctx, pageParams{})
+	if err != nil || st.Repeat == nil {
+		return resp, err
+	}
+	return r.repeatStep(ctx, st, sc, resp)
 }
 
 // shapeOutput applies output.each, output.expand and output.match to a
@@ -846,12 +856,13 @@ func (r *opRun) poll(ctx context.Context, resp *response) (*response, error) {
 	if interval <= 0 {
 		interval = time.Second
 	}
-	maxWait := time.Duration(pl.MaxWaitMs) * time.Millisecond
-	if maxWait <= 0 {
-		maxWait = 5 * time.Minute
+	maxWait, err := r.waitFor(pl.MaxWaitMs, pl.MaxWaitSeconds, r.scope, "poll.max_wait_seconds")
+	if err != nil {
+		return nil, err
 	}
 	deadline := time.Now().Add(maxWait)
 	first := decodeBody(resp.body)
+	r.scope.Main = first // output templates read the first reply as main
 	for {
 		sc := r.scope
 		sc.Main = first

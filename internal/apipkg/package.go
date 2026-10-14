@@ -244,6 +244,9 @@ type Operation struct {
 	// over res = the latest response) renders true (BigQuery jobs that
 	// are not complete yet). The last response replaces the main one.
 	Poll *Poll `json:"poll,omitempty"`
+	// Stream reads the main response as server-sent events until one
+	// matches; that event is the op's response (Airtop session events).
+	Stream *Stream `json:"stream,omitempty"`
 	// Before is one request, or a list run in order, sent first. pre is
 	// the last decoded response and pres.<i> each step's; later steps see
 	// earlier ones (e.g. resolve a sheet title, then read its header row).
@@ -306,6 +309,12 @@ type Step struct {
 	// success:false fails only on a real error (Dropcontact).
 	ErrorWhen    string `json:"error_when,omitempty"`
 	ErrorMessage string `json:"error_message,omitempty"`
+	// Repeat resends the step until its until template holds (a before
+	// step that waits for an uploaded file to become available).
+	Repeat *Repeat `json:"repeat,omitempty"`
+	// Stream reads the response as server-sent events until one matches
+	// (see Stream).
+	Stream *Stream `json:"stream,omitempty"`
 }
 
 // Key is "<resource>.<operation>", or just the operation when the package
@@ -483,6 +492,10 @@ type Binary struct {
 	// UploadText (a template): when it renders non-empty, its text is the
 	// upload instead of the input item's binary (GCS create from text).
 	UploadText string `json:"upload_text,omitempty"`
+	// UploadURL (a template): when it renders a URL, the file at that URL
+	// is fetched (GET, without the credential) and uploaded in place of
+	// the input item's binary (Airtop's "upload from URL" source).
+	UploadURL string `json:"upload_url,omitempty"`
 	// UploadSession sends files larger than MinSize in chunks through a
 	// resumable upload session (Microsoft Graph createUploadSession)
 	// instead of one raw request.
@@ -599,6 +612,29 @@ type Poll struct {
 	Until      string `json:"until"`
 	IntervalMs int    `json:"interval_ms,omitempty"` // default 1000
 	MaxWaitMs  int    `json:"max_wait_ms,omitempty"` // default 300000
+	// MaxWaitSeconds (a template) overrides MaxWaitMs when it renders a
+	// number: the wait comes from a param (n8n's timeout fields).
+	MaxWaitSeconds string `json:"max_wait_seconds,omitempty"`
+}
+
+// Repeat is a step's wait condition: the step is resent every IntervalMs
+// (default 1000) with res = the latest response until Until renders true,
+// failing after the max wait (default 5 minutes).
+type Repeat struct {
+	Until          string `json:"until"`
+	IntervalMs     int    `json:"interval_ms,omitempty"`
+	MaxWaitMs      int    `json:"max_wait_ms,omitempty"`
+	MaxWaitSeconds string `json:"max_wait_seconds,omitempty"`
+}
+
+// Stream reads a text/event-stream response event by event. Each event's
+// data (JSON-decoded when it parses) is res for Until; the first event for
+// which Until renders true becomes the response. The request fails when
+// the stream ends first or after the timeout (default 5 minutes).
+type Stream struct {
+	Until          string `json:"until"`
+	TimeoutMs      int    `json:"timeout_ms,omitempty"`
+	TimeoutSeconds string `json:"timeout_seconds,omitempty"`
 }
 
 // HMACInject is a per-request HMAC signature header.
