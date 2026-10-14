@@ -46,12 +46,15 @@ func TestResolveKeyAdoptsMostRecentProfileKey(t *testing.T) {
 	newest := seedKey(t, db, "bob", "Jev Api key", "new-key", "2026-06-01T00:00:00Z")
 	seedKey(t, db, "carol", "typesafe", "mid-key", "2026-03-01T00:00:00Z")
 
-	if src, err := KeySource(ctx, db); err != nil || src != SourceVault {
-		t.Fatalf("KeySource before adoption = %q %v", src, err)
+	if src, err := KeySource(ctx, db); err != nil || src != SourceProfileVault {
+		t.Fatalf("KeySource before adoption = %q %v, want %q", src, err, SourceProfileVault)
 	}
 	k, src, err := ResolveKey(ctx, db, "")
 	if err != nil || k != "new-key" || src != SourceVault {
 		t.Fatalf("ResolveKey = %q %q %v", k, src, err)
+	}
+	if src, err := KeySource(ctx, db); err != nil || src != SourceVault {
+		t.Fatalf("KeySource after adoption = %q %v, want %q", src, err, SourceVault)
 	}
 	if !bytes.Contains(logBuf.Bytes(), []byte(`"bob"`)) {
 		t.Errorf("the winner is not logged: %s", logBuf.String())

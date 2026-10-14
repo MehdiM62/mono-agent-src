@@ -30,6 +30,9 @@ const (
 	SourceConfig = "config"
 	SourceVault  = "vault"
 	SourceEnv    = "env"
+	// SourceProfileVault: a profile vault still holds the key and it has not
+	// been moved to the machine vault yet (the next ResolveKey moves it).
+	SourceProfileVault = "profile-vault"
 )
 
 // adoptedSetting records that the one-time move of a profile's key to the
@@ -84,8 +87,8 @@ func ResolveKey(ctx context.Context, db *sql.DB, explicit string) (key, source s
 }
 
 // KeySource reports where ResolveKey would find the key — the machine vault
-// (a "typesafe" entry exists, or a profile vault still holds a key that the
-// next ResolveKey moves there) or env — without decrypting anything, so
+// (a "typesafe" entry exists), a profile vault (SourceProfileVault: a key not
+// moved to the machine vault yet; the next ResolveKey moves it) or env — without decrypting anything, so
 // health checks never trigger a keyring or passphrase prompt.
 func KeySource(ctx context.Context, db *sql.DB) (string, error) {
 	if db != nil {
@@ -93,7 +96,7 @@ func KeySource(ctx context.Context, db *sql.DB) (string, error) {
 			return SourceVault, nil
 		}
 		if !adopted(db) && len(profileKeyCandidates(ctx, db)) > 0 {
-			return SourceVault, nil
+			return SourceProfileVault, nil
 		}
 	}
 	if strings.TrimSpace(envKey()) != "" {

@@ -103,7 +103,7 @@ type jevSurfaceStatus struct {
 
 type jevStatus struct {
 	ProfileID string             `json:"profile_id"`
-	KeySource string             `json:"key_source"` // config | vault | env | none
+	KeySource string             `json:"key_source"` // config | vault | profile-vault | env | none
 	KeyEntry  string             `json:"key_entry"`  // vault entry name when key_source is vault
 	Model     string             `json:"model"`
 	BaseURL   string             `json:"base_url"`
