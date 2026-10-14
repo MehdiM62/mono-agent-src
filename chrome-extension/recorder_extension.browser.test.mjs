@@ -73,6 +73,9 @@ describe("the unpacked extension records a real page", { skip: browser ? false :
     };
     const page = await attach(pageUrl);
     await sleep(500);
+    // Signed in, as a bridge would report it (gate.js): signed out the worker refuses record_start.
+    const { sessionId: sw } = await cdp.send("Target.attachToTarget", { targetId: browser.worker.targetId, flatten: true });
+    assert.equal(await cdp.evaluate(sw, `gate.observe({ kind: "reply", id: "account-test", ok: true, data: { pong: true, account: { state: "ok", reason: "", enforced: true } } }), gate.signedIn()`), true);
     const panel = await attach(`chrome-extension://${extId}/sidepanel.html`);
     await sleep(500);
 
