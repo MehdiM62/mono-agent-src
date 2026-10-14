@@ -258,14 +258,14 @@ var qaDocs = []string{
 
 func vectorRetrieverSubs(embedURL, key string) ([]map[string]interface{}, [][3]string) {
 	return []map[string]interface{}{
-		qaNode("Retriever", lcp+"retrieverVectorStore", 1, map[string]interface{}{"topK": 1}),
-		qaNode("Store", lcp+"vectorStoreInMemory", 1.1, map[string]interface{}{"memoryKey": key}),
-		qaNode("Embeddings", lcp+"embeddingsOpenAi", 1.2, map[string]interface{}{"model": "text-embedding-3-small",
-			"options": map[string]interface{}{"baseURL": embedURL}}),
-	}, [][3]string{
-		{"Store", "ai_vectorStore", "Retriever"},
-		{"Embeddings", "ai_embedding", "Store"},
-	}
+			qaNode("Retriever", lcp+"retrieverVectorStore", 1, map[string]interface{}{"topK": 1}),
+			qaNode("Store", lcp+"vectorStoreInMemory", 1.1, map[string]interface{}{"memoryKey": key}),
+			qaNode("Embeddings", lcp+"embeddingsOpenAi", 1.2, map[string]interface{}{"model": "text-embedding-3-small",
+				"options": map[string]interface{}{"baseURL": embedURL}}),
+		}, [][3]string{
+			{"Store", "ai_vectorStore", "Retriever"},
+			{"Embeddings", "ai_embedding", "Store"},
+		}
 }
 
 // answerWithSystem makes the answer the system prompt the agent got.
