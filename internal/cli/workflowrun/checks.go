@@ -1,4 +1,4 @@
-package main
+package workflowrun
 
 import (
 	"errors"
@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/workflowtemplates"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -104,10 +106,10 @@ func missingTemplateNodeTypes(tmpl workflow.WorkflowFile, has func(string) bool)
 	return missing
 }
 
-// checkTemplateNodeTypes fails before anything is created when a template
+// CheckTemplateNodeTypes fails before anything is created when a template
 // uses node types this install does not have (e.g. an automation that is
 // no longer bundled), naming them and how to install them.
-func checkTemplateNodeTypes(id string, tmpl workflow.WorkflowFile, has func(string) bool) error {
+func CheckTemplateNodeTypes(id string, tmpl workflow.WorkflowFile, has func(string) bool) error {
 	missing := missingTemplateNodeTypes(tmpl, has)
 	if len(missing) == 0 {
 		return nil
@@ -137,9 +139,9 @@ func checkTemplateInputs(keys []string, triggerData map[string]interface{}) erro
 		return nil
 	}
 	return &hintError{
-		err:  ErrInvalidInput,
+		err:  clicore.ErrInvalidInput,
 		msg:  "missing input: " + strings.Join(keys, ", "),
-		hint: fmt.Sprintf("run with --input '%s'", exampleInputJSON(keys)),
+		hint: fmt.Sprintf("run with --input '%s'", workflowtemplates.ExampleInputJSON(keys)),
 	}
 }
 
