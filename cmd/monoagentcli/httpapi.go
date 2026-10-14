@@ -74,7 +74,7 @@ func newHTTPAPICmd(cfg *globalConfig) *cobra.Command {
 				Addr:           addr,
 				AllowMutations: allowMutations,
 				Version:        version,
-				ExtraRoutes:    apiRT.mainMount(httpapi.ResolveAddr(addr)),
+				ExtraRoutes:    apiRT.MainMount(httpapi.ResolveAddr(addr)),
 			})
 			if err != nil {
 				return fmt.Errorf("build httpapi server: %w", err)
@@ -84,12 +84,12 @@ func newHTTPAPICmd(cfg *globalConfig) *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			v1Addr, err := apiRT.startV1(ctx)
+			v1Addr, err := apiRT.StartV1(ctx)
 			if err != nil {
 				return err
 			}
 			if v1Addr != "" {
-				fmt.Fprintf(os.Stdout, "OpenAI-compatible API listening on %s (confinement %s).\n", v1Addr, apiRT.policy(v1Addr))
+				fmt.Fprintf(os.Stdout, "OpenAI-compatible API listening on %s (confinement %s).\n", v1Addr, apiRT.Policy(v1Addr))
 			}
 
 			// Mirrors daemon.go: a second interrupt forces an immediate exit
@@ -103,7 +103,7 @@ func newHTTPAPICmd(cfg *globalConfig) *cobra.Command {
 				select {
 				case <-sigCh:
 					fmt.Fprintln(os.Stderr, "Second interrupt received — forcing immediate exit.")
-					apiRT.killTurns() // the agent CLIs must not outlive this command
+					apiRT.KillTurns() // the agent CLIs must not outlive this command
 					os.Exit(130)
 				case <-shutdownDone:
 				}
@@ -113,7 +113,7 @@ func newHTTPAPICmd(cfg *globalConfig) *cobra.Command {
 			fmt.Fprintf(os.Stdout, "HTTP API listening on %s (mutations %s). Press Ctrl+C to stop.\n",
 				srv.Addr(), mutationsLabel(srv.AllowsMutations()))
 			err = srv.ListenAndServe(ctx)
-			apiRT.drain() // no agent CLI outlives the command
+			apiRT.Drain() // no agent CLI outlives the command
 			// An interrupt with a turn still running outlasts the server's grace
 			// period; that is the interrupt working, not a failure.
 			if errors.Is(err, context.DeadlineExceeded) && ctx.Err() != nil {
@@ -124,7 +124,7 @@ func newHTTPAPICmd(cfg *globalConfig) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&addr, "addr", "", "Listen address (default 127.0.0.1:9322, or MONOAGENT_HTTPAPI_ADDR)")
-	api.bind(cmd)
+	api.Bind(cmd)
 	cmd.Flags().BoolVar(&allowMutations, "allow-mutations", false,
 		"Serve mutating endpoints (workflow run/activate/deactivate, hil approve/reject); also settable via MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1")
 	return servingCommand(cmd)

@@ -112,7 +112,7 @@ func newWorkflowGenerateCmd(cfg *globalConfig) *cobra.Command {
 							"error": err.Error(), "code": "not_valid", "valid": false,
 							"attempts": len(ae.History), "history": ae.History,
 						})
-						return reportedError{errInvalidInput("%v", err)}
+						return reportedError{Err: errInvalidInput("%v", err)}
 					}
 					return errInvalidInput("%v", err)
 				}

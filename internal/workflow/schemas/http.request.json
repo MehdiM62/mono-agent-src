@@ -57,7 +57,7 @@
           "credential"
         ]
       },
-      "help": "How to send the connection's secret: bearer (default for tokens and keys), basic, header:X-API-Key or query:api_key. Leave empty to decide from the connection.",
+      "help": "How to send the connection's secret: bearer (default for tokens and keys), basic, oauth1 (default for OAuth 1.0a connections), header:X-API-Key or query:api_key. Leave empty to decide from the connection.",
       "key": "credential_auth",
       "label": "Connection auth",
       "placeholder": "bearer",

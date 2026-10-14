@@ -53,7 +53,7 @@ func orgDeps(cfg *globalConfig) org.Deps {
 		JSONOutput:        func() bool { return cfg.JSONOutput },
 		NotFound:          errNotFound,
 		InvalidInput:      errInvalidInput,
-		Reported:          func(err error) error { return reportedError{err} },
+		Reported:          func(err error) error { return reportedError{Err: err} },
 		StdinIsTerminal:   stdinIsTerminal,
 		Serving:           servingCommand,
 		CapabilityProbe:   func(cmd *cobra.Command) (*monomind.CapabilitySet, error) { return capabilityProbe(cmd) },
@@ -71,8 +71,6 @@ func (e *orgEnv) genOptions(profileID string) orggrant.GenOptions {
 }
 
 func selfExecutable() string { return orgenv.SelfExecutable() }
-
-const daemonAPIAddrSetting = orgenv.DaemonAPIAddrSetting
 
 func orgAPIAddr(db *storage.Database) string { return orgenv.APIAddr(db) }
 

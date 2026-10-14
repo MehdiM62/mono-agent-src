@@ -19,10 +19,13 @@ AUTH (auth_type)
   digest      auth_username + auth_password, answering the server's Digest challenge
   bearer      auth_token → Authorization: Bearer <token>
   api_key     auth_api_key_name + auth_api_key_value, auth_api_key_in header|query
-  With credential_id the connection decides: access_token → Bearer; username +
-  password (or email + api_token, account_sid + auth_token) → Basic; a single
-  api_key / token / secret_key → Bearer, or the header a generic_api connection
-  names. Override with credential_auth: bearer | basic | header:<Name> | query:<name>.
+  With credential_id the connection decides: consumer_key + oauth_token (an
+  OAuth 1.0a connection, e.g. generic_oauth1) → an OAuth 1.0a signature with its
+  signature_method (HMAC-SHA1 default) over the method, URL, query and form body;
+  access_token → Bearer; username + password (or email + api_token, account_sid +
+  auth_token) → Basic; a single api_key / token / secret_key → Bearer, or the
+  header a generic_api connection names. Override with credential_auth:
+  bearer | basic | oauth1 | header:<Name> | query:<name>.
   A url that is only a path (/v1/items) is completed with the connection's base_url.
   Auth and custom headers are dropped when a redirect leaves the host, unless
   send_credentials_on_redirect is true.

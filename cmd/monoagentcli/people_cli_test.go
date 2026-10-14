@@ -43,7 +43,7 @@ func newReviewCLITestDB(t *testing.T) (*globalConfig, *storage.Database) {
 func exitCode(err error) int {
 	var ce *cliError
 	if errors.As(err, &ce) {
-		return ce.code
+		return ce.Code
 	}
 	if err != nil {
 		return 1

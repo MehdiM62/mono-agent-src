@@ -6,6 +6,8 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k) => k }) }))
 vi.mock('../../components/account/AccountBanners.jsx', () => ({ SignInDialog: () => <div role="dialog">sign in</div> }))
 import GetStartedCard from './GetStartedCard.jsx'
 import { getStartedSteps } from './getStarted.js'
+import en from '../../locales/en.json'
+import es from '../../locales/es.json'
 
 afterEach(cleanup)
 
@@ -23,6 +25,16 @@ describe('GetStartedCard', () => {
     expect(onNavigate).toHaveBeenCalledWith('noderunner', { openTemplates: true })
     fireEvent.click(screen.getByRole('button', { name: 'dashboard.getStarted.extensionAction' }))
     expect(onNavigate).toHaveBeenCalledWith('settings', { section: 'health' })
+  })
+
+  // Settings has no pairing action: the unpaired hint names the one-step
+  // pairing command instead.
+  it('tells an unpaired user the pairing command', () => {
+    for (const locale of [en, es]) {
+      const text = locale.dashboard.getStarted.extensionWhyUnpaired
+      expect(text).toContain('monoagentcli extension pair --open')
+      expect(text).not.toMatch(/Settings|Ajustes/)
+    }
   })
 
   it('opens sign-in and dismisses', () => {

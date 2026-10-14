@@ -226,22 +226,63 @@ type oauthProgress struct {
 // using the OAuth client stored for the active profile (or the
 // MONOAGENT_<PLATFORM>_CLIENT_ID/SECRET env vars), and reuses the
 // profile's existing OAuth connection for the platform when there is one.
+// A platform with only OAuth 1.0a runs that flow instead, with the consumer
+// key and secret from --field (asked on a terminal when missing).
 // Progress goes to stderr, one JSON object per line with --json, so the
 // desktop app can stream it; the saved connection (no credentials) goes to
 // stdout.
 func (d Deps) newConnectOAuthCmd() *cobra.Command {
-	var scopeGroups []string
+	var scopeGroups, fieldFlags []string
 	cmd := &cobra.Command{
 		Use:   "oauth <platform>",
-		Short: "Connect a platform through its browser OAuth flow, without prompts",
-		Args:  cobra.ExactArgs(1),
+		Short: "Connect a platform through its browser OAuth (2.0 or 1.0a) flow, without prompts",
+		Long: "Runs the platform's browser OAuth flow and saves the connection under the active profile.\n\n" +
+			"--field key=value (repeatable) gives the values the flow needs before the browser opens: an " +
+			"OAuth 2.0 platform's connect fields (a tenant subdomain, a Salesforce environment — a reconnect " +
+			"keeps the earlier values of the ones not given), or an OAuth 1.0a platform's form (consumer_key, " +
+			"consumer_secret and, for generic_oauth1, the request_token_url, authorization_url and " +
+			"access_token_url). An unknown key is an error naming the allowed ones; `connect show <platform>` " +
+			"lists them. On a terminal (without --json) the missing required OAuth 1.0a fields are asked, " +
+			"secrets without echo — prefer that to a --field consumer_secret, which other local users can " +
+			"read in the process list.\n\nExit code 3 for an unknown platform or bad --field, 4 when the flow " +
+			"or the validation fails.",
+		Example: `  monoagentcli connect oauth salesforce --field environment=sandbox
+  monoagentcli connect oauth trello            # asks for the consumer key and secret
+  monoagentcli connect oauth generic_oauth1 --field request_token_url=https://api.example.com/oauth/request_token \
+    --field authorization_url=https://api.example.com/oauth/authorize --field access_token_url=https://api.example.com/oauth/access_token`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p, ok := connections.Get(args[0])
 			if !ok {
 				return d.InvalidInput("unknown platform %q", args[0])
 			}
-			if p.OAuth == nil {
+			oauth1 := p.OAuth == nil && p.OAuth1 != nil && hasMethod(p, connections.MethodOAuth1)
+			if p.OAuth == nil && !oauth1 {
 				return d.InvalidInput("platform %s does not support OAuth", args[0])
+			}
+			var allowed []connections.CredentialField
+			if oauth1 {
+				if len(scopeGroups) > 0 {
+					return d.InvalidInput("--scopes is for the OAuth 2.0 umbrella platforms; %s uses OAuth 1.0a", args[0])
+				}
+				allowed = p.Fields[connections.MethodOAuth1]
+			} else {
+				allowed = p.OAuth.ConnectFields
+			}
+			values, err := d.parseOAuthFieldFlags(args[0], fieldFlags, allowed)
+			if err != nil {
+				return err
+			}
+			if oauth1 {
+				if !d.JSONOutput() && stdinIsTerminal() {
+					secrets.MarkStdinConsumed()
+					if err := connections.PromptMissingFields(allowed, values, cmd.InOrStdin()); err != nil {
+						return d.InvalidInput("%v", err)
+					}
+				}
+				if missing := missingRequired(allowed, values); len(missing) > 0 {
+					return d.InvalidInput("%s's OAuth 1.0a needs --field %s=… (or run on a terminal to be asked)", args[0], strings.Join(missing, "=… --field "))
+				}
 			}
 
 			db, err := d.OpenDB()
@@ -264,10 +305,18 @@ func (d Deps) newConnectOAuthCmd() *cobra.Command {
 				}
 				fmt.Fprintln(errOut, msg)
 			}
-			conn, err := mgr.ConnectOAuthWithScopes(cmd.Context(), args[0], progress, "", "", profileID, scopeGroups)
-			if err != nil {
-				_, clientSecret := connections.NewStore(db.DB).GetOAuthClient(cmd.Context(), args[0], profileID)
-				return d.AuthFailed("%s", d.ScrubSecrets(err, clientSecret))
+			var conn *connections.Connection
+			if oauth1 {
+				conn, err = mgr.ConnectOAuth1(cmd.Context(), args[0], values, progress, profileID)
+				if err != nil {
+					return d.AuthFailed("%s", d.ScrubSecrets(err, secretValues(allowed, values)...))
+				}
+			} else {
+				conn, err = mgr.ConnectOAuthWithFields(cmd.Context(), args[0], progress, "", "", profileID, scopeGroups, values)
+				if err != nil {
+					_, clientSecret := connections.NewStore(db.DB).GetOAuthClient(cmd.Context(), args[0], profileID)
+					return d.AuthFailed("%s", d.ScrubSecrets(err, append(secretValues(allowed, values), clientSecret)...))
+				}
 			}
 			d.warnIfAccountProfileMismatch(db.DB, conn)
 			if d.JSONOutput() {
@@ -279,5 +328,7 @@ func (d Deps) newConnectOAuthCmd() *cobra.Command {
 	}
 	cmd.Flags().StringSliceVar(&scopeGroups, "scopes", nil,
 		"Scope groups to grant an umbrella platform, comma-separated (default: every group not marked opt-in; \"all\" adds the opt-in ones too). "+connections.ScopeGroupsHelp())
+	cmd.Flags().StringArrayVar(&fieldFlags, "field", nil,
+		"A value the flow needs, as key=value (repeatable): an OAuth 2.0 connect field (tenant subdomain, environment) or an OAuth 1.0a form field (consumer_key, consumer_secret, endpoint URLs)")
 	return cmd
 }

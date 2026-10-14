@@ -120,7 +120,7 @@ func TestWorkflowGenerateGivesUpAfterMaxAttempts(t *testing.T) {
 	turns := fakeGenerateExec(t, genNoTrigger)
 	out, err := runWorkflowCmdIn(t, cfg, "", "generate", "fetch", "--runtime", "fake", "--max-attempts", "2")
 	var ce *cliError
-	if !errors.As(err, &ce) || ce.code != 3 {
+	if !errors.As(err, &ce) || ce.Code != 3 {
 		t.Fatalf("err = %v, want exit 3", err)
 	}
 	if *turns != 2 {
