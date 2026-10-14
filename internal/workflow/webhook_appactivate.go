@@ -17,10 +17,6 @@ import (
 	"time"
 )
 
-// publicURLEnv is the base URL apps reach this machine's webhook server at
-// (e.g. a tunnel), used when a node sets no "public_url".
-const publicURLEnv = "MONOAGENT_PUBLIC_URL"
-
 // appHookTimeout bounds one registrar call.
 const appHookTimeout = 30 * time.Second
 
@@ -131,13 +127,16 @@ func appHookConfig(node *WorkflowNode) map[string]interface{} {
 	return cfg
 }
 
-// publicWebhookBase is the base URL the vendor reaches the webhook server at.
+// publicWebhookBase is the base URL the vendor reaches the webhook server at:
+// the node's public_url, else PublicBaseURL when MONOAGENT_PUBLIC_URL is set.
 func publicWebhookBase(cfg map[string]interface{}) (string, error) {
 	base, _ := cfg["public_url"].(string)
-	if strings.TrimSpace(base) == "" {
-		base = os.Getenv(publicURLEnv)
-	}
 	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	// PublicBaseURL falls back to the listen address, which an app on the
+	// internet cannot reach, so only MONOAGENT_PUBLIC_URL counts here.
+	if base == "" && strings.TrimSpace(os.Getenv(publicURLEnv)) != "" {
+		base = PublicBaseURL()
+	}
 	if base == "" {
 		return "", fmt.Errorf("the app must reach this webhook from the internet: set the node's public_url or %s to the public base URL of the webhook server (e.g. a tunnel to 127.0.0.1:9321)", publicURLEnv)
 	}
