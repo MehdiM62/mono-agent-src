@@ -76,5 +76,13 @@ func newWorkflowRetryCmd(cfg *globalConfig) *cobra.Command {
 	return workflowRunDeps(cfg).NewRetryCmd()
 }
 
+func newWorkflowEvaluateCmd(cfg *globalConfig) *cobra.Command {
+	return workflowRunDeps(cfg).NewEvaluateCmd()
+}
+
+func newWorkflowEvaluationsCmd(cfg *globalConfig) *cobra.Command {
+	return workflowRunDeps(cfg).NewEvaluationsCmd()
+}
+
 // checkTemplateNodeTypes refuses a template whose node types are not installed.
 var checkTemplateNodeTypes = workflowrun.CheckTemplateNodeTypes
