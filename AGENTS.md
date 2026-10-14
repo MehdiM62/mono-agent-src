@@ -254,6 +254,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `workflow save` creates or replaces a workflow from the editor's document on stdin.
   - `workflow execution <id>` shows run detail with redacted items.
   - `workflow cancel <execution-id>` stops the recorded process (never the daemon), marks the run cancelled and rejects its pending HIL items. It leaves a finished run alone.
+  - `workflow retry <execution-id> [--json] [--timeout]` runs a finished execution again with its trigger data (a new execution, current workflow version) and waits like `workflow run`. A queued, running or waiting execution, or one an org started, is refused (exit 3).
   - `workflow delete <id> --yes` refuses a workflow that an org uses; `--force` also revokes its grants.
   - `workflow get`, `workflow export` and `workflow delete` are profile-scoped.
 - **Sessions and connections:**
