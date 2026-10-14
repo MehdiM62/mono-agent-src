@@ -5,10 +5,30 @@ import (
 	"context"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/rs/zerolog"
 )
+
+// syncBuffer is a log sink the engine's goroutines (the queue dispatcher
+// logs as Start returns) and the test can share.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
 
 // A one-shot command (workflow activate, deactivate, run) finds the webhook
 // port taken whenever the daemon is up; that is expected and must not print
@@ -22,7 +42,7 @@ func TestWebhookPortInUseWarnsOnlyForDaemon(t *testing.T) {
 	t.Setenv("MONOAGENT_WEBHOOK_ADDR", "")
 
 	for _, daemon := range []bool{false, true} {
-		var buf bytes.Buffer
+		var buf syncBuffer
 		store := newFullEngineStore(t)
 		eng := NewWorkflowEngineWithStore(store, store.RawDB(), &fakeScheduler{}, NewNodeTypeRegistry(),
 			EngineConfig{ProfileID: "default", WebhookAddr: ln.Addr().String(), AllowAllProfiles: daemon},
