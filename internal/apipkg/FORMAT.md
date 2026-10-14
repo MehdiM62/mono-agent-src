@@ -266,6 +266,8 @@ through, so an unset param stays unset:
 | `mod:n` | remainder with the sign of `n` (`-1` with `mod:7` → `6`; `{{ p.offset \| mod:7 }}`) |
 | `weekday` | date or epoch → ISO weekday in UTC, 1 = Monday … 7 = Sunday. Monday of last week: `{{ (now \| date:'YYYY-MM-DD' \| epoch) \| sub:((now \| weekday \| add:6) \| mul:86400) \| date:'YYYY-MM-DD' }}` (GA4 `lastCalendarWeek`) |
 | `dotnet_date` | .NET JSON date `/Date(1586833770780)/` (optional `+0100` offset) → `2020-04-14T03:09:30.780Z`; objects and lists are converted deeply, other values pass. A whole response: `"output": {"to": "{{ el \| dotnet_date }}"}` (Unleashed) |
+| `wrap:n` | text broken into lines of at most `n` characters joined by CRLF (base64 bodies in MIME messages: `{{ p.message \| base64 \| wrap:76 }}`) |
+| `mime_parts:'boundary'` | `bin.files` → one base64 attachment part per file (Content-Type with the file's MIME type and name, Content-Disposition attachment, lines wrapped at 76) plus the closing `--boundary--`; an empty list is nil, a file without data fails naming its property. The template writes the `multipart/mixed` header and the text part (Gmail send/reply/draft) |
 | `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -368,7 +370,7 @@ WebDAV methods MKCOL, MOVE, COPY, PROPFIND and PROPPATCH are allowed (NextCloud)
   "n8n_credential": "todoistApi",     // n8n credential type, for the importer
   "n8n_credential_alt": ["todoistOAuth2Api"],    // more n8n types mapping here
   "n8n_field_map": { "apiKey": "access_token" }, // n8n credential field → our field key
-  "methods": ["bearer", "oauth"],     // api_key | bearer | basic | oauth | none
+  "methods": ["bearer", "oauth"],     // api_key | bearer | basic | oauth | oauth1 | client_credentials | none
   "fields": [ { "key": "access_token", "label": "API token", "secret": true, "required": true, "help": "…" } ],
   "oauth": { "auth_url": "…", "token_url": "…", "scopes": ["a", "b"], "pkce": true, "extra_params": {} },
   "inject": {
@@ -435,6 +437,23 @@ An **operation** may set its own `"scope_group"`, which replaces the credential'
              "extra_params": { "deviceName": "mono-agent", "deviceType": "2", "deviceIdentifier": "mono-agent" } },
   "inject": { "headers": { "Authorization": "Bearer {{ cred.access_token }}" } } }
 ```
+
+**OAuth 1.0a (`"methods": ["oauth1"]`, `inject.oauth1`).** Trello and Twitter/X v1.1-style user tokens. Every request gets an `Authorization: OAuth …` header signed per RFC 5849 over the method, URL, query and (for form bodies) the form fields. `inject.oauth1` keys are templates defaulting to `cred.consumer_key`, `cred.consumer_secret`, `cred.oauth_token`, `cred.oauth_token_secret`; `signature_method` (HMAC-SHA1 default, HMAC-SHA256, HMAC-SHA512, PLAINTEXT) and `realm` are optional, so `"oauth1": {}` is the usual inject. The credential declares those four fields and `oauth.request_token_url`, `oauth.auth_url` (the authorization page; it may carry its own query) and `oauth.token_url` (the access-token endpoint). `monoagentcli connect <platform>` then offers the three-legged flow (asks the consumer key/secret, opens the authorization page, stores the token pair) and the API-key form for pasting all four values.
+```json
+{ "platform": "trello_oauth1", "methods": ["oauth1"], "n8n_credential": "trelloOAuth1Api",
+  "fields": [ {"key":"consumer_key",…}, {"key":"consumer_secret",…}, {"key":"oauth_token",…}, {"key":"oauth_token_secret",…} ],
+  "oauth": { "request_token_url": "https://trello.com/1/OAuthGetRequestToken",
+             "auth_url": "https://trello.com/1/OAuthAuthorizeToken?scope=read,write&expiration=never&name=mono-agent",
+             "token_url": "https://trello.com/1/OAuthGetAccessToken" },
+  "inject": { "oauth1": {} } }
+```
+
+**Per-tenant OAuth (`oauth.connect_fields`).** `oauth.auth_url`, `token_url`, `scopes` and `extra_params` may be templates over `cred.*` when the endpoints depend on the account (Zendesk subdomain, self-managed GitLab, Microsoft tenant, Zoho data centre). List the credential fields they read in `connect_fields`: `connect` asks for them before opening the browser, stores them on the connection, and renders the endpoints from them at connect and at every token refresh (a reconnect keeps the earlier values). Zendesk:
+`"oauth": {"auth_url": "https://{{ cred.subdomain }}.zendesk.com/oauth/authorizations/new", "token_url": "https://{{ cred.subdomain }}.zendesk.com/oauth/tokens", "scopes": ["read", "write"], "connect_fields": ["subdomain"]}`.
+
+**Account lookup after connect (`oauth.metadata`).** `{"url": "https://login.mailchimp.com/oauth2/metadata", "headers": {"Authorization": "OAuth {{ cred.access_token }}"}, "fields": {"dc": "dc", "api_endpoint": "api_endpoint"}}` — after the OAuth flow the engine GETs `url` with the new token and stores the response values at the `fields` paths on the connection (readable as `cred.dc`). A connection that lacks them (connected earlier, or saved by hand) gets the same lookup before its first request, cached per token.
+
+**AWS AssumeRole.** Any `aws_sigv4` credential whose connection has `role_arn` (n8n's "AWS (Assume Role)" credential, `awsAssumeRole`) first calls STS AssumeRole with the connection's keys — `external_id` and `role_session_name` (default `mono-agent`) when set, on the regional STS endpoint of `region` (else the global one) — caches the temporary credentials until a minute before they expire, and signs with them: `cred.access_key_id`, `secret_access_key` and `session_token` are replaced by the role's. Packages need nothing beyond `"n8n_credential_alt": ["awsAssumeRole"]` and the field map (`roleArn` → `role_arn`, `externalId` → `external_id`, `roleSessionName` → `role_session_name`, `sts*` keys → the access keys).
 
 ## 8. Pagination
 
@@ -590,7 +609,7 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 
 **Large files in chunks (`upload_session`).** `"binary": {"upload_field": "binaryPropertyName", "upload_session": {"create": {"method": "POST", "path": "/items/{{ p.parentId }}:/{{ p.fileName }}:/createUploadSession", "body": {"item": {"@microsoft.graph.conflictBehavior": "replace"}}}}}` — when the upload is larger than `min_size` bytes (default 4 MiB) the engine sends `create` (a step, with auth), reads the upload URL at `url_path` (default `uploadUrl`) of its response, and PUTs the file there in `chunk_size` pieces (default 10 MiB; Graph wants multiples of 320 KiB) with `Content-Range: bytes a-b/total` and no credential (the URL is pre-authorised). The last chunk's response is the op's response. Smaller files go in the op's single request as before (OneDrive / SharePoint upload).
 
-**Several files.** `binary.properties` (a template giving a list or comma text, e.g. n8n's `"attachments": "data,data2"`) uploads each property: in a multipart body one part per file, with `el = {property, index}` in the `multipart_field` template (`"attachment[{{ el.index }}]"`); for JSON bodies `bin.files` is the list of `{property, file_name, mime_type, file_extension, base64, file_size}` (`{"$map": "{{ bin.files }}", "$to": {"name": "{{ el.file_name }}", "content": "{{ el.base64 }}"}}`).
+**Several files.** `binary.properties` (a template giving a list or comma text, e.g. n8n's `"attachments": "data,data2"`) uploads each property: in a multipart body one part per file, with `el = {property, index}` in the `multipart_field` template (`"attachment[{{ el.index }}]"`); for JSON bodies `bin.files` is the list of `{property, file_name, mime_type, file_extension, base64, file_size}` (`{"$map": "{{ bin.files }}", "$to": {"name": "{{ el.file_name }}", "content": "{{ el.base64 }}"}}`). `binary.properties` without `upload_field` only fills `bin.files` (nothing is uploaded), for bodies that embed the files themselves — Gmail builds a MIME message: `"binary": {"properties": "{{ p.options.attachmentsUi.attachmentsBinary | pluck:'property' | join:',' }}"}` with `{{ bin.files | mime_parts:'monoagent_mixed' }}` in its raw body.
 
 ## 11. `extends` (apps with a native Go node)
 
@@ -812,3 +831,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | output | `download` (per-element files: `files`, `property`, `file_name`, `mime_type`) | §9 |
 | templates | root `up`; filters `md5`, `sha1`, `sha256`, `mod`, `weekday`, `dotnet_date`; `snake:'ascii'`, `path:'query'`; `snake` follows change-case v5 | §5 |
 | schema output | `visible_for`, `apipkg`, `extended_by` | exact op visibility; package id; extending packages |
+| credential | method `oauth1`, `inject.oauth1`, `oauth.request_token_url`, `oauth.signature_method` | §7 OAuth 1.0a |
+| credential | `oauth.connect_fields` (templated per-tenant OAuth endpoints), `oauth.metadata` | §7 |
+| credential | AWS AssumeRole via connection `role_arn` (`external_id`, `role_session_name`) | §7 |
+| templates, binary | filters `wrap`, `mime_parts`; `binary.properties` without `upload_field` | §5, §10 |

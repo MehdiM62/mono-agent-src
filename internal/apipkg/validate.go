@@ -76,7 +76,7 @@ func (p *Package) check() []string {
 			credKeys[f.Key] = true
 		}
 		if o := p.Credentials[i].OAuth; o != nil {
-			for _, k := range o.TokenFields {
+			for _, k := range o.storedKeys() {
 				credKeys[k] = true
 			}
 		}
@@ -164,7 +164,10 @@ func (c *Credential) check(i int) []string {
 				}
 			}
 		}
-		if (m == "api_key" || m == "bearer" || m == "basic" || m == "client_credentials") && len(c.Fields) == 0 && c.ReusePlatform == "" {
+		if m == "oauth1" && (c.OAuth == nil || c.OAuth.RequestTokenURL == "" || c.OAuth.AuthURL == "" || c.OAuth.TokenURL == "") {
+			add(`method "oauth1" needs oauth.request_token_url, auth_url and token_url (the access-token endpoint)`)
+		}
+		if (m == "api_key" || m == "bearer" || m == "basic" || m == "client_credentials" || m == "oauth1") && len(c.Fields) == 0 && c.ReusePlatform == "" {
 			add("method %q needs fields[] (what the user types in)", m)
 		}
 	}
@@ -173,7 +176,7 @@ func (c *Credential) check(i int) []string {
 		keys[k] = true
 	}
 	if c.OAuth != nil {
-		for _, k := range c.OAuth.TokenFields {
+		for _, k := range c.OAuth.storedKeys() {
 			keys[k] = true
 		}
 	}
@@ -183,8 +186,32 @@ func (c *Credential) check(i int) []string {
 		}
 		keys[f.Key] = true
 	}
+	if o := c.OAuth; o != nil {
+		for _, k := range o.ConnectFields {
+			if !keys[k] || contains(oauthTokenKeys, k) {
+				add("oauth.connect_fields: %q is not a field of this credential", k)
+			}
+		}
+		tmpls := []any{o.AuthURL, o.TokenURL}
+		for _, v := range o.ExtraParams {
+			tmpls = append(tmpls, v)
+		}
+		for _, v := range o.Scopes {
+			tmpls = append(tmpls, v)
+		}
+		if m := o.Metadata; m != nil {
+			tmpls = append(tmpls, m.URL)
+			for _, v := range m.Headers {
+				tmpls = append(tmpls, v)
+			}
+			if len(m.Fields) == 0 {
+				add("oauth.metadata needs fields (connection key → response path)")
+			}
+		}
+		probs = append(probs, checkTemplates(where+" oauth", tmpls, nil, keys)...)
+	}
 	in := c.Inject
-	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 && in.HMAC == nil && in.AzureSharedKey == nil && in.AzureCosmos == nil {
+	if !onlyNone && len(in.Headers) == 0 && len(in.Query) == 0 && in.Basic == nil && in.AWSSigV4 == nil && in.JWT == nil && len(in.Body) == 0 && in.HMAC == nil && in.AzureSharedKey == nil && in.AzureCosmos == nil && in.OAuth1 == nil {
 		add("inject is empty: say how the credential authenticates (headers, query, basic or aws_sigv4)")
 	}
 	for k, v := range in.Headers {
@@ -195,6 +222,10 @@ func (c *Credential) check(i int) []string {
 	}
 	if b := in.Basic; b != nil {
 		probs = append(probs, checkTemplates(where+" inject.basic", []any{b.Username, b.Password}, anyField, keys)...)
+	}
+	if o := in.OAuth1; o != nil {
+		probs = append(probs, checkTemplates(where+" inject.oauth1",
+			[]any{o.ConsumerKey, o.ConsumerSecret, o.Token, o.TokenSecret, o.Realm}, anyField, keys)...)
 	}
 	if s := in.AWSSigV4; s != nil {
 		probs = append(probs, checkTemplates(where+" inject.aws_sigv4",
@@ -479,4 +510,16 @@ func nativeOperations(nodeType string) map[string]bool {
 		}
 	}
 	return out
+}
+
+// storedKeys are the keys an OAuth connect stores beyond the token itself:
+// token_fields and the metadata fields.
+func (o *OAuthSpec) storedKeys() []string {
+	keys := append([]string(nil), o.TokenFields...)
+	if o.Metadata != nil {
+		for k := range o.Metadata.Fields {
+			keys = append(keys, k)
+		}
+	}
+	return keys
 }

@@ -124,6 +124,13 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		withTok["access_token"] = tok
 		cred = withTok
 	}
+	cred, err := withAssumedRole(ctx, credDef, cred)
+	if err != nil {
+		return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+	}
+	if cred, err = withMetadata(ctx, credDef, cred); err != nil {
+		return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+	}
 	items := input.Items
 	if len(items) == 0 {
 		items = []workflow.Item{{JSON: map[string]any{}}}
@@ -155,9 +162,11 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
-		if op.Binary != nil && op.Binary.UploadField != "" {
+		if op.Binary != nil && (op.Binary.UploadField != "" || op.Binary.Properties != "") {
 			// Filled for every step: a before step that requests an upload
 			// slot needs the file's name and type (Pushbullet, S3 presigned).
+			// binary.properties alone fills bin.files for a body that embeds
+			// the files (Gmail MIME attachments) without uploading one.
 			r.scope.Bin = r.binMeta()
 		}
 		if op.Batch {

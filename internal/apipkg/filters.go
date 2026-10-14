@@ -29,6 +29,7 @@ var knownFilters = map[string]bool{
 	"replace": true, "re": true, "zip": true, "pluck": true, "hex": true, "values": true, "snake": true, "matches": true, "in": true, "flatten": true, "unflatten": true,
 	"len": true, "urlencode": true,
 	"md5": true, "sha1": true, "sha256": true, "mod": true, "weekday": true, "dotnet_date": true,
+	"wrap": true, "mime_parts": true,
 }
 
 // applyFilter runs one pipe filter. Filters other than default and then pass
@@ -384,6 +385,10 @@ func applyFilter(name string, v, arg any) (any, error) {
 		return isoWeekday(v)
 	case "dotnet_date":
 		return dotnetDates(v), nil
+	case "wrap":
+		return wrapLines(v, arg)
+	case "mime_parts":
+		return mimeParts(v, arg)
 	case "lower":
 		return strings.ToLower(stringify(v)), nil
 	case "upper":
