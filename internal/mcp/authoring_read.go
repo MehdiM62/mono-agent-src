@@ -211,7 +211,7 @@ func toolWorkflowTemplateShow(ctx context.Context, s *Server, args json.RawMessa
 // placeholder node ids become fresh ones, so every copy stands alone; it
 // starts inactive; a failed save leaves nothing behind.
 func toolWorkflowTemplateInstantiate(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
-	file, _, err := templateArg(args)
+	file, meta, err := templateArg(args)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +220,7 @@ func toolWorkflowTemplateInstantiate(ctx context.Context, s *Server, args json.R
 		return nil, err
 	}
 	wf := instantiateTemplate(file, rt.profileID)
+	wf.Description = workflow.SavedTemplateDescription(meta.ID)
 	if err := workflow.ValidateConnectionsAgainstNodes(wf.Nodes, wf.Connections); err != nil {
 		return nil, err
 	}

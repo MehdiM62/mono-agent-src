@@ -145,6 +145,7 @@ func (d Deps) newTemplatesRunCmd() *cobra.Command {
 			defer engine.Stop() //nolint:errcheck
 
 			wf := workflowtemplates.InstantiateTemplate(tmplFile, d.ProfileID())
+			wf.Description = workflow.SavedTemplateDescription(args[0])
 			for i := range wf.Nodes {
 				if err := wf.Nodes[i].MarshalConfig(); err != nil {
 					return fmt.Errorf("marshal node config: %w", err)

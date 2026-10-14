@@ -154,6 +154,17 @@ func ListTemplates() []Template {
 	return out
 }
 
+// SavedTemplateDescription is the description a workflow made from template
+// templateID is saved with: the template's Summary, which reads as plain
+// text in the app, else its CLI-oriented Description ("Run with: workflow
+// templates run …" means nothing on a saved copy). "" for an unknown id.
+func SavedTemplateDescription(templateID string) string {
+	if s := templateMetas[templateID].Summary; s != "" {
+		return s
+	}
+	return templateFiles[templateID].Description
+}
+
 // GetTemplate returns the workflow definition for a bundled template, keyed by
 // the ID returned from ListTemplates. Returns false if templateID is unknown.
 // The returned WorkflowFile has no ID/ProfileID/timestamps set — callers
