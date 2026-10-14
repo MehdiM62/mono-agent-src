@@ -137,10 +137,8 @@ func importCode(c *MapContext, param, code string) string {
 
 func mapCode(c *MapContext) Mapping {
 	lang := c.Literal("language", "javaScript")
-	if lang != "javaScript" {
-		c.Ignore("pythonCode")
-		c.Warn("language", lang, "Python code cannot run in mono-agent (core.code runs JavaScript)")
-		return Mapping{Unmapped: true}
+	if lang == "python" || lang == "pythonNative" {
+		return mapCodePython(c)
 	}
 	code := importCode(c, "jsCode", fmt.Sprint(c.Raw("jsCode")))
 	if c.Literal("mode", "runOnceForAllItems") == "runOnceForEachItem" {

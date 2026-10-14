@@ -208,7 +208,7 @@ atSpecifiedTime (maxDateAndTime) gives up and passes the input items on.`,
 	{
 		Type:     "core.code",
 		Category: "core",
-		Short:    "Run custom JavaScript logic on items",
+		Short:    "Run custom JavaScript or Python logic on items",
 		Config: `{
   "code": "(function () { return $input.all().map(item => ({ ...item, extra: 'hello' })); })()"
 }`,
@@ -217,7 +217,13 @@ atSpecifiedTime (maxDateAndTime) gives up and passes the input items on.`,
 		Notes: `$input has all(), first(), last() and item; $json is the first item;
 $('Node Name') gives another node's output with the same accessors. Code
 may return a promise, and code with a top-level return or await runs as an
-async function body (n8n style): return $input.all().map(...)`,
+async function body (n8n style): return $input.all().map(...)
+"language": "python" runs the code with the system python3 (MONOAGENT_PYTHON
+overrides it) as n8n's Python Code node: _items (all items, each
+{"json": ...}), or _item once per item with "mode": "runOnceForEachItem";
+_input.all()/first()/last()/item, _json and _('Node Name').all() also work,
+and items read as attributes too (item.json.x). Return a list of dicts (or
+one dict per item, None to drop it); print() goes to stderr.`,
 	},
 	{
 		Type:     "core.data_table",
