@@ -555,3 +555,17 @@ func TestInstalledProcessGuardClosesTheNoGuardRequirePath(t *testing.T) {
 		t.Errorf("Require inside a command with the process guard: %v, want a login-required refusal from the record", viaGuard)
 	}
 }
+
+// `library status` is open: signed out it reads the machine session as `account status` does,
+// and creates and migrates no database.
+func TestLibraryStatusCreatesNoDatabase(t *testing.T) {
+	accounttest.Install(t, accounttest.LockedNoLogin)
+	home := freshHome(t)
+	code, stdout, stderr := runMain(t, "--json", "library", "status", "--offline")
+	if code != 0 || !strings.Contains(stdout, `"logged_in": false`) || strings.Contains(stdout, `"profile"`) {
+		t.Fatalf("exit %d, stdout %q, stderr %q", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".monoagent", "monoagent.db")); !os.IsNotExist(err) {
+		t.Fatalf("library status created the database: %v", err)
+	}
+}
