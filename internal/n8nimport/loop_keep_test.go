@@ -12,7 +12,7 @@ func TestLoopOverItemsBackEdgeIsKept(t *testing.T) {
 	wf, rep := convertString(t, `{"name":"t","nodes":[
 	 {"name":"M","type":"n8n-nodes-base.manualTrigger","typeVersion":1,"position":[0,0],"parameters":{}},
 	 {"name":"Loop","type":"n8n-nodes-base.splitInBatches","typeVersion":3,"position":[200,0],"parameters":{"batchSize":2,"options":{"reset":true}}},
-	 {"name":"Body","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[400,100],"parameters":{}},
+	 {"name":"Body","type":"n8n-nodes-base.set","typeVersion":3.4,"position":[400,100],"parameters":{"assignments":{"assignments":[{"id":"a","name":"iter","value":"={{ $runIndex }}","type":"number"}]},"includeOtherFields":true,"options":{}}},
 	 {"name":"After","type":"n8n-nodes-base.noOp","typeVersion":1,"position":[400,-100],"parameters":{}}],
 	 "connections":{"M":{"main":[[{"node":"Loop","type":"main","index":0}]]},
 	  "Loop":{"main":[[{"node":"After","type":"main","index":0}],[{"node":"Body","type":"main","index":0}]]},
@@ -28,6 +28,9 @@ func TestLoopOverItemsBackEdgeIsKept(t *testing.T) {
 		t.Errorf("loops flattened = %d, want 0", rep.Counts.RemovedLoops)
 	}
 	loop, body, after := nodeByName(wf, "Loop"), nodeByName(wf, "Body"), nodeByName(wf, "After")
+	if a, _ := body.Config["assignments"].([]interface{}); len(a) != 1 || a[0].(map[string]interface{})["value"] != "{{ $runIndex }}" {
+		t.Errorf("body config = %v, want $runIndex kept", body.Config)
+	}
 	if loop.Config["reset"] != true {
 		t.Errorf("loop config = %v, want reset", loop.Config)
 	}
