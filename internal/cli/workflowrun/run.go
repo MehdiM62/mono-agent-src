@@ -96,6 +96,17 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 	}
 }
 
+// stoppedWait handles a wait ended by the command's own context (the
+// SIGTERM `workflow cancel` sends, or Ctrl-C): the run counts as cancelled,
+// and the returned context still reads the execution's record to report it.
+func stoppedWait(ctx context.Context, executionID string, waitErr error) (context.Context, context.CancelFunc, error) {
+	if ctx.Err() == nil {
+		return ctx, func() {}, waitErr
+	}
+	sctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	return sctx, cancel, fmt.Errorf("execution %s was cancelled", executionID)
+}
+
 // newWorkflowTemplatesRunCmd instantiates a bundled template into a throwaway
 // workflow, runs it once, and deletes it. Because each invocation gets its own
 // workflow (fresh IDs), the same template can be run many times side by side —
@@ -179,8 +190,10 @@ func (d Deps) newTemplatesRunCmd() *cobra.Command {
 			}
 
 			runErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, 15*time.Minute, d.JSONOutput()))
+			sctx, scancel, runErr := stoppedWait(ctx, executionID, runErr)
+			defer scancel()
 
-			summary, serr := d.buildExecutionSummary(ctx, executionID)
+			summary, serr := d.buildExecutionSummary(sctx, executionID)
 			if d.JSONOutput() {
 				// Same record `workflow run --json` prints after its wait:
 				// status, timestamps, and per-node output items — printed
@@ -292,8 +305,10 @@ func (d Deps) newRunCmd() *cobra.Command {
 				fmt.Fprintf(os.Stdout, "Execution started: %s\n", executionID)
 			}
 			waitErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, timeout, d.JSONOutput()))
+			sctx, scancel, waitErr := stoppedWait(ctx, executionID, waitErr)
+			defer scancel()
 
-			summary, serr := d.buildExecutionSummary(ctx, executionID)
+			summary, serr := d.buildExecutionSummary(sctx, executionID)
 			if d.JSONOutput() {
 				// Print the full record even when the run FAILED — the
 				// summary's error fields carry the reason, and waitErr
