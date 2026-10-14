@@ -377,7 +377,7 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
   const disabled = !!busy
   const activeCount = surfaces.filter(s => s.enabled).length
   const machine = part === 'machine'
-  const removable = status.key_source === 'vault' || status.key_source === 'profile-vault'
+  const removable = status.key_source === 'vault'
 
   const featuresBlock = (
     <>
@@ -536,6 +536,11 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
               <button type="button" className="btn btn-danger btn-sm" disabled={disabled} onClick={() => setConfirmRemove(true)}>Remove</button>
             )}
           </form>
+          {status.key_source === 'profile-vault' && (
+            <div data-testid="jev-adopt-hint" style={hint}>
+              {t('settings.jev.adoptHint')} <code style={{ fontFamily: mono }}>monoagentcli jev key adopt</code>
+            </div>
+          )}
           {status.key_source === 'env' && (
             <div style={hint}>The key comes from TYPESAFE_API_KEY. A key saved here goes to the vault and is used instead.</div>
           )}

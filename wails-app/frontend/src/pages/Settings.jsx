@@ -315,6 +315,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   const [connCount, setConnCount] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [profileName, setProfileName] = useState('')
+  const [apiStatus, setApiStatus] = useState(null) // the API section's status, shared with the keys block
 
   const load = useCallback(async () => {
     api.getDBPath().then(p => setDbPath(p || ''))
@@ -396,7 +397,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
             <JevSection part="machine" collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />
           </div>
 
-          <ApiSection part="machine" onNavigate={onNavigate} isActive={isActive} />
+          <ApiSection part="machine" onNavigate={onNavigate} isActive={isActive} onStatus={setApiStatus} />
 
           {/* Application Info */}
           <div ref={sectionRefs.version} data-section="version" style={headingStyle}>
@@ -460,7 +461,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
 
           <JevSection part="profile" />
 
-          <ApiKeysSection isActive={isActive} />
+          <ApiKeysSection isActive={isActive} status={apiStatus} />
 
           {/* Export people/actions as JSON (runs with --profile) */}
           <div style={headingStyle}>

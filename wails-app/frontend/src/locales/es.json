@@ -668,7 +668,8 @@
     "jev": {
       "keyProfileVault": "Definida (este perfil, se compartirá)",
       "featuresTitle": "Funciones de TypeSafe Jev",
-      "consent": "Activar una función es una decisión solo de este perfil: permite que este perfil envíe datos a TypeSafe. Los demás perfiles siguen desactivados hasta que la activen ellos."
+      "consent": "Activar una función es una decisión solo de este perfil: permite que este perfil envíe datos a TypeSafe. Los demás perfiles siguen desactivados hasta que la activen ellos.",
+      "adoptHint": "Esta clave solo está en la bóveda de este perfil. Para compartirla con todos los perfiles, ejecuta:"
     }
   },
   "orgs": {

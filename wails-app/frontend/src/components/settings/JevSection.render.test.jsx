@@ -51,11 +51,12 @@ describe('JevSection', () => {
     expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
   })
 
-  it('shows a key still in the profile vault as shared-to-be, with Test and Remove', async () => {
+  it('shows a key still in the profile vault as shared-to-be, with Test, no Remove and the adopt command', async () => {
     await mount(status('profile-vault', 'typesafe'))
     expect(screen.getByTestId('jev-key-chip')).toHaveTextContent('Set (this profile, will be shared)')
     expect(screen.getByRole('button', { name: 'Test' })).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('jev-adopt-hint')).toHaveTextContent('monoagentcli jev key adopt')
   })
 
   it('splits into the machine half (key) and the profile half (features, usage)', async () => {

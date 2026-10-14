@@ -40,8 +40,9 @@ const SUPERSEDED = Symbol('superseded')
  *   Without it, always.
  * @param {'all'|'machine'} part 'machine' leaves out the API keys, which are the active profile's and have their own
  *   block (ApiKeysSection); left out, the whole section.
+ * @param {(status: object) => void} onStatus Told each status that was read, for the parts of Settings that need it.
  */
-export default function ApiSection({ onNavigate, isActive = true, part = 'all' } = {}) {
+export default function ApiSection({ onNavigate, isActive = true, part = 'all', onStatus } = {}) {
   const { t } = useTranslation()
   const bodyId = useId()
   const [expanded, setExpanded] = useState(false)
@@ -70,7 +71,7 @@ export default function ApiSection({ onNavigate, isActive = true, part = 'all' }
     try {
       const st = await APIStatus()
       if (mine !== seq.current.status) return SUPERSEDED
-      setStatus(st); setStatusErr(''); return st
+      setStatus(st); setStatusErr(''); onStatus?.(st); return st
     } catch (e) {
       if (mine !== seq.current.status) return SUPERSEDED
       setStatusErr(apiError(e, tRef.current)); return null

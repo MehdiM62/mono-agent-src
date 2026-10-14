@@ -39,7 +39,17 @@ describe('API section parts', () => {
     render(<ApiKeysSection />)
     await waitFor(() => expect(App.APIKeyList).toHaveBeenCalledTimes(1))
     expect(screen.getByTestId('api-keys-section')).toBeInTheDocument()
+    expect(App.APIStatus).not.toHaveBeenCalled()
     expect(App.APIModels).not.toHaveBeenCalled()
     expect(App.APIConfigShow).not.toHaveBeenCalled()
+  })
+
+  it('tells the status it read, so that nothing else has to ask for it', async () => {
+    const { default: ApiSection } = await import('./ApiSection.jsx')
+    const onStatus = vi.fn()
+    render(<ApiSection part="machine" onStatus={onStatus} />)
+    await waitFor(() => expect(onStatus).toHaveBeenCalledTimes(1))
+    expect(onStatus.mock.calls[0][0]).toEqual(statusOf([mainListener()]))
+    expect(App.APIStatus).toHaveBeenCalledTimes(1)
   })
 })

@@ -668,7 +668,8 @@
     "jev": {
       "keyProfileVault": "Set (this profile, will be shared)",
       "featuresTitle": "TypeSafe Jev features",
-      "consent": "Turning a feature on is a choice for this profile only: it lets this profile send data to TypeSafe. Other profiles stay off until they turn it on themselves."
+      "consent": "Turning a feature on is a choice for this profile only: it lets this profile send data to TypeSafe. Other profiles stay off until they turn it on themselves.",
+      "adoptHint": "This key is still only in this profile's vault. To share it with every profile, run:"
     }
   },
   "orgs": {
