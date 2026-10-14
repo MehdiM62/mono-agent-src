@@ -1,4 +1,4 @@
-package main
+package doctor
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/autostart"
+	"github.com/monoes/mono-agent/internal/cli/capture"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -73,13 +74,13 @@ func TestInstallMonomindChecksWhichCopyIsUsed(t *testing.T) {
 }
 
 func TestDaemonArgsCarryDoctorsFlags(t *testing.T) {
-	if got := daemonArgs(&globalConfig{DBPath: defaultDBPath}, "default"); strings.Join(got, " ") != "daemon" {
+	if got := daemonArgs(capturecli.DefaultDBPath, "", "default"); strings.Join(got, " ") != "daemon" {
 		t.Errorf("defaults: %v", got)
 	}
-	if got := daemonArgs(&globalConfig{DBPath: defaultDBPath, ProfileID: "default"}, "default"); strings.Join(got, " ") != "daemon" {
+	if got := daemonArgs(capturecli.DefaultDBPath, "default", "default"); strings.Join(got, " ") != "daemon" {
 		t.Errorf("default profile: %v", got)
 	}
-	got := daemonArgs(&globalConfig{DBPath: "/tmp/x.db", ProfileID: "Work"}, "p-123")
+	got := daemonArgs("/tmp/x.db", "Work", "p-123")
 	if strings.Join(got, " ") != "daemon --db-path /tmp/x.db --profile p-123" {
 		t.Errorf("flags: %v", got)
 	}
@@ -214,15 +215,16 @@ func TestBridgeUserServiceVerifiesMainPID(t *testing.T) {
 // lookup failing only means the key is not in the vault.
 func TestHealthEnvJevKeyHook(t *testing.T) {
 	t.Setenv("TYPESAFE_API_KEY", "")
-	missing := &globalConfig{DBPath: filepath.Join(t.TempDir(), "none.db")}
+	missing := filepath.Join(t.TempDir(), "none.db")
 	unmigrated := filepath.Join(t.TempDir(), "raw.db")
 	raw, err := storage.NewDatabase(unmigrated)
 	if err != nil {
 		t.Fatal(err)
 	}
 	raw.Close()
-	for name, cfg := range map[string]*globalConfig{"no db": missing, "unmigrated": {DBPath: unmigrated}} {
-		env, closeFn := newHealthEnv(cfg)
+	for name, path := range map[string]string{"no db": missing, "unmigrated": unmigrated} {
+		env, closeFn := NewHealthEnv(EnvDeps{DBPath: func() string { return path }, ProfileID: func() string { return "" },
+			Version: func() string { return "test" }}, nil)
 		t.Setenv("TYPESAFE_API_KEY", "")
 		if src, err := env.JevKey(t.Context()); err == nil || src != "" {
 			t.Errorf("%s without key: %q %v", name, src, err)
