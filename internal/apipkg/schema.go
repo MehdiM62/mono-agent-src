@@ -1,6 +1,7 @@
 package apipkg
 
 import (
+	"bytes"
 	"encoding/json"
 	"sort"
 	"strings"
@@ -60,6 +61,7 @@ func (p *Package) nodeSchema() ([]byte, bool) {
 		"apipkg":              p.ID,
 		"credential_platform": nil,
 		"fields":              fields,
+		"outputs":             p.schemaOutputs(false),
 	}
 	if p.DocsURL != "" {
 		doc["docs_url"] = p.DocsURL
@@ -67,8 +69,19 @@ func (p *Package) nodeSchema() ([]byte, bool) {
 	if pl := p.PrimaryPlatform(); pl != "" {
 		doc["credential_platform"] = pl
 	}
-	b, err := json.Marshal(doc)
-	return b, err == nil
+	return marshalSchema(doc)
+}
+
+// marshalSchema encodes a schema document without escaping <, > and &,
+// so "<API response fields>" reads as written in `node schema`.
+func marshalSchema(doc map[string]any) ([]byte, bool) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(doc); err != nil {
+		return nil, false
+	}
+	return bytes.TrimRight(buf.Bytes(), "\n"), true
 }
 
 func (p *Package) categoryOrApp() string {
@@ -261,10 +274,10 @@ func (p *Package) extendSchema(base []byte) ([]byte, bool) {
 		fields = append(fields, f)
 	}
 	doc["fields"] = fields
+	p.extendOutputs(doc)
 	exts, _ := doc["extended_by"].([]any)
 	doc["extended_by"] = append(exts, p.ID)
-	b, err := json.Marshal(doc)
-	return b, err == nil
+	return marshalSchema(doc)
 }
 
 func containsAny(xs []any, s string) bool {

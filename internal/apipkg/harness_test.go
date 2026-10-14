@@ -249,6 +249,7 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 	if e := c.Expect; e.Items != nil && len(items) != *e.Items {
 		t.Errorf("%s: items: got %d, want %d", where, len(items), *e.Items)
 	}
+	checkItemOutputs(t, where, p, op, items)
 }
 
 func checkQuery(t *testing.T, where string, got url.Values, want map[string]any, c *Credential) {

@@ -58,6 +58,9 @@ type Package struct {
 	// Webhook registers the app's webhook trigger with the vendor on
 	// activation (see webhook.go).
 	Webhook *Webhook `json:"webhook,omitempty"`
+	// Outputs are the keys of every op's items, for ops that declare
+	// none (see Operation.Outputs).
+	Outputs []workflow.NodeSchemaOutput `json:"outputs,omitempty"`
 
 	// Source is where the package was loaded from ("catalog" or a file
 	// path). Not part of the file.
@@ -261,6 +264,9 @@ type Operation struct {
 	// op for all input items as one request per chunk (n8n's "bulk
 	// operation" option: Elasticsearch _bulk) instead of one per item.
 	Bulk *Bulk `json:"bulk,omitempty"`
+	// Outputs are the keys of the op's items as the node schema lists
+	// them. Unset, they are derived from binary and output (outputs.go).
+	Outputs []workflow.NodeSchemaOutput `json:"outputs,omitempty"`
 }
 
 // Bulk is an operation's one-request-for-many-items variant. The batch
