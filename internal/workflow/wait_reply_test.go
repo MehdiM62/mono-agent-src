@@ -341,3 +341,13 @@ func TestWaitReply_AnswerWakesRun(t *testing.T) {
 	}
 	t.Fatalf("no successful Ask node in %+v", exec.Nodes)
 }
+
+func TestExecutionResumeURLExpression(t *testing.T) {
+	fixedReplyKey(t)
+	t.Setenv("MONOAGENT_PUBLIC_URL", "https://hooks.example.com")
+	want, _ := ExecutionResumeURL("e1")
+	got, err := NewExpressionEngine().EvaluateString(`{{ $execution.resumeUrl }}|{{ $execution.id }}`, ExpressionContext{ExecutionID: "e1"})
+	if err != nil || got != want+"|e1" {
+		t.Fatalf("got %q, %v; want %q", got, err, want+"|e1")
+	}
+}

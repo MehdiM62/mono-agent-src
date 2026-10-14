@@ -101,6 +101,7 @@ type WaitReply struct {
 
 // Pause is the error a node returns to wait for this reply: the run waits
 // (WAITING, no slot held) until the answer wakes it or the limit passes.
+// The reason (shown with the waiting run) names the reply URL.
 func (r WaitReply) Pause() error {
 	d := waitReplyPoll
 	if !r.Limit.IsZero() {
@@ -108,7 +109,7 @@ func (r WaitReply) Pause() error {
 			d = max(left, time.Second)
 		}
 	}
-	return PauseFor(d, "waiting for a reply")
+	return PauseFor(d, "waiting for a reply at "+r.URL)
 }
 
 // WaitReplyResult is the state of a node's open reply.
@@ -319,4 +320,17 @@ func openReply(ctx context.Context, db *sql.DB, input NodeInput) (*WaitReplyResu
 		_ = json.Unmarshal([]byte(answer), &res.Answer)
 	}
 	return res, nil
+}
+
+// executionData is $execution: its id and, when withURLs, the resume URL
+// n8n templates reach as $execution.resumeUrl / resumeFormUrl (one URL
+// serves both a core.wait webhook and form).
+func executionData(id string, withURLs bool) map[string]interface{} {
+	m := map[string]interface{}{"id": id}
+	if withURLs && id != "" {
+		if u, err := ExecutionResumeURL(id); err == nil {
+			m["resumeUrl"], m["resumeFormUrl"] = u, u
+		}
+	}
+	return m
 }

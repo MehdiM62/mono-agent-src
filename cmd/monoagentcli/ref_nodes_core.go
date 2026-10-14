@@ -177,10 +177,18 @@ or per workflow with scope "workflow"; historySize caps the stored values).
 	{
 		Type:     "core.wait",
 		Category: "core",
-		Short:    "Pause execution for a fixed duration",
-		Config:   `{ "seconds": 5 }`,
+		Short:    "Pause for a time, or until a resume URL is called or its form answered",
+		Config:   `{ "duration": 5 }  |  { "resume": "webhook", "httpMethod": "POST" }  |  { "resume": "form", "formFields": [{ "fieldLabel": "Name", "requiredField": true }] }`,
 		Inputs:   "any items (passed through unchanged)",
-		Outputs:  "same items after waiting",
+		Outputs:  "same items after a time wait; webhook: the call (body, query, headers, method); form: the answers + submittedAt",
+		Description: `resume duration|timeInterval|specificTime waits for a time. resume webhook
+waits for a call to {{ $execution.resumeUrl }}; resume form serves a form
+there (same URL, $execution.resumeFormUrl). Send the URL out before the wait
+(e.g. in a message). The run pauses durably and holds no slot; the call wakes
+it at once. Links are http://127.0.0.1:9321/reply/... unless
+MONOAGENT_PUBLIC_URL names how the webhook server is reached from outside.
+limitWaitTime with limitType afterTimeInterval (resumeAmount, resumeUnit) or
+atSpecifiedTime (maxDateAndTime) gives up and passes the input items on.`,
 	},
 	{
 		Type:     "core.stop_error",

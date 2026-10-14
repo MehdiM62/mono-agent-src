@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"net/http"
 	"time"
 )
 
@@ -66,3 +67,7 @@ func (e *WorkflowEngine) wakeForReply(executionID string) {
 		}
 	}
 }
+
+// WebhookHandler is the engine's webhook server as a handler (webhooks and
+// replies), for serving it elsewhere or driving it in tests.
+func (e *WorkflowEngine) WebhookHandler() http.Handler { return e.webhookServer }

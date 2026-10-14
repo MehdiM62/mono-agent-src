@@ -25,6 +25,8 @@ const inMemoryWaitLimit = 60 * time.Second
 //	    (seconds|minutes|hours|days, default hours)
 //	"resume": "specificTime" with "dateTime" (RFC 3339, or local
 //	    "2006-01-02T15:04[:05]" / "2006-01-02 15:04[:05]" / "2006-01-02")
+//	"resume": "webhook" or "form": waits for a call to, or a form answered
+//	    at, the execution's resume URL (wait_reply.go)
 type WaitNode struct{}
 
 func (n *WaitNode) Type() string { return "core.wait" }
@@ -36,6 +38,9 @@ type waitState struct {
 }
 
 func (n *WaitNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if resume, _ := config["resume"].(string); resume == "webhook" || resume == "form" {
+		return waitForReply(ctx, input, config, resume)
+	}
 	var until time.Time
 	if raw := workflow.NodeStateFromContext(ctx); raw != nil {
 		var st waitState
@@ -110,7 +115,7 @@ func waitTarget(config map[string]interface{}, now time.Time) (time.Time, error)
 		}
 		return now.Add(time.Duration(amount * float64(per))), nil
 	case resume != "" && resume != "duration":
-		return time.Time{}, fmt.Errorf("%w: wait node \"resume\" must be duration, timeInterval or specificTime, got %q", workflow.ErrInvalidConfig, resume)
+		return time.Time{}, fmt.Errorf("%w: wait node \"resume\" must be duration, timeInterval, specificTime, webhook or form, got %q", workflow.ErrInvalidConfig, resume)
 	}
 
 	rawDuration, ok := config["duration"]
