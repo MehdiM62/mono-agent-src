@@ -5,6 +5,7 @@ import { APIKeyRename, APIKeySetContext, APIKeyRevoke } from '../../../wailsjs/g
 import { confirm } from '../../ConfirmDialog.jsx'
 import { Switch } from '../JevSection.jsx'
 import ApiKeyDialog from './ApiKeyDialog.jsx'
+import { ScopeTag } from '../ScopeGroup.jsx'
 import KeyNameEditor from './KeyNameEditor.jsx'
 import { apiError, classify, describeApiError } from './apiError.js'
 import { formatDate, relativeTime } from './apiModel.js'
@@ -101,6 +102,7 @@ export default function ApiKeysBlock({ keys, err, contextClasses = [], onChanged
     <div style={block}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={label}>{t('settings.api.keys.title')}</span>
+        <ScopeTag scope="profile" />
         <span style={{ ...hint, flex: 1, minWidth: 220 }}>{t('settings.api.keys.hint')}</span>
         <button type="button" className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>
           <Plus size={12} /> {t('settings.api.keys.create')}

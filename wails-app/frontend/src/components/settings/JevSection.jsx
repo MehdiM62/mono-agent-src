@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronRight, ChevronDown, ChevronUp, KeyRound, ShieldAlert, Zap, Loader2 } from 'lucide-react'
+import { ScopeTag } from './ScopeGroup.jsx'
 import { JevStatus, JevSetKey, JevTestKey, JevRemoveKey, JevSetSurface, JevUsage } from '../../wailsjs/go/main/App'
 
 // TypeSafe Jev settings. Everything goes through `monoagentcli jev …` (Go
@@ -460,6 +461,7 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={label}>API key</span>
+            <ScopeTag scope="global" />
             <span data-testid="jev-key-chip" style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: mono, fontSize: 10.5,
               color: chip.color, background: chip.bg, border: `1px solid ${chip.bd}`, borderRadius: 99, padding: '2px 9px',
@@ -516,7 +518,11 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
 
         {/* Features */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <span style={label}>Features</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={label}>Features</span>
+            <ScopeTag scope="profile" />
+            <span style={hint}>Turning a feature on is a choice for this profile only: it lets this profile send data to TypeSafe.</span>
+          </div>
           {!hasKey && surfaces.some(s => s.enabled) && (
             <div style={{ ...hint, color: 'var(--yellow)' }}>Enabled features stay inactive until a key is set.</div>
           )}

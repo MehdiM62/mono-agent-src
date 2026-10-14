@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link2, ExternalLink, Download, Bot } from 'lucide-react'
 import { api } from '../services/api.js'
-import { GetVersion, CheckForUpdate, AppSelfUpdate } from '../wailsjs/go/main/App'
+import { GetVersion, CheckForUpdate, AppSelfUpdate, GetActiveProfile } from '../wailsjs/go/main/App'
 import { getAssistantTools, getAssistantAllowRuns, setAssistantTools, setAssistantAllowRuns } from '../lib/assistantTools.js'
 import RefreshButton from '../components/RefreshButton.jsx'
 import HealthSection from '../components/settings/HealthSection.jsx'
@@ -11,6 +11,10 @@ import JevSection from '../components/settings/JevSection.jsx'
 import ApiSection from '../components/settings/ApiSection.jsx'
 import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
+import { ScopeGroup } from '../components/settings/ScopeGroup.jsx'
+
+const headingStyle = { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }
+const headingText = { fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 2 }
 
 // ── VersionRow ──────────────────────────────────────────────────────────────
 
@@ -309,10 +313,12 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   const [dbConnected, setDbConnected] = useState(false)
   const [connCount, setConnCount] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [profileName, setProfileName] = useState('')
 
   const load = useCallback(async () => {
     api.getDBPath().then(p => setDbPath(p || ''))
     api.isDBConnected().then(c => setDbConnected(!!c))
+    try { GetActiveProfile().then(p => setProfileName(p?.name || '')).catch(() => {}) } catch { /* no name: the heading says "the active profile" */ }
     // Count active connections
     return api.listConnections('').then(conns => {
       if (Array.isArray(conns)) {
@@ -342,141 +348,146 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
       </div>
 
       <div className="page-body">
-        {/* System health (monoagentcli doctor) */}
-        <div ref={sectionRefs.health} data-section="health" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 2 }}>
-            {t('settings.health.sectionTitle')}
-          </span>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        </div>
-
-        <HealthSection onNavigate={onNavigate} collapsible defaultExpanded={false} />
-        <BrowserBindingsSection />
-
-        {/* Quick access cards */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 2 }}>
-            {t('settings.quickAccess')}
-          </span>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
-          <QuickAccessCard
-            icon={Link2}
-            title={t('settings.connectionsTitle')}
-            description={t('settings.connectionsDesc')}
-            stats={connCount}
-            onClick={() => onNavigate?.('connections')}
-          />
-          <QuickAccessCard
-            icon={Bot}
-            title={t('settings.aiAgentsTitle')}
-            description={t('settings.aiAgentsDesc')}
-            onClick={() => onNavigate?.('ai')}
-          />
-        </div>
-
-        {/* Language */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 2 }}>
-            {t('settings.language.sectionTitle')}
-          </span>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        </div>
-
-        <LanguageSection />
-
-        {/* Assistant tool access */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 2 }}>
-            Assistant Tool Access
-          </span>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        </div>
-
-        <AssistantToolsSection />
-
-        {/* Coder mode (#203) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 2 }}>
-            Coder Mode
-          </span>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        </div>
-
-        <CoderModeSection />
-
-        <div ref={sectionRefs.jev} data-section="jev">
-          <JevSection collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />
-        </div>
-
-        <ApiSection onNavigate={onNavigate} isActive={isActive} />
-
-        {/* Application Info */}
-        <div ref={sectionRefs.version} data-section="version" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 2 }}>
-            Application Info
-          </span>
-          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        </div>
-
-        <div style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '16px 20px',
-          display: 'flex', flexDirection: 'column', gap: 14,
-          marginBottom: 16,
-        }}>
-          {/* DB path */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, flexShrink: 0, paddingTop: 1 }}>
-              Database Path
-            </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)', wordBreak: 'break-all', textAlign: 'right' }}>
-              {dbPath || '—'}
-            </span>
+        <ScopeGroup scope="global">
+          {/* AI agents (runtimes are installed per machine) */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
+            <QuickAccessCard
+              icon={Bot}
+              title={t('settings.aiAgentsTitle')}
+              description={t('settings.aiAgentsDesc')}
+              onClick={() => onNavigate?.('ai')}
+            />
           </div>
 
-          {/* DB status */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
-              Database Status
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{
-                width: 7, height: 7, borderRadius: '50%',
-                background: dbConnected ? 'var(--green-neon)' : 'var(--red)',
-                boxShadow: dbConnected ? '0 0 5px var(--green-neon)' : 'none',
-              }} />
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: dbConnected ? 'var(--green-neon)' : 'var(--red)' }}>
-                {dbConnected ? 'Connected' : 'Disconnected'}
+          {/* System health (monoagentcli doctor) */}
+          <div ref={sectionRefs.health} data-section="health" style={headingStyle}>
+            <span style={headingText}>{t('settings.health.sectionTitle')}</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <HealthSection onNavigate={onNavigate} collapsible defaultExpanded={false} />
+
+          {/* Language */}
+          <div style={headingStyle}>
+            <span style={headingText}>{t('settings.language.sectionTitle')}</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <LanguageSection />
+
+          {/* Assistant tool access */}
+          <div style={headingStyle}>
+            <span style={headingText}>Assistant Tool Access</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <AssistantToolsSection />
+
+          {/* Coder mode (#203) */}
+          <div style={headingStyle}>
+            <span style={headingText}>Coder Mode</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <CoderModeSection />
+
+          <div ref={sectionRefs.jev} data-section="jev">
+            <JevSection collapsible defaultExpanded={section === 'jev'} expandToken={section === 'jev' ? navData : null} />
+          </div>
+
+          <ApiSection onNavigate={onNavigate} isActive={isActive} />
+
+          {/* Application Info */}
+          <div ref={sectionRefs.version} data-section="version" style={headingStyle}>
+            <span style={headingText}>Application Info</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            display: 'flex', flexDirection: 'column', gap: 14,
+            marginBottom: 16,
+          }}>
+            {/* DB path */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, flexShrink: 0, paddingTop: 1 }}>
+                Database Path
+              </span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)', wordBreak: 'break-all', textAlign: 'right' }}>
+                {dbPath || '—'}
               </span>
             </div>
+
+            {/* DB status */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                Database Status
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: dbConnected ? 'var(--green-neon)' : 'var(--red)',
+                  boxShadow: dbConnected ? '0 0 5px var(--green-neon)' : 'none',
+                }} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: dbConnected ? 'var(--green-neon)' : 'var(--red)' }}>
+                  {dbConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+            </div>
+
+            {/* App version + update */}
+            <VersionRow />
+          </div>
+        </ScopeGroup>
+
+        <ScopeGroup scope="profile" profileName={profileName}>
+          {/* Connections (OAuth credentials and accounts are the profile's) */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
+            <QuickAccessCard
+              icon={Link2}
+              title={t('settings.connectionsTitle')}
+              description={t('settings.connectionsDesc')}
+              stats={connCount}
+              onClick={() => onNavigate?.('connections')}
+            />
           </div>
 
-          {/* Export people/actions as JSON */}
-          <ExportRow />
+          <BrowserBindingsSection />
 
-          {/* App version + update */}
-          <VersionRow />
-        </div>
+          {/* Export people/actions as JSON (runs with --profile) */}
+          <div style={headingStyle}>
+            <span style={headingText}>Data Export</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
 
-        {/* Note */}
-        <div style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: 11,
-          color: 'var(--text-muted)',
-          lineHeight: 1.6,
-          padding: '10px 14px',
-          background: 'rgba(0,245,212,.04)',
-          border: '1px solid rgba(0,245,212,.12)',
-          borderRadius: 'var(--radius)',
-        }}>
-          All authentication is managed in <strong style={{ color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => onNavigate?.('connections')}>Connections</strong>.
-          OAuth credentials, API keys, and browser sessions are configured there.
-        </div>
+          <div style={{
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: 16,
+          }}>
+            <ExportRow />
+          </div>
+
+          {/* Note */}
+          <div style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            lineHeight: 1.6,
+            padding: '10px 14px',
+            background: 'rgba(0,245,212,.04)',
+            border: '1px solid rgba(0,245,212,.12)',
+            borderRadius: 'var(--radius)',
+          }}>
+            All authentication is managed in <strong style={{ color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => onNavigate?.('connections')}>Connections</strong>.
+            OAuth credentials, API keys, and browser sessions are configured there.
+          </div>
+        </ScopeGroup>
       </div>
     </>
   )

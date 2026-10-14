@@ -657,6 +657,15 @@
           "done": "The saved settings were reset. Every setting is back to its environment variable or its default."
         }
       }
+    },
+    "scope": {
+      "globalTitle": "All profiles",
+      "globalLine": "Applies to this whole machine, every profile.",
+      "profileTitle": "This profile",
+      "profileLine": "Applies only to the profile {{name}}. Other profiles keep their own.",
+      "profileLineNoName": "Applies only to the active profile. Other profiles keep their own.",
+      "tagGlobal": "Machine-wide",
+      "tagProfile": "This profile only"
     }
   },
   "orgs": {
