@@ -97,7 +97,13 @@ func newJevKeyAdoptCmd(d Deps) *cobra.Command {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			res, err := jevconf.Adopt(cmd.Context(), db.DB, from)
+			fromID := ""
+			if from != "" {
+				if fromID, err = d.ResolveProfile(db.DB, from); err != nil {
+					return err
+				}
+			}
+			res, err := jevconf.Adopt(cmd.Context(), db.DB, fromID)
 			switch {
 			case errors.Is(err, jev.ErrNoAPIKey):
 				return clicore.NotFound("no TypeSafe key in any profile's vault")
@@ -113,7 +119,7 @@ func newJevKeyAdoptCmd(d Deps) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&from, "from-profile", "", "Profile id whose key to copy (default: the most recently updated)")
+	cmd.Flags().StringVar(&from, "from-profile", "", "Profile id or name whose key to copy (default: the most recently updated)")
 	return cmd
 }
 

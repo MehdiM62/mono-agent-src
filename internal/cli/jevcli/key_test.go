@@ -131,18 +131,25 @@ func TestJevKeyAdopt(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	add("alice", "alice-key", "2026-01-01T00:00:00Z")
-	add("bob", "bob-key", "2026-06-01T00:00:00Z")
+	if _, err := db.Exec(`INSERT INTO profiles (id, name) VALUES ('p-alice', 'Alice'), ('p-bob', 'Bob')`); err != nil {
+		t.Fatal(err)
+	}
+	add("p-alice", "alice-key", "2026-01-01T00:00:00Z")
+	add("p-bob", "bob-key", "2026-06-01T00:00:00Z")
 
+	// The profile may be named by its name, not only its id.
 	out, _, err := runJev(t, cfg, "", "key", "adopt", "--from-profile", "alice")
-	if err != nil || !strings.Contains(out, `"from_profile": "alice"`) {
+	if err != nil || !strings.Contains(out, `"from_profile": "p-alice"`) {
 		t.Fatalf("adopt: %v %s", err, out)
 	}
 	if key, src, err := jevconf.ResolveKey(t.Context(), db, "", ""); err != nil || key != "alice-key" || src != "vault" {
 		t.Fatalf("resolve = %q %q %v", key, src, err)
 	}
-	if es, _ := secrets.List(t.Context(), db, "alice"); len(es) != 1 {
+	if es, _ := secrets.List(t.Context(), db, "p-alice"); len(es) != 1 {
 		t.Fatalf("alice's entry was removed: %+v", es)
+	}
+	if _, _, err = runJev(t, cfg, "", "key", "adopt", "--from-profile", "nobody"); clicore.ExitCodeFor(err) == 0 {
+		t.Fatal("an unknown profile name must fail")
 	}
 	if _, _, err = runJev(t, cfg, "", "key", "adopt"); clicore.ExitCodeFor(err) == 0 {
 		t.Fatal("adopt must not replace an existing machine key")
