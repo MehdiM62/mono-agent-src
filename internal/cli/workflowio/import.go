@@ -334,6 +334,14 @@ func (d Deps) newImportCmd() *cobra.Command {
 			if err := workflow.ValidateConnectionsAgainstNodes(wf.Nodes, wf.Connections); err != nil {
 				return err
 			}
+			// The rest of `workflow validate` only warns: the file is
+			// imported to be fixed here. --from n8n lists the same errors
+			// in its report.
+			if from := cmd.Flags().Lookup("from"); from == nil || from.Value.String() == "" {
+				for _, e := range workflow.ValidateWorkflow(&wf, workflow.ValidateOptions{}).Errors {
+					warnings = append(warnings, "fails `workflow validate`: "+e)
+				}
+			}
 
 			if err := d.CreateWorkflow(ctx, store, &wf, overwrite); err != nil {
 				return err
