@@ -41,6 +41,7 @@ func buildNodeDocs() []nodeDoc {
 	docs = upsertNodeDocs(docs, dbNodeDocs...)
 	docs = append(docs, imageEditNodeDocs...)
 	docs = append(docs, moreNodeDocs...)
+	docs = append(docs, moreAgentNodeDocs...)
 	docs = append(docs, moreServiceNodeDocs...)
 	docs = append(docs, vectorNodeDocs...)
 	return docs
