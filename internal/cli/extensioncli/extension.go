@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/extension"
 )
 
@@ -21,7 +22,7 @@ import (
 // impersonate the extension. Pairing gives it one: the server and the
 // extension both authenticate against the same shared secret in
 // ~/.monoagent/extension.token.
-func newExtensionCmd(cfg *globalConfig) *cobra.Command {
+func newExtensionCmd(cfg *Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "extension",
 		// The product calls itself "MonoAgent Bridge" everywhere a user
@@ -34,14 +35,14 @@ func newExtensionCmd(cfg *globalConfig) *cobra.Command {
 		Short:   "Run, inspect and pair the MonoAgent Bridge Chrome extension channel",
 	}
 	cmd.AddCommand(
-		newExtensionServeCmd(),
+		newExtensionServeCmd(cfg),
 		newExtensionStatusCmd(cfg),
 		newExtensionPairCmd(),
 		newExtensionResetCmd(),
 		newExtensionBrowsersCmd(cfg),
 		newExtensionBindCmd(cfg),
 		newExtensionUnbindCmd(cfg),
-		newExtensionInstallCmd(),
+		newExtensionInstallCmd(cfg),
 	)
 	return cmd
 }
@@ -125,7 +126,7 @@ var openInBrowser = func(url string) error {
 	if b := strings.TrimSpace(strings.Split(os.Getenv("BROWSER"), string(os.PathListSeparator))[0]); b != "" {
 		return exec.Command(b, url).Start()
 	}
-	return openURLInBrowser(url)
+	return clicore.OpenURLInBrowser(url)
 }
 
 func newExtensionResetCmd() *cobra.Command {

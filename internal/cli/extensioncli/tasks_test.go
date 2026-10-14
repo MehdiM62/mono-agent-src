@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"context"
@@ -400,7 +400,7 @@ func TestTaskSinkCutsALongTextRatherThanRefusingIt(t *testing.T) {
 // serve`'s and a workflow run's all come from newExtensionServer.
 func TestEveryBridgeAnswersTaskAdd(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	srv := newExtensionServer(zerolog.Nop())
+	srv := newExtensionServer(zerolog.Nop(), "test")
 	for _, m := range srv.RequestMethods() {
 		if m == extension.MethodTaskAdd {
 			return

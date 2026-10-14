@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"archive/zip"
@@ -12,7 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/cli/update"
 	"github.com/monoes/mono-agent/internal/release"
+	"github.com/monoes/mono-agent/internal/updatecheck"
 	"github.com/spf13/cobra"
 )
 
@@ -22,13 +24,16 @@ const extensionZipAsset = "monoagent-chrome-extension.zip"
 
 // extensionReleasesURL is the releases page every extension download URL is
 // built from (a variable so tests can point it at a fake server).
-var extensionReleasesURL = "https://github.com/" + releasesRepo + "/releases"
+var extensionReleasesURL = "https://github.com/" + update.ReleasesRepo + "/releases"
 
 // maxExtensionZip bounds the download and every unpacked file. The release
 // zip is about 1.5 MB.
 const maxExtensionZip = 64 << 20
 
-func newExtensionInstallCmd() *cobra.Command {
+// httpGetAll downloads a release asset (a var so tests can serve one).
+var httpGetAll = update.HTTPGetAll
+
+func newExtensionInstallCmd(cfg *Deps) *cobra.Command {
 	var zipPath string
 	cmd := &cobra.Command{
 		Use:   "install",
@@ -57,7 +62,7 @@ func newExtensionInstallCmd() *cobra.Command {
 				fmt.Fprintf(out, "Using %s (a local file: not checked against a release).\n", zipPath)
 				data = b
 			} else {
-				b, err := downloadExtensionZip(out, getVersion())
+				b, err := downloadExtensionZip(out, cfg.Version())
 				if err != nil {
 					return err
 				}
@@ -82,7 +87,7 @@ func newExtensionInstallCmd() *cobra.Command {
 // extensionDownloadBase is where this version's release assets live: the
 // tagged release, or the latest one for a development build.
 func extensionDownloadBase(version string) string {
-	if isDevVersion(version) {
+	if update.IsDevVersion(version) {
 		return extensionReleasesURL + "/latest/download"
 	}
 	return extensionReleasesURL + "/download/" + version
@@ -113,12 +118,12 @@ func downloadExtensionZip(out io.Writer, version string) ([]byte, error) {
 	m, err := rc.Latest(ctx)
 	switch {
 	case err == nil:
-		if !isDevVersion(version) && m.Version != version {
+		if !update.IsDevVersion(version) && m.Version != version {
 			return nil, fmt.Errorf("the signed manifest at %s is for %s, not %s; nothing was installed", base, m.Version, version)
 		}
 		a, aerr := m.Asset(extensionZipAsset, "", "", "extension")
 		if aerr != nil {
-			fmt.Fprintf(out, "Manifest signature verified, but release %s lists no extension in it (an older release); checking against %s instead.\n", m.Version, sha256SumsAssetName)
+			fmt.Fprintf(out, "Manifest signature verified, but release %s lists no extension in it (an older release); checking against %s instead.\n", m.Version, updatecheck.SumsAssetName)
 			break
 		}
 		fmt.Fprintf(out, "Manifest signature verified (release %s).\n", m.Version)
@@ -134,7 +139,7 @@ func downloadExtensionZip(out io.Writer, version string) ([]byte, error) {
 	case !release.AllowLegacyGitHubUpdates:
 		return nil, fmt.Errorf("cannot verify the extension: %w", err)
 	default:
-		fmt.Fprintf(out, "No signed manifest to check against (%v); checking against %s only.\n", err, sha256SumsAssetName)
+		fmt.Fprintf(out, "No signed manifest to check against (%v); checking against %s only.\n", err, updatecheck.SumsAssetName)
 	}
 	fmt.Fprintf(out, "Downloading %s (%s)...\n", extensionZipAsset, base)
 	data, err := httpGetAll(base + "/" + extensionZipAsset)
@@ -144,14 +149,14 @@ func downloadExtensionZip(out io.Writer, version string) ([]byte, error) {
 	if len(data) > maxExtensionZip {
 		return nil, fmt.Errorf("%s is larger than %d bytes; refusing it", extensionZipAsset, maxExtensionZip)
 	}
-	sums, err := httpGetAll(base + "/" + sha256SumsAssetName)
+	sums, err := httpGetAll(base + "/" + updatecheck.SumsAssetName)
 	if err != nil {
-		return nil, fmt.Errorf("fetch %s: %w", sha256SumsAssetName, err)
+		return nil, fmt.Errorf("fetch %s: %w", updatecheck.SumsAssetName, err)
 	}
-	if err := verifyReleaseDigest(data, sums, extensionZipAsset); err != nil {
+	if err := updatecheck.VerifyReleaseDigest(data, sums, extensionZipAsset); err != nil {
 		return nil, err
 	}
-	fmt.Fprintf(out, "Checksum verified: %s SHA256 %s\n", extensionZipAsset, sha256Hex(data))
+	fmt.Fprintf(out, "Checksum verified: %s SHA256 %s\n", extensionZipAsset, updatecheck.SHA256Hex(data))
 	return data, nil
 }
 

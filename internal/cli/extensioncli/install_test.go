@@ -1,4 +1,4 @@
-package main
+package extensioncli
 
 import (
 	"archive/zip"
@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/monoes/mono-agent/internal/updatecheck"
 )
 
 // fixtureExtensionZip builds a zip shaped like the release asset: every file
@@ -40,7 +42,7 @@ func fakeExtensionRelease(t *testing.T, zipData []byte, sumsDigest string) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/"+extensionZipAsset):
 			_, _ = w.Write(zipData)
-		case strings.HasSuffix(r.URL.Path, "/"+sha256SumsAssetName):
+		case strings.HasSuffix(r.URL.Path, "/"+updatecheck.SumsAssetName):
 			_, _ = w.Write([]byte(sumsDigest + "  " + extensionZipAsset + "\n"))
 		default:
 			http.NotFound(w, r)
@@ -54,7 +56,7 @@ func fakeExtensionRelease(t *testing.T, zipData []byte, sumsDigest string) {
 
 func runExtensionInstall(t *testing.T, args ...string) (string, error) {
 	t.Helper()
-	cmd := newExtensionInstallCmd()
+	cmd := newExtensionInstallCmd(testDeps(false))
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -88,7 +90,7 @@ func TestExtensionInstallDownloadsVerifiesAndUnpacks(t *testing.T) {
 		"chrome-extension/manifest.json":    `{"manifest_version":3}`,
 		"chrome-extension/icons/icon16.png": "png",
 	})
-	fakeExtensionRelease(t, data, sha256Hex(data))
+	fakeExtensionRelease(t, data, updatecheck.SHA256Hex(data))
 
 	out, err := runExtensionInstall(t)
 	if err != nil {
@@ -180,7 +182,7 @@ func TestExtensionInstallKeepsThePreviousCopyOnABadZip(t *testing.T) {
 }
 
 func TestExtensionInstallIsRegistered(t *testing.T) {
-	for _, c := range newExtensionCmd(&globalConfig{}).Commands() {
+	for _, c := range newExtensionCmd(testDeps(false)).Commands() {
 		if c.Name() == "install" {
 			return
 		}
