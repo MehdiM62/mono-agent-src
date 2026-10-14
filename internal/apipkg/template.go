@@ -46,6 +46,9 @@ type Scope struct {
 	Up any
 	// Batch lists the chunk's items as {p, item, index} in a bulk request.
 	Batch []any
+	// Hook is the app webhook in a package's webhook block: url, path,
+	// secret, id, workflow_id, node_id and extra (see webhook.go).
+	Hook map[string]any
 }
 
 // headerMap holds response headers; lookupPath matches its keys
@@ -86,6 +89,8 @@ func (s Scope) root(name string) any {
 		return s.Req
 	case "batch":
 		return s.Batch
+	case "hook":
+		return s.Hook
 	case "now":
 		return time.Now().UTC().Format(time.RFC3339)
 	case "uuid":
@@ -268,9 +273,9 @@ func parsePath(s string) (*expr, error) {
 	}
 	segs := strings.Split(s, ".")
 	switch segs[0] {
-	case "p", "cred", "item", "el", "up", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now", "idx", "page", "req", "batch":
+	case "p", "cred", "item", "el", "up", "res", "items", "pre", "pres", "bin", "main", "hdr", "uuid", "now", "idx", "page", "req", "batch", "hook":
 	default:
-		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., up., res., main., hdr., pre., pres., bin., page., req., batch or be uuid / now / idx", s)
+		return nil, fmt.Errorf("expression %q must start with p., cred., item., items, el., up., res., main., hdr., pre., pres., bin., page., req., batch, hook. or be uuid / now / idx", s)
 	}
 	for _, sg := range segs[1:] {
 		if sg == "" {

@@ -117,7 +117,7 @@ func TestParseErrors(t *testing.T) {
 	for in, want := range map[string]string{
 		"{{ p.name":             "unclosed",
 		"{{ }}":                 "empty expression",
-		"{{ x.name }}":          "must start with p., cred., item., items, el., up., res., main., hdr., pre., pres., bin., page., req., batch or be uuid / now / idx",
+		"{{ x.name }}":          "must start with p., cred., item., items, el., up., res., main., hdr., pre., pres., bin., page., req., batch, hook. or be uuid / now / idx",
 		"{{ p..a }}":            "empty path segment",
 		"{{ p.a | nope }}":      "unknown filter",
 		"{{ p.a | default }}":   "needs an argument",
