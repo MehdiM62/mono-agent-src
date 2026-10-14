@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package workflowrun
 
 import (
 	"encoding/json"
@@ -19,7 +19,7 @@ import (
 
 // seedExecutionDB is a migrated DB holding workflow w1 (profile default)
 // and w2 (profile other), each with executions.
-func seedExecutionDB(t *testing.T) (*globalConfig, *storage.Database) {
+func seedExecutionDB(t *testing.T) (*testConfig, *storage.Database) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("MONOAGENT_DAEMON_HEARTBEAT", filepath.Join(t.TempDir(), "hb.json"))
@@ -39,7 +39,7 @@ func seedExecutionDB(t *testing.T) (*globalConfig, *storage.Database) {
 		('e-theirs','w2','RUNNING','trigger.manual','other','2026-09-26 10:00:00','2026-09-26 10:00:00')`); err != nil {
 		t.Fatal(err)
 	}
-	return &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}, db
+	return &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}, db
 }
 
 func TestWorkflowExecutionDetail(t *testing.T) {
@@ -170,7 +170,7 @@ func executionStatus(t *testing.T, db *storage.Database, id string) (status, hil
 	return status, hil
 }
 
-func cancelJSON(t *testing.T, cfg *globalConfig, id string) (cancelResultJSON, error) {
+func cancelJSON(t *testing.T, cfg *testConfig, id string) (cancelResultJSON, error) {
 	t.Helper()
 	out, err := runWorkflowCmdIn(t, cfg, "", "cancel", id)
 	var res cancelResultJSON

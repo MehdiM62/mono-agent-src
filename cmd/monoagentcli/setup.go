@@ -149,7 +149,7 @@ Safe to run again at any time; it only does what is still missing.`,
 			if n := rep.RequiredFailures(); n > 0 {
 				if cfg.JSONOutput {
 					// The report above is the one JSON document.
-					return reportedError{errRequiredChecksFailed(n)}
+					return reportedError{Err: errRequiredChecksFailed(n)}
 				}
 				return errRequiredChecksFailed(n)
 			}

@@ -105,7 +105,7 @@ func newAccountStatusCmd(cfg *globalConfig) *cobra.Command {
 					return err
 				}
 			}
-			return reportedError{errAuthConnection("%s", describeStatus(st))}
+			return reportedError{Err: errAuthConnection("%s", describeStatus(st))}
 		},
 	}
 	cmd.Flags().BoolVar(&offline, "offline", false, "Report the saved session without asking monoes.me to renew it")

@@ -106,7 +106,7 @@ func TestWorkflowVersionsCLIErrors(t *testing.T) {
 	} {
 		_, err := runWorkflowCmdIn(t, cfg, "", tc.args...)
 		ce, ok := err.(*cliError)
-		if !ok || ce.code != tc.code {
+		if !ok || ce.Code != tc.code {
 			t.Errorf("%v: err = %v, want exit code %d", tc.args, err, tc.code)
 		}
 	}

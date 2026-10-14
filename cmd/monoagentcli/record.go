@@ -86,7 +86,7 @@ func recordDeps(cfg *globalConfig) recordcli.Deps {
 		},
 		OpenRegistry:    openAutomationRegistry,
 		InvalidInput:    errInvalidInput,
-		Reported:        func(err error) error { return reportedError{err} },
+		Reported:        func(err error) error { return reportedError{Err: err} },
 		WriteJSON:       writeJSONTo,
 		WithJSONErrors:  func(cmd *cobra.Command) { withJSONErrors(cfg, cmd) },
 		StdinIsTerminal: stdinIsTerminal,

@@ -1,4 +1,4 @@
-package main
+package workflowrun
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
@@ -49,7 +50,7 @@ type executionDetailNodeJSON struct {
 }
 
 // newWorkflowExecutionCmd prints one execution with its per-node status.
-func newWorkflowExecutionCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newExecutionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "execution <execution-id>",
 		Short: "Show one execution with the status and items of every node",
@@ -58,17 +59,17 @@ func newWorkflowExecutionCmd(cfg *globalConfig) *cobra.Command {
 			"as `workflow run --json`.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			detail, err := executionDetail(cmd.Context(), db.DB, cfg.ProfileID, args[0])
+			detail, err := executionDetail(cmd.Context(), db.DB, d.ProfileID(), args[0])
 			if err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(detail)
@@ -110,7 +111,7 @@ func executionDetail(ctx context.Context, db *sql.DB, profileID, executionID str
 	                       FROM workflow_executions WHERE id = ? AND profile_id = ?`, executionID, profileID).
 		Scan(&d.ID, &d.WorkflowID, &d.Status, &d.TriggerType, &d.StartedAt, &d.FinishedAt, &d.Error, &d.CreatedAt, &d.ErrorClass)
 	if errors.Is(err, sql.ErrNoRows) {
-		return d, errNotFound("execution %q not found", executionID)
+		return d, clicore.NotFound("execution %q not found", executionID)
 	}
 	if err != nil {
 		return d, fmt.Errorf("get execution: %w", err)
@@ -170,7 +171,7 @@ type cancelResultJSON struct {
 }
 
 // newWorkflowCancelCmd cancels a queued, running or waiting execution.
-func newWorkflowCancelCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newCancelCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "cancel <execution-id>",
 		Short: "Cancel a queued, running or waiting execution",
@@ -181,17 +182,17 @@ func newWorkflowCancelCmd(cfg *globalConfig) *cobra.Command {
 			"execution that has already finished is left as it is.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			res, err := cancelExecution(cmd.Context(), db.DB, cfg.ProfileID, args[0])
+			res, err := cancelExecution(cmd.Context(), db.DB, d.ProfileID(), args[0])
 			if err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(os.Stdout).Encode(res)
 			}
 			if res.Status == res.PreviousStatus {
@@ -222,7 +223,7 @@ func cancelExecution(ctx context.Context, db *sql.DB, profileID, executionID str
 	err := db.QueryRowContext(ctx, `SELECT workflow_id, status, COALESCE(pid,0) FROM workflow_executions WHERE id = ? AND profile_id = ?`,
 		executionID, profileID).Scan(&res.WorkflowID, &res.PreviousStatus, &res.PID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return res, errNotFound("execution %q not found", executionID)
+		return res, clicore.NotFound("execution %q not found", executionID)
 	}
 	if err != nil {
 		return res, fmt.Errorf("get execution: %w", err)

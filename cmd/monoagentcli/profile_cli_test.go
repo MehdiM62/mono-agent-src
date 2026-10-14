@@ -27,7 +27,7 @@ func exitCodeOf(t *testing.T, err error) int {
 	if !errors.As(err, &ce) {
 		t.Fatalf("error %v carries no exit code", err)
 	}
-	return ce.code
+	return ce.Code
 }
 
 func runFolderSync(t *testing.T, cfg *globalConfig, newCmd func(*globalConfig) *cobra.Command, args ...string) folderSyncResult {

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"strings"
 
@@ -113,7 +113,7 @@ func (a *App) keepOrgSignature(root string, sig orgsign.Pre, name, sha string) {
 	}
 	want, err := sig.PinnedHash(raw)
 	if err != nil {
-		log.Printf("org %s was not re-signed after this change: %v", name, err)
+		slog.Warn("org was not re-signed after this change", "org", name, "err", err)
 		return
 	}
 	out := a.rawCLI(orgCLITimeout, orgSignArgs(root, name, "--yes", "--expect-hash", want)...)
@@ -122,7 +122,7 @@ func (a *App) keepOrgSignature(root string, sig orgsign.Pre, name, sha string) {
 		Code  string `json:"code"`
 	}
 	if json.Unmarshal([]byte(out), &res) == nil && res.Error != "" && res.Code != "org_signing_unsupported" {
-		log.Printf("org %s was not re-signed after this change: %s", name, res.Error)
+		slog.Warn("org was not re-signed after this change", "org", name, "err", res.Error)
 	}
 }
 

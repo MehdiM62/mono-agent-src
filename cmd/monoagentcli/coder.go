@@ -173,13 +173,13 @@ func (e *coderError) Unwrap() error                   { return e.err }
 func (e *coderError) JSONErrorFields() map[string]any { return map[string]any{"code": e.code} }
 
 func errCoderDisabled() error {
-	return &coderError{code: "coder_disabled", err: &cliError{code: 3,
-		msg: "coder mode is disabled — enable it in Settings or with `monoagentcli coder enable --yes-i-understand`"}}
+	return &coderError{code: "coder_disabled", err: &cliError{Code: 3,
+		Msg: "coder mode is disabled — enable it in Settings or with `monoagentcli coder enable --yes-i-understand`"}}
 }
 
 func errNeedsMonomindUpdate(missing []string) error {
-	return &coderError{code: "needs_monomind_update", err: &cliError{code: 1,
-		msg: fmt.Sprintf("coder mode needs a newer monomind (missing capabilities: %v) — update monomind: `npm install -g @monoes/monomindcli@latest`", missing)}}
+	return &coderError{code: "needs_monomind_update", err: &cliError{Code: 1,
+		Msg: fmt.Sprintf("coder mode needs a newer monomind (missing capabilities: %v) — update monomind: `npm install -g @monoes/monomindcli@latest`", missing)}}
 }
 
 // errCoderRuntime refuses a runtime monomind won't run with full access:
@@ -193,7 +193,7 @@ func errCoderRuntime(runtime string, known, olderMonomind bool) error {
 	case olderMonomind:
 		msg = fmt.Sprintf("coder mode runs on %s only with a newer monomind (the installed one runs claude only) — update monomind: `npm install -g @monoes/monomindcli@latest`", runtime)
 	}
-	return &coderError{code: "coder_runtime_unsupported", err: &cliError{code: 3, msg: msg}}
+	return &coderError{code: "coder_runtime_unsupported", err: &cliError{Code: 3, Msg: msg}}
 }
 
 // requireCoderReady refuses unless coder mode is enabled, monomind supports

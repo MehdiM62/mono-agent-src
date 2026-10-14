@@ -2,13 +2,12 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"io"
-	"os"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	profilecli "github.com/monoes/mono-agent/internal/cli/profile"
 	"github.com/monoes/mono-agent/internal/storage"
 )
@@ -18,11 +17,7 @@ import (
 
 // printJSON writes v to stdout as indented JSON. Small shared helper for the
 // commands that honor the global --json flag.
-func printJSON(v interface{}) error {
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(v)
-}
+func printJSON(v interface{}) error { return clicore.PrintJSON(v) }
 
 // profileErrDeps is the part of profileDeps that needs no globalConfig: the CLI's errors.
 var profileErrDeps = profilecli.Deps{NotFound: errNotFound, InvalidInput: errInvalidInput}
@@ -36,7 +31,7 @@ func profileDeps(cfg *globalConfig) profilecli.Deps {
 		return newPlainTable(w, headers, nil)
 	}
 	d.WithJSONErrors = func(cmd *cobra.Command) { withJSONErrors(cfg, cmd) }
-	d.Reported = func(err error) error { return reportedError{err} }
+	d.Reported = func(err error) error { return reportedError{Err: err} }
 	return d
 }
 

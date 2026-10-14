@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	actioncli "github.com/monoes/mono-agent/internal/cli/action"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
 
 // newActionCmd is `monoagentcli action`, which lives in internal/cli/action.
@@ -17,15 +18,7 @@ func newActionCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // truncateStr shortens s to at most n characters, appending "..." if truncated.
-func truncateStr(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	if n <= 3 {
-		return s[:n]
-	}
-	return s[:n-3] + "..."
-}
+func truncateStr(s string, n int) string { return clicore.TruncateStr(s, n) }
 
 // safeName reports whether s is usable as a path element: no separators,
 // no "..", no leading dot.
