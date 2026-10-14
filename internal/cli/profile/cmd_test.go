@@ -116,10 +116,13 @@ func TestProfileCreateListGetSwitch(t *testing.T) {
 }
 
 // An exact id wins over another profile's name.
-func TestProfileCreateRejectsReservedMachineName(t *testing.T) {
+// The reserved id is not a reserved name: ids are generated, names are free.
+func TestProfileCreateAllowsMachineAsName(t *testing.T) {
 	dbPath := newProfileDocsCLITestDB(t)
-	if _, err := runProfileJSON(t, dbPath, "create", "_machine"); err == nil || exitCodeOf(t, err) != 3 {
-		t.Fatalf("create _machine: %v", err)
+	var created profileCreateResult
+	mustProfileJSON(t, dbPath, &created, "create", "_machine")
+	if created.ID == "" || created.ID == "_machine" || created.Name != "_machine" {
+		t.Fatalf("create = %+v", created)
 	}
 }
 

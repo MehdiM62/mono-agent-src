@@ -305,12 +305,12 @@ func migrateProfilesToPerProfileKeys(db *storage.Database) {
 // canonical ID, erroring (exit 3, invalid input) if neither matches any
 // row in `profiles`.
 func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
-	if idOrName == profiledir.MachineProfileID {
-		return "", errInvalidInput("profile id %q is reserved for machine-wide secrets", idOrName)
-	}
 	var id string
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-		return id, nil
+	// The reserved machine scope is never a profile id; as a name it is fine.
+	if idOrName != profiledir.MachineProfileID {
+		if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
+			return id, nil
+		}
 	}
 	if err := db.QueryRow(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?)`, idOrName).Scan(&id); err == nil {
 		return id, nil

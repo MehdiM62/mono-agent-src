@@ -183,9 +183,6 @@ func (d Deps) newProfileCreateCmd() *cobra.Command {
 			if name == "" {
 				return d.InvalidInput("profile name cannot be empty")
 			}
-			if name == profiledir.MachineProfileID {
-				return d.InvalidInput("profile name %q is reserved for machine-wide secrets", name)
-			}
 			rootDir = strings.TrimSpace(rootDir)
 			if rootDir != "" {
 				if err := d.validateFolderChoice(rootDir); err != nil {

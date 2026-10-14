@@ -15,6 +15,7 @@ func newJevCmd(cfg *globalConfig) *cobra.Command {
 		JSONOutput:      func() bool { return cfg.JSONOutput },
 		ProfileID:       func() string { return cfg.ProfileID },
 		OpenDB:          func() (*storage.Database, error) { return initDB(cfg) },
+		ResolveProfile:  resolveProfileID,
 		StdinIsTerminal: stdinIsTerminal,
 	})
 }
