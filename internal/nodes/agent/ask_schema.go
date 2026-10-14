@@ -5,11 +5,12 @@ package agent
 // doc comment for why this is a companion struct rather than the runtime
 // config, and internal/tools/schemagen for the tag grammar.
 type AskNodeSchema struct {
-	Runtime string `json:"runtime" schema:"label=Agent Runtime,type=text,required,help=Locally-installed agent runtime id — claude， codex， kimicode， qwen， … (list: monoagentcli agent scan --installed)， or auto to pick a validated one from the agent roster (monoagentcli agent validate)."`
+	Runtime string `json:"runtime" schema:"label=Agent Runtime,type=text,required,help=Locally-installed agent runtime id — claude， codex， kimicode， qwen， … (list: monoagentcli agent scan --installed)， or auto to pick a validated one from the agent roster (monoagentcli agent validate). Not needed with a model vendor account."`
 
 	Prompt string `json:"prompt" schema:"label=Prompt,type=textarea,required,rows=4,default={{$json.text}},help=Supports {{$json.field}} placeholders."`
 
 	Model string `json:"model" schema:"label=Model,type=text,help=Falls back to the runtime's default model."`
+	CredentialID string `json:"credential_id" schema:"label=Model Vendor Account,type=credential_picker,help=A saved Google Gemini， Ollama， Moonshot (Kimi)， MiniMax， Alibaba Cloud Model Studio or Databricks connection: the turn then runs on opencode against that vendor with your own key (runtime is set for you; model = the vendor model or Databricks serving endpoint)."`
 
 	SystemPrompt string `json:"system_prompt" schema:"label=System Prompt,type=textarea,rows=3"`
 

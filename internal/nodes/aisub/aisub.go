@@ -69,6 +69,10 @@ func first(in workflow.NodeInput, kind string) (workflow.SubNode, bool) {
 // Model is an attached chat model.
 type Model struct {
 	Name, Runtime, Model string
+	// Platform and Credential are the model vendor connection the sub-node
+	// carries (credential_id, injected by the engine), if any.
+	Platform   string
+	Credential map[string]interface{}
 }
 
 // ModelOf returns the chat model attached to the node, if any.
@@ -81,7 +85,9 @@ func ModelOf(in workflow.NodeInput) (Model, bool) {
 	if name == "" {
 		name = s.ID
 	}
-	return Model{Name: name, Runtime: str(s.Config, "runtime"), Model: str(s.Config, "model")}, true
+	cred, _ := s.Config["credential"].(map[string]interface{})
+	return Model{Name: name, Runtime: str(s.Config, "runtime"), Model: str(s.Config, "model"),
+		Platform: str(s.Config, "credential_platform"), Credential: cred}, true
 }
 
 // MemoryOf returns the attached memory as agent.ask's memory option
