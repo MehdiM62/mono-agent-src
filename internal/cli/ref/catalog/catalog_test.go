@@ -11,7 +11,7 @@ import (
 // TestRefNodeRendersEveryRegisteredType.)
 func TestRefDocsCoverEveryTrigger(t *testing.T) {
 	t.Parallel()
-	for _, typ := range []string{"trigger.manual", "trigger.schedule", "trigger.webhook", "trigger.org", "trigger.sse", "trigger.form", "trigger.local_file"} {
+	for _, typ := range []string{"trigger.manual", "trigger.schedule", "trigger.webhook", "trigger.org", "trigger.sse", "trigger.form", "trigger.local_file", "trigger.error", "trigger.execute_workflow"} {
 		if FindNodeDoc(typ) == nil {
 			t.Errorf("trigger %q has no `ref node` entry", typ)
 		}
