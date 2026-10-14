@@ -1,7 +1,8 @@
-package main
+package daemon
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -10,15 +11,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/apiconfig"
 	"github.com/monoes/mono-agent/internal/autostart"
 )
 
-// newDaemonRestartCmd restarts the daemon through the OS service it is registered as, so that
+// NewRestartCommand is `daemon restart`: it restarts the daemon through the OS service it is registered as, so that
 // it reads the settings saved with `api config` (see `api config show` for what a running
 // daemon started with). It reads the saved settings first and refuses when they cannot be used:
 // a daemon that cannot use them starts without the OpenAI-compatible API, and a restart would
 // replace one that serves it with that.
-func newDaemonRestartCmd(cfg *globalConfig) *cobra.Command {
+func NewRestartCommand(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the daemon through the auto-start service it is registered as",
@@ -35,26 +37,26 @@ func newDaemonRestartCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			return runDaemonRestart(ctx, cmd, cfg)
+			return runDaemonRestart(ctx, cmd, d)
 		},
 	}
 }
 
-func runDaemonRestart(ctx context.Context, cmd *cobra.Command, cfg *globalConfig) error {
-	if err := checkSavedSettingsBeforeRestart(ctx, cmd, cfg); err != nil {
+func runDaemonRestart(ctx context.Context, cmd *cobra.Command, d Deps) error {
+	if err := checkSavedSettingsBeforeRestart(ctx, cmd, d); err != nil {
 		return err
 	}
 	fmt.Fprintln(cmd.ErrOrStderr(), "Restarting the daemon interrupts whatever it is running (workflows, org runs).")
-	res, err := autostart.RestartRegistered(ctx, newInstaller())
+	res, err := autostart.RestartRegistered(ctx, d.NewInstaller())
 	if err != nil {
 		var notRegistered *autostart.NotRegisteredError
 		if errors.As(err, &notRegistered) {
-			return errInvalidInput("%v", err)
+			return d.API.InvalidInput("%v", err)
 		}
 		return fmt.Errorf("restart: %w", err)
 	}
-	if cfg.JSONOutput {
-		return writeJSONTo(cmd.OutOrStdout(), res)
+	if d.JSONOutput() {
+		return d.WriteJSON(cmd.OutOrStdout(), res)
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Restarted the daemon through %s. What it was running (workflows, org runs) was interrupted; `monoagentcli api config show` shows what it started with.\n", res.Via)
 	return nil
@@ -65,16 +67,23 @@ func runDaemonRestart(ctx context.Context, cmd *cobra.Command, cfg *globalConfig
 // saved with `api config` cannot be used (it would start without the OpenAI-compatible API). The
 // errors are the ones of every command that reads them, with the same exit codes, and nothing has
 // been restarted.
-func checkSavedSettingsBeforeRestart(ctx context.Context, cmd *cobra.Command, cfg *globalConfig) error {
-	db, err := initDB(cfg)
+func checkSavedSettingsBeforeRestart(ctx context.Context, cmd *cobra.Command, d Deps) error {
+	db, err := d.OpenDB()
 	if err != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), "The daemon was not restarted: the database cannot be opened, so a daemon could not start.")
 		return fmt.Errorf("open database: %w", err)
 	}
 	defer db.Close()
-	if _, err := savedSettings(ctx, db.DB); err != nil {
+	if _, err := savedSettings(ctx, db.DB, d); err != nil {
 		fmt.Fprintln(cmd.ErrOrStderr(), "The daemon was not restarted: the settings saved with `monoagentcli api config` cannot be used, so it would start without the OpenAI-compatible API.")
 		return err
 	}
 	return nil
+}
+
+// savedSettings loads the settings saved with `api config`, with the CLI's exit codes (main's
+// savedSettings).
+func savedSettings(ctx context.Context, db *sql.DB, d Deps) (apiconfig.Settings, error) {
+	saved, err := apiconfig.LoadValid(ctx, db)
+	return saved, d.API.AsCLIError(err)
 }
