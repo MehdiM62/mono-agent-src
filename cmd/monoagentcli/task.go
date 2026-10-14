@@ -64,6 +64,3 @@ func operatorOnlyError(format string, a ...any) error {
 // taskErr maps a store error to the CLI's exit codes (2 not found, 3 invalid
 // or refused) and to the code of the --json error document.
 func taskErr(err error) error { return taskCallerDeps.TaskErr(err) }
-
-// taskCut shortens s to at most n characters, ending in an ellipsis.
-func taskCut(s string, n int) string { return taskcli.Cut(s, n) }

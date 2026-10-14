@@ -67,15 +67,6 @@ func newLogoutCmd(cfg *globalConfig) *cobra.Command {
 	return logincli.NewLogoutCommand(loginDeps(cfg))
 }
 
-// profileOrDefault is the profile a command acts on: --profile (or the
-// active one initDB resolved), "default" when neither is set.
-func profileOrDefault(cfg *globalConfig) string {
-	if cfg.ProfileID == "" {
-		return "default"
-	}
-	return cfg.ProfileID
-}
-
 // upsertSessionRow stores platform/username's cookie jar as a "session"-kind
 // vault entry and points the crawler_sessions row at it (internal/cli/login).
 func upsertSessionRow(ctx context.Context, db *sql.DB, profileID, platform, username string, cookiesJSON []byte) error {

@@ -52,10 +52,3 @@ var openLoginURL = func(u string) error {
 	}
 	return openURLInBrowser(u)
 }
-
-func nonEmptyStr(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
-}

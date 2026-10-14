@@ -78,8 +78,6 @@ func newSetupCmd(cfg *globalConfig) *cobra.Command { return doctorcli.NewSetupCo
 // fixEvent is one NDJSON progress event of a streamed fix.
 type fixEvent = doctorcli.FixEvent
 
-func writeFixEvent(w io.Writer, ev fixEvent) { doctorcli.WriteFixEvent(w, ev) }
-
 // progressWriter streams fix output: NDJSON line events in JSON mode, indented text otherwise.
 func progressWriter(w io.Writer, asJSON bool) func(string) {
 	return doctorcli.ProgressWriter(w, asJSON)

@@ -81,12 +81,6 @@ func (c *apiCapture) point(t *testing.T, ptr *string, suffix string) {
 	t.Cleanup(func() { *ptr = orig })
 }
 
-func (c *apiCapture) reset() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.reqs = nil
-}
-
 func (c *apiCapture) all() []capturedReq {
 	c.mu.Lock()
 	defer c.mu.Unlock()

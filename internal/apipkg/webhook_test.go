@@ -61,11 +61,11 @@ func TestWebhookRegistrarLifecycle(t *testing.T) {
 		t.Fatalf("hook: %+v", got)
 	}
 
-	srv = newMockServer(t, map[string]any{"hooks": []any{map[string]any{"id": "h1"}}}, 0)
+	newMockServer(t, map[string]any{"hooks": []any{map[string]any{"id": "h1"}}}, 0)
 	if ok, err := r.Exists(context.Background(), hook, got); !ok || err != nil {
 		t.Errorf("exists: %v %v", ok, err)
 	}
-	srv = newMockServer(t, map[string]any{"hooks": []any{}}, 0)
+	newMockServer(t, map[string]any{"hooks": []any{}}, 0)
 	if ok, err := r.Exists(context.Background(), hook, got); ok || err != nil {
 		t.Errorf("exists_when false should mean gone: %v %v", ok, err)
 	}
@@ -77,7 +77,7 @@ func TestWebhookRegistrarLifecycle(t *testing.T) {
 	if n := len(srv.requests()); n != 2 {
 		t.Errorf("one delete per stored id, got %d requests", n)
 	}
-	srv = newMockServer(t, nil, http.StatusInternalServerError)
+	newMockServer(t, nil, http.StatusInternalServerError)
 	if err := r.Unregister(context.Background(), hook, got); err == nil || !strings.Contains(err.Error(), "HTTP 500") {
 		t.Errorf("a 500 on delete is an error: %v", err)
 	}

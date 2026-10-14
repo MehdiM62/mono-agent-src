@@ -1,23 +1,17 @@
 package main
 
 import (
-	"database/sql"
 	"io"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
-	"github.com/monoes/mono-agent/internal/cli/clicore"
 	profilecli "github.com/monoes/mono-agent/internal/cli/profile"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
 // `profile` lives in internal/cli/profile; this is its adapter: the CLI's globals and helpers
 // handed over as profilecli.Deps.
-
-// printJSON writes v to stdout as indented JSON. Small shared helper for the
-// commands that honor the global --json flag.
-func printJSON(v interface{}) error { return clicore.PrintJSON(v) }
 
 // profileErrDeps is the part of profileDeps that needs no globalConfig: the CLI's errors.
 var profileErrDeps = profilecli.Deps{NotFound: errNotFound, InvalidInput: errInvalidInput}
@@ -37,12 +31,6 @@ func profileDeps(cfg *globalConfig) profilecli.Deps {
 
 func newProfileCmd(cfg *globalConfig) *cobra.Command {
 	return profilecli.NewCommand(profileDeps(cfg))
-}
-
-// lookupProfile resolves nameOrID to a profile row. An exact id wins over a
-// name, so a profile whose name happens to be another's id can't shadow it.
-func lookupProfile(db *sql.DB, nameOrID string) (*profilecli.Profile, error) {
-	return profileErrDeps.LookupProfile(db, nameOrID)
 }
 
 // folderSyncResult is the --json shape of `profile documents sync` and `image sync`.

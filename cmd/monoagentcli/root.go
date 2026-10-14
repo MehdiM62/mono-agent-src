@@ -313,9 +313,3 @@ func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
 	}
 	return "", errInvalidInput("profile %q not found (checked both id and name)", idOrName)
 }
-
-// ensureDir creates a directory if it does not exist.
-func ensureDir(path string) error {
-	expanded := expandPath(path)
-	return os.MkdirAll(expanded, 0755)
-}
