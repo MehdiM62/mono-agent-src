@@ -43,3 +43,16 @@ func TestTriggersAreListedAndAddable(t *testing.T) {
 		t.Errorf("unknown type error should point at node_list, got %v", err)
 	}
 }
+
+func TestStringListAcceptsOneString(t *testing.T) {
+	var a struct {
+		G stringList `json:"g"`
+		H stringList `json:"h"`
+	}
+	if err := json.Unmarshal([]byte(`{"g":"core","h":["a","b"]}`), &a); err != nil {
+		t.Fatal(err)
+	}
+	if len(a.G) != 1 || a.G[0] != "core" || len(a.H) != 2 {
+		t.Fatalf("got %v %v", a.G, a.H)
+	}
+}
