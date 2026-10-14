@@ -14,12 +14,19 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
+// postsProfile is the profile posts are stored under: an empty id (a run with
+// no resolved profile) means "default". Writers and readers of posts share it.
+func postsProfile(profileID string) string {
+	if profileID == "" {
+		return "default"
+	}
+	return profileID
+}
+
 // savePostsToDB upserts scraped post items into the posts table.
 // Returns (saved, skipped, failed) counts.
 func savePostsToDB(ctx context.Context, db *sql.DB, items []workflow.Item, nodeType string, config map[string]interface{}, profileID string) (int, int, int) {
-	if profileID == "" {
-		profileID = "default"
-	}
+	profileID = postsProfile(profileID)
 	// Derive platform from nodeType prefix e.g. "instagram.list_user_posts" → "INSTAGRAM"
 	platform := strings.ToUpper(strings.SplitN(nodeType, ".", 2)[0])
 

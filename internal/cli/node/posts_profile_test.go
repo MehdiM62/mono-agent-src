@@ -57,3 +57,30 @@ func TestPostsAreProfileScoped(t *testing.T) {
 		t.Fatalf("profile without the post must not see another profile's row: %s", out.String())
 	}
 }
+
+// A run with no resolved profile saves posts and comments under the same
+// profile ("default"), so the comments find their post.
+func TestEmptyProfileAgreesBetweenPostsAndComments(t *testing.T) {
+	t.Parallel()
+	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "p.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ApplyMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+
+	const post = "https://www.instagram.com/p/EMPTY12/"
+	items := []workflow.Item{{JSON: map[string]interface{}{"url": post, "shortcode": "EMPTY12"}}}
+	if saved, _, failed := savePostsToDB(ctx, db.DB, items, "instagram.list_user_posts", map[string]interface{}{}, ""); saved != 1 || failed != 0 {
+		t.Fatalf("saved=%d failed=%d", saved, failed)
+	}
+	var out bytes.Buffer
+	comment := []workflow.Item{{JSON: map[string]interface{}{"author": "u", "text": "hi", "timestamp": "t"}}}
+	autoSaveComments(ctx, db.DB, "instagram.list_post_comments", map[string]interface{}{"targets": []interface{}{post}}, comment, "", &out)
+	if !bytes.Contains(out.Bytes(), []byte("Saved 1 comment(s)")) {
+		t.Fatalf("comments did not find the post: %s", out.String())
+	}
+}
