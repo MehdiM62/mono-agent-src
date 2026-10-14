@@ -36,7 +36,7 @@ func TestReleaseURLsNameOnlyThePublicRepo(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"install.sh", "README.md", "SECURITY.md", "SUPPORT.md", ".github/workflows/release.yml",
-		"cmd/monoagentcli/update.go", "cmd/monoagentcli/crashreport.go", "internal/release/manifest.go",
+		"cmd/monoagentcli/update.go", "cmd/monoagentcli/status_db_release_adapter.go", "internal/cli/crashreport/crashreport.go", "internal/release/manifest.go",
 		"cmd/release-manifest/main.go", "cmd/release-manifest/check.go", "scripts/release-e2e-test.sh", "docs/release-runbook.md",
 	} {
 		text := releaseDoc(t, rel)

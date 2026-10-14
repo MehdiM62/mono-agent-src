@@ -1,4 +1,6 @@
-package main
+// Package releasecli is `monoagentcli release keygen|verify`: the maintainer tools for the signed
+// release manifest (internal/release).
+package releasecli
 
 import (
 	"crypto/ed25519"
@@ -9,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/release"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/spf13/cobra"
@@ -18,7 +21,8 @@ import (
 // (no account needed, like update): they only touch a local keychain entry
 // and files the maintainer names.
 
-func newReleaseCmd() *cobra.Command {
+// NewCommand returns the `release` group. It takes nothing from the CLI around it.
+func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "release",
 		Short: "Maintainer tools for signed releases (keygen, verify)",
@@ -45,7 +49,7 @@ func newReleaseKeygenCmd() *cobra.Command {
 				return keygenStdoutPrivate(cmd, force)
 			}
 			if _, err := secrets.ReleaseSigningKey(); err == nil && !force {
-				return errInvalidInput("a release signing key already exists in the keychain; --force replaces it")
+				return clicore.InvalidInput("a release signing key already exists in the keychain; --force replaces it")
 			} else if err != nil && !errors.Is(err, secrets.ErrNoReleaseKey) {
 				return fmt.Errorf("read the keychain: %w", err)
 			}
@@ -70,12 +74,12 @@ func newReleaseKeygenCmd() *cobra.Command {
 
 func keygenStdoutPrivate(cmd *cobra.Command, force bool) error {
 	if force {
-		return errInvalidInput("--force does not apply with --stdout-private (nothing is stored)")
+		return clicore.InvalidInput("--force does not apply with --stdout-private (nothing is stored)")
 	}
 	out := cmd.OutOrStdout()
 	if f, ok := out.(*os.File); ok {
 		if st, err := f.Stat(); err == nil && st.Mode()&os.ModeCharDevice != 0 {
-			return errInvalidInput("stdout is a terminal; pipe it, e.g. | gh secret set RELEASE_SIGNING_KEY --env release --repo OWNER/REPO")
+			return clicore.InvalidInput("stdout is a terminal; pipe it, e.g. | gh secret set RELEASE_SIGNING_KEY --env release --repo OWNER/REPO")
 		}
 	}
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -103,29 +107,29 @@ func newReleaseVerifyCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			manifest, err := os.ReadFile(args[0])
 			if err != nil {
-				return errNotFound("%v", err)
+				return clicore.NotFound("%v", err)
 			}
 			sig, err := os.ReadFile(args[1])
 			if err != nil {
-				return errNotFound("%v", err)
+				return clicore.NotFound("%v", err)
 			}
 			keys := release.PinnedKeys()
 			if pubkey != "" {
 				k, err := release.ParseKey(pubkey)
 				if err != nil {
-					return errInvalidInput("%v", err)
+					return clicore.InvalidInput("%v", err)
 				}
 				keys = []release.Key{k}
 			}
 			if len(keys) == 0 {
-				return errInvalidInput("this build pins no release key; pass --pubkey")
+				return clicore.InvalidInput("this build pins no release key; pass --pubkey")
 			}
 			m, err := release.VerifyWith(keys, manifest, sig)
 			if err != nil {
-				return errInvalidInput("%v", err)
+				return clicore.InvalidInput("%v", err)
 			}
 			if err := m.CheckExpiry(time.Now()); err != nil {
-				return errInvalidInput("%v", err)
+				return clicore.InvalidInput("%v", err)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "OK: %s, %d assets, signature valid\n", m.Version, len(m.Assets))
 			return nil

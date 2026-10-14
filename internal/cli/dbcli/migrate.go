@@ -1,15 +1,31 @@
-package main
+// Package dbcli is `monoagentcli db migrate`. Everything the command needs from the CLI around
+// it comes in through Deps.
+package dbcli
 
 import (
 	"context"
 	"fmt"
 	"os"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/spf13/cobra"
 )
+
+// Deps is what the commands take from the CLI around them.
+type Deps struct {
+	// JSONOutput reports the global --json flag; it is read when a command runs.
+	JSONOutput func() bool
+	// OpenDB opens the database the command is pointed at, applying its migrations and
+	// resolving --profile, as every command does.
+	OpenDB func() (*storage.Database, error)
+	// DBPath is the global --db-path flag.
+	DBPath func() string
+	// ProfileID is the profile in effect; read after OpenDB.
+	ProfileID func() string
+}
 
 // `db migrate` brings the database and every profile's folder up to date:
 // the schema migrations and secret re-encryptions every command runs on open
@@ -17,8 +33,8 @@ import (
 // used to run only inside the desktop app. The app runs it once at startup, so
 // one binary (the CLI) owns the schema and there is one schema version.
 
-// dbMigrateResult is `db migrate --json`.
-type dbMigrateResult struct {
+// Result is `db migrate --json`.
+type Result struct {
 	SchemaVersion int      `json:"schema_version"` // highest applied migration
 	Applied       int      `json:"applied"`        // migrations applied by this run
 	ActiveProfile string   `json:"active_profile"`
@@ -27,23 +43,24 @@ type dbMigrateResult struct {
 	Errors        []string `json:"errors"`      // per-profile failures; none of them stops the others
 }
 
-func newDBCmd(cfg *globalConfig) *cobra.Command {
+// NewCommand returns the `db` group.
+func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "db",
 		Short: "Database maintenance",
 	}
-	cmd.AddCommand(newDBMigrateCmd(cfg))
+	cmd.AddCommand(d.newMigrateCmd())
 	return cmd
 }
 
-func newDBMigrateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newMigrateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "migrate",
 		Short: "Apply pending database migrations and per-profile folder/vault migrations",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			before := countAppliedMigrations(expandPath(cfg.DBPath))
-			db, err := initDB(cfg)
+			before := countAppliedMigrations(clicore.ExpandPath(d.DBPath()))
+			db, err := d.OpenDB()
 			if err != nil {
 				return err
 			}
@@ -52,14 +69,14 @@ func newDBMigrateCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res.ActiveProfile = cfg.ProfileID
+			res.ActiveProfile = d.ProfileID()
 			after := 0
 			_ = db.DB.QueryRow(`SELECT COUNT(*), COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&after, &res.SchemaVersion)
 			if after > before {
 				res.Applied = after - before
 			}
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), res)
+			if d.JSONOutput() {
+				return clicore.WriteJSONTo(cmd.OutOrStdout(), res)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "schema version %d (%d migration(s) applied)\n", res.SchemaVersion, res.Applied)
 			fmt.Fprintf(cmd.OutOrStdout(), "%d profile(s), %d vault file(s) moved\n", len(res.Profiles), res.VaultMoved)
@@ -91,8 +108,8 @@ func countAppliedMigrations(path string) int {
 // vault files off the old shared directory and out of its old visible vault/
 // folder. Each step is idempotent and a no-op once a profile is migrated; a
 // failure on one profile is reported and does not stop the others.
-func migrateProfileFolders(ctx context.Context, db *storage.Database) (*dbMigrateResult, error) {
-	res := &dbMigrateResult{Profiles: []string{}, Errors: []string{}}
+func migrateProfileFolders(ctx context.Context, db *storage.Database) (*Result, error) {
+	res := &Result{Profiles: []string{}, Errors: []string{}}
 	rows, err := db.DB.QueryContext(ctx, `SELECT id FROM profiles ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("listing profiles: %w", err)
