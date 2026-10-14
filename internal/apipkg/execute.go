@@ -115,26 +115,10 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		return nil, fmt.Errorf("apipkg %s: no credential: set credential_id to a %s connection (monoagentcli connect %s)",
 			pkg.ID, pkg.PrimaryPlatform(), pkg.PrimaryPlatform())
 	}
-	credDef := pkg.selectCredential(cred)
-	scopes := scopeChecker{pkg: pkg, cred: cred, credDef: credDef}
-	if credDef != nil && credDef.hasMethod("client_credentials") && isEmpty(cred["access_token"]) {
-		tok, err := clientCredentialsToken(ctx, credDef, cred)
-		if err != nil {
-			return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
-		}
-		withTok := make(map[string]any, len(cred)+1)
-		for k, v := range cred {
-			withTok[k] = v
-		}
-		withTok["access_token"] = tok
-		cred = withTok
-	}
-	cred, err := withAssumedRole(ctx, credDef, cred)
+	scopes := scopeChecker{pkg: pkg, cred: cred, credDef: pkg.selectCredential(cred)}
+	credDef, cred, err := pkg.prepareCredential(ctx, cred)
 	if err != nil {
-		return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
-	}
-	if cred, err = withMetadata(ctx, credDef, cred); err != nil {
-		return nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+		return nil, err
 	}
 	items := input.Items
 	if len(items) == 0 {
@@ -208,6 +192,33 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 	}
 	return []workflow.NodeOutput{{Handle: "main", Items: out}}, nil
+}
+
+// prepareCredential picks the credential definition for cred and adds what
+// requests need before the first one: a client-credentials token, an
+// assumed role's keys and the OAuth metadata values.
+func (pkg *Package) prepareCredential(ctx context.Context, cred map[string]any) (*Credential, map[string]any, error) {
+	credDef := pkg.selectCredential(cred)
+	if credDef != nil && credDef.hasMethod("client_credentials") && isEmpty(cred["access_token"]) {
+		tok, err := clientCredentialsToken(ctx, credDef, cred)
+		if err != nil {
+			return nil, nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+		}
+		withTok := make(map[string]any, len(cred)+1)
+		for k, v := range cred {
+			withTok[k] = v
+		}
+		withTok["access_token"] = tok
+		cred = withTok
+	}
+	cred, err := withAssumedRole(ctx, credDef, cred)
+	if err != nil {
+		return nil, nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+	}
+	if cred, err = withMetadata(ctx, credDef, cred); err != nil {
+		return nil, nil, fmt.Errorf("apipkg %s: %w", pkg.ID, err)
+	}
+	return credDef, cred, nil
 }
 
 // itemParams copies config, resolving the held-back keys against item.
@@ -488,13 +499,22 @@ func (r *opRun) send(ctx context.Context, pp pageParams) (*response, error) {
 		return nil, r.errf("response body exceeds %d MiB", maxResponseBody>>20)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, r.errf("HTTP %d: %s", resp.StatusCode, errorBodyEcho(body))
+		return nil, r.errf("%w", &statusError{code: resp.StatusCode, body: errorBodyEcho(body)})
 	}
 	if err := r.checkErrorWhen(body, resp.Header); err != nil {
 		return nil, err
 	}
 	return &response{status: resp.StatusCode, header: resp.Header, body: body, url: b.req.URL.String()}, nil
 }
+
+// statusError is a non-2xx response; callers that treat a status as an
+// answer (a webhook delete's 404) find it with errors.As.
+type statusError struct {
+	code int
+	body string
+}
+
+func (e *statusError) Error() string { return fmt.Sprintf("HTTP %d: %s", e.code, e.body) }
 
 func errorBodyEcho(b []byte) string {
 	if len(b) > maxErrorBodyEcho {
