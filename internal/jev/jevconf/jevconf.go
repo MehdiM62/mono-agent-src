@@ -96,7 +96,7 @@ var DefaultThreshold = map[Surface]float64{
 // call is recorded in jev_usage under profileID and surface s (db may be nil:
 // no recording).
 func NewClient(ctx context.Context, db *sql.DB, profileID, explicitKey, model string, s Surface) (*jev.Client, error) {
-	key, _, err := ResolveKey(ctx, db, explicitKey)
+	key, _, err := resolveKey(ctx, db, profileID, explicitKey)
 	if err != nil {
 		return nil, err
 	}

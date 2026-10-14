@@ -31,7 +31,7 @@ func NewCommand(d Deps) *cobra.Command {
 			"from a closed set of options, and every implicit surface is off until\n" +
 			"`jev enable <surface>` for the profile.\n" +
 			"\n" +
-			"Key: the machine-wide vault, shared by all profiles (`jev key set`, key on stdin; a key still in a profile's vault is moved there), else TYPESAFE_API_KEY. TYPESAFE_DEFAULT_MODEL and\n" +
+			"Key: the machine-wide vault, shared by all profiles (`jev key set`, key on stdin; a key in a profile's vault is copied there on first use), else TYPESAFE_API_KEY. TYPESAFE_DEFAULT_MODEL and\n" +
 			"TYPESAFE_BASE_URL override the model and API host.",
 	}
 	cmd.AddCommand(

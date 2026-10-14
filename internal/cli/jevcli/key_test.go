@@ -97,15 +97,15 @@ func TestJevKeySetStatusTestRemove(t *testing.T) {
 	}
 }
 
-// A key a profile vault holds under a natural name is moved to the machine vault, then updated.
-func TestJevKeySetUpdatesNaturallyNamedEntry(t *testing.T) {
+// `key set` writes the machine key and leaves a profile vault's naturally named entry alone; the stale profile key is never adopted over it.
+func TestJevKeySetIgnoresProfileEntry(t *testing.T) {
 	cfg := jevKeyTestCfg(t)
 	db := openJevDB(t, cfg)
 	if _, err := secrets.Add(t.Context(), db, "default", "secret", "Jev Api key", map[string]string{"value": "old"}, "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	out, _, err := runJev(t, cfg, "new-key", "key", "set")
-	if err != nil || !strings.Contains(out, `"key_entry": "typesafe"`) || !strings.Contains(out, `"replaced": true`) {
+	if err != nil || !strings.Contains(out, `"key_entry": "typesafe"`) || !strings.Contains(out, `"replaced": false`) {
 		t.Fatalf("set: %v %s", err, out)
 	}
 	key, src, err := jevconf.ResolveKey(t.Context(), db, "")

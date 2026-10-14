@@ -32,7 +32,7 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 		Long: "Reads the key from stdin — never pass it as an argument — and stores it in\n" +
 			"the machine-wide vault, shared by every profile. If the machine vault already\n" +
 			"holds the key, that entry is updated; otherwise a new entry named \"typesafe\"\n" +
-			"is created. A key still held by a profile's vault is moved there first.",
+			"is created. A key in a profile's vault is left alone.",
 		Example: "  printf '%s' \"$KEY\" | monoagentcli jev key set",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -51,9 +51,6 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 			defer db.Close()
 			ctx := cmd.Context()
 			fields := map[string]string{"secret": key}
-			if _, err := jevconf.AdoptProfileKey(ctx, db.DB); err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %v\n", err)
-			}
 			entry, replaced := jevconf.VaultKeyName(ctx, db.DB)
 			if replaced {
 				id, err := jevVaultEntryID(cmd, db.DB, entry)
@@ -68,6 +65,10 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 				if _, err := secrets.Add(ctx, db.DB, jevconf.VaultScope, "secret", entry, fields, "", "", "TypeSafe Jev API key"); err != nil {
 					return fmt.Errorf("storing key in the machine vault: %w", err)
 				}
+			}
+			// An explicit key wins: no stale profile key is adopted over it later.
+			if err := jevconf.MarkAdopted(db.DB); err != nil {
+				return fmt.Errorf("recording the key: %w", err)
 			}
 			out := cmd.OutOrStdout()
 			if d.JSONOutput() {
@@ -141,9 +142,6 @@ func newJevKeyRemoveCmd(d Deps) *cobra.Command {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			if _, err := jevconf.AdoptProfileKey(cmd.Context(), db.DB); err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %v\n", err)
-			}
 			entry, ok := jevconf.VaultKeyName(cmd.Context(), db.DB)
 			if !ok {
 				return clicore.NotFound("no TypeSafe key in the machine vault")
@@ -154,6 +152,10 @@ func newJevKeyRemoveCmd(d Deps) *cobra.Command {
 			}
 			if err := secrets.Delete(cmd.Context(), db.DB, jevconf.VaultScope, id); err != nil {
 				return err
+			}
+			// Removed on purpose: a key left in a profile vault must not come back.
+			if err := jevconf.MarkAdopted(db.DB); err != nil {
+				return fmt.Errorf("recording the removal: %w", err)
 			}
 			if d.JSONOutput() {
 				return writeJevJSON(cmd.OutOrStdout(), map[string]any{"removed": entry})
