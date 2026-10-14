@@ -89,16 +89,15 @@ func memoryWindow(c *MapContext, s SubNode) int {
 	return int(k) * 2
 }
 
-// applyChatMemory sets agent.ask's memory from an n8n chat memory sub-node.
+// chatMemoryConfig is ai.memory's config for an n8n chat memory sub-node.
 // It reports false for a memory it cannot stand in for (Zep).
-func applyChatMemory(c *MapContext, cfg map[string]interface{}, s SubNode) bool {
+func chatMemoryConfig(c *MapContext, s SubNode) (map[string]interface{}, bool) {
 	backend, ok := chatMemories[s.Type]
 	if !ok {
-		return false
+		return nil, false
 	}
 	session := memorySessionKey(c, s)
 	window := memoryWindow(c, s)
-	cfg["memory"] = map[string]interface{}{"session_key": session, "window": window}
 	where := "kept in monoagent's local chat memory (per profile, kept across runs)"
 	if backend != "" {
 		where = "kept in monoagent's local chat memory instead of " + backend
@@ -111,12 +110,13 @@ func applyChatMemory(c *MapContext, cfg map[string]interface{}, s SubNode) bool 
 	if session == fromInputSessionKey {
 		c.Note("the conversation is chosen by the item's sessionId field: pass {\"sessionId\": \"…\", \"chatInput\": \"…\"} as the run input")
 	}
-	return true
+	return map[string]interface{}{"session_key": session, "window": window}, true
 }
 
-// memoryChild returns the chat memory sub-node of a memory manager or
-// retriever, reporting one that is missing or unsupported.
-func memoryChild(c *MapContext) string {
+// memoryChild keeps the chat memory sub-node of a memory manager or
+// retriever as an ai.memory sub-node naming cfg's session, reporting one
+// that is missing or unsupported (cfg then names the session itself).
+func memoryChild(c *MapContext, cfg map[string]interface{}) {
 	for _, s := range c.SubNodes {
 		if s.Kind != "ai_memory" {
 			continue
@@ -124,20 +124,24 @@ func memoryChild(c *MapContext) string {
 		backend, ok := chatMemories[s.Type]
 		if !ok {
 			c.Warn("memory", s.Name, "chat memory %s is not available; monoagent's local chat memory is used", shortType(s.Type))
-			return fromInputSessionKey
+			cfg["session_key"] = fromInputSessionKey
+			return
 		}
 		if backend != "" {
 			c.Note("messages are kept in monoagent's local chat memory instead of %s", backend)
 		}
-		return memorySessionKey(c, s)
+		mem := map[string]interface{}{"session_key": memorySessionKey(c, s), "window": memoryWindow(c, s)}
+		c.attach(s.Name, s.Kind, "ai.memory", mem, cfg)
+		return
 	}
 	c.Warn("memory", nil, "no chat memory is attached; the session is the item's sessionId field")
-	return fromInputSessionKey
+	cfg["session_key"] = fromInputSessionKey
 }
 
 // mapMemoryManager maps n8n's Chat Memory Manager to agent.memory.
 func mapMemoryManager(c *MapContext) Mapping {
-	cfg := map[string]interface{}{"session_key": memoryChild(c)}
+	cfg := map[string]interface{}{}
+	memoryChild(c, cfg)
 	mode := c.Literal("mode", "load")
 	switch mode {
 	case "load":
@@ -188,7 +192,8 @@ func mapMemoryManager(c *MapContext) Mapping {
 // mapMemoryRetriever maps n8n's (deprecated) Chat Messages Retriever: the
 // session's messages, one item per message, once per run.
 func mapMemoryRetriever(c *MapContext) Mapping {
-	cfg := map[string]interface{}{"operation": "get", "session_key": memoryChild(c), "group": false, "execute_once": true}
+	cfg := map[string]interface{}{"operation": "get", "group": false, "execute_once": true}
+	memoryChild(c, cfg)
 	memoryFormat(c, cfg, c.Bool("simplifyOutput", true))
 	return Mapping{Type: "agent.memory", Config: cfg}
 }

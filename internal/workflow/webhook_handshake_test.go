@@ -177,3 +177,69 @@ func TestIsSNSHost(t *testing.T) {
 		}
 	}
 }
+
+func TestHandshakeStravaJSONChallenge(t *testing.T) {
+	s, fired := handshakeServer(t, func(r *WebhookRegistration) { r.VerifyToken = "strava"; r.ChallengeJSON = true })
+	rec := serve(s, httptest.NewRequest(http.MethodGet, "/webhook/hs?hub.mode=subscribe&hub.challenge=15f7d1a91c1f40f8a748fd134752feb3&hub.verify_token=strava", nil))
+	if rec.Code != 200 || strings.TrimSpace(rec.Body.String()) != `{"hub.challenge":"15f7d1a91c1f40f8a748fd134752feb3"}` ||
+		!strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") {
+		t.Fatalf("strava: %d %q %q", rec.Code, rec.Body.String(), rec.Header().Get("Content-Type"))
+	}
+	if rec := serve(s, httptest.NewRequest(http.MethodGet, "/webhook/hs?hub.mode=subscribe&hub.challenge=x&hub.verify_token=no", nil)); rec.Code != http.StatusForbidden {
+		t.Fatalf("strava wrong token: %d, want 403", rec.Code)
+	}
+	if *fired != 0 {
+		t.Fatal("strava check started a run")
+	}
+}
+
+func TestHandshakeOnfleetCheck(t *testing.T) {
+	s, fired := handshakeServer(t, nil)
+	rec := serve(s, httptest.NewRequest(http.MethodGet, "/webhook/hs?check=a1b2c3", nil))
+	if rec.Code != 200 || rec.Body.String() != "a1b2c3" || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/plain") {
+		t.Fatalf("onfleet: %d %q %q", rec.Code, rec.Body.String(), rec.Header().Get("Content-Type"))
+	}
+	// Other parameters next to check: not the shape.
+	if rec := serve(s, httptest.NewRequest(http.MethodGet, "/webhook/hs?check=a&x=1", nil)); rec.Code != 405 {
+		t.Fatalf("check with another parameter: %d, want 405", rec.Code)
+	}
+	if *fired != 0 {
+		t.Fatal("onfleet check started a run")
+	}
+}
+
+func TestHandshakeMailchimpBareGet(t *testing.T) {
+	s, fired := handshakeServer(t, nil)
+	if rec := serve(s, httptest.NewRequest(http.MethodGet, "/webhook/hs", nil)); rec.Code != 405 {
+		t.Fatalf("bare GET without answer_get: %d, want 405", rec.Code)
+	}
+	s, fired = handshakeServer(t, func(r *WebhookRegistration) { r.AnswerGet = true })
+	rec := serve(s, httptest.NewRequest(http.MethodGet, "/webhook/hs", nil))
+	if rec.Code != 200 || rec.Body.Len() != 0 {
+		t.Fatalf("mailchimp: %d %q", rec.Code, rec.Body.String())
+	}
+	// A GET with a query is not the probe.
+	if rec := serve(s, httptest.NewRequest(http.MethodGet, "/webhook/hs?a=1", nil)); rec.Code != 405 {
+		t.Fatalf("GET with query: %d, want 405", rec.Code)
+	}
+	// Deliveries still need the auth header and start runs.
+	req := httptest.NewRequest(http.MethodPost, "/webhook/hs", strings.NewReader(`{"type":"subscribe"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Token", "t")
+	if rec := serve(s, req); rec.Code != 200 || *fired != 1 {
+		t.Fatalf("delivery: %d fired %d", rec.Code, *fired)
+	}
+}
+
+func TestWebhookOptionsURLChecks(t *testing.T) {
+	reg := &WebhookRegistration{}
+	if err := applyWebhookOptions(reg, map[string]interface{}{"challenge_format": "json", "answer_get": "true"}); err != nil {
+		t.Fatal(err)
+	}
+	if !reg.ChallengeJSON || !reg.AnswerGet {
+		t.Fatalf("options not read: %+v", reg)
+	}
+	if err := applyWebhookOptions(&WebhookRegistration{}, map[string]interface{}{"challenge_format": "xml"}); err == nil {
+		t.Fatal("challenge_format xml accepted")
+	}
+}

@@ -105,7 +105,11 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		// payload. When TriggerNodeID is empty (a manual run of a workflow
 		// without exactly one trigger.manual) every trigger node fires. Other trigger nodes get no items, so their
 		// downstream branch is skipped by the empty-input guard above.
-		if r.exec.TriggerNodeID == "" || node.ID == r.exec.TriggerNodeID {
+		// trigger.evaluation fires only in the runs of an evaluation, never
+		// in a manual run that fires every trigger.
+		if node.Type == TriggerTypeEvaluation && r.exec.TriggerType != TriggerTypeEvaluation {
+			inputItems = []Item{}
+		} else if r.exec.TriggerNodeID == "" || node.ID == r.exec.TriggerNodeID {
 			inputItems = r.triggerItems
 		} else {
 			inputItems = []Item{}
@@ -310,6 +314,21 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 	// before the failure path so the node is not recorded FAILED.
 	if execErr != nil && errors.Is(execErr, ErrNodePaused) {
 		return true, nil
+	}
+
+	// A node cut short by a cancel (`workflow cancel`, a timeout, the daemon
+	// stopping) did not fail: its error, or the items it routed to its error
+	// output (system.execute_command's killed process), are the cancel's
+	// doing. The run ends CANCELLED rather than following on_error or failing
+	// on an unwired error output.
+	if ctx.Err() != nil && (execErr != nil || routedToError(t.outputs)) {
+		cerr := fmt.Errorf("node %s (%s): %w", node.ID, node.Name, cancelError(ctx))
+		dbCtx, dbCancel := dbCtx()
+		if storeErr := recordNodeFailure(dbCtx, r.store, execNode, cerr, nil); storeErr != nil {
+			logger.Error().Err(storeErr).Str("node_id", node.ID).Msg("failed to persist node failure")
+		}
+		dbCancel()
+		return false, cerr
 	}
 
 	if execErr != nil {

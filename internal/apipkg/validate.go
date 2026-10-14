@@ -281,6 +281,9 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		add("method %q must be an HTTP/WebDAV method or a template", o.Method)
 	}
 	fields := map[string]bool{"resource": true, "operation": true}
+	if o.Wait != nil {
+		fields[hookFieldsMarker] = true // hook.url: the resume URL
+	}
 	for _, f := range o.Fields {
 		if reservedFieldKeys[f.Key] {
 			add("field key %q is reserved", f.Key)

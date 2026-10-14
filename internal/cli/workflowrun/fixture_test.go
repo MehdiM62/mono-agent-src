@@ -12,6 +12,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/nodes/control"
+	"github.com/monoes/mono-agent/internal/nodes/evalnode"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -45,6 +46,7 @@ func openTestDB(cfg *testConfig) (*storage.Database, error) {
 func testRegistry() *workflow.NodeTypeRegistry {
 	reg := workflow.NewNodeTypeRegistry()
 	control.RegisterAll(reg)
+	evalnode.RegisterAll(reg)
 	return reg
 }
 

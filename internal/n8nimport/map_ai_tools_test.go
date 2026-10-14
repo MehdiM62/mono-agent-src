@@ -52,8 +52,11 @@ func TestAgentToolsAreKeptAsDisabledNodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent := node(t, wf, "Agent")
-	wantConfig(t, agent, map[string]interface{}{"runtime": "opencode", "model": "openrouter/openai/gpt-4o-mini"})
+	model := attachedSub(t, wf, "Agent", "ai_languageModel")
+	if model.Type != "ai.model" || model.Name != "Model" || model.Disabled {
+		t.Errorf("model sub-node %s %q disabled %v", model.Type, model.Name, model.Disabled)
+	}
+	wantConfig(t, model, map[string]interface{}{"runtime": "opencode", "model": "openrouter/openai/gpt-4o-mini"})
 
 	want := map[string]string{"Notify": "comm.slack", "Orders": "http.request", "Shout": "core.code", "Calc": "core.code",
 		"MCP": "mcp.call", "Sub": "core.execute_workflow"}
@@ -106,8 +109,8 @@ func TestAgentToolsAreKeptAsDisabledNodes(t *testing.T) {
 				t.Errorf("%s status %s", nr.Name, nr.Status)
 			}
 		case "Model":
-			if nr.Status != n8nimport.StatusFolded {
-				t.Errorf("model status %s", nr.Status)
+			if nr.Status != n8nimport.StatusFull || nr.MonoType != "ai.model" || nr.MonoID != model.ID {
+				t.Errorf("model status %s type %s id %s", nr.Status, nr.MonoType, nr.MonoID)
 			}
 		}
 	}
@@ -188,10 +191,13 @@ func TestChatModelRoutes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		chain := node(t, wf, "Chain")
-		if chain.Config["runtime"] != tc.runtime || (tc.wantModel != "" && chain.Config["model"] != tc.wantModel) ||
-			(tc.wantModel == "" && chain.Config["model"] != nil) {
-			t.Errorf("%s: runtime %v model %v", tc.typ, chain.Config["runtime"], chain.Config["model"])
+		m := attachedSub(t, wf, "Chain", "ai_languageModel").Config
+		if m["runtime"] != tc.runtime || (tc.wantModel != "" && m["model"] != tc.wantModel) ||
+			(tc.wantModel == "" && m["model"] != nil) {
+			t.Errorf("%s: runtime %v model %v", tc.typ, m["runtime"], m["model"])
+		}
+		if _, set := node(t, wf, "Chain").Config["runtime"]; set {
+			t.Errorf("%s: runtime set on the chain", tc.typ)
 		}
 		for _, nr := range rep.Nodes {
 			if nr.Name == "Chain" && (nr.Status == n8nimport.StatusPartial) != tc.partial {
@@ -213,7 +219,14 @@ func TestModelSelectorUsesFirstModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantConfig(t, node(t, wf, "Agent"), map[string]interface{}{"runtime": "claude", "model": "claude-sonnet-4-5"})
+	m := attachedSub(t, wf, "Agent", "ai_languageModel")
+	if m.Name != "Pick" || m.Type != "ai.model" {
+		t.Errorf("model sub-node %s %q", m.Type, m.Name)
+	}
+	wantConfig(t, m, map[string]interface{}{"runtime": "claude", "model": "claude-sonnet-4-5"})
+	if nr := nodeReport(t, rep, "Claude"); nr.Status != n8nimport.StatusFolded {
+		t.Errorf("selected model status %s", nr.Status)
+	}
 	if !strings.Contains(issueText(rep, "Agent"), "rules of modelSelector are not applied") {
 		t.Errorf("report:\n%s", issueText(rep, "Agent"))
 	}
@@ -270,8 +283,9 @@ func TestVectorStoreAndSearchTools(t *testing.T) {
 		t.Fatalf("KB %s %v", kb.Type, kb.Config)
 	}
 	wantConfig(t, kb, map[string]interface{}{"provider": "memory", "memory_key": "kb", "query": "{{ $json.input }}", "top_k": 3})
-	if emb, _ := kb.Config["embedding"].(map[string]interface{}); emb["provider"] != "ollama" {
-		t.Errorf("embedding %v", kb.Config["embedding"])
+	emb := attachedSub(t, wf, "KB", "ai_embedding")
+	if emb.Type != "vector.embeddings" || emb.Name != "Emb" || emb.Config["provider"] != "ollama" {
+		t.Errorf("embeddings %s %q %v", emb.Type, emb.Name, emb.Config)
 	}
 	wantConfig(t, node(t, wf, "Search"), map[string]interface{}{"url": "https://serpapi.com/search.json",
 		"query_params": map[string]interface{}{"engine": "google", "q": "{{ default $json.query $json.input }}", "gl": "de",
@@ -313,7 +327,7 @@ func TestVertexEmbeddingsUseServiceAccountConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	emb, _ := node(t, wf, "Store").Config["embedding"].(map[string]interface{})
+	emb := attachedSub(t, wf, "Store", "ai_embedding").Config
 	if emb["provider"] != "vertex" || emb["project_id"] != "proj" || emb["credential_id"] != "google_service_account" {
 		t.Fatalf("embedding %v", emb)
 	}

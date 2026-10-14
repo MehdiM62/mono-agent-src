@@ -151,6 +151,9 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		}
 		r := &opRun{pkg: pkg, op: op, params: params, item: it, credDef: credDef,
 			scope: Scope{P: params, Cred: cred, Item: it.JSON}}
+		if op.Wait != nil {
+			return r.dispatchAndWait(ctx, input)
+		}
 		if err := r.fetchUploadURL(ctx); err != nil {
 			return nil, err
 		}

@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/monoes/mono-agent/internal/secrets"
@@ -38,6 +39,16 @@ func (r *runner) resolveSubNodes(rootID string, exprCtx ExpressionContext, depth
 		if cfg == nil {
 			cfg = map[string]interface{}{}
 		}
+		if e.Kind == "ai_tool" {
+			// A tool's config reads the model's arguments: it is resolved
+			// when the root calls it, not now.
+			node := n
+			out = append(out, SubNode{ID: n.ID, Name: n.Name, Type: n.Type, Kind: e.Kind, Config: cfg,
+				Call: func(ctx context.Context, args map[string]interface{}) ([]Item, error) {
+					return r.callTool(ctx, node, exprCtx, args)
+				}})
+			continue
+		}
 		r.injectCredential(n, cfg)
 		var perItem []string
 		if factory, ok := r.registry.Get(n.Type); ok {
@@ -62,4 +73,54 @@ func (r *runner) resolveSubNodes(rootID string, exprCtx ExpressionContext, depth
 		out = append(out, SubNode{ID: n.ID, Name: n.Name, Type: n.Type, Kind: e.Kind, Config: resolved, SubNodes: children})
 	}
 	return out, nil
+}
+
+// callTool runs the ai_tool sub-node n once with args as its only input item:
+// its config is resolved against args (credentials, templates, vault and
+// secret references, as for any node; the type's per-item fields are left to
+// it), and its main output items are returned.
+func (r *runner) callTool(ctx context.Context, n WorkflowNode, base ExpressionContext, args map[string]interface{}) ([]Item, error) {
+	factory, ok := r.registry.Get(n.Type)
+	if !ok {
+		return nil, fmt.Errorf("tool %q: unknown node type %q", n.Name, n.Type)
+	}
+	executor := factory()
+	cfg, _ := cloneConfigValue(n.Config).(map[string]interface{})
+	if cfg == nil {
+		cfg = map[string]interface{}{}
+	}
+	r.injectCredential(n, cfg)
+	var perItem []string
+	if res, ok := executor.(PerItemConfigResolver); ok {
+		perItem = res.PerItemConfigFields()
+	}
+	if args == nil {
+		args = map[string]interface{}{}
+	}
+	exprCtx := base
+	exprCtx.JSON = args
+	held := extractPerItemFields(cfg, perItem)
+	resolved, err := r.expr.ResolveConfig(cfg, exprCtx)
+	if err != nil {
+		return nil, fmt.Errorf("tool %q: resolve config: %w", n.Name, err)
+	}
+	restorePerItemFields(resolved, held)
+	if db := vault.DBFromContext(ctx); db != nil {
+		_ = vault.ResolveConfig(ctx, db, resolved)
+		_ = secrets.ResolveConfig(ctx, db, vault.ProfileIDFromContext(ctx), resolved)
+	}
+	outs, err := executor.Execute(ctx, NodeInput{
+		Items: []Item{NewItem(args)}, NodeOutputs: r.nodeOutputs,
+		WorkflowID: r.wf.ID, ExecutionID: r.exec.ID, NodeID: n.ID, NodeName: n.Name, Location: base.Location,
+	}, resolved)
+	if err != nil {
+		return nil, fmt.Errorf("tool %q: %w", n.Name, err)
+	}
+	var items []Item
+	for _, o := range outs {
+		if o.Handle == "" || o.Handle == "main" {
+			items = append(items, o.Items...)
+		}
+	}
+	return items, nil
 }

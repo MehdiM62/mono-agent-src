@@ -158,8 +158,8 @@ func mapCustomGuardrails(c *MapContext, cfg map[string]interface{}, param string
 	}
 }
 
-// guardrailsModel sets runtime and model from the attached chat model,
-// which only the model-judged checks use.
+// guardrailsModel keeps the attached chat model, which only the
+// model-judged checks use, as an ai.model sub-node.
 func guardrailsModel(c *MapContext, cfg map[string]interface{}, needed bool) {
 	found := false
 	for _, s := range c.SubNodes {
@@ -174,10 +174,8 @@ func guardrailsModel(c *MapContext, cfg map[string]interface{}, needed bool) {
 		found = true
 		if !needed {
 			c.Note("the chat model %s is not needed: no model-judged guardrail is configured", shortType(s.Type))
-			continue
 		}
-		cfg["runtime"] = "claude"
-		useModel(c, cfg, s)
+		attachModel(c, cfg, s)
 	}
 	if needed && !found {
 		cfg["runtime"] = "claude"

@@ -1,0 +1,219 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "page",
+      "help": "page shows the next form page to the person who submitted the Form trigger; completion ends the form with a final screen. Place it after a trigger.form.",
+      "key": "operation",
+      "label": "Page Type",
+      "options": [
+        "page",
+        "completion"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "page"
+        ]
+      },
+      "key": "formTitle",
+      "label": "Form Title",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "page"
+        ]
+      },
+      "key": "formDescription",
+      "label": "Form Description",
+      "required": false,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "page"
+        ]
+      },
+      "help": "A list of {fieldLabel, fieldName, fieldType (text|textarea|number|email|password|date|dropdown|radio|checkbox), requiredField, placeholder, fieldOptions: {values: [{option}]}, multiselect}.",
+      "key": "formFields",
+      "label": "Form Fields",
+      "language": "json",
+      "placeholder": "[{\"fieldLabel\": \"Name\", \"requiredField\": true}]",
+      "required": false,
+      "rows": 6,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "page"
+        ]
+      },
+      "key": "buttonLabel",
+      "label": "Button Label",
+      "placeholder": "Submit",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "page"
+        ]
+      },
+      "help": "Give up waiting for the page after a while and continue with the input items.",
+      "key": "limitWaitTime",
+      "label": "Limit Wait Time",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": "afterTimeInterval",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "page"
+        ]
+      },
+      "help": "Used when Limit Wait Time is on.",
+      "key": "limitType",
+      "label": "Limit Type",
+      "options": [
+        "afterTimeInterval",
+        "atSpecifiedTime"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": 1,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "page"
+        ]
+      },
+      "help": "Used with limit type afterTimeInterval.",
+      "key": "resumeAmount",
+      "label": "Limit Amount",
+      "min": 0,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "hours",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "page"
+        ]
+      },
+      "key": "resumeUnit",
+      "label": "Limit Unit",
+      "options": [
+        "seconds",
+        "minutes",
+        "hours",
+        "days"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "page"
+        ]
+      },
+      "help": "Used with limit type atSpecifiedTime.",
+      "key": "maxDateAndTime",
+      "label": "Limit Date and Time",
+      "placeholder": "2026-12-31T09:00:00Z",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "text",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "completion"
+        ]
+      },
+      "help": "text shows Completion Title and Message; redirect sends the browser to the URL; showText shows Text (HTML allowed) as the page.",
+      "key": "respondWith",
+      "label": "On Submission",
+      "options": [
+        "text",
+        "redirect",
+        "showText"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "respondWith",
+        "values": [
+          "text"
+        ]
+      },
+      "key": "completionTitle",
+      "label": "Completion Title",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "respondWith",
+        "values": [
+          "text"
+        ]
+      },
+      "key": "completionMessage",
+      "label": "Completion Message",
+      "required": false,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "respondWith",
+        "values": [
+          "redirect"
+        ]
+      },
+      "key": "redirectUrl",
+      "label": "Redirect URL",
+      "placeholder": "https://example.com/thanks",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "respondWith",
+        "values": [
+          "showText"
+        ]
+      },
+      "key": "responseText",
+      "label": "Text",
+      "required": false,
+      "type": "textarea"
+    }
+  ]
+}

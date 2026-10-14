@@ -53,6 +53,8 @@ The bind address is loopback by default; set MONOAGENT_WEBHOOK_ADDR (e.g.
   "response_timeout": 30,           // lastNode/responseNode: seconds to wait, then 202
   "dedupe_header": "X-GitHub-Delivery", // optional: a repeated delivery id starts no run
   "verify_token": "",               // optional: hub.verify_token a hub.challenge check must carry
+  "challenge_format": "text",       // optional: "json" answers {"hub.challenge": ...} (Strava)
+  "answer_get": false,              // optional: answer a GET without a query 200, no run (Mailchimp)
   "register_with": "typeform",      // optional: register the URL with this app on activation
   "public_url": "https://my-tunnel.example", // base the app reaches; default MONOAGENT_PUBLIC_URL
   "credential_id": "typeform",      // connection whose token registers the hook
@@ -74,8 +76,10 @@ answers with the output of the node that ran last; responseNode with what a
 core.respond_webhook node sends; a failed run answers 500. A duplicate
 delivery answers {"success":true,"duplicate":true,"execution_id":<first run>}.
 Vendor URL checks are answered without starting a run: HEAD (200), GET
-?hub.mode=subscribe&hub.challenge (Meta, WebSub; verify_token when set),
-?validationToken (Microsoft Graph), an X-Hook-Secret header (Asana, Keap:
+?hub.mode=subscribe&hub.challenge (Meta, WebSub; verify_token when set;
+JSON with challenge_format "json" for Strava), GET ?check as the only
+parameter (Onfleet, echoed), a GET without a query when answer_get is set
+(Mailchimp), ?validationToken (Microsoft Graph), an X-Hook-Secret header (Asana, Keap:
 echoed and kept, and a later X-Hook-Signature must match it), Slack
 url_verification, and an AWS SNS SubscriptionConfirmation (its https
 amazonaws.com SubscribeURL is visited).
@@ -120,6 +124,31 @@ formFields may be given as JSON text. There is no login on the form: anyone
 who can reach the URL can submit it.`,
 	},
 	{
+		Type:     "trigger.chat",
+		Category: "trigger",
+		Short:    "Serve a chat page at /chat/<path> and run the workflow with each message",
+		Description: `Serves a chat page at http://127.0.0.1:9321/chat/<path> while "monoagentcli
+daemon" runs (MONOAGENT_WEBHOOK_ADDR changes the bind). Each message starts a
+run; POST <path>/message with {"sessionId", "chatInput"} does the same from
+your own page. responseMode lastNode answers in the chat with the last node's
+output (its "output" or "text" field); responseNodes leaves the answers to
+core.respond_chat nodes, whose sendAndWait takes the person's next message
+as its answer instead of starting a run.`,
+		Config: `{
+  "path":             "support",             // required
+  "title":            "Support",
+  "subtitle":         "We answer in seconds",
+  "initialMessages":  "Hi there!\nHow can I help?",
+  "inputPlaceholder": "Type your question…",
+  "responseMode":     "lastNode"             // lastNode | responseNodes
+}`,
+		Inputs:  "none",
+		Outputs: `one item: {sessionId, action: "sendMessage", chatInput}.`,
+		Notes: `The workflow must be activated and the daemon running. Messages are kept in
+the daemon's memory for a day after a session's last message. There is no
+login on the chat: anyone who can reach the URL can use it.`,
+	},
+	{
 		Type:     "trigger.sse",
 		Category: "trigger",
 		Short:    "Run workflow on each Server-Sent Event from a URL",
@@ -149,6 +178,30 @@ workflow does not need to be active to be called.`,
 		Config:  `{}`,
 		Inputs:  "none",
 		Outputs: "the items passed by the calling workflow",
+	},
+	{
+		Type:     "trigger.evaluation",
+		Category: "trigger",
+		Short:    "Run this workflow once per dataset row in an evaluation (n8n's When fetching a dataset row)",
+		Description: `Names the dataset an evaluation runs: "monoagentcli workflow evaluate <id>"
+runs the workflow once per row (each run an execution of its own) and keeps
+the mean of the metrics core.evaluation nodes set. Rows come from a data
+table of the profile (default) or a Google Sheet whose first row names the
+columns. Only an evaluation fires this trigger; a manual run of the workflow
+leaves its branch idle. The workflow need not be active.`,
+		Config: `{
+  "source": "dataTable",
+  "table": "Support questions",
+  "limit_rows": true,
+  "max_rows": 20,
+  "match": "all",
+  "filters": [{"column": "split", "condition": "eq", "value": "test"}]
+}`,
+		Inputs:  "none",
+		Outputs: "one item per run: the row's columns plus row_id and row_number",
+		Notes: `"workflow evaluate <id> --dataset <table>" reads another data table. Sheets
+take "credential_id", "spreadsheet_id" and "sheet_name"; their filters compare
+with eq only. "workflow evaluations <id>" lists past runs.`,
 	},
 	{
 		Type:     "trigger.error",
@@ -249,6 +302,27 @@ unchanged. In any other run it only passes items through.`,
 }`,
 		Inputs:  "any items",
 		Outputs: "the same items",
+	},
+	{
+		Type:     "core.respond_chat",
+		Category: "core",
+		Short:    "Send a message into the chat that started the run; optionally wait for the answer",
+		Description: `For runs started by trigger.chat (best with responseMode "responseNodes"):
+operation send posts message into the person's chat; sendAndWait also waits
+(the run pauses durably) for their answer there. responseType freeTextChat:
+the next message typed is the answer; approval: Approve/Disapprove buttons
+(a typed message counts as disapproval). options.limitWaitTime gives up and
+passes the input items on.`,
+		Config: `{
+  "operation":    "sendAndWait",            // send | sendAndWait
+  "message":      "Shall I book it?",
+  "responseType": "approval",               // freeTextChat | approval
+  "approvalOptions": {"values": {"approvalType": "double"}}
+}`,
+		Inputs: "any items",
+		Outputs: `send: the same items. sendAndWait: a typed answer as {sessionId, action,
+chatInput} (approval adds data.approved false); a button as {data:
+{approved}}.`,
 	},
 
 	// ── Agents & orgs ─────────────────────────────────────────────────────────

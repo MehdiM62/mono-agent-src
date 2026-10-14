@@ -198,6 +198,22 @@ limitWaitTime with limitType afterTimeInterval (resumeAmount, resumeUnit) or
 atSpecifiedTime (maxDateAndTime) gives up and passes the input items on.`,
 	},
 	{
+		Type:     "core.form",
+		Category: "core",
+		Short:    "Show the next page, or the ending, of a trigger.form's form",
+		Config:   `{ "operation": "page", "formTitle": "Step 2", "formFields": [{ "fieldLabel": "Phone" }] }  |  { "operation": "completion", "respondWith": "text", "completionTitle": "Thanks!", "completionMessage": "We will be in touch." }`,
+		Inputs:   "any items",
+		Outputs:  "page: the page's answers + submittedAt and formMode; completion: the input items",
+		Description: `Place after a trigger.form: the submission is held until the run reaches
+the next core.form, and the browser is sent to that page (on the
+execution's resume URL). Each page's answers resume the run; IF/Switch nodes
+between pages choose the next page. operation completion ends the form:
+respondWith text (completionTitle, completionMessage), redirect
+(redirectUrl) or showText (responseText, HTML shown as the page). A run that
+ends without a completion shows the default confirmation. limitWaitTime
+(as on core.wait) gives up on a page and passes the input items on.`,
+	},
+	{
 		Type:     "core.stop_error",
 		Category: "core",
 		Short:    "Abort workflow with an error message",
@@ -208,7 +224,7 @@ atSpecifiedTime (maxDateAndTime) gives up and passes the input items on.`,
 	{
 		Type:     "core.code",
 		Category: "core",
-		Short:    "Run custom JavaScript logic on items",
+		Short:    "Run custom JavaScript or Python logic on items",
 		Config: `{
   "code": "(function () { return $input.all().map(item => ({ ...item, extra: 'hello' })); })()"
 }`,
@@ -217,7 +233,59 @@ atSpecifiedTime (maxDateAndTime) gives up and passes the input items on.`,
 		Notes: `$input has all(), first(), last() and item; $json is the first item;
 $('Node Name') gives another node's output with the same accessors. Code
 may return a promise, and code with a top-level return or await runs as an
-async function body (n8n style): return $input.all().map(...)`,
+async function body (n8n style): return $input.all().map(...)
+"language": "python" runs the code with the system python3 (MONOAGENT_PYTHON
+overrides it) as n8n's Python Code node: _items (all items, each
+{"json": ...}), or _item once per item with "mode": "runOnceForEachItem";
+_input.all()/first()/last()/item, _json and _('Node Name').all() also work,
+and items read as attributes too (item.json.x). Return a list of dicts (or
+one dict per item, None to drop it); print() goes to stderr.`,
+	},
+	{
+		Type:     "core.data_table",
+		Category: "core",
+		Short:    "Keep rows across runs in a data table (n8n Data tables)",
+		Config: `{
+  "operation": "upsert",
+  "table": "Leads",
+  "filters": [{"column": "email", "condition": "eq", "value": "{{ $json.email }}"}],
+  "values": {"email": "{{ $json.email }}", "score": "{{ $json.score }}"}
+}`,
+		Inputs:  "any items (each item runs the operation once)",
+		Outputs: "the rows written or found; rowExists/rowNotExists pass the matching input items",
+		Notes: `Tables belong to the profile; manage them with monoagentcli table
+list|create|show|rows|delete, or resource "table" (create, list, update to
+rename, clear, delete). Row operations: insert, get, update, upsert,
+deleteRows, rowExists, rowNotExists. "table" is a name or id; "values"
+(or "columns_mode": "auto" for the item's JSON) and "filters" are resolved
+per item. Columns are typed string, number, boolean or date; a value for a
+column the table lacks adds that column. Conditions: eq, neq, gt, gte, lt,
+lte, like/ilike (% wildcard), isEmpty, isNotEmpty, isTrue, isFalse; "match":
+"all" requires every one (default any). Rows carry id, createdAt and
+updatedAt; "dry_run" shows before/after without writing.`,
+	},
+	{
+		Type:     "core.evaluation",
+		Category: "core",
+		Short:    "Record an evaluation case's inputs, outputs and metrics (n8n Evaluation)",
+		Config: `{
+  "operation": "setMetrics",
+  "metric": "stringSimilarity",
+  "expected_answer": "{{ $('When fetching a dataset row').item.json.expected }}",
+  "actual_answer": "{{ $json.output }}"
+}`,
+		Inputs:  "any items",
+		Outputs: "setMetrics: one item per input with the metric by name; checkIfEvaluating: evaluation / normal; the others pass items on",
+		Notes: `Only in a run of "monoagentcli workflow evaluate" (a trigger.evaluation
+run) does setInputs record the case's inputs, setOutputs write its outputs
+into the dataset row ("table", default the trigger's table; or a sheet with
+"source": "googleSheets") and setMetrics record the first item's metrics;
+elsewhere they pass items on. Metrics: stringSimilarity (0-1, edit
+distance), categorization (1 on an exact match), toolsUsed (share of
+"expected_tools" found in "intermediate_steps"), customMetrics ("metrics":
+[{name, value}], numbers), and correctness / helpfulness, scored 1-5 by a
+local agent runtime ("runtime"/"model", or an attached ai.model). inputs and
+outputs are [{name, value}] lists; "metric_name" renames a metric.`,
 	},
 	{
 		Type:     "core.noop",

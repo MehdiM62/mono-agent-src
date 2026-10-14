@@ -267,6 +267,20 @@ type Operation struct {
 	// Outputs are the keys of the op's items as the node schema lists
 	// them. Unset, they are derived from binary and output (outputs.go).
 	Outputs []workflow.NodeSchemaOutput `json:"outputs,omitempty"`
+	// Wait makes the op n8n's dispatch-and-wait (wait.go): the request is
+	// sent for the first item with hook.url bound to the execution's resume
+	// URL, then the node pauses until that URL is called.
+	Wait *Wait `json:"wait,omitempty"`
+}
+
+// Wait is how a dispatch-and-wait op waits for its callback.
+type Wait struct {
+	// Method is the method the callback must use ("" = any).
+	Method string `json:"method,omitempty"`
+	// Limit is the dotted param path of n8n's wait limit ({limitType,
+	// resumeAmount, resumeUnit, maxDateAndTime}, e.g.
+	// "options.limitWaitTime.values"); unset or absent waits until called.
+	Limit string `json:"limit,omitempty"`
 }
 
 // Bulk is an operation's one-request-for-many-items variant. The batch

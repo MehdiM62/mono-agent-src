@@ -112,6 +112,13 @@ Use n8n's parameter names verbatim as field keys (`taskId`, `additionalFields`,
 `returnAll`, `limit`, `updateFields`, …) so an n8n node's `parameters` object
 drops in unchanged. The API's own names go in `query`/`body` keys.
 
+**Dispatch and wait** (n8n's `dispatchAndWait`): `"wait": {"method": "POST",
+"limit": "options.limitWaitTime.values"}` sends the request once (first item)
+with `{{ hook.url }}` bound to the execution's resume URL, then pauses the run
+until that URL is called; the call's JSON body is the output (a list: one item
+per element). `limit` is the param path of n8n's wait limit; past it the input
+items continue. A failed request fails the node and leaves nothing waiting.
+
 ## 4. Fields
 
 Same shape as the workflow editor's `NodeSchemaField`:
@@ -946,6 +953,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | package | `webhook` (app trigger registration: `fields`, `create`, `id`, `extra`, `delete`, `check`, `verify`); root `hook`; filter `map` | §17 |
 | templates | literal braces `\{{` / `\}}`; `hdr` = the previous webhook step's response headers | §5, §17 |
 | package, operation | `outputs` (declared output keys; else derived); schema `outputs` with `visible_for` | §9 |
+| operation | `wait` (`method`, `limit`): dispatch and wait for a call to the execution's resume URL, root `hook.url` | §3 |
 | binary | `download_each` (one item per base64 file in a list); dotted `upload_field`/`property_field`; `property` for downloads; download `file_name`/`mime_type` fallback | §10 |
 | binary, output, steps | `upload_urls`; builder `properties` and `output.from`; templated `download_each`; `hdr` from `before` steps; harness `response_headers` | §9, §10, §13 |
 

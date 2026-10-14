@@ -124,6 +124,10 @@
       "label": "Output Parser",
       "max": 1,
       "required": false
+    },
+    {
+      "handle": "ai_tool",
+      "label": "Tool"
     }
   ]
 }

@@ -56,7 +56,7 @@ var genericConfigKeys = map[string]bool{
 	"credential": true, "username": true, "profile_id": true,
 	"continue_on_fail": true, "timeout": true, "timeout_seconds": true,
 	"notes": true, "disabled": true, "description": true, "label": true,
-	"always_output_data": true, "execute_once": true, "executeOnce": true,
+	"always_output_data": true, "execute_once": true, "tool_description": true, "executeOnce": true,
 	"max_tries": true, "wait_between_tries": true,
 	"execute_once_per_item": true, "node_timeout": true,
 }
@@ -204,8 +204,9 @@ func isExpression(v interface{}) bool {
 // AI sub-node of a kind supplies: a root with that sub-node attached need
 // not set them.
 var subSuppliedFields = map[string]map[string][]string{
-	"agent.ask":     {"ai_languageModel": {"runtime", "model"}},
-	"ai.guardrails": {"ai_languageModel": {"runtime", "model"}},
+	"agent.ask":       {"ai_languageModel": {"runtime", "model"}},
+	"ai.guardrails":   {"ai_languageModel": {"runtime", "model"}},
+	"core.evaluation": {"ai_languageModel": {"runtime", "model"}},
 }
 
 // attachedSubKinds returns, per root node id, the kinds of the enabled AI

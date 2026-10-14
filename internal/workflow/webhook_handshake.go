@@ -26,6 +26,12 @@ import (
 //	                                       Instagram; WebSub; Strava). When
 //	                                       the node sets verify_token,
 //	                                       hub.verify_token must equal it.
+//	                                       challenge_format "json" answers
+//	                                       {"hub.challenge": ...} instead
+//	                                       (Strava).
+//	GET  ?check=...  (its only parameter)  200 with the value as text (Onfleet)
+//	GET  without a query, when the node    200, empty (Mailchimp)
+//	     sets answer_get
 //	?validationToken=...                   200 text/plain token (Microsoft Graph)
 //	X-Hook-Secret header                   echoed back with 200 and kept as the
 //	                                       node's static data "x_hook_secret"
@@ -87,7 +93,17 @@ func (s *WebhookServer) answerHandshake(w http.ResponseWriter, r *http.Request, 
 			writeJSONError(w, http.StatusForbidden, "hub.verify_token does not match")
 			return true
 		}
+		if reg.ChallengeJSON {
+			writeWebhookJSON(w, http.StatusOK, map[string]string{"hub.challenge": q.Get("hub.challenge")})
+			return true
+		}
 		writeHandshakeText(w, q.Get("hub.challenge"))
+		return true
+	case r.Method == http.MethodGet && len(q) == 1 && q.Has("check"):
+		writeHandshakeText(w, q.Get("check"))
+		return true
+	case r.Method == http.MethodGet && reg.AnswerGet && r.URL.RawQuery == "":
+		w.WriteHeader(http.StatusOK)
 		return true
 	case (r.Method == http.MethodGet || r.Method == http.MethodPost) && q.Get("validationToken") != "":
 		writeHandshakeText(w, q.Get("validationToken"))
