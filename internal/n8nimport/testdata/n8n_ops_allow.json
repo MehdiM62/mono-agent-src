@@ -1,5 +1,4 @@
 [
-  {"key": "@n8n/n8n-nodes-langchain.chat", "category": "engine", "reason": "replies into the chat window of a Chat Trigger session (and waits for the user); mono-agent has no hosted chat session"},
   {"key": "n8n-nodes-base.evaluation", "category": "engine", "reason": "n8n's evaluation framework (datasets, metrics, evaluation runs) has no mono-agent counterpart"},
   {"key": "n8n-nodes-base.github#workflow.dispatchAndWait", "category": "engine", "reason": "waits until the GitHub workflow calls the execution's resume URL; mono-agent has no per-execution resume webhook"},
   {"key": "@n8n/n8n-nodes-langchain.chatHubVectorStorePGVector", "category": "impossible", "reason": "per-user vector store of n8n's Chat Hub, bound to n8n's own chat users"},

@@ -21,7 +21,7 @@ var corpusExpect = map[string]struct {
 	"if_switch_merge.json":     {0, []string{"core.if", "core.switch", "core.merge", "core.code", "core.set"}},
 	"rss_to_slack.json":        {0, []string{"trigger.schedule", "system.rss_read", "core.limit", "comm.slack"}},
 	"webhook_to_sheets.json":   {0, []string{"trigger.webhook", "service.google_sheets", "core.set"}},
-	"ai_agent.json":            {0, []string{"trigger.manual", "agent.ask"}},
+	"ai_agent.json":            {0, []string{"trigger.chat", "agent.ask"}},
 	"loop_batches.json":        {0, []string{"core.split_in_batches", "http.request", "core.wait"}},
 	"error_output.json":        {0, []string{"http.request", "core.stop_error"}},
 	"legacy_v1.json":           {0, []string{"trigger.schedule", "core.code", "core.if", "http.request"}},
