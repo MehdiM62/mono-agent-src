@@ -174,29 +174,42 @@ return out;
 }
 
 // mapRemoveSeenBefore maps "Remove Items Processed in Previous Executions"
-// onto core.remove_duplicates' persisted history. Only n8n's "value is
-// new" logic has a counterpart; the high-water-mark logics (incremental
-// number, later date) do not.
+// onto core.remove_duplicates' persisted history: n8n's "value is new"
+// logic keeps a history of values, the incremental-number and later-date
+// logics one stored maximum, each read from its own n8n value parameter.
 func mapRemoveSeenBefore(c *MapContext) Mapping {
 	c.Ignore("compare", "fieldsToCompare", "fieldsToExclude", "options.disableDotNotation", "options.removeOtherFields")
-	if logic := c.Literal("logic", "removeItemsWithAlreadySeenKeyValues"); logic != "removeItemsWithAlreadySeenKeyValues" {
+	cfg := map[string]interface{}{"operation": "removeItemsRepeatedWithinPreviousExecutions"}
+	valueParam := "dedupeValue"
+	switch logic := c.Literal("logic", "removeItemsWithAlreadySeenKeyValues"); logic {
+	case "removeItemsWithAlreadySeenKeyValues":
+		c.Ignore("incrementalDedupeValue", "dateDedupeValue")
+	case "removeItemsUpToStoredIncrementalKey":
+		valueParam = "incrementalDedupeValue"
+		cfg["logic"] = logic
+		c.Ignore("dedupeValue", "dateDedupeValue", "options.historySize")
+	case "removeItemsUpToStoredDate":
+		valueParam = "dateDedupeValue"
+		cfg["logic"] = logic
+		c.Ignore("dedupeValue", "incrementalDedupeValue", "options.historySize")
+	default:
 		c.Ignore("dedupeValue", "incrementalDedupeValue", "dateDedupeValue", "options.scope", "options.historySize")
 		return c.OperationUnsupported("", "removeItemsSeenInPreviousExecutions with logic "+logic)
 	}
-	c.Ignore("incrementalDedupeValue", "dateDedupeValue")
-	cfg := map[string]interface{}{"operation": "removeItemsRepeatedWithinPreviousExecutions"}
-	raw, _ := c.Raw("dedupeValue").(string)
+	raw, _ := c.Raw(valueParam).(string)
 	switch {
+	case raw == "" && valueParam == "dedupeValue":
+		c.Warn(valueParam, nil, "is empty: whole items are compared")
 	case raw == "":
-		c.Warn("dedupeValue", nil, "is empty: whole items are compared")
+		c.Warn(valueParam, nil, "is empty: the node fails until a value to compare is set")
 	case !strings.HasPrefix(raw, "="):
-		c.Warn("dedupeValue", raw, "is plain text, the same value for every item in n8n; mono-agent reads it as a field path")
+		c.Warn(valueParam, raw, "is plain text, the same value for every item in n8n; mono-agent reads it as a field path")
 		cfg["dedupeValue"] = raw
 	default:
-		cfg["dedupeValue"] = c.Str("dedupeValue", "")
+		cfg["dedupeValue"] = c.Str(valueParam, "")
 	}
 	dedupeHistoryOptions(c, cfg)
-	if c.Has("options.historySize") {
+	if _, watermark := cfg["logic"]; !watermark && c.Has("options.historySize") {
 		cfg["historySize"] = c.Float("options.historySize", 10000)
 	}
 	return Mapping{Type: "core.remove_duplicates", Config: cfg}

@@ -63,12 +63,13 @@ func isOutboundNode(n workflow.WorkflowNode) bool {
 var readOnlyNodes = setOf(
 	// Triggers the engine passes through without running anything.
 	"trigger.manual", "trigger.org", "trigger.schedule", "trigger.webhook",
+	"trigger.local_file",
 	// Control flow and data shaping. core.code runs goja with only $input
 	// and $json bound; core.human_in_loop waits for a person.
 	"core.aggregate", "core.code", "core.compare_datasets", "core.filter",
 	"core.human_in_loop", "core.if", "core.limit", "core.merge",
 	"core.remove_duplicates", "core.set", "core.sort", "core.split_in_batches",
-	"core.stop_error", "core.switch", "core.wait",
+	"core.stop_error", "core.switch", "core.wait", "core.noop",
 	// core.respond_webhook only answers the webhook request that started
 	// the run; in any other run (a granted call) it does nothing.
 	"core.respond_webhook",

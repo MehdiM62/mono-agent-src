@@ -1,4 +1,4 @@
-package main
+package doctor
 
 import (
 	"bufio"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/health"
 	"github.com/monoes/mono-agent/internal/nodemgr"
 )
@@ -37,7 +38,7 @@ type setupJSON struct {
 	Fixes []setupOutcome `json:"fixes,omitempty"`
 }
 
-func newSetupCmd(cfg *globalConfig) *cobra.Command {
+func newSetupCmd(cfg *Deps) *cobra.Command {
 	var yes bool
 	var groups []string
 	var wants setupWants
@@ -86,7 +87,7 @@ Safe to run again at any time; it only does what is still missing.`,
 			// In JSON mode stdout carries the final report; headings and
 			// progress go to stderr as NDJSON events.
 			ev := setupEvents{w: out}
-			if cfg.JSONOutput {
+			if cfg.JSONOutput() {
 				ev = setupEvents{w: cmd.ErrOrStderr(), json: true}
 			}
 			// One reader for every prompt: fixPrompter wraps InOrStdin in a
@@ -94,7 +95,7 @@ Safe to run again at any time; it only does what is still missing.`,
 			// so typed-ahead answers aren't split between two buffers.
 			in := bufio.NewReader(cmd.InOrStdin())
 			cmd.SetIn(in)
-			interactive := !cfg.JSONOutput && stdinIsTerminal()
+			interactive := !cfg.JSONOutput() && clicore.StdinIsTerminal()
 			ask := func(question string) string {
 				if !interactive {
 					return ""
@@ -108,7 +109,7 @@ Safe to run again at any time; it only does what is still missing.`,
 			rep := runHealth(ctx, cfg, reg, opts)
 
 			ev.stage("Fixing what is missing")
-			rep, outcomes := setupFixes(ctx, cfg, reg, opts, rep, fixPrompter(cmd, yes, cfg.JSONOutput), ev)
+			rep, outcomes := setupFixes(ctx, cfg, reg, opts, rep, fixPrompter(cmd, yes, cfg.JSONOutput()), ev)
 
 			plan := optionalFixIDs(rep, wants, ask)
 			if len(plan.ids) > 0 || len(plan.skipped) > 0 {
@@ -135,7 +136,7 @@ Safe to run again at any time; it only does what is still missing.`,
 				}
 			}
 
-			if cfg.JSONOutput {
+			if cfg.JSONOutput() {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				if err := enc.Encode(setupJSON{Report: rep, Fixes: outcomes}); err != nil {
@@ -147,9 +148,9 @@ Safe to run again at any time; it only does what is still missing.`,
 				printManualSteps(out, rep)
 			}
 			if n := rep.RequiredFailures(); n > 0 {
-				if cfg.JSONOutput {
+				if cfg.JSONOutput() {
 					// The report above is the one JSON document.
-					return reportedError{Err: errRequiredChecksFailed(n)}
+					return clicore.Reported{Err: errRequiredChecksFailed(n)}
 				}
 				return errRequiredChecksFailed(n)
 			}
@@ -211,7 +212,7 @@ func (e setupEvents) fixEnd(o setupOutcome) {
 // re-check, services last), but one fix at a time, so each is announced
 // with fix_start/fix_end events, and it says so when the pass limit
 // stops it while fixes still keep coming.
-func setupFixes(ctx context.Context, cfg *globalConfig, reg *health.Registry, opts health.Options, rep *health.Report,
+func setupFixes(ctx context.Context, cfg *Deps, reg *health.Registry, opts health.Options, rep *health.Report,
 	confirm func(health.FixInfo) bool, ev setupEvents) (*health.Report, []setupOutcome) {
 	var outcomes []setupOutcome
 	tried := map[string]bool{}

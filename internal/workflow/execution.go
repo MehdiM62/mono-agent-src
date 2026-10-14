@@ -66,6 +66,7 @@ func buildExpressionContext(
 		Env:         nil, // populated from ctx.Env; OS env only merged when MONOAGENT_ALLOW_ENV_TEMPLATES=1
 		Trigger:     exec.TriggerData,
 		Vars:        vars,
+		Location:    workflowLocation(wf),
 	}
 }
 

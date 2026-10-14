@@ -214,6 +214,18 @@ atSpecifiedTime (maxDateAndTime) gives up and passes the input items on.`,
 }`,
 		Inputs:  "any items",
 		Outputs: "items returned by the code",
+		Notes: `$input has all(), first(), last() and item; $json is the first item;
+$('Node Name') gives another node's output with the same accessors. Code
+may return a promise, and code with a top-level return or await runs as an
+async function body (n8n style): return $input.all().map(...)`,
+	},
+	{
+		Type:     "core.noop",
+		Category: "core",
+		Short:    "Pass items through unchanged",
+		Config:   `{}`,
+		Inputs:   "any items",
+		Outputs:  "the same items",
 	},
 	{
 		Type:     "core.compare_datasets",

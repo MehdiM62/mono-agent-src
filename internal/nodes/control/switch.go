@@ -78,6 +78,7 @@ func (n *SwitchNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 			Node:        input.NodeOutputs,
 			WorkflowID:  input.WorkflowID,
 			ExecutionID: input.ExecutionID,
+			Location:    input.Location,
 		}
 
 		val, err := engine.EvaluateString(expression, exprCtx)

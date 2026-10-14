@@ -24,13 +24,16 @@ var nodeDocsComm = []nodeDoc{
 		Short:    "Fetch emails from an IMAP mailbox",
 		Description: `Reads a mailbox read-only (EXAMINE + BODY.PEEK: nothing is marked read).
 since_last_run returns only messages with a UID above the highest one an
-earlier run returned; it starts over when the mailbox's UIDVALIDITY changes.`,
+earlier run returned; it starts over when the mailbox's UIDVALIDITY changes.
+With baseline also on, the first run only records the mailbox's highest UID
+and returns nothing (n8n's IMAP trigger behaviour).`,
 		Config: `{
   "credential_id":  "my-imap",
   "mailbox":        "INBOX",
   "unread_only":    true,
   "limit":          10,
-  "since_last_run": false   // true: only messages newer than the previous run returned
+  "since_last_run": false,  // true: only messages newer than the previous run returned
+  "baseline":       false   // with since_last_run: the first run records the mailbox and returns nothing
 }`,
 		Inputs:  "none",
 		Outputs: "one item per email: uid, from, subject, body, date, message_id, read",
@@ -85,7 +88,8 @@ var nodeDocsService = []nodeDoc{
 		Short:    "Read or write Google Sheets rows",
 		Description: `read_rows with since_last_run returns only rows past the ones an earlier
 run read (by row number, per spreadsheet and range); a range that shrank
-starts over and returns every row.`,
+starts over and returns every row. With baseline also on, the first run only
+records the row count and returns nothing.`,
 		Config: `{
   "credential_id":  "google-oauth",
   "spreadsheet_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms",
@@ -102,7 +106,8 @@ starts over and returns every row.`,
 		Short:    "Send or read Gmail messages via Gmail API",
 		Description: `list_messages with since_last_run lists only messages received after the
 newest one an earlier run saw (Gmail after: plus an id check at the
-boundary); each listed item then carries its internalDate.`,
+boundary); each listed item then carries its internalDate. With baseline also
+on, the first run only records what it lists and returns nothing.`,
 		Config:  `{ "credential_id": "gmail-oauth", "operation": "send", "to": "user@example.com", "subject": "Report", "body": "{{ $json.report }}" }`,
 		Inputs:  "item with message fields",
 		Outputs: "message_id, thread_id",

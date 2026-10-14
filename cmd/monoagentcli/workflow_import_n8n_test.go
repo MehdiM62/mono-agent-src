@@ -76,7 +76,7 @@ func TestWorkflowConvertN8nJSONAndExitCodes(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &res); err != nil {
 		t.Fatalf("stdout: %v\n%s", err, out)
 	}
-	if res.Report.Complete || res.Report.Counts.Unmapped != 4 || res.Report.Counts.Expressions != 1 || len(res.Workflow.Nodes) == 0 {
+	if res.Report.Complete || res.Report.Counts.Unmapped != 2 || res.Report.Counts.Expressions != 1 || len(res.Workflow.Nodes) == 0 {
 		t.Errorf("json result = %+v", res.Report)
 	}
 	if res.Report.Expressions[0].Node != "Cross node" {

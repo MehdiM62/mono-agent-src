@@ -75,6 +75,7 @@ func (n *SetNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 			Node:        input.NodeOutputs,
 			WorkflowID:  input.WorkflowID,
 			ExecutionID: input.ExecutionID,
+			Location:    input.Location,
 		}
 
 		for i, rawAssign := range assignments {
