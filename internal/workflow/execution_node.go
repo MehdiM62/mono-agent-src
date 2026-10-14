@@ -161,7 +161,8 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		// Store outputs for expression access.
 		r.nodeOutputs[node.Name] = inputItems
 
-		// Record execution node as SUCCESS.
+		// Record execution node as SUCCESS. Its items are its output too,
+		// so the run's detail shows what the trigger handed on.
 		now2 := time.Now().UTC()
 		execNode := &WorkflowExecutionNode{
 			ExecutionID: r.exec.ID,
@@ -169,6 +170,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 			NodeName:    node.Name,
 			Status:      "SUCCESS",
 			InputItems:  inputItems,
+			OutputItems: inputItems,
 			StartedAt:   &now2,
 			FinishedAt:  &now2,
 		}
