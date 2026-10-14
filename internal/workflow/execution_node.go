@@ -100,8 +100,8 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 	var inputItems []Item
 	if r.triggerNodeIDs[node.ID] {
 		// Only the trigger node that actually fired receives the trigger
-		// payload. When TriggerNodeID is empty (manual/retry runs) every
-		// trigger node fires. Other trigger nodes get no items, so their
+		// payload. When TriggerNodeID is empty (a manual run of a workflow
+		// without exactly one trigger.manual) every trigger node fires. Other trigger nodes get no items, so their
 		// downstream branch is skipped by the empty-input guard above.
 		if r.exec.TriggerNodeID == "" || node.ID == r.exec.TriggerNodeID {
 			inputItems = r.triggerItems
