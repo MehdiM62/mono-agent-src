@@ -30,4 +30,6 @@ type EmailReadNodeSchema struct {
 	UnreadOnly bool `json:"unread_only" schema:"label=Unread Only,type=boolean,default=false"`
 
 	SinceLastRun bool `json:"since_last_run" schema:"label=Only New Since Last Run,type=boolean,default=false,help=Return only messages with a UID above the highest one this node returned in an earlier run. The first run returns the newest Max Emails as usual; later runs return the oldest Max Emails new messages so a backlog is read over the next runs. Remembered per node and account and mailbox; starts over when the server changes the mailbox's UIDVALIDITY."`
+
+	Baseline bool `json:"baseline" schema:"label=Skip Existing Messages on First Run,type=boolean,default=false,depends_on_key=since_last_run,depends_on_values=true,help=First run only records what is there and emits nothing; later runs emit what is new (n8n's behaviour)."`
 }

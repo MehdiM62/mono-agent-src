@@ -323,3 +323,47 @@ func TestIMAPQuote(t *testing.T) {
 		}
 	}
 }
+
+func TestEmailReadSinceLastRunBaseline(t *testing.T) {
+	f := newFakeUIDIMAP(t)
+	ctx := newStateContext(t)
+	cfg := emailConfig(map[string]interface{}{"since_last_run": true, "baseline": true, "unread_only": true})
+	f.add(1, false)
+	f.add(2, true)
+
+	// The first run returns nothing and fetches nothing; the cursor starts
+	// at the highest UID, read or not.
+	if got, err := readUIDs(t, ctx, cfg); err != nil || got != "" {
+		t.Fatalf("baseline first run = %q, %v; want nothing", got, err)
+	}
+	f.mu.Lock()
+	for _, c := range f.commands {
+		if strings.Contains(c, "FETCH") {
+			t.Errorf("baseline run fetched: %q", c)
+		}
+	}
+	f.mu.Unlock()
+
+	f.add(3, false)
+	if got, _ := readUIDs(t, ctx, cfg); got != "3" {
+		t.Fatalf("second run = %q, want 3", got)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !strings.Contains(strings.Join(f.commands, "\n"), "UID SEARCH UID 3:* UNSEEN") {
+		t.Fatalf("commands = %q, want a UID 3:* UNSEEN search", f.commands)
+	}
+}
+
+func TestEmailReadSinceLastRunBaselineEmptyMailbox(t *testing.T) {
+	f := newFakeUIDIMAP(t)
+	ctx := newStateContext(t)
+	cfg := emailConfig(map[string]interface{}{"since_last_run": true, "baseline": true})
+	if got, err := readUIDs(t, ctx, cfg); err != nil || got != "" {
+		t.Fatalf("empty mailbox = %q, %v", got, err)
+	}
+	f.add(1, false)
+	if got, _ := readUIDs(t, ctx, cfg); got != "1" {
+		t.Fatalf("first message after an empty baseline = %q, want 1", got)
+	}
+}

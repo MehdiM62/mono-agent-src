@@ -14,12 +14,13 @@ type sheetsCursor struct {
 
 // sheetsRowsSinceLastRun keeps the items of rows past the ones the node's
 // previous read of this spreadsheet and range saw, then stores the row count
-// for the next run. The first run keeps every row. A range that now holds
+// for the next run. The first run keeps every row, or none with baseline on
+// (workflow.PollBaseline). A range that now holds
 // fewer rows than before was cleared or had rows deleted, so the row numbers
 // no longer line up: that run starts over and keeps every row, as a first
 // run does. The cursor is per node, spreadsheet and range (sheet name
 // included), so changing any of them starts over.
-func sheetsRowsSinceLastRun(ctx context.Context, input workflow.NodeInput, spreadsheetID, rangeStr string, rows int, items []workflow.Item) ([]workflow.Item, error) {
+func sheetsRowsSinceLastRun(ctx context.Context, input workflow.NodeInput, spreadsheetID, rangeStr string, rows int, items []workflow.Item, baseline bool) ([]workflow.Item, error) {
 	sd, err := workflow.StaticDataFor(ctx, input, workflow.StateScopeNode)
 	if err != nil {
 		return nil, err
@@ -31,7 +32,9 @@ func sheetsRowsSinceLastRun(ctx context.Context, input workflow.NodeInput, sprea
 		return nil, err
 	}
 	fresh := items
-	if found && rows >= prev.Rows {
+	if !found && baseline {
+		fresh = []workflow.Item{}
+	} else if found && rows >= prev.Rows {
 		fresh = make([]workflow.Item, 0, len(items))
 		for _, it := range items {
 			if n, _ := it.JSON["_row_index"].(int); n > prev.Rows {

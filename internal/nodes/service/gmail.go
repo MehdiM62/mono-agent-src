@@ -186,7 +186,7 @@ func (n *GmailNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 		var since *gmailSince
 		if boolVal(config, "since_last_run") {
 			var err error
-			if since, err = loadGmailSince(ctx, input, q, labelIDs); err != nil {
+			if since, err = loadGmailSince(ctx, input, q, labelIDs, workflow.PollBaseline(config)); err != nil {
 				return nil, fmt.Errorf("gmail list_messages: since_last_run: %w", err)
 			}
 			q = since.query(q)
