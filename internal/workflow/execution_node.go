@@ -392,16 +392,38 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 	// record; "error" is the failure-output convention shared by nodes
 	// that report per-item failures instead of returning an error
 	// (http.request connection failures and cap breaches,
-	// system.execute_command non-zero exits, …).
-	var mainItems []Item
+	// system.execute_command non-zero exits, …). A node with no "main"
+	// output (core.if true/false, switch cases, a loop's loop/done) records
+	// the items it routed on its other handles instead, so the run's detail
+	// is not empty; $node["IF"] reads its first output (firstOutputItems).
+	var mainItems, branchItems []Item
 	var errorHandleItems []Item
+	hasMain, hasLoop := false, false
+	for _, out := range outputs {
+		if out.Handle == "loop" {
+			hasLoop = true
+		}
+	}
 	for _, out := range outputs {
 		switch out.Handle {
 		case "error":
 			errorHandleItems = append(errorHandleItems, out.Items...)
 		case "main", "":
+			hasMain = true
 			mainItems = append(mainItems, out.Items...)
+		case "batch":
+			// The loop node's "batch" repeats the items of its "loop" output.
+			if !hasLoop {
+				branchItems = append(branchItems, out.Items...)
+			}
+		default:
+			branchItems = append(branchItems, out.Items...)
 		}
+	}
+	exprItems := mainItems
+	if !hasMain {
+		mainItems = branchItems
+		exprItems = firstOutputItems(node.Type, outputs)
 	}
 
 	// A node that routed failures to its "error" output must not report
@@ -433,7 +455,7 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 		return false, nodeErr
 	}
 
-	r.nodeOutputs[node.Name] = mainItems
+	r.nodeOutputs[node.Name] = exprItems
 	if t.itemFailures > 0 {
 		r.nonFatalFailures = append(r.nonFatalFailures, node.Name)
 	}
@@ -479,4 +501,26 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 		Int("output_items", len(mainItems)).
 		Msg("node completed successfully")
 	return false, nil
+}
+
+// firstOutputItems is what $node["Name"] / $('Name') read of a node without
+// a "main" output: as in n8n, its first output (output index 0) only. That
+// is the first handle the node emits (core.if "true", core.switch its first
+// case), except for the loop node, whose n8n output 0 is "done": empty
+// until the loop has finished.
+func firstOutputItems(nodeType string, outputs []NodeOutput) []Item {
+	if nodeType == LoopNodeType {
+		for _, out := range outputs {
+			if out.Handle == "done" {
+				return out.Items
+			}
+		}
+		return nil
+	}
+	for _, out := range outputs {
+		if out.Handle != "error" {
+			return out.Items
+		}
+	}
+	return nil
 }
