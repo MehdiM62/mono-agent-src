@@ -96,6 +96,25 @@ func TestOracleSearchDistancesAndFilters(t *testing.T) {
 	}
 }
 
+// A table LangChain's OracleVS created for n8n has a RAW(16) id; it comes
+// back as Oracle's uppercase hex, not raw bytes.
+func TestOracleSearchRawIDAsHex(t *testing.T) {
+	s := useOracleFake(t, "ora-raw")
+	s.cols = []string{"id", "text", "metadata", "distance"}
+	s.rows = [][]driver.Value{
+		{[]byte{0x2f, 0x1a, 0xb0, 0x00, 0x9c, 0xde, 0x41, 0x7e, 0xe0, 0x63, 0x02, 0x00, 0x11, 0xac, 0x7f, 0x01}, "alpha", nil, 0.5},
+		{nil, "beta", nil, 0.75},
+	}
+	be := openOracle(t, map[string]interface{}{"connection_string": "ora-raw"})
+	hits, err := be.Search(context.Background(), []float64{1}, 2, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 2 || hits[0].ID != "2F1AB0009CDE417EE063020011AC7F01" || hits[1].ID != "" {
+		t.Errorf("hits = %+v", hits)
+	}
+}
+
 func TestOracleDeleteAndConfigErrors(t *testing.T) {
 	s := useOracleFake(t, "ora-del")
 	s.affected = 2

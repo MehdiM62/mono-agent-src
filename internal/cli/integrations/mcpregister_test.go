@@ -1,4 +1,4 @@
-package main
+package integrations
 
 import (
 	"context"
@@ -115,12 +115,12 @@ func TestMCPEntryIgnoresSpecialPurposeServers(t *testing.T) {
 func TestAgentsMCPRegistrationOnlyInstalledRuntimes(t *testing.T) {
 	home := t.TempDir()
 	stubAgentRuntimes(t, home, "codex")
-	if found, _, _ := agentsMCPRegistration(); !found {
+	if found, _, _ := AgentsMCPRegistration(); !found {
 		t.Fatal("codex on PATH: want found")
 	}
 	writeAgentCfg(t, filepath.Join(home, ".codex", "config.toml"),
 		"[mcp_servers.monoagent]\ncommand = \"/opt/bin/monoagentcli\"\nargs = [\"mcp\"]\n")
-	found, reg, where := agentsMCPRegistration()
+	found, reg, where := AgentsMCPRegistration()
 	if !found || reg || !strings.Contains(where, "Codex") || !strings.Contains(where, "outdated") {
 		t.Fatalf("outdated codex: %v %v %q", found, reg, where)
 	}
@@ -129,13 +129,13 @@ func TestAgentsMCPRegistrationOnlyInstalledRuntimes(t *testing.T) {
 	}
 	writeAgentCfg(t, filepath.Join(home, ".codex", "config.toml"),
 		"[mcp_servers.monoagent]\ncommand = \"/opt/bin/monoagentcli\"\nargs = [\"mcp\", \"--allow-mutations\"]\n")
-	if _, reg, where := agentsMCPRegistration(); !reg {
+	if _, reg, where := AgentsMCPRegistration(); !reg {
 		t.Fatalf("current codex: %q", where)
 	}
 
 	none := t.TempDir()
 	stubAgentRuntimes(t, none)
-	if found, _, _ := agentsMCPRegistration(); found {
+	if found, _, _ := AgentsMCPRegistration(); found {
 		t.Fatal("nothing installed: want not found")
 	}
 }
@@ -149,7 +149,7 @@ func TestRegisterAgentsMCP(t *testing.T) {
 	ocPath := filepath.Join(home, ".config", "opencode", "opencode.json")
 	writeAgentCfg(t, ocPath, `{"$schema":"https://opencode.ai/config.json","provider":{"x":{"a":1}},"mcp":{"keep":{"type":"remote","url":"https://e"}}}`)
 
-	if err := registerAgentsMCP(context.Background(), func(string) {}); err != nil {
+	if err := RegisterAgentsMCP(context.Background(), func(string) {}); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
@@ -195,7 +195,7 @@ func TestRegisterGeminiReplacesOutdatedEntry(t *testing.T) {
 	path := geminiSettingsPath(home)
 	writeAgentCfg(t, path, `{"theme":"dark","mcpServers":{"old":{"command":"/x/monoagentcli","args":["mcp"],"trust":true},"other":{"command":"npx"}}}`)
 
-	if err := registerAgentsMCP(context.Background(), func(string) {}); err != nil {
+	if err := RegisterAgentsMCP(context.Background(), func(string) {}); err != nil {
 		t.Fatal(err)
 	}
 	m := readAgentCfg(t, path)
@@ -225,14 +225,14 @@ func TestRegisterRefusesUnparsableConfig(t *testing.T) {
 	path := geminiSettingsPath(home)
 	orig := "{\n  // a comment\n  \"theme\": \"dark\"\n}\n"
 	writeAgentCfg(t, path, orig)
-	err := registerAgentsMCP(context.Background(), func(string) {})
+	err := RegisterAgentsMCP(context.Background(), func(string) {})
 	if err == nil || !strings.Contains(err.Error(), "not editing") {
 		t.Fatalf("want refusal, got %v", err)
 	}
 	if b, _ := os.ReadFile(path); string(b) != orig {
 		t.Fatalf("config changed: %q", b)
 	}
-	if found, reg, where := agentsMCPRegistration(); !found || reg || !strings.Contains(where, "cannot parse") {
+	if found, reg, where := AgentsMCPRegistration(); !found || reg || !strings.Contains(where, "cannot parse") {
 		t.Fatalf("state: %v %v %q", found, reg, where)
 	}
 }
@@ -250,7 +250,7 @@ func TestRegisterAgentsMCPReportsErrorsAndContinues(t *testing.T) {
 		}
 		return nil
 	}
-	err := registerAgentsMCP(context.Background(), func(string) {})
+	err := RegisterAgentsMCP(context.Background(), func(string) {})
 	if err == nil || !strings.Contains(err.Error(), "Claude Code: boom") {
 		t.Fatalf("err %v", err)
 	}
@@ -268,13 +268,13 @@ func TestSkillsInstallForOtherRuntimes(t *testing.T) {
 		}
 	}
 	// No ~/.claude: opencode gets its own copy.
-	found, missing, _ := claudeSkillsState()
-	if !found || len(missing) != 3*len(claudeSkillNames) {
+	found, missing, _ := ClaudeSkillsState()
+	if !found || len(missing) != 3*len(ClaudeSkillNames) {
 		t.Fatalf("found %v missing %v", found, missing)
 	}
-	runClaudeFirstRunCheck()
+	RunClaudeFirstRunCheck()
 	for _, dir := range []string{".codex/skills", ".gemini/skills", ".config/opencode/skills"} {
-		for _, name := range claudeSkillNames {
+		for _, name := range ClaudeSkillNames {
 			if _, err := os.Stat(filepath.Join(home, dir, name, "SKILL.md")); err != nil {
 				t.Errorf("%s/%s: %v", dir, name, err)
 			}
@@ -283,15 +283,15 @@ func TestSkillsInstallForOtherRuntimes(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".claude")); !os.IsNotExist(err) {
 		t.Fatal("first-run check created ~/.claude")
 	}
-	if _, missing, stale := claudeSkillsState(); len(missing)+len(stale) != 0 {
+	if _, missing, stale := ClaudeSkillsState(); len(missing)+len(stale) != 0 {
 		t.Fatalf("after install: missing %v stale %v", missing, stale)
 	}
 	writeAgentCfg(t, filepath.Join(home, ".codex", "skills", "monoagent-build", "SKILL.md"), "mine")
-	runClaudeFirstRunCheck()
+	RunClaudeFirstRunCheck()
 	if b, _ := os.ReadFile(filepath.Join(home, ".codex", "skills", "monoagent-build", "SKILL.md")); string(b) != "mine" {
 		t.Fatal("first-run check rewrote an existing skill")
 	}
-	if _, _, stale := claudeSkillsState(); len(stale) != 1 || stale[0] != "monoagent-build (Codex)" {
+	if _, _, stale := ClaudeSkillsState(); len(stale) != 1 || stale[0] != "monoagent-build (Codex)" {
 		t.Fatalf("stale %v", stale)
 	}
 
@@ -304,7 +304,7 @@ func TestSkillsInstallForOtherRuntimes(t *testing.T) {
 			t.Fatal("opencode target listed beside Claude Code")
 		}
 	}
-	if err := installClaudeSkill(false); err != nil {
+	if err := InstallClaudeSkill(false); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(home, ".codex", "skills", "monoagent-build", "SKILL.md")); string(b) == "mine" {
@@ -315,13 +315,49 @@ func TestSkillsInstallForOtherRuntimes(t *testing.T) {
 func TestSkillsNoRuntimeNoWrites(t *testing.T) {
 	home := t.TempDir()
 	stubAgentRuntimes(t, home)
-	if found, _, _ := claudeSkillsState(); found {
+	if found, _, _ := ClaudeSkillsState(); found {
 		t.Fatal("no runtime folder: want not found")
 	}
-	runClaudeFirstRunCheck()
+	RunClaudeFirstRunCheck()
 	for _, d := range []string{".claude", ".codex", ".gemini", ".config"} {
 		if _, err := os.Stat(filepath.Join(home, d)); !os.IsNotExist(err) {
 			t.Errorf("created %s", d)
 		}
+	}
+}
+
+func TestClaudeSkillsStateAndMCPRegistration(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	if found, _, _ := ClaudeSkillsState(); found {
+		t.Fatal("no ~/.claude: want not found")
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, missing, _ := ClaudeSkillsState(); len(missing) != len(ClaudeSkillNames) {
+		t.Fatalf("missing = %v", missing)
+	}
+	if err := InstallClaudeSkill(false); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(ClaudeSkillFile(filepath.Join(home, ".claude", "skills"), ClaudeSkillNames[0]), []byte("old"), 0o644)
+	if _, missing, stale := ClaudeSkillsState(); len(missing) != 0 || len(stale) != 1 {
+		t.Fatalf("missing %v stale %v", missing, stale)
+	}
+
+	if st := claudeMCPState(home); !st.Installed || st.Registered {
+		t.Fatalf("no ~/.claude.json: want installed, not registered: %+v", st)
+	}
+	os.WriteFile(filepath.Join(home, ".claude.json"),
+		[]byte(`{"mcpServers":{"ma":{"command":"/usr/local/bin/monoagentcli","args":["mcp"]}}}`), 0o644)
+	if st := claudeMCPState(home); !st.Registered || st.Current || st.Entry != "ma" {
+		t.Fatalf("read-only entry should be registered but outdated: %+v", st)
+	}
+	os.WriteFile(filepath.Join(home, ".claude.json"),
+		[]byte(`{"mcpServers":{"ma":{"command":"/usr/local/bin/monoagentcli","args":["mcp","--allow-mutations"]}}}`), 0o644)
+	if st := claudeMCPState(home); !st.Registered || !st.Current {
+		t.Fatalf("current entry not detected: %+v", st)
 	}
 }

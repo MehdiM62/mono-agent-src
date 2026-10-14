@@ -1262,7 +1262,7 @@
         "profileId": "{{ p.profileName }}"
       },
       "body": {
-        "configVars": {
+        "!configVars": {
           "$merge": "{{ p.agentParameters.value }}"
         }
       },
