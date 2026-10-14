@@ -104,10 +104,10 @@ func readIMAPMail(ctx context.Context, opts imapReadOpts) (*imapReadResult, erro
 	if _, err := readLine(); err != nil {
 		return nil, fmt.Errorf("greeting: %w", err)
 	}
-	if _, err := run("A1", fmt.Sprintf("LOGIN %q %q", opts.username, opts.password)); err != nil {
+	if _, err := run("A1", "LOGIN "+imapQuote(opts.username)+" "+imapQuote(opts.password)); err != nil {
 		return nil, fmt.Errorf("login: %w", err)
 	}
-	lines, err := run("A2", fmt.Sprintf("EXAMINE %q", opts.mailbox))
+	lines, err := run("A2", "EXAMINE "+imapQuote(opts.mailbox))
 	if err != nil {
 		return nil, fmt.Errorf("EXAMINE %s: %w", opts.mailbox, err)
 	}
@@ -195,6 +195,13 @@ func readIMAPMail(ctx context.Context, opts imapReadOpts) (*imapReadResult, erro
 		return res.messages[i]["uid"].(int) > res.messages[j]["uid"].(int)
 	})
 	return res, nil
+}
+
+// imapQuote writes s as an IMAP quoted string. Only \ and " are escaped;
+// other bytes go as they are (Go's %q would turn non-ASCII into \u escapes,
+// which an IMAP server reads literally).
+func imapQuote(s string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(s) + `"`
 }
 
 // imapMessageItem maps one FETCH response onto the node's item fields.

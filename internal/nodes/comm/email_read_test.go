@@ -309,3 +309,17 @@ func TestEmailReadRequiresConnectionFields(t *testing.T) {
 		}
 	}
 }
+
+// IMAP quoted strings escape only backslash and double quote; non-ASCII
+// passwords go through unchanged rather than as Go \u escapes.
+func TestIMAPQuote(t *testing.T) {
+	for in, want := range map[string]string{
+		`plain`:    `"plain"`,
+		`a"b\c`:    `"a\"b\\c"`,
+		`pässwörd`: `"pässwörd"`,
+	} {
+		if got := imapQuote(in); got != want {
+			t.Errorf("imapQuote(%q) = %s, want %s", in, got, want)
+		}
+	}
+}
