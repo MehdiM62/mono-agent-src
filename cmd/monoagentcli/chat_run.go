@@ -130,7 +130,12 @@ func runChat(cfg *globalConfig, cmd *cobra.Command, args []string, f *chatFlags)
 		return errInvalidInput("--cwd, --profile-folder, --coder-root and --new-workspace only apply to --mode coder")
 	}
 	if runtime == "" {
-		return fmt.Errorf("--runtime is required (see `agent scan --installed`)")
+		// With exactly one runtime that can run the turn, use it.
+		rt, err := defaultChatRuntime(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		runtime = rt
 	}
 	bin, _, err := monomind.Ensure(ctx)
 	if err != nil {

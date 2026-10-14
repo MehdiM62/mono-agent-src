@@ -41,11 +41,3 @@ func servingCommand(c *cobra.Command, when ...func(*cobra.Command) bool) *cobra.
 	}
 	return c
 }
-
-// servesInForeground is servingCommand's predicate for `org serve`: only
-// `--foreground` (and not `--stop`) keeps this process alive to serve.
-func servesInForeground(cmd *cobra.Command) bool {
-	foreground, _ := cmd.Flags().GetBool("foreground")
-	stop, _ := cmd.Flags().GetBool("stop")
-	return foreground && !stop
-}

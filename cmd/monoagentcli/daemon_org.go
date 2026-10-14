@@ -12,12 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/orgbridge"
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
 	"github.com/monoes/mono-agent/internal/orggroup"
-	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
@@ -154,101 +154,22 @@ func (s *orgServices) start(ctx context.Context, engine *workflow.WorkflowEngine
 
 // orgReconcileOutcome is what reconciling one org file did — the daemon
 // logs it, `org reconcile` prints it.
-type orgReconcileOutcome struct {
-	Org      string             `json:"org"`
-	Saved    bool               `json:"saved"`
-	Findings []orggrant.Finding `json:"findings"`
-	Error    string             `json:"error,omitempty"`
-	// Signature is what the save did to the org's operator signature
-	// (monomind 2.21+): re-signed, or left for review with a notice.
-	Signature *orgsign.Outcome `json:"signature,omitempty"`
+type orgReconcileOutcome = orgenv.ReconcileOutcome
+
+// reconciler reconciles org files for the daemon (orgenv.Reconciler): its
+// own saves are marked so the watcher does not reconcile them again.
+func (s *orgServices) reconciler() *orgenv.Reconciler {
+	return &orgenv.Reconciler{DB: s.db, OpenWorkflowStore: openWorkflowStore, Logf: s.logf, Saved: s.markSelfWrite}
 }
 
-// reconcileProfile reconciles every org of a profile at startup, so grants,
-// providers, approvalTools, and autonomy agree with the enforcement rows
-// even after the org files were edited while no daemon ran (C-3, C-54).
-// `org reconcile` runs the same pass after a profile folder moves (C-24).
+// reconcileProfile reconciles every org of a profile (orgenv.Reconciler.Profile).
 func (s *orgServices) reconcileProfile(ctx context.Context, pr orgdecide.ProfileRoot) []orgReconcileOutcome {
-	docs, bad, err := orgdesign.LoadAll(pr.Root)
-	if err != nil {
-		return nil
-	}
-	var out []orgReconcileOutcome
-	for name, e := range bad {
-		s.logf("org services: %s/%s: unreadable org file: %v", pr.ProfileID, name, e)
-		out = append(out, orgReconcileOutcome{Org: name, Error: "unreadable org file: " + e.Error()})
-	}
-	forced := map[string]bool{}
-	for _, d := range orggroup.ApplyReportUp(docs) {
-		forced[d.Name] = true
-	}
-	for _, d := range docs {
-		out = append(out, s.reconcileDoc(ctx, pr, d, forced[d.Name]))
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Org < out[j].Org })
-	return out
+	return s.reconciler().Profile(ctx, pr)
 }
 
+// reconcileDoc reconciles one org file (orgenv.Reconciler.Doc).
 func (s *orgServices) reconcileDoc(ctx context.Context, pr orgdecide.ProfileRoot, d *orgdesign.Doc, force bool) orgReconcileOutcome {
-	res := orgReconcileOutcome{Org: d.Name, Findings: []orggrant.Finding{}}
-	// A command writing a row and then this file holds the rows lock until both are written. d was
-	// read before the lock, so it can be the file without that command's display copy; read it again.
-	release, err := lockOrgRows(pr.Root)
-	if err != nil {
-		s.logf("org services: reconcile %s: %v", d.Name, err)
-		res.Error = err.Error()
-		return res
-	}
-	defer release()
-	fresh, err := orgdesign.Load(pr.Root, d.Name)
-	if err != nil {
-		// Gone or unreadable since it was read: reconciling the stale copy could save it back over a
-		// deleted or half-edited file.
-		s.logf("org services: reconcile %s: reload under the rows lock: %v", d.Name, err)
-		res.Error = "reload under the rows lock: " + err.Error()
-		return res
-	}
-	d = fresh
-	fail := func(format string, err error) orgReconcileOutcome {
-		s.logf(format, d.Name, err)
-		res.Error = err.Error()
-		return res
-	}
-	rep, err := orggrant.Reconcile(ctx, orggrant.NewStore(s.db.DB), d, orggrant.GenOptions{
-		ProfileID: pr.ProfileID, CLIPath: selfExecutable(), APIAddr: orgAPIAddr(s.db),
-		Workflow: grantWorkflowLoader(s.db),
-	})
-	if err != nil {
-		return fail("org services: reconcile %s: %v", err)
-	}
-	res.Findings = append(res.Findings, rep.Findings...)
-	auto, err := orgdecide.ReconcileAutonomy(ctx, orgdecide.NewStore(s.db.DB), pr.ProfileID, d)
-	if err != nil {
-		return fail("org services: autonomy reconcile %s: %v", err)
-	}
-	if auto.Ignored != "" {
-		s.logf("org services: %s: %s", d.Name, auto.Ignored)
-		res.Findings = append(res.Findings, orggrant.Finding{Kind: "autonomy_raise_ignored", Detail: auto.Ignored})
-	}
-	if !force && !rep.Changed && !auto.DocChanged {
-		return res
-	}
-	for _, f := range rep.Findings {
-		s.logf("org services: %s: %s %s", d.Name, f.Kind, f.Detail)
-	}
-	// An org edited outside mono-agent fails the signature check first, so
-	// this write never signs that edit (orgsign.Before).
-	sha, sig, err := saveOrgSigned(ctx, pr.Root, d.Name, d)
-	if err != nil {
-		return fail("org services: saving reconciled %s: %v", err)
-	}
-	if sig != nil && sig.Notice != "" {
-		s.logf("org services: %s", sig.Notice)
-	}
-	res.Signature = sig
-	res.Saved = true
-	s.markSelfWrite(pr.ProfileID, d.Name, sha)
-	return res
+	return s.reconciler().Doc(ctx, pr, d, force)
 }
 
 // workflowFacts describes a workflow for the decider prompt from the DB.
