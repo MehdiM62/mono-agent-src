@@ -362,6 +362,26 @@ func (r *runner) recordSkipped(node WorkflowNode) {
 	skipCancel()
 }
 
+// recordNotStarted persists a FAILED record for a node that failed before
+// it could start (its type is not installed), so the run's detail names the
+// node rather than leaving it to the run's error text.
+func (r *runner) recordNotStarted(node WorkflowNode, input []Item, err error) {
+	now := time.Now().UTC()
+	en := &WorkflowExecutionNode{
+		ExecutionID: r.exec.ID,
+		NodeID:      node.ID,
+		NodeName:    node.Name,
+		Status:      "RUNNING",
+		InputItems:  input,
+		StartedAt:   &now,
+	}
+	c, cancel := dbCtx()
+	defer cancel()
+	if r.store.CreateExecutionNode(c, en) == nil {
+		_ = recordNodeFailure(c, r.store, en, err, nil)
+	}
+}
+
 // decrementMergeWaiting decrements the mergeWaiting counter for each direct
 // successor of completedNodeID that is a merge node (forward in-degree > 1).
 // On the first predecessor completion of a merge node the counter is
