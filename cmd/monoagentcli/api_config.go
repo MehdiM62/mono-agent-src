@@ -57,8 +57,7 @@ type (
 
 // The document `api status --json` prints is the one the MCP tool api_status returns.
 type (
-	apiListenerJSON = apiconfig.ListenerReport
-	apiStatusJSON   = apiconfig.StatusReport
+	apiStatusJSON = apiconfig.StatusReport
 )
 
 // The probes `api status` uses are internal/apiconfig's, which the MCP tool api_status uses too.
@@ -68,9 +67,6 @@ var probeSchemes = apiconfig.ProbeSchemes
 func probeAddr(addr string, loopback, wantV1 bool) (scheme string, reachable, v1Answers bool) {
 	return apiconfig.ProbeAddr(addr, loopback, wantV1, nil)
 }
-
-// autoNote is the line the text output gives for the auto model (apiconfigcli.AutoNote).
-func autoNote(a apiAutoJSON) string { return apiconfigcli.AutoNote(a) }
 
 // asCLIError gives the errors of internal/apiconfig the exit codes of the CLI
 // (apiconfigcli.AsCLIError).

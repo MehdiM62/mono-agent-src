@@ -40,6 +40,3 @@ func peopleDeps(cfg *globalConfig) peoplecli.Deps {
 func newPeopleCmd(cfg *globalConfig) *cobra.Command {
 	return peoplecli.NewCommand(peopleDeps(cfg))
 }
-
-// printReviewJSON writes v to stdout as indented JSON (`login names` shares it).
-func printReviewJSON(v interface{}) error { return peoplecli.PrintJSON(v) }

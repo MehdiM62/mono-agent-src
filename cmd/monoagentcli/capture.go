@@ -66,12 +66,7 @@ const defaultDBPath = capturecli.DefaultDBPath
 
 // The capture helpers the extension bridge, record, crawl and people commands share.
 var (
-	openProfileDB          = capturecli.OpenProfileDB
-	extensionProfileSource = capturecli.ExtensionProfileSource
-	newCaptureClassifier   = capturecli.NewClassifier
-	captureHumanBytes      = capturecli.HumanBytes
-	truncateCaptureCell    = capturecli.TruncateCell
-	slicesContains         = capturecli.SlicesContains
+	openProfileDB = capturecli.OpenProfileDB
 )
 
 // resolveCaptureProfile turns what the user typed after --profile into a profile and its inbox.

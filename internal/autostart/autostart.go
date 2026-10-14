@@ -93,6 +93,8 @@ func executablePath() (string, error) {
 
 // logDir returns ~/.monoagent/logs, creating it if needed — where every
 // backend that can redirect stdout/stderr points the installed service.
+//
+//lint:ignore U1000 used by the darwin and windows autostart files
 func logDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
