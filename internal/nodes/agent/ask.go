@@ -59,6 +59,7 @@ type askConfig struct {
 	schema                                                  map[string]interface{}
 	merge, auto                                             bool
 	memory                                                  *memoryOption
+	env                                                     map[string]string // a model vendor's turn setup
 }
 
 func (n *AskNode) Type() string { return "agent.ask" }
@@ -74,6 +75,13 @@ func (n *AskNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 	config, err := withSubNodes(input, config)
 	if err != nil {
 		return nil, err
+	}
+	vend, err := vendorFor(config, configString(config, "model", ""))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", workflow.ErrInvalidConfig, err)
+	}
+	if vend != nil {
+		config["runtime"], config["model"] = vend.runtime, vend.model
 	}
 	runtime := configString(config, "runtime", "")
 	if runtime == "" {
@@ -106,6 +114,9 @@ func (n *AskNode) Execute(ctx context.Context, input workflow.NodeInput, config 
 		schema:         schema,
 		merge:          merge,
 		memory:         memory,
+	}
+	if vend != nil {
+		cfg.env = vend.env
 	}
 	concurrency := configInt(config, "concurrency", 1)
 	if concurrency < 1 {
@@ -164,6 +175,12 @@ func withSubNodes(input workflow.NodeInput, config map[string]interface{}) (map[
 		out[k] = v
 	}
 	if m, ok := aisub.ModelOf(input); ok {
+		if m.Platform != "" {
+			out["credential_platform"], out["credential"] = m.Platform, m.Credential
+		}
+		if _, vendor := vendors[m.Platform]; vendor && m.Runtime == "" {
+			m.Runtime = "opencode" // set by the vendor connection
+		}
 		if m.Runtime == "" {
 			return nil, fmt.Errorf("%w: agent.ask: the attached chat model %q has no runtime (see `monoagentcli agent scan --installed`, or use \"auto\")", workflow.ErrInvalidConfig, m.Name)
 		}
@@ -368,6 +385,7 @@ func (t *asker) turn(ctx context.Context, prompt, system, resume string) (*monom
 		// for every agent.ask turn, whichever workflow runs it.
 		Sandbox:          monomind.TurnSandboxMode,
 		WorkspacePurpose: monomind.WorkspaceAgentAsk,
+		Env:              cfg.env,
 		Tools:            t.toolSpecs(),
 		OnToolCall:       t.toolHandler(ctx),
 	}, func(ev monomind.Event) {

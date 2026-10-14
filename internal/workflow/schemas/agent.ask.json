@@ -3,7 +3,7 @@
   "credential_platform": null,
   "fields": [
     {
-      "help": "Locally-installed agent runtime id — claude, codex, kimicode, qwen, … (list: monoagentcli agent scan --installed), or auto to pick a validated one from the agent roster (monoagentcli agent validate).",
+      "help": "Locally-installed agent runtime id — claude, codex, kimicode, qwen, … (list: monoagentcli agent scan --installed), or auto to pick a validated one from the agent roster (monoagentcli agent validate). Not needed with a model vendor account.",
       "key": "runtime",
       "label": "Agent Runtime",
       "required": true,
@@ -24,6 +24,13 @@
       "label": "Model",
       "required": false,
       "type": "text"
+    },
+    {
+      "help": "A saved Google Gemini, Ollama, Moonshot (Kimi), MiniMax, Alibaba Cloud Model Studio or Databricks connection: the turn then runs on opencode against that vendor with your own key (runtime is set for you; model = the vendor model or Databricks serving endpoint).",
+      "key": "credential_id",
+      "label": "Model Vendor Account",
+      "required": false,
+      "type": "credential_picker"
     },
     {
       "key": "system_prompt",

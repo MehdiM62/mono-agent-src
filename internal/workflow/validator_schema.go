@@ -53,7 +53,7 @@ type ValidateOptions struct {
 // a node runs under, and editor metadata.
 var genericConfigKeys = map[string]bool{
 	"on_error": true, "retry_policy": true, "credential_id": true,
-	"credential": true, "username": true, "profile_id": true,
+	"credential": true, "credential_platform": true, "username": true, "profile_id": true,
 	"continue_on_fail": true, "timeout": true, "timeout_seconds": true,
 	"notes": true, "disabled": true, "description": true, "label": true,
 	"always_output_data": true, "execute_once": true, "tool_description": true, "executeOnce": true,
@@ -235,10 +235,22 @@ func attachedSubKinds(nodes []WorkflowNode, conns []WorkflowConnection) map[stri
 	return out
 }
 
+// credentialSuppliedFields are the required fields a node's connection
+// (credential_id) supplies: a model vendor's key sets agent.ask's runtime.
+var credentialSuppliedFields = map[string][]string{
+	"agent.ask": {"runtime"},
+	"ai.model":  {"runtime"},
+}
+
 // fieldIssues checks n's config against its schema. subKinds are the kinds
 // of the AI sub-nodes attached to n (nil for none).
 func fieldIssues(n WorkflowNode, s *NodeSchema, subKinds map[string]bool) []ValidationIssue {
 	supplied := map[string]bool{}
+	if id, _ := n.Config["credential_id"].(string); id != "" {
+		for _, f := range credentialSuppliedFields[n.Type] {
+			supplied[f] = true
+		}
+	}
 	for kind, fields := range subSuppliedFields[n.Type] {
 		if subKinds[kind] {
 			for _, f := range fields {

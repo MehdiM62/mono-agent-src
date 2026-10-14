@@ -33,3 +33,18 @@ func TestValidateRuntimeSuppliedByModelSubNode(t *testing.T) {
 		t.Error("an ai_memory sub-node supplied the runtime")
 	}
 }
+
+// A model vendor connection supplies agent.ask's and ai.model's runtime.
+func TestValidateRuntimeSuppliedByVendorConnection(t *testing.T) {
+	w := &Workflow{Name: "v", Nodes: []WorkflowNode{
+		{ID: "t", Type: "trigger.manual", Name: "Start"},
+		{ID: "a", Type: "agent.ask", Name: "Ask", Config: map[string]interface{}{"prompt": "hi", "credential_id": "c1"}},
+	}, Connections: []WorkflowConnection{{ID: "c", SourceNodeID: "t", SourceHandle: "main", TargetNodeID: "a", TargetHandle: "main"}}}
+	if rep := ValidateWorkflow(w, ValidateOptions{}); !rep.Valid {
+		t.Fatalf("with a vendor connection: %v", rep.Errors)
+	}
+	w.Nodes[1].Config = map[string]interface{}{"prompt": "hi"}
+	if rep := ValidateWorkflow(w, ValidateOptions{}); rep.Valid {
+		t.Fatal("no runtime and no connection must be invalid")
+	}
+}
