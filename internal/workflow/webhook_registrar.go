@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 )
 
 // App webhook auto-registration. Some apps only send events to a URL that
@@ -52,6 +53,9 @@ type AppWebhook struct {
 type AppWebhookHook struct {
 	ID    string
 	Extra map[string]interface{}
+	// ExpiresAt is when the vendor drops the hook; zero means never. A
+	// registrar whose hooks expire sets it and implements WebhookRenewer.
+	ExpiresAt time.Time
 }
 
 // WebhookRegistrar registers and removes a webhook with an app's API.
@@ -72,6 +76,14 @@ type WebhookChecker interface {
 // signs deliveries; a delivery it refuses is answered 401 and starts no run.
 type WebhookVerifier interface {
 	VerifyDelivery(header http.Header, body []byte, hook AppWebhook, stored AppWebhookHook) error
+}
+
+// WebhookRenewer is optionally implemented by a registrar whose vendor
+// lets hooks expire (Microsoft Graph subscriptions, Jira Cloud webhooks).
+// The daemon calls Renew before a stored hook's ExpiresAt (webhook_renew.go)
+// and keeps the expiry it returns.
+type WebhookRenewer interface {
+	Renew(ctx context.Context, hook AppWebhook, stored AppWebhookHook) (time.Time, error)
 }
 
 var webhookRegistrars = struct {
@@ -105,6 +117,12 @@ type appWebhookRecord struct {
 	Config     map[string]interface{} // without credential data
 	ConfigHash string
 	Extra      map[string]interface{}
+	// ExpiresAt (zero: never) and RenewedAt, when it was set; RenewError
+	// and RenewErrorClass keep the last failed renewal.
+	ExpiresAt       time.Time
+	RenewedAt       time.Time
+	RenewError      string
+	RenewErrorClass string
 }
 
 // appWebhookStore keeps the records; nil DB keeps them in memory.
@@ -128,9 +146,12 @@ func (s *appWebhookStore) get(ctx context.Context, wf, node string) (*appWebhook
 	}
 	rec := appWebhookRecord{WorkflowID: wf, NodeID: node}
 	var cfg, extra string
+	var expires, renewed sql.NullTime
 	err := s.db.QueryRowContext(ctx,
-		`SELECT registrar, hook_id, url, secret, config, config_hash, extra FROM app_webhooks WHERE workflow_id = ? AND node_id = ?`,
-		wf, node).Scan(&rec.Registrar, &rec.HookID, &rec.URL, &rec.Secret, &cfg, &rec.ConfigHash, &extra)
+		`SELECT registrar, hook_id, url, secret, config, config_hash, extra, expires_at, renewed_at, renew_error, renew_error_class
+		 FROM app_webhooks WHERE workflow_id = ? AND node_id = ?`,
+		wf, node).Scan(&rec.Registrar, &rec.HookID, &rec.URL, &rec.Secret, &cfg, &rec.ConfigHash, &extra,
+		&expires, &renewed, &rec.RenewError, &rec.RenewErrorClass)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -139,6 +160,7 @@ func (s *appWebhookStore) get(ctx context.Context, wf, node string) (*appWebhook
 	}
 	_ = json.Unmarshal([]byte(cfg), &rec.Config)
 	_ = json.Unmarshal([]byte(extra), &rec.Extra)
+	rec.ExpiresAt, rec.RenewedAt = expires.Time, renewed.Time
 	return &rec, nil
 }
 
@@ -198,15 +220,57 @@ func (s *appWebhookStore) put(ctx context.Context, rec appWebhookRecord) error {
 	cfg, _ := json.Marshal(rec.Config)
 	extra, _ := json.Marshal(rec.Extra)
 	if _, err := s.db.ExecContext(ctx,
-		`INSERT INTO app_webhooks (workflow_id, node_id, registrar, hook_id, url, secret, config, config_hash, extra)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO app_webhooks (workflow_id, node_id, registrar, hook_id, url, secret, config, config_hash, extra,
+		   expires_at, renewed_at, renew_error, renew_error_class)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '')
 		 ON CONFLICT (workflow_id, node_id) DO UPDATE SET registrar = excluded.registrar, hook_id = excluded.hook_id,
 		   url = excluded.url, secret = excluded.secret, config = excluded.config,
-		   config_hash = excluded.config_hash, extra = excluded.extra, created_at = CURRENT_TIMESTAMP`,
-		rec.WorkflowID, rec.NodeID, rec.Registrar, rec.HookID, rec.URL, rec.Secret, string(cfg), rec.ConfigHash, string(extra)); err != nil {
+		   config_hash = excluded.config_hash, extra = excluded.extra, created_at = CURRENT_TIMESTAMP,
+		   expires_at = excluded.expires_at, renewed_at = excluded.renewed_at, renew_error = '', renew_error_class = ''`,
+		rec.WorkflowID, rec.NodeID, rec.Registrar, rec.HookID, rec.URL, rec.Secret, string(cfg), rec.ConfigHash, string(extra),
+		nullTime(rec.ExpiresAt), nullTime(rec.RenewedAt)); err != nil {
 		return fmt.Errorf("app webhooks: put: %w", err)
 	}
 	return nil
+}
+
+// renewed records a hook's new expiry (or, with renewErr set, a failed
+// renewal) on the row of that hook id; a row since removed or replaced is
+// left alone.
+func (s *appWebhookStore) renewed(ctx context.Context, wf, node, hookID string, expires, at time.Time, renewErr string, class ErrorClass) error {
+	if s.db == nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		rec, ok := s.mem[appWebhookKey(wf, node)]
+		if !ok || rec.HookID != hookID {
+			return nil
+		}
+		if renewErr == "" {
+			rec.ExpiresAt, rec.RenewedAt = expires, at
+		}
+		rec.RenewError, rec.RenewErrorClass = renewErr, string(class)
+		s.mem[appWebhookKey(wf, node)] = rec
+		return nil
+	}
+	var err error
+	if renewErr == "" {
+		_, err = s.db.ExecContext(ctx,
+			`UPDATE app_webhooks SET expires_at = ?, renewed_at = ?, renew_error = '', renew_error_class = ''
+			 WHERE workflow_id = ? AND node_id = ? AND hook_id = ?`, nullTime(expires), nullTime(at), wf, node, hookID)
+	} else {
+		_, err = s.db.ExecContext(ctx,
+			`UPDATE app_webhooks SET renew_error = ?, renew_error_class = ? WHERE workflow_id = ? AND node_id = ? AND hook_id = ?`,
+			renewErr, string(class), wf, node, hookID)
+	}
+	if err != nil {
+		return fmt.Errorf("app webhooks: renewed: %w", err)
+	}
+	return nil
+}
+
+// nullTime stores a zero time as NULL.
+func nullTime(t time.Time) sql.NullTime {
+	return sql.NullTime{Time: t.UTC(), Valid: !t.IsZero()}
 }
 
 func (s *appWebhookStore) delete(ctx context.Context, wf, node string) error {
