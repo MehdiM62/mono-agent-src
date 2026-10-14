@@ -24,7 +24,9 @@ func (d Deps) newSaveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "save",
 		Short: "Create or update a workflow from a full workflow document (--file or stdin)",
-		Long: "Reads a workflow document in the shape `workflow get` prints and saves it: " +
+		Long: "Reads a workflow document in the shape `workflow get` prints (or the workflow-file " +
+			"shape `workflow import` and examples/ use: nodes with type and position {x,y}, " +
+			"connections with source/target) and saves it: " +
 			"a document without an id creates a workflow, one with an id replaces that " +
 			"workflow's name, description, nodes and connections. Saving an existing " +
 			"workflow never changes whether it is active — use activate/deactivate.",
@@ -43,8 +45,8 @@ func (d Deps) newSaveCmd() *cobra.Command {
 				}
 				return fmt.Errorf("read input: %w", err)
 			}
-			var doc workflow.Workflow
-			if err := json.Unmarshal(raw, &doc); err != nil {
+			doc, err := decodeDocument(raw)
+			if err != nil {
 				return d.InvalidInput("parse workflow document: %v", err)
 			}
 
@@ -83,6 +85,39 @@ func (d Deps) newSaveCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&inputFile, "file", "f", "", "Path to the JSON document, or - for stdin (default: stdin)")
 	return cmd
+}
+
+// decodeDocument reads a workflow document in either shape: the one
+// `workflow get` prints (node_type, source_node_id/target_node_id) or the
+// workflow-file one `workflow import` and examples/ use (type, position
+// {x,y}, source/target). Left to the first, a file-shape document lost its
+// node types and failed on connections to node "".
+func decodeDocument(raw []byte) (workflow.Workflow, error) {
+	var probe struct {
+		Nodes       []map[string]json.RawMessage `json:"nodes"`
+		Connections []map[string]json.RawMessage `json:"connections"`
+	}
+	if err := json.Unmarshal(raw, &probe); err != nil {
+		return workflow.Workflow{}, err
+	}
+	only := func(m map[string]json.RawMessage, key, not string) bool {
+		_, has := m[key]
+		_, other := m[not]
+		return has && !other
+	}
+	fileShape := false
+	for _, n := range probe.Nodes {
+		fileShape = fileShape || only(n, "type", "node_type")
+	}
+	for _, c := range probe.Connections {
+		fileShape = fileShape || only(c, "source", "source_node_id") || only(c, "target", "target_node_id")
+	}
+	if fileShape {
+		return workflow.ParseWorkflowFileBytes(raw)
+	}
+	var doc workflow.Workflow
+	err := json.Unmarshal(raw, &doc)
+	return doc, err
 }
 
 // SaveDocument persists doc for profileID. An id owned by another
