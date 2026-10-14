@@ -77,6 +77,8 @@ type Counts struct {
 	MonoNodes    int `json:"mono_nodes"`
 	Connections  int `json:"mono_connections"`
 	RemovedLoops int `json:"loops_flattened"`
+	// ValidationErrors counts Report.Validation.
+	ValidationErrors int `json:"validation_errors"`
 }
 
 // Report is the outcome of converting one n8n workflow.
@@ -88,6 +90,9 @@ type Report struct {
 	Credentials []CredentialReport `json:"credentials"`
 	Expressions []ExprIssue        `json:"expressions"`
 	Notes       []string           `json:"notes,omitempty"`
+	// Validation lists the errors `workflow validate` finds in the
+	// converted workflow; any of them makes the result incomplete.
+	Validation []string `json:"validation_errors"`
 }
 
 func (r *Report) note(format string, a ...interface{}) {
@@ -130,8 +135,12 @@ func (r *Report) finish() {
 		}
 	}
 	c.Expressions = len(r.Expressions)
+	if r.Validation == nil {
+		r.Validation = []string{}
+	}
+	c.ValidationErrors = len(r.Validation)
 	r.Counts = c
-	r.Complete = c.Unmapped == 0
+	r.Complete = c.Unmapped == 0 && c.ValidationErrors == 0
 	if r.Credentials == nil {
 		r.Credentials = []CredentialReport{}
 	}
@@ -215,10 +224,23 @@ func (r *Report) Text() string {
 	if len(r.Notes) > 0 {
 		b.WriteString("\n")
 	}
-	if r.Complete {
+	if len(r.Validation) > 0 {
+		b.WriteString("\n  validation errors (`workflow validate` reports these):\n")
+		for _, e := range r.Validation {
+			fmt.Fprintf(&b, "    - %s\n", e)
+		}
+	}
+	switch {
+	case r.Complete:
 		b.WriteString("\n  result: complete — every node has a mono-agent equivalent\n")
-	} else {
-		fmt.Fprintf(&b, "\n  result: incomplete — %d node(s) are placeholders that fail until replaced\n", c.Unmapped)
+	case c.Unmapped > 0:
+		fmt.Fprintf(&b, "\n  result: incomplete — %d node(s) are placeholders that fail until replaced", c.Unmapped)
+		if c.ValidationErrors > 0 {
+			fmt.Fprintf(&b, ", and %d validation error(s)", c.ValidationErrors)
+		}
+		b.WriteString("\n")
+	default:
+		fmt.Fprintf(&b, "\n  result: converted, %d validation error(s) — the workflow does not run until they are fixed\n", c.ValidationErrors)
 	}
 	return b.String()
 }

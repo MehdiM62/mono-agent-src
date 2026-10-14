@@ -129,6 +129,12 @@ func TestConvert(t *testing.T) {
 	if exitCode(err) != 3 || !errors.As(err, &rep) {
 		t.Fatalf("unmapped: exit %d (%v), want a reported exit 3", exitCode(err), err)
 	}
+	// QA-A U6: every node maps, but a kept n8n expression fails validate:
+	// not "complete", and a reported exit 3.
+	_, _, errOut, err = run(t, d, n8nKeptExpression, "convert", "-")
+	if exitCode(err) != 3 || !errors.As(err, &rep) || !strings.Contains(errOut, "result: converted, 1 validation error(s)") {
+		t.Fatalf("kept expression: exit %d (%v), want a reported exit 3\n%s", exitCode(err), err, errOut)
+	}
 	if _, _, _, err := run(t, d, `{"nodes": []}`, "convert", "-"); exitCode(err) != 3 {
 		t.Errorf("not a workflow: exit %d (%v), want 3", exitCode(err), err)
 	}
@@ -136,6 +142,13 @@ func TestConvert(t *testing.T) {
 		t.Errorf("file twice: exit %d (%v), want 3", exitCode(err), err)
 	}
 }
+
+// n8nKeptExpression is an n8n workflow whose Set node keeps an expression
+// mono-agent's templates cannot parse.
+const n8nKeptExpression = `{"name":"kept","nodes":[
+{"id":"1","name":"Start","type":"n8n-nodes-base.manualTrigger","typeVersion":1,"position":[0,0],"parameters":{}},
+{"id":"2","name":"Count","type":"n8n-nodes-base.set","typeVersion":3.4,"position":[200,0],"parameters":{"assignments":{"assignments":[{"id":"1","name":"n","value":"={{ $('Start').all().length }}","type":"number"}]},"options":{}}}
+],"connections":{"Start":{"main":[[{"node":"Count","type":"main","index":0}]]}}}`
 
 func TestImportFromN8n(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())

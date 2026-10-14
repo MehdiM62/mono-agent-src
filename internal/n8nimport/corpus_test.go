@@ -43,6 +43,13 @@ var corpusExpect = map[string]struct {
 	"app_triggers.json":        {0, []string{"trigger.webhook", "trigger.schedule", "core.code", "service.google_sheets", "service.gmail", "app.toggl", "core.remove_duplicates"}},
 }
 
+// corpusInvalid lists the fixtures whose result fails `workflow validate`,
+// so the report does not call it complete.
+var corpusInvalid = map[string]bool{
+	"http_graphql.json": true, // n8n's completeExpression {{ !$response.body.next }} is kept
+	"unmapped.json":     true, // {{ $('Manual').all().length }} is kept
+}
+
 func TestCorpusConvertsAndValidates(t *testing.T) {
 	files, err := filepath.Glob("testdata/n8n/*.json")
 	if err != nil || len(files) < 15 {
@@ -65,7 +72,8 @@ func TestCorpusConvertsAndValidates(t *testing.T) {
 			if err != nil {
 				t.Fatalf("convert: %v", err)
 			}
-			if rep.Counts.Unmapped != exp.unmapped || rep.Complete != (exp.unmapped == 0) {
+			if rep.Counts.Unmapped != exp.unmapped || rep.Complete != (exp.unmapped == 0 && !corpusInvalid[name]) ||
+				(rep.Counts.ValidationErrors > 0) != corpusInvalid[name] {
 				t.Errorf("unmapped = %d (complete %v), want %d\n%s", rep.Counts.Unmapped, rep.Complete, exp.unmapped, rep.Text())
 			}
 			b, err := json.Marshal(file)
