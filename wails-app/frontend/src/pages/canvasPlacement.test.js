@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fitCamera, placeAfter, autoConnect, panToShow, DEFAULT_CAMERA } from './canvasPlacement.js'
+import { fitCamera, placeAfter, autoConnect, panToShow, placeBelow, autoConnectSub, DEFAULT_CAMERA } from './canvasPlacement.js'
 
 const nodeW = 220
 const nodeH = () => 100
@@ -87,5 +87,37 @@ describe('panToShow', () => {
   it('pans down and up too', () => {
     expect(panToShow({ x: 0, y: 0, zoom: 1 }, { x: 100, y: 700, w: 220, h: 100 }, view).y).toBe(600 - 40 - 800)
     expect(panToShow({ x: 0, y: 0, zoom: 1 }, { x: 100, y: -200, w: 220, h: 100 }, view).y).toBe(240)
+  })
+})
+
+describe('AI sub-node click placement', () => {
+  const agent = node('agent', 100, 100, { subInputs: [
+    { handle: 'ai_languageModel', label: 'Chat Model', max: 1, required: true },
+    { handle: 'ai_tool', label: 'Tool', max: 0 },
+  ] })
+  const sub = (id, kind, x = 0, y = 0) => ({ id, x, y, inputs: [], outputs: [], subOutput: kind })
+
+  it('connects a new sub-node to the selected root\'s matching free input', () => {
+    expect(autoConnectSub(agent, sub('m', 'ai_languageModel'), [])).toMatchObject({
+      source: 'm', sourcePortId: 'ai_languageModel', target: 'agent', targetPortId: 'ai_languageModel',
+    })
+    // Full (max 1), no such input, or not a sub-node: nothing.
+    const full = [{ source: 'm0', sourcePortId: 'ai_languageModel', target: 'agent', targetPortId: 'ai_languageModel' }]
+    expect(autoConnectSub(agent, sub('m', 'ai_languageModel'), full)).toBeNull()
+    expect(autoConnectSub(agent, sub('e', 'ai_embedding'), [])).toBeNull()
+    expect(autoConnectSub(agent, node('n', 0, 0), [])).toBeNull()
+  })
+
+  it('places it under the root, right of the sub-nodes already there', () => {
+    expect(placeBelow(agent, [agent], [], sub('t1', 'ai_tool'), opts)).toEqual({ x: 100, y: 100 + 100 + 60 })
+    const t1 = sub('t1', 'ai_tool', 100, 260)
+    const edges = [{ source: 't1', sourcePortId: 'ai_tool', target: 'agent', targetPortId: 'ai_tool' }]
+    expect(placeBelow(agent, [agent, t1], edges, sub('t2', 'ai_tool'), opts)).toEqual({ x: 100 + nodeW + 40, y: 260 })
+  })
+
+  it('moves right past a node in the way', () => {
+    const other = node('other', 120, 270)
+    const p = placeBelow(agent, [agent, other], [], sub('t1', 'ai_tool'), opts)
+    expect(p).toEqual({ x: 120 + nodeW + 40, y: 260 })
   })
 })
