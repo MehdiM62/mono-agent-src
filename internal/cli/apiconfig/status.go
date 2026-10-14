@@ -1,4 +1,4 @@
-package main
+package apiconfig
 
 import (
 	"fmt"
@@ -8,14 +8,9 @@ import (
 	"github.com/monoes/mono-agent/internal/apiconfig"
 )
 
-// The document `api status --json` prints is the one the MCP tool api_status returns, so its
-// types and the rules that fill them live in internal/apiconfig.
-type (
-	apiListenerJSON = apiconfig.ListenerReport
-	apiStatusJSON   = apiconfig.StatusReport
-)
-
-func newAPIStatusCmd(cfg *globalConfig) *cobra.Command {
+// NewStatusCommand is `api status`. The document `api status --json` prints is the one the MCP
+// tool api_status returns, so its types and the rules that fill them live in internal/apiconfig.
+func (d Deps) NewStatusCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show where the OpenAI-compatible API listens and whether it answers",
@@ -29,22 +24,22 @@ func newAPIStatusCmd(cfg *globalConfig) *cobra.Command {
 			"answers 404 and must be restarted.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			st, err := apiconfig.BuildStatus(cmd.Context(), db.DB, apiconfig.Env{}, cfg.ProfileID)
+			st, err := apiconfig.BuildStatus(cmd.Context(), db.DB, apiconfig.Env{}, d.ProfileID())
 			if err != nil {
-				return asCLIError(err)
+				return d.AsCLIError(err)
 			}
 
-			if cfg.JSONOutput {
-				return writeJSONTo(cmd.OutOrStdout(), st)
+			if d.JSONOutput() {
+				return d.WriteJSON(cmd.OutOrStdout(), st)
 			}
 			w := cmd.OutOrStdout()
 			fmt.Fprintf(w, "Profile %s: %d active API key(s)\n", st.Profile, st.Keys.Active)
-			fmt.Fprintf(w, "Auto model: %s\n", autoNote(st.Auto))
+			fmt.Fprintf(w, "Auto model: %s\n", AutoNote(st.Auto))
 			if st.Daemon.Running {
 				fmt.Fprintln(w, "Daemon: running")
 			} else {
@@ -67,7 +62,7 @@ func newAPIStatusCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // hasListener reports whether the status lists a listener of that name.
-func hasListener(ls []apiListenerJSON, name string) bool {
+func hasListener(ls []apiconfig.ListenerReport, name string) bool {
 	for _, l := range ls {
 		if l.Name == name {
 			return true
@@ -77,7 +72,7 @@ func hasListener(ls []apiListenerJSON, name string) bool {
 }
 
 // listenerNote says in a sentence what `api status` found at a listener.
-func listenerNote(l apiListenerJSON) string {
+func listenerNote(l apiconfig.ListenerReport) string {
 	switch {
 	case !l.Reachable:
 		return "not reachable: nothing answers /health there"
@@ -93,12 +88,4 @@ func listenerNote(l apiListenerJSON) string {
 		return note
 	}
 	return "answers /health but not /v1: a server that predates the API may still be running, restart it"
-}
-
-// The probes are internal/apiconfig's, which the MCP tool api_status uses too.
-var probeSchemes = apiconfig.ProbeSchemes
-
-// probeAddr probes a listener over HTTP and then HTTPS, as `api status` does.
-func probeAddr(addr string, loopback, wantV1 bool) (scheme string, reachable, v1Answers bool) {
-	return apiconfig.ProbeAddr(addr, loopback, wantV1, nil)
 }
