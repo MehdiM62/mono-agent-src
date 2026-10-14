@@ -251,6 +251,8 @@ generations at once) without the runs interfering.`,
 		Usage: "monoagentcli connect <platform> | connect <subcommand>",
 		Flags: `  <platform>                              Interactively connect a platform (OAuth or API key)
   list [--all] [--platform x]            List saved connections (--all: every supported platform)
+  show <platform>                        A platform's methods, fields, OAuth connect fields and commands
+  oauth <platform> [--field k=v]         Browser OAuth (2.0 or 1.0a) without prompts; --field gives connect fields
   test <id>                              Verify a connection still works
   refresh <id>                           Force a silent token refresh right now
   remove <id>                            Delete a connection
@@ -261,6 +263,8 @@ generations at once) without the runs interfering.`,
 			"monoagentcli connect list --all",
 			"monoagentcli connect refresh 08ccf6df-3ed2-4d47-85b5-3741cd4f9f25",
 			"monoagentcli connect set-oauth-client outlook --client-id <azure-app-client-id>",
+			"monoagentcli connect oauth salesforce --field environment=sandbox",
+			"monoagentcli connect show generic_oauth1",
 		},
 	},
 	{
