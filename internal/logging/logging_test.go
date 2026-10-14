@@ -103,6 +103,33 @@ func TestLevelChosen(t *testing.T) {
 	}
 }
 
+func TestInitLogFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cli.log")
+	if err := os.WriteFile(path, []byte("earlier\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	buf := initFor(t, []string{"workflow", "run", "x", "--log-file", path}, nil)
+	slog.Info("hidden at the default level")
+	slog.Warn("to the file")
+	if buf.Len() != 0 {
+		t.Errorf("--log-file still wrote to stderr: %q", buf.String())
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(data); !strings.HasPrefix(got, "earlier\n") || !strings.Contains(got, `level=WARN msg="to the file"`) || strings.Contains(got, "hidden") {
+		t.Errorf("log file = %q", got)
+	}
+
+	// A file that cannot be opened: stderr, with a warning.
+	buf = initFor(t, []string{"--log-file=" + filepath.Join(t.TempDir(), "no", "such", "dir", "x.log")}, nil)
+	slog.Warn("still logged")
+	if out := buf.String(); !strings.Contains(out, "--log-file:") || !strings.Contains(out, "still logged") {
+		t.Errorf("unopenable --log-file: %q", out)
+	}
+}
+
 func TestInitUnknownLevelWarnsAndKeepsDefault(t *testing.T) {
 	buf := initFor(t, []string{"--log-level=loud"}, nil)
 	if Level() != DefaultLevel {
