@@ -445,7 +445,9 @@
         "path": "contacts",
         "to": "{{ el.fields.all }}",
         "to_when": "{{ p.options.rawData | eq:'false' }}"
-      }
+      },
+      "error_when": "{{ res.errors }}",
+      "error_message": "{{ res.errors | pluck:'message' | join:'; ' }}"
     },
     {
       "resource": "contact",
@@ -752,7 +754,9 @@
         "path": "companies",
         "to": "{{ el.fields.all }}",
         "to_when": "{{ p.simple }}"
-      }
+      },
+      "error_when": "{{ res.errors }}",
+      "error_message": "{{ res.errors | pluck:'message' | join:'; ' }}"
     },
     {
       "resource": "company",

@@ -434,7 +434,10 @@
   },
   "databasePage.get": {
     "params": {
-      "pageId": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5"
+      "pageId": "https://www.notion.so/My-Page-598337872cf94fdf8782e53db20768a5",
+      "options": {
+        "downloadFiles": true
+      }
     },
     "response": {
       "object": "page",
@@ -466,6 +469,18 @@
         "Done": {
           "type": "checkbox",
           "checkbox": false
+        },
+        "Files & media": {
+          "type": "files",
+          "files": [
+            {
+              "name": "x.pdf",
+              "type": "file",
+              "file": {
+                "url": "https://prod-files.test/x.pdf?X-Amz-Signature=s"
+              }
+            }
+          ]
         }
       }
     },

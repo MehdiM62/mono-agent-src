@@ -83,6 +83,7 @@ func (p *Package) check() []string {
 	}
 	probs = append(probs, checkTemplates("base_url", p.BaseURL, nil, credKeys)...)
 	probs = append(probs, checkHeaderTemplates("package", p.Headers, nil, credKeys)...)
+	probs = append(probs, checkTemplates("error_when", []any{p.ErrorWhen, p.ErrorMessage}, anyField, credKeys)...)
 
 	if p.Extends != "" {
 		native := nativeOperations(p.Extends)
@@ -256,6 +257,20 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	probs = append(probs, checkTemplates(where+" query", o.Query, fields, credKeys)...)
 	probs = append(probs, checkTemplates(where+" body", o.Body, fields, credKeys)...)
 	probs = append(probs, checkHeaderTemplates(where, o.Headers, fields, credKeys)...)
+	probs = append(probs, checkTemplates(where+" error_when", []any{o.ErrorWhen, o.ErrorMessage}, fields, credKeys)...)
+	if d := o.Output; d != nil && d.Download != nil {
+		if d.Download.ForEach != "" {
+			add("output.download: use files, not for_each")
+		}
+		if (!validMethods[strings.ToUpper(d.Download.Method)] && !hasTemplate(d.Download.Method)) || d.Download.Path == "" {
+			add("output.download: needs a method (GET, …) and a path")
+		}
+		for _, v := range []any{d.Download.When, d.Download.Files, d.Download.BaseURL, d.Download.Path, d.Download.Query,
+			d.Download.Body, d.Download.Property, d.Download.FileName, d.Download.MimeType} {
+			probs = append(probs, checkTemplates(where+" output.download", v, fields, credKeys)...)
+		}
+		probs = append(probs, checkHeaderTemplates(where+" output.download", d.Download.Headers, fields, credKeys)...)
+	}
 	if o.Output != nil && o.Output.Expand != nil {
 		st := o.Output.Expand
 		for _, v := range []any{st.When, st.BaseURL, st.Path, st.Query, st.Body} {
@@ -431,7 +446,7 @@ func checkRef(where string, e *expr, fields, credKeys map[string]bool) []string 
 		if !credKeys[e.path[0]] {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %q is not a credential field", where, e.src, e.path[0])}
 		}
-	case "item", "el", "res", "items", "pre", "pres", "bin", "main", "hdr", "idx", "page":
+	case "item", "el", "up", "res", "items", "pre", "pres", "bin", "main", "hdr", "idx", "page":
 		if fields == nil {
 			return []string{fmt.Sprintf("%s: {{ %s }}: %s.* is not available here (only cred.*)", where, e.src, e.root)}
 		}

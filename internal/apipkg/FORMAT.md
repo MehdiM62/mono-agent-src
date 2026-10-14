@@ -173,6 +173,7 @@ Scopes:
 | `cred.<key>` | the credential (the connection's fields, or OAuth tokens) |
 | `item.<path>` | the current input item's JSON |
 | `el.<path>` | the current element inside a `$map` (`el` alone is the element) |
+| `up.<path>` | inside a nested `$map`, the enclosing `$map`'s element (`{{ up \| get:el }}` reads the outer object at the key the inner list holds) |
 | `res.<path>` | the main request's decoded response, inside `also` steps |
 | `items` | every input item's JSON as a list, in `batch` operations |
 | `pre.<path>` | the decoded response of the op's (last) `before` request |
@@ -232,7 +233,7 @@ through, so an unset param stays unset:
 | `in:'a,b'` | `true` when the value is one of the listed (comma text, list or path), else nil |
 | `unflatten` | dotted keys → nested objects (`{"customFields.x": 1}` → `{"customFields": {"x": 1}}`; TheHive 5) |
 | `flatten` | lists and objects of lists → one flat list (object keys sorted; Rocket.Chat `{update: […], remove: […]}`) |
-| `snake` | lodash snake_case (`"Due Date"`, `"DueDate"` → `due_date`; Notion `property_*` keys) |
+| `snake` / `snake:'ascii'` | change-case v5 snake_case as n8n uses it (`"Due Date"`, `"DueDate"` → `due_date`, `"Q1 Goals"` → `q1_goals`: letters and digits stay together; accented letters kept, `"Prénom"` → `prénom`); `'ascii'` first turns every non-ASCII character into a separator (`pr_nom`, n8n Notion before node version 3) |
 | `values` | object → list of its values, by sorted key (maps keyed by id: Philips Hue lights) |
 | `hex` | hex text → integer (`#ff0000` → 16711680; `#`/`0x` stripped) |
 | `pluck:'path'` | list of objects → list of their values at `path` (empties dropped): `{{ p.options.fields.field \| pluck:'name' \| csv }}` |
@@ -242,7 +243,7 @@ through, so an unset param stays unset:
 | `escape_html` | escape `& < > " '`; on a list, each element (also `prefix`/`suffix`) |
 | `join:'sep'` | list → text joined by `sep`: `{{ p.bodyPlainText \| lines \| escape_html \| prefix:'<p>' \| suffix:'</p>' \| join:'' }}` |
 | `colnum`, `colname` | spreadsheet column letter ↔ 1-based number (`"C"` ↔ 3, `"AA"` ↔ 27) |
-| `path` | in a `path` template: escape each segment but keep `/` (Google resource names `spaces/A/messages/B`, `accounts/1/locations/2`) |
+| `path` / `path:'query'` | in a `path` template: escape each segment but keep `/` (Google resource names `spaces/A/messages/B`, `accounts/1/locations/2`); `'query'` also keeps a `?query` suffix as is (Confluence `"/wiki{{ el.downloadLink \| path:'query' }}"`) |
 | `entries` / `entries:'column,value'` | object → `[{key, value}, …]` sorted by key (names optional): Coda `"cells": "{{ el \| entries:'column,value' }}"`; `get:p.keyName` picks a key named by a param |
 | `sheetgid` | n8n sheet locator → sheet id text: `"gid=0"` (list mode), `…#gid=123` (url mode), `123` (id mode/expression), or the locator object itself |
 | `gid` | Google file id from a URL (`…/d/<id>/edit`, `…/folders/<id>`, `?id=<id>`); bare ids and non-Google values pass (n8n Docs `documentURL`) |
@@ -261,6 +262,10 @@ through, so an unset param stays unset:
 | `firestore_fields` / `firestore_fields:p.columns` | object → Firestore `fields` (all keys, or the listed columns with missing ones as nullValue) |
 | `omit:'a,b'` | object without the listed keys; the argument may be a path to a comma string or list (`omit:p.inputsToIgnore`) |
 | `len` | number of elements of a list, keys of an object or characters of a text: `{{ p.data \| fromjson \| len }}` (Excel raw append spans that many rows) |
+| `md5`, `sha1`, `sha256` / `…:'base64'` | hex digest of the value's text; with `'base64'` of the base64-decoded bytes, so a file's hash is `{{ bin.base64 \| sha256:'base64' }}` (Cortex attachment hashes) |
+| `mod:n` | remainder with the sign of `n` (`-1` with `mod:7` → `6`; `{{ p.offset \| mod:7 }}`) |
+| `weekday` | date or epoch → ISO weekday in UTC, 1 = Monday … 7 = Sunday. Monday of last week: `{{ (now \| date:'YYYY-MM-DD' \| epoch) \| sub:((now \| weekday \| add:6) \| mul:86400) \| date:'YYYY-MM-DD' }}` (GA4 `lastCalendarWeek`) |
+| `dotnet_date` | .NET JSON date `/Date(1586833770780)/` (optional `+0100` offset) → `2020-04-14T03:09:30.780Z`; objects and lists are converted deeply, other values pass. A whole response: `"output": {"to": "{{ el \| dotnet_date }}"}` (Unleashed) |
 | `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -333,6 +338,22 @@ Responses: 2xx bodies are read up to 64 MiB (larger is an error); a non-2xx
 status is an error carrying up to 64 KiB of the body:
 `apipkg todoist task.get: HTTP 404: {"error":"…"}`. Error handling in
 workflows is the node's normal `on_error`.
+
+**Errors in a 2xx body (`error_when`).** Some APIs answer HTTP 200 with an
+error inside (JSON-RPC `{"error": …}`, Slack `{"ok": false}`, GraphQL
+`{"errors": […]}`). A package-level `error_when` template is checked on every
+2xx response of the package (main request, pages, `before`/`also`/`poll`
+steps, downloads) with `res` = the decoded body and `hdr` = its headers;
+when it renders true the item fails with `error_message` (a template in the
+same scope; empty → the body):
+```json
+"error_when": "{{ res.jsonrpc | then:res.error }}",
+"error_message": "{{ res.error.data.message | default:res.error.message }}"
+```
+→ `apipkg odoo contact.get: the API reported an error: Access Denied`. An
+operation's own `error_when`/`error_message` replace the package's (use
+`"error_when": "false"` to switch the check off for one op). Use `eq:'false'`
+for flags that are only an error when explicitly false (`{{ res.success | eq:'false' }}`).
 
 `method` may be a template (`"{{ p.sendResume | then:'POST' | default:'GET' }}"`), upper-cased and checked at run time. A `path` that is a single expression yielding an absolute `http(s)://` URL is used unescaped.
 
@@ -504,6 +525,32 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 - `"match": {"rows": "{{ p.filtersUI.values }}", "column": "lookupColumn", "value": "lookupValue", "combine": "{{ p.combineFilters }}", "first": "{{ p.options.returnFirstMatch }}"}` keeps elements whose field named by each row's `column` key equals its `value` key — all rows (AND, default) or any (`combine` = OR); `first` keeps only the first match. No rows → everything is kept. `rows` may give one object for a single condition: `"rows": "{{ p | pick:'lookupColumn,lookupValue' }}"`.
 - `"match_after_to": true` runs `match` after `to` instead of before, so it filters the reshaped elements (Excel table rows `{values: [[…]]}` zipped with their column names, then matched by column; `first` = `{{ p.options.returnAllMatches | ne:'true' }}`).
 
+**Files per element (`output.download`).** Fetches files for every output
+element (after `each`/`expand`, before `match`/`to`) and puts them on that
+element's item: the bytes in the item's binary data and
+`{fileName, mimeType, fileSize}` under `json.binary.<property>`. The element
+JSON stays the item (n8n's "download attachments" options). Keys: those of a
+step (`when`, `auth`, `method`, `path`, `base_url`, `query`, `headers`, …;
+no `for_each`) plus `files`, `property`, `file_name`, `mime_type`.
+```json
+"output": { "path": "fields.attachment", "download": {
+  "when": "{{ p.download }}", "method": "GET",
+  "path": "/api/3/attachment/content/{{ el.id }}",
+  "property": "{{ p.binaryProperty }}", "file_name": "{{ el.filename }}", "mime_type": "{{ el.mimeType }}" } }
+```
+- `when` and the templates see `el` = the element. A step `base_url` is not
+  inherited from the op: repeat a per-op `base_url` when the path is relative.
+- `files` (a template or builder giving a list; nested lists are spread one
+  level) downloads several files per element: each entry becomes `el`, the
+  element `up` and its position `idx`. NocoDB, one binary per attachment
+  named `<field>_<index>`:
+  `"files": {"$map": "{{ p.downloadFieldNames | split }}", "$to": {"$map": "{{ up.fields | get:el | fromjson }}", "$to": {"url": "{{ el.signedUrl | default:el.url }}", "property": "{{ up }}_{{ idx }}"}}}`
+  with `"path": "{{ el.url }}", "property": "{{ el.property }}"`.
+- `property` defaults to `data`, `mime_type` to the response's Content-Type,
+  `file_name` to its Content-Disposition name. The download is sent without
+  `Accept: application/json`; `"auth": false` leaves the credential off
+  (presigned file URLs: Notion files, Google Slides thumbnails).
+
 **Header-row output.** `"output": {"path": "values", "header_row": true}` turns `[[h1,h2],[v1,v2],…]` into one item per row keyed by the first row.
 
 **Polling (`poll`).** After the main request, `"poll": {"method": "GET", "path": "/projects/{{ p.projectId }}/queries/{{ res.jobReference.jobId }}", "until": "{{ res.jobComplete }}", "interval_ms": 1000, "max_wait_ms": 300000}` repeats the request (with `res` = the latest response) until `until` is true; the last response becomes the op's response. Defaults: 1 s interval, 5 min max wait.
@@ -533,7 +580,7 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 - `upload_field`/`property_field` must be declared op fields (n8n uses
   `binaryPropertyName`).
 
-`binary.download_when` (template) decides per run whether the response is a file (GCS `alt=media`, Slides thumbnail download); it overrides `download`. `binary.upload_text` (template): when it renders non-empty, that text (Content-Type text/plain) is uploaded instead of the item's binary (GCS create from text).
+`binary.download_when` (template) decides per run whether the response is a file (GCS `alt=media`; for a file that a JSON response links to, see `output.download` in §9); it overrides `download`. `binary.upload_text` (template): when it renders non-empty, that text (Content-Type text/plain) is uploaded instead of the item's binary (GCS create from text).
 
 `binary.upload_when` (template) decides per run whether to upload (n8n `sendBinaryData`); without the upload a multipart op sends its `body` as JSON (or nothing). `binary.multipart_field` may be a template, and `binary.property` (template) overrides the property read from `upload_field` — n8n's `"formField:binaryProperty"` values: `"multipart_field": "{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}"`, `"property": "{{ p.binaryPropertyName | split:':' | get:'-1' }}"`.
 
@@ -757,4 +804,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | operation | `scope_group` (overrides the credential's) | §7 |
 | output | `match_after_to`; `match.rows` may be one object | §9 |
 | binary | `upload_session` (`create`, `min_size`, `chunk_size`, `url_path`) | §10 |
+| package, operation | `error_when`, `error_message` (fail a 2xx body that reports an error) | §6 |
+| output | `download` (per-element files: `files`, `property`, `file_name`, `mime_type`) | §9 |
+| templates | root `up`; filters `md5`, `sha1`, `sha256`, `mod`, `weekday`, `dotnet_date`; `snake:'ascii'`, `path:'query'`; `snake` follows change-case v5 | §5 |
 | schema output | `visible_for`, `apipkg`, `extended_by` | exact op visibility; package id; extending packages |

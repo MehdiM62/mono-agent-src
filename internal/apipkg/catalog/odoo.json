@@ -9,6 +9,8 @@
     "n8n-nodes-base.odoo"
   ],
   "base_url": "{{ cred.url }}",
+  "error_when": "{{ res.jsonrpc | then:res.error }}",
+  "error_message": "{{ res.error.data.message | default:res.error.message }}",
   "credentials": [
     {
       "platform": "odoo",

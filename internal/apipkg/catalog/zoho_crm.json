@@ -9,6 +9,8 @@
     "n8n-nodes-base.zohoCrm"
   ],
   "base_url": "{{ cred.api_domain | default:'https://www.zohoapis.com' }}/crm/v2",
+  "error_when": "{{ res.data.0.status | eq:'error' }}",
+  "error_message": "{{ res.data.0.message }}",
   "credentials": [
     {
       "platform": "zoho_crm",
