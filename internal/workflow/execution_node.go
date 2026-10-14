@@ -392,16 +392,36 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 	// record; "error" is the failure-output convention shared by nodes
 	// that report per-item failures instead of returning an error
 	// (http.request connection failures and cap breaches,
-	// system.execute_command non-zero exits, …).
-	var mainItems []Item
+	// system.execute_command non-zero exits, …). A node with no "main"
+	// output (core.if true/false, switch cases, a loop's loop/done) records
+	// the items it routed on its other handles instead, so $node["IF"] and
+	// the run's detail are not empty.
+	var mainItems, branchItems []Item
 	var errorHandleItems []Item
+	hasMain, hasLoop := false, false
+	for _, out := range outputs {
+		if out.Handle == "loop" {
+			hasLoop = true
+		}
+	}
 	for _, out := range outputs {
 		switch out.Handle {
 		case "error":
 			errorHandleItems = append(errorHandleItems, out.Items...)
 		case "main", "":
+			hasMain = true
 			mainItems = append(mainItems, out.Items...)
+		case "batch":
+			// The loop node's "batch" repeats the items of its "loop" output.
+			if !hasLoop {
+				branchItems = append(branchItems, out.Items...)
+			}
+		default:
+			branchItems = append(branchItems, out.Items...)
 		}
+	}
+	if !hasMain {
+		mainItems = branchItems
 	}
 
 	// A node that routed failures to its "error" output must not report
