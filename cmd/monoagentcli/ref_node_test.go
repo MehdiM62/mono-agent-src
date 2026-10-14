@@ -187,3 +187,12 @@ func TestRefNodesHidesDeprecatedByDefault(t *testing.T) {
 		t.Errorf("ref node ai.chat: %v", err)
 	}
 }
+
+func contains(list []string, want string) bool {
+	for _, s := range list {
+		if s == want {
+			return true
+		}
+	}
+	return false
+}

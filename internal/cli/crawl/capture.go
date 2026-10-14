@@ -1,4 +1,4 @@
-package main
+package crawl
 
 import (
 	"encoding/json"
@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/capture"
+	capturecli "github.com/monoes/mono-agent/internal/cli/capture"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/crawlsite"
 )
 
@@ -20,7 +22,7 @@ import (
 // the writer with `capture page`, so a crawled page and a clipped one are
 // the same kind of document from here on — same directory layout, same
 // meta.json, same dedupe key, differing only in meta.source.
-func newCrawlCaptureCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newCrawlCaptureCmd() *cobra.Command {
 	var (
 		depth             int
 		maxPages          int
@@ -61,23 +63,23 @@ func newCrawlCaptureCmd(cfg *globalConfig) *cobra.Command {
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if depth < 0 {
-				return errInvalidInput("--depth must not be negative, got %d", depth)
+				return clicore.InvalidInput("--depth must not be negative, got %d", depth)
 			}
 			if maxPages <= 0 {
-				return errInvalidInput("--max-pages must be at least 1, got %d", maxPages)
+				return clicore.InvalidInput("--max-pages must be at least 1, got %d", maxPages)
 			}
 			if delay < 0 {
-				return errInvalidInput("--delay must not be negative, got %s", delay)
+				return clicore.InvalidInput("--delay must not be negative, got %s", delay)
 			}
 			if maxBytes <= 0 {
-				return errInvalidInput("--max-bytes must be at least 1, got %d", maxBytes)
+				return clicore.InvalidInput("--max-bytes must be at least 1, got %d", maxBytes)
 			}
 
-			inbox := expandPath(out)
+			inbox := clicore.ExpandPath(out)
 			if inbox == "" {
 				inbox = capture.DefaultInbox()
 			}
-			jsonOut := cfg != nil && cfg.JSONOutput
+			jsonOut := d.JSONOutput()
 			stderr := cmd.ErrOrStderr()
 
 			opts := crawlsite.Options{
@@ -111,7 +113,7 @@ func newCrawlCaptureCmd(cfg *globalConfig) *cobra.Command {
 
 			crawler, err := crawlsite.New(opts)
 			if err != nil {
-				return errInvalidInput("%s", err.Error())
+				return clicore.InvalidInput("%s", err.Error())
 			}
 			sum, err := crawler.Run(cmd.Context())
 			if err != nil {
@@ -159,15 +161,15 @@ func printCrawlSummary(cmd *cobra.Command, sum *crawlsite.Summary, inbox string)
 		fmt.Fprintf(stdout, "No pages captured into %s\n", inbox)
 		return nil
 	}
-	table := newPlainTable(stdout, []string{"TITLE", "URL", "DEPTH", "SIZE", "PATH"}, nil)
+	table := clicore.NewPlainTable(stdout, []string{"TITLE", "URL", "DEPTH", "SIZE", "PATH"}, nil)
 	var total int64
 	for _, p := range sum.Pages {
 		total += p.Bytes
 		_ = table.Append([]string{
-			truncateCaptureCell(p.Title, 40),
-			truncateCaptureCell(p.URL, 60),
+			capturecli.TruncateCell(p.Title, 40),
+			capturecli.TruncateCell(p.URL, 60),
 			fmt.Sprintf("%d", p.Depth),
-			captureHumanBytes(p.Bytes),
+			capturecli.HumanBytes(p.Bytes),
 			p.Path,
 		})
 	}
@@ -175,7 +177,7 @@ func printCrawlSummary(cmd *cobra.Command, sum *crawlsite.Summary, inbox string)
 		return err
 	}
 	fmt.Fprintf(cmd.ErrOrStderr(), "\n%d page(s), %s into %s — %d fetched, %d duplicate(s), %d skipped, %d failed\n",
-		len(sum.Pages), captureHumanBytes(total), inbox, sum.Fetched, sum.Duplicates, len(sum.Skipped), len(sum.Failed))
+		len(sum.Pages), capturecli.HumanBytes(total), inbox, sum.Fetched, sum.Duplicates, len(sum.Skipped), len(sum.Failed))
 	if sum.Truncated {
 		fmt.Fprintf(cmd.ErrOrStderr(), "stopped at --max-pages; raise it to go further\n")
 	}

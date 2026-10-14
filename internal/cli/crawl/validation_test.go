@@ -1,4 +1,4 @@
-package main
+package crawl
 
 import (
 	"strings"
@@ -15,6 +15,7 @@ import (
 // check deleted, and on a machine WITH Chrome the same test would quietly
 // be opening file:///etc/passwd.
 func TestCrawlRejectsNonHTTPScheme(t *testing.T) {
+	t.Parallel()
 	for _, rawURL := range []string{
 		"file:///etc/passwd",
 		"javascript:alert(1)",
@@ -22,7 +23,7 @@ func TestCrawlRejectsNonHTTPScheme(t *testing.T) {
 		"ftp://example.com/pub",
 		"data:text/html,<h1>hi",
 	} {
-		cmd := newCrawlCmd(nil)
+		cmd := NewCommand(Deps{JSONOutput: func() bool { return false }})
 		cmd.SetArgs([]string{rawURL})
 		err := cmd.Execute()
 		if err == nil {
@@ -42,8 +43,9 @@ func TestCrawlRejectsNonHTTPScheme(t *testing.T) {
 // over 120s must be refused up front (a typo like --wait 1200 would
 // otherwise hang the command for 20 minutes).
 func TestCrawlCapsWait(t *testing.T) {
+	t.Parallel()
 	for _, wait := range []string{"-1", "121", "9999"} {
-		cmd := newCrawlCmd(nil)
+		cmd := NewCommand(Deps{JSONOutput: func() bool { return false }})
 		cmd.SetArgs([]string{"https://example.com", "--wait", wait})
 		err := cmd.Execute()
 		if err == nil {

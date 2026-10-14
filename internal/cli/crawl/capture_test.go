@@ -1,4 +1,4 @@
-package main
+package crawl
 
 import (
 	"bytes"
@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/capture"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/crawlsite"
 )
 
@@ -37,13 +39,11 @@ func crawlTestSite(t *testing.T) *httptest.Server {
 	return srv
 }
 
-// runCrawlCmd executes a `crawl` subcommand, returning stdout.
-func runCrawlCmd(t *testing.T, cfg *globalConfig, args ...string) (string, string, error) {
+// runCrawlCmd executes a `crawl` subcommand, with --json when jsonOut is set, returning stdout
+// and stderr.
+func runCrawlCmd(t *testing.T, jsonOut bool, args ...string) (string, string, error) {
 	t.Helper()
-	if cfg == nil {
-		cfg = &globalConfig{}
-	}
-	cmd := newCrawlCmd(cfg)
+	cmd := NewCommand(Deps{JSONOutput: func() bool { return jsonOut }})
 	cmd.SetArgs(args)
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
@@ -53,10 +53,11 @@ func runCrawlCmd(t *testing.T, cfg *globalConfig, args ...string) (string, strin
 }
 
 func TestCrawlCaptureWritesEnvelopesIntoTheInbox(t *testing.T) {
+	t.Parallel()
 	srv := crawlTestSite(t)
 	inbox := filepath.Join(t.TempDir(), "inbox")
 
-	_, stderr, err := runCrawlCmd(t, nil, "capture", srv.URL+"/",
+	_, stderr, err := runCrawlCmd(t, false, "capture", srv.URL+"/",
 		"--out", inbox, "--depth", "1", "--delay", "0", "--robots=false", "--allow-private-hosts",
 		"--collection", "docs", "--tag", "seeded")
 	if err != nil {
@@ -73,7 +74,7 @@ func TestCrawlCaptureWritesEnvelopesIntoTheInbox(t *testing.T) {
 	titles := map[string]bool{}
 	for _, e := range entries {
 		titles[e.Title] = true
-		if !contains(e.Artifacts, capture.ArtifactHTML) || !contains(e.Artifacts, capture.ArtifactReadable) {
+		if !slices.Contains(e.Artifacts, capture.ArtifactHTML) || !slices.Contains(e.Artifacts, capture.ArtifactReadable) {
 			t.Errorf("%s holds %v, want page.html and readable.md", e.Path, e.Artifacts)
 		}
 	}
@@ -83,10 +84,11 @@ func TestCrawlCaptureWritesEnvelopesIntoTheInbox(t *testing.T) {
 }
 
 func TestCrawlCaptureJSONSummary(t *testing.T) {
+	t.Parallel()
 	srv := crawlTestSite(t)
 	inbox := filepath.Join(t.TempDir(), "inbox")
 
-	stdout, stderr, err := runCrawlCmd(t, &globalConfig{JSONOutput: true}, "capture", srv.URL+"/",
+	stdout, stderr, err := runCrawlCmd(t, true, "capture", srv.URL+"/",
 		"--out", inbox, "--depth", "0", "--delay", "0", "--robots=false", "--allow-private-hosts")
 	if err != nil {
 		t.Fatalf("crawl capture --json: %v\n%s", err, stderr)
@@ -104,6 +106,7 @@ func TestCrawlCaptureJSONSummary(t *testing.T) {
 }
 
 func TestCrawlCaptureRejectsBadFlags(t *testing.T) {
+	t.Parallel()
 	cases := [][]string{
 		{"capture", "https://example.com", "--depth", "-1"},
 		{"capture", "https://example.com", "--max-pages", "0"},
@@ -111,10 +114,10 @@ func TestCrawlCaptureRejectsBadFlags(t *testing.T) {
 		{"capture", "ftp://example.com/x"},
 	}
 	for _, args := range cases {
-		if _, _, err := runCrawlCmd(t, nil, args...); err == nil {
+		if _, _, err := runCrawlCmd(t, false, args...); err == nil {
 			t.Errorf("%v should have been refused", args)
-		} else if exitCodeFor(err) != 3 {
-			t.Errorf("%v exited %d, want 3 (invalid input)", args, exitCodeFor(err))
+		} else if clicore.ExitCodeFor(err) != 3 {
+			t.Errorf("%v exited %d, want 3 (invalid input)", args, clicore.ExitCodeFor(err))
 		}
 	}
 }
@@ -122,7 +125,8 @@ func TestCrawlCaptureRejectsBadFlags(t *testing.T) {
 // The browser-rendering `crawl <url>` and `crawl capture <url>` share a
 // command name; a URL must still reach the parent.
 func TestCrawlParentStillTakesAURL(t *testing.T) {
-	cmd := newCrawlCmd(&globalConfig{})
+	t.Parallel()
+	cmd := NewCommand(Deps{JSONOutput: func() bool { return false }})
 	target, _, err := cmd.Find([]string{"https://example.com/capture"})
 	if err != nil {
 		t.Fatalf("Find: %v", err)
@@ -137,13 +141,4 @@ func TestCrawlParentStillTakesAURL(t *testing.T) {
 	if sub.Name() != "capture" {
 		t.Errorf("`crawl capture` routed to %q", sub.Name())
 	}
-}
-
-func contains(list []string, want string) bool {
-	for _, s := range list {
-		if s == want {
-			return true
-		}
-	}
-	return false
 }
