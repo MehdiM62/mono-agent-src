@@ -149,7 +149,13 @@ func (e *WorkflowEngine) Start(ctx context.Context) error {
 		if !isAddrInUse(err) {
 			return fmt.Errorf("engine: start webhook server: %w", err)
 		}
-		e.logger.Warn().Err(err).Str("addr", e.webhookServer.addr).
+		// Expected for a one-shot command while the daemon serves webhooks,
+		// so only the daemon warns.
+		ev := e.logger.Debug()
+		if e.allowAllProfiles {
+			ev = e.logger.Warn()
+		}
+		ev.Err(err).Str("addr", e.webhookServer.addr).
 			Msg("engine: webhook port already in use by another monoagent process — this engine will not serve webhooks yet, retrying every 30s, everything else runs normally")
 		go e.webhookRetryLoop(e.ctx)
 	}
