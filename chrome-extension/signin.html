@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MonoAgent</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <!--
+    The whole side panel while nobody is signed in to monoes.me (gate.js,
+    account_state.js): no tabs, no capture, no settings. Only how to sign in,
+    a way to check again, and what this browser is keeping until then.
+  -->
+  <header class="top">
+    <div class="brandbar">
+      <h1 class="wordmark">
+        <img src="icons/icon48.png" alt="" width="20" height="20" />
+        MonoAgent
+      </h1>
+    </div>
+  </header>
+
+  <main class="signin" id="signin">
+    <h2 id="signin-title">Sign in to MonoAgent</h2>
+    <p id="signin-lead">MonoAgent needs a monoes.me account. Open the MonoAgent app and sign in, or run:</p>
+    <div class="command">
+      <code id="signin-command">monoagentcli account login</code>
+      <button type="button" id="signin-copy" class="btn-secondary btn-tiny">Copy</button>
+    </div>
+    <p id="signin-pair" class="note-line" hidden></p>
+    <p id="signin-queued" class="note-line" hidden></p>
+    <p id="signin-state" class="note-line" aria-live="polite"></p>
+    <button type="button" id="signin-recheck" class="btn-primary">Check again</button>
+  </main>
+
+  <script src="signin.js"></script>
+</body>
+</html>
