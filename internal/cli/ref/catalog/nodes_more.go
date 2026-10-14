@@ -151,6 +151,20 @@ workflow does not need to be active to be called.`,
 		Outputs: "the items passed by the calling workflow",
 	},
 	{
+		Type:     "trigger.error",
+		Category: "trigger",
+		Short:    "Run this workflow when another workflow fails (its error workflow)",
+		Description: `Makes this workflow an error workflow. A workflow whose settings.error_workflow
+names it (by ID), or every workflow when the config default is set
+("monoagentcli config set workflow.error_workflow <id>"), starts it once a run
+finishes FAILED. Cancelled, rejected and successful runs start nothing, and a
+failing error workflow starts no other. The workflow need not be active.`,
+		Config: `{}`,
+		Inputs: "none",
+		Outputs: `one item: execution {id, error {message, node {id, name, type}}, lastNodeExecuted,
+mode, trigger_type, error_class, error_hint} and workflow {id, name} of the failed run.`,
+	},
+	{
 		Type:     "core.execute_workflow",
 		Category: "core",
 		Short:    "Run another workflow as a sub-workflow and use its output",
