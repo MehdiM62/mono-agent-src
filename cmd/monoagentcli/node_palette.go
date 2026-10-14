@@ -80,6 +80,7 @@ func nodePalette(db *sql.DB, includeDeprecated bool) map[string][]paletteNode {
 			mkNode("trigger.webhook", "Webhook", "triggers", "Start workflow on incoming HTTP request"),
 			mkNode("trigger.execute_workflow", "When Called by Another Workflow", "triggers", "Start this workflow from an Execute Workflow node"),
 			mkNode("trigger.error", "Error Trigger", "triggers", "Run when a workflow that names this one as its error workflow fails"),
+			mkNode("trigger.local_file", "Local File Trigger", "triggers", "Run when a file in a watched path is added, changed or removed"),
 		},
 		"control": []paletteNode{
 			mkNode("core.if", "If", "control", "Branch execution based on a condition"),

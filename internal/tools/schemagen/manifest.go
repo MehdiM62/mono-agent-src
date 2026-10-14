@@ -96,6 +96,7 @@ var Manifest = []ManifestEntry{
 	// --- trigger.* ---
 	{NodeType: "trigger.schedule", GoFile: "internal/workflow/trigger_schema.go", StructName: "ScheduleTriggerSchema"},
 	{NodeType: "trigger.webhook", GoFile: "internal/workflow/trigger_schema.go", StructName: "WebhookTriggerSchema"},
+	{NodeType: "trigger.local_file", GoFile: "internal/workflow/trigger_local_file.go", StructName: "LocalFileTriggerSchema"},
 
 	// --- comm.* ---
 	{NodeType: "comm.bluesky", GoFile: "internal/nodes/comm/bluesky_schema.go", StructName: "BlueskyNodeSchema"},

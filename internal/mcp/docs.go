@@ -79,7 +79,8 @@ Triggers: trigger.schedule (6-field cron: sec min hour day month weekday;
   webhook port; response_mode onReceived|lastNode|responseNode),
   trigger.execute_workflow (called by core.execute_workflow),
   trigger.error (runs when a workflow naming this one as its error
-  workflow fails)
+  workflow fails), trigger.local_file (path; events add|change|unlink;
+  one run per change while the daemon runs)
 HTTP: http.request (method/url/headers/body; auth modes incl. OAuth2)
 System: system.execute_command, system.rss_read, system.read_write_file
 Data: data.datetime, data.crypto, data.html, data.xml, data.markdown,
