@@ -122,10 +122,16 @@ func (a *App) runOrgCLI(args ...string) string {
 }
 
 func (a *App) ListOrgs() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("list")
 }
 
 func (a *App) GetOrgStatus(name string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if name == "" {
 		return a.runOrgCLI("status")
 	}
@@ -135,6 +141,9 @@ func (a *App) GetOrgStatus(name string) string {
 // run, when non-empty, scopes to that specific run id instead of
 // monomind's own default (the most recent run).
 func (a *App) GetOrgLogs(name, run string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if run != "" {
 		return a.runOrgCLI("logs", name, "--run", run)
 	}
@@ -143,6 +152,9 @@ func (a *App) GetOrgLogs(name, run string) string {
 
 // run is ignored when all=true (report --all already covers every run).
 func (a *App) GetOrgReport(name string, all bool, run string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if all {
 		return a.runOrgCLI("report", name, "--all")
 	}
@@ -153,6 +165,9 @@ func (a *App) GetOrgReport(name string, all bool, run string) string {
 }
 
 func (a *App) GetOrgCosts(name, run string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if run != "" {
 		return a.runOrgCLI("costs", name, "--run", run)
 	}
@@ -162,6 +177,9 @@ func (a *App) GetOrgCosts(name, run string) string {
 // GetOrgBudget is the per-section spend, allocation, role caps and soft
 // closure of a run (`monoagentcli org budget`); run empty = current run.
 func (a *App) GetOrgBudget(name, run string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if run != "" {
 		return a.runOrgCLI("budget", name, "--run", run)
 	}
@@ -171,10 +189,16 @@ func (a *App) GetOrgBudget(name, run string) string {
 // GetOrgEstimate is monomind's pre-run cost estimate with its "stale rates"
 // note (`monoagentcli org estimate`); an error payload when unavailable.
 func (a *App) GetOrgEstimate(name string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("estimate", name)
 }
 
 func (a *App) GetOrgFlow(name, run string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if run != "" {
 		return a.runOrgCLI("flow", name, "--run", run)
 	}
@@ -182,6 +206,9 @@ func (a *App) GetOrgFlow(name, run string) string {
 }
 
 func (a *App) GetOrgQuestions(name string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("questions", name)
 }
 
@@ -189,14 +216,23 @@ func (a *App) GetOrgQuestions(name string) string {
 // queue that actually gates Bash/WebFetch/WebSearch/org_complete, distinct
 // from and not resolved by GetOrgQuestions/GetOrgGates.
 func (a *App) GetOrgApprovals(name string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("approvals", name)
 }
 
 func (a *App) GetOrgGates(name string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("gates", name)
 }
 
 func (a *App) GetOrgDecisions(name, run string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if run != "" {
 		return a.runOrgCLI("decisions", name, "--run", run)
 	}
@@ -204,22 +240,37 @@ func (a *App) GetOrgDecisions(name, run string) string {
 }
 
 func (a *App) GetOrgMemoryStats(name string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("memory", name)
 }
 
 func (a *App) AnswerOrgQuestion(name, questionID, answer string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("answer", name, questionID, answer)
 }
 
 func (a *App) ApproveOrgAction(name, role, action string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("approve", name, role, action)
 }
 
 func (a *App) DenyOrgAction(name, role, action string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("deny", name, role, action)
 }
 
 func (a *App) GateApproveOrgAction(name, gateID, resolution string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if resolution == "" {
 		return a.runOrgCLI("gate-approve", name, gateID)
 	}
@@ -227,6 +278,9 @@ func (a *App) GateApproveOrgAction(name, gateID, resolution string) string {
 }
 
 func (a *App) GateRejectOrgAction(name, gateID, resolution string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if resolution == "" {
 		return a.runOrgCLI("gate-reject", name, gateID)
 	}
@@ -243,6 +297,9 @@ func (a *App) GateRejectOrgAction(name, gateID, resolution string) string {
 // Wails runs each call on its own goroutine, so a stop can arrive before the
 // stream it ends is registered, and it must not be lost (#235).
 func (a *App) StreamOrgEvents(orgName, streamID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
 		return aiError(err)
@@ -347,6 +404,9 @@ func (a *App) pruneOrgEventStops() {
 // streamID. A newer stream for the same org is left alone; a stream not
 // registered yet is killed as soon as it is.
 func (a *App) StopOrgEvents(orgName, streamID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	key := "orgevents:" + orgName
 	a.runningMu.Lock()
 	a.pruneOrgEventStops()
@@ -380,6 +440,9 @@ func (a *App) StopOrgEvents(orgName, streamID string) string {
 // "org:runStatus" so any UI can track running/stopped/error without
 // polling. There is no companion StopOrg — not needed yet.
 func (a *App) RunOrg(orgName, task string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if orgName == "" {
 		return aiError(fmt.Errorf("org name required"))
 	}

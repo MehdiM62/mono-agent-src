@@ -33,6 +33,9 @@ type UpdateResult struct {
 
 // GetVersion returns the current build version.
 func (a *App) GetVersion() VersionInfo {
+	if a.signedOut() != nil {
+		return VersionInfo{}
+	}
 	return VersionInfo{
 		Version:   version,
 		BuildDate: buildDate,

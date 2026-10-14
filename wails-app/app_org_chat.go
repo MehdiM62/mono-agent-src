@@ -11,6 +11,9 @@ import "fmt"
 
 // GetOrgChatHistory returns the boss thread (`org chat history`).
 func (a *App) GetOrgChatHistory(org, run string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if run != "" {
 		return a.runOrgCLI("chat", "history", "--run="+run, "--", org)
 	}
@@ -19,17 +22,26 @@ func (a *App) GetOrgChatHistory(org, run string) string {
 
 // SendOrgChat sends the boss a message as the person.
 func (a *App) SendOrgChat(org, text string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("chat", "send", "--", org, text)
 }
 
 // AnswerOrgChat answers one of the org's questions.
 func (a *App) AnswerOrgChat(org, questionID, answer string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgCLI("chat", "answer", "--", org, questionID, answer)
 }
 
 // DismissOrgChat closes one of the org's questions without answering it;
 // reason is optional.
 func (a *App) DismissOrgChat(org, questionID, reason string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if reason == "" {
 		return a.runOrgCLI("chat", "dismiss", "--", org, questionID)
 	}
@@ -39,6 +51,9 @@ func (a *App) DismissOrgChat(org, questionID, reason string) string {
 // ResolveOrgChat approves or denies an approval request or a gate; note is
 // a gate's resolution.
 func (a *App) ResolveOrgChat(org, ref string, approve bool, note string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	verb := "deny"
 	if approve {
 		verb = "approve"
@@ -51,6 +66,9 @@ func (a *App) ResolveOrgChat(org, ref string, approve bool, note string) string 
 
 // ControlOrg pauses, resumes or stops a running org.
 func (a *App) ControlOrg(org, verb string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	switch verb {
 	case "stop", "pause", "resume":
 		return a.runOrgCLI(verb, "--", org)

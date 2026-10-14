@@ -82,13 +82,28 @@ func (a *App) jsonResult(args ...string) string {
 
 // CoderStatus returns `coder status`: enabled, workspace root, defaults,
 // and whether monomind has the capabilities coder mode needs (ready).
-func (a *App) CoderStatus() string { return a.jsonResult("coder", "status") }
+func (a *App) CoderStatus() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.jsonResult("coder", "status")
+}
 
 // CoderEnable turns coder mode on. The frontend only calls it after the user
 // confirmed the risk dialog, which is what --yes-i-understand records.
-func (a *App) CoderEnable() string { return a.jsonResult("coder", "enable", "--yes-i-understand") }
+func (a *App) CoderEnable() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.jsonResult("coder", "enable", "--yes-i-understand")
+}
 
-func (a *App) CoderDisable() string { return a.jsonResult("coder", "disable") }
+func (a *App) CoderDisable() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.jsonResult("coder", "disable")
+}
 
 // coderSetArgs builds `coder set`. An empty workspace root, maxTurns <= 0 or
 // an empty timeout leave that setting unchanged; budgetUsd 0 clears the
@@ -111,6 +126,9 @@ func coderSetArgs(workspaceRoot string, maxTurns int, timeout string, budgetUsd 
 }
 
 func (a *App) CoderSet(workspaceRoot string, maxTurns int, timeout string, budgetUsd float64) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult(coderSetArgs(workspaceRoot, maxTurns, timeout, budgetUsd)...)
 }
 
@@ -119,6 +137,9 @@ func (a *App) CoderSet(workspaceRoot string, maxTurns int, timeout string, budge
 // (the CLI's default runtime when empty): {path, created, git,
 // init:{created, skipped}}.
 func (a *App) CoderWorkspaceRoot(runtimeID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"coder", "workspace", "root"}
 	if runtimeID != "" {
 		args = append(args, "--runtime", runtimeID)
@@ -131,6 +152,9 @@ func (a *App) CoderWorkspaceRoot(runtimeID string) string {
 // {path, profile:{id,name}, source, created, init}. It is the default folder
 // of a new coder chat; the user may pick another.
 func (a *App) CoderWorkspaceDefault(runtimeID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	args := []string{"coder", "workspace", "default"}
 	if runtimeID != "" {
 		args = append(args, "--runtime", runtimeID)
@@ -140,12 +164,20 @@ func (a *App) CoderWorkspaceDefault(runtimeID string) string {
 
 // CoderWorkspaceList returns the folders coder conversations used, newest
 // first.
-func (a *App) CoderWorkspaceList() string { return a.jsonResult("coder", "workspace", "list") }
+func (a *App) CoderWorkspaceList() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
+	return a.jsonResult("coder", "workspace", "list")
+}
 
 // CoderStopBackground stops the background processes a coder turn left
 // running (its coder.background notice): {stopped, gone, refused} pids. The
 // CLI only touches pids that turn reported and that still carry its marker.
 func (a *App) CoderStopBackground(conversationID, turnID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("coder", "stop-background", "--conversation", conversationID, "--turn", turnID)
 }
 
@@ -153,12 +185,18 @@ func (a *App) CoderStopBackground(conversationID, turnID string) string {
 // ("solo") and a dynamic org ("dynamic", #226) from its next turn on:
 // `chat history set-org`.
 func (a *App) SetChatOrgMode(conversationID, mode string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("chat", "history", "set-org", conversationID, mode)
 }
 
 // AnswerAgentQuestion answers a dynamic-org worker's question (#256):
 // `chat turn answer`.
 func (a *App) AnswerAgentQuestion(conversationID, turnID, agentID, questionID, text string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult("chat", "turn", "answer", conversationID, turnID, "--agent", agentID, "--question", questionID, "--text", text)
 }
 
@@ -185,6 +223,9 @@ func coderConversationArgs(runtimeID, model, effort, cwd string, newWorkspace bo
 // CreateCoderConversation creates a coder conversation and returns it in
 // CreateChatConversation's shape (mode "coder", cwd its folder).
 func (a *App) CreateCoderConversation(runtimeID, model, effort, cwd string, newWorkspace bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if !newWorkspace && cwd == "" {
 		return aiError(fmt.Errorf("choose a folder for the coder conversation"))
 	}
@@ -202,6 +243,9 @@ func (a *App) CreateCoderConversation(runtimeID, model, effort, cwd string, newW
 
 // PickCoderFolder opens the native folder picker; "" when cancelled.
 func (a *App) PickCoderFolder() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Choose a folder for Coder mode"})
 	if err != nil {
 		return ""

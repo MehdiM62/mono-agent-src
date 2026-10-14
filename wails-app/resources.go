@@ -36,6 +36,9 @@ const resourcesCLITimeout = 90 * time.Second
 // the active profile and refreshes an expiring token. credentialID is the
 // connection ID. query is an optional search string.
 func (a *App) ListResources(platform, resourceType, credentialID, query string) ResourceListResult {
+	if a.signedOut() != nil {
+		return ResourceListResult{}
+	}
 	args := []string{"connect", "resources", "--platform=" + platform, "--type=" + resourceType}
 	if query != "" {
 		args = append(args, "--query="+query)
@@ -53,6 +56,9 @@ func (a *App) ListResources(platform, resourceType, credentialID, query string) 
 // CreateResource creates a new external resource via `monoagentcli connect
 // resources create` and returns the created item.
 func (a *App) CreateResource(platform, resourceType, credentialID, name string) ResourceItemResult {
+	if a.signedOut() != nil {
+		return ResourceItemResult{}
+	}
 	var result ResourceItemResult
 	if err := a.cliJSON(resourcesCLITimeout, &result, "connect", "resources", "create",
 		"--platform="+platform, "--type="+resourceType, "--name="+name, "--", credentialID); err != nil {
