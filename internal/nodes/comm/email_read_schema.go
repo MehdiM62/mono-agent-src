@@ -5,12 +5,6 @@ package comm
 // consumed by internal/tools/schemagen (see that package's doc comment for
 // the tag grammar). It is never constructed or used at runtime.
 //
-// EmailReadNode.Execute currently always returns an error (the go-imap
-// dependency isn't installed) — see the node's own doc comment. Its config
-// contract is still documented there, and that's what this struct
-// generates from, matching how the hand-written schema it replaces already
-// exposed these fields ahead of the dependency landing.
-//
 // "tls" has no entry in the hand-written schemas/comm.email_read.json this
 // replaces, even though EmailReadNode's own doc comment has documented a
 // "tls" (bool, default true) config key since before this conversion.
@@ -34,4 +28,6 @@ type EmailReadNodeSchema struct {
 	Limit float64 `json:"limit" schema:"label=Max Emails,type=number,default=20"`
 
 	UnreadOnly bool `json:"unread_only" schema:"label=Unread Only,type=boolean,default=false"`
+
+	SinceLastRun bool `json:"since_last_run" schema:"label=Only New Since Last Run,type=boolean,default=false,help=Return only messages with a UID above the highest one this node returned in an earlier run. The first run returns the newest Max Emails as usual; later runs return the oldest Max Emails new messages so a backlog is read over the next runs. Remembered per node and account and mailbox; starts over when the server changes the mailbox's UIDVALIDITY."`
 }

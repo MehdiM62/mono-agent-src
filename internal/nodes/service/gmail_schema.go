@@ -46,4 +46,6 @@ type GmailNodeSchema struct {
 	LabelIDs string `json:"label_ids" schema:"label=Label IDs,type=array,item_type=text,depends_on_key=operation,depends_on_values=list_messages"`
 
 	MaxResults float64 `json:"max_results" schema:"label=Max Results,type=number,default=10,depends_on_key=operation,depends_on_values=list_messages"`
+
+	SinceLastRun bool `json:"since_last_run" schema:"label=Only New Since Last Run,type=boolean,default=false,depends_on_key=operation,depends_on_values=list_messages,help=List only messages this node has not seen in an earlier run: received after the newest message already seen (Gmail after: plus an id check at the boundary). The first run lists as usual. Remembered per node and search query/labels; Max Results caps each listing (newest first) and new messages past it are not listed later."`
 }
