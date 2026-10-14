@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	"github.com/monoes/mono-agent/internal/autostart"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/update"
 	"github.com/monoes/mono-agent/internal/release"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -67,10 +68,10 @@ func fetchLatest(ctx context.Context, force bool) (*update.LatestInfo, error) {
 	return update.FetchLatest(ctx, releaseClient(), latestReleaseURL, force)
 }
 
-// startDetached starts name in its own session (detachStart) so the
+// startDetached starts name in its own session (clicore.DetachStart) so the
 // restart outlives this CLI and the app that ran it.
 func startDetached(name string, args ...string) error {
-	return detachStart(exec.Command(name, args...)) //nolint:gosec
+	return clicore.DetachStart(exec.Command(name, args...)) //nolint:gosec
 }
 
 // restartBlockers reads the database the command is pointed at, opened without migrating it: how
