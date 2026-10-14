@@ -12,9 +12,10 @@ import (
 // since the last poll. Both are rebuilt from mono nodes:
 //
 //   - webhook triggers (webhookTriggers) become a trigger.webhook on the
-//     n8n node's webhookId; the report says which URL and events to
-//     register with the vendor, since mono-agent does not register app
-//     webhooks itself;
+//     n8n node's webhookId. Where trigger.webhook has a registrar for the
+//     app (Typeform, Calendly) activation registers the hook; for the
+//     others the report says which URL and events to register with the
+//     vendor;
 //   - polling triggers (pollTriggers) become a trigger.schedule on the n8n
 //     poll times, the app package's list operation and a
 //     core.remove_duplicates step that remembers what earlier runs saw, so
@@ -31,6 +32,10 @@ type hookSpec struct {
 	// Handshake describes a verification request the vendor sends before
 	// it delivers events, which mono-agent webhooks do not answer.
 	Handshake string
+	// Register, when set, fills trigger.webhook's register_with,
+	// register_config and credential_id so activation registers the hook
+	// with the vendor; it reads (and so consumes) its n8n parameters.
+	Register func(c *MapContext, cfg map[string]interface{})
 	// DedupeHeader is a delivery-id header the vendor repeats on retries.
 	DedupeHeader string
 	// Shape returns a step reshaping the payload the way the n8n trigger
@@ -115,6 +120,13 @@ func mapHookTrigger(c *MapContext, spec hookSpec) Mapping {
 		}
 	}
 	c.Ignore(triggerParamsIgnored...)
+	if spec.Register != nil {
+		spec.Register(c, cfg)
+		c.Warn("webhook", nil, "activation registers https://<public URL>/webhook/%s with %s and removes it on deactivation; "+
+			"%s must reach the webhook server from the internet: set the trigger's public_url or MONOAGENT_PUBLIC_URL (e.g. a tunnel to 127.0.0.1:9321)",
+			path, spec.Vendor, spec.Vendor)
+		return m
+	}
 	where := spec.Where
 	if where == "" {
 		where = spec.Vendor + "'s webhook settings"
