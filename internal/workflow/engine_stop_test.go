@@ -117,3 +117,31 @@ func TestRecoverStaleExecutionsClosesRunningNodes(t *testing.T) {
 		t.Fatalf("run %s, nodes %v", exec.Status, got)
 	}
 }
+
+// Start and Stop, with and without a stop grace and with runs starting
+// and in flight, share no state unsafely (run under -race).
+func TestStartStopRepeatedly(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		grace := time.Duration(i%2) * 50 * time.Millisecond
+		store := newFullEngineStore(t)
+		reg := NewNodeTypeRegistry()
+		reg.Register("test.command", func() NodeExecutor { return killedCommandNode{d: time.Duration(i) * 20 * time.Millisecond} })
+		eng := NewWorkflowEngineWithStore(store, store.RawDB(), &fakeScheduler{}, reg,
+			EngineConfig{ProfileID: "default", WebhookAddr: "127.0.0.1:0"}, zerolog.Nop())
+		eng.SetStopGrace(grace)
+		sigCtx, signal := context.WithCancel(context.Background())
+		if err := eng.Start(sigCtx); err != nil {
+			t.Fatalf("Start: %v", err)
+		}
+		wf := createActiveManualWorkflow(t, context.Background(), eng, "test.command")
+		for j := 0; j < 3; j++ {
+			if _, err := eng.TriggerWorkflow(context.Background(), wf, nil); err != nil {
+				t.Fatalf("TriggerWorkflow: %v", err)
+			}
+		}
+		signal()
+		if err := eng.Stop(); err != nil {
+			t.Fatalf("Stop: %v", err)
+		}
+	}
+}
