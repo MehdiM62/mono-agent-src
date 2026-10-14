@@ -124,3 +124,48 @@ test("a listener that throws cannot stop the next one", () => {
   t.set({ state: "ok", reason: "", enforced: true });
   assert.deepEqual(seen, ["ok"]);
 });
+
+// ── Signed in or not: the gate's one decision (gate.js) ────────────────────
+
+const DAY = 24 * 60 * 60 * 1000;
+const T0 = Date.UTC(2026, 9, 14, 12, 0, 0);
+
+test("ok and grace sign in; locked, enforced or not, and anything else do not", () => {
+  assert.equal(A.signedIn({ state: "ok", at: T0 }, T0), true);
+  assert.equal(A.signedIn({ state: "grace", at: T0 }, T0), true);
+  assert.equal(A.signedIn({ state: "locked", at: T0 }, T0), false);
+  assert.equal(A.signedIn({ state: "", at: T0 }, T0), false);
+  assert.equal(A.signedIn({ state: "OK", at: T0 }, T0), false);
+  assert.equal(A.signedIn({ state: "ok" }, T0), false, "a report with no time");
+  assert.equal(A.signedIn({ state: "ok", at: "now" }, T0), false);
+  assert.equal(A.signedIn(null, T0), false);
+  assert.equal(A.signedIn("ok", T0), false);
+});
+
+test("a report lasts the CLI's grace window and no longer", () => {
+  const seen = { state: "ok", at: T0 };
+  assert.equal(A.CONFIRM_WINDOW_MS, DAY, "the CLI's GraceWindow (internal/account/claims.go)");
+  assert.equal(A.signedIn(seen, T0 + DAY - 1), true, "the bridge went down an hour short of a day ago");
+  assert.equal(A.signedIn(seen, T0 + DAY), false, "a day without a bridge saying so");
+  assert.equal(A.signedIn(seen, T0 + 30 * DAY), false);
+});
+
+test("a report from the future proves nothing (the clock went back)", () => {
+  assert.equal(A.signedIn({ state: "ok", at: T0 + A.CLOCK_SLACK_MS }, T0), true, "a minute's drift is tolerated");
+  assert.equal(A.signedIn({ state: "ok", at: T0 + A.CLOCK_SLACK_MS + 1 }, T0), false);
+  assert.equal(A.signedIn({ state: "ok", at: T0 + DAY }, T0), false);
+});
+
+test("only ping and account_locked report the account", () => {
+  assert.deepEqual(A.seenFrom(ping({ state: "ok", reason: "", enforced: true }), T0), { state: "ok", at: T0 });
+  assert.deepEqual(A.seenFrom(ping({ state: "grace", reason: "unreachable", enforced: true }), T0), { state: "grace", at: T0 });
+  assert.deepEqual(A.seenFrom(ping({ state: "locked", enforced: false }), T0), { state: "locked", at: T0 }, "not enforced is still nobody signed in");
+  assert.deepEqual(A.seenFrom({ kind: "reply", id: "x", ok: true, data: { pong: true, methods: [] } }, T0), { state: "locked", at: T0 }, "a bridge from before the gate");
+  assert.deepEqual(A.seenFrom({ kind: "reply", id: "x", error: "Log in", code: "account_locked" }, T0), { state: "locked", at: T0 });
+  assert.equal(A.seenFrom({ kind: "reply", id: "x", ok: true, data: { record: null } }, T0), null, "an ordinary answer is not a report");
+  assert.equal(A.seenFrom({ kind: "reply", id: "x", ok: true, data: { pong: false, account: { state: "ok" } } }, T0), null);
+  assert.equal(A.seenFrom({ kind: "reply", id: "x", progress: { stage: "a" } }, T0), null);
+  assert.equal(A.seenFrom({ kind: "reply", id: "x", error: "busy", code: "busy" }, T0), null);
+  assert.equal(A.seenFrom({ id: "x", success: true, data: { pong: true, account: { state: "ok" } } }, T0), null, "a command response, not a reply");
+});
+
