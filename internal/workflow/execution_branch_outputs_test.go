@@ -38,7 +38,8 @@ func (s seenNode) Execute(_ context.Context, in workflow.NodeInput, _ map[string
 
 // QA-A U1: a node with only branch outputs (core.if, switch, a loop node)
 // recorded no items, so $node["IF"] was empty downstream and the run's
-// detail showed output_items: [].
+// detail showed output_items: []. As in n8n, $node["IF"] reads the first
+// output ("true"); the run's detail keeps every routed item.
 func TestRunExecution_BranchOutputsAreRecorded(t *testing.T) {
 	seen := &[]int{}
 	reg := workflow.NewNodeTypeRegistry()
@@ -57,8 +58,8 @@ func TestRunExecution_BranchOutputsAreRecorded(t *testing.T) {
 	if err := runWF(t, reg, wf, store, ""); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if len(*seen) != 1 || (*seen)[0] != 3 {
-		t.Fatalf("$node[\"IF\"] item counts = %v, want [3] (true and false items)", *seen)
+	if len(*seen) != 1 || (*seen)[0] != 1 {
+		t.Fatalf("$node[\"IF\"] item counts = %v, want [1] (the true output only)", *seen)
 	}
 	// Rows finish in order: Emit, IF, After.
 	if len(store.finished) < 2 || len(store.finished[1].items) != 3 {
@@ -66,8 +67,9 @@ func TestRunExecution_BranchOutputsAreRecorded(t *testing.T) {
 	}
 }
 
-// A loop node records each batch once, not once for "loop" and again for
-// the "batch" alias, and its "done" items on the last pass.
+// A loop node's record holds each batch once (not once for "loop" and again
+// for the "batch" alias) and its "done" items on the last pass. $node["Loop"]
+// reads n8n's output 0, "done": empty inside the loop, every item after it.
 func TestRunExecution_LoopOutputsAreRecorded(t *testing.T) {
 	seen := &[]int{}
 	reg := workflow.NewNodeTypeRegistry()
@@ -79,13 +81,26 @@ func TestRunExecution_LoopOutputsAreRecorded(t *testing.T) {
 		{ID: "e", Type: "test.emit", Name: "Emit"},
 		{ID: "l", Type: workflow.LoopNodeType, Name: "Loop", Config: map[string]interface{}{"batch_size": 2}},
 		{ID: "s", Type: "test.seen", Name: "Body"},
+		{ID: "d", Type: "test.seen", Name: "Done"},
 	}, Connections: []workflow.WorkflowConnection{
-		conn("t", "main", "e"), conn("e", "main", "l"), conn("l", "loop", "s"), conn("s", "main", "l"),
+		conn("t", "main", "e"), conn("e", "main", "l"), conn("l", "loop", "s"), conn("s", "main", "l"), conn("l", "done", "d"),
 	}}
-	if err := runWF(t, reg, wf, &finishStore{}, ""); err != nil {
+	store := &finishStore{}
+	if err := runWF(t, reg, wf, store, ""); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if want := []int{2, 2, 1}; !eqInts(*seen, want) {
-		t.Fatalf("$node[\"Loop\"] item counts per pass = %v, want %v", *seen, want)
+	if want := []int{0, 0, 0, 5}; !eqInts(*seen, want) {
+		t.Fatalf("$node[\"Loop\"] item counts (3 body passes, then Done) = %v, want %v", *seen, want)
+	}
+	// Rows finish in order: Emit, then Loop and Body per pass, Loop's last
+	// pass (done) and Done.
+	var loopRows []int
+	for i, row := range store.finished {
+		if i%2 == 1 && i < 8 {
+			loopRows = append(loopRows, len(row.items))
+		}
+	}
+	if want := []int{2, 2, 1, 5}; !eqInts(loopRows, want) {
+		t.Fatalf("Loop's recorded item counts per pass = %v, want %v (rows %+v)", loopRows, want, store.finished)
 	}
 }
