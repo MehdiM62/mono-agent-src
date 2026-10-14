@@ -103,7 +103,9 @@ func RunExecution(
 		expr:      expr,
 		logger:    logger,
 		// Build initial trigger items — wrap TriggerData as a single Item.
-		triggerItems:   buildTriggerItems(exec.TriggerData),
+		// The webhook chain trace stays internal (the run's context has it):
+		// a workflow that echoes $json must not hand it to its caller.
+		triggerItems:   buildTriggerItems(withoutTrace(exec.TriggerData, WebhookTraceKey)),
 		nodeOutputs:    make(map[string][]Item),
 		pendingInputs:  make(map[string][]Item),
 		pendingFrom:    make(map[string]string),

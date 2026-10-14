@@ -245,3 +245,52 @@ func TestRunTraceTakesTheItemsDeeperHop(t *testing.T) {
 		t.Error("a manual run took its item's trace")
 	}
 }
+
+// traceProbeNode records its input item and the chain its run carries.
+type traceProbeNode struct {
+	item  *map[string]interface{}
+	chain *string
+}
+
+func (traceProbeNode) Type() string { return "test.traceprobe" }
+func (n traceProbeNode) Execute(ctx context.Context, in NodeInput, _ map[string]interface{}) ([]NodeOutput, error) {
+	*n.item = in.Items[0].JSON
+	*n.chain, _, _ = RunTrace(ctx, nil)
+	return []NodeOutput{{Handle: "main", Items: in.Items}}, nil
+}
+
+// A webhook run's chain trace is internal: the item the trigger hands on
+// (and so a lastNode or Respond to Webhook body echoing $json) does not
+// carry it, while the run still continues the chain.
+func TestWebhookTraceStaysOutOfItems(t *testing.T) {
+	var item map[string]interface{}
+	var chain string
+	reg := NewNodeTypeRegistry()
+	reg.Register("test.traceprobe", func() NodeExecutor { return traceProbeNode{item: &item, chain: &chain} })
+	wf := &Workflow{
+		ID: "wf-trace",
+		Nodes: []WorkflowNode{
+			{ID: "t", WorkflowID: "wf-trace", Type: TriggerNodeTypeWebhook, Name: "T"},
+			{ID: "p", WorkflowID: "wf-trace", Type: "test.traceprobe", Name: "Probe"},
+		},
+		Connections: []WorkflowConnection{{SourceNodeID: "t", SourceHandle: "main", TargetNodeID: "p", TargetHandle: "main"}},
+	}
+	dag, err := BuildDAG(wf.Nodes, wf.Connections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &WorkflowExecution{ID: "e-trace", WorkflowID: wf.ID, TriggerType: TriggerNodeTypeWebhook, TriggerNodeID: "t",
+		TriggerData: map[string]interface{}{"name": "zed", WebhookTraceKey: map[string]interface{}{"chain_id": "chn_hook", "hop": float64(1)}}}
+	if err := RunExecution(context.Background(), exec, wf, dag, reg, &stubStore{}, nil, NewExpressionEngine(), zerolog.Nop()); err != nil {
+		t.Fatalf("RunExecution: %v", err)
+	}
+	if _, leaked := item[WebhookTraceKey]; leaked || item["name"] != "zed" {
+		t.Errorf("trigger item = %v, want the body without %s", item, WebhookTraceKey)
+	}
+	if chain != "chn_hook" {
+		t.Errorf("run chain = %q, want chn_hook", chain)
+	}
+	if _, kept := exec.TriggerData[WebhookTraceKey]; !kept {
+		t.Error("the execution's trigger data lost its trace")
+	}
+}
