@@ -1,4 +1,4 @@
-package main
+package image
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 
 // newImageCLITestDB is a migrated DB with two images in "default" (one in
 // a file on disk) and one in another profile, under a temp HOME.
-func newImageCLITestDB(t *testing.T) (*globalConfig, string) {
+func newImageCLITestDB(t *testing.T) (*testConfig, string) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("PATH", t.TempDir()) // no monomind: Register's knowledge-graph sync is a no-op
@@ -42,13 +42,13 @@ func newImageCLITestDB(t *testing.T) (*globalConfig, string) {
 		t.Fatal(err)
 	}
 	db.Close()
-	return &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}, dir
+	return &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "default"}, dir
 }
 
-func runImage(t *testing.T, cfg *globalConfig, args ...string) (string, error) {
+func runImage(t *testing.T, cfg *testConfig, args ...string) (string, error) {
 	t.Helper()
 	var out bytes.Buffer
-	cmd := newImageCmd(cfg)
+	cmd := NewCommand(testDeps(cfg))
 	cmd.SilenceUsage = true
 	cmd.SetOut(&out)
 	cmd.SetErr(&bytes.Buffer{})
@@ -316,7 +316,7 @@ func TestImageAddInProfileFolderDeleteAndReAdd(t *testing.T) {
 	}
 	syncCounts := func() [3]int {
 		t.Helper()
-		r := runFolderSync(t, cfg, newImageCmd, "sync")
+		r := runFolderSync(t, cfg, "sync")
 		return [3]int{r.Added, r.Updated, r.Removed}
 	}
 	if c := syncCounts(); c != [3]int{0, 0, 0} {
@@ -353,7 +353,7 @@ func TestImageUnignore(t *testing.T) {
 	if err := os.WriteFile(path, []byte("logo"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if r := runFolderSync(t, cfg, newImageCmd, "sync"); r.Added != 1 {
+	if r := runFolderSync(t, cfg, "sync"); r.Added != 1 {
 		t.Fatalf("first sync = %+v", r)
 	}
 	out, _ := runImage(t, cfg, "list")
@@ -362,14 +362,14 @@ func TestImageUnignore(t *testing.T) {
 	if _, err := runImage(t, cfg, "delete", rows[0].ID); err != nil {
 		t.Fatal(err)
 	}
-	if r := runFolderSync(t, cfg, newImageCmd, "sync"); r.Added != 0 {
+	if r := runFolderSync(t, cfg, "sync"); r.Added != 0 {
 		t.Fatalf("sync after delete = %+v", r)
 	}
 	out, err := runImage(t, cfg, "unignore", path)
 	if err != nil || !strings.Contains(out, `"unignored": true`) {
 		t.Fatalf("unignore = %s, %v", out, err)
 	}
-	if r := runFolderSync(t, cfg, newImageCmd, "sync"); r.Added != 1 {
+	if r := runFolderSync(t, cfg, "sync"); r.Added != 1 {
 		t.Fatalf("sync after unignore = %+v", r)
 	}
 	if _, err := runImage(t, cfg, "unignore", path); exitCode(err) != 2 {

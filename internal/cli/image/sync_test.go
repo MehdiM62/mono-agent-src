@@ -1,4 +1,4 @@
-package main
+package image
 
 import (
 	"bytes"
@@ -59,8 +59,8 @@ func TestImageSync(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	work := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "work"}
-	sync := func() folderSyncResult { return runFolderSync(t, work, newImageCmd, "sync") }
+	work := &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "work"}
+	sync := func() folderSyncResult { return runFolderSync(t, work, "sync") }
 
 	r := sync()
 	if syncCounts(r) != [3]int{2, 1, 0} || !r.Changed || r.Scanned != 3 || r.Root != root || r.ProfileID != "work" || r.Errors == nil {
@@ -98,8 +98,8 @@ func TestImageSync(t *testing.T) {
 		t.Fatalf("sync of work touched profile home: %+v", other)
 	}
 
-	home2 := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "home"}
-	if r := runFolderSync(t, home2, newImageCmd, "sync"); syncCounts(r) != [3]int{1, 0, 0} {
+	home2 := &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: "home"}
+	if r := runFolderSync(t, home2, "sync"); syncCounts(r) != [3]int{1, 0, 0} {
 		t.Fatalf("home sync = %+v", r)
 	}
 	if r := sync(); r.Changed {
@@ -112,7 +112,7 @@ func TestImageSync(t *testing.T) {
 func TestImageSyncInvalidProfile(t *testing.T) {
 	dbPath := newProfileDocsCLITestDB(t)
 	for _, p := range []string{"nope", "../escape"} {
-		cfg := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: p}
+		cfg := &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: p}
 		if _, err := runImage(t, cfg, "sync"); exitCode(err) != 3 {
 			t.Errorf("profile %q: exit %d (%v)", p, exitCode(err), err)
 		}
