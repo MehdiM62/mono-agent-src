@@ -124,11 +124,23 @@ func (r *opRun) paginate(ctx context.Context) ([]any, bool, error) {
 				pp.values[pg.PageParam] = page
 			}
 		}
-		resp, err := r.send(ctx, pp)
+		var resp *response
+		var err error
+		if pg.Next != nil && n > 0 && next == "" {
+			// Continuation request: res = the previous page, page.cursor its cursor.
+			sc := r.scope
+			sc.Res, sc.Page = r.lastPage, map[string]any{"cursor": rawCursor}
+			if resp, err = r.sendStep(ctx, *pg.Next, sc); err == nil && resp == nil {
+				return all, false, nil // skipped by its when
+			}
+		} else {
+			resp, err = r.send(ctx, pp)
+		}
 		if err != nil {
 			return nil, false, err
 		}
 		doc := decodeBody(resp.body)
+		r.lastPage = doc
 		if r.scope.Res == nil {
 			r.scope.Res = doc // output shaping reads headers etc. from the first page
 		}

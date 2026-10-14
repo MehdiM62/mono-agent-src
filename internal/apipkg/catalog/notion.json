@@ -9,6 +9,11 @@
   "n8n_types": [
     "n8n-nodes-base.notion"
   ],
+  "n8n_version_defaults": {
+    "<3": {
+      "keyCase": "ascii"
+    }
+  },
   "n8n_trigger_types": [
     "n8n-nodes-base.notionTrigger"
   ],
@@ -157,6 +162,17 @@
           "type": "boolean",
           "default": true,
           "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "body": {
@@ -242,7 +258,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
@@ -281,6 +297,17 @@
           "type": "boolean",
           "default": true,
           "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "body": {
@@ -293,7 +320,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
@@ -390,6 +417,17 @@
           "type": "boolean",
           "default": true,
           "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "body": {
@@ -421,7 +459,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
@@ -608,6 +646,17 @@
           "type": "boolean",
           "default": true,
           "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "body": {
@@ -765,7 +814,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
@@ -814,6 +863,17 @@
             "downloadFiles"
           ],
           "help": "downloadFiles: put each file of the page's file properties on the item (binary <property>_<index>)."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "output": {
@@ -823,7 +883,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
@@ -954,6 +1014,17 @@
             "downloadFiles"
           ],
           "help": "sort: {\"sortValue\": [{\"key\": \"Due|date\", \"direction\": \"ascending\"}, {\"timestamp\": true, \"key\": \"created_time\", \"direction\": \"descending\"}]}"
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "body": {
@@ -1027,7 +1098,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
@@ -1105,6 +1176,17 @@
           "type": "boolean",
           "default": true,
           "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "body": {
@@ -1187,7 +1269,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
@@ -1436,6 +1518,17 @@
           "type": "boolean",
           "default": true,
           "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "output": {
@@ -1445,7 +1538,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
@@ -1505,6 +1598,17 @@
             "sort"
           ],
           "help": "sort: {\"sortValue\": {\"direction\": \"descending\", \"timestamp\": \"last_edited_time\"}}"
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "body": {
@@ -1536,7 +1640,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
@@ -1575,6 +1679,17 @@
           "type": "boolean",
           "default": true,
           "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
         }
       ],
       "output": {
@@ -1584,7 +1699,7 @@
           "url": "{{ el.url }}",
           "$merge": {
             "$entries": "{{ el.properties | entries }}",
-            "$key": "property_{{ el.key | snake }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
             "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
           }
         },
