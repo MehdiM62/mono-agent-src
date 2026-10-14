@@ -5,6 +5,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 // twoTriggerWorkflow: t1 → n1 (counts a), t2 → n2 (counts b).
@@ -97,4 +99,47 @@ func TestTriggerNodeID_HandleTriggerPersists(t *testing.T) {
 	if node != "t1" {
 		t.Fatalf("trigger_node_id = %q, want t1", node)
 	}
+}
+
+// The trigger node's record carries the items it handed on as its output,
+// so an execution's detail shows what the trigger fired with.
+func TestTriggerNodeRecordsOutputItems(t *testing.T) {
+	store := newFullEngineStore(t)
+	var runs int32
+	reg := NewNodeTypeRegistry()
+	reg.Register("test.count.atomic", func() NodeExecutor { return atomicCountNode{runs: &runs} })
+	wf := &Workflow{
+		ID: "wf-trig-out",
+		Nodes: []WorkflowNode{
+			{ID: "t", WorkflowID: "wf-trig-out", Type: "trigger.webhook", Name: "Hook"},
+			{ID: "n", WorkflowID: "wf-trig-out", Type: "test.count.atomic", Name: "N"},
+		},
+		Connections: []WorkflowConnection{{SourceNodeID: "t", SourceHandle: "main", TargetNodeID: "n", TargetHandle: "main"}},
+	}
+	dag, err := BuildDAG(wf.Nodes, wf.Connections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	exec := &WorkflowExecution{WorkflowID: wf.ID, Status: "RUNNING", TriggerType: "trigger.webhook", TriggerNodeID: "t",
+		TriggerData: map[string]interface{}{"who": "zed"}}
+	if err := store.CreateExecution(ctx, exec); err != nil {
+		t.Fatal(err)
+	}
+	if err := RunExecution(ctx, exec, wf, dag, reg, store, nil, NewExpressionEngine(), zerolog.Nop()); err != nil {
+		t.Fatalf("RunExecution: %v", err)
+	}
+	got, err := store.GetExecution(ctx, exec.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range got.Nodes {
+		if n.NodeID == "t" {
+			if len(n.OutputItems) != 1 || n.OutputItems[0].JSON["who"] != "zed" {
+				t.Fatalf("trigger output items = %+v, want the trigger item", n.OutputItems)
+			}
+			return
+		}
+	}
+	t.Fatalf("no trigger node record in %+v", got.Nodes)
 }

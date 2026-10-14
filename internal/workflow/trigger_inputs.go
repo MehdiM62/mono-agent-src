@@ -76,6 +76,9 @@ func TriggerInputs(nodes []WorkflowNode, conns []WorkflowConnection, lookup Sche
 	}
 	fed, fedByTrigger := map[string]bool{}, map[string]bool{}
 	for _, c := range conns {
+		if IsSubNodeHandle(c.SourceHandle) || IsSubNodeHandle(c.TargetHandle) {
+			continue // an attached AI sub-node carries no items
+		}
 		fed[c.TargetNodeID] = true
 		if triggers[c.SourceNodeID] {
 			fedByTrigger[c.TargetNodeID] = true

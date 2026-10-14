@@ -159,3 +159,48 @@ func connected(wf *workflow.WorkflowFile, from, to string) bool {
 	}
 	return false
 }
+
+// Message an Agent's session is kept in the local chat memory: v3.1 from the
+// chat trigger's sessionId (or a defined key), earlier versions from
+// advanced.sessionId; no session → a fresh conversation every run.
+func TestMessageAnAgentSession(t *testing.T) {
+	wf, _ := convertNodes(t, `{"name":"Msg","type":"n8n-nodes-base.messageAnAgent","typeVersion":3.1,"position":[0,0],
+	  "parameters":{"message":"hi"}}`)
+	mem, _ := node(t, wf, "Msg (ask)").Config["memory"].(map[string]interface{})
+	if mem["session_key"] != "{{ $json.sessionId }}" || mem["skip_when_missing"] != true {
+		t.Errorf("v3.1 default: memory %v", mem)
+	}
+	wf, _ = convertNodes(t, `{"name":"Msg","type":"n8n-nodes-base.messageAnAgent","typeVersion":3.1,"position":[0,0],
+	  "parameters":{"message":"hi","advanced":{"session":{"session":{"sessionIdType":"customKey","sessionKey":"={{ $json.user }}"}}}}}`)
+	if mem, _ := node(t, wf, "Msg (ask)").Config["memory"].(map[string]interface{}); mem["session_key"] != "{{ $json.user }}" {
+		t.Errorf("custom key: memory %v", mem)
+	}
+	wf, _ = convertNodes(t, `{"name":"Msg","type":"n8n-nodes-base.messageAnAgent","typeVersion":2,"position":[0,0],
+	  "parameters":{"message":"hi","advanced":{"sessionId":"support-42"}}}`)
+	if mem, _ := node(t, wf, "Msg (ask)").Config["memory"].(map[string]interface{}); mem["session_key"] != "support-42" {
+		t.Errorf("v2 sessionId: memory %v", mem)
+	}
+	wf, _ = convertNodes(t, `{"name":"Msg","type":"n8n-nodes-base.messageAnAgent","typeVersion":2,"position":[0,0],"parameters":{"message":"hi"}}`)
+	if _, ok := node(t, wf, "Msg (ask)").Config["memory"]; ok {
+		t.Error("v2 without a session must not keep memory")
+	}
+}
+
+// The executed tool's $fromAI goes through the expression translator, so a
+// default value survives (the item may not carry the key).
+func TestToolExecutorKeepsFromAIDefault(t *testing.T) {
+	raw := `{"name":"t","nodes":[
+	  {"name":"Exec","type":"@n8n/n8n-nodes-langchain.toolExecutor","typeVersion":1,"position":[0,0],
+	   "parameters":{"query":"{}"}},
+	  {"name":"Set Tool","type":"n8n-nodes-base.setTool","typeVersion":3.4,"position":[0,400],
+	   "parameters":{"assignments":{"assignments":[{"id":"a","name":"out","value":"={{ $fromAI('text', '', 'string', 'fallback') }}","type":"string"}]}}}],
+	 "connections":{"Set Tool":{"ai_tool":[[{"node":"Exec","type":"ai_tool","index":0}]]}}}`
+	wf, rep, err := n8nimport.Convert([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := fmtConfig(node(t, wf, "Exec"))
+	if !strings.Contains(cfg, "text") || !strings.Contains(cfg, "fallback") {
+		t.Errorf("$fromAI default lost: %s\n%s", cfg, issueText(rep, "Exec"))
+	}
+}

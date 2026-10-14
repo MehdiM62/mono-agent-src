@@ -120,7 +120,7 @@
           "true"
         ]
       },
-      "help": "Empty = all. n8n names: EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, IBAN_CODE, IP_ADDRESS, US_SSN, DATE_TIME, LOCATION, … (see ref node ai.guardrails).",
+      "help": "The kinds of personal data to look for; leave empty to look for all of them. Use the type names, for example EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD, IBAN_CODE, IP_ADDRESS, LOCATION, DATE_TIME, US_SSN, UK_NINO or IN_PAN.",
       "item_type": "text",
       "key": "pii_entities",
       "label": "PII Entities",
@@ -304,6 +304,14 @@
       "label": "Timeout (seconds)",
       "required": false,
       "type": "number"
+    }
+  ],
+  "sub_inputs": [
+    {
+      "handle": "ai_languageModel",
+      "label": "Chat Model",
+      "max": 1,
+      "required": false
     }
   ]
 }

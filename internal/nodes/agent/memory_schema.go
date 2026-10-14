@@ -7,7 +7,7 @@ type MemoryNodeSchema struct {
 
 	SessionKey string `json:"session_key" schema:"label=Session Key,type=text,default={{ $json.sessionId }},help=The conversation to use， resolved per item. The default reads the sessionId field a chat trigger puts on its items."`
 
-	Format string `json:"format" schema:"label=Format,type=select,options=simple|pairs|raw,default=simple,depends_on_key=operation,depends_on_values=get,help=simple: [{role， content}]. pairs: {human， ai} groups (n8n's simplified output). raw: also seq and created_at."`
+	Format string `json:"format" schema:"label=Format,type=select,options=simple|pairs|raw,default=simple,depends_on_key=operation,depends_on_values=get,help=simple: [{role， content}]. pairs: one {human， ai} entry per exchange. raw: also seq and created_at."`
 
 	Group bool `json:"group" schema:"label=Group Messages,type=boolean,default=true,depends_on_key=operation,depends_on_values=get,help=One item per input item with messages and messagesCount (input fields kept)， or one item per message."`
 

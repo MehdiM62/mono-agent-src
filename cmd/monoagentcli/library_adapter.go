@@ -1,10 +1,8 @@
 package main
 
 import (
-	"io"
 	"os/exec"
 	"runtime"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -42,15 +40,6 @@ func libraryDeps(cfg *globalConfig) librarycli.Deps {
 	}
 }
 
-// printLib writes v as indented JSON with --json, else calls human.
-func printLib(cfg *globalConfig, cmd *cobra.Command, v any, human func(w io.Writer)) error {
-	if cfg.JSONOutput {
-		return writeJSONTo(cmd.OutOrStdout(), v)
-	}
-	human(cmd.OutOrStdout())
-	return nil
-}
-
 // openURLInBrowser opens url in the system's default browser; a var, so tests can stub it out.
 var openURLInBrowser = clicore.OpenURLInBrowser
 
@@ -62,31 +51,4 @@ var openLoginURL = func(u string) error {
 		return exec.Command("rundll32", "url.dll,FileProtocolHandler", u).Start()
 	}
 	return openURLInBrowser(u)
-}
-
-func nonEmptyStr(a, b string) string {
-	if a != "" {
-		return a
-	}
-	return b
-}
-
-func readLine(r io.Reader) (string, error) {
-	var b strings.Builder
-	buf := make([]byte, 1)
-	for {
-		n, err := r.Read(buf)
-		if n > 0 {
-			if buf[0] == '\n' {
-				return strings.TrimSpace(b.String()), nil
-			}
-			b.WriteByte(buf[0])
-		}
-		if err != nil {
-			if err == io.EOF && b.Len() > 0 {
-				return strings.TrimSpace(b.String()), nil
-			}
-			return "", err
-		}
-	}
 }

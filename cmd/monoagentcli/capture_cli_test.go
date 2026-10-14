@@ -2,9 +2,6 @@ package main
 
 import (
 	"testing"
-
-	"github.com/monoes/mono-agent/internal/jev/jevconf"
-	"github.com/monoes/mono-agent/internal/storage"
 )
 
 // The capture commands' tests live in internal/cli/capture; these are the wiring test and the
@@ -20,25 +17,4 @@ func TestCaptureCommandIsRegistered(t *testing.T) {
 			t.Fatalf("root.Find(%v) = %v, %v", path, sub, err)
 		}
 	}
-}
-
-// withJevDB and enableJev are the capture classify tests' helpers the people classify tests
-// share.
-func withJevDB(t *testing.T, dbPath string, fn func(db *storage.Database)) {
-	t.Helper()
-	db, err := storage.NewDatabase(dbPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	fn(db)
-}
-
-func enableJev(t *testing.T, dbPath, profile string, s jevconf.Surface) {
-	t.Helper()
-	withJevDB(t, dbPath, func(db *storage.Database) {
-		if err := jevconf.SetEnabled(db.DB, profile, s, true); err != nil {
-			t.Fatal(err)
-		}
-	})
 }

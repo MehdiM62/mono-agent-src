@@ -28,9 +28,6 @@ func workflowValidateDeps(cfg *globalConfig) workflowvalidate.Deps {
 // validationJSON is the `workflow validate --json` payload.
 type validationJSON = workflowvalidate.ValidationJSON
 
-// dryRunSteps validates a workflow for activation and computes its execution order.
-var dryRunSteps = workflowvalidate.DryRunSteps
-
 func newWorkflowValidateCmd(cfg *globalConfig) *cobra.Command {
 	return workflowvalidate.NewCommand(workflowValidateDeps(cfg))
 }

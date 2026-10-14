@@ -84,7 +84,7 @@ func runWorkflowCmdIn(t *testing.T, cfg *testConfig, stdin string, args ...strin
 		root := &cobra.Command{Use: "workflow", SilenceUsage: true, SilenceErrors: true}
 		templates := &cobra.Command{Use: "templates"}
 		templates.AddCommand(d.NewTemplatesRunCmd())
-		root.AddCommand(d.NewRunCmd(), d.NewExecutionCmd(), d.NewCancelCmd(), templates)
+		root.AddCommand(d.NewRunCmd(), d.NewExecutionCmd(), d.NewCancelCmd(), d.NewRetryCmd(), templates)
 		root.SetArgs(args)
 		root.SetIn(strings.NewReader(stdin))
 		err = root.Execute()

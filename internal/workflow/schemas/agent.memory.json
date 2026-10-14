@@ -31,7 +31,7 @@
           "get"
         ]
       },
-      "help": "simple: [{role, content}]. pairs: {human, ai} groups (n8n's simplified output). raw: also seq and created_at.",
+      "help": "simple: [{role, content}]. pairs: one {human, ai} entry per exchange. raw: also seq and created_at.",
       "key": "format",
       "label": "Format",
       "options": [
@@ -153,6 +153,14 @@
       "description": "insert and delete: true",
       "key": "success",
       "type": "boolean"
+    }
+  ],
+  "sub_inputs": [
+    {
+      "handle": "ai_memory",
+      "label": "Memory",
+      "max": 1,
+      "required": false
     }
   ]
 }

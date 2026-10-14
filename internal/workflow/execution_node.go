@@ -24,6 +24,8 @@ type nodeTask struct {
 
 	perItem      *perItemPlan // non-nil: run once per input item
 	itemFailures int          // per-item failures on_error tolerated
+	attempts     int          // node attempts run, retries included
+	runs         int          // executeWithRetry calls (one per item when perItem)
 
 	outputs []NodeOutput
 	execErr error
@@ -159,7 +161,8 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		// Store outputs for expression access.
 		r.nodeOutputs[node.Name] = inputItems
 
-		// Record execution node as SUCCESS.
+		// Record execution node as SUCCESS. Its items are its output too,
+		// so the run's detail shows what the trigger handed on.
 		now2 := time.Now().UTC()
 		execNode := &WorkflowExecutionNode{
 			ExecutionID: r.exec.ID,
@@ -167,6 +170,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 			NodeName:    node.Name,
 			Status:      "SUCCESS",
 			InputItems:  inputItems,
+			OutputItems: inputItems,
 			StartedAt:   &now2,
 			FinishedAt:  &now2,
 		}
@@ -187,7 +191,9 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 	// executor here instead of later does not change behavior.
 	factory, ok := r.registry.Get(node.Type)
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrNodeTypeUnknown, node.Type)
+		err := fmt.Errorf("%w: %s", ErrNodeTypeUnknown, node.Type)
+		r.recordNotStarted(node, inputItems, err)
+		return nil, err
 	}
 	executor := factory()
 
@@ -228,6 +234,12 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 		_ = secrets.ResolveConfig(ctx, vaultDB, vault.ProfileIDFromContext(ctx), resolvedConfig)
 	}
 
+	// AI sub-nodes attached through ai_… connections, resolved for the node.
+	subNodes, err := r.resolveSubNodes(node.ID, exprCtx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("node %s (%s): %w", node.ID, node.Name, err)
+	}
+
 	if dag.isLoopNode(node.ID) {
 		if err := r.countLoopIteration(node, inputItems, resolvedConfig); err != nil {
 			return nil, err
@@ -265,6 +277,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 			NodeID:      node.ID,
 			NodeName:    node.Name,
 			Location:    exprCtx.Location,
+			SubNodes:    subNodes,
 			Trigger:     exprCtx.Trigger,
 			Vars:        exprCtx.Vars,
 			RunIndex:    exprCtx.RunIndex,
@@ -285,6 +298,7 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 	node, execNode, onError, execErr := t.node, t.execNode, t.onError, t.execErr
 	dag, logger, ctx := r.dag, r.logger, r.ctx
+	r.recordRetries(t)
 
 	if st := NodeStateFromContext(t.ctx); st != nil {
 		r.nodeState[node.ID] = st
@@ -392,16 +406,38 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 	// record; "error" is the failure-output convention shared by nodes
 	// that report per-item failures instead of returning an error
 	// (http.request connection failures and cap breaches,
-	// system.execute_command non-zero exits, …).
-	var mainItems []Item
+	// system.execute_command non-zero exits, …). A node with no "main"
+	// output (core.if true/false, switch cases, a loop's loop/done) records
+	// the items it routed on its other handles instead, so the run's detail
+	// is not empty; $node["IF"] reads its first output (firstOutputItems).
+	var mainItems, branchItems []Item
 	var errorHandleItems []Item
+	hasMain, hasLoop := false, false
+	for _, out := range outputs {
+		if out.Handle == "loop" {
+			hasLoop = true
+		}
+	}
 	for _, out := range outputs {
 		switch out.Handle {
 		case "error":
 			errorHandleItems = append(errorHandleItems, out.Items...)
 		case "main", "":
+			hasMain = true
 			mainItems = append(mainItems, out.Items...)
+		case "batch":
+			// The loop node's "batch" repeats the items of its "loop" output.
+			if !hasLoop {
+				branchItems = append(branchItems, out.Items...)
+			}
+		default:
+			branchItems = append(branchItems, out.Items...)
 		}
+	}
+	exprItems := mainItems
+	if !hasMain {
+		mainItems = branchItems
+		exprItems = firstOutputItems(node.Type, outputs)
 	}
 
 	// A node that routed failures to its "error" output must not report
@@ -433,7 +469,7 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 		return false, nodeErr
 	}
 
-	r.nodeOutputs[node.Name] = mainItems
+	r.nodeOutputs[node.Name] = exprItems
 	if t.itemFailures > 0 {
 		r.nonFatalFailures = append(r.nonFatalFailures, node.Name)
 	}
@@ -479,4 +515,26 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 		Int("output_items", len(mainItems)).
 		Msg("node completed successfully")
 	return false, nil
+}
+
+// firstOutputItems is what $node["Name"] / $('Name') read of a node without
+// a "main" output: as in n8n, its first output (output index 0) only. That
+// is the first handle the node emits (core.if "true", core.switch its first
+// case), except for the loop node, whose n8n output 0 is "done": empty
+// until the loop has finished.
+func firstOutputItems(nodeType string, outputs []NodeOutput) []Item {
+	if nodeType == LoopNodeType {
+		for _, out := range outputs {
+			if out.Handle == "done" {
+				return out.Items
+			}
+		}
+		return nil
+	}
+	for _, out := range outputs {
+		if out.Handle != "error" {
+			return out.Items
+		}
+	}
+	return nil
 }

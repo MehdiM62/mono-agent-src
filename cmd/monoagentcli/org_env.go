@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"sync"
 
 	"github.com/spf13/cobra"
@@ -11,8 +10,6 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdesign"
-	"github.com/monoes/mono-agent/internal/orggrant"
-	"github.com/monoes/mono-agent/internal/orgsign"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -66,53 +63,15 @@ func (e *orgEnv) Profile() (*storage.Database, string, string, error) { return e
 
 func (e *orgEnv) Close() { e.env().Close() }
 
-func (e *orgEnv) genOptions(profileID string) orggrant.GenOptions {
-	return e.env().GenOptions(profileID)
-}
-
 func selfExecutable() string { return orgenv.SelfExecutable() }
 
 func orgAPIAddr(db *storage.Database) string { return orgenv.APIAddr(db) }
 
-func saveOrgReconciled(ctx context.Context, db *storage.Database, profileID, root string, doc *orgdesign.Doc, opts orggrant.GenOptions) (*orggrant.Report, error) {
-	return orgenv.SaveReconciled(ctx, db, profileID, root, doc, opts)
-}
-
-func lockOrgRows(root string) (release func(), err error) { return orgenv.LockRows(root) }
-
 // The org helpers the library, the daemon and `status` use; the commands
 // themselves are in internal/cli/org.
 
-func ensureNewOrgAutonomy(ctx context.Context, db *storage.Database, profileID string, doc *orgdesign.Doc, by string) error {
-	return org.EnsureNewAutonomy(ctx, db, profileID, doc, by)
-}
-
-func orgNameInUse(db *sql.DB, name, exceptProfile string) (string, error) {
-	return org.NameInUse(db, name, exceptProfile)
-}
-
 func statusDaemons(root string) map[string]interface{} { return org.StatusDaemons(root) }
-
-func saveOrgSigned(ctx context.Context, root, from string, doc *orgdesign.Doc) (string, *orgsign.Outcome, error) {
-	return orgenv.SaveSigned(ctx, root, from, doc)
-}
 
 func saveOrgDoc(ctx context.Context, root string, doc *orgdesign.Doc) (string, error) {
 	return orgenv.SaveDoc(ctx, root, doc)
-}
-
-func containsString(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
-func nonNilStrings(s []string) []string {
-	if s == nil {
-		return []string{}
-	}
-	return s
 }

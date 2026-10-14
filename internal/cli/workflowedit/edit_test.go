@@ -51,6 +51,26 @@ func TestSaveCreatesAndEdits(t *testing.T) {
 	}
 }
 
+// save takes the workflow-file shape `workflow import` and examples/ use
+// (type, position {x,y}, source/target) as well as the `workflow get` one.
+func TestSaveAcceptsWorkflowFileShape(t *testing.T) {
+	cfg := newTestDB(t, "")
+	const fileDoc = `{"id":"wf-f","name":"from-file",
+	  "nodes":[
+	    {"id":"t","type":"trigger.manual","name":"Start","position":{"x":3,"y":4}},
+	    {"id":"s","type":"core.set","name":"Set","config":{"field":"x"}}],
+	  "connections":[{"source":"t","target":"s"}]}`
+	if _, err := run(t, cfg, fileDoc, "save"); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	got := load(t, cfg, "wf-f")
+	if len(got.Nodes) != 2 || got.Nodes[0].Type != "trigger.manual" || got.Nodes[0].PositionX != 3 ||
+		len(got.Connections) != 1 || got.Connections[0].SourceNodeID != "t" || got.Connections[0].TargetNodeID != "s" ||
+		got.Connections[0].SourceHandle != "main" {
+		t.Fatalf("saved %+v", got)
+	}
+}
+
 func TestSaveRejects(t *testing.T) {
 	t.Parallel()
 	cfg := newTestDB(t, `INSERT INTO workflows (id, name, is_active, profile_id) VALUES ('theirs','T',0,'other')`)

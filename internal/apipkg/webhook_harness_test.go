@@ -117,7 +117,7 @@ func checkWebhookCase(t *testing.T, p *Package) {
 		t.Fatalf("%s webhook delete failed: %v", p.ID, err)
 	}
 	checkHookRequests(t, p.ID+" delete", srv.requests(), c.ExpectDelete, credDef, cred, params)
-	srv = newMockServer(t, nil, http.StatusNotFound)
+	newMockServer(t, nil, http.StatusNotFound)
 	if err := reg.Unregister(context.Background(), hook, got); err != nil {
 		t.Errorf("%s webhook: a 404 on delete should count as removed, got %v", p.ID, err)
 	}
@@ -129,7 +129,7 @@ func checkWebhookCase(t *testing.T, p *Package) {
 			t.Errorf("%s webhook check: exists=%v err=%v, want %v", p.ID, exists, err, ch.Exists)
 		}
 		checkHookRequests(t, p.ID+" check", srv.requests(), []expectReq{ch.Expect}, credDef, cred, params)
-		srv = newMockServer(t, nil, http.StatusNotFound)
+		newMockServer(t, nil, http.StatusNotFound)
 		if exists, err := reg.Exists(context.Background(), hook, got); exists || err != nil {
 			t.Errorf("%s webhook check: a 404 should mean gone, got exists=%v err=%v", p.ID, exists, err)
 		}

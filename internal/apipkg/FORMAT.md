@@ -152,7 +152,23 @@ Generated node schema: a `credential_id` picker, a `resource` select, one
 `operation` select per resource (`depends_on` the resource), then every op's
 fields. Fields with the same key, type, label and options are merged into one
 entry. Each field carries `depends_on: {"key": "operation", "values": […]}`
-and an exact `visible_for: [{"resource": …, "operation": …}]`.
+and an exact `visible_for: [{"resource": …, "operation": …}]`. A field may
+declare its own `depends_on: {"key": "legacyEditModel", "values": ["true"]}`:
+the key and value join every `visible_for` entry (one entry per value), so
+the field shows, and is checked, only for those ops while that field holds
+that value. Use it to keep importer-only fields (legacy toggles that
+`n8n_version_defaults` turns on) out of the form for new nodes.
+A required `select` whose `default` is empty or not one of its `options`
+starts on its first option; set `default` when another option is the
+sensible start.
+On a native node a package `extends` with resources, every native field
+but the account picker applies only while no resource is picked: a field
+with no condition (the native `operation` select included) gets
+`depends_on: {"key": "resource", "values": [""]}`; one that depends on
+another key keeps that `depends_on` and gets `visible_for` entries
+`{"resource": "", <key>: <value>}`. Once a resource is picked, its own
+`operation` select (with its own `default`) and fields take over, and
+native required fields are not asked for.
 
 Every field is resolved **per input item** from workflow expressions
 (`{{ $json.id }}` in the node config), so one node run makes one request per
@@ -537,6 +553,17 @@ one item per element. Objects are one item; scalars become `{"data": v}`; a
 non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 `{"success": true}`; a path that resolves to nothing yields no items.
 
+**What the items carry (`outputs`).** The node schema (`node schema app.<id>`, MCP `node_schema`) lists every op's output keys, so workflow authors and the validator know what `$json.<key>` a downstream node can read. They are derived from the op: a `binary.download` gives `mime_type`, `file_name`, `size`, `binary_property`; an `output.to` object gives its keys (plus `data`, for a scalar response `to` leaves alone); paginated ops add `pagination_truncated`; anything else is the open key `<API response fields>` (the API's own fields — the validator never flags a reference to an open key). Declare them instead when the API's response fields are known:
+
+```jsonc
+"outputs": [
+  { "key": "id", "type": "string", "description": "the event id" },
+  { "key": "<API response fields>", "type": "any" }   // keep the set open
+]
+```
+
+`type` is one of `string`, `number`, `boolean`, `object`, `array`, `any`; keys are unique. A package-level `outputs` applies to every op that declares none (it replaces derivation). A declared list without a `<…>` key is closed: the validator warns on references to other keys, so list every key the op can emit. Node schema outputs don't vary by operation: each entry carries `visible_for` (the ops that emit it) and, when not every op does, names them in its `description`.
+
 **Follow-up requests (`also`).** Some n8n operations make several calls (update fields, then tags, then star). List them in order under `also`; each runs after the main request with `res` bound to the main response (on a paginated op: `res` = the last page, `main` = the first), auth injected the same way, and is skipped when its `when` template renders empty or false. The output is still the main response.
 ```json
 "also": [
@@ -918,6 +945,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | operation, steps | `stream` (read server-sent events until one matches); step `repeat`; poll `max_wait_seconds`; binary `upload_url` | §9, §10 |
 | package | `webhook` (app trigger registration: `fields`, `create`, `id`, `extra`, `delete`, `check`, `verify`); root `hook`; filter `map` | §17 |
 | templates | literal braces `\{{` / `\}}`; `hdr` = the previous webhook step's response headers | §5, §17 |
+| package, operation | `outputs` (declared output keys; else derived); schema `outputs` with `visible_for` | §9 |
 | binary | `download_each` (one item per base64 file in a list); dotted `upload_field`/`property_field`; `property` for downloads; download `file_name`/`mime_type` fallback | §10 |
 | binary, output, steps | `upload_urls`; builder `properties` and `output.from`; templated `download_each`; `hdr` from `before` steps; harness `response_headers` | §9, §10, §13 |
 

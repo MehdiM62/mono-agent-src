@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"database/sql"
-	"os"
 
-	"github.com/monoes/mono-agent/internal/apiconfig"
+	apiconfigcli "github.com/monoes/mono-agent/internal/cli/apiconfig"
 	"github.com/monoes/mono-agent/internal/cli/apiruntime"
 )
 
@@ -34,20 +32,9 @@ func newAPIRuntime(db *sql.DB, f apiFlags, logf func(format string, args ...any)
 	return apiruntime.New(db, f, logf, apiRuntimeDeps())
 }
 
-// savedSettings loads the settings saved with `api config` for whatever stands for a server
-// started now (the server, `api models`, `api status`). Settings that fail their rules are
-// invalid input (exit 3), as a bad flag is; a document that cannot be read is an error.
-func savedSettings(ctx context.Context, db *sql.DB) (apiconfig.Settings, error) {
-	saved, err := apiconfig.LoadValid(ctx, db)
-	return saved, asCLIError(err)
-}
-
-// savedEnv is the process environment with the saved settings under it: what a server started
-// now would read in its place.
-func savedEnv(ctx context.Context, db *sql.DB) (func(string) string, error) {
-	saved, err := savedSettings(ctx, db)
-	if err != nil {
-		return nil, err
-	}
-	return apiconfig.Overlay(saved, os.Getenv), nil
-}
+// savedSettings and savedEnv are the settings saved with `api config` and the environment with
+// them under it (apiconfigcli.SavedSettings, SavedEnv).
+var (
+	savedSettings = apiconfigcli.SavedSettings
+	savedEnv      = apiconfigcli.SavedEnv
+)

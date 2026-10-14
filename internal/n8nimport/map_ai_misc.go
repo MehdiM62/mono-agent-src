@@ -57,9 +57,10 @@ func mapMessageAnAgent(c *MapContext) Mapping {
 	if c.Literal("advanced.invokeMode", "allItems") == "allItems" {
 		cfg["execute_once"] = true
 	}
-	if c.Has("advanced.sessionId") || c.Has("advanced.session") {
-		c.Ignore("advanced.sessionId", "advanced.session")
-		c.Note("the agent session is not kept between runs")
+	if key := messageAgentSession(c); key != "" {
+		// n8n starts a fresh session when the key comes out empty.
+		cfg["memory"] = map[string]interface{}{"session_key": key, "skip_when_missing": true}
+		c.Note("the agent session is kept in monoagent's local chat memory (agent.memory reads it)")
 	}
 	structured := c.Bool("useStructuredOutput", false)
 	if structured {
@@ -82,6 +83,27 @@ func mapMessageAnAgent(c *MapContext) Mapping {
 		"});\n"
 	return Mapping{Type: "agent.ask", Config: cfg, EntrySuffix: " (ask)",
 		Chain: []ChainStep{{Type: "core.code", Config: codeConfig(wrapCode(body))}}}
+}
+
+// messageAgentSession is the session key of a Message an Agent node: v3.1
+// and later pick it like n8n's chat memory (the chat trigger's sessionId, or a
+// key defined below); earlier versions take an optional advanced.sessionId.
+// "" means no session (a fresh one every run).
+func messageAgentSession(c *MapContext) string {
+	if c.version(3.1) {
+		base := "advanced.session.session."
+		c.Ignore("advanced.sessionId")
+		if c.Literal(base+"sessionIdType", "fromInput") == "customKey" {
+			return c.Str(base+"sessionKey", "")
+		}
+		if c.Has(base + "sessionKey") {
+			return c.Str(base+"sessionKey", "={{ $json.sessionId }}")
+		}
+		c.Ignore("advanced.session")
+		return "{{ $json.sessionId }}"
+	}
+	c.Ignore("advanced.session")
+	return c.Str("advanced.sessionId", "")
 }
 
 // messageAgentSchema reads the structured-output schema: a JSON Schema, or
@@ -136,13 +158,10 @@ func mapLangChainCode(c *MapContext) Mapping {
 // builds a LangChain chain from the attached model.
 const langChainDefaultExecute = "const llm = await this.getInputConnectionData('ai_languageModel', 0);"
 
-// fromAIRef matches a $fromAI('key', …) placeholder in a tool's parameters.
-var fromAIRef = regexp.MustCompile(`\$fromAI\(\s*['"]([^'"]+)['"][^)]*\)`)
-
 // mapToolExecutor runs the attached tool once with the query's arguments:
 // a code step turns the query into the item, and the tool's own mapping
 // (an app "…Tool" node maps like its app node) reads $fromAI(key) as
-// $json[key].
+// $json[key] through the expression translator (expr_methods.go).
 func mapToolExecutor(c *MapContext) Mapping {
 	var tools []SubNode
 	for _, s := range c.SubNodes {
@@ -205,7 +224,7 @@ func (c *MapContext) mapSubAsNode(s SubNode) (Mapping, bool) {
 		c.Warn("tool", s.Name, "tool %s has no mono equivalent", shortType(s.Type))
 		return Mapping{}, false
 	}
-	params, _ := replaceFromAI(s.Parameters).(map[string]interface{})
+	params := s.Parameters
 	sub := newMapContext(&n8nNode{Name: s.Name, Type: typ, TypeVersion: s.TypeVersion,
 		Parameters: params, Credentials: s.Credentials}, c.tr.workflowName)
 	sub.SubNodes = s.Children
@@ -228,25 +247,4 @@ func (c *MapContext) mapSubAsNode(s SubNode) (Mapping, bool) {
 	c.creds = append(c.creds, sub.creds...)
 	c.tr.notes = append(c.tr.notes, sub.tr.notes...)
 	return m, !m.Unmapped
-}
-
-// replaceFromAI rewrites $fromAI('key', …) to $json["key"] in every string.
-func replaceFromAI(v interface{}) interface{} {
-	switch t := v.(type) {
-	case string:
-		return fromAIRef.ReplaceAllString(t, `$$json["$1"]`)
-	case map[string]interface{}:
-		out := make(map[string]interface{}, len(t))
-		for k, x := range t {
-			out[k] = replaceFromAI(x)
-		}
-		return out
-	case []interface{}:
-		out := make([]interface{}, len(t))
-		for i, x := range t {
-			out[i] = replaceFromAI(x)
-		}
-		return out
-	}
-	return v
 }

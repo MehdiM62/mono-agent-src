@@ -38,23 +38,6 @@ func (f *fakeNarrowed) CreateTab(string) (int, error)        { return 1, nil }
 func (f *fakeNarrowed) CloseTab(int) error                   { return nil }
 func (f *fakeNarrowed) NewPage(int) browserpkg.PageInterface { return nil }
 
-// plainBridge is a bridge that cannot route (e.g. a test double).
-type plainBridge struct{ fakeNarrowed }
-
-func TestBridgeForProfile(t *testing.T) {
-	r := &fakeRouter{}
-	if got := bridgeForProfile(r, "p-work"); got.(*fakeNarrowed).profile != "p-work" {
-		t.Fatalf("router not narrowed: %+v", got)
-	}
-	if got := bridgeForProfile(r, ""); got != browserpkg.ExtensionBridge(r) {
-		t.Fatal("an empty profile must leave the bridge alone")
-	}
-	p := &plainBridge{}
-	if got := bridgeForProfile(p, "p-work"); got != browserpkg.ExtensionBridge(p) {
-		t.Fatal("a bridge that cannot route is returned as is")
-	}
-}
-
 func TestLazyProviderUsesTheRunsProfile(t *testing.T) {
 	r := &fakeRouter{}
 	p := &lazyBrowserSessionProvider{
@@ -106,16 +89,6 @@ type routedStub struct {
 }
 
 func (r *routedStub) Route() (extension.ConnInfo, error) { return extension.ConnInfo{}, r.err }
-
-func TestRouteHintNamesTheFix(t *testing.T) {
-	stub := &routedStub{err: &extension.NoBrowserError{Profile: "p-x", BoundTo: []string{"p-a"}}}
-	if h := routeHint(stub); !strings.Contains(h, `"p-x"`) || !strings.Contains(h, "extension bind") {
-		t.Fatalf("hint = %q", h)
-	}
-	if h := routeHint(&plainBridge{}); h != "" {
-		t.Fatalf("no hint for a plain bridge, got %q", h)
-	}
-}
 
 // routedDown is a narrowed bridge whose profile has no browser, while other
 // browsers are attached.

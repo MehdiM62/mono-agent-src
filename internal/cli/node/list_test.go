@@ -64,8 +64,11 @@ func TestNodeListIncludesEngineTriggers(t *testing.T) {
 			t.Errorf("node list --json: %s missing or not category trigger (got %q)", typ, got[typ])
 		}
 	}
-	if out := runNodeList(t, "--filter", "trigger."); !strings.Contains(out, "trigger.webhook") {
-		t.Errorf("node list table is missing trigger.webhook:\n%s", out)
+	out := runNodeList(t, "--filter", "trigger.")
+	for _, typ := range []string{"trigger.webhook", "trigger.error", "trigger.execute_workflow"} {
+		if !strings.Contains(out, typ+" ") {
+			t.Errorf("node list table is missing %s:\n%s", typ, out)
+		}
 	}
 }
 

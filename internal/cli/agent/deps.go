@@ -1,13 +1,12 @@
 // Package agent is `monoagentcli agent`: detect, test, install and validate the local AI agent
 // runtimes through the monomind engine, and keep the roster of the models that answered.
 // Everything the commands need from the CLI around them comes in through Deps, so they can be
-// tested in isolation. The daemon's automatic re-validation scheduler stays in the CLI and uses
-// AutoRosterPick and LockValidation.
+// tested in isolation. The daemon's automatic re-validation scheduler is here too
+// (StartAutoRevalidation); the daemon starts it with the account folded into its Busy check.
 package agent
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,8 +19,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/agentinstall"
-	"github.com/monoes/mono-agent/internal/agentroster"
-	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
@@ -68,16 +65,6 @@ func (d Deps) InstallRuntime(ctx context.Context, m RuntimeMachine, id string, f
 
 // ShellQuote quotes s for a POSIX shell when it needs it.
 func ShellQuote(s string) string { return shellQuote(s) }
-
-// AutoRosterPick builds the roster (with scan, for version staleness; nil when there is none)
-// and picks the next runtime's stale models, at most maxModels.
-func AutoRosterPick(ctx context.Context, db *sql.DB, scan *monomind.ScanResult, maxModels int) (*agentroster.AutoPlan, error) {
-	return autoRosterPick(ctx, db, scan, maxModels)
-}
-
-// LockValidation takes the lock every validation run takes, so a manual `agent validate` and
-// the daemon's automatic one never overlap.
-func LockValidation() (release func(), err error) { return lockValidation() }
 
 // parseDurationFlag reads a Go duration or a number of seconds ("" is 0) (the CLI's
 // parseDurationFlag).

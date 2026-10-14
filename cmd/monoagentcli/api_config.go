@@ -10,7 +10,7 @@ import (
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
-// `api config show|set|unset` and `api models` live in internal/cli/apiconfig; this is their adapter: the
+// `api config show|set|unset`, `api models` and `api status` live in internal/cli/apiconfig; this is their adapter: the
 // CLI's globals and helpers handed over as apiconfigcli.Deps.
 
 // newInstaller is the OS service manager that `api config` asks whether the daemon can be
@@ -29,6 +29,11 @@ func newAPIConfigCmd(cfg *globalConfig) *cobra.Command {
 // newAPIModelsCmd is `api models` (internal/cli/apiconfig).
 func newAPIModelsCmd(cfg *globalConfig) *cobra.Command {
 	return apiConfigDeps(cfg).NewModelsCommand()
+}
+
+// newAPIStatusCmd is `api status` (internal/cli/apiconfig).
+func newAPIStatusCmd(cfg *globalConfig) *cobra.Command {
+	return apiConfigDeps(cfg).NewStatusCommand()
 }
 
 func apiConfigDeps(cfg *globalConfig) apiconfigcli.Deps {
@@ -50,8 +55,18 @@ type (
 	apiModelsJSON = openaiapi.ModelsReport
 )
 
-// autoNote is the line the text output gives for the auto model (apiconfigcli.AutoNote).
-func autoNote(a apiAutoJSON) string { return apiconfigcli.AutoNote(a) }
+// The document `api status --json` prints is the one the MCP tool api_status returns.
+type (
+	apiStatusJSON = apiconfig.StatusReport
+)
+
+// The probes `api status` uses are internal/apiconfig's, which the MCP tool api_status uses too.
+var probeSchemes = apiconfig.ProbeSchemes
+
+// probeAddr probes a listener over HTTP and then HTTPS, as `api status` does.
+func probeAddr(addr string, loopback, wantV1 bool) (scheme string, reachable, v1Answers bool) {
+	return apiconfig.ProbeAddr(addr, loopback, wantV1, nil)
+}
 
 // asCLIError gives the errors of internal/apiconfig the exit codes of the CLI
 // (apiconfigcli.AsCLIError).

@@ -121,21 +121,114 @@ export function groupConnectionsByPlatform(conns) {
 // visible_for (API package operation fields) is a list of conditions such
 // as {resource, operation}: the field shows when every key of one of them
 // matches. Otherwise depends_on {key, values} shows it when that one key
-// has one of the values. A key the config doesn't set yet counts as its
-// field's default.
+// has one of the values and the field holding that key shows too (a field
+// under a hidden one stays hidden). A key's value is the one
+// fieldValueFor reads.
 export function fieldIsVisible(field, config, fields) {
-  const valueOf = key => {
-    let v = config?.[key]
-    if (v === undefined) v = (fields || []).find(f => f?.key === key)?.default
-    return String(v ?? '')
-  }
+  return visibleIn(field, config, fields || [], new Set())
+}
+
+function visibleIn(field, config, fields, seen) {
+  // seen guards against a schema whose rules loop: a key being resolved
+  // reads as its stored value only.
+  const valueOf = key => String(valueIn(key, config, fields, seen) ?? '')
   if (Array.isArray(field?.visible_for) && field.visible_for.length > 0) {
     return field.visible_for.some(cond => cond && typeof cond === 'object' &&
       Object.entries(cond).every(([k, v]) => valueOf(k) === String(v ?? '')))
   }
   const dep = field?.depends_on
   if (!dep) return true
-  return (dep.values || []).map(String).includes(valueOf(dep.key ?? dep.field))
+  const key = dep.key ?? dep.field
+  if (!(dep.values || []).map(String).includes(valueOf(key))) return false
+  const holders = fields.filter(f => f?.key === key)
+  if (!holders.length || seen.has(key)) return true
+  const inner = new Set(seen).add(key)
+  return holders.some(f => visibleIn(f, config, fields, inner))
+}
+
+// applicableIn is the field a key is read and edited through: the shown one
+// when several fields share the key (an API package's operation select per
+// resource, its options per operation), else the first. Where more than one
+// shows, the first that takes the stored value wins.
+function applicableIn(key, config, fields, seen) {
+  const holders = fields.filter(f => f?.key === key)
+  if (holders.length < 2 || seen.has(key)) return holders[0]
+  const inner = new Set(seen).add(key)
+  const shown = holders.filter(f => visibleIn(f, config, fields, inner))
+  const v = config?.[key]
+  return (v !== undefined && shown.find(f => !selectRejects(f, v, fields))) || shown[0] || holders[0]
+}
+
+function valueIn(key, config, fields, seen) {
+  const f = applicableIn(key, config, fields, seen)
+  const v = config?.[key]
+  if (v === undefined) return f?.default
+  return f && selectRejects(f, v, fields) ? f.default : v
+}
+
+// A select sharing its key with other fields (an operation select per
+// resource) that holds a value none of its options offer — another
+// resource's operation — reads as its default. A {{ template }} stays, and a
+// select with a key of its own keeps whatever was stored.
+function selectRejects(field, value, fields) {
+  if (field?.type !== 'select' || !Array.isArray(field.options) || !field.options.length) return false
+  if ((fields || []).filter(f => f?.key === field.key).length < 2) return false
+  const s = String(value ?? '')
+  return !s.includes('{{') && !field.options.map(String).includes(s)
+}
+
+// fieldValueFor is the value a field shows: the stored one, else the
+// field's default; a shared-key select's stored value that is not one of
+// its options shows as its default.
+export function fieldValueFor(field, config, fields) {
+  const v = config?.[field?.key]
+  if (v === undefined || v === null) return field?.default
+  return selectRejects(field, v, fields) ? field.default : v
+}
+
+// configDefaults is the config a freshly added node starts with. Where
+// several fields share a key, the default is that of the field that shows
+// under the other defaults (the operation select of the default resource),
+// not whichever comes last.
+export function configDefaults(fields) {
+  const list = (fields || []).filter(f => f?.key)
+  const cfg = {}
+  for (const f of list) if (!(f.key in cfg)) cfg[f.key] = f.default ?? ''
+  return settleSharedKeys(list, cfg, {}, null)
+}
+
+// configAfterChange is the node config after one field is set. Every other
+// key held by several fields (operation, options, model…) whose shown field
+// changed because of it is reset to the newly shown field's default:
+// switching an OpenAI node from text to image picks the image operation
+// select's default instead of keeping "classify". Keys held by one field
+// are left as they are.
+export function configAfterChange(fields, config, key, value) {
+  const list = (fields || []).filter(f => f?.key)
+  const before = {}
+  for (const f of list) if (!(f.key in before)) before[f.key] = applicableIn(f.key, config, list, new Set())
+  return settleSharedKeys(list, { ...(config || {}), [key]: value }, before, key)
+}
+
+function settleSharedKeys(list, cfg, before, fixedKey) {
+  const keys = [...new Set(list.map(f => f.key))].filter(k => k !== fixedKey)
+  const shared = new Set(keys.filter(k => list.filter(f => f.key === k).length > 1))
+  // A reset can change which fields show, so repeat until nothing moves
+  // (bounded, in case a schema's rules loop).
+  for (let pass = 0; pass <= keys.length; pass++) {
+    let changed = false
+    for (const k of keys) {
+      const f = applicableIn(k, cfg, list, new Set())
+      if (!f || !visibleIn(f, cfg, list, new Set())) continue
+      const moved = shared.has(k) && (!(k in before) || before[k] !== f)
+      if (moved || (k in cfg && selectRejects(f, cfg[k], list))) {
+        const next = f.default ?? ''
+        if (cfg[k] !== next) { cfg = { ...cfg, [k]: next }; changed = true }
+      }
+    }
+    if (!changed) break
+  }
+  return cfg
 }
 
 // isFormFieldsField: the inspector edits a schema field keyed formFields
