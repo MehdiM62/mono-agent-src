@@ -197,6 +197,20 @@
       "label": "Max Results",
       "required": false,
       "type": "number"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "list_messages"
+        ]
+      },
+      "help": "List only messages this node has not seen in an earlier run: received after the newest message already seen (Gmail after: plus an id check at the boundary). The first run lists as usual. Remembered per node and search query/labels; Max Results caps each listing (newest first) and new messages past it are not listed later.",
+      "key": "since_last_run",
+      "label": "Only New Since Last Run",
+      "required": false,
+      "type": "boolean"
     }
   ],
   "outputs": [
