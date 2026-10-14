@@ -1,6 +1,6 @@
 //go:build !nosocial
 
-package main
+package node
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
-	"github.com/zalando/go-keyring"
 )
 
 // TestSavePostsLinksOwner: saved posts are linked to the person who owns
@@ -18,7 +17,7 @@ import (
 // (instagram.com/<user>/p/<code>/), or through author_url (LinkedIn's
 // /feed/update/ permalinks name nobody). No post ever becomes a person.
 func TestSavePostsLinksOwner(t *testing.T) {
-	keyring.MockInit()
+	t.Parallel()
 	db, err := storage.NewDatabase(filepath.Join(t.TempDir(), "p.db"))
 	if err != nil {
 		t.Fatal(err)
