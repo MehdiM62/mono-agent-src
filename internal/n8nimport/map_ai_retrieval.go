@@ -218,25 +218,23 @@ func (q *qaChain) noDocuments(s SubNode, why string) bool {
 	return false
 }
 
-// vectorRetriever: the ai_vectorStore child becomes a vector.store search
-// (internal/nodes/vector folds the store and its embedding).
+// vectorRetriever: the ai_vectorStore child becomes a vector.store search,
+// its embeddings a vector.embeddings sub-node of the search.
 func (q *qaChain) vectorRetriever(s SubNode) bool {
 	c := q.c
 	store := firstKind(s.Children, "ai_vectorStore")
 	if store == nil {
 		return q.noDocuments(s, "has no vector store attached")
 	}
-	res, err := vectornodes.CollapseN8nSubNodes(s.Type, withoutEmpty(s.Parameters), c.vectorSubs(s.Children))
+	res, err := vectornodes.ConvertN8nTree(s.Type, withoutEmpty(s.Parameters), c.vectorSubs(s.Children))
 	if err != nil {
 		return q.noDocuments(s, err.Error())
 	}
 	for _, w := range res.Warnings {
 		c.Note("%s", w)
 	}
-	if len(res.Before) > 0 {
-		c.Note("the document loader attached to %q is not used: the retriever only searches", store.Name)
-	}
 	cfg := c.translateConfig(res.Node.Config)
+	c.attachVector(c.searchSubs(store.Name, res.Attached), cfg)
 	for _, k := range []string{"query", "tool_name", "tool_description"} {
 		delete(cfg, k)
 	}

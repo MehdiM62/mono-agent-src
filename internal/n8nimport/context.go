@@ -42,6 +42,8 @@ type MapContext struct {
 	exprs         []ExprIssue
 	creds         []credUse
 	opUnsupported bool
+	// attached are the sub-nodes the mapping keeps as mono sub-nodes.
+	attached []attachedSub
 }
 
 type credUse struct {

@@ -224,7 +224,7 @@ ends without a completion shows the default confirmation. limitWaitTime
 	{
 		Type:     "core.code",
 		Category: "core",
-		Short:    "Run custom JavaScript logic on items",
+		Short:    "Run custom JavaScript or Python logic on items",
 		Config: `{
   "code": "(function () { return $input.all().map(item => ({ ...item, extra: 'hello' })); })()"
 }`,
@@ -233,7 +233,36 @@ ends without a completion shows the default confirmation. limitWaitTime
 		Notes: `$input has all(), first(), last() and item; $json is the first item;
 $('Node Name') gives another node's output with the same accessors. Code
 may return a promise, and code with a top-level return or await runs as an
-async function body (n8n style): return $input.all().map(...)`,
+async function body (n8n style): return $input.all().map(...)
+"language": "python" runs the code with the system python3 (MONOAGENT_PYTHON
+overrides it) as n8n's Python Code node: _items (all items, each
+{"json": ...}), or _item once per item with "mode": "runOnceForEachItem";
+_input.all()/first()/last()/item, _json and _('Node Name').all() also work,
+and items read as attributes too (item.json.x). Return a list of dicts (or
+one dict per item, None to drop it); print() goes to stderr.`,
+	},
+	{
+		Type:     "core.data_table",
+		Category: "core",
+		Short:    "Keep rows across runs in a data table (n8n Data tables)",
+		Config: `{
+  "operation": "upsert",
+  "table": "Leads",
+  "filters": [{"column": "email", "condition": "eq", "value": "{{ $json.email }}"}],
+  "values": {"email": "{{ $json.email }}", "score": "{{ $json.score }}"}
+}`,
+		Inputs:  "any items (each item runs the operation once)",
+		Outputs: "the rows written or found; rowExists/rowNotExists pass the matching input items",
+		Notes: `Tables belong to the profile; manage them with monoagentcli table
+list|create|show|rows|delete, or resource "table" (create, list, update to
+rename, clear, delete). Row operations: insert, get, update, upsert,
+deleteRows, rowExists, rowNotExists. "table" is a name or id; "values"
+(or "columns_mode": "auto" for the item's JSON) and "filters" are resolved
+per item. Columns are typed string, number, boolean or date; a value for a
+column the table lacks adds that column. Conditions: eq, neq, gt, gte, lt,
+lte, like/ilike (% wildcard), isEmpty, isNotEmpty, isTrue, isFalse; "match":
+"all" requires every one (default any). Rows carry id, createdAt and
+updatedAt; "dry_run" shows before/after without writing.`,
 	},
 	{
 		Type:     "core.noop",

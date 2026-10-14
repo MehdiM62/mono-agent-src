@@ -245,6 +245,7 @@ func (c *MapContext) mapSubAsNode(s SubNode) (Mapping, bool) {
 	}
 	c.exprs = append(c.exprs, sub.exprs...)
 	c.creds = append(c.creds, sub.creds...)
+	c.attached = append(c.attached, sub.attached...)
 	c.tr.notes = append(c.tr.notes, sub.tr.notes...)
 	return m, !m.Unmapped
 }

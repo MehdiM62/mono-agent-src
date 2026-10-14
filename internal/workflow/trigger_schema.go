@@ -62,6 +62,10 @@ type WebhookTriggerSchema struct {
 
 	VerifyToken string `json:"verify_token" schema:"label=Verify Token,type=password,help=If set， a hub.challenge URL check (Meta/Facebook， WhatsApp， WebSub) must carry this hub.verify_token. Vendor URL checks are answered without it too."`
 
+	ChallengeFormat string `json:"challenge_format" schema:"label=Challenge Answer,type=select,options=text|json,default=text,help=How a hub.challenge URL check is answered: text (Meta， WebSub) or JSON {\"hub.challenge\": ...} (Strava)."`
+
+	AnswerGet bool `json:"answer_get" schema:"label=Answer URL Probe,type=boolean,help=Answer a GET without a query with 200 and start no run (Mailchimp checks the URL this way)."`
+
 	RegisterWith string `json:"register_with" schema:"label=Register With App,type=text,placeholder=typeform,help=Optional. Registers this URL with the app's API on activation and removes it on deactivation (built in: typeform， calendly). Needs public_url (or MONOAGENT_PUBLIC_URL) and credential_id."`
 
 	PublicURL string `json:"public_url" schema:"label=Public Base URL,type=text,placeholder=https://my-tunnel.example,help=Base URL the app reaches this webhook server at (e.g. a tunnel to 127.0.0.1:9321). Empty: MONOAGENT_PUBLIC_URL."`
