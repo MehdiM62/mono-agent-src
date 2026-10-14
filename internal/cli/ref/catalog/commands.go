@@ -1,12 +1,9 @@
-package main
-
-import refcli "github.com/monoes/mono-agent/internal/cli/ref"
+package catalog
 
 // ── commands catalogue ────────────────────────────────────────────────────────
 
-// cmdDoc is one entry of `ref commands`.
-type cmdDoc = refcli.CmdDoc
-
+// cliDocs is the start of the `ref commands` catalogue; catalog.go appends the
+// entries kept in the other commands_*.go files.
 var cliDocs = []cmdDoc{
 	{Name: "publication", Short: "List and register published content in the active profile", Usage: "monoagentcli publication list|get|register|stats", Flags: "  list: --search --platform --kind --workflow --agent --since --until --limit --offset\n  register: --stdin-json", Examples: []string{"monoagentcli --json publication list", "monoagentcli --json publication register --stdin-json < publication.json", "monoagentcli ref publication"}},
 	{

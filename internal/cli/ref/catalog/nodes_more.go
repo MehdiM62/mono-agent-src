@@ -1,13 +1,7 @@
-package main
+package catalog
 
 // Reference entries for node types registered in the default build that
-// ref.go's nodeDocs catalogue did not cover. Kept in a separate file so
-// ref.go stays readable; init() appends them to the shared catalogue.
-
-func init() {
-	nodeDocs = append(nodeDocs, moreNodeDocs...)
-	nodeDocs = append(nodeDocs, moreServiceNodeDocs...) // ref_nodes_more_services.go
-}
+// the category catalogues did not cover; catalog.go appends them to NodeDocs.
 
 var moreNodeDocs = []nodeDoc{
 	// ── Triggers ──────────────────────────────────────────────────────────────

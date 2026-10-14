@@ -1,12 +1,8 @@
-package main
+package catalog
 
 // Reference entries for the file conversion and file system nodes
 // (internal/nodes/data: convert_to_file, extract_from_file, read_write_file,
-// ical). init() appends them to the shared catalogue.
-
-func init() {
-	nodeDocs = append(nodeDocs, dataFilesNodeDocs...)
-}
+// ical). catalog.go appends them to NodeDocs.
 
 const binaryNote = `Files travel on items as a base64 field (the "binary property", default
 "data") with file_name, mime_type, file_extension and file_size next to it;
@@ -118,7 +114,7 @@ Timed events are written in UTC; all-day events as dates (end inclusive).`,
 }
 
 // dataFilesDocOverrides replaces the existing data.compression entry (see
-// upsertNodeDocs in ref_nodes_data_more.go).
+// upsertNodeDocs in catalog.go).
 var dataFilesDocOverrides = []nodeDoc{
 	{
 		Type:     "data.compression",

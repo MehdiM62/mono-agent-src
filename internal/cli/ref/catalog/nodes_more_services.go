@@ -1,8 +1,8 @@
-package main
+package catalog
 
-// The second half of ref_nodes_more.go's entries (communication, services and
+// The second half of nodes_more.go's entries (communication, services and
 // the social browser nodes), split out to keep each file under 500 lines.
-// ref_nodes_more.go's init() appends them right after moreNodeDocs, so the
+// catalog.go appends them right after moreNodeDocs, so the
 // catalogue order is unchanged.
 
 var moreServiceNodeDocs = []nodeDoc{
