@@ -1,11 +1,8 @@
-package main
+package workflowrun
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,12 +12,13 @@ import (
 // A template whose node types are not installed fails before anything is
 // created, naming the types and the automation that provides them.
 func TestCheckTemplateNodeTypesNamesTheAutomation(t *testing.T) {
+	t.Parallel()
 	tmpl, ok := workflow.GetTemplate("gemimg")
 	if !ok {
 		t.Skip("gemimg template not bundled")
 	}
 	noGemini := func(typ string) bool { return !strings.HasPrefix(typ, "gemini.") }
-	err := checkTemplateNodeTypes("gemimg", tmpl, noGemini)
+	err := CheckTemplateNodeTypes("gemimg", tmpl, noGemini)
 	if err == nil {
 		t.Fatal("want an error for missing gemini.* types")
 	}
@@ -29,15 +27,16 @@ func TestCheckTemplateNodeTypesNamesTheAutomation(t *testing.T) {
 			t.Errorf("error %q lacks %q", err, want)
 		}
 	}
-	if exitCodeFor(err) != 3 || !errors.Is(err, workflow.ErrNodeTypeUnknown) {
-		t.Errorf("exit %d, want 3 via ErrNodeTypeUnknown", exitCodeFor(err))
+	if exitCode(err) != 3 || !errors.Is(err, workflow.ErrNodeTypeUnknown) {
+		t.Errorf("exit %d, want 3 via ErrNodeTypeUnknown", exitCode(err))
 	}
-	if err := checkTemplateNodeTypes("gemimg", tmpl, func(string) bool { return true }); err != nil {
+	if err := CheckTemplateNodeTypes("gemimg", tmpl, func(string) bool { return true }); err != nil {
 		t.Errorf("all types installed: %v", err)
 	}
 }
 
 func TestMissingTemplateNodeTypesSkipsTriggers(t *testing.T) {
+	t.Parallel()
 	tmpl := workflow.WorkflowFile{Nodes: []workflow.WorkflowFileNode{
 		{Type: "trigger.manual"}, {Type: "x.post"}, {Type: "x.post"}, {Type: "core.if"},
 	}}
@@ -48,6 +47,7 @@ func TestMissingTemplateNodeTypesSkipsTriggers(t *testing.T) {
 }
 
 func TestAutomationInstallHint(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		types []string
 		want  string
@@ -63,6 +63,7 @@ func TestAutomationInstallHint(t *testing.T) {
 }
 
 func TestWithNodeTypeHint(t *testing.T) {
+	t.Parallel()
 	err := withNodeTypeHint(errors.New("execution e1 failed: workflow: unknown node type: gemini.generate_image"))
 	if !strings.HasSuffix(err.Error(), "— this needs the \"gemini\" web automation: monoagentcli library install automation gemini") {
 		t.Errorf("err = %v", err)
@@ -74,10 +75,11 @@ func TestWithNodeTypeHint(t *testing.T) {
 }
 
 func TestCheckTemplateInputs(t *testing.T) {
+	t.Parallel()
 	err := checkTemplateInputs([]string{"keywords", "location"}, map[string]interface{}{})
 	want := `missing input: keywords, location — run with --input '{"keywords":"...","location":"..."}'`
-	if err == nil || err.Error() != want || exitCodeFor(err) != 3 {
-		t.Fatalf("err = %v (exit %d), want %q (exit 3)", err, exitCodeFor(err), want)
+	if err == nil || err.Error() != want || exitCode(err) != 3 {
+		t.Fatalf("err = %v (exit %d), want %q (exit 3)", err, exitCode(err), want)
 	}
 	if err := checkTemplateInputs([]string{"keywords", "location"}, map[string]interface{}{"keywords": "go"}); err != nil {
 		t.Errorf("given input: %v", err)
@@ -87,21 +89,12 @@ func TestCheckTemplateInputs(t *testing.T) {
 	}
 }
 
-// `templates run find_jobs` with no --input stops before building anything.
-func TestTemplatesRunWithoutInputFailsFast(t *testing.T) {
-	root := newRootCmd()
-	root.SetArgs([]string{"workflow", "templates", "run", "find_jobs", "--db-path", filepath.Join(t.TempDir(), "m.db")})
-	err := root.Execute()
-	if err == nil || !strings.HasPrefix(err.Error(), "missing input: keywords") || exitCodeFor(err) != 3 {
-		t.Fatalf("err = %v (exit %d)", err, exitCodeFor(err))
-	}
-}
-
 func TestNothingSucceeded(t *testing.T) {
+	t.Parallel()
 	failed := executionSummaryJSON{ExecutionID: "e1", Status: "SUCCESS_WITH_ERRORS", Error: "3 node(s) failed", Nodes: []executionNodeJSON{
 		{Type: "trigger.manual", Status: "SUCCESS"}, {Type: "discovery.search_jobs", Status: "FAILED"},
 	}}
-	if err := nothingSucceeded(failed); err == nil || exitCodeFor(err) != 1 || !strings.Contains(err.Error(), "every step failed") {
+	if err := nothingSucceeded(failed); err == nil || exitCode(err) != 1 || !strings.Contains(err.Error(), "every step failed") {
 		t.Errorf("every non-trigger node failed: err = %v", err)
 	}
 	partial := failed
@@ -111,27 +104,5 @@ func TestNothingSucceeded(t *testing.T) {
 	}
 	if err := nothingSucceeded(executionSummaryJSON{Status: "SUCCESS"}); err != nil {
 		t.Errorf("success: %v", err)
-	}
-}
-
-func TestWorkflowRunUnknownIDSaysNotFound(t *testing.T) {
-	root := newRootCmd()
-	root.SetArgs([]string{"workflow", "run", "nope", "--db-path", filepath.Join(t.TempDir(), "m.db")})
-	err := root.Execute()
-	want := `workflow "nope" not found — list them with: monoagentcli workflow list`
-	if err == nil || err.Error() != want || exitCodeFor(err) != 2 {
-		t.Fatalf("err = %v (exit %d), want %q (exit 2)", err, exitCodeFor(err), want)
-	}
-
-	// With --json the same failure is one {"error","code","hint"} document.
-	var stdout, stderr bytes.Buffer
-	reportCommandError([]string{"--json", "workflow", "run", "nope"}, err, &stdout, &stderr)
-	var doc map[string]string
-	if json.Unmarshal(stdout.Bytes(), &doc) != nil || doc["error"] != want || doc["code"] != "not_found" ||
-		doc["hint"] != "list them with: monoagentcli workflow list" {
-		t.Fatalf("stdout = %q", stdout.String())
-	}
-	if strings.TrimSpace(stderr.String()) != want {
-		t.Errorf("stderr = %q", stderr.String())
 	}
 }

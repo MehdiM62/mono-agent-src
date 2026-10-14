@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/workflowrun"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/i18n"
 	"github.com/monoes/mono-agent/internal/nodemgr"
@@ -122,7 +123,7 @@ func newRootCmd() *cobra.Command {
 	// output items in the --json record (4KB truncation still applies).
 	// Registered here on the run subcommand to keep workflow.go untouched.
 	if runCmd, _, err := cmd.Find([]string{"workflow", "run"}); err == nil && runCmd != nil {
-		runCmd.Flags().BoolVar(&fullOutputsFlag, "full-outputs", false,
+		runCmd.Flags().BoolVar(&workflowrun.FullOutputs, "full-outputs", false,
 			"Include unredacted output items in the --json record (values under credential-like keys such as token/password/api_key are masked by default)")
 	}
 
