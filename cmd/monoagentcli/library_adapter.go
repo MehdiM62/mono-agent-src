@@ -28,9 +28,7 @@ func libraryDeps(cfg *globalConfig) librarycli.Deps {
 		OpenWorkflowStore: openWorkflowStore,
 		WithJSONErrors:    func(cmd *cobra.Command) { withJSONErrors(cfg, cmd) },
 		AddSignIn: func(cmd *cobra.Command, name string) func(*cobra.Command) (account.Status, bool, error) {
-			var f signInFlags
-			f.add(cmd)
-			return func(cmd *cobra.Command) (account.Status, bool, error) { return signIn(cmd, cfg, &f, name) }
+			return addSignIn(cfg, cmd, name)
 		},
 		NewWorkflowImportJSONCmd: func() *cobra.Command {
 			sub := *cfg

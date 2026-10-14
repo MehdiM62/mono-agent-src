@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	refcli "github.com/monoes/mono-agent/internal/cli/ref"
+	"github.com/monoes/mono-agent/internal/cli/ref/catalog"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -133,15 +134,15 @@ func TestRefNodeCommandJSONAndAlias(t *testing.T) {
 // as schema-only.
 func TestRefNodeWithoutHandProse(t *testing.T) {
 	reg := refNodeRegistry()
-	saved := nodeDocs
-	t.Cleanup(func() { nodeDocs = saved })
+	saved := catalog.NodeDocs
+	t.Cleanup(func() { catalog.NodeDocs = saved })
 	var kept []nodeDoc
-	for _, d := range nodeDocs {
+	for _, d := range catalog.NodeDocs {
 		if d.Type != "service.github" {
 			kept = append(kept, d)
 		}
 	}
-	nodeDocs = kept
+	catalog.NodeDocs = kept
 
 	page, err := refDeps().BuildNodeRefPage(reg, "service.github")
 	if err != nil {
@@ -185,4 +186,13 @@ func TestRefNodesHidesDeprecatedByDefault(t *testing.T) {
 	if _, err := refDeps().BuildNodeRefPage(reg, "ai.chat"); err != nil {
 		t.Errorf("ref node ai.chat: %v", err)
 	}
+}
+
+func contains(list []string, want string) bool {
+	for _, s := range list {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
