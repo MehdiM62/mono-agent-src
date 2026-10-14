@@ -1,10 +1,12 @@
 // Inspector widgets for schema field types that need local state: the
 // collection editor (JSON text that only saves when valid) and the
 // http.request "Import cURL" box. The rules they apply live in
-// nodeInspectorRules.js.
+// nodeInspectorRules.js. The form builder for formFields lives in
+// FormFieldsEditor.jsx and is re-exported here with the other widgets.
 import { useState, useRef, useEffect } from 'react'
 import { api } from '../services/api.js'
 import { collectionText, commitCollection, connectionLabel, groupConnectionsByPlatform } from './nodeInspectorRules.js'
+export { default as FormFieldsEditor } from './FormFieldsEditor.jsx'
 
 const errorStyle = { fontFamily: 'var(--font-mono)', fontSize: 9, color: '#f87171', marginTop: 4 }
 const linkButton = {
