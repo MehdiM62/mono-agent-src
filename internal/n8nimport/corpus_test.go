@@ -31,7 +31,7 @@ var corpusExpect = map[string]struct {
 	"crm.json":                 {0, []string{"service.hubspot", "service.salesforce", "service.notion", "service.airtable", "service.linear", "service.jira", "service.asana", "service.github"}},
 	"comms.json":               {0, []string{"comm.telegram", "service.discord", "comm.twilio", "comm.whatsapp", "service.reddit"}},
 	"data_nodes.json":          {0, []string{"data.html", "data.markdown", "data.crypto", "data.xml", "system.execute_command"}},
-	"unmapped.json":            {2, nil}, // orbit (API gone) and Python code
+	"unmapped.json":            {1, nil}, // orbit (API gone)
 	"compare_datasets.json":    {0, []string{"core.switch"}},
 	"schedules_and_shops.json": {0, []string{"service.shopify", "service.stripe", "service.youtube", "service.google_drive"}},
 	"llm_chains.json":          {0, []string{"agent.ask", "core.if", "core.switch"}},
@@ -101,7 +101,7 @@ func TestCorpusConvertsAndValidates(t *testing.T) {
 					t.Errorf("node %q has unregistered type %q", n.Name, n.Type)
 				}
 				checkTemplates(t, engine, n, n.Config, untranslated)
-				if n.Type == "core.code" {
+				if n.Type == "core.code" && n.Config["language"] != "python" {
 					checkJS(t, engine, n)
 				}
 			}

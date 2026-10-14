@@ -21,3 +21,7 @@ func isolate(cmd *exec.Cmd) {
 	}
 	cmd.WaitDelay = 10 * time.Second
 }
+
+// Isolate is isolate for other packages' children that must die with
+// their whole tree on cancel (core.code's Python).
+func Isolate(cmd *exec.Cmd) { isolate(cmd) }
