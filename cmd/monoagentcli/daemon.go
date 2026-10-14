@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/cli/orgsvc"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/httpapi"
 	"github.com/monoes/mono-agent/internal/scheduler"
@@ -114,8 +115,8 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
-			orgs := newOrgServices(db, engine)
-			apiRT, err := daemonAPIRuntime(db.DB, api, func(format string, args ...any) { orgs.logf("api: "+format, args...) })
+			orgs := orgsvc.New(db, engine, openWorkflowStore)
+			apiRT, err := daemonAPIRuntime(db.DB, api, func(format string, args ...any) { orgs.Logf("api: "+format, args...) })
 			if err != nil {
 				return err
 			}
@@ -167,7 +168,7 @@ func newDaemonCmd(cfg *globalConfig) *cobra.Command {
 			go newAccountSupervisor(orgs, engine).run(ctx)
 			// Automatic roster re-validation (#230): off unless the user
 			// turned it on; waited for so a run stops before the db closes.
-			defer startAutoRevalidation(ctx, db.DB, orgs.logf)()
+			defer startAutoRevalidation(ctx, db.DB, orgs.Logf)()
 
 			msg := daemonRunningLine(account.CurrentStatus())
 			if servingAddr != "" {
@@ -237,13 +238,13 @@ func startDaemonBridge(ctx context.Context) (addr string, closeFn func(), err er
 
 // startDaemonAPI binds the HTTP API over the daemon's own database and
 // engine, records the address for endpoint URLs, and serves until ctx ends.
-func startDaemonAPI(ctx context.Context, cfg *globalConfig, db *storage.Database, engine *workflow.WorkflowEngine, orgs *orgServices, api *apiRuntime, addr string, allowMutations bool) (string, error) {
+func startDaemonAPI(ctx context.Context, cfg *globalConfig, db *storage.Database, engine *workflow.WorkflowEngine, orgs *orgsvc.Services, api *apiRuntime, addr string, allowMutations bool) (string, error) {
 	srv, err := httpapi.NewServer(httpapi.Options{
 		DB: db, Store: openWorkflowStore(db), Engine: engine, Profile: cfg.ProfileID,
 		Addr: addr, AllowMutations: allowMutations, Version: getVersion(),
 		// The server has one ExtraRoutes slot: the org receiver and the
 		// OpenAI-compatible API both ride it.
-		ExtraRoutes: daemonRoutes(orgs.registerRoutes, api, addr),
+		ExtraRoutes: daemonRoutes(orgs.RegisterRoutes, api, addr),
 	})
 	if err != nil {
 		api.releaseUnused() // the routes above built the gateway, which nothing serves now

@@ -1,4 +1,8 @@
-package main
+// Package orgsvc is the org side of `monoagentcli daemon`: trigger.org, the
+// automation-role endpoint receiver, the waker, report-up, the decision
+// service, and one org-file watcher per profile that reconciles the files
+// with their rows.
+package orgsvc
 
 import (
 	"context"
@@ -6,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -23,8 +28,8 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// profileRoots lists every profile's org folder (the daemon spans profiles).
-func profileRoots(db *sql.DB) ([]orgdecide.ProfileRoot, error) {
+// ProfileRoots lists every profile's org folder (the daemon spans profiles).
+func ProfileRoots(db *sql.DB) ([]orgdecide.ProfileRoot, error) {
 	rows, err := db.Query(`SELECT id FROM profiles`)
 	if err != nil {
 		return nil, err
@@ -37,7 +42,7 @@ func profileRoots(db *sql.DB) ([]orgdecide.ProfileRoot, error) {
 		}
 	}
 	rows.Close()
-	if !containsString(ids, "default") {
+	if !slices.Contains(ids, "default") {
 		ids = append(ids, "default")
 	}
 	sort.Strings(ids)
@@ -50,29 +55,30 @@ func profileRoots(db *sql.DB) ([]orgdecide.ProfileRoot, error) {
 	return out, nil
 }
 
-// orgServices are the org-side services `monoagentcli daemon` hosts next
+// Services are the org-side services `monoagentcli daemon` hosts next
 // to the workflow engine.
-type orgServices struct {
-	db       *storage.Database
-	mux      *orgbridge.Mux
-	trigger  *orgbridge.TriggerSource
-	receiver *orgbridge.Receiver
-	logf     func(format string, args ...interface{})
+type Services struct {
+	db                *storage.Database
+	openWorkflowStore func(*storage.Database) *workflow.HybridWorkflowStore
+	mux               *orgbridge.Mux
+	trigger           *orgbridge.TriggerSource
+	receiver          *orgbridge.Receiver
+	logf              func(format string, args ...interface{})
 
 	// resyncInterval and watchInterval are 0 (the defaults) outside tests.
 	resyncInterval time.Duration
 	watchInterval  time.Duration
 
 	mu       sync.Mutex
-	watchers map[string]*orgWatch // by profile id; see daemon_org_watch.go
+	watchers map[string]*orgWatch // by profile id; see watch.go
 
-	active atomic.Int32 // goroutines start launched and not yet ended; see wait
+	active atomic.Int32 // goroutines Start launched and not yet ended; see Wait
 }
 
-// goTracked runs fn on a goroutine that wait can see. (A sync.WaitGroup would
+// goTracked runs fn on a goroutine that Wait can see. (A sync.WaitGroup would
 // do, but the supervisor waits, may give up, and starts again; reusing a
 // WaitGroup while an earlier Wait is still pending is a panic.)
-func (s *orgServices) goTracked(fn func()) {
+func (s *Services) goTracked(fn func()) {
 	s.active.Add(1)
 	go func() {
 		defer s.active.Add(-1)
@@ -80,9 +86,9 @@ func (s *orgServices) goTracked(fn func()) {
 	}()
 }
 
-// wait reports whether every goroutine start launched has ended, waiting up to
-// timeout for them to. They end when the context start was given ends.
-func (s *orgServices) wait(timeout time.Duration) bool {
+// Wait reports whether every goroutine Start launched has ended, waiting up to
+// timeout for them to. They end when the context Start was given ends.
+func (s *Services) Wait(timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for s.active.Load() > 0 {
 		if time.Now().After(deadline) {
@@ -93,31 +99,34 @@ func (s *orgServices) wait(timeout time.Duration) bool {
 	return true
 }
 
-// newOrgServices registers trigger.org with the engine; call before
-// engine.Start so restored workflows activate it.
-func newOrgServices(db *storage.Database, engine *workflow.WorkflowEngine) *orgServices {
+// New registers trigger.org with the engine; call before engine.Start so
+// restored workflows activate it. open opens the CLI's workflow store.
+func New(db *storage.Database, engine *workflow.WorkflowEngine, open func(*storage.Database) *workflow.HybridWorkflowStore) *Services {
 	mux := orgbridge.NewMux(nil)
-	s := &orgServices{
-		db: db, mux: mux, trigger: orgbridge.NewTriggerSource(mux, db.DB),
+	s := &Services{
+		db: db, openWorkflowStore: open, mux: mux, trigger: orgbridge.NewTriggerSource(mux, db.DB),
 		logf: func(format string, args ...interface{}) { fmt.Fprintf(os.Stderr, format+"\n", args...) },
 	}
 	s.trigger.Logf = s.logf
 	engine.RegisterTriggerSource(orgbridge.TriggerNodeType, s.trigger)
 	engine.SetTraceAdmitter(s.admitWebhookTrace)
 	s.receiver = &orgbridge.Receiver{
-		DB: db.DB, Store: openWorkflowStore(db), Mux: mux, Resume: engine.ResumeExecution, Logf: s.logf,
+		DB: db.DB, Store: open(db), Mux: mux, Resume: engine.ResumeExecution, Logf: s.logf,
 		RootOf: func(profileID string) string { return profiledir.Root(db.DB, profileID) },
 	}
 	return s
 }
 
-// registerRoutes mounts the automation-role endpoint receiver on the
-// daemon's HTTP API.
-func (s *orgServices) registerRoutes(mux *http.ServeMux) { s.receiver.Register(mux) }
+// Logf logs a line the way the services do (stderr in the daemon).
+func (s *Services) Logf(format string, args ...interface{}) { s.logf(format, args...) }
 
-// start runs reconcile and the org file watchers (daemon_org_watch.go), the waker, and the decision
+// RegisterRoutes mounts the automation-role endpoint receiver on the
+// daemon's HTTP API.
+func (s *Services) RegisterRoutes(mux *http.ServeMux) { s.receiver.Register(mux) }
+
+// Start runs reconcile and the org file watchers (watch.go), the waker, and the decision
 // service until ctx ends.
-func (s *orgServices) start(ctx context.Context, engine *workflow.WorkflowEngine) {
+func (s *Services) Start(ctx context.Context, engine *workflow.WorkflowEngine) {
 	s.watchOrgFiles(ctx)
 
 	waker := &orgbridge.Waker{
@@ -131,7 +140,7 @@ func (s *orgServices) start(ctx context.Context, engine *workflow.WorkflowEngine
 	reportUp := &orggroup.ReportUpWatcher{
 		DB: s.db.DB, Mux: s.mux, Logf: s.logf,
 		Roots: func(context.Context) ([]orggroup.ProfileRoot, error) {
-			roots, err := profileRoots(s.db.DB)
+			roots, err := ProfileRoots(s.db.DB)
 			out := make([]orggroup.ProfileRoot, 0, len(roots))
 			for _, r := range roots {
 				out = append(out, orggroup.ProfileRoot{ProfileID: r.ProfileID, Root: r.Root})
@@ -142,39 +151,35 @@ func (s *orgServices) start(ctx context.Context, engine *workflow.WorkflowEngine
 	s.goTracked(func() { reportUp.Run(ctx) })
 
 	svc := orgdecide.NewService(s.db.DB, func(context.Context) ([]orgdecide.ProfileRoot, error) {
-		return profileRoots(s.db.DB)
+		return ProfileRoots(s.db.DB)
 	})
 	svc.Logf = s.logf
-	svc.LoadWorkflow = grantWorkflowLoader(s.db)
+	svc.LoadWorkflow = orgenv.GrantWorkflowLoader(s.db, s.openWorkflowStore)
 	svc.WorkflowFacts = func(ctx context.Context, profileID, workflowID string) string {
-		return workflowFacts(ctx, s.db, workflowID)
+		return s.workflowFacts(ctx, s.db, workflowID)
 	}
 	s.goTracked(func() { svc.Run(ctx) })
 }
 
-// orgReconcileOutcome is what reconciling one org file did — the daemon
-// logs it, `org reconcile` prints it.
-type orgReconcileOutcome = orgenv.ReconcileOutcome
-
 // reconciler reconciles org files for the daemon (orgenv.Reconciler): its
 // own saves are marked so the watcher does not reconcile them again.
-func (s *orgServices) reconciler() *orgenv.Reconciler {
-	return &orgenv.Reconciler{DB: s.db, OpenWorkflowStore: openWorkflowStore, Logf: s.logf, Saved: s.markSelfWrite}
+func (s *Services) reconciler() *orgenv.Reconciler {
+	return &orgenv.Reconciler{DB: s.db, OpenWorkflowStore: s.openWorkflowStore, Logf: s.logf, Saved: s.markSelfWrite}
 }
 
 // reconcileProfile reconciles every org of a profile (orgenv.Reconciler.Profile).
-func (s *orgServices) reconcileProfile(ctx context.Context, pr orgdecide.ProfileRoot) []orgReconcileOutcome {
+func (s *Services) reconcileProfile(ctx context.Context, pr orgdecide.ProfileRoot) []orgenv.ReconcileOutcome {
 	return s.reconciler().Profile(ctx, pr)
 }
 
 // reconcileDoc reconciles one org file (orgenv.Reconciler.Doc).
-func (s *orgServices) reconcileDoc(ctx context.Context, pr orgdecide.ProfileRoot, d *orgdesign.Doc, force bool) orgReconcileOutcome {
+func (s *Services) reconcileDoc(ctx context.Context, pr orgdecide.ProfileRoot, d *orgdesign.Doc, force bool) orgenv.ReconcileOutcome {
 	return s.reconciler().Doc(ctx, pr, d, force)
 }
 
 // workflowFacts describes a workflow for the decider prompt from the DB.
-func workflowFacts(ctx context.Context, db *storage.Database, workflowID string) string {
-	wf, err := openWorkflowStore(db).GetWorkflow(ctx, workflowID)
+func (s *Services) workflowFacts(ctx context.Context, db *storage.Database, workflowID string) string {
+	wf, err := s.openWorkflowStore(db).GetWorkflow(ctx, workflowID)
 	if err != nil || wf == nil {
 		return "workflow " + workflowID + " (not found)"
 	}
@@ -198,9 +203,9 @@ func workflowFacts(ctx context.Context, db *storage.Database, workflowID string)
 // org the chain started in (orgbridge.Ledger.ChainOrigin), and the defaults
 // for a chain no org started (a webhook run's own). The repeat limit is
 // orgbridge.TriggerRepeats whatever the org says.
-func (s *orgServices) admitWebhookTrace(ctx context.Context, workflowID, chain string, hop int) (int, string, error) {
+func (s *Services) admitWebhookTrace(ctx context.Context, workflowID, chain string, hop int) (int, string, error) {
 	profile := "default"
-	if wf, err := openWorkflowStore(s.db).GetWorkflow(ctx, workflowID); err == nil && wf != nil && wf.ProfileID != "" {
+	if wf, err := s.openWorkflowStore(s.db).GetWorkflow(ctx, workflowID); err == nil && wf != nil && wf.ProfileID != "" {
 		profile = wf.ProfileID
 	}
 	ledger := orgbridge.NewLedger(s.db.DB)

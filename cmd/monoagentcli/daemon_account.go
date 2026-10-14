@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/account"
+	"github.com/monoes/mono-agent/internal/cli/orgsvc"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -33,14 +34,14 @@ type accountSupervisor struct {
 	logf          func(format string, args ...any)
 }
 
-func newAccountSupervisor(orgs *orgServices, engine *workflow.WorkflowEngine) *accountSupervisor {
+func newAccountSupervisor(orgs *orgsvc.Services, engine *workflow.WorkflowEngine) *accountSupervisor {
 	return &accountSupervisor{
 		status:        account.CurrentStatus,
 		poll:          account.PollInterval,
-		startOrg:      func(ctx context.Context) { orgs.start(ctx, engine) },
-		waitOrg:       orgs.wait,
+		startOrg:      func(ctx context.Context) { orgs.Start(ctx, engine) },
+		waitOrg:       orgs.Wait,
 		cancelRunning: engine.CancelRunning,
-		logf:          orgs.logf,
+		logf:          orgs.Logf,
 	}
 }
 
