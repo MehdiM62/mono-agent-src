@@ -21,8 +21,8 @@ import {
 import { SaveModal, WorkflowsModal, TriggerInputModal } from './NodeRunnerModals.jsx'
 import WorkflowImportDialog from './WorkflowImportDialog.jsx'
 import PublishToMonoesDialog from '../components/library/PublishToMonoesDialog.jsx'
-import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom, credentialPickerMode, connectionLabel, fieldIsVisible, jsonTextError, curlImportConfig } from './nodeInspectorRules.js'
-import { CollectionField, AnyPlatformConnections, CurlImport } from './NodeInspectorWidgets.jsx'
+import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom, credentialPickerMode, connectionLabel, fieldIsVisible, jsonTextError, curlImportConfig, isFormFieldsField } from './nodeInspectorRules.js'
+import { CollectionField, AnyPlatformConnections, CurlImport, FormFieldsEditor } from './NodeInspectorWidgets.jsx'
 import { onAutomationsChanged } from '../lib/appEvents.js'
 import { arrangePaletteCategories, DEPRECATED, paletteCategoryLabel, paletteSectionOf, splitPaletteSections } from './paletteSections.js'
 import { runProblem } from '../lib/runFailure.js'
@@ -532,6 +532,10 @@ function Inspector({ node, onConfigChange, onClose, onNavigate, liveSchemas, aut
                 // edited in the textarea fallback) shows as JSON, not "[object Object]".
                 const val = rawVal0 !== null && typeof rawVal0 === 'object' ? JSON.stringify(rawVal0) : rawVal0
                 const onChange = e => onConfigChange(node.id, f.key, e.target.value)
+                if (isFormFieldsField(f)) {
+                  return <FormFieldsEditor key={`${node.id}:${f.key}`} field={f} value={rawVal0} config={node.config}
+                    onCommit={v => onConfigChange(node.id, f.key, v)} inputStyle={inputStyle} />
+                }
                 let inputEl
                 if (f.type === 'boolean') {
                   const checked = Boolean(node.config?.[f.key] ?? f.default ?? false)
