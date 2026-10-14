@@ -97,7 +97,7 @@ func TestJevKeySetStatusTestRemove(t *testing.T) {
 	}
 }
 
-// `key set` writes the machine key and leaves a profile vault's naturally named entry alone; the stale profile key is never adopted over it.
+// `key set` writes the machine key and leaves a profile vault's naturally named entry alone.
 func TestJevKeySetIgnoresProfileEntry(t *testing.T) {
 	cfg := jevKeyTestCfg(t)
 	db := openJevDB(t, cfg)
@@ -108,9 +108,44 @@ func TestJevKeySetIgnoresProfileEntry(t *testing.T) {
 	if err != nil || !strings.Contains(out, `"key_entry": "typesafe"`) || !strings.Contains(out, `"replaced": false`) {
 		t.Fatalf("set: %v %s", err, out)
 	}
-	key, src, err := jevconf.ResolveKey(t.Context(), db, "")
+	key, src, err := jevconf.ResolveKey(t.Context(), db, "default", "")
 	if err != nil || key != "new-key" || src != "vault" {
 		t.Fatalf("resolve = %q %q %v", key, src, err)
+	}
+}
+
+// `key adopt` copies the newest (or the named) profile key to the machine
+// vault, keeps the profile's entry, and refuses to replace a machine key.
+func TestJevKeyAdopt(t *testing.T) {
+	cfg := jevKeyTestCfg(t)
+	db := openJevDB(t, cfg)
+	if _, _, err := runJev(t, cfg, "", "key", "adopt"); clicore.ExitCodeFor(err) == 0 {
+		t.Fatal("adopt with no profile key should fail")
+	}
+	add := func(profile, key, updated string) {
+		id, err := secrets.Add(t.Context(), db, profile, "secret", "typesafe", map[string]string{"secret": key}, "", "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec(`UPDATE vault_secrets SET updated_at = ? WHERE id = ?`, updated, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("alice", "alice-key", "2026-01-01T00:00:00Z")
+	add("bob", "bob-key", "2026-06-01T00:00:00Z")
+
+	out, _, err := runJev(t, cfg, "", "key", "adopt", "--from-profile", "alice")
+	if err != nil || !strings.Contains(out, `"from_profile": "alice"`) {
+		t.Fatalf("adopt: %v %s", err, out)
+	}
+	if key, src, err := jevconf.ResolveKey(t.Context(), db, "", ""); err != nil || key != "alice-key" || src != "vault" {
+		t.Fatalf("resolve = %q %q %v", key, src, err)
+	}
+	if es, _ := secrets.List(t.Context(), db, "alice"); len(es) != 1 {
+		t.Fatalf("alice's entry was removed: %+v", es)
+	}
+	if _, _, err = runJev(t, cfg, "", "key", "adopt"); clicore.ExitCodeFor(err) == 0 {
+		t.Fatal("adopt must not replace an existing machine key")
 	}
 }
 

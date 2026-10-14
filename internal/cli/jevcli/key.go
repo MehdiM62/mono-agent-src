@@ -1,6 +1,7 @@
 package jevcli
 
 import (
+	"errors"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -19,9 +20,9 @@ import (
 func newJevKeyCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "key",
-		Short: "Store, test or remove the machine-wide TypeSafe API key",
+		Short: "Store, adopt, test or remove the machine-wide TypeSafe API key",
 	}
-	cmd.AddCommand(newJevKeySetCmd(d), newJevKeyTestCmd(d), newJevKeyRemoveCmd(d))
+	cmd.AddCommand(newJevKeySetCmd(d), newJevKeyAdoptCmd(d), newJevKeyTestCmd(d), newJevKeyRemoveCmd(d))
 	return cmd
 }
 
@@ -32,7 +33,7 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 		Long: "Reads the key from stdin — never pass it as an argument — and stores it in\n" +
 			"the machine-wide vault, shared by every profile. If the machine vault already\n" +
 			"holds the key, that entry is updated; otherwise a new entry named \"typesafe\"\n" +
-			"is created. A key in a profile's vault is left alone.",
+			"is created. A key in a profile's vault is left alone (see `jev key adopt`).",
 		Example: "  printf '%s' \"$KEY\" | monoagentcli jev key set",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -66,10 +67,6 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 					return fmt.Errorf("storing key in the machine vault: %w", err)
 				}
 			}
-			// An explicit key wins: no stale profile key is adopted over it later.
-			if err := jevconf.MarkAdopted(db.DB); err != nil {
-				return fmt.Errorf("recording the key: %w", err)
-			}
 			out := cmd.OutOrStdout()
 			if d.JSONOutput() {
 				return writeJevJSON(out, map[string]any{"key_source": jevconf.SourceVault, "key_entry": entry, "replaced": replaced})
@@ -84,11 +81,47 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 	}
 }
 
+func newJevKeyAdoptCmd(d Deps) *cobra.Command {
+	var from string
+	cmd := &cobra.Command{
+		Use:   "adopt",
+		Short: "Copy a profile vault's TypeSafe key to the machine-wide vault",
+		Long: "Copies (never deletes) the TypeSafe key a profile's vault holds to the machine-wide\n" +
+			"vault. Without --from-profile the most recently updated readable key of any profile\n" +
+			"is used. Fails if the machine vault already has a key: `jev key set` replaces it.",
+		Example: "  monoagentcli jev key adopt --from-profile work",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			db, err := d.OpenDB()
+			if err != nil {
+				return fmt.Errorf("initializing database: %w", err)
+			}
+			defer db.Close()
+			res, err := jevconf.Adopt(cmd.Context(), db.DB, from)
+			switch {
+			case errors.Is(err, jev.ErrNoAPIKey):
+				return clicore.NotFound("no TypeSafe key in any profile's vault")
+			case errors.Is(err, jevconf.ErrMachineKeyExists):
+				return clicore.InvalidInput("%v; `jev key set` replaces it", err)
+			case err != nil:
+				return err
+			}
+			if d.JSONOutput() {
+				return writeJevJSON(cmd.OutOrStdout(), res)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Copied the TypeSafe key of profile %q to the machine vault (entry %q). The profile's entry is unchanged.\n", res.FromProfile, res.Entry)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&from, "from-profile", "", "Profile id whose key to copy (default: the most recently updated)")
+	return cmd
+}
+
 func newJevKeyTestCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "test",
 		Short: "Check the key works by listing the models it can use",
-		Long:  "Resolves the key (machine vault, TYPESAFE_API_KEY) and lists models with it.\nWith --json the result is always printed with exit 0: {ok, key_source, models, error}.",
+		Long:  "Resolves the key (machine vault, the profile's vault, TYPESAFE_API_KEY) and lists models with it.\nWith --json the result is always printed with exit 0: {ok, key_source, models, error}.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := d.OpenDB()
@@ -104,7 +137,7 @@ func newJevKeyTestCmd(d Deps) *cobra.Command {
 				}
 				return jevKeyErr(e)
 			}
-			key, source, err := jevconf.ResolveKey(cmd.Context(), db.DB, "")
+			key, source, err := jevconf.ResolveKey(cmd.Context(), db.DB, d.ProfileID(), "")
 			if err != nil {
 				return fail(err)
 			}
@@ -152,10 +185,6 @@ func newJevKeyRemoveCmd(d Deps) *cobra.Command {
 			}
 			if err := secrets.Delete(cmd.Context(), db.DB, jevconf.VaultScope, id); err != nil {
 				return err
-			}
-			// Removed on purpose: a key left in a profile vault must not come back.
-			if err := jevconf.MarkAdopted(db.DB); err != nil {
-				return fmt.Errorf("recording the removal: %w", err)
 			}
 			if d.JSONOutput() {
 				return writeJevJSON(cmd.OutOrStdout(), map[string]any{"removed": entry})

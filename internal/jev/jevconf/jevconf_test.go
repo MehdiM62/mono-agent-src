@@ -34,21 +34,21 @@ func TestResolveKeyOrder(t *testing.T) {
 	ctx := context.Background()
 	t.Setenv("TYPESAFE_API_KEY", "")
 
-	if k, src, err := ResolveKey(ctx, db, "explicit"); err != nil || k != "explicit" || src != SourceConfig {
+	if k, src, err := ResolveKey(ctx, db, "p1", "explicit"); err != nil || k != "explicit" || src != SourceConfig {
 		t.Fatalf("explicit: %q %q %v", k, src, err)
 	}
-	// No vault entry, no env: error names the vault miss, never returns the literal ref.
-	k, _, err := ResolveKey(ctx, db, "@secret:typesafe")
-	if !errors.Is(err, jev.ErrNoAPIKey) || k != "" || !strings.Contains(err.Error(), "vault") {
+	// No vault entry, no env: ErrNoAPIKey (absent, not unreadable); never returns the literal ref.
+	k, _, err := ResolveKey(ctx, db, "p1", "@secret:typesafe")
+	if !errors.Is(err, jev.ErrNoAPIKey) || errors.Is(err, ErrKeyUnreadable) || k != "" {
 		t.Fatalf("missing: %q %v", k, err)
 	}
 	t.Setenv("TYPESAFE_API_KEY", "env-key")
 	for _, explicit := range []string{"", "@secret:typesafe", "@secret:other"} {
-		if k, src, err := ResolveKey(ctx, db, explicit); err != nil || k != "env-key" || src != SourceEnv {
+		if k, src, err := ResolveKey(ctx, db, "p1", explicit); err != nil || k != "env-key" || src != SourceEnv {
 			t.Fatalf("%q: %q %q %v", explicit, k, src, err)
 		}
 	}
-	if k, src, err := ResolveKey(ctx, nil, ""); err != nil || k != "env-key" || src != SourceEnv {
+	if k, src, err := ResolveKey(ctx, nil, "p1", ""); err != nil || k != "env-key" || src != SourceEnv {
 		t.Fatalf("nil db: %q %q %v", k, src, err)
 	}
 }
@@ -192,11 +192,11 @@ func TestSuggestionCache(t *testing.T) {
 func TestKeySourceNeverNeedsTheVaultKey(t *testing.T) {
 	db := newDB(t)
 	t.Setenv("TYPESAFE_API_KEY", "")
-	if _, err := KeySource(context.Background(), db); !errors.Is(err, jev.ErrNoAPIKey) {
+	if _, err := KeySource(context.Background(), db, "p1"); !errors.Is(err, jev.ErrNoAPIKey) {
 		t.Fatalf("err = %v", err)
 	}
 	t.Setenv("TYPESAFE_API_KEY", "env-key")
-	if src, err := KeySource(context.Background(), nil); err != nil || src != SourceEnv {
+	if src, err := KeySource(context.Background(), nil, "p1"); err != nil || src != SourceEnv {
 		t.Fatalf("src = %q %v", src, err)
 	}
 }
