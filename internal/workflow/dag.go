@@ -64,6 +64,11 @@ func BuildDAG(nodes []WorkflowNode, connections []WorkflowConnection) (*DAG, err
 		d.outEdges[c.SourceNodeID] = append(d.outEdges[c.SourceNodeID], c)
 		d.inEdges[c.TargetNodeID] = append(d.inEdges[c.TargetNodeID], c)
 	}
+	for id, n := range d.nodes {
+		if declaresSubOutput(*n) {
+			d.subNodes[id] = true
+		}
+	}
 	if err := d.checkSubNodes(); err != nil {
 		return nil, err
 	}
