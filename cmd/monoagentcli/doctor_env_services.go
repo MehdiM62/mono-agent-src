@@ -16,6 +16,7 @@ import (
 	"github.com/monoes/mono-agent/internal/browserdetect"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/daemonhb"
+	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/health"
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -40,8 +41,12 @@ func addServiceHooks(env *health.Env, cfg *globalConfig) {
 			daemonPID = hb.PID
 		}
 		unit := serviceUnit(st.PID)
-		return health.BridgeInfo{Addr: bridgeAddr(st, addr), Status: st.Status, PID: st.PID, Version: st.Version, UptimeSec: st.UptimeSec,
+		return health.BridgeInfo{Addr: bridgeAddr(st, addr), URL: addr, Status: st.Status, PID: st.PID, Version: st.Version, UptimeSec: st.UptimeSec,
 			Owner: bridgeOwner(st.PID, daemonPID, processCommand(st.PID), unit)}, true
+	}
+	env.ClientPairing = func(_ context.Context, baseURL string) string {
+		state, _ := extension.CheckPairing(baseURL) // read-only GET of /monoagent/auth
+		return string(state)
 	}
 	// Resolved on demand: `systemctl --user show` is too slow for every health check.
 	env.BridgeService = func(ctx context.Context, pid int) string {

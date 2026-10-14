@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -41,6 +42,14 @@ var levelVar = func() *slog.LevelVar {
 	v.Set(DefaultLevel)
 	return v
 }()
+
+// levelChosen records whether Init found a level given by --log-level or
+// EnvLevel, rather than DefaultLevel.
+var levelChosen atomic.Bool
+
+// LevelChosen reports whether the user chose the root level (--log-level or
+// MONOAGENT_LOG_LEVEL) instead of leaving the default.
+func LevelChosen() bool { return levelChosen.Load() }
 
 // Level is the current root level.
 func Level() slog.Level { return levelVar.Level() }
@@ -99,6 +108,7 @@ func Init(args []string, getenv func(string) string, w io.Writer) {
 	}
 	level, levelErr := ParseLevel(raw)
 	levelVar.Set(level)
+	levelChosen.Store(levelErr == nil && strings.TrimSpace(raw) != "")
 	if fromFlag && levelErr == nil {
 		_ = os.Setenv(EnvLevel, raw)
 	}
