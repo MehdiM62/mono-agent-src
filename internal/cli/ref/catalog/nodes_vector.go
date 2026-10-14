@@ -1,10 +1,6 @@
-package main
+package catalog
 
 // Reference entries for the RAG node types in internal/nodes/vector.
-
-func init() {
-	nodeDocs = append(nodeDocs, vectorNodeDocs...)
-}
 
 var vectorNodeDocs = []nodeDoc{
 	{

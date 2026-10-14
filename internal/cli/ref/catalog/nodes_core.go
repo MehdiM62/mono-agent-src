@@ -1,7 +1,7 @@
-package main
+package catalog
 
 // Node reference entries (`monoagentcli ref node <type>`), one variable per
-// category; ref.go joins them into nodeDocs.
+// category; catalog.go joins them into NodeDocs.
 
 // nodeDocsTrigger is the "trigger" category of the node catalogue.
 var nodeDocsTrigger = []nodeDoc{

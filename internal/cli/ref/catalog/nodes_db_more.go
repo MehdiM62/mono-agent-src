@@ -1,24 +1,8 @@
-package main
+package catalog
 
 // Reference entries for the database, queue and directory nodes (n8n
-// parity). Entries for types ref.go already documents replace those; new
-// types are appended.
-
-func init() {
-	for _, d := range dbNodeDocs {
-		replaced := false
-		for i := range nodeDocs {
-			if nodeDocs[i].Type == d.Type {
-				nodeDocs[i] = d
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
-			nodeDocs = append(nodeDocs, d)
-		}
-	}
-}
+// parity). catalog.go replaces the entries of types already documented with
+// these and appends the new types.
 
 const sqlN8nOps = `n8n-compatible operations (run once per input item):
   executeQuery  run "query"; $1..$N come from "query_replacement" (values,
