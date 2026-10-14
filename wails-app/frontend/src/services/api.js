@@ -160,6 +160,7 @@ export const api = {
   removePersonTag:      (personId, tagId) => GoApp.RemovePersonTag(personId, tagId).catch(e => reportError('remove tag', e)),
   getPeopleTagsMap:     (ids) => GoApp.GetPeopleTagsMap(ids).catch(guard('tags map', {})),
   listConnections:      (platform = '') => GoApp.ListConnections(platform).catch(guard('list connections', [])),
+  platformNames:        () => GoApp.PlatformNames().catch(guard('platform names', {})),
   listPlatforms:        (connectVia = '') => GoApp.ListPlatformsJSON(connectVia).then(s => JSON.parse(s)).catch(guard('list platforms', [])),
   testConnection:       (id) => GoApp.TestConnection(id).catch(e => { reportError('test connection', e); return `error: ${e}` }),
   testSession:          (id) => GoApp.TestSession(id).catch(e => { reportError('test session', e); return `error: ${e}` }),

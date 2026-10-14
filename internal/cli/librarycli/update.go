@@ -1,4 +1,4 @@
-package main
+package librarycli
 
 import (
 	"context"
@@ -11,11 +11,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/library"
 )
 
-// libUpdate is one row of `library update`.
-type libUpdate struct {
+// Update is one row of `library update`.
+type Update struct {
 	Kind    string `json:"kind"`
 	LocalID string `json:"local_id"`
 	ItemID  string `json:"item_id"`
@@ -54,27 +55,27 @@ func newLibraryUpdateCmd(e *libEnv) *cobra.Command {
 			if len(args) == 1 {
 				only = args[0]
 			}
-			updates := []libUpdate{}
+			updates := []Update{}
 			for _, r := range recs {
 				if only != "" && only != r.LocalID && only != r.ItemID && only != r.Slug {
 					continue
 				}
 				u := e.updateOne(ctx, c, r, yes, dryRun)
 				if u.loginRequired {
-					return libErr(library.ErrNotLoggedIn) // the login expired: every other item would fail the same way
+					return e.deps.Err(library.ErrNotLoggedIn) // the login expired: every other item would fail the same way
 				}
 				updates = append(updates, u)
 			}
 			if only != "" && len(updates) == 0 {
-				return errNotFound("nothing installed from monoes.me matches %q (see `monoagentcli library installed`)", only)
+				return clicore.NotFound("nothing installed from monoes.me matches %q (see `monoagentcli library installed`)", only)
 			}
 			out := map[string]any{"updates": updates}
-			if err := printLib(e.cfg, cmd, out, func(w io.Writer) { printUpdates(w, updates) }); err != nil {
+			if err := e.print(cmd, out, func(w io.Writer) { printUpdates(w, updates) }); err != nil {
 				return err
 			}
 			for _, u := range updates {
 				if u.Status == "failed" {
-					return reportedError{Err: fmt.Errorf("some updates failed")}
+					return clicore.Reported{Err: fmt.Errorf("some updates failed")}
 				}
 			}
 			return nil
@@ -85,12 +86,12 @@ func newLibraryUpdateCmd(e *libEnv) *cobra.Command {
 	return cmd
 }
 
-func (e *libEnv) updateOne(ctx context.Context, c *library.Client, r library.Record, yes, dryRun bool) libUpdate {
-	u := libUpdate{Kind: r.Kind, LocalID: r.LocalID, ItemID: r.ItemID, Name: r.Name, From: r.Version, To: r.Version}
+func (e *libEnv) updateOne(ctx context.Context, c *library.Client, r library.Record, yes, dryRun bool) Update {
+	u := Update{Kind: r.Kind, LocalID: r.LocalID, ItemID: r.ItemID, Name: r.Name, From: r.Version, To: r.Version}
 	it, err := c.Get(ctx, r.ItemID)
 	if err != nil {
 		var ae *library.APIError
-		if isLoginRequired(err) {
+		if e.deps.IsLoginRequired(err) {
 			u.loginRequired = true
 		} else if errors.As(err, &ae) && ae.Status == http.StatusNotFound {
 			u.Status, u.Error = "gone", "the item is no longer in the library (or no longer visible to you)"
@@ -113,8 +114,8 @@ func (e *libEnv) updateOne(ctx context.Context, c *library.Client, r library.Rec
 		opts.rename = r.LocalID // update the org it was installed as
 	}
 	if _, err := e.install(ctx, c, it, opts); err != nil {
-		u.Status, u.Error, u.loginRequired = "failed", err.Error(), isLoginRequired(err)
-		var ce *cliError
+		u.Status, u.Error, u.loginRequired = "failed", err.Error(), e.deps.IsLoginRequired(err)
+		var ce *clicore.Error
 		if errors.As(err, &ce) && ce.Code == 3 && !yes {
 			u.Status = "needs_confirmation"
 		}
@@ -150,7 +151,7 @@ func (e *libEnv) adoptOfficial(ctx context.Context, c *library.Client) {
 	}
 }
 
-func printUpdates(w io.Writer, updates []libUpdate) {
+func printUpdates(w io.Writer, updates []Update) {
 	if len(updates) == 0 {
 		fmt.Fprintln(w, "Nothing installed from monoes.me yet.")
 		return

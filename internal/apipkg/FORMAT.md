@@ -195,6 +195,11 @@ typed value (number, bool, object, array): `"labels": "{{ p.labels }}"` sends
 a JSON array. Anything else is string-interpolated: `"Bearer {{ cred.token }}"`;
 `nil` interpolates as `""`, objects/arrays as JSON.
 
+**Literal braces.** `\{{` and `\}}` stand for a literal `{{` and `}}` (in JSON:
+`"\\{{ticket.id\\}}"` → `{{ticket.id}}`), for APIs whose own placeholders use
+braces. They combine with expressions: `"\\{{{{ el }}\\}}"` → `{{ticket.id}}`
+when `el` is `ticket.id` (Zendesk trigger bodies).
+
 **Omit empty.** In `query` and `body` objects a key whose value resolves to
 `nil`, `""`, `[]` or `{}` is left out. `0` and `false` are kept. A nested
 object that ends up empty is left out too. Array elements that resolve
@@ -619,7 +624,16 @@ no `for_each`) plus `files`, `property`, `file_name`, `mime_type`.
 
 **Header-row output.** `"output": {"path": "values", "header_row": true}` turns `[[h1,h2],[v1,v2],…]` into one item per row keyed by the first row.
 
-**Polling (`poll`).** After the main request, `"poll": {"method": "GET", "path": "/projects/{{ p.projectId }}/queries/{{ res.jobReference.jobId }}", "until": "{{ res.jobComplete }}", "interval_ms": 1000, "max_wait_ms": 300000}` repeats the request (with `res` = the latest response) until `until` is true; the last response becomes the op's response. Defaults: 1 s interval, 5 min max wait.
+**Polling (`poll`).** After the main request, `"poll": {"method": "GET", "path": "/projects/{{ p.projectId }}/queries/{{ res.jobReference.jobId }}", "until": "{{ res.jobComplete }}", "interval_ms": 1000, "max_wait_ms": 300000}` repeats the request (with `res` = the latest response) until `until` is true; the last response becomes the op's response. Defaults: 1 s interval, 5 min max wait. `"max_wait_seconds": "{{ p.timeout }}"` (a template giving seconds) takes the wait from a param instead. `main` stays the main request's reply, also in `output` templates (Airtop agent runs: `"invocationId": "{{ main.invocationId }}"` beside the polled result).
+
+**Waiting steps (`repeat`).** A `before` or `also` step with `"repeat": {"until": "{{ res.data.status | eq:'available' }}", "interval_ms": 1000, "max_wait_ms": 300000}` is resent (with `res` = its latest response) until `until` is true; that response is the step's (`pre`/`pres.<i>`). Same defaults and `max_wait_seconds` as `poll`. Use it when a later step must wait for an earlier one's result (upload a file, wait until it is processed, then attach it).
+
+**Event streams (`stream`).** An operation or a `before`/`also` step with `"stream": {"until": "{{ res.event | eq:'file_status' }}", "timeout_ms": 300000}` reads its response as server-sent events (`text/event-stream`; `Accept` is set to it) instead of one body. Each event's `data:` lines (joined with newlines) are decoded like a body (JSON, else text) and bound to `res`; `event:`, `id:`, `retry:` and comment lines are ignored. The first event for which `until` renders true becomes the response — the op's (for `output`) or the step's (`pre`/`pres.<i>`) — and is checked by `error_when` (so `"error_when": "{{ res.status | eq:'upload_failed' }}"` fails on a failure event). The request fails when the server closes the stream first or after the timeout (default 5 min; `"timeout_seconds": "{{ p.additionalFields.timeout | default:30 }}"` takes it from a param). Not with pagination, `bulk` or a binary download. Airtop waits for a session's file event:
+```json
+"method": "GET", "path": "/sessions/{{ p.sessionId }}/events", "query": { "all": "true" },
+"stream": { "until": "{{ res.event | eq:'file_status' | then:(res.status | eq:'available') }}", "timeout_seconds": "{{ p.additionalFields.timeout | default:30 }}" },
+"output": { "to": { "fileId": "{{ res.fileId }}", "downloadUrl": "{{ res.downloadUrl }}" } }
+```
 
 ## 10. Binary data
 
@@ -647,6 +661,8 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
   `binaryPropertyName`).
 
 `binary.download_when` (template) decides per run whether the response is a file (GCS `alt=media`; for a file that a JSON response links to, see `output.download` in §9); it overrides `download`. `binary.upload_text` (template): when it renders non-empty, that text (Content-Type text/plain) is uploaded instead of the item's binary (GCS create from text).
+
+`binary.upload_url` (template): when it renders an http(s) URL, the engine first downloads that file (GET, without the credential) and uses it as the upload instead of the item's binary — name from the URL's last segment, type from the response's Content-Type (n8n's "upload from URL" sources; Airtop `"upload_url": "{{ p.source | ne:'binary' | then:p.url }}"`).
 
 `binary.upload_when` (template) decides per run whether to upload (n8n `sendBinaryData`); without the upload a multipart op sends its `body` as JSON (or nothing). `binary.multipart_field` may be a template, and `binary.property` (template) overrides the property read from `upload_field` — n8n's `"formField:binaryProperty"` values: `"multipart_field": "{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}"`, `"property": "{{ p.binaryPropertyName | split:':' | get:'-1' }}"`.
 
@@ -744,7 +760,7 @@ and later ones with `{}`, so paginated ops stop after page one. Failure
 messages name the package, op and what differed, e.g.
 `todoist · task.getAll: query: got {"limit":"50","query":"x"}, want {"query":"x"}`.
 
-**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`.
+**Multi-request ops** (`before`, `also`, `output.expand`, pagination): `"responses": [ {…}, {…} ]` answers the requests in order (later ones get `{}`; overrides `response`). `expect` checks the MAIN request — the first one with the expected method and path (so `before` steps skipped by their `when` don't shift it; otherwise the one after the `before` steps). A path segment `<any>` in an expected `path` matches any non-empty segment (`/send/m.room.message/<any>` for `{{ uuid }}` ids). A value of `"<any>"` in expect `query`/`body` matches any present non-empty value (`{{ uuid }}`, timestamps). To check every request in order use `"expect_requests": [ {method, path, query, body, headers}, … ]`. A response `{"$sse": [{…}, {…}]}` is sent as a `text/event-stream` with one `data:` event per element (for `stream` ops and steps).
 ```json
 "values.append": {
   "params": { "documentId": "abc", "sheetName": "Main" },
@@ -890,7 +906,9 @@ Optional keys the engine added (the design's keys are unchanged):
 | pagination | `next` (continuation request for pages 2+, `page.cursor`); `also` runs after paging | §8, §9 |
 | steps | `error_when` / `error_message` per step | §6 |
 | package | `n8n_version_defaults` comparison keys (`<3`) | §12 |
+| operation, steps | `stream` (read server-sent events until one matches); step `repeat`; poll `max_wait_seconds`; binary `upload_url` | §9, §10 |
 | package | `webhook` (app trigger registration: `fields`, `create`, `id`, `extra`, `delete`, `check`, `verify`); root `hook`; filter `map` | §17 |
+| templates | literal braces `\{{` / `\}}`; `hdr` = the previous webhook step's response headers | §5, §17 |
 
 ## 17. App webhooks (`webhook`)
 
@@ -947,6 +965,7 @@ Template roots:
 | `hook.workflow_id`, `hook.node_id` | the node |
 | `pre`, `pres.<i>`, `el`, `idx` | as in `before` steps: earlier create steps, the `for_each` element |
 | `res`, `hdr` | in `id`/`extra`: the last create response (a list of responses when that step has `for_each`) and its headers (`{{ hdr.Resource-Id }}`); in `check.exists_when`: the check response |
+| `hdr` in a step | the previous step's response headers — a login step's session token: Form.io's `"inject": {"headers": {"x-jwt-token": "{{ hdr.X-Jwt-Token }}"}}` after a `POST /user/login` step with `auth: false` |
 
 - **delete** runs every step; a 404 or 410 counts as already removed, other
   errors are reported (the engine logs the hook id so it can be removed by
