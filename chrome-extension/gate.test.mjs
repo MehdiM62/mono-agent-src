@@ -337,14 +337,23 @@ test("every feature sees signed out as offline, and nothing it sends goes out", 
   assert.equal(background.includes("isConnected: () => ws?.readyState === WebSocket.OPEN"), false, "a module that is connected while signed out");
   assert.ok((background.match(/isConnected: openAndSignedIn/g) || []).length >= 7);
   const send = background.slice(background.indexOf("function sendFrame(message) {"));
-  assert.match(send.slice(0, send.indexOf("\n}\n")), /if \(!gate\.signedIn\(\)\) return false;/);
+  assert.match(send.slice(0, send.indexOf("\n}\n")), /if \(!accountHeard \|\| !gate\.signedIn\(\)\) return false;/);
+  assert.match(background, /function openAndSignedIn\(\) \{\n  return ws\?\.readyState === WebSocket\.OPEN && accountHeard && gate\.signedIn\(\);/);
+});
+
+test("a new socket sends nothing until its bridge has reported the account", () => {
+  const onopen = background.slice(background.indexOf("ws.onopen = () => {"), background.indexOf("ws.onmessage = "));
+  assert.equal(onopen.includes("whileSignedIn()"), false, "a stored report must not flush onto a bridge that has not answered");
+  assert.match(onopen, /accountHeard = false;\n    sendAccountPing\(\);/);
+  const onmessage = background.slice(background.indexOf("ws.onmessage = "), background.indexOf("ws.onerror = "));
+  assert.match(onmessage, /if \(gate\.observe\(cmd\) && !accountHeard\) \{\n      accountHeard = true;\n      if \(gate\.signedIn\(\)\) whileSignedIn\(\);/);
 });
 
 test("signed out, the bridge's commands are refused before any handler runs", () => {
   const onmessage = background.slice(background.indexOf("ws.onmessage = "), background.indexOf("ws.onerror = "));
-  const refuse = onmessage.indexOf("if (!gate.signedIn()) {");
+  const refuse = onmessage.indexOf("if (!accountHeard || !gate.signedIn()) {");
   assert.ok(refuse !== -1 && refuse < onmessage.indexOf("handleCommand(cmd);"));
-  assert.ok(onmessage.indexOf("gate.observe(cmd);") < refuse);
+  assert.ok(onmessage.indexOf("gate.observe(cmd)") < refuse);
 });
 
 test("the side panel loads the gate first, and signin.html carries nothing else", () => {

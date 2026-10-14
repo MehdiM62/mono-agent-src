@@ -441,9 +441,11 @@ async function doConnect() {
     markCandidateConnected(url);
     console.log("[monoagent] Connected to backend at", url);
     startKeepAlive();
-    // Where the account stands, first: nothing else goes out signed out.
+    // Where the account stands, first. Nothing else goes out on this socket
+    // until this bridge has answered (accountHeard): a report stored from
+    // an earlier socket says nothing about who is signed in to this one.
+    accountHeard = false;
     sendAccountPing();
-    if (gate.signedIn()) whileSignedIn();
   };
 
   ws.onmessage = (event) => {
@@ -459,15 +461,19 @@ async function doConnect() {
     // What the bridge says about the account rides on its replies (account_state.js).
     const said = MonoAccount.fromReply(cmd);
     if (said) account.set(said);
-    gate.observe(cmd);
+    if (gate.observe(cmd) && !accountHeard) {
+      accountHeard = true;
+      if (gate.signedIn()) whileSignedIn();
+    }
     // A reply to something THIS side asked (ask.js). Claimed before the
     // command dispatch because a reply is not a command and has no handler.
     if (MonoAsk.handleFrame(cmd)) return;
     // Go's acks for kind:"recording" frames: {id, success, type:"recording"}.
     if (MonoRecorderWiring.handleFrame(cmd)) return;
     // Signed out the bridge's commands are refused, whatever they are: none
-    // of them may read a page or drive the browser (gate.js).
-    if (!gate.signedIn()) {
+    // of them may read a page or drive the browser (gate.js). So is anything
+    // that arrives before this bridge answered the account ping.
+    if (!accountHeard || !gate.signedIn()) {
       if (cmd.id) sendResponse(cmd.id, false, undefined, MonoGate.LOGIN_MESSAGE);
       return;
     }
@@ -484,6 +490,7 @@ async function doConnect() {
     stopKeepAlive();
     // What the bridge said about the account belonged to that socket.
     account.set(null);
+    accountHeard = false;
     // Everything waiting on an answer is settled here. A question outlives
     // its socket by exactly nothing: see ask.js.
     MonoRecall.disconnected("the bridge disconnected");
@@ -540,6 +547,9 @@ function whileSignedIn() {
   MonoTaskBridge.connected();
 }
 
+// Whether the bridge on the open socket has reported the account yet.
+let accountHeard = false;
+
 // The account ping is the one request that goes out signed out. Its reply is
 // read by gate.observe in ws.onmessage; ask.js drops a reply it never asked for.
 let accountPingSeq = 0;
@@ -595,7 +605,7 @@ function stopKeepAlive() {
 
 /** openAndSignedIn is "connected" as every feature sees it: signed out is offline. */
 function openAndSignedIn() {
-  return ws?.readyState === WebSocket.OPEN && gate.signedIn();
+  return ws?.readyState === WebSocket.OPEN && accountHeard && gate.signedIn();
 }
 
 // ---------------------------------------------------------------------------
@@ -1392,7 +1402,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 function sendFrame(message) {
   if (ws?.readyState !== WebSocket.OPEN) return false;
   // Signed out nothing a feature sends goes out: its outbox keeps it (gate.js).
-  if (!gate.signedIn()) return false;
+  if (!accountHeard || !gate.signedIn()) return false;
   ws.send(JSON.stringify(message));
   return true;
 }
@@ -1467,7 +1477,7 @@ gate.onChange((signedIn) => {
   setPanelPath(signedIn);
   broadcastStatus();
   if (signedIn) {
-    if (ws?.readyState === WebSocket.OPEN) whileSignedIn();
+    if (openAndSignedIn()) whileSignedIn();
     return;
   }
   // Signed out: a recording in progress ends (its frames stay in the outbox)

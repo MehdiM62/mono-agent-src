@@ -157,7 +157,8 @@ describe("the side panel chat", { skip: browser ? false : why, concurrency: 1 },
     tabId = await ev(sw, `chrome.tabs.query({}).then((ts) => ts.find((t) => t.url === ${JSON.stringify(pageUrl)}).id)`);
     await ev(sw, DAEMON);
     // Signed in, as a bridge would report it (gate.js): signed out the panel is the sign-in screen.
-    assert.equal(await ev(sw, `gate.observe({ kind: "reply", id: "account-test", ok: true, data: { pong: true, account: { state: "ok", reason: "", enforced: true } } }), gate.signedIn()`), true);
+    // The fake socket above has answered the account ping too (accountHeard).
+    assert.equal(await ev(sw, `gate.observe({ kind: "reply", id: "account-test", ok: true, data: { pong: true, account: { state: "ok", reason: "", enforced: true } } }), accountHeard = true, gate.signedIn()`), true);
     // The panel is a tab here, so "the active tab" is the panel itself: point the worker's lookup at the fixture.
     await ev(
       sw,
