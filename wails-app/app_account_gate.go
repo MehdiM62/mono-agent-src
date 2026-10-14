@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -158,6 +160,11 @@ func (a *App) startSignedIn() {
 	// the per-profile folder and vault migrations (app_db_prepare.go); this
 	// read-only handle only serves what the app still reads itself.
 	a.prepareDatabase()
+	// os.UserHomeDir (not $HOME) so the vault dir resolves on Windows too.
+	home, _ := os.UserHomeDir()
+	if err := os.MkdirAll(filepath.Join(home, ".monoagent", "vault"), 0o700); err != nil {
+		runtime.LogErrorf(a.ctx, "vault dir error: %v", err)
+	}
 	// The chat supervisor reaches chat history only through the CLI
 	// (`chat history …`), which creates the chat tables itself.
 	if a.chatSup == nil {
