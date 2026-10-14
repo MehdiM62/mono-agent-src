@@ -94,11 +94,17 @@ var readOnlyNodes = setOf(
 	// input goes to TypeSafe's API). The other ai.* are deprecated stubs
 	// that fail without doing anything (ai.agent is left out regardless).
 	"ai.choose",
+	// ai.guardrails: local pattern checks, plus model-judged checks whose
+	// turns only judge the text and answer with a JSON verdict.
+	"ai.guardrails",
 	"ai.chat", "ai.classify", "ai.embed", "ai.extract", "ai.transform",
 	// Bookkeeping in mono-agent's own stores: nothing leaves the machine
 	// and nothing is overwritten beyond the rows the node owns.
 	// discovery.search_jobs reads public job boards with GETs.
 	"people.save", "people.sync_outlook_message",
+	"agent.memory", // the profile's own chat-memory rows (no model turn)
+	// AI sub-nodes: config read by their root, never run as steps.
+	"ai.model", "ai.memory", "ai.output_parser",
 	"applications.create", "applications.list",
 	"applications.prepare", "applications.set_status", "applications.tag",
 	"discovery.search_jobs", "documents.render", "image.vault_save", "publication.register",

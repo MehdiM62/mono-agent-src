@@ -324,3 +324,42 @@ func TestWorkflowToolSuffixSkipsTheWfPrefix(t *testing.T) {
 		t.Errorf("idSuffix = %q, want 3845ab", got)
 	}
 }
+
+// workflow_status names the URL a run paused for a reply resumes through.
+func TestWorkflowStatusShowsResumeURL(t *testing.T) {
+	t.Setenv("MONOAGENT_PUBLIC_URL", "http://127.0.0.1:19721")
+	s := newTestServer(t)
+	rt, err := s.runtime()
+	if err != nil {
+		t.Fatalf("runtime: %v", err)
+	}
+	ctx := context.Background()
+	wf := &workflow.Workflow{ID: "wf-wait", Name: "Wait", ProfileID: "default"}
+	if err := rt.store.CreateWorkflow(ctx, wf); err != nil {
+		t.Fatal(err)
+	}
+	exec := &workflow.WorkflowExecution{ID: "exec-wait", WorkflowID: wf.ID, ProfileID: "default", Status: "WAITING", TriggerType: "manual"}
+	if err := rt.store.CreateExecution(ctx, exec); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.db.DB.Exec(`INSERT INTO wait_replies (execution_id, node_id, run_index, workflow_id, token, kind, spec)
+		VALUES ('exec-wait','wait',0,'wf-wait','tokWait','webhook','{"kind":"webhook"}')`); err != nil {
+		t.Fatal(err)
+	}
+
+	resps := serveLines(t, s, callToolReq(1, "workflow_status", map[string]interface{}{"execution_id": exec.ID}))
+	text, isErr := toolText(t, respByID(t, resps, "1"))
+	if isErr {
+		t.Fatalf("workflow_status: %s", text)
+	}
+	var got struct {
+		Status  string                  `json:"status"`
+		Waiting []workflow.PendingReply `json:"waiting_for"`
+	}
+	if err := json.Unmarshal([]byte(text), &got); err != nil {
+		t.Fatalf("%v\n%s", err, text)
+	}
+	if got.Status != "WAITING" || len(got.Waiting) != 1 || got.Waiting[0].URL != "http://127.0.0.1:19721/reply/tokWait" {
+		t.Fatalf("workflow_status = %s", text)
+	}
+}

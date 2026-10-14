@@ -58,6 +58,9 @@ type Package struct {
 	// Webhook registers the app's webhook trigger with the vendor on
 	// activation (see webhook.go).
 	Webhook *Webhook `json:"webhook,omitempty"`
+	// Outputs are the keys of every op's items, for ops that declare
+	// none (see Operation.Outputs).
+	Outputs []workflow.NodeSchemaOutput `json:"outputs,omitempty"`
 
 	// Source is where the package was loaded from ("catalog" or a file
 	// path). Not part of the file.
@@ -261,6 +264,9 @@ type Operation struct {
 	// op for all input items as one request per chunk (n8n's "bulk
 	// operation" option: Elasticsearch _bulk) instead of one per item.
 	Bulk *Bulk `json:"bulk,omitempty"`
+	// Outputs are the keys of the op's items as the node schema lists
+	// them. Unset, they are derived from binary and output (outputs.go).
+	Outputs []workflow.NodeSchemaOutput `json:"outputs,omitempty"`
 }
 
 // Bulk is an operation's one-request-for-many-items variant. The batch
@@ -469,7 +475,8 @@ type Binary struct {
 	// to send (n8n's "binaryPropertyName").
 	UploadField string `json:"upload_field,omitempty"`
 	// PropertyField is the op param naming the output binary property for a
-	// download (default property "data").
+	// download (default property "data"). UploadField and PropertyField may
+	// be dotted ("options.binaryPropertyOutput") to read a collection key.
 	PropertyField string `json:"property_field,omitempty"`
 	// MultipartField is the form field of the file part (default "file").
 	MultipartField string `json:"multipart_field,omitempty"`
@@ -507,6 +514,10 @@ type Binary struct {
 	// file base64-encoded in JSON (GitHub contents), decode it onto the
 	// item's binary and keep the JSON response as the item's json.
 	DownloadBase64 string `json:"download_base64,omitempty"`
+	// DownloadEach is a response path to a list of base64 files: each
+	// element (el in download_base64, file_name, mime_type) becomes one
+	// item (OpenAI image generations with n > 1).
+	DownloadEach string `json:"download_each,omitempty"`
 }
 
 // NodeTypeOf is the node type a package registers ("" for extends).

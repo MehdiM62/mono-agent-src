@@ -103,7 +103,9 @@ func RunExecution(
 		expr:      expr,
 		logger:    logger,
 		// Build initial trigger items — wrap TriggerData as a single Item.
-		triggerItems:   buildTriggerItems(exec.TriggerData),
+		// The webhook chain trace stays internal (the run's context has it):
+		// a workflow that echoes $json must not hand it to its caller.
+		triggerItems:   buildTriggerItems(withoutTrace(exec.TriggerData, WebhookTraceKey)),
 		nodeOutputs:    make(map[string][]Item),
 		pendingInputs:  make(map[string][]Item),
 		pendingFrom:    make(map[string]string),
@@ -358,6 +360,26 @@ func (r *runner) recordSkipped(node WorkflowNode) {
 		FinishedAt:  &skipNow,
 	})
 	skipCancel()
+}
+
+// recordNotStarted persists a FAILED record for a node that failed before
+// it could start (its type is not installed), so the run's detail names the
+// node rather than leaving it to the run's error text.
+func (r *runner) recordNotStarted(node WorkflowNode, input []Item, err error) {
+	now := time.Now().UTC()
+	en := &WorkflowExecutionNode{
+		ExecutionID: r.exec.ID,
+		NodeID:      node.ID,
+		NodeName:    node.Name,
+		Status:      "RUNNING",
+		InputItems:  input,
+		StartedAt:   &now,
+	}
+	c, cancel := dbCtx()
+	defer cancel()
+	if r.store.CreateExecutionNode(c, en) == nil {
+		_ = recordNodeFailure(c, r.store, en, err, nil)
+	}
 }
 
 // decrementMergeWaiting decrements the mergeWaiting counter for each direct

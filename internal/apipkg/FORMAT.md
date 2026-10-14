@@ -152,7 +152,23 @@ Generated node schema: a `credential_id` picker, a `resource` select, one
 `operation` select per resource (`depends_on` the resource), then every op's
 fields. Fields with the same key, type, label and options are merged into one
 entry. Each field carries `depends_on: {"key": "operation", "values": […]}`
-and an exact `visible_for: [{"resource": …, "operation": …}]`.
+and an exact `visible_for: [{"resource": …, "operation": …}]`. A field may
+declare its own `depends_on: {"key": "legacyEditModel", "values": ["true"]}`:
+the key and value join every `visible_for` entry (one entry per value), so
+the field shows, and is checked, only for those ops while that field holds
+that value. Use it to keep importer-only fields (legacy toggles that
+`n8n_version_defaults` turns on) out of the form for new nodes.
+A required `select` whose `default` is empty or not one of its `options`
+starts on its first option; set `default` when another option is the
+sensible start.
+On a native node a package `extends` with resources, every native field
+but the account picker applies only while no resource is picked: a field
+with no condition (the native `operation` select included) gets
+`depends_on: {"key": "resource", "values": [""]}`; one that depends on
+another key keeps that `depends_on` and gets `visible_for` entries
+`{"resource": "", <key>: <value>}`. Once a resource is picked, its own
+`operation` select (with its own `default`) and fields take over, and
+native required fields are not asked for.
 
 Every field is resolved **per input item** from workflow expressions
 (`{{ $json.id }}` in the node config), so one node run makes one request per
@@ -204,7 +220,10 @@ when `el` is `ticket.id` (Zendesk trigger bodies).
 `nil`, `""`, `[]` or `{}` is left out. `0` and `false` are kept. A nested
 object that ends up empty is left out too. Array elements that resolve
 empty are dropped. Write `"!key"` to send the value even when empty (a `$map`/`$concat` under `"!key"` sends `[]`)
-(`"!description": "{{ p.description }}"` sends `""`/`null`).
+(`"!description": "{{ p.description }}"` sends `""`/`null`). A forced object or
+array template is sent as `{}`/`[]` when everything inside it is empty
+(`"!configVars": {"$merge": "{{ p.vars }}"}` sends `"configVars": {}`), at any
+depth, and a `"!key"` inside a literal `$merge` object survives the spread.
 
 **`$merge`.** `"$merge": "{{ p.additionalFields }}"` spreads an object into
 the parent (its empty values are dropped). Explicit keys override merged
@@ -279,7 +298,7 @@ through, so an unset param stays unset:
 | `set:key,value` | the object (nil counts as `{}`) with `key` set to `value` (an empty key changes nothing): Excel upsert appends `{{ p.fieldsUi.values \| kv:'column,fieldValue' \| set:p.columnToMatchOn,p.valueToMatchOn }}` |
 | `not` | `true` when the value is unset (as for `then`), else nil: `"/{{ p.pit \| not \| then:p.indexId }}{{ p.pit \| not \| then:'/' }}_search"` |
 | `bind:params` | n8n query parameters: every string value or object key that is exactly `$1`, `$2`, … is replaced by that element of `params` (a list or its JSON text) — a parameter never adds structure. A key placeholder must give a plain name not starting with `$` that the object doesn't already have; a placeholder without a value or an unused parameter is an error; an empty list changes nothing: `{{ p.options.query \| fromjson \| bind:p.options.queryParameters }}` (Elasticsearch) |
-| `base64_chunks:n` | base64 data → list of its `n`-byte pieces, each base64 (chunked uploads: `"for_each": "{{ bin.files.0.base64 \| base64_chunks:5242880 }}"` with `idx` as the segment index) |
+| `base64_chunks:n` | base64 data → list of its `n`-byte pieces, each base64 (chunked uploads: `"for_each": "{{ bin.files.0.base64 \| base64_chunks:5242880 }}"` with `idx` as the segment index); a list such as `bin.files` gives one flat list of `{item, segment, data, file}` segments across its files |
 | `map:'from=to,…'` | a value found in the table → its replacement, others unchanged; a list is mapped per element (n8n event names → the vendor's: `{{ p.event \| map:'balanceCredit=balances#credit' }}`) |
 | `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
@@ -534,6 +553,17 @@ one item per element. Objects are one item; scalars become `{"data": v}`; a
 non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 `{"success": true}`; a path that resolves to nothing yields no items.
 
+**What the items carry (`outputs`).** The node schema (`node schema app.<id>`, MCP `node_schema`) lists every op's output keys, so workflow authors and the validator know what `$json.<key>` a downstream node can read. They are derived from the op: a `binary.download` gives `mime_type`, `file_name`, `size`, `binary_property`; an `output.to` object gives its keys (plus `data`, for a scalar response `to` leaves alone); paginated ops add `pagination_truncated`; anything else is the open key `<API response fields>` (the API's own fields — the validator never flags a reference to an open key). Declare them instead when the API's response fields are known:
+
+```jsonc
+"outputs": [
+  { "key": "id", "type": "string", "description": "the event id" },
+  { "key": "<API response fields>", "type": "any" }   // keep the set open
+]
+```
+
+`type` is one of `string`, `number`, `boolean`, `object`, `array`, `any`; keys are unique. A package-level `outputs` applies to every op that declares none (it replaces derivation). A declared list without a `<…>` key is closed: the validator warns on references to other keys, so list every key the op can emit. Node schema outputs don't vary by operation: each entry carries `visible_for` (the ops that emit it) and, when not every op does, names them in its `description`.
+
 **Follow-up requests (`also`).** Some n8n operations make several calls (update fields, then tags, then star). List them in order under `also`; each runs after the main request with `res` bound to the main response (on a paginated op: `res` = the last page, `main` = the first), auth injected the same way, and is skipped when its `when` template renders empty or false. The output is still the main response.
 ```json
 "also": [
@@ -667,6 +697,10 @@ Workflow items carry files in `item.binary[<property>]` (n8n's
 `binary.upload_when` (template) decides per run whether to upload (n8n `sendBinaryData`); without the upload a multipart op sends its `body` as JSON (or nothing). `binary.multipart_field` may be a template, and `binary.property` (template) overrides the property read from `upload_field` — n8n's `"formField:binaryProperty"` values: `"multipart_field": "{{ p.binaryPropertyName | split:':' | get:'-2' | default:'file' }}"`, `"property": "{{ p.binaryPropertyName | split:':' | get:'-1' }}"`.
 
 **Files inside JSON.** Upload: `bin.base64` is the upload's bytes base64-encoded, for APIs that take file content in a JSON body (GitHub/GitLab `"content": "{{ p.binaryData | then:bin.base64 | default:(p.fileContent | base64) }}"` with `upload_when: "{{ p.binaryData }}"`). Download: `binary.download_base64` (template over `res`, e.g. `"{{ res.content }}"`) decodes a base64 file from the JSON response onto the item's binary (property from `property_field`, name from the `file_name` template, MIME type from `mime_type` or the name) and keeps the JSON as the item; gate it with `download_when`.
+
+**Several base64 files in one response (`download_each`).** `"download_each": "data"` (a response path to a list) turns each element into one item: `download_base64`, `file_name` and `mime_type` render with `el` = the element, the item's JSON is the element without the key that held the base64 text, plus `binary_property`, `file_name`, `mime_type` and `size` (OpenAI image generations: `"download_base64": "{{ el.b64_json }}"`). A file download (`download`) of an op that uploads nothing takes its name and type from `file_name`/`mime_type` when the response's headers give none.
+
+**Fields inside collections.** `upload_field` and `property_field` may be dotted to read a key of a collection field (`"upload_field": "options.binaryPropertyNameReference"`); `binary.property` (a template) also names a download's output property (`"{{ p.options.binaryPropertyOutput | default:'data' }}"`).
 
 `binary.fallback_body_type` (json/form/multipart/raw/none) is the body type when `upload_when` turns the upload off (LINE Notify stays a form without an image).
 
@@ -909,6 +943,8 @@ Optional keys the engine added (the design's keys are unchanged):
 | operation, steps | `stream` (read server-sent events until one matches); step `repeat`; poll `max_wait_seconds`; binary `upload_url` | §9, §10 |
 | package | `webhook` (app trigger registration: `fields`, `create`, `id`, `extra`, `delete`, `check`, `verify`); root `hook`; filter `map` | §17 |
 | templates | literal braces `\{{` / `\}}`; `hdr` = the previous webhook step's response headers | §5, §17 |
+| package, operation | `outputs` (declared output keys; else derived); schema `outputs` with `visible_for` | §9 |
+| binary | `download_each` (one item per base64 file in a list); dotted `upload_field`/`property_field`; `property` for downloads; download `file_name`/`mime_type` fallback | §10 |
 
 ## 17. App webhooks (`webhook`)
 

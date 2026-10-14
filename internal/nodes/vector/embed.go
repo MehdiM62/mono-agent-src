@@ -20,12 +20,16 @@ const (
 	ProviderMistral          = "mistral"
 	ProviderHuggingFace      = "huggingface"
 	ProviderBedrock          = "bedrock"
+	ProviderDatabricks       = "databricks"
+	ProviderVertex           = "vertex"
+	ProviderOracle           = "oracle"
 )
 
 // EmbeddingProviders lists every provider in display order.
 var EmbeddingProviders = []string{
 	ProviderOpenAICompatible, ProviderOllama, ProviderCohere, ProviderGemini,
 	ProviderMistral, ProviderHuggingFace, ProviderBedrock, ProviderAzureOpenAI,
+	ProviderDatabricks, ProviderVertex, ProviderOracle,
 }
 
 // purpose tells providers that distinguish them (Cohere, Gemini) whether a
@@ -55,6 +59,17 @@ type embedConfig struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	SessionToken    string
+	// databricks (also access_token) and vertex
+	AccessToken  string
+	ClientID     string
+	ClientSecret string
+	// vertex
+	ProjectID   string
+	Location    string
+	ClientEmail string
+	PrivateKey  string
+	// oracle
+	ConnectionString string
 }
 
 // parseEmbedConfig validates an embedding block. field names the config
@@ -62,17 +77,25 @@ type embedConfig struct {
 // vector.store's nested block).
 func parseEmbedConfig(cfg map[string]interface{}, field string) (embedConfig, error) {
 	c := embedConfig{
-		Provider:        strings.ToLower(strOr(cfg, ProviderOpenAICompatible, "provider")),
-		Model:           str(cfg, "model"),
-		BaseURL:         trimSlash(strOr(cfg, "", "base_url", "url", "endpoint", "host")),
-		APIKey:          str(cfg, "api_key"),
-		InputType:       str(cfg, "input_type"),
-		ResourceName:    str(cfg, "resource_name"),
-		APIVersion:      str(cfg, "api_version"),
-		Region:          str(cfg, "region"),
-		AccessKeyID:     str(cfg, "access_key_id"),
-		SecretAccessKey: str(cfg, "secret_access_key"),
-		SessionToken:    str(cfg, "session_token"),
+		Provider:         strings.ToLower(strOr(cfg, ProviderOpenAICompatible, "provider")),
+		Model:            str(cfg, "model"),
+		BaseURL:          trimSlash(strOr(cfg, "", "base_url", "url", "endpoint", "host")),
+		APIKey:           str(cfg, "api_key"),
+		InputType:        str(cfg, "input_type"),
+		ResourceName:     str(cfg, "resource_name"),
+		APIVersion:       str(cfg, "api_version"),
+		Region:           str(cfg, "region"),
+		AccessKeyID:      str(cfg, "access_key_id"),
+		SecretAccessKey:  str(cfg, "secret_access_key"),
+		SessionToken:     str(cfg, "session_token"),
+		AccessToken:      str(cfg, "access_token"),
+		ClientID:         str(cfg, "client_id"),
+		ClientSecret:     str(cfg, "client_secret"),
+		ProjectID:        str(cfg, "project_id"),
+		Location:         strOr(cfg, "", "location", "region"),
+		ClientEmail:      strOr(cfg, "", "client_email", "email"),
+		PrivateKey:       str(cfg, "private_key"),
+		ConnectionString: str(cfg, "connection_string"),
 	}
 	var err error
 	if c.BatchSize, err = intField(cfg, "batch_size", 100); err != nil {
@@ -80,6 +103,9 @@ func parseEmbedConfig(cfg map[string]interface{}, field string) (embedConfig, er
 	}
 	if c.BatchSize == 0 {
 		c.BatchSize = 100
+	}
+	if _, set := cfg["batch_size"]; !set && c.Provider == ProviderVertex {
+		c.BatchSize = 5 // Vertex caps the instances (and tokens) of one predict call
 	}
 	if c.Dimensions, err = intField(cfg, "dimensions", 0); err != nil {
 		return c, fmt.Errorf("%s%w", field, err)
@@ -121,13 +147,18 @@ func parseEmbedConfig(cfg map[string]interface{}, field string) (embedConfig, er
 		if c.Model == "" {
 			return c, fmt.Errorf("%smodel (the Azure deployment name) is required for provider azure_openai", field)
 		}
+	case ProviderDatabricks, ProviderVertex, ProviderOracle:
+		if err := c.parseMore(field); err != nil {
+			return c, err
+		}
 	default:
 		return c, fmt.Errorf("%sprovider %q is not supported (want one of %s)", field, c.Provider, strings.Join(EmbeddingProviders, ", "))
 	}
 	switch c.Provider {
-	case ProviderOpenAICompatible, ProviderOllama, ProviderBedrock:
+	case ProviderOpenAICompatible, ProviderOllama, ProviderBedrock, ProviderDatabricks, ProviderVertex, ProviderOracle:
 		// Keys are optional: local OpenAI-compatible servers and Ollama run
-		// without one; Bedrock signs with AWS keys checked above.
+		// without one; Bedrock signs with AWS keys checked above, and
+		// parseMore checked the others' credentials.
 	default:
 		if c.APIKey == "" {
 			return c, fmt.Errorf("%sapi_key is required for provider %s (set credential_id to a saved connection)", field, c.Provider)
@@ -145,6 +176,9 @@ func orDefault(v, def string) string {
 
 // embed returns one vector per text, batching requests by BatchSize.
 func (c embedConfig) embed(ctx context.Context, texts []string, p purpose) ([][]float64, error) {
+	if err := c.authorize(ctx); err != nil {
+		return nil, fmt.Errorf("%s embeddings: %w", c.Provider, err)
+	}
 	out := make([][]float64, 0, len(texts))
 	for start := 0; start < len(texts); start += c.BatchSize {
 		end := start + c.BatchSize
@@ -181,6 +215,12 @@ func (c embedConfig) embedBatch(ctx context.Context, texts []string, p purpose) 
 		return c.embedHuggingFace(ctx, texts)
 	case ProviderBedrock:
 		return c.embedBedrock(ctx, texts, p)
+	case ProviderDatabricks:
+		return c.embedOpenAI(ctx, c.BaseURL+"/ai-gateway/openai/v1/embeddings", map[string]string{"Authorization": bearer(c.AccessToken)}, texts)
+	case ProviderVertex:
+		return c.embedVertex(ctx, texts, p)
+	case ProviderOracle:
+		return c.embedOracle(ctx, texts)
 	}
 	return nil, fmt.Errorf("unsupported provider %q", c.Provider)
 }

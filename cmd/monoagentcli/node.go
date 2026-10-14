@@ -89,10 +89,6 @@ func resolveCredentialData(ctx context.Context, store *connections.Store, creden
 	return conn.Data, nil
 }
 
-// extensionListenAddr is the address this process's own extension server tries to bind
-// (bridge.ListenAddr).
-func extensionListenAddr() string { return bridge.ListenAddr() }
-
 // extensionProbeAddrs lists where an already-running relay may be found (bridge.ProbeAddrs).
 func extensionProbeAddrs() []string { return bridge.ProbeAddrs() }
 

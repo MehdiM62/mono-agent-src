@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 
@@ -34,25 +32,11 @@ func newExtensionServer(logger zerolog.Logger) *extension.Server {
 	return extensioncli.NewServer(logger, getVersion())
 }
 
-// findRunningBridge returns the status of an already-running bridge and the base URL it
-// answered on, or ok=false when none is up.
-func findRunningBridge() (extension.Status, string, bool) {
-	return findRunningBridgeCtx(context.Background())
-}
-
-// findRunningBridgeCtx is findRunningBridge that stops probing once ctx is done.
-func findRunningBridgeCtx(ctx context.Context) (extension.Status, string, bool) {
-	return extensioncli.FindRunningBridge(ctx)
-}
-
 // bridgeAdvice says how to keep a bridge running.
 const bridgeAdvice = extensioncli.BridgeAdvice
 
 // bridgeLifetimeHint is bridgeAdvice, but only for a bridge this process owns.
 func bridgeLifetimeHint(bridge connChecker) string { return extensioncli.BridgeLifetimeHint(bridge) }
-
-// bridgeAddr is the address a running bridge answers on.
-var bridgeAddr = extensioncli.BridgeAddr
 
 // captureHooks are the capture summaries and indexing installed into a server.
 type captureHooks = extensioncli.CaptureHooks

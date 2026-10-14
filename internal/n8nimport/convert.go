@@ -1,6 +1,7 @@
 package n8nimport
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -45,8 +46,48 @@ func Convert(raw []byte) (*workflow.WorkflowFile, *Report, error) {
 	if len(b.out.Nodes) > 200 {
 		b.rep.note("the converted workflow has %d nodes; mono-agent workflows hold at most 200, so split it before importing", len(b.out.Nodes))
 	}
+	b.rep.Validation = b.validationErrors()
 	b.rep.finish()
 	return b.out, b.rep, nil
+}
+
+// validationErrors are the errors `workflow validate` reports for the
+// converted workflow (kept expressions it cannot parse, required fields an
+// n8n node left empty, …): a result with any is not complete. A required
+// field missing on a node with a credential to connect is left out: the
+// report's "connect these" covers it, and the connection fills it in.
+func (b *builder) validationErrors() []string {
+	raw, err := json.Marshal(b.out)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	wf, err := workflow.ParseWorkflowFileBytes(raw)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	connected := map[string]bool{}
+	for _, cr := range b.rep.Credentials {
+		for _, name := range cr.Nodes {
+			if mn := b.mapped[name]; mn != nil {
+				connected[mn.entryID], connected[mn.exitID] = true, true
+				for _, id := range mn.alternates {
+					connected[id] = true
+				}
+			}
+		}
+	}
+	errs := []string{}
+	for _, is := range workflow.ValidateWorkflow(&wf, workflow.ValidateOptions{}).Issues {
+		if is.Severity != "error" || (is.Code == workflow.IssueMissingRequired && connected[is.NodeID]) {
+			continue
+		}
+		msg := is.Message
+		if is.NodeID != "" {
+			msg = fmt.Sprintf("node %q: %s", is.NodeID, msg)
+		}
+		errs = append(errs, msg)
+	}
+	return errs
 }
 
 // mappedNode is where one n8n node landed in the mono workflow.
@@ -127,6 +168,7 @@ func subTree(subs map[string][]SubNode, name string, depth int) []SubNode {
 
 func (b *builder) mapNodes() {
 	subs, parent := b.subNodes()
+	tools := b.toolNodes(subs)
 	for _, n := range b.src.Nodes {
 		b.reports[n.Name] = len(b.rep.Nodes)
 		b.rep.Nodes = append(b.rep.Nodes, NodeReport{Name: n.Name, N8nType: n.Type, TypeVersion: n.TypeVersion})
@@ -140,6 +182,10 @@ func (b *builder) mapNodes() {
 			continue
 		}
 		if p, ok := parent[n.Name]; ok {
+			if tools[n.Name] {
+				b.keepTool(n, p, subs, nr)
+				continue
+			}
 			nr.Status = StatusFolded
 			nr.Issues = append(nr.Issues, Issue{Severity: SevInfo, Message: fmt.Sprintf("sub-node folded into %q", p)})
 			continue
@@ -157,6 +203,10 @@ func (b *builder) runMapper(ctx *MapContext, nr *NodeReport) Mapping {
 	var m Mapping
 	native, hasNative := lookup(ctx.Type)
 	app, hasApp := lookupApp(ctx.Type)
+	if !hasNative && !hasApp && toolVariant(ctx) {
+		native, hasNative = lookup(ctx.Type)
+		app, hasApp = lookupApp(ctx.Type)
+	}
 	saw := rewriteSendAndWait(ctx)
 	switch {
 	case hasNative:
@@ -164,6 +214,10 @@ func (b *builder) runMapper(ctx *MapContext, nr *NodeReport) Mapping {
 		if ctx.opUnsupported && hasApp {
 			fresh := newMapContext(b.byName[ctx.NodeName], b.rep.Workflow)
 			fresh.SubNodes, fresh.OnErrorOutput, fresh.Params = ctx.SubNodes, ctx.OnErrorOutput, ctx.Params
+			if fresh.Type != ctx.Type {
+				fresh.Type = ctx.Type
+				ignoreToolParams(fresh)
+			}
 			*ctx = *fresh
 			m = mapApp(app, ctx)
 		}

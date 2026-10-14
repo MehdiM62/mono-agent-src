@@ -17,6 +17,7 @@ import (
 	agentnodes "github.com/monoes/mono-agent/internal/nodes/agent"
 	choosenodes "github.com/monoes/mono-agent/internal/nodes/ai/choose"
 	crawlnodes "github.com/monoes/mono-agent/internal/nodes/ai/crawl"
+	aisubnodes "github.com/monoes/mono-agent/internal/nodes/aisub"
 	applicationsnodes "github.com/monoes/mono-agent/internal/nodes/applications"
 	applynodes "github.com/monoes/mono-agent/internal/nodes/apply"
 	"github.com/monoes/mono-agent/internal/nodes/browserjev"
@@ -26,6 +27,7 @@ import (
 	dbnodes "github.com/monoes/mono-agent/internal/nodes/db"
 	discoverynodes "github.com/monoes/mono-agent/internal/nodes/discovery"
 	documentsnodes "github.com/monoes/mono-agent/internal/nodes/documents"
+	guardrailsnodes "github.com/monoes/mono-agent/internal/nodes/guardrails"
 	httpnodes "github.com/monoes/mono-agent/internal/nodes/http"
 	imagenodes "github.com/monoes/mono-agent/internal/nodes/image"
 	matchingnodes "github.com/monoes/mono-agent/internal/nodes/matching"
@@ -63,11 +65,13 @@ func Build(db *sql.DB) *workflow.NodeTypeRegistry {
 
 	// Local AI agent nodes (monomind delegation) — no store needed.
 	agentnodes.RegisterAll(registry)
-	mcpnodes.RegisterAll(registry) // mcp.call: MCP client (stdio / Streamable HTTP)
+	aisubnodes.RegisterAll(registry) // ai.model / ai.memory / ai.output_parser: sub-nodes of agent.ask
+	mcpnodes.RegisterAll(registry)   // mcp.call: MCP client (stdio / Streamable HTTP)
 
 	// Goal-driven browser agent (TypeSafe Jev) in the user's own browser.
 	browserjev.RegisterAll(registry)
-	choosenodes.RegisterAll(registry) // ai.choose: route items by a TypeSafe Jev choice
+	choosenodes.RegisterAll(registry)     // ai.choose: route items by a TypeSafe Jev choice
+	guardrailsnodes.RegisterAll(registry) // ai.guardrails: check or sanitize text (n8n Guardrails)
 
 	// Org runtime node (org.run) — kicks off/manages agent orgs from workflows.
 	orgnodes.RegisterAll(registry)

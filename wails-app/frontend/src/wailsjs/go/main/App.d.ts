@@ -97,6 +97,8 @@ export function BindBrowser(arg1:string,arg2:string):Promise<main.BrowserRow>;
 
 export function CancelHealthRun(arg1:string):Promise<string>;
 
+export function CancelPlatformOAuth(arg1:string):Promise<string>;
+
 export function CancelWorkflow(arg1:string):Promise<void>;
 
 export function CheckForUpdate():Promise<main.UpdateInfo>;
@@ -134,6 +136,8 @@ export function ComposePersonMessage(arg1:string,arg2:string,arg3:string,arg4:st
 export function ConfirmSocialLogin(arg1:string):Promise<string>;
 
 export function ConnectPlatformOAuth(arg1:string):Promise<string>;
+
+export function ConnectPlatformOAuthFields(arg1:string,arg2:Array<string>,arg3:string):Promise<string>;
 
 export function ControlOrg(arg1:string,arg2:string):Promise<string>;
 
@@ -624,6 +628,8 @@ export function SetOrgSchedule(arg1:string,arg2:string):Promise<string>;
 export function SetWorkflowActive(arg1:string,arg2:boolean):Promise<void>;
 
 export function ShowAutomation(arg1:string):Promise<string>;
+
+export function ShowPlatform(arg1:string):Promise<string>;
 
 export function ShowRecording(arg1:string):Promise<string>;
 

@@ -48,6 +48,7 @@ func Parse(b []byte, source string) (*Package, error) {
 		return nil, &ValidationError{Source: source, Problems: probs}
 	}
 	p.Source = source
+	p.defaultRequiredSelects()
 	return &p, nil
 }
 
@@ -85,6 +86,7 @@ func (p *Package) check() []string {
 	probs = append(probs, checkTemplates("base_url", p.BaseURL, nil, credKeys)...)
 	probs = append(probs, checkHeaderTemplates("package", p.Headers, nil, credKeys)...)
 	probs = append(probs, checkTemplates("error_when", []any{p.ErrorWhen, p.ErrorMessage}, anyField, credKeys)...)
+	probs = append(probs, checkOutputDecls("outputs", p.Outputs)...)
 
 	if p.Extends != "" {
 		native := nativeOperations(p.Extends)
@@ -114,6 +116,7 @@ func (p *Package) check() []string {
 			add("%s: resource %q set but the package has no resources[]", where, o.Resource)
 		}
 		probs = append(probs, o.check(where, credKeys)...)
+		probs = append(probs, checkOutputDecls(where+": outputs", o.Outputs)...)
 	}
 	for _, r := range p.Resources {
 		if !used[r.Value] {
@@ -392,7 +395,8 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 	}
 	if b := o.Binary; b != nil {
 		for _, f := range []string{b.UploadField, b.PropertyField} {
-			if f != "" && !fields[f] {
+			// A dotted name reads a key of a collection field.
+			if f != "" && !fields[strings.SplitN(f, ".", 2)[0]] {
 				add("binary: %q is not one of the op's fields", f)
 			}
 		}

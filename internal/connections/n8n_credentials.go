@@ -25,7 +25,7 @@ var N8nCredentials = map[string]N8nCredentialMapping{
 	// Google
 	"googleApi": {
 		Platform: "google", Umbrella: "google",
-		Note: "n8n service-account (JWT) credential; connect a Google account with `monoagentcli connect google` instead",
+		Note: "n8n service-account (JWT) credential; connect a Google account with `monoagentcli connect google` instead (Vertex AI embeddings take the service account itself: `monoagentcli connect google_service_account`)",
 	},
 	"googleOAuth2Api":                         {Platform: "google", Umbrella: "google"},
 	"googleSheetsOAuth2Api":                   {Platform: "google_sheets", Umbrella: "google", ScopeGroups: []string{"sheets"}},

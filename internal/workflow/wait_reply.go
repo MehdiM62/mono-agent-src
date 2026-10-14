@@ -106,9 +106,10 @@ type WaitReply struct {
 
 // ReplyLink is one captioned link of a reply.
 type ReplyLink struct {
-	Label, URL string
+	Label string `json:"label"`
+	URL   string `json:"url"`
 	// Primary marks the main action (Approve, Respond) for styling.
-	Primary bool
+	Primary bool `json:"primary,omitempty"`
 }
 
 // Pause is the error a node returns to wait for this reply: the run waits
@@ -344,6 +345,10 @@ func openReply(ctx context.Context, db *sql.DB, input NodeInput) (*WaitReplyResu
 	return res, nil
 }
 
+// ExecutionData is $execution with its resume URLs, for nodes that bind it
+// themselves (core.code).
+func ExecutionData(id string) map[string]interface{} { return executionData(id, true) }
+
 // executionData is $execution: its id and, when withURLs, the resume URL
 // n8n templates reach as $execution.resumeUrl / resumeFormUrl (one URL
 // serves both a core.wait webhook and form).
@@ -355,4 +360,41 @@ func executionData(id string, withURLs bool) map[string]interface{} {
 		}
 	}
 	return m
+}
+
+// PendingReply is an open reply a waiting execution can be answered
+// through: the node that waits, the kind of reply and its links.
+type PendingReply struct {
+	NodeID    string      `json:"node_id"`
+	Kind      string      `json:"kind"`
+	URL       string      `json:"url"`
+	Links     []ReplyLink `json:"links,omitempty"`
+	ExpiresAt string      `json:"expires_at,omitempty"`
+}
+
+// PendingReplies lists executionID's unanswered replies, oldest first, so
+// a user can find where to resume a run paused at core.wait (webhook or
+// form) or at a node's approval or form links.
+func PendingReplies(ctx context.Context, db *sql.DB, executionID string) ([]PendingReply, error) {
+	rows, err := db.QueryContext(ctx,
+		`SELECT node_id, token, kind, spec, COALESCE(expires_at,'') FROM wait_replies
+		 WHERE execution_id=? AND status='pending' AND consumed=0 ORDER BY created_at, rowid`, executionID)
+	if err != nil {
+		return nil, fmt.Errorf("wait reply: list: %w", err)
+	}
+	defer rows.Close()
+	var out []PendingReply
+	for rows.Next() {
+		var p PendingReply
+		var token, specJSON string
+		if err := rows.Scan(&p.NodeID, &token, &p.Kind, &specJSON, &p.ExpiresAt); err != nil {
+			return nil, fmt.Errorf("wait reply: list: %w", err)
+		}
+		var spec WaitReplySpec
+		_ = json.Unmarshal([]byte(specJSON), &spec)
+		r := replyOf(token, p.Kind, spec)
+		p.URL, p.Links = r.URL, r.Links
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }

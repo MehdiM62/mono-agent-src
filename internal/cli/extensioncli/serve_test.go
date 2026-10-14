@@ -226,15 +226,6 @@ func TestBridgeLifetimeHint_OnlyForABridgeThisProcessOwns(t *testing.T) {
 	}
 }
 
-// fakeAddrBridge is a bridge that owns a port, the way *extension.
-// ServerBridge does, without needing a real server behind it.
-type fakeAddrBridge struct {
-	addr string
-}
-
-func (f *fakeAddrBridge) IsConnected() bool    { return false }
-func (f *fakeAddrBridge) Addr() (string, bool) { return f.addr, f.addr != "" }
-
 // A client whose pairing token is not the running bridge's must not be told
 // the bridge is simply connected: every relayed command it sends gets 401.
 func TestExtensionStatus_ReportsPairingTokenMismatch(t *testing.T) {

@@ -3,6 +3,7 @@ package vector
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -186,12 +187,13 @@ func (b *oracleBackend) Search(ctx context.Context, vector []float64, topK int, 
 	defer rows.Close()
 	var out []Document
 	for rows.Next() {
-		var id, content, meta sql.NullString
+		var id interface{}
+		var content, meta sql.NullString
 		var dist float64
 		if err := rows.Scan(&id, &content, &meta, &dist); err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
 		}
-		d := Document{ID: id.String, Content: content.String, Metadata: map[string]interface{}{}}
+		d := Document{ID: oracleID(id), Content: content.String, Metadata: map[string]interface{}{}}
 		if meta.Valid && meta.String != "" {
 			if err := json.Unmarshal([]byte(meta.String), &d.Metadata); err != nil {
 				return nil, fmt.Errorf("document %q metadata: %w", d.ID, err)
@@ -205,6 +207,22 @@ func (b *oracleBackend) Search(ctx context.Context, vector []float64, topK int, 
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+// oracleID renders an id column value. A RAW id (tables LangChain's
+// OracleVS creates for n8n: RAW(16) DEFAULT SYS_GUID()) is shown as Oracle
+// shows it, uppercase hex (RAWTOHEX), which Oracle converts back when the
+// id is passed to Delete.
+func oracleID(v interface{}) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case []byte:
+		return strings.ToUpper(hex.EncodeToString(t))
+	case string:
+		return t
+	}
+	return fmt.Sprint(v)
 }
 
 func (b *oracleBackend) Delete(ctx context.Context, ids []string, filter interface{}, all bool) (int, error) {

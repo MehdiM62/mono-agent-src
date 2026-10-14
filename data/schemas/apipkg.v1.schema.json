@@ -28,9 +28,20 @@
     "credentials": { "type": "array", "items": { "$ref": "#/$defs/credential" } },
     "resources": { "type": "array", "items": { "$ref": "#/$defs/resource" } },
     "operations": { "type": "array", "items": { "$ref": "#/$defs/operation" } },
-    "webhook": { "$ref": "#/$defs/webhook" }
+    "webhook": { "$ref": "#/$defs/webhook" },
+    "outputs": { "type": "array", "items": { "$ref": "#/$defs/outputDecl" } }
   },
   "$defs": {
+    "outputDecl": {
+      "type": "object",
+      "required": ["key"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "enum": ["", "string", "number", "boolean", "object", "array", "any"] },
+        "description": { "type": "string" }
+      }
+    },
     "repeat": {
       "type": "object",
       "required": ["until"],
@@ -200,6 +211,7 @@
         "headers": { "$ref": "#/$defs/stringMap" },
         "fields": { "type": "array", "items": { "$ref": "#/$defs/field" } },
         "pagination": { "$ref": "#/$defs/pagination" },
+        "outputs": { "type": "array", "items": { "$ref": "#/$defs/outputDecl" } },
         "output": {
           "type": "object",
           "additionalProperties": false,
@@ -293,6 +305,7 @@
             "upload_when": { "type": "string" },
             "fallback_body_type": { "type": "string", "enum": ["json", "form", "multipart", "raw", "none", "ndjson"] },
             "download_base64": { "type": "string" },
+            "download_each": { "type": "string" },
             "property": { "type": "string" },
             "properties": { "type": "string" },
             "upload_text": { "type": "string" },
@@ -465,7 +478,16 @@
         "rows": { "type": "integer" },
         "min": { "type": "number" },
         "max": { "type": "number" },
-        "item_type": { "type": "string" }
+        "item_type": { "type": "string" },
+        "depends_on": {
+          "type": "object",
+          "required": ["key", "values"],
+          "additionalProperties": false,
+          "properties": {
+            "key": { "type": "string", "minLength": 1 },
+            "values": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          }
+        }
       }
     },
     "step": {

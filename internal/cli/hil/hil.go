@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/hilsuggest"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
@@ -241,6 +242,33 @@ func storedHILSuggestion(nc map[string]interface{}) (*hilsuggest.Suggestion, boo
 	return &s, true
 }
 
+// fullHILID expands the short id `hil list` prints to the id of the one
+// pending item it starts; anything else is returned as given.
+func (d Deps) fullHILID(id string) string {
+	db, err := d.OpenDB()
+	if err != nil {
+		return id
+	}
+	defer db.Close()
+	rows, err := db.DB.Query(`SELECT id FROM hil_pending WHERE status = 'pending' AND profile_id = ? AND substr(id, 1, ?) = ? LIMIT 2`,
+		d.ProfileID(), len(id), id)
+	if err != nil {
+		return id
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var full string
+		if rows.Scan(&full) == nil {
+			ids = append(ids, full)
+		}
+	}
+	if len(ids) == 1 {
+		return ids[0]
+	}
+	return id
+}
+
 func (d Deps) newHILApproveCmd() *cobra.Command {
 	var editedData string
 	cmd := &cobra.Command{
@@ -251,6 +279,7 @@ func (d Deps) newHILApproveCmd() *cobra.Command {
   monoagentcli hil approve 1a2b3c4d --data '{"caption":"edited text"}'`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			args[0] = d.fullHILID(args[0])
 			if editedData == "" {
 				editedData = "{}"
 			}
@@ -278,11 +307,7 @@ func (d Deps) newHILApproveCmd() *cobra.Command {
 			if n, _ := res.RowsAffected(); n == 0 {
 				return d.NotFound("HIL item %q not found or already resolved", args[0])
 			}
-			if d.JSONOutput() {
-				return json.NewEncoder(os.Stdout).Encode(map[string]string{"id": args[0], "status": "approved"})
-			}
-			fmt.Printf("Approved HIL item %s\n", args[0])
-			return nil
+			return printDecision(d.JSONOutput(), args[0], "approved")
 		},
 	}
 	cmd.Flags().StringVar(&editedData, "data", "", "JSON object overriding the item's editable data")
@@ -296,6 +321,7 @@ func (d Deps) newHILRejectCmd() *cobra.Command {
 		Example: `  monoagentcli hil reject 1a2b3c4d`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			args[0] = d.fullHILID(args[0])
 			if done, err := d.approveIfSend(cmd, args[0], false, ""); done {
 				return err
 			}
@@ -316,11 +342,34 @@ func (d Deps) newHILRejectCmd() *cobra.Command {
 			if n, _ := res.RowsAffected(); n == 0 {
 				return d.NotFound("HIL item %q not found or already resolved", args[0])
 			}
-			if d.JSONOutput() {
-				return json.NewEncoder(os.Stdout).Encode(map[string]string{"id": args[0], "status": "rejected"})
-			}
-			fmt.Printf("Rejected HIL item %s\n", args[0])
-			return nil
+			return printDecision(d.JSONOutput(), args[0], "rejected")
 		},
 	}
+}
+
+// noDaemonHint follows a decision when no daemon is running: the paused run
+// only resumes in a running engine, and a `workflow run` stops waiting when
+// its run pauses for a review.
+const noDaemonHint = "No daemon is running, so the paused run stays WAITING until one is: start it with `monoagentcli daemon`."
+
+// printDecision reports an approved or rejected item, with noDaemonHint
+// when no daemon will resume its run (a "hint" field with --json).
+func printDecision(jsonOut bool, id, status string) error {
+	_, live := daemonhb.Read()
+	if jsonOut {
+		rec := map[string]string{"id": id, "status": status}
+		if !live {
+			rec["hint"] = noDaemonHint
+		}
+		return json.NewEncoder(os.Stdout).Encode(rec)
+	}
+	verb := "Approved"
+	if status == "rejected" {
+		verb = "Rejected"
+	}
+	fmt.Printf("%s HIL item %s\n", verb, id)
+	if !live {
+		fmt.Printf("Hint: %s\n", noDaemonHint)
+	}
+	return nil
 }

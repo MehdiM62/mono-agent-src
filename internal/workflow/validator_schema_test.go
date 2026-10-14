@@ -109,6 +109,11 @@ func TestValidateWorkflowIssues(t *testing.T) {
 			want: []wantIssue{{"s", "assignments[0].value", IssueBadExpression, "error"}},
 		},
 		{
+			name:  "JavaScript with }} is not an expression",
+			w:     vwf(trig, vnode("c", "core.code", "Code", map[string]interface{}{"code": "var q = {\"a\":{\"b\":1}}; return [{json: $json}];"})),
+			valid: true,
+		},
+		{
 			name: "n8n $('X') syntax",
 			w:    vwf(trig, vnode("s", "core.set", "Set", map[string]interface{}{"assignments": assigns("a", "{{ $('Gone').json.x }}")})),
 			want: []wantIssue{
@@ -244,14 +249,14 @@ func TestOptionIssuesFollowDependsOn(t *testing.T) {
 		{Key: "credential_id", Type: "credential_picker", Required: true},
 	}}
 	ok := vnode("a", "x.y", "A", map[string]interface{}{"resource": "record", "operation": "create"})
-	for _, is := range fieldIssues(ok, s) {
+	for _, is := range fieldIssues(ok, s, nil) {
 		if is.Code == IssueInvalidOption {
 			t.Fatalf("valid operation for its resource reported: %+v", is)
 		}
 	}
 	bad := vnode("b", "x.y", "B", map[string]interface{}{"resource": "base", "operation": "create"})
 	var opts, setup int
-	for _, is := range fieldIssues(bad, s) {
+	for _, is := range fieldIssues(bad, s, nil) {
 		switch is.Code {
 		case IssueInvalidOption:
 			opts++
@@ -306,7 +311,7 @@ func TestFieldIssuesHonourDependsOnAndVisibleFor(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := map[string]int{}
-			for _, is := range fieldIssues(vnode("n", "x.y", "N", tc.config), s) {
+			for _, is := range fieldIssues(vnode("n", "x.y", "N", tc.config), s, nil) {
 				got[is.Code]++
 				if is.Code == IssueInvalidOption && tc.wantHint != "" && is.Hint != "use one of: "+tc.wantHint {
 					t.Errorf("hint = %q, want the applicable options %q", is.Hint, tc.wantHint)
@@ -332,5 +337,18 @@ func TestNodeSchemaFieldVisibleForJSON(t *testing.T) {
 	}
 	if len(f.VisibleFor) != 1 || f.VisibleFor[0]["resource"] != "message" || f.VisibleFor[0]["operation"] != "reply" {
 		t.Fatalf("VisibleFor = %v", f.VisibleFor)
+	}
+}
+
+// node_timeout is read by the engine for every node type, like
+// retry_policy, so it is not an unknown field of the node.
+func TestValidateWorkflowNodeTimeoutIsGeneric(t *testing.T) {
+	rep := ValidateWorkflow(vwf(trig,
+		vnode("h", "http.request", "Fetch", map[string]interface{}{"url": "https://x", "node_timeout": 2})),
+		ValidateOptions{KnownNodeType: knownTypes()})
+	for _, is := range rep.Issues {
+		if is.Code == IssueUnknownField {
+			t.Errorf("unexpected issue: %+v", is)
+		}
 	}
 }

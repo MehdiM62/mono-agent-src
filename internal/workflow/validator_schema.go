@@ -48,8 +48,8 @@ type ValidateOptions struct {
 }
 
 // genericConfigKeys are config keys the engine (or every node) reads
-// whatever the node type: execution.go's on_error, retry_policy and
-// credential_id (plus the credential/username it injects), the profile
+// whatever the node type: execution.go's on_error, retry_policy,
+// node_timeout and credential_id (plus the credential/username it injects), the profile
 // a node runs under, and editor metadata.
 var genericConfigKeys = map[string]bool{
 	"on_error": true, "retry_policy": true, "credential_id": true,
@@ -58,7 +58,7 @@ var genericConfigKeys = map[string]bool{
 	"notes": true, "disabled": true, "description": true, "label": true,
 	"always_output_data": true, "execute_once": true, "executeOnce": true,
 	"max_tries": true, "wait_between_tries": true,
-	"execute_once_per_item": true,
+	"execute_once_per_item": true, "node_timeout": true,
 }
 
 func isGenericConfigKey(k string) bool {
@@ -132,6 +132,7 @@ func schemaIssues(w *Workflow, opts ValidateOptions) []ValidationIssue {
 		}
 	}
 	g := newOutputGraph(nodes, w.Connections)
+	attached := attachedSubKinds(nodes, w.Connections)
 
 	for _, n := range nodes {
 		if n.Type == "" {
@@ -151,7 +152,7 @@ func schemaIssues(w *Workflow, opts ValidateOptions) []ValidationIssue {
 		}
 		schema, ok := checkedSchema(n.Type)
 		if ok {
-			out = append(out, fieldIssues(n, schema)...)
+			out = append(out, fieldIssues(n, schema, attached[n.ID])...)
 		}
 		var fieldTypes map[string]string
 		if ok {
@@ -167,7 +168,11 @@ func schemaIssues(w *Workflow, opts ValidateOptions) []ValidationIssue {
 		sort.Strings(keys)
 		for _, k := range keys {
 			walkStrings(n.Config[k], k, func(path, s string) {
-				out = append(out, expressionIssues(n.ID, path, s, refNames)...)
+				// Code without "{{" runs as written: its "}}" closes nested
+				// JavaScript blocks, not a template.
+				if fieldTypes[k] != "code" || strings.Contains(s, "{{") {
+					out = append(out, expressionIssues(n.ID, path, s, refNames)...)
+				}
 				out = append(out, g.upstreamFieldIssues(n, path, s)...)
 			})
 		}
@@ -195,7 +200,51 @@ func isExpression(v interface{}) bool {
 	return ok && strings.Contains(s, "{{")
 }
 
-func fieldIssues(n WorkflowNode, s *NodeSchema) []ValidationIssue {
+// subSuppliedFields are the config fields of a root node that an attached
+// AI sub-node of a kind supplies: a root with that sub-node attached need
+// not set them.
+var subSuppliedFields = map[string]map[string][]string{
+	"agent.ask":     {"ai_languageModel": {"runtime", "model"}},
+	"ai.guardrails": {"ai_languageModel": {"runtime", "model"}},
+}
+
+// attachedSubKinds returns, per root node id, the kinds of the enabled AI
+// sub-nodes attached to it.
+func attachedSubKinds(nodes []WorkflowNode, conns []WorkflowConnection) map[string]map[string]bool {
+	disabled := map[string]bool{}
+	for _, n := range nodes {
+		if n.Disabled {
+			disabled[n.ID] = true
+		}
+	}
+	out := map[string]map[string]bool{}
+	for _, c := range conns {
+		kind := c.SourceHandle
+		if !IsSubNodeHandle(kind) {
+			kind = c.TargetHandle
+		}
+		if !IsSubNodeHandle(kind) || disabled[c.SourceNodeID] {
+			continue
+		}
+		if out[c.TargetNodeID] == nil {
+			out[c.TargetNodeID] = map[string]bool{}
+		}
+		out[c.TargetNodeID][kind] = true
+	}
+	return out
+}
+
+// fieldIssues checks n's config against its schema. subKinds are the kinds
+// of the AI sub-nodes attached to n (nil for none).
+func fieldIssues(n WorkflowNode, s *NodeSchema, subKinds map[string]bool) []ValidationIssue {
+	supplied := map[string]bool{}
+	for kind, fields := range subSuppliedFields[n.Type] {
+		if subKinds[kind] {
+			for _, f := range fields {
+				supplied[f] = true
+			}
+		}
+	}
 	var out []ValidationIssue
 	known := map[string]bool{}
 	for _, f := range s.Fields {
@@ -208,7 +257,7 @@ func fieldIssues(n WorkflowNode, s *NodeSchema) []ValidationIssue {
 	for i := range s.Fields {
 		f := &s.Fields[i]
 		v, present := n.Config[f.Key]
-		if f.Required && (!present || isEmptyValue(v)) && f.Default == nil && !reported[f.Key] {
+		if f.Required && (!present || isEmptyValue(v)) && f.Default == nil && !reported[f.Key] && !supplied[f.Key] {
 			if applies, ok := fieldApplies(n, s, f); applies && ok {
 				reported[f.Key] = true
 				is := ValidationIssue{

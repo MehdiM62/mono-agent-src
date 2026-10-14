@@ -13,8 +13,12 @@ import (
 )
 
 // n8nIncompleteError is returned (after the result was printed) when an
-// n8n workflow converted with placeholder nodes: exit code 3.
+// n8n workflow converted with placeholder nodes or validation errors: exit
+// code 3.
 func (d Deps) n8nIncompleteError(rep *n8nimport.Report) error {
+	if rep.Counts.Unmapped == 0 {
+		return d.Reported(d.InvalidInput("n8n import incomplete: the converted workflow has %d validation error(s) (see the report)", rep.Counts.ValidationErrors))
+	}
 	return d.Reported(d.InvalidInput("n8n import incomplete: %d node(s) have no mono-agent equivalent and fail until replaced (see the report)", rep.Counts.Unmapped))
 }
 
@@ -63,7 +67,7 @@ func (d Deps) convertN8n(raw []byte) ([]byte, *n8nimport.Report, error) {
 // result. The file may also be given as a positional argument.
 func (d Deps) withN8nImport(cmd *cobra.Command) {
 	var from string
-	cmd.Flags().StringVar(&from, "from", "", `Convert from another tool's format first: "n8n" (an n8n workflow export; prints a conversion report, exit 3 when a node has no equivalent)`)
+	cmd.Flags().StringVar(&from, "from", "", `Convert from another tool's format first: "n8n" (an n8n workflow export; prints a conversion report, exit 3 when a node has no equivalent or the result fails validate)`)
 	cmd.Use = "import [file|-]"
 	cmd.Args = cobra.MaximumNArgs(1)
 	run := cmd.RunE
@@ -135,7 +139,9 @@ the conversion report to stderr, so the output can be piped into
 "workflow import". With --json, stdout holds {"workflow": …, "report": …}.
 
 Exit code 3 when a node has no mono-agent equivalent (it becomes a placeholder
-that fails until replaced) or the input is not an n8n workflow.`,
+that fails until replaced), when the result fails "workflow validate" (the report
+lists the errors; a field a listed connection supplies does not count), or the
+input is not an n8n workflow.`,
 		Example: `  monoagentcli workflow convert --from n8n my-flow.json > mono-flow.json
   monoagentcli --json workflow convert --from n8n my-flow.json | jq .report.counts
   monoagentcli workflow import --from n8n my-flow.json   # convert and save in one step`,

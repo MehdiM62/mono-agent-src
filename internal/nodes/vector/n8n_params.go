@@ -80,6 +80,17 @@ func storeNode(provider, mode string, extra map[string]string, coverage, notes s
 		Params: storeParams(extra), Coverage: coverage, Notes: notes}
 }
 
+// oracleStoreNode maps n8n's Oracle vector store. n8n's tables key documents
+// by external_id (the RAW id column is filled by SYS_GUID), so imports read
+// and write that column and return the same ids n8n showed.
+func oracleStoreNode() N8nNodeMapping {
+	m := storeNode(StoreOracle, "", map[string]string{
+		"tableName": "collection", "options.distanceStrategy": "distance", "options.metadata.metadataValues": "filter",
+	}, "partial", "documents are keyed by the external_id column, as in n8n's tables; tested against a fake driver, not a live Oracle database")
+	m.Fixed["id_column"] = "external_id"
+	return m
+}
+
 func embedNode(provider string, params map[string]string, coverage, notes string) N8nNodeMapping {
 	return N8nNodeMapping{Role: N8nRoleEmbedding, OurType: "vector.embed",
 		Fixed: map[string]interface{}{"provider": provider}, Params: params, Coverage: coverage, Notes: notes}
@@ -108,8 +119,9 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 		"model": "model", "options.batchSize": "batch_size",
 	}, "full", ""),
 	N8nPrefix + "embeddingsGoogleGemini": embedNode(ProviderGemini, map[string]string{"modelName": "model"}, "full", ""),
-	N8nPrefix + "embeddingsGoogleVertex": embedNode(ProviderGemini, map[string]string{"modelName": "model"}, "partial",
-		"Vertex service-account auth is not supported; the node is mapped to the Gemini API, so connect a Gemini API key"),
+	N8nPrefix + "embeddingsGoogleVertex": embedNode(ProviderVertex, map[string]string{
+		"modelName": "model", "projectId": "project_id", "location": "location",
+	}, "full", ""),
 	N8nPrefix + "embeddingsHuggingFaceInference": embedNode(ProviderHuggingFace, map[string]string{
 		"modelName": "model", "options.endpointUrl": "base_url",
 	}, "full", ""),
@@ -121,8 +133,10 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 	N8nPrefix + "embeddingsLemonade": {Role: N8nRoleEmbedding, OurType: "vector.embed",
 		Fixed: map[string]interface{}{"provider": ProviderOpenAICompatible}, Params: map[string]string{"model": "model"},
 		Coverage: "partial", Notes: "Lemonade serves an OpenAI-compatible API; set base_url to the server (e.g. http://localhost:8000/api/v1)"},
-	N8nPrefix + "embeddingsDatabricks": {Role: N8nRoleEmbedding, Coverage: "unsupported", Notes: "no Databricks provider"},
-	N8nPrefix + "embeddingsOracleDb":   {Role: N8nRoleEmbedding, Coverage: "unsupported", Notes: "no Oracle DB provider"},
+	N8nPrefix + "embeddingsDatabricks": embedNode(ProviderDatabricks, map[string]string{
+		"model": "model", "options.batchSize": "batch_size",
+	}, "full", ""),
+	N8nPrefix + "embeddingsOracleDb": embedNode(ProviderOracle, map[string]string{"model": "model"}, "full", ""),
 
 	// ── vector stores ───────────────────────────────────────────────────────
 	N8nPrefix + "vectorStoreQdrant":         storeNode(StoreQdrant, "", qdrantParams, "partial", "options.collectionConfig (custom collection creation) is not mapped; collections are created with the vector size and Cosine distance"),
@@ -173,9 +187,7 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 		"databricksIndex": "collection", "contentColumn": "content_column", "options.metadataColumns": "metadata_columns",
 		"options.searchMode": "search_mode",
 	}, "partial", "Databricks deletes by primary key only, so clearing the index before an insert is not available"),
-	N8nPrefix + "vectorStoreOracleDBVector": storeNode(StoreOracle, "", map[string]string{
-		"tableName": "collection", "options.distanceStrategy": "distance", "options.metadata.metadataValues": "filter",
-	}, "partial", "new tables use id VARCHAR2, text CLOB, metadata JSON and embedding VECTOR columns; a table created by n8n (RAW ids) can be searched but ids come back as raw bytes"),
+	N8nPrefix + "vectorStoreOracleDBVector": oracleStoreNode(),
 
 	// ── text splitters ──────────────────────────────────────────────────────
 	N8nPrefix + "textSplitterCharacterTextSplitter": {Role: N8nRoleSplitter, OurType: "vector.split_text",
@@ -242,6 +254,7 @@ var N8nCredentialMappings = map[string]N8nCredentialMapping{
 	"mistralCloudApi":     {"mistral", map[string]string{"apiKey": "api_key"}},
 	"googlePalmApi":       {"gemini_api", map[string]string{"apiKey": "api_key", "host": "base_url"}},
 	"huggingFaceApi":      {"huggingface", map[string]string{"apiKey": "api_key"}},
+	"googleApi":           {"google_service_account", map[string]string{"email": "client_email", "privateKey": "private_key", "region": "location"}},
 	"aws":                 {"aws", map[string]string{"accessKeyId": "access_key_id", "secretAccessKey": "secret_access_key", "sessionToken": "session_token", "region": "region"}},
 	"nvidiaApi":           {"openai", map[string]string{"apiKey": "api_key", "url": "base_url"}},
 	"qdrantApi":           {"qdrant", map[string]string{"qdrantUrl": "url", "apiKey": "api_key"}},

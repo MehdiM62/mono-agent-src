@@ -21,7 +21,7 @@ func TestN8nAzureDatabricksOracleStoresMap(t *testing.T) {
 		{"vectorStoreOracleDBVector", map[string]interface{}{"mode": "retrieve", "tableName": "n8n_vectors",
 			"options": map[string]interface{}{"distanceStrategy": "DOT", "metadata": map[string]interface{}{
 				"metadataValues": []interface{}{map[string]interface{}{"name": "lang", "value": "en"}}}}},
-			map[string]interface{}{"provider": "oracle", "mode": "search", "collection": "n8n_vectors", "distance": "DOT",
+			map[string]interface{}{"provider": "oracle", "mode": "search", "collection": "n8n_vectors", "distance": "DOT", "id_column": "external_id",
 				"filter": []interface{}{map[string]interface{}{"name": "lang", "value": "en"}}}},
 	}
 	for _, c := range cases {
