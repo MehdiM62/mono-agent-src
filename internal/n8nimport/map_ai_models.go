@@ -79,7 +79,9 @@ func applyModel(c *MapContext, cfg map[string]interface{}) {
 			c.Warn("tools", s.Name, "the %s tool is kept as the disabled node %q: agent.ask cannot call tools yet, so the agent answers without it",
 				shortType(s.Type), s.Name)
 		case "ai_memory":
-			c.Warn("memory", s.Name, "conversation memory (%s) is not kept between runs", shortType(s.Type))
+			if !applyChatMemory(c, cfg, s) {
+				c.Warn("memory", s.Name, "conversation memory (%s) is not kept between runs", shortType(s.Type))
+			}
 		case "ai_outputParser":
 			c.Warn("outputParser", s.Name, "structured output parsing (%s) is not applied; ask for JSON in the prompt", shortType(s.Type))
 		default:

@@ -1,7 +1,7 @@
-// Package apiconfig is `monoagentcli api config show|set|unset`: the saved settings of the
-// OpenAI-compatible API's server (the documents are internal/apiconfig's). Everything the
-// commands need from the CLI around them comes in through Deps, so they can be tested in
-// isolation.
+// Package apiconfig is `monoagentcli api config show|set|unset`, `api models` and `api status`:
+// the saved settings of the OpenAI-compatible API's server, what it serves and where it listens
+// (the documents are internal/apiconfig's). Everything the commands need from the CLI around
+// them comes in through Deps, so they can be tested in isolation.
 package apiconfig
 
 import (
