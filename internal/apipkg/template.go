@@ -593,8 +593,9 @@ func renderObject(m map[string]any, sc Scope) (map[string]any, error) {
 			if !ok {
 				return nil, fmt.Errorf("$merge: %v is %T, not an object", src, r)
 			}
+			forced := forcedKeys(src)
 			for k, val := range obj {
-				if !isEmpty(val) {
+				if !isEmpty(val) || forced[k] {
 					out[k] = val
 				}
 			}
@@ -629,6 +630,25 @@ func renderObject(m map[string]any, sc Scope) (map[string]any, error) {
 		out[k] = r
 	}
 	return out, nil
+}
+
+// forcedKeys names the "!key" entries of a literal $merge source, so a forced
+// empty value survives the spread like it does as a direct key.
+func forcedKeys(src any) map[string]bool {
+	m, ok := src.(map[string]any)
+	if !ok {
+		return nil
+	}
+	var forced map[string]bool
+	for k := range m {
+		if strings.HasPrefix(k, "!") {
+			if forced == nil {
+				forced = map[string]bool{}
+			}
+			forced[k[1:]] = true
+		}
+	}
+	return forced
 }
 
 // isEmpty: nil, "", and empty arrays/objects are empty. 0 and false are not.
