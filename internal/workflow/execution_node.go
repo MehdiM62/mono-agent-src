@@ -317,7 +317,7 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 
 		// Persist failure.
 		dbCtx2, dbCancel2 := dbCtx()
-		if storeErr := recordNodeFailure(dbCtx2, r.store, execNode, execErr); storeErr != nil {
+		if storeErr := recordNodeFailure(dbCtx2, r.store, execNode, execErr, nil); storeErr != nil {
 			logger.Error().Err(storeErr).
 				Str("node_id", node.ID).
 				Msg("failed to persist node failure")
@@ -420,7 +420,7 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 			Str("node_name", node.Name).
 			Msg("node emitted error output with no edge wired from the 'error' handle — failing node (wire an error edge or set on_error=continue/skip to tolerate)")
 		fctx, fcancel := dbCtx()
-		if storeErr := recordNodeFailure(fctx, r.store, execNode, nodeErr); storeErr != nil {
+		if storeErr := recordNodeFailure(fctx, r.store, execNode, nodeErr, errorHandleItems); storeErr != nil {
 			logger.Error().Err(storeErr).
 				Str("node_id", node.ID).
 				Msg("failed to persist node failure")
