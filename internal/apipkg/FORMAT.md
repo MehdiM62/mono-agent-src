@@ -195,6 +195,11 @@ typed value (number, bool, object, array): `"labels": "{{ p.labels }}"` sends
 a JSON array. Anything else is string-interpolated: `"Bearer {{ cred.token }}"`;
 `nil` interpolates as `""`, objects/arrays as JSON.
 
+**Literal braces.** `\{{` and `\}}` stand for a literal `{{` and `}}` (in JSON:
+`"\\{{ticket.id\\}}"` → `{{ticket.id}}`), for APIs whose own placeholders use
+braces. They combine with expressions: `"\\{{{{ el }}\\}}"` → `{{ticket.id}}`
+when `el` is `ticket.id` (Zendesk trigger bodies).
+
 **Omit empty.** In `query` and `body` objects a key whose value resolves to
 `nil`, `""`, `[]` or `{}` is left out. `0` and `false` are kept. A nested
 object that ends up empty is left out too. Array elements that resolve
@@ -891,6 +896,7 @@ Optional keys the engine added (the design's keys are unchanged):
 | steps | `error_when` / `error_message` per step | §6 |
 | package | `n8n_version_defaults` comparison keys (`<3`) | §12 |
 | package | `webhook` (app trigger registration: `fields`, `create`, `id`, `extra`, `delete`, `check`, `verify`); root `hook`; filter `map` | §17 |
+| templates | literal braces `\{{` / `\}}`; `hdr` = the previous webhook step's response headers | §5, §17 |
 
 ## 17. App webhooks (`webhook`)
 
@@ -947,6 +953,7 @@ Template roots:
 | `hook.workflow_id`, `hook.node_id` | the node |
 | `pre`, `pres.<i>`, `el`, `idx` | as in `before` steps: earlier create steps, the `for_each` element |
 | `res`, `hdr` | in `id`/`extra`: the last create response (a list of responses when that step has `for_each`) and its headers (`{{ hdr.Resource-Id }}`); in `check.exists_when`: the check response |
+| `hdr` in a step | the previous step's response headers — a login step's session token: Form.io's `"inject": {"headers": {"x-jwt-token": "{{ hdr.X-Jwt-Token }}"}}` after a `POST /user/login` step with `auth: false` |
 
 - **delete** runs every step; a 404 or 410 counts as already removed, other
   errors are reported (the engine logs the hook id so it can be removed by

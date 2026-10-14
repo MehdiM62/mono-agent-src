@@ -154,7 +154,10 @@ func (a *filterArg) argValue(sc Scope) (any, error) {
 var tmplCache sync.Map // string → *tmpl
 
 // hasTemplate reports whether s contains template syntax.
-func hasTemplate(s string) bool { return strings.Contains(s, "{{") }
+func hasTemplate(s string) bool { return strings.Contains(s, "{{") || strings.Contains(s, `\}}`) }
+
+// litUnescape turns the escapes \{{ and \}} of literal text into {{ and }}.
+var litUnescape = strings.NewReplacer(`\{{`, "{{", `\}}`, "}}")
 
 // parseTemplate parses s, caching the result.
 func parseTemplate(s string) (*tmpl, error) {
@@ -163,20 +166,30 @@ func parseTemplate(s string) (*tmpl, error) {
 	}
 	t := &tmpl{src: s}
 	rest := s
+	lit := "" // literal text not yet added, escapes kept
 	for {
 		i := strings.Index(rest, "{{")
+		if i > 0 && rest[i-1] == '\\' {
+			// \{{ is a literal {{ (Zendesk placeholders in a body).
+			lit += rest[:i+2]
+			rest = rest[i+2:]
+			continue
+		}
 		if i < 0 {
-			if rest != "" {
-				t.parts = append(t.parts, tmplPart{lit: rest})
+			if lit+rest != "" {
+				t.parts = append(t.parts, tmplPart{lit: litUnescape.Replace(lit + rest)})
 			}
 			break
 		}
+		rest = lit + rest
+		i += len(lit)
+		lit = ""
 		j := strings.Index(rest[i:], "}}")
 		if j < 0 {
 			return nil, fmt.Errorf("template %q: unclosed {{", s)
 		}
 		if i > 0 {
-			t.parts = append(t.parts, tmplPart{lit: rest[:i]})
+			t.parts = append(t.parts, tmplPart{lit: litUnescape.Replace(rest[:i])})
 		}
 		e, err := parseExpr(strings.TrimSpace(rest[i+2 : i+j]))
 		if err != nil {
