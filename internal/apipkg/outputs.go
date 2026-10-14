@@ -99,7 +99,8 @@ func shapedOutputs(out *Output) []workflow.NodeSchemaOutput {
 			open = true
 			continue
 		}
-		outs = append(outs, workflow.NodeSchemaOutput{Key: k, Type: valueType(to[k])})
+		// "!key" is sent even when empty; the item key is key.
+		outs = append(outs, workflow.NodeSchemaOutput{Key: strings.TrimPrefix(k, "!"), Type: valueType(to[k])})
 	}
 	// output.to reshapes objects and list elements; a scalar response
 	// passes through as {"data": v}.

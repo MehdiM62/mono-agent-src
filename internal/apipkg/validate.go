@@ -441,7 +441,7 @@ func (o *Operation) check(where string, credKeys map[string]bool) []string {
 		add("stream does not combine with pagination, bulk or a binary download")
 	}
 	if b := o.Binary; b != nil {
-		probs = append(probs, checkTemplates(where+" binary.upload_url", b.UploadURL, fields, credKeys)...)
+		probs = append(probs, checkTemplates(where+" binary", []any{b.UploadURL, b.UploadURLs, b.DownloadEach, b.Properties}, fields, credKeys)...)
 	}
 	for n8n, ours := range o.N8nParamMap {
 		if !fields[ours] {

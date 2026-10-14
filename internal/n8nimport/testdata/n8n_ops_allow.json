@@ -65,39 +65,9 @@
     "reason": "Orbit (orbit.love) shut down and its API is gone"
   },
   {
-    "key": "@n8n/n8n-nodes-langchain.alibabaCloud",
-    "category": "agents",
-    "reason": "Alibaba Cloud Model Studio vendor node: no agent runtime for it"
-  },
-  {
     "key": "@n8n/n8n-nodes-langchain.code",
     "category": "impossible",
     "reason": "runs LangChain JavaScript (require('@langchain/\u2026'), sub-node model/tool objects); execute-mode code that is plain JavaScript over the items imports as core.code"
-  },
-  {
-    "key": "@n8n/n8n-nodes-langchain.databricksAiAgent",
-    "category": "agents",
-    "reason": "Databricks-hosted agent: no agent runtime for it"
-  },
-  {
-    "key": "@n8n/n8n-nodes-langchain.googleGemini",
-    "category": "agents",
-    "reason": "Gemini vendor node (text, image, audio, video, file search): no Gemini API runtime in agent.ask"
-  },
-  {
-    "key": "@n8n/n8n-nodes-langchain.minimax",
-    "category": "agents",
-    "reason": "MiniMax vendor node: no agent runtime for it"
-  },
-  {
-    "key": "@n8n/n8n-nodes-langchain.moonshot",
-    "category": "agents",
-    "reason": "Moonshot (Kimi) vendor node: no agent runtime mapping for it yet"
-  },
-  {
-    "key": "@n8n/n8n-nodes-langchain.ollama",
-    "category": "agents",
-    "reason": "Ollama vendor node: no local-model runtime mapping in agent.ask yet"
   },
   {
     "key": "n8n-nodes-base.evaluation#sheet.append",

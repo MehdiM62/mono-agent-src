@@ -99,6 +99,8 @@ type opRun struct {
 	onPage func(results []any) bool
 	// lastPage is the last decoded page of a paginated run.
 	lastPage any
+	// urlProps are the item's binary properties binary.upload_urls filled.
+	urlProps []string
 }
 
 func (r *opRun) errf(format string, a ...any) error {
@@ -155,7 +157,10 @@ func run(ctx context.Context, pkg *Package, input workflow.NodeInput, config map
 		if err := r.fetchUploadURL(ctx); err != nil {
 			return nil, err
 		}
-		if op.Binary != nil && (op.Binary.UploadField != "" || op.Binary.Properties != "") {
+		if err := r.fetchUploadURLs(ctx); err != nil {
+			return nil, err
+		}
+		if op.Binary != nil && (op.Binary.UploadField != "" || !isEmpty(op.Binary.Properties) || len(r.urlProps) > 0) {
 			// Filled for every step: a before step that requests an upload
 			// slot needs the file's name and type (Pushbullet, S3 presigned).
 			// binary.properties alone fills bin.files for a body that embeds
@@ -366,6 +371,16 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		}
 		r.scope.Pres = append(r.scope.Pres, v)
 		r.scope.Pre = v
+		if resp != nil {
+			// The main request may read a before step's headers (a
+			// resumable upload's X-Goog-Upload-Url).
+			r.scope.Hdr = headerMap{}
+			for k, vs := range resp.header {
+				if len(vs) > 0 {
+					r.scope.Hdr[k] = vs[0]
+				}
+			}
+		}
 	}
 	if r.op.Pagination != nil && r.pagingOn() {
 		results, truncated, err := r.paginate(ctx)
@@ -434,10 +449,10 @@ func (r *opRun) execute(ctx context.Context) ([]workflow.Item, error) {
 		return []workflow.Item{{JSON: map[string]any{"success": true}}}, nil
 	}
 	v := decodeBody(resp.body)
-	if o := r.op.Output; o != nil && o.From != "" {
+	if o := r.op.Output; o != nil && !isEmpty(o.From) {
 		sc := r.scope
 		sc.Res = v
-		fv, err := renderString(o.From, sc)
+		fv, err := renderValue(o.From, sc)
 		if err != nil {
 			return nil, r.errf("output.from: %w", err)
 		}
@@ -540,7 +555,7 @@ func (r *opRun) downloadItem(resp *response) workflow.Item {
 	}
 	// An op that uploads nothing may name the file it downloads
 	// (binary.file_name / mime_type) for responses that don't.
-	if b := r.op.Binary; b.UploadField == "" && b.Properties == "" {
+	if b := r.op.Binary; b.UploadField == "" && isEmpty(b.Properties) {
 		if name == "" {
 			name, _ = renderText(b.FileName, r.scope)
 		}

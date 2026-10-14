@@ -45,7 +45,11 @@ func (r *opRun) downloadBase64Item(resp *response) ([]workflow.Item, error) {
 	doc := decodeBody(resp.body)
 	sc := r.scope
 	sc.Res = doc
-	if b.DownloadEach == "" {
+	each, err := r.renderOutputKey(b.DownloadEach)
+	if err != nil {
+		return nil, r.errf("binary.download_each: %w", err)
+	}
+	if each == "" {
 		obj, _ := doc.(map[string]any)
 		it, err := r.base64Item(sc, obj, "")
 		if err != nil {
@@ -54,7 +58,7 @@ func (r *opRun) downloadBase64Item(resp *response) ([]workflow.Item, error) {
 		return []workflow.Item{it}, nil
 	}
 	var list []any
-	switch v := lookupPath(doc, strings.Split(b.DownloadEach, ".")).(type) {
+	switch v := lookupPath(doc, strings.Split(each, ".")).(type) {
 	case []any:
 		list = v
 	case nil:
@@ -76,8 +80,9 @@ func (r *opRun) downloadBase64Item(resp *response) ([]workflow.Item, error) {
 }
 
 // base64Item renders download_base64 in sc and returns the item: obj's
-// keys (a copy when from is "el", without the key holding the base64
-// text) plus the file's binary_property, file_name, mime_type and size.
+// keys (a copy when from is "el", without the value holding the base64
+// text at any depth) plus the file's binary_property, file_name,
+// mime_type and size.
 func (r *opRun) base64Item(sc Scope, obj map[string]any, from string) (workflow.Item, error) {
 	b := r.op.Binary
 	enc, err := renderText(b.DownloadBase64, sc)
@@ -90,12 +95,9 @@ func (r *opRun) base64Item(sc Scope, obj map[string]any, from string) (workflow.
 	}
 	out := obj
 	if from == "el" || out == nil {
-		out = map[string]any{}
-		for k, v := range obj {
-			if s, ok := v.(string); ok && s == enc {
-				continue
-			}
-			out[k] = v
+		out, _ = withoutText(obj, enc).(map[string]any)
+		if out == nil {
+			out = map[string]any{}
 		}
 	}
 	prop := r.downloadProperty()
@@ -106,4 +108,31 @@ func (r *opRun) base64Item(sc Scope, obj map[string]any, from string) (workflow.
 	}
 	out["binary_property"], out["file_name"], out["mime_type"], out["size"] = prop, name, mt, len(data)
 	return workflow.Item{JSON: out, Binary: map[string][]byte{prop: data}}, nil
+}
+
+// withoutText copies v leaving out every object key and list element whose
+// value is the text s (a Gemini candidate keeps its image data nested in
+// content.parts[].inlineData.data).
+func withoutText(v any, s string) any {
+	switch t := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, x := range t {
+			if str, ok := x.(string); ok && str == s {
+				continue
+			}
+			out[k] = withoutText(x, s)
+		}
+		return out
+	case []any:
+		out := make([]any, 0, len(t))
+		for _, x := range t {
+			if str, ok := x.(string); ok && str == s {
+				continue
+			}
+			out = append(out, withoutText(x, s))
+		}
+		return out
+	}
+	return v
 }

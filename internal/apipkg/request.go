@@ -263,7 +263,7 @@ func (r *opRun) multipartBody(obj map[string]any) ([]byte, string, error) {
 			}
 		}
 	}
-	if b := r.op.Binary; r.uploads() && b.Properties != "" {
+	if b := r.op.Binary; r.uploads() && !isEmpty(b.Properties) {
 		for i, prop := range r.uploadProperties() {
 			one := *r
 			one.prop = prop
@@ -426,9 +426,13 @@ func (r *opRun) binMeta() map[string]any {
 		m["base64"] = base64.StdEncoding.EncodeToString(data)
 		m["file_size"] = len(data)
 	}
-	if r.prop == "" && r.op.Binary.Properties != "" {
+	if r.prop == "" && (!isEmpty(r.op.Binary.Properties) || len(r.urlProps) > 0) {
 		var files []any
-		for _, prop := range r.uploadProperties() {
+		props := r.uploadProperties()
+		if isEmpty(r.op.Binary.Properties) {
+			props = nil
+		}
+		for _, prop := range append(props, r.urlProps...) {
 			one := *r
 			one.prop = prop
 			f := one.binMeta()
@@ -524,7 +528,7 @@ func setPath(obj map[string]any, path string, val any) {
 
 // uploadProperties renders binary.properties into property names.
 func (r *opRun) uploadProperties() []string {
-	v, err := renderString(r.op.Binary.Properties, r.scope)
+	v, err := renderValue(r.op.Binary.Properties, r.scope)
 	if err != nil {
 		return nil
 	}

@@ -120,6 +120,9 @@ func useModel(c *MapContext, cfg map[string]interface{}, s SubNode) {
 		return
 	}
 	model := modelName(s.Parameters)
+	if useVendorAccount(c, cfg, s, model) {
+		return
+	}
 	route, ok := modelRoutes[s.Type]
 	if !ok {
 		c.Warn("model", s.Name, "model %q (%s) has no local agent runtime; the claude runtime is used — set runtime/model to choose another",
@@ -142,4 +145,51 @@ func useModel(c *MapContext, cfg map[string]interface{}, s SubNode) {
 		msg += "; " + route.note
 	}
 	c.Note("%s", msg)
+}
+
+// vendorAccounts are the chat models agent.ask runs with the user's own
+// vendor key: the n8n credential types and the mono connection platform
+// (agent.ask's Model Vendor Account).
+var vendorAccounts = map[string]struct {
+	platform string
+	n8nTypes []string
+}{
+	lc + "lmChatGoogleGemini": {"gemini_api", []string{"googlePalmApi"}},
+	lc + "lmChatOllama":       {"ollama", []string{"ollamaApi"}},
+	lc + "lmOllama":           {"ollama", []string{"ollamaApi"}},
+	lc + "lmChatMoonshot":     {"moonshot", []string{"moonshotApi"}},
+	lc + "lmChatMinimax":      {"minimax", []string{"minimaxApi"}},
+	lc + "lmChatAlibabaCloud": {"alibaba_cloud", []string{"alibabaCloudApi"}},
+	lc + "lmChatDatabricks":   {"databricks", []string{"databricksOAuth2Api", "databricksApi"}},
+}
+
+// useVendorAccount runs chat model s through its vendor connection when the
+// n8n node carries the vendor's credential: credential_id names the
+// connection, which supplies the runtime.
+func useVendorAccount(c *MapContext, cfg map[string]interface{}, s SubNode, model string) bool {
+	v, ok := vendorAccounts[s.Type]
+	if !ok {
+		return false
+	}
+	use := credUse{Platform: v.platform}
+	for _, t := range v.n8nTypes {
+		if cred, ok := s.Credentials[t]; ok {
+			use.N8nType, use.N8nName = t, cred.Name
+			break
+		}
+	}
+	if use.N8nType == "" {
+		return false
+	}
+	c.creds = append(c.creds, use)
+	delete(cfg, "runtime")
+	cfg["credential_id"] = v.platform
+	if model != "" {
+		cfg["model"] = model
+	}
+	c.Note("model %q (%s) runs with the key of the %s connection", model, shortType(s.Type), v.platform)
+	if use.N8nType == "databricksOAuth2Api" {
+		c.Note("the databricks connection needs the workspace host and a personal access token (access_token)")
+	}
+	return true
 }
