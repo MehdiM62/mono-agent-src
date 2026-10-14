@@ -22,6 +22,7 @@ var doors = map[string]string{
 	"cmd/monoagentcli/httpapi.go":         "HTTP API listener: httpapi.Server.ListenAndServe behind accountGate",
 	"internal/account/oauth.go":           "the sign-in redirect catcher: open by design, it is how a login lands",
 	"internal/connections/oauth.go":       "a connection's OAuth redirect catcher, started by a gated command or by the app; stores a token, starts no work",
+	"internal/connections/oauth1_flow.go": "a connection's OAuth 1.0a redirect catcher, started by a gated command or by the app; stores a token, starts no work",
 	"internal/extension/cdp.go":           "/monoagent/cdp upgrade: token, then account (upgrade and each command)",
 	"internal/extension/server.go":        "bridge: /monoagent/* routes and the extension socket; see TestTheOpenEndpointsOfALockedBridge",
 	"internal/extension/server_auth.go":   "bridge: the extension socket's upgrade (handleWS, split out of server.go), token first; see TestTheOpenEndpointsOfALockedBridge",
