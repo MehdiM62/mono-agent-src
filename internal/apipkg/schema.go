@@ -3,6 +3,7 @@ package apipkg
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -323,4 +324,25 @@ func (p *Package) opsIn(resources []string) int {
 		}
 	}
 	return n
+}
+
+// defaultRequiredSelects starts every required select whose default is
+// empty (or not one of its options) on its first option. n8n leaves many
+// of these at "", which the editor shows as an unanswered "— choose —"
+// and the API rejects; a package that wants another start value sets it.
+func (p *Package) defaultRequiredSelects() {
+	for i := range p.Operations {
+		for j := range p.Operations[i].Fields {
+			f := &p.Operations[i].Fields[j]
+			if f.Type != "select" || !f.Required || len(f.Options) == 0 {
+				continue
+			}
+			if f.Default != nil {
+				if s := fmt.Sprint(f.Default); contains(f.Options, s) || hasTemplate(s) {
+					continue
+				}
+			}
+			f.Default = f.Options[0]
+		}
+	}
 }
