@@ -1,18 +1,15 @@
 package main
 
 import (
-	"context"
-
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/cli/integrations"
-	"github.com/monoes/mono-agent/internal/health"
 	"github.com/monoes/mono-agent/internal/mcp"
 )
 
 // `init`, `mcp`, `integration`, monoagent's skills and the MCP registration with the
 // coding-agent runtimes live in internal/cli/integrations; this is their adapter: the CLI's
-// globals handed over as integrations.Deps, and the old names doctor, crawl and root use.
+// globals handed over as integrations.Deps, and the old names crawl, root and the tests use.
 
 func integrationsDeps(cfg *globalConfig) integrations.Deps {
 	return integrations.Deps{
@@ -47,20 +44,8 @@ func claudeSkillFile(skillsDir, name string) string {
 	return integrations.ClaudeSkillFile(skillsDir, name)
 }
 
-func installClaudeSkill(verbose bool) error { return integrations.InstallClaudeSkill(verbose) }
-
 func runClaudeFirstRunCheck() { integrations.RunClaudeFirstRunCheck() }
 
 func claudeSkillsState() (claudeFound bool, missing, stale []string) {
 	return integrations.ClaudeSkillsState()
 }
-
-func registerAgentsMCP(ctx context.Context, progress func(string)) error {
-	return integrations.RegisterAgentsMCP(ctx, progress)
-}
-
-func agentsMCPRegistration() (found, registered bool, where string) {
-	return integrations.AgentsMCPRegistration()
-}
-
-func agentsMCPRuntimes() []health.MCPRuntime { return integrations.AgentsMCPRuntimes() }

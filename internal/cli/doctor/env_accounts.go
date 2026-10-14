@@ -1,4 +1,4 @@
-package main
+package doctor
 
 import (
 	"context"
@@ -47,7 +47,7 @@ func addAccountHooks(env *health.Env, db *sql.DB) {
 		// new label and prints to stdout, which would change the connection
 		// and break `doctor --json`. The check bounds how long it may take.
 		_, err = connections.ValidateConnection(ctx, conn)
-		return classifyConnectionError(scrubSecrets(err, connectionSecrets(conn)...), err, conn, time.Now())
+		return classifyConnectionError(ScrubSecrets(err, ConnectionSecrets(conn)...), err, conn, time.Now())
 	}
 	env.RefreshConnection = func(ctx context.Context, id string) error {
 		conn, err := store.Get(ctx, id, profileID)
@@ -63,7 +63,7 @@ func addAccountHooks(env *health.Env, db *sql.DB) {
 		if err != nil {
 			return err
 		}
-		return scrubSecrets(mgr.Refresh(ctx, id, time.Minute), connectionSecrets(conn)...)
+		return ScrubSecrets(mgr.Refresh(ctx, id, time.Minute), ConnectionSecrets(conn)...)
 	}
 
 	env.LoginSessions = func(ctx context.Context) ([]health.SessionInfo, error) {
@@ -128,10 +128,10 @@ func tableExists(ctx context.Context, db *sql.DB, name string) bool {
 	return err == nil && n > 0
 }
 
-// connectionSecrets lists every string value a connection stores, which
+// ConnectionSecrets lists every string value a connection stores, which
 // is what could end up in an error: validators put tokens in URLs
 // (Telegram's is in the path) and HTTP errors print the whole URL.
-func connectionSecrets(c *connections.Connection) []string {
+func ConnectionSecrets(c *connections.Connection) []string {
 	var out []string
 	var walk func(v interface{})
 	walk = func(v interface{}) {
@@ -152,9 +152,9 @@ func connectionSecrets(c *connections.Connection) []string {
 	return out
 }
 
-// scrubSecrets returns err with every secret value (6 characters or more,
+// ScrubSecrets returns err with every secret value (6 characters or more,
 // so a short flag value does not blank out ordinary words) replaced.
-func scrubSecrets(err error, secrets ...string) error {
+func ScrubSecrets(err error, secrets ...string) error {
 	if err == nil {
 		return nil
 	}
