@@ -29,8 +29,8 @@ func (e *hintError) JSONErrorFields() map[string]any {
 	return map[string]any{"hint": e.hint}
 }
 
-// workflowNotFound turns the engine's "trigger workflow: engine: trigger
-// workflow: workflow: workflow not found" into one sentence and a next step.
+// workflowNotFound turns the engine's "trigger workflow: engine: workflow:
+// workflow not found" into one sentence and a next step.
 // Any other error is returned as it is.
 func workflowNotFound(err error, id string) error {
 	if !errors.Is(err, workflow.ErrWorkflowNotFound) {
