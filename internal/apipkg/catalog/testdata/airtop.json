@@ -304,5 +304,49 @@
       "method": "GET",
       "path": "/api/v1/files/f1"
     }
+  },
+  "interaction.fill": {
+    "params": {
+      "sessionId": "s1",
+      "windowId": "w1",
+      "formData": "Name: Ada"
+    },
+    "responses": [
+      {
+        "requestId": "r1"
+      },
+      {
+        "status": "running"
+      },
+      {
+        "status": "completed",
+        "data": {
+          "modelResponse": "done"
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/v1/async/sessions/s1/windows/w1/execute-automation",
+        "body": {
+          "automationId": "auto",
+          "parameters": {
+            "customData": "Name: Ada"
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/requests/r1/status"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/requests/r1/status"
+      }
+    ],
+    "expect": {
+      "items": 1
+    }
   }
 }

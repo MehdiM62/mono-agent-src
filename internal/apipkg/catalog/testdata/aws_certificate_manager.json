@@ -1,5 +1,5 @@
 {
-  "renew": {
+  "certificate.renew": {
     "params": {
       "certificateArn": "arn:c"
     },
@@ -16,7 +16,7 @@
       "items": 1
     }
   },
-  "delete": {
+  "certificate.delete": {
     "params": {
       "certificateArn": "arn:c"
     },
@@ -33,7 +33,7 @@
       "items": 1
     }
   },
-  "get": {
+  "certificate.get": {
     "params": {
       "certificateArn": "arn:c"
     },
@@ -52,7 +52,7 @@
       "items": 1
     }
   },
-  "getMany": {
+  "certificate.getMany": {
     "params": {
       "limit": 5,
       "options": {
@@ -94,7 +94,7 @@
       "items": 2
     }
   },
-  "getMetadata": {
+  "certificate.getMetadata": {
     "params": {
       "certificateArn": "arn:c"
     },

@@ -12,6 +12,7 @@ func init() {
 	Register("n8n-nodes-base.stopAndError", mapStopAndError)
 	Register("n8n-nodes-base.noOp", mapNoOp)
 	Register("n8n-nodes-base.code", mapCode)
+	Register("n8n-nodes-base.aiTransform", mapAITransform)
 	Register("n8n-nodes-base.function", mapFunction)
 	Register("n8n-nodes-base.functionItem", mapFunctionItem)
 	Register("n8n-nodes-base.respondToWebhook", mapRespondToWebhook)
@@ -153,6 +154,19 @@ func mapCode(c *MapContext) Mapping {
 		return Mapping{Type: "core.code", Config: codeConfig(wrapPerItem(code))}
 	}
 	return Mapping{Type: "core.code", Config: codeConfig(wrapCode(code))}
+}
+
+// mapAITransform runs the code n8n generated from the instructions, which
+// n8n saves with the node and runs once for all items like the Code node.
+func mapAITransform(c *MapContext) Mapping {
+	c.Ignore("instructions", "codeGeneratedForPrompt")
+	src, _ := c.Raw("jsCode").(string)
+	if src == "" {
+		c.Warn("jsCode", nil, "n8n saved no generated code: write the transformation in this core.code node (instructions: %s)",
+			compactValue(c.Raw("instructions")))
+		src = "throw new Error(\"AI Transform: no code was generated in n8n\");"
+	}
+	return Mapping{Type: "core.code", Config: codeConfig(wrapCode(importCode(c, "jsCode", src)))}
 }
 
 func mapFunction(c *MapContext) Mapping {

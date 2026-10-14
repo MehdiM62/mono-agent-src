@@ -8,8 +8,8 @@ import (
 
 // n8n database and queue nodes converted through internal/nodes/db's
 // parameter tables (Oracle, SQL Server, Snowflake, TimescaleDB, CrateDB,
-// QuestDB, Kafka, RabbitMQ, AMQP, MQTT, LDAP). Postgres, MySQL, MongoDB and
-// Redis keep their own mappers in map_db.go. The queue triggers are left
+// QuestDB, MongoDB, Redis, Kafka, RabbitMQ, AMQP, MQTT, LDAP). Postgres and
+// MySQL keep their own mappers in map_db.go. The queue triggers are left
 // unmapped until the engine registers those trigger types.
 func init() {
 	for n8nType, m := range dbnodes.N8nNodeMappings {
@@ -19,6 +19,7 @@ func init() {
 		spec, defaults := dbParamSpec(m), m.Defaults
 		platform := m.MonoType[strings.Index(m.MonoType, ".")+1:]
 		Register(n8nType, func(c *MapContext) Mapping {
+			c.Ignore("resource") // MongoDB's; its operations are unique without it
 			mp := mapWithParams(c, spec)
 			if mp.Config == nil {
 				return mp
@@ -50,7 +51,4 @@ func dbParamSpec(m dbnodes.N8nNodeMapping) paramSpec {
 }
 
 // handMappedDB are the db types with their own mappers in map_db.go.
-var handMappedDB = map[string]bool{
-	"n8n-nodes-base.postgres": true, "n8n-nodes-base.mySql": true,
-	"n8n-nodes-base.mongoDb": true, "n8n-nodes-base.redis": true,
-}
+var handMappedDB = map[string]bool{"n8n-nodes-base.postgres": true, "n8n-nodes-base.mySql": true}
