@@ -191,7 +191,9 @@ func (r *runner) prepare(node WorkflowNode) (*nodeTask, error) {
 	// executor here instead of later does not change behavior.
 	factory, ok := r.registry.Get(node.Type)
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrNodeTypeUnknown, node.Type)
+		err := fmt.Errorf("%w: %s", ErrNodeTypeUnknown, node.Type)
+		r.recordNotStarted(node, inputItems, err)
+		return nil, err
 	}
 	executor := factory()
 
