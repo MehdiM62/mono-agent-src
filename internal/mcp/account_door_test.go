@@ -72,8 +72,9 @@ func TestToolsCallIsRefusedWhileLocked(t *testing.T) {
 	}
 }
 
-// Grant mode (monomind's role tool provider) is the same door: it lists the
-// granted tools, and a call is refused before any run is created.
+// Grant mode (monomind's role tool provider) is the same door: signed in it lists the
+// granted tools; locked it lists none (they are the org's automations, read from the
+// database), and a call is refused before any run is created.
 func TestGrantModeToolsCallIsRefusedWhileLocked(t *testing.T) {
 	for _, c := range doortest.Modes {
 		t.Run(c.Name, func(t *testing.T) {
@@ -89,8 +90,12 @@ func TestGrantModeToolsCallIsRefusedWhileLocked(t *testing.T) {
 					Name string `json:"name"`
 				} `json:"tools"`
 			}
-			if err := json.Unmarshal(resps["1"]["result"], &list); err != nil || len(list.Tools) != 3 {
-				t.Errorf("grant tools/list: %d tools, err %v, want 3", len(list.Tools), err)
+			want := 3
+			if c.Refused {
+				want = 0
+			}
+			if err := json.Unmarshal(resps["1"]["result"], &list); err != nil || list.Tools == nil || len(list.Tools) != want {
+				t.Errorf("grant tools/list: %d tools, err %v, want %d", len(list.Tools), err, want)
 			}
 			text, isErr := toolText(t, resps["2"])
 			if c.Refused {
