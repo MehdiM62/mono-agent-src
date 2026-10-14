@@ -55,6 +55,15 @@ func applyWebhookOptions(reg *WebhookRegistration, config map[string]interface{}
 	header, _ := config["dedupe_header"].(string)
 	reg.DedupeHeader = strings.TrimSpace(header)
 	reg.VerifyToken, _ = config["verify_token"].(string)
+	format, _ := config["challenge_format"].(string)
+	switch format {
+	case "", "text":
+	case "json":
+		reg.ChallengeJSON = true
+	default:
+		return fmt.Errorf("trigger.webhook: challenge_format %q is not one of text, json", format)
+	}
+	reg.AnswerGet = configBool(config["answer_get"])
 	return nil
 }
 
@@ -82,4 +91,17 @@ func configNumber(config map[string]interface{}, key string) (float64, error) {
 	default:
 		return 0, fmt.Errorf("trigger.webhook: %s must be a number", key)
 	}
+}
+
+// configBool reads an on/off option that may arrive as a JSON bool or as a
+// string (form inputs).
+func configBool(v interface{}) bool {
+	switch b := v.(type) {
+	case bool:
+		return b
+	case string:
+		ok, _ := strconv.ParseBool(strings.TrimSpace(b))
+		return ok
+	}
+	return false
 }

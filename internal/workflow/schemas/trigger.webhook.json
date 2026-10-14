@@ -127,6 +127,25 @@
       "type": "password"
     },
     {
+      "default": "text",
+      "help": "How a hub.challenge URL check is answered: text (Meta, WebSub) or JSON {\"hub.challenge\": ...} (Strava).",
+      "key": "challenge_format",
+      "label": "Challenge Answer",
+      "options": [
+        "text",
+        "json"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "Answer a GET without a query with 200 and start no run (Mailchimp checks the URL this way).",
+      "key": "answer_get",
+      "label": "Answer URL Probe",
+      "required": false,
+      "type": "boolean"
+    },
+    {
       "help": "Optional. Registers this URL with the app's API on activation and removes it on deactivation (built in: typeform, calendly). Needs public_url (or MONOAGENT_PUBLIC_URL) and credential_id.",
       "key": "register_with",
       "label": "Register With App",

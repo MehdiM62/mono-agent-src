@@ -110,6 +110,9 @@ type builder struct {
 	ids      map[string]bool
 	notes    []string // node notes and sticky notes for the description
 	nextConn int
+	// subPlaced are the mono sub-nodes written per n8n sub-node name.
+	subPlaced       map[string][]placedSub
+	attachedReports []attachedReport
 }
 
 const stickyNoteType = "n8n-nodes-base.stickyNote"
@@ -187,7 +190,7 @@ func (b *builder) mapNodes() {
 				continue
 			}
 			nr.Status = StatusFolded
-			nr.Issues = append(nr.Issues, Issue{Severity: SevInfo, Message: fmt.Sprintf("sub-node folded into %q", p)})
+			nr.Issues = append(nr.Issues, Issue{Severity: SevInfo, Message: fmt.Sprintf(foldedPrefix+"%q", p)})
 			continue
 		}
 		ctx := newMapContext(n, b.rep.Workflow)
@@ -196,6 +199,7 @@ func (b *builder) mapNodes() {
 		m := b.runMapper(ctx, nr)
 		b.place(n, ctx, m, nr)
 	}
+	b.reportAttached()
 }
 
 // runMapper picks the native Mapper, then an AppMapper, then the stub.
@@ -276,6 +280,7 @@ func (b *builder) place(n *n8nNode, ctx *MapContext, m Mapping, nr *NodeReport) 
 	x, y := n.position()
 	steps := append([]ChainStep{{Type: m.Type, Config: m.Config}}, m.Chain...)
 	mn := &mappedNode{outputs: m.Outputs, tagInputs: m.TagInputs, n8n: n, errorOutput: ctx.OnErrorOutput}
+	byConfig := map[uintptr]string{}
 	var prev string
 	for i, s := range steps {
 		name, idWant := n.Name, string(n.ID)
@@ -299,6 +304,7 @@ func (b *builder) place(n *n8nNode, ctx *MapContext, m Mapping, nr *NodeReport) 
 		fn := workflow.WorkflowFileNode{ID: id, Type: s.Type, Name: name, Disabled: n.Disabled, Config: s.Config}
 		fn.Position.X, fn.Position.Y = x+float64(i)*220-float64(len(steps)-1)*220, y
 		b.out.Nodes = append(b.out.Nodes, fn)
+		byConfig[configKey(s.Config)] = id
 		if i == 0 {
 			mn.entryID = id
 		} else {
@@ -307,6 +313,7 @@ func (b *builder) place(n *n8nNode, ctx *MapContext, m Mapping, nr *NodeReport) 
 		prev = id
 	}
 	mn.exitID = prev
+	b.placeSubNodes(ctx, byConfig)
 	for i, alt := range m.Alternates {
 		name := n.Name + alt.Suffix
 		id := b.newID(name)

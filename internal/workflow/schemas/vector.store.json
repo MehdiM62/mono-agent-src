@@ -154,7 +154,7 @@
       "language": "json",
       "rows": 4,
       "placeholder": "{\"provider\": \"ollama\", \"model\": \"nomic-embed-text\"}",
-      "help": "Embeds texts inline — same fields as vector.embed, with its own credential_id. Leave empty when items already carry vectors."
+      "help": "Embeds texts inline — same fields as vector.embed, with its own credential_id. Leave empty when items already carry vectors or an Embeddings sub-node is attached (it wins over this block)."
     },
     {
       "key": "content_field",
@@ -629,6 +629,18 @@
       "description": "delete: number of documents deleted, when the backend reports it",
       "key": "deleted",
       "type": "number"
+    }
+  ],
+  "sub_inputs": [
+    {
+      "handle": "ai_embedding",
+      "label": "Embeddings",
+      "max": 1
+    },
+    {
+      "handle": "ai_document",
+      "label": "Document Loader",
+      "max": 1
     }
   ]
 }

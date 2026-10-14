@@ -94,7 +94,8 @@ csv_column); html drops scripts/styles; docx reads the body text. All parsing is
 built in (no external tools).
 
 Set split=true to chunk in the same step with vector.split_text's fields (splitter,
-chunk_size, chunk_overlap, separator(s)).`,
+chunk_size, chunk_overlap, separator(s)). An attached vector.text_splitter sub-node
+(ai_textSplitter connection) does the splitting instead.`,
 		Config: `{
   "source":        "binary",              // json | binary | file
   "loader":        "auto",                // auto | text | markdown | html | csv | json | docx | pdf
@@ -126,8 +127,11 @@ chunk_size, chunk_overlap, separator(s)).`,
   delete  ids, filter, the items' id_field values, or delete_all=true
 n8n's load / retrieve / retrieve-as-tool modes run as search.
 
-Vectors: put an "embedding" block in the config to embed inline (same fields as
-vector.embed; its own credential_id), or run vector.embed first.
+Vectors: attach a vector.embeddings sub-node (ai_embedding connection), put an
+"embedding" block in the config to embed inline (same fields as vector.embed; its own
+credential_id), or run vector.embed first. An attached sub-node wins over the block.
+A vector.document_loader sub-node (ai_document connection) makes insert/update load
+the documents from the input items first (n8n's Default Data Loader).
 
 Providers (collection = collection / index / table / class; filter format differs):
   qdrant         url, api_key — filter: Qdrant filter object
@@ -181,5 +185,57 @@ providers report 1 - distance).`,
     similarity float) language sql stable as $$
     select id, content, metadata, 1 - (embedding <=> query_embedding) from documents
     where metadata @> filter order by embedding <=> query_embedding limit match_count $$;`,
+	},
+	{
+		Type:     "vector.embeddings",
+		Category: "vector",
+		Short:    "Sub-node: the embedding model a Vector Store uses (n8n's Embeddings nodes)",
+		Description: `An embeddings sub-node. It never runs as a step: connect it to the ai_embedding
+input of vector.store, which embeds the documents it inserts and the queries it
+searches with it (documents and queries get the provider's matching input type).
+Same providers and fields as vector.embed, without the item fields.`,
+		Config: `{
+  "provider":      "openai_compatible",
+  "credential_id": "openai",
+  "model":         "text-embedding-3-small",
+  "dimensions":    0
+}`,
+		Inputs:  "none (a sub-node)",
+		Outputs: "ai_embedding: attaches to vector.store",
+		Notes: `Connection: {"source_node_id": "<this>", "source_handle": "ai_embedding",
+"target_node_id": "<vector.store>", "target_handle": "ai_embedding"}. Run on its own it
+fails.`,
+	},
+	{
+		Type:     "vector.document_loader",
+		Category: "vector",
+		Short:    "Sub-node: loads the documents a Vector Store inserts (n8n's Default Data Loader)",
+		Description: `A document loader sub-node. It never runs as a step: connect it to the
+ai_document input of vector.store; in insert and update mode the store loads the
+documents from its input items with it (same fields as vector.load_document; "text"
+is evaluated per item), then embeds and stores them. Attach a vector.text_splitter
+to its ai_textSplitter input to chunk them.`,
+		Config: `{
+  "source": "json",                 // json | binary | file
+  "text":   "{{ $json.body }}",
+  "loader": "auto"
+}`,
+		Inputs:  "none (a sub-node); takes an ai_textSplitter sub-node",
+		Outputs: "ai_document: attaches to vector.store",
+	},
+	{
+		Type:     "vector.text_splitter",
+		Category: "vector",
+		Short:    "Sub-node: splits loaded documents into chunks (n8n's Text Splitter nodes)",
+		Description: `A text splitter sub-node. It never runs as a step: connect it to the
+ai_textSplitter input of vector.document_loader or vector.load_document, which then
+split their documents with it (same fields as vector.split_text).`,
+		Config: `{
+  "splitter":      "recursive",     // character | recursive | token
+  "chunk_size":    1000,
+  "chunk_overlap": 200
+}`,
+		Inputs:  "none (a sub-node)",
+		Outputs: "ai_textSplitter: attaches to vector.document_loader or vector.load_document",
 	},
 }

@@ -312,6 +312,21 @@ func (r *runner) finish(t *nodeTask) (paused bool, err error) {
 		return true, nil
 	}
 
+	// A node cut short by a cancel (`workflow cancel`, a timeout, the daemon
+	// stopping) did not fail: its error, or the items it routed to its error
+	// output (system.execute_command's killed process), are the cancel's
+	// doing. The run ends CANCELLED rather than following on_error or failing
+	// on an unwired error output.
+	if ctx.Err() != nil && (execErr != nil || routedToError(t.outputs)) {
+		cerr := fmt.Errorf("node %s (%s): %w", node.ID, node.Name, cancelError(ctx))
+		dbCtx, dbCancel := dbCtx()
+		if storeErr := recordNodeFailure(dbCtx, r.store, execNode, cerr, nil); storeErr != nil {
+			logger.Error().Err(storeErr).Str("node_id", node.ID).Msg("failed to persist node failure")
+		}
+		dbCancel()
+		return false, cerr
+	}
+
 	if execErr != nil {
 		// A partial failure still delivers the items that succeeded, under
 		// every on_error mode.
