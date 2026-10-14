@@ -1,4 +1,4 @@
-package main
+package jevcli
 
 import (
 	"bufio"
@@ -11,21 +11,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/jev"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/secrets"
-
-	"github.com/spf13/cobra"
 )
 
-// jevStdinIsTerminal decides whether `jev enable` may ask instead of
-// requiring --yes (tests replace it).
-var jevStdinIsTerminal = stdinIsTerminal
-
-// newJevCmd returns the `jev` command group: TypeSafe Jev, an optional
+// NewCommand returns the `jev` command group: TypeSafe Jev, an optional
 // non-generative decision provider (it only picks among options the code
 // enumerates). Every implicit surface is off until `jev enable`.
-func newJevCmd(cfg *globalConfig) *cobra.Command {
+func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "jev",
 		Short: "TypeSafe Jev decisions: key status, per-surface opt-in, usage",
@@ -39,13 +36,13 @@ func newJevCmd(cfg *globalConfig) *cobra.Command {
 			"TYPESAFE_BASE_URL override the model and API host.",
 	}
 	cmd.AddCommand(
-		newJevStatusCmd(cfg),
-		newJevKeyCmd(cfg),
-		newJevEnableCmd(cfg),
-		newJevDisableCmd(cfg),
-		newJevUsageCmd(cfg),
-		newJevAskCmd(cfg),
-		newJevModelsCmd(cfg),
+		newJevStatusCmd(d),
+		newJevKeyCmd(d),
+		newJevEnableCmd(d),
+		newJevDisableCmd(d),
+		newJevUsageCmd(d),
+		newJevAskCmd(d),
+		newJevModelsCmd(d),
 	)
 	return cmd
 }
@@ -81,7 +78,7 @@ func jevSurfaceNames() string {
 func parseJevSurface(arg string) (jevconf.Surface, error) {
 	s := jevconf.Surface(arg)
 	if !jevconf.Known(s) {
-		return "", errInvalidInput("unknown surface %q; valid surfaces: %s", arg, jevSurfaceNames())
+		return "", clicore.InvalidInput("unknown surface %q; valid surfaces: %s", arg, jevSurfaceNames())
 	}
 	return s, nil
 }
@@ -90,7 +87,7 @@ func parseJevSurface(arg string) (jevconf.Surface, error) {
 // an auth failure (exit 4).
 func jevKeyErr(err error) error {
 	if errors.Is(err, jev.ErrNoAPIKey) {
-		return errAuthConnection("%v — store one with `monoagentcli jev key set` (key on stdin) or set TYPESAFE_API_KEY", err)
+		return clicore.AuthConnection("%v — store one with `monoagentcli jev key set` (key on stdin) or set TYPESAFE_API_KEY", err)
 	}
 	return err
 }
@@ -114,23 +111,23 @@ type jevStatus struct {
 	Surfaces  []jevSurfaceStatus `json:"surfaces"`
 }
 
-func newJevStatusCmd(cfg *globalConfig) *cobra.Command {
+func newJevStatusCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Show where the key comes from, the model, and each surface's state",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			st := jevStatus{ProfileID: cfg.ProfileID, KeySource: "none", Model: jevModel(), BaseURL: jevBaseURL()}
+			st := jevStatus{ProfileID: d.ProfileID(), KeySource: "none", Model: jevModel(), BaseURL: jevBaseURL()}
 			// KeySource never decrypts, so status never prompts for a keyring.
-			if source, err := jevconf.KeySource(cmd.Context(), db.DB, cfg.ProfileID); err == nil {
+			if source, err := jevconf.KeySource(cmd.Context(), db.DB, d.ProfileID()); err == nil {
 				st.KeySource = source
 			}
-			if name, ok := jevconf.VaultKeyName(cmd.Context(), db.DB, cfg.ProfileID); ok {
+			if name, ok := jevconf.VaultKeyName(cmd.Context(), db.DB, d.ProfileID()); ok {
 				st.KeyEntry = name
 			}
 			for _, s := range jevconf.Surfaces {
@@ -140,13 +137,13 @@ func newJevStatusCmd(cfg *globalConfig) *cobra.Command {
 					Title:            jevconf.Describe[s].Title,
 					Description:      jevconf.Describe[s].Description,
 					Egress:           jevconf.Egress[s],
-					Enabled:          jevconf.Enabled(db.DB, cfg.ProfileID, s),
-					Threshold:        jevconf.Threshold(db.DB, cfg.ProfileID, s, def),
+					Enabled:          jevconf.Enabled(db.DB, d.ProfileID(), s),
+					Threshold:        jevconf.Threshold(db.DB, d.ProfileID(), s, def),
 					DefaultThreshold: def,
 				})
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJevJSON(out, st)
 			}
 			key := st.KeySource
@@ -154,7 +151,7 @@ func newJevStatusCmd(cfg *globalConfig) *cobra.Command {
 				key = "none — store one with `monoagentcli jev key set` (key on stdin) or set TYPESAFE_API_KEY"
 			}
 			fmt.Fprintf(out, "Profile: %s\nKey:     %s\nModel:   %s\nAPI:     %s\n\n", st.ProfileID, key, st.Model, st.BaseURL)
-			table := newPlainTable(out, []string{"Surface", "Enabled", "Threshold"}, nil)
+			table := clicore.NewPlainTable(out, []string{"Surface", "Enabled", "Threshold"}, nil)
 			for _, s := range st.Surfaces {
 				on := "no"
 				if s.Enabled {
@@ -168,7 +165,7 @@ func newJevStatusCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newJevEnableCmd(cfg *globalConfig) *cobra.Command {
+func newJevEnableCmd(d Deps) *cobra.Command {
 	var threshold float64
 	var yes bool
 	cmd := &cobra.Command{
@@ -185,11 +182,11 @@ func newJevEnableCmd(cfg *globalConfig) *cobra.Command {
 			}
 			setThreshold := cmd.Flags().Changed("threshold")
 			if setThreshold && (threshold <= 0 || threshold > 1) {
-				return errInvalidInput("--threshold %v must be in (0,1]", threshold)
+				return clicore.InvalidInput("--threshold %v must be in (0,1]", threshold)
 			}
 			out := cmd.OutOrStdout()
 			notes := out
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				notes = cmd.ErrOrStderr()
 			}
 			fmt.Fprintf(notes, "This sends to TypeSafe (surface %s):\n", s)
@@ -197,8 +194,8 @@ func newJevEnableCmd(cfg *globalConfig) *cobra.Command {
 				fmt.Fprintf(notes, "  - %s\n", e)
 			}
 			if !yes {
-				if cfg.JSONOutput || !jevStdinIsTerminal() {
-					return errInvalidInput("enabling %s needs --yes when stdin is not a terminal", s)
+				if d.JSONOutput() || !d.StdinIsTerminal() {
+					return clicore.InvalidInput("enabling %s needs --yes when stdin is not a terminal", s)
 				}
 				fmt.Fprintf(out, "Enable Jev for %s? [y/N] ", s)
 				ans, _ := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
@@ -207,28 +204,28 @@ func newJevEnableCmd(cfg *globalConfig) *cobra.Command {
 					return nil
 				}
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
 			if setThreshold {
-				if err := jevconf.SetThreshold(db.DB, cfg.ProfileID, s, threshold); err != nil {
+				if err := jevconf.SetThreshold(db.DB, d.ProfileID(), s, threshold); err != nil {
 					return err
 				}
 			}
-			if err := jevconf.SetEnabled(db.DB, cfg.ProfileID, s, true); err != nil {
+			if err := jevconf.SetEnabled(db.DB, d.ProfileID(), s, true); err != nil {
 				return err
 			}
-			eff := jevconf.Threshold(db.DB, cfg.ProfileID, s, jevconf.DefaultThreshold[s])
-			if _, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, cfg.ProfileID, ""); err != nil {
+			eff := jevconf.Threshold(db.DB, d.ProfileID(), s, jevconf.DefaultThreshold[s])
+			if _, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, d.ProfileID(), ""); err != nil {
 				fmt.Fprintln(cmd.ErrOrStderr(), "note: no TypeSafe key yet, so the surface stays inactive — store one with `monoagentcli jev key set` or set TYPESAFE_API_KEY")
 			}
-			if cfg.JSONOutput {
-				return writeJevJSON(out, map[string]any{"profile_id": cfg.ProfileID, "surface": string(s),
+			if d.JSONOutput() {
+				return writeJevJSON(out, map[string]any{"profile_id": d.ProfileID(), "surface": string(s),
 					"enabled": true, "threshold": eff, "egress": jevconf.Egress[s]})
 			}
-			fmt.Fprintf(out, "Jev enabled for %s (profile %s, threshold %s).\n", s, cfg.ProfileID, strconv.FormatFloat(eff, 'f', -1, 64))
+			fmt.Fprintf(out, "Jev enabled for %s (profile %s, threshold %s).\n", s, d.ProfileID(), strconv.FormatFloat(eff, 'f', -1, 64))
 			return nil
 		},
 	}
@@ -237,7 +234,7 @@ func newJevEnableCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newJevDisableCmd(cfg *globalConfig) *cobra.Command {
+func newJevDisableCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "disable <surface>",
 		Short: "Switch one surface off for this profile (today's behaviour returns)",
@@ -247,18 +244,18 @@ func newJevDisableCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			if err := jevconf.SetEnabled(db.DB, cfg.ProfileID, s, false); err != nil {
+			if err := jevconf.SetEnabled(db.DB, d.ProfileID(), s, false); err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
-				return writeJevJSON(cmd.OutOrStdout(), map[string]any{"profile_id": cfg.ProfileID, "surface": string(s), "enabled": false})
+			if d.JSONOutput() {
+				return writeJevJSON(cmd.OutOrStdout(), map[string]any{"profile_id": d.ProfileID(), "surface": string(s), "enabled": false})
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Jev disabled for %s (profile %s).\n", s, cfg.ProfileID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Jev disabled for %s (profile %s).\n", s, d.ProfileID())
 			return nil
 		},
 	}
@@ -286,24 +283,24 @@ func parseJevSince(s string) (time.Duration, error) {
 	return d, nil
 }
 
-func newJevUsageCmd(cfg *globalConfig) *cobra.Command {
+func newJevUsageCmd(d Deps) *cobra.Command {
 	var since string
 	cmd := &cobra.Command{
 		Use:   "usage",
 		Short: "Calls, input tokens and estimated cost by surface",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := parseJevSince(since)
+			window, err := parseJevSince(since)
 			if err != nil {
-				return errInvalidInput("--since: %v (use e.g. 24h, 7d, 30d)", err)
+				return clicore.InvalidInput("--since: %v (use e.g. 24h, 7d, 30d)", err)
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			from := time.Now().Add(-d)
-			rows, err := jevconf.UsageSince(db.DB, cfg.ProfileID, from)
+			from := time.Now().Add(-window)
+			rows, err := jevconf.UsageSince(db.DB, d.ProfileID(), from)
 			if err != nil {
 				return err
 			}
@@ -323,15 +320,15 @@ func newJevUsageCmd(cfg *globalConfig) *cobra.Command {
 				rows = []jevconf.Usage{}
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
-				return writeJevJSON(out, map[string]any{"profile_id": cfg.ProfileID,
+			if d.JSONOutput() {
+				return writeJevJSON(out, map[string]any{"profile_id": d.ProfileID(),
 					"since": from.UTC().Format(time.RFC3339), "surfaces": rows, "total": total})
 			}
 			if len(rows) == 0 {
 				fmt.Fprintf(out, "No Jev calls since %s.\n", from.Local().Format("2006-01-02 15:04"))
 				return nil
 			}
-			table := newPlainTable(out, []string{"Surface", "Calls", "Failures", "Input tokens", "Est. USD", "Avg latency"}, nil)
+			table := clicore.NewPlainTable(out, []string{"Surface", "Calls", "Failures", "Input tokens", "Est. USD", "Avg latency"}, nil)
 			for _, u := range append(rows, total) {
 				table.Append([]string{u.Surface, strconv.Itoa(u.Calls), strconv.Itoa(u.Failures), strconv.Itoa(u.InputTokens),
 					fmt.Sprintf("$%.6f", u.EstimatedUSD), fmt.Sprintf("%d ms", u.AvgLatencyMS)})
@@ -351,7 +348,7 @@ type jevAskRequest struct {
 	Model     string                  `json:"model,omitempty"`
 }
 
-func newJevAskCmd(cfg *globalConfig) *cobra.Command {
+func newJevAskCmd(d Deps) *cobra.Command {
 	var reqPath string
 	cmd := &cobra.Command{
 		Use:   "ask",
@@ -363,7 +360,7 @@ func newJevAskCmd(cfg *globalConfig) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if reqPath == "" {
-				return errInvalidInput("--request <file> (or - for stdin) is required")
+				return clicore.InvalidInput("--request <file> (or - for stdin) is required")
 			}
 			var raw []byte
 			var err error
@@ -374,21 +371,21 @@ func newJevAskCmd(cfg *globalConfig) *cobra.Command {
 				raw, err = os.ReadFile(reqPath)
 			}
 			if err != nil {
-				return errInvalidInput("reading request: %v", err)
+				return clicore.InvalidInput("reading request: %v", err)
 			}
 			var req jevAskRequest
 			if err := json.Unmarshal(raw, &req); err != nil {
-				return errInvalidInput("request is not valid JSON: %v", err)
+				return clicore.InvalidInput("request is not valid JSON: %v", err)
 			}
 			if len(req.Questions) == 0 {
-				return errInvalidInput("request has no questions")
+				return clicore.InvalidInput("request has no questions")
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			c, err := jevconf.NewClient(cmd.Context(), db.DB, cfg.ProfileID, "", req.Model, jevconf.CLI)
+			c, err := jevconf.NewClient(cmd.Context(), db.DB, d.ProfileID(), "", req.Model, jevconf.CLI)
 			if err != nil {
 				return jevKeyErr(err)
 			}
@@ -404,18 +401,18 @@ func newJevAskCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newJevModelsCmd(cfg *globalConfig) *cobra.Command {
+func newJevModelsCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "models",
 		Short: "List the Jev models the key can use",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			key, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, cfg.ProfileID, "")
+			key, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, d.ProfileID(), "")
 			if err != nil {
 				return jevKeyErr(err)
 			}
@@ -425,10 +422,10 @@ func newJevModelsCmd(cfg *globalConfig) *cobra.Command {
 			}
 			models, err := c.Models(cmd.Context())
 			if err != nil {
-				return errAuthConnection("%v", err)
+				return clicore.AuthConnection("%v", err)
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return writeJevJSON(out, map[string]any{"models": models})
 			}
 			for _, m := range models {

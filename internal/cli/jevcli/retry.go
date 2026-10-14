@@ -1,4 +1,4 @@
-package main
+package jevcli
 
 // Retry triage (plan WS10): installs workflow.RetryClassifier so that, for a
 // profile that ran `monoagentcli jev enable retry`, an opaque node error is
@@ -72,7 +72,7 @@ func jevRetryClassifier(ctx context.Context, nodeType string, err error, attempt
 	msg := err.Error()
 	state := map[string]any{
 		"node_type":       nodeType,
-		"untrusted_error": redactRetryError(msg),
+		"untrusted_error": RedactRetryError(msg),
 		"attempt":         attempt,
 	}
 	if code := parseHTTPStatus(msg); code != 0 {
@@ -132,12 +132,12 @@ var retryRedactions = []struct {
 // treated as opaque tokens (long plain identifiers survive).
 var longRunRe = regexp.MustCompile(`[A-Za-z0-9+_=-]{32,}`)
 
-// redactRetryError strips credentials from an error message before it leaves
+// RedactRetryError strips credentials from an error message before it leaves
 // the machine (plan §5 "retry" egress): URL query strings and userinfo,
 // Authorization/Bearer values, well-known key prefixes, key=/token=/secret=
 // style pairs, and long hex/base64 runs. The result is capped at
 // maxRetryErrorChars runes.
-func redactRetryError(s string) string {
+func RedactRetryError(s string) string {
 	for _, r := range retryRedactions {
 		s = r.re.ReplaceAllString(s, r.repl)
 	}

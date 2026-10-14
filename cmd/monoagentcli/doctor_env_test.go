@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/autostart"
+	"github.com/monoes/mono-agent/internal/jev/jevconf"
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/storage"
 )
 
 // After monomind.install, the monomind actually used is checked: an older
@@ -205,5 +207,30 @@ func TestBridgeUserServiceVerifiesMainPID(t *testing.T) {
 		if got := bridgeUserService(context.Background(), tc.pid, tc.unit); got != tc.want {
 			t.Errorf("bridgeUserService(%d, %q) = %q, want %q", tc.pid, tc.unit, got, tc.want)
 		}
+	}
+}
+
+// Doctor's JevKey hook tolerates a missing or unmigrated database: the vault
+// lookup failing only means the key is not in the vault.
+func TestHealthEnvJevKeyHook(t *testing.T) {
+	t.Setenv("TYPESAFE_API_KEY", "")
+	missing := &globalConfig{DBPath: filepath.Join(t.TempDir(), "none.db")}
+	unmigrated := filepath.Join(t.TempDir(), "raw.db")
+	raw, err := storage.NewDatabase(unmigrated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw.Close()
+	for name, cfg := range map[string]*globalConfig{"no db": missing, "unmigrated": {DBPath: unmigrated}} {
+		env, closeFn := newHealthEnv(cfg)
+		t.Setenv("TYPESAFE_API_KEY", "")
+		if src, err := env.JevKey(t.Context()); err == nil || src != "" {
+			t.Errorf("%s without key: %q %v", name, src, err)
+		}
+		t.Setenv("TYPESAFE_API_KEY", "k")
+		if src, err := env.JevKey(t.Context()); err != nil || src != jevconf.SourceEnv {
+			t.Errorf("%s with env key: %q %v", name, src, err)
+		}
+		closeFn()
 	}
 }
