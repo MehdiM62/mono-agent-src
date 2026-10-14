@@ -258,8 +258,9 @@ func (tm *TriggerManager) registerAppHook(ctx context.Context, w *Workflow, node
 	if rec != nil && rec.Secret != "" {
 		hook.Secret = rec.Secret
 	}
-	if rec != nil && rec.Registrar == name && rec.ConfigHash == hash && rec.HookID != "" {
-		stored := AppWebhookHook{ID: rec.HookID, Extra: rec.Extra}
+	expired := rec != nil && !rec.ExpiresAt.IsZero() && !time.Now().Before(rec.ExpiresAt)
+	if rec != nil && rec.Registrar == name && rec.ConfigHash == hash && rec.HookID != "" && !expired {
+		stored := AppWebhookHook{ID: rec.HookID, Extra: rec.Extra, ExpiresAt: rec.ExpiresAt}
 		keep := true
 		if c, ok := r.(WebhookChecker); ok {
 			exists, err := c.Exists(ctx, hook, stored)
@@ -275,7 +276,8 @@ func (tm *TriggerManager) registerAppHook(ctx context.Context, w *Workflow, node
 			return st, nil
 		}
 	} else if rec != nil {
-		// Registered with other inputs (or another app): remove that one.
+		// Registered with other inputs (or another app), or expired:
+		// remove that one.
 		tm.unregisterRecord(ctx, profile, rec)
 	}
 
@@ -286,6 +288,7 @@ func (tm *TriggerManager) registerAppHook(ctx context.Context, w *Workflow, node
 	err = store.put(ctx, appWebhookRecord{
 		WorkflowID: w.ID, NodeID: node.ID, Registrar: name, HookID: got.ID, URL: hook.URL,
 		Secret: hook.Secret, Config: cfg, ConfigHash: hash, Extra: got.Extra,
+		ExpiresAt: got.ExpiresAt, RenewedAt: renewedAt(got.ExpiresAt),
 	})
 	if err != nil {
 		// Without the id nothing could remove the hook later.
@@ -297,6 +300,15 @@ func (tm *TriggerManager) registerAppHook(ctx context.Context, w *Workflow, node
 	verifier.set(r, hook, got)
 	tm.logger.Info().Str("workflow_id", w.ID).Str("node_id", node.ID).Str("registrar", name).Str("hook_id", got.ID).Msg("app webhook registered")
 	return st, nil
+}
+
+// renewedAt is the RenewedAt of a hook just given expiry expires: now, or
+// zero for a hook that does not expire.
+func renewedAt(expires time.Time) time.Time {
+	if expires.IsZero() {
+		return time.Time{}
+	}
+	return time.Now()
 }
 
 // unregisterAppHook removes a deactivated node's registration from the app.
