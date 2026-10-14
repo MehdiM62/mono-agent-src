@@ -116,6 +116,13 @@ func TestProfileCreateListGetSwitch(t *testing.T) {
 }
 
 // An exact id wins over another profile's name.
+func TestProfileCreateRejectsReservedMachineName(t *testing.T) {
+	dbPath := newProfileDocsCLITestDB(t)
+	if _, err := runProfileJSON(t, dbPath, "create", "_machine"); err == nil || exitCodeOf(t, err) != 3 {
+		t.Fatalf("create _machine: %v", err)
+	}
+}
+
 func TestProfileSwitchPrefersIDOverName(t *testing.T) {
 	dbPath := newProfileDocsCLITestDB(t)
 	var a profileCreateResult

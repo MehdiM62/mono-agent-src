@@ -13,6 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/i18n"
 	"github.com/monoes/mono-agent/internal/nodemgr"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/spf13/cobra"
@@ -304,6 +305,9 @@ func migrateProfilesToPerProfileKeys(db *storage.Database) {
 // canonical ID, erroring (exit 3, invalid input) if neither matches any
 // row in `profiles`.
 func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
+	if idOrName == profiledir.MachineProfileID {
+		return "", errInvalidInput("profile id %q is reserved for machine-wide secrets", idOrName)
+	}
 	var id string
 	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
 		return id, nil

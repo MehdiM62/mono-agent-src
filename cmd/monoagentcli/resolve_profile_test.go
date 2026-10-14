@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -28,5 +29,8 @@ func TestResolveProfileIDMatchesNameCaseInsensitively(t *testing.T) {
 	}
 	if _, err := resolveProfileID(db, "nope"); err == nil {
 		t.Error("unknown profile resolved")
+	}
+	if _, err := resolveProfileID(db, "_machine"); err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Errorf("the reserved machine scope resolved as a profile: %v", err)
 	}
 }
