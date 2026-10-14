@@ -1,7 +1,6 @@
 package apipkg
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -49,32 +48,14 @@ func reqLines(reqs []seenReq) string {
 
 var gemCred = map[string]any{"api_key": "gk"}
 
-// Gemini answers: the merged text of each candidate, one item per generated
-// image with the image data kept out of the JSON, and Imagen's :predict.
-func TestGeminiTextAndImageItems(t *testing.T) {
+// Gemini images: one item per generated image with the image data kept
+// out of the JSON, and Imagen's :predict.
+func TestGeminiImageItems(t *testing.T) {
 	p := catalogPkg(t, "gemini_api")
-	vendorServer(t, func(seenReq, http.ResponseWriter) string {
-		return `{"candidates":[{"content":{"parts":[{"text":"Hel"},{"text":"lo"}]}}],"usageMetadata":{"totalTokenCount":3}}`
-	})
-	items, err := runItems(t, p, map[string]any{"credential": gemCred, "messages": map[string]any{"values": []any{map[string]any{"content": "Hi"}}},
-		"options": map[string]any{"includeMergedResponse": true}})
-	if err != nil || len(items) != 1 || items[0].JSON["mergedResponse"] != "Hello" || items[0].JSON["content"] == nil {
-		t.Fatalf("simplified message %v %v", err, items)
-	}
-	items, err = runItems(t, p, map[string]any{"credential": gemCred, "simplify": false,
-		"messages": map[string]any{"values": []any{map[string]any{"content": "Hi"}}}, "options": map[string]any{"includeMergedResponse": true}})
-	if err != nil || len(items) != 1 {
-		t.Fatalf("raw message %v %v", err, items)
-	}
-	cands, _ := items[0].JSON["candidates"].([]any)
-	if len(cands) != 1 || cands[0].(map[string]any)["mergedResponse"] != "Hello" || items[0].JSON["usageMetadata"] == nil {
-		t.Errorf("raw message json %v", items[0].JSON)
-	}
-
 	reqs := vendorServer(t, func(seenReq, http.ResponseWriter) string {
 		return `{"candidates":[{"content":{"parts":[{"text":"here"},{"inlineData":{"mimeType":"image/jpeg","data":"` + b64("JPEG") + `"}}]},"finishReason":"STOP"}]}`
 	})
-	items, err = runItems(t, p, map[string]any{"credential": gemCred, "resource": "image", "operation": "generate", "prompt": "a cat"})
+	items, err := runItems(t, p, map[string]any{"credential": gemCred, "resource": "image", "operation": "generate", "prompt": "a cat"})
 	if err != nil || len(items) != 1 || string(items[0].Binary["data"]) != "JPEG" {
 		t.Fatalf("gemini image %v %+v", err, items)
 	}
@@ -185,35 +166,6 @@ func TestOllamaImageURLs(t *testing.T) {
 	if chat.Path != "/api/chat" || chat.Header.Get("Authorization") != "" ||
 		chat.Body != `{"messages":[{"content":"What's in this image?","images":["`+b64("IMG/a.png")+`","`+b64("IMG/b.png")+`"],"role":"user"}],"model":"llava","stream":false}` {
 		t.Errorf("chat %s %s", chat.Path, chat.Body)
-	}
-}
-
-// Kimi's web search: the $web_search call is answered with its arguments
-// and the model's next answer is the item.
-func TestMoonshotWebSearchRound(t *testing.T) {
-	p := catalogPkg(t, "moonshot_api")
-	fastPolls(p)
-	reqs := vendorServer(t, func(r seenReq, _ http.ResponseWriter) string {
-		if !strings.Contains(r.Body, `"role":"tool"`) {
-			return `{"choices":[{"finish_reason":"tool_calls","message":{"role":"assistant","content":"","tool_calls":[{"id":"call_1","type":"builtin_function","function":{"name":"$web_search","arguments":"{\"q\":\"n8n\"}"}}]}}]}`
-		}
-		return `{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"found it"}}]}`
-	})
-	items, err := runItems(t, p, map[string]any{"credential": map[string]any{"api_key": "k"}, "modelId": "kimi-k2.5",
-		"messages": map[string]any{"values": []any{map[string]any{"content": "search n8n"}}},
-		"options":  map[string]any{"webSearch": true, "thinkingMode": true}})
-	if err != nil || len(items) != 1 || items[0].JSON["content"] != "found it" {
-		t.Fatalf("items %v %v", err, items)
-	}
-	if len(*reqs) != 2 {
-		t.Fatalf("requests %s", reqLines(*reqs))
-	}
-	var second map[string]any
-	_ = json.Unmarshal([]byte((*reqs)[1].Body), &second)
-	msgs, _ := second["messages"].([]any)
-	if len(msgs) != 3 || jsonOf(msgs[2]) != `{"content":"{\"q\":\"n8n\"}","name":"$web_search","role":"tool","tool_call_id":"call_1"}` ||
-		jsonOf(second["thinking"]) != `{"type":"disabled"}` || !strings.Contains(jsonOf(second["tools"]), "$web_search") {
-		t.Errorf("second request %s", (*reqs)[1].Body)
 	}
 }
 

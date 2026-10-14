@@ -51,12 +51,9 @@ func TestMoreAIVendorsImport(t *testing.T) {
 		cfgs[n.Name], types[n.Name] = n.Config, n.Type
 	}
 	want := map[string][3]string{ // node → type, operation, credential_id
-		"Gem":   {"app.gemini_api", "generate", "gemini_api"},
-		"Chat":  {"app.gemini_api", "message", "gemini_api"},
-		"Llama": {"app.ollama_api", "message", "ollama"},
-		"Mini":  {"app.minimax_api", "message", "minimax"},
-		"Kimi":  {"app.moonshot_api", "analyze", "moonshot"},
-		"Qwen":  {"app.alibaba_cloud_api", "imageToVideo", "alibaba_cloud"},
+		"Gem":  {"app.gemini_api", "generate", "gemini_api"},
+		"Kimi": {"app.moonshot_api", "analyze", "moonshot"},
+		"Qwen": {"app.alibaba_cloud_api", "imageToVideo", "alibaba_cloud"},
 	}
 	for name, w := range want {
 		c := cfgs[name]
@@ -64,8 +61,17 @@ func TestMoreAIVendorsImport(t *testing.T) {
 			t.Errorf("%s: %s %v, want %v", name, types[name], c, w)
 		}
 	}
-	if cfgs["Mini"]["legacyTextModel"] != true {
-		t.Errorf("MiniMax v1 lost its default model: %v", cfgs["Mini"])
+	// Text messages run on the vendor's local agent runtime.
+	asks := map[string][2]string{ // node → runtime, model
+		"Chat (ask)":  {"antigravity", "gemini-3-flash-preview"},
+		"Llama (ask)": {"opencode", "ollama/llama3.2"},
+		"Mini (ask)":  {"opencode", "minimax/MiniMax-M2.7"},
+	}
+	for name, w := range asks {
+		c := cfgs[name]
+		if types[name] != "agent.ask" || c["runtime"] != w[0] || c["model"] != w[1] || c["prompt"] != "hi" {
+			t.Errorf("%s: %s %v, want %v", name, types[name], c, w)
+		}
 	}
 	agent := ""
 	for name, typ := range types {
@@ -85,7 +91,7 @@ func TestMoreAIVendorsImport(t *testing.T) {
 			issues[nr.Name] += is.Message + "; "
 		}
 	}
-	if !strings.Contains(issues["Chat"], `tool "Calc"`) {
+	if !strings.Contains(issues["Chat"], `"Calc"`) {
 		t.Errorf("Gemini chat does not report its tool: %q", issues["Chat"])
 	}
 	if !strings.Contains(issues["Agent"], "MLflow") {

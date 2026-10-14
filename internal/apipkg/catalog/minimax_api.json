@@ -11,7 +11,6 @@
   ],
   "n8n_version_defaults": {
     "1": {
-      "legacyTextModel": true,
       "legacyVideoModel": true
     }
   },
@@ -52,10 +51,6 @@
   ],
   "resources": [
     {
-      "value": "text",
-      "label": "Text"
-    },
-    {
       "value": "audio",
       "label": "Audio"
     },
@@ -69,100 +64,6 @@
     }
   ],
   "operations": [
-    {
-      "resource": "text",
-      "operation": "message",
-      "title": "Message a model",
-      "description": "Chat completion. Tools attached as n8n sub-nodes are not called.",
-      "method": "POST",
-      "path": "/v1/chat/completions",
-      "fields": [
-        {
-          "key": "modelId",
-          "label": "Model",
-          "type": "text",
-          "default": "",
-          "help": "MiniMax-M3, MiniMax-M2.7, …; empty means MiniMax-M3 (MiniMax-M2.7 with Legacy default model)."
-        },
-        {
-          "key": "messages",
-          "label": "Messages",
-          "type": "collection",
-          "default": {
-            "values": [
-              {
-                "content": "",
-                "role": "user"
-              }
-            ]
-          },
-          "options": [
-            "values"
-          ],
-          "help": "values: [{content, role (user|assistant)}]."
-        },
-        {
-          "key": "simplify",
-          "label": "Simplify",
-          "type": "boolean",
-          "default": true
-        },
-        {
-          "key": "options",
-          "label": "Options",
-          "type": "collection",
-          "default": {},
-          "options": [
-            "hideThinking",
-            "maxTokens",
-            "maxToolsIterations",
-            "temperature",
-            "topP",
-            "system"
-          ],
-          "help": "hideThinking (default on): keep the reasoning out of the answer text."
-        },
-        {
-          "key": "legacyTextModel",
-          "label": "Legacy default model",
-          "type": "boolean",
-          "default": false,
-          "help": "An empty Model means MiniMax-M2.7 (n8n node version 1)."
-        }
-      ],
-      "body": {
-        "model": "{{ p.modelId | rl | default:(p.legacyTextModel | then:'MiniMax-M2.7' | default:'MiniMax-M3') }}",
-        "messages": {
-          "$concat": [
-            [
-              {
-                "$when": "{{ p.options.system }}",
-                "role": "system",
-                "content": "{{ p.options.system }}"
-              }
-            ],
-            {
-              "$map": "{{ p.messages.values }}",
-              "$to": {
-                "role": "{{ el.role | default:'user' }}",
-                "!content": "{{ el.content }}"
-              }
-            }
-          ]
-        },
-        "max_tokens": "{{ p.options.maxTokens | default:1024 }}",
-        "reasoning_split": "{{ p.options.hideThinking | ne:'false' | then:true }}",
-        "temperature": "{{ p.options.temperature }}",
-        "top_p": "{{ p.options.topP }}"
-      },
-      "output": {
-        "to_when": "{{ p.simplify | ne:'false' }}",
-        "to": {
-          "!content": "{{ el.choices.0.message.content | default:'' }}",
-          "reasoning_content": "{{ p.options.hideThinking | eq:'false' | then:el.choices.0.message.reasoning_content }}"
-        }
-      }
-    },
     {
       "resource": "audio",
       "operation": "textToSpeech",
