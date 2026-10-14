@@ -27,7 +27,7 @@ type AccountInfo struct {
 
 func monoesAccountChecks() []Check {
 	return []Check{{ID: CheckMonoesAccount, Group: GroupCore, Title: "monoes.me account",
-		Features: []string{"every command except version, ref, update, doctor, setup and account"}, Run: checkMonoesAccount}}
+		Features: []string{"every command except account, help, version and update"}, Run: checkMonoesAccount}}
 }
 
 // The fix is manual: signing in needs a browser or an emailed code, so

@@ -319,7 +319,7 @@ A monoes.me sign-in is required since 2026-10-11 (UTC): the CLI, the
 daemon, the desktop app, the HTTP and `/v1` APIs, the MCP server and the extension
 bridge refuse to work without a signed-in account. The date is `enforce_from` in
 `account status`. `monoagentcli ref account` is this section, offline and always
-current.
+current, once signed in.
 
 ```bash
 monoagentcli account login                       # browser sign-in (OAuth 2.1 + PKCE, loopback redirect on 127.0.0.1)
@@ -364,14 +364,19 @@ machine ends it. A blocked account is locked at the next refresh, within about a
 is pinned in the binary, so a production machine session is verified locally. A gated
 command without a valid sign-in is refused (exit 4, `login_required`).
 
-**What is open** (never needs a sign-in): `version`, `help`, `completion` (including
-`__complete` and `__completeNoDesc`), `ref`, `update`, `doctor` (with `doctor fix`),
-`setup`, `release` (the maintainers' `keygen` and `verify`), the `account` commands, and
-`library login`, `library logout` and `library status`. Every other command is gated,
-local-only ones (`people`, `secret`, `image`, `profile`, `config`) included.
+**What is open** (never needs a sign-in) is the way in and nothing else: the `account`
+commands, `library login`, `library logout` and `library status`, `help` (and `--help` on
+any command; `monoagentcli` alone prints the help, which says to sign in first),
+`version`, and `update`, so that a broken install can be fixed. Every other command is
+gated: `ref`, `doctor` (with `doctor fix`), `setup`, `release`, `completion` and
+`__complete` (shell Tab completion) included, and local-only ones (`people`, `secret`,
+`image`, `profile`, `config`) too.
 
 **Serving commands** start even when locked and refuse their work instead, so a service manager or a container never respawns them in a
 loop: `daemon`, `httpapi`, `mcp` (including `--grant`) and `extension serve` (also `bridge serve`).
+While locked they run nothing: no schedule, webhook, queue, stream or file trigger is armed, the
+org services, the run memory, the capture indexing and the housekeeping loops wait, and a
+`--grant` MCP server lists no tools.
 `daemon install`, `daemon restart`, `daemon uninstall` and `org serve` are gated.
 
 **A refusal** does nothing else (no first-run writes, no database open) and exits 4.
