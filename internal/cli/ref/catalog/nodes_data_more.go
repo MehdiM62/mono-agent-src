@@ -1,33 +1,9 @@
-package main
+package catalog
 
 // Reference entries for the data.* nodes added or extended for n8n parity.
 // New node types are appended to the shared catalogue; for types already
-// documented elsewhere, upsertNodeDocs replaces that entry with the fuller
+// documented elsewhere, upsertNodeDocs (catalog.go) replaces that entry with the fuller
 // one here so `monoagentcli ref node <type>` shows the current operations.
-
-func init() {
-	upsertNodeDocs(dataMoreNodeDocs...)
-	upsertNodeDocs(dataFilesDocOverrides...)
-	upsertNodeDocs(dataFormatsDocOverrides...)
-}
-
-// upsertNodeDocs replaces the catalogue entry of each doc's Type, or appends
-// the doc when the type has none yet.
-func upsertNodeDocs(docs ...nodeDoc) {
-	for _, d := range docs {
-		replaced := false
-		for i := range nodeDocs {
-			if nodeDocs[i].Type == d.Type {
-				nodeDocs[i] = d
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
-			nodeDocs = append(nodeDocs, d)
-		}
-	}
-}
 
 var dataMoreNodeDocs = []nodeDoc{
 	{

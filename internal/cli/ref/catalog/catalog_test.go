@@ -1,4 +1,4 @@
-package main
+package catalog
 
 import (
 	"strings"
@@ -10,8 +10,9 @@ import (
 // (Registered types without an entry get a schema-generated page; see
 // TestRefNodeRendersEveryRegisteredType.)
 func TestRefDocsCoverEveryTrigger(t *testing.T) {
+	t.Parallel()
 	for _, typ := range []string{"trigger.manual", "trigger.schedule", "trigger.webhook", "trigger.org", "trigger.sse", "trigger.form", "trigger.local_file"} {
-		if findNodeDoc(typ) == nil {
+		if FindNodeDoc(typ) == nil {
 			t.Errorf("trigger %q has no `ref node` entry", typ)
 		}
 	}
@@ -20,8 +21,9 @@ func TestRefDocsCoverEveryTrigger(t *testing.T) {
 // Deprecated ai.* stubs must say so in the manual instead of documenting a
 // provider config that no longer runs.
 func TestRefDocsFlagDeprecatedAINodes(t *testing.T) {
+	t.Parallel()
 	for _, typ := range []string{"ai.chat", "ai.extract", "ai.classify", "ai.transform", "ai.agent", "ai.embed"} {
-		d := findNodeDoc(typ)
+		d := FindNodeDoc(typ)
 		if d == nil {
 			t.Errorf("%s: missing ref entry", typ)
 			continue

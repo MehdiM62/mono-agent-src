@@ -1,11 +1,7 @@
-package main
+package catalog
 
-// Reference entry for image.edit (the n8n Edit Image counterpart). init()
-// appends it to the shared nodeDocs catalogue in ref.go.
-
-func init() {
-	nodeDocs = append(nodeDocs, imageEditNodeDocs...)
-}
+// Reference entry for image.edit (the n8n Edit Image counterpart). catalog.go
+// appends it to NodeDocs.
 
 var imageEditNodeDocs = []nodeDoc{
 	{
