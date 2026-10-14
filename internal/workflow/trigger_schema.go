@@ -60,5 +60,7 @@ type WebhookTriggerSchema struct {
 
 	DedupeHeader string `json:"dedupe_header" schema:"label=Delivery ID Header,type=text,placeholder=X-GitHub-Delivery,help=If set， a request whose value of this header was seen in the last 7 days starts no run and is answered with the first delivery's execution_id (e.g. Idempotency-Key)."`
 
+	VerifyToken string `json:"verify_token" schema:"label=Verify Token,type=password,help=If set， a hub.challenge URL check (Meta/Facebook， WhatsApp， WebSub) must carry this hub.verify_token. Vendor URL checks are answered without it too."`
+
 	MaxBodyBytes float64 `json:"max_body_bytes" schema:"label=Max Body Size (bytes),type=number,default=1048576,min=1,max=33554432,help=Largest request body accepted， multipart files included."`
 }

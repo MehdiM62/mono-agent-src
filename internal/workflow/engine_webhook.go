@@ -28,6 +28,7 @@ func (e *WorkflowEngine) wireWebhookRuns() {
 	if e.store != nil {
 		db = e.store.RawDB()
 	}
+	e.webhookServer.SetStateDB(db)
 	if db != nil {
 		e.webhookServer.SetDeliveryStore(NewSQLWebhookDeliveries(db))
 	} else {

@@ -64,6 +64,9 @@ type WebhookRegistration struct {
 	// DedupeHeader names the request header carrying a delivery ID; a
 	// delivery whose ID was seen before starts no run.
 	DedupeHeader string
+	// VerifyToken, when set, must equal a hub.challenge check's
+	// hub.verify_token (webhook_handshake.go).
+	VerifyToken string
 }
 
 // WebhookServer is a standalone net/http server on a configurable port.
@@ -97,6 +100,8 @@ type WebhookServer struct {
 	// deliveries remembers delivery IDs for registrations with a
 	// DedupeHeader; nil disables dedupe.
 	deliveries WebhookDeliveries
+	// handshakes answers vendor URL checks (webhook_handshake.go).
+	handshakes webhookHandshakes
 }
 
 // SetRunner makes the server start runs through run, which reports the
@@ -376,6 +381,12 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Vendor URL checks come before the method and auth checks: the vendor
+	// proves the URL before it is configured with either.
+	if s.answerHandshake(w, r, reg) {
+		return
+	}
+
 	// Validate HTTP method
 	if reg.Method != "ANY" {
 		if r.Method != reg.Method {
@@ -400,6 +411,9 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeJSONError(w, http.StatusRequestEntityTooLarge, "request body too large or read error")
+		return
+	}
+	if s.answerBodyHandshake(w, r, reg, bodyBytes) {
 		return
 	}
 

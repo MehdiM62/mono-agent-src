@@ -40,6 +40,7 @@ The bind address is loopback by default; set MONOAGENT_WEBHOOK_ADDR (e.g.
   "response_data": "firstEntryJson",// lastNode: firstEntryJson | allEntries | noData
   "response_timeout": 30,           // lastNode/responseNode: seconds to wait, then 202
   "dedupe_header": "X-GitHub-Delivery", // optional: a repeated delivery id starts no run
+  "verify_token": "",               // optional: hub.verify_token a hub.challenge check must carry
   "max_body_bytes": 1048576         // optional: raise the 1MB body cap (max 32MB)
 }`,
 		Inputs: "none",
@@ -55,7 +56,13 @@ multipart/form-data and text/*. Answers {"success":true,"execution_id":"..."}
 required, queue full), 404 (workflow gone), 409 (workflow inactive). lastNode
 answers with the output of the node that ran last; responseNode with what a
 core.respond_webhook node sends; a failed run answers 500. A duplicate
-delivery answers {"success":true,"duplicate":true,"execution_id":<first run>}.`,
+delivery answers {"success":true,"duplicate":true,"execution_id":<first run>}.
+Vendor URL checks are answered without starting a run: HEAD (200), GET
+?hub.mode=subscribe&hub.challenge (Meta, WebSub; verify_token when set),
+?validationToken (Microsoft Graph), an X-Hook-Secret header (Asana, Keap:
+echoed and kept, and a later X-Hook-Signature must match it), Slack
+url_verification, and an AWS SNS SubscriptionConfirmation (its https
+amazonaws.com SubscribeURL is visited).`,
 	},
 	{
 		Type:     "trigger.execute_workflow",

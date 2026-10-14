@@ -120,6 +120,13 @@
       "type": "text"
     },
     {
+      "help": "If set, a hub.challenge URL check (Meta/Facebook, WhatsApp, WebSub) must carry this hub.verify_token. Vendor URL checks are answered without it too.",
+      "key": "verify_token",
+      "label": "Verify Token",
+      "required": false,
+      "type": "password"
+    },
+    {
       "default": 1048576,
       "help": "Largest request body accepted, multipart files included.",
       "key": "max_body_bytes",
