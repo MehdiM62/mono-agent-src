@@ -1,4 +1,4 @@
-package main
+package task
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/tasks"
 	"github.com/monoes/mono-agent/internal/tasks/osmenu"
 )
@@ -33,7 +34,7 @@ var (
 
 // newTaskOSCmd is `task os`: the macOS Services menu item that files the text
 // selected in any app into one profile's Inbox (spec section 12).
-func newTaskOSCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTaskOSCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "os",
 		Short: "The macOS menu: select text in any app, then Services, Add to MonoAgent Tasks",
@@ -53,28 +54,28 @@ Windows and Linux have no such menu: bind a global hotkey to a command that
 pipes the selected text into that same command (see monoagentcli ref tasks).`,
 	}
 	cmd.PersistentFlags().String("dest", "", "The Services folder (default ~/Library/Services)")
-	cmd.AddCommand(newTaskOSInstallCmd(cfg), newTaskOSStatusCmd(cfg), newTaskOSUninstallCmd(cfg))
+	cmd.AddCommand(d.newTaskOSInstallCmd(), d.newTaskOSStatusCmd(), d.newTaskOSUninstallCmd())
 	// The task group wraps only its own children; these are its grandchildren.
 	for _, sub := range cmd.Commands() {
-		withJSONErrors(cfg, sub)
+		d.WithJSONErrors(sub)
 	}
 	return cmd
 }
 
 // taskOSOnly refuses the os commands away from macOS, with what to do there
 // instead (spec D27).
-func taskOSOnly() error {
+func (d Deps) taskOSOnly() error {
 	if taskOSGOOS == "darwin" {
 		return nil
 	}
-	return errInvalidInput("task os installs a macOS Services menu, and this is %s: bind a global hotkey to a command that pipes the selected text into monoagentcli --profile <id> task add --stdin --source os (see monoagentcli ref tasks)", taskOSGOOS)
+	return d.InvalidInput("task os installs a macOS Services menu, and this is %s: bind a global hotkey to a command that pipes the selected text into monoagentcli --profile <id> task add --stdin --source os (see monoagentcli ref tasks)", taskOSGOOS)
 }
 
 // taskOSDir is --dest, else ~/Library/Services. The bool says it is the real
 // Services folder, which the Services menu is asked to read again.
 func taskOSDir(cmd *cobra.Command) (string, bool, error) {
 	if d, _ := cmd.Flags().GetString("dest"); d != "" {
-		abs, err := filepath.Abs(expandPath(d))
+		abs, err := filepath.Abs(clicore.ExpandPath(d))
 		return abs, false, err
 	}
 	home, err := os.UserHomeDir()
@@ -86,12 +87,12 @@ func taskOSDir(cmd *cobra.Command) (string, bool, error) {
 
 // taskOSDBPath is the absolute path of the database this command uses: a menu
 // files into it, and with the profile id it is the menu's identity.
-func taskOSDBPath(cfg *globalConfig) (string, error) { return filepath.Abs(expandPath(cfg.DBPath)) }
+func (d Deps) taskOSDBPath() (string, error) { return filepath.Abs(clicore.ExpandPath(d.DBPath())) }
 
 // taskOSMenuSpec is the menu of profile p as install writes it: running cli,
 // filing into the database this command uses.
-func taskOSMenuSpec(cfg *globalConfig, cli string, p tasks.Profile) (osmenu.Spec, error) {
-	db, err := taskOSDBPath(cfg)
+func (d Deps) taskOSMenuSpec(cli string, p tasks.Profile) (osmenu.Spec, error) {
+	db, err := d.taskOSDBPath()
 	if err != nil {
 		return osmenu.Spec{}, err
 	}
@@ -107,17 +108,16 @@ func taskOSRunnable(path string) bool {
 // withTaskStore opens the database without resolving --profile: status and
 // uninstall take their profiles from the bundles, and some may be deleted.
 // active is the active profile's id.
-func withTaskStore(cfg *globalConfig, cmd *cobra.Command, fn func(ctx context.Context, store *tasks.Store, db *sql.DB, active string) error) error {
-	open := &globalConfig{DBPath: cfg.DBPath}
-	db, err := initDB(open)
+func (d Deps) withTaskStore(cmd *cobra.Command, fn func(ctx context.Context, store *tasks.Store, db *sql.DB, active string) error) error {
+	db, active, err := d.OpenDBActive()
 	if err != nil {
 		return fmt.Errorf("initializing database: %w", err)
 	}
 	defer db.Close()
-	return fn(cmd.Context(), tasks.NewStore(db.DB), db.DB, open.ProfileID)
+	return fn(cmd.Context(), tasks.NewStore(db.DB), db.DB, active)
 }
 
-func newTaskOSInstallCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTaskOSInstallCmd() *cobra.Command {
 	var force bool
 	cmd := &cobra.Command{
 		Use:   "install",
@@ -133,13 +133,13 @@ another profile is never replaced.`,
 			// As P1's operator commands do: an agent is refused first, on every platform; then the
 			// arguments are counted (cobra's Args would be exit 1 with no --json document); then the
 			// platform is checked.
-			if _, err := callerFor(flagAs(cmd)).operator("install the macOS menu"); err != nil {
+			if _, err := d.callerFor(flagAs(cmd)).operator("install the macOS menu"); err != nil {
 				return err
 			}
 			if len(args) != 0 {
-				return errInvalidInput("task os install takes no arguments (got %q): the profile is --profile, as in monoagentcli --profile Work task os install", cutArg(args[0]))
+				return d.InvalidInput("task os install takes no arguments (got %q): the profile is --profile, as in monoagentcli --profile Work task os install", cutArg(args[0]))
 			}
-			if err := taskOSOnly(); err != nil {
+			if err := d.taskOSOnly(); err != nil {
 				return err
 			}
 			dir, services, err := taskOSDir(cmd)
@@ -152,16 +152,16 @@ another profile is never replaced.`,
 			}
 			cli := filepath.Clean(exe)
 			if strings.Contains(filepath.ToSlash(cli), "/go-build") {
-				return errInvalidInput("this monoagentcli is a temporary build (%s) that is gone after the run: run task os install from the installed monoagentcli", cli)
+				return d.InvalidInput("this monoagentcli is a temporary build (%s) that is gone after the run: run task os install from the installed monoagentcli", cli)
 			}
-			return withTasks(cfg, cmd, func(ctx context.Context, store *tasks.Store, p tasks.Profile) error {
-				spec, err := taskOSMenuSpec(cfg, cli, p)
+			return d.withTasks(cmd, func(ctx context.Context, store *tasks.Store, p tasks.Profile) error {
+				spec, err := d.taskOSMenuSpec(cli, p)
 				if err != nil {
 					return err
 				}
 				b, err := osmenu.Render(spec)
 				if err != nil {
-					return errInvalidInput("%v", err)
+					return d.InvalidInput("%v", err)
 				}
 				gone := func(id string) bool {
 					_, err := store.Profile(ctx, id)
@@ -169,7 +169,7 @@ another profile is never replaced.`,
 				}
 				res, err := osmenu.Install(dir, b, force, gone)
 				if errors.Is(err, osmenu.ErrTaken) {
-					return errInvalidInput("%v", err)
+					return d.InvalidInput("%v", err)
 				}
 				if err != nil {
 					return err
@@ -177,8 +177,8 @@ another profile is never replaced.`,
 				if services && res.Outcome != osmenu.Unchanged {
 					refreshServices()
 				}
-				if cfg.JSONOutput {
-					return writeJSONTo(cmd.OutOrStdout(), map[string]any{
+				if d.JSONOutput() {
+					return d.WriteJSON(cmd.OutOrStdout(), map[string]any{
 						"profile": p, "path": res.Path, "menu_item": res.Menu, "cli": cli, "outcome": res.Outcome, "removed": res.Removed,
 					})
 				}
@@ -222,7 +222,7 @@ type taskOSMenuJSON struct {
 	Why     string        `json:"why"`   // empty when current
 }
 
-func newTaskOSStatusCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTaskOSStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "List the installed Add to MonoAgent Tasks menus and whether each is current (macOS)",
@@ -234,16 +234,16 @@ with --profile and the id shown); or other_database (it files into another
 database: run status with that --db-path to judge it).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) != 0 {
-				return errInvalidInput("task os status takes no arguments (got %q): its one option is --dest", cutArg(args[0]))
+				return d.InvalidInput("task os status takes no arguments (got %q): its one option is --dest", cutArg(args[0]))
 			}
-			if err := taskOSOnly(); err != nil {
+			if err := d.taskOSOnly(); err != nil {
 				return err
 			}
 			dir, _, err := taskOSDir(cmd)
 			if err != nil {
 				return err
 			}
-			dbPath, err := taskOSDBPath(cfg)
+			dbPath, err := d.taskOSDBPath()
 			if err != nil {
 				return err
 			}
@@ -251,17 +251,17 @@ database: run status with that --db-path to judge it).`,
 			if err != nil {
 				return err
 			}
-			return withTaskStore(cfg, cmd, func(ctx context.Context, store *tasks.Store, _ *sql.DB, _ string) error {
+			return d.withTaskStore(cmd, func(ctx context.Context, store *tasks.Store, _ *sql.DB, _ string) error {
 				rows := make([]taskOSMenuJSON, 0, len(menus))
 				for _, m := range menus {
-					row, err := taskOSState(ctx, cfg, store, dbPath, m)
+					row, err := d.taskOSState(ctx, store, dbPath, m)
 					if err != nil {
 						return err
 					}
 					rows = append(rows, row)
 				}
-				if cfg.JSONOutput {
-					return writeJSONTo(cmd.OutOrStdout(), map[string]any{"dir": dir, "menus": rows})
+				if d.JSONOutput() {
+					return d.WriteJSON(cmd.OutOrStdout(), map[string]any{"dir": dir, "menus": rows})
 				}
 				printTaskOSStatus(cmd.OutOrStdout(), dir, rows)
 				return nil
@@ -274,7 +274,7 @@ database: run status with that --db-path to judge it).`,
 // it now with the monoagentcli it names, so that the answer does not depend on
 // which copy of the CLI asks. A menu of another database than db is not judged
 // against this one.
-func taskOSState(ctx context.Context, cfg *globalConfig, store *tasks.Store, db string, m osmenu.Menu) (taskOSMenuJSON, error) {
+func (d Deps) taskOSState(ctx context.Context, store *tasks.Store, db string, m osmenu.Menu) (taskOSMenuJSON, error) {
 	row := taskOSMenuJSON{Path: m.Path, Profile: tasks.Profile{ID: m.ProfileID}, CLI: m.CLI, DB: m.DB,
 		State: "other_database", Why: "it files into another database"}
 	if m.DB != db {
@@ -286,7 +286,7 @@ func taskOSState(ctx context.Context, cfg *globalConfig, store *tasks.Store, db 
 		return row, nil
 	}
 	if err != nil {
-		return row, taskErr(err)
+		return row, d.taskErr(err)
 	}
 	row.Profile, row.State = p, "stale"
 	if !taskOSRunnable(m.CLI) {
@@ -294,7 +294,7 @@ func taskOSState(ctx context.Context, cfg *globalConfig, store *tasks.Store, db 
 		return row, nil
 	}
 	row.Why = "the profile was renamed, or the menu was changed or written in an older format"
-	spec, err := taskOSMenuSpec(cfg, m.CLI, p)
+	spec, err := d.taskOSMenuSpec(m.CLI, p)
 	if err != nil {
 		return row, nil
 	}
@@ -327,7 +327,7 @@ func printTaskOSStatus(w io.Writer, dir string, rows []taskOSMenuJSON) {
 	}
 }
 
-func newTaskOSUninstallCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTaskOSUninstallCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "uninstall",
 		Short: "Remove a profile's Add to MonoAgent Tasks menu (you only; macOS)",
@@ -338,28 +338,28 @@ prints it. Only a menu task os install wrote is removed; nothing to remove is
 not an error.`,
 		Example: `  monoagentcli --profile Work task os uninstall`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if _, err := callerFor(flagAs(cmd)).operator("remove the macOS menu"); err != nil {
+			if _, err := d.callerFor(flagAs(cmd)).operator("remove the macOS menu"); err != nil {
 				return err
 			}
 			if len(args) != 0 {
-				return errInvalidInput("task os uninstall takes no arguments (got %q): the profile is --profile, as in monoagentcli --profile Work task os uninstall", cutArg(args[0]))
+				return d.InvalidInput("task os uninstall takes no arguments (got %q): the profile is --profile, as in monoagentcli --profile Work task os uninstall", cutArg(args[0]))
 			}
-			if err := taskOSOnly(); err != nil {
+			if err := d.taskOSOnly(); err != nil {
 				return err
 			}
 			dir, services, err := taskOSDir(cmd)
 			if err != nil {
 				return err
 			}
-			dbPath, err := taskOSDBPath(cfg)
+			dbPath, err := d.taskOSDBPath()
 			if err != nil {
 				return err
 			}
-			return withTaskStore(cfg, cmd, func(_ context.Context, _ *tasks.Store, db *sql.DB, active string) error {
+			return d.withTaskStore(cmd, func(_ context.Context, _ *tasks.Store, db *sql.DB, active string) error {
 				id := active
-				if cfg.ProfileID != "" {
-					id = cfg.ProfileID // a deleted profile's id, as status prints it
-					if resolved, err := resolveProfileID(db, cfg.ProfileID); err == nil {
+				if flag := d.ProfileID(); flag != "" {
+					id = flag // a deleted profile's id, as status prints it
+					if resolved, ok := resolveProfileID(db, flag); ok {
 						id = resolved
 					}
 				}
@@ -370,8 +370,8 @@ not an error.`,
 				if services && len(removed) > 0 {
 					refreshServices()
 				}
-				if cfg.JSONOutput {
-					return writeJSONTo(cmd.OutOrStdout(), map[string]any{"profile_id": id, "removed": removed})
+				if d.JSONOutput() {
+					return d.WriteJSON(cmd.OutOrStdout(), map[string]any{"profile_id": id, "removed": removed})
 				}
 				if len(removed) == 0 {
 					fmt.Fprintf(cmd.OutOrStdout(), "No Add to MonoAgent Tasks menu files into profile %s in %s: nothing to remove.\n", id, dir)
@@ -383,4 +383,17 @@ not an error.`,
 			})
 		},
 	}
+}
+
+// resolveProfileID is the id of the profile idOrName names, by id or else by name (the
+// CLI's resolveProfileID).
+func resolveProfileID(db *sql.DB, idOrName string) (string, bool) {
+	var id string
+	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
+		return id, true
+	}
+	if err := db.QueryRow(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?)`, idOrName).Scan(&id); err == nil {
+		return id, true
+	}
+	return "", false
 }
