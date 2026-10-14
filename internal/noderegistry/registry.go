@@ -5,6 +5,7 @@ package noderegistry
 
 import (
 	"database/sql"
+	"sync"
 
 	"github.com/rs/zerolog"
 
@@ -43,9 +44,16 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
+// buildMu serializes Build: several node packages keep their DB connection
+// in a package-level variable that RegisterAll sets, so concurrent Builds
+// (parallel tests, the GUI and a CLI call in one process) would race on it.
+var buildMu sync.Mutex
+
 // Build creates a registry with all built-in node types registered.
 // If db is non-nil, DB-backed node packages get the connection.
 func Build(db *sql.DB) *workflow.NodeTypeRegistry {
+	buildMu.Lock()
+	defer buildMu.Unlock()
 	// Outbound sends started by an agent wait for approval (internal/hilsend).
 	workflow.SetExecGuard(hilsend.Guard)
 	registry := workflow.NewNodeTypeRegistry()
