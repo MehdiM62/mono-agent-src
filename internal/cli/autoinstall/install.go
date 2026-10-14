@@ -1,4 +1,4 @@
-package main
+package autoinstall
 
 import (
 	"errors"
@@ -12,50 +12,50 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// errConfirmationRequired is returned when an install needs a yes/no answer
+// ErrConfirmationRequired is returned when an install needs a yes/no answer
 // that nobody can give: --json, or stdin is not a terminal (contracts §5).
-var errConfirmationRequired = errors.New("confirmation required (pass --yes to install, or --dry-run to review)")
+var ErrConfirmationRequired = errors.New("confirmation required (pass --yes to install, or --dry-run to review)")
 
-// installConfirmer decides whether an install proceeds after its review.
-// interactive=false means no prompt is possible.
-type installConfirmer struct {
-	yes         bool
-	interactive bool
-	in          io.Reader
-	out         io.Writer
+// Confirmer decides whether an install proceeds after its review.
+// Interactive=false means no prompt is possible.
+type Confirmer struct {
+	Yes         bool
+	Interactive bool
+	In          io.Reader
+	Out         io.Writer
 }
 
-// runInstall runs the review → confirm → install flow shared by
+// RunInstall runs the review → confirm → install flow shared by
 // `automation install` and `action import`. do performs the real (or dry)
 // install for the given options; opts.DryRun only reviews.
-func runInstall(opts automation.InstallOptions, c installConfirmer,
+func (d Deps) RunInstall(opts automation.InstallOptions, c Confirmer,
 	do func(automation.InstallOptions) (*automation.InstallResult, error)) (*automation.InstallResult, error) {
 	if opts.Source == "" {
 		opts.Source = automation.SourceImported
 	}
 	if opts.DryRun {
 		res, err := do(opts)
-		return res, withInstallResult(err, res)
+		return res, d.WithInstallResult(err, res)
 	}
-	if !c.yes {
-		if !c.interactive {
-			return nil, errConfirmationRequired
+	if !c.Yes {
+		if !c.Interactive {
+			return nil, ErrConfirmationRequired
 		}
 		dry := opts
 		dry.DryRun = true
 		review, err := do(dry)
 		if err != nil {
-			return nil, withInstallResult(err, review)
+			return nil, d.WithInstallResult(err, review)
 		}
-		printInstallReview(c.out, review)
-		if issuesHaveErrors(review.Issues) {
+		printInstallReview(c.Out, review)
+		if IssuesHaveErrors(review.Issues) {
 			return review, fmt.Errorf("package %s has validation errors; not installed", review.ID)
 		}
 		question := fmt.Sprintf("Install %s %s?", review.ID, review.Version)
 		if review.Review.ReplaceRequired {
 			question = fmt.Sprintf("Replace the installed %s with %s %s?", review.ID, review.ID, review.Version)
 		}
-		if !confirmYes(c.in, c.out, question) {
+		if !confirmYes(c.In, c.Out, question) {
 			return nil, errors.New("install cancelled")
 		}
 		// Answering yes to a review that says it replaces something is the
@@ -68,10 +68,11 @@ func runInstall(opts automation.InstallOptions, c installConfirmer,
 		}
 	}
 	res, err := do(opts)
-	return res, withInstallResult(err, res)
+	return res, d.WithInstallResult(err, res)
 }
 
-func newAutomationInstallCmd(cfg *globalConfig) *cobra.Command {
+// NewInstallCmd builds `automation install`.
+func (d Deps) NewInstallCmd() *cobra.Command {
 	var dryRun, yes, replace, replaceBuiltin, local bool
 	var expectSHA string
 	cmd := &cobra.Command{
@@ -90,20 +91,20 @@ func newAutomationInstallCmd(cfg *globalConfig) *cobra.Command {
 				}
 				opts.Source, opts.Trust = automation.SourceLocal, automation.TrustLocal
 			}
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
-			c := installConfirmer{yes: yes, interactive: !cfg.JSONOutput && stdinIsTerminal(),
-				in: cmd.InOrStdin(), out: cmd.ErrOrStderr()}
-			res, err := runInstall(opts, c, func(o automation.InstallOptions) (*automation.InstallResult, error) {
+			c := Confirmer{Yes: yes, Interactive: !d.JSONOutput() && d.StdinIsTerminal(),
+				In: cmd.InOrStdin(), Out: cmd.ErrOrStderr()}
+			res, err := d.RunInstall(opts, c, func(o automation.InstallOptions) (*automation.InstallResult, error) {
 				return reg.Install(args[0], o)
 			})
 			if err != nil {
-				printFailedIssues(cmd, cfg, err)
+				d.PrintFailedIssues(cmd, err)
 				return err
 			}
-			return printInstallResult(cmd.OutOrStdout(), cfg, res)
+			return d.PrintInstallResult(cmd.OutOrStdout(), res)
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Validate and show the review without installing")
@@ -129,17 +130,18 @@ func checkInstallSource(src string) error {
 	return nil
 }
 
-// printFailedIssues shows a failed install's validation issues on stderr
+// PrintFailedIssues shows a failed install's validation issues on stderr
 // (the --json error object carries them instead).
-func printFailedIssues(cmd *cobra.Command, cfg *globalConfig, err error) {
-	var re *installResultError
-	if !cfg.JSONOutput && errors.As(err, &re) {
-		printIssues(cmd.ErrOrStderr(), re.res.Issues)
+func (d Deps) PrintFailedIssues(cmd *cobra.Command, err error) {
+	if res := d.InstallResultOf(err); !d.JSONOutput() && res != nil {
+		printIssues(cmd.ErrOrStderr(), res.Issues)
 	}
 }
 
-func printInstallResult(out io.Writer, cfg *globalConfig, res *automation.InstallResult) error {
-	if cfg.JSONOutput {
+// PrintInstallResult prints an install's result: the InstallResult as JSON, or
+// the review (dry run) or a summary line.
+func (d Deps) PrintInstallResult(out io.Writer, res *automation.InstallResult) error {
+	if d.JSONOutput() {
 		return writeJSONTo(out, res)
 	}
 	if res.DryRun {
@@ -286,16 +288,17 @@ func printChange(out io.Writer, label string, items []string) {
 	}
 }
 
-func newAutomationExportCmd(cfg *globalConfig) *cobra.Command {
+// NewExportCmd builds `automation export`.
+func (d Deps) NewExportCmd() *cobra.Command {
 	var outFile, actions string
 	var withRecordings bool
-	var df exportDomainFlags
+	var df DomainFlags
 	cmd := &cobra.Command{
 		Use:   "export <id>",
 		Short: "Export an installed automation as a .mpkg file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, err := openAutomationRegistry()
+			reg, err := d.OpenRegistry()
 			if err != nil {
 				return err
 			}
@@ -307,28 +310,28 @@ func newAutomationExportCmd(cfg *globalConfig) *cobra.Command {
 				}
 				outFile = fmt.Sprintf("%s-%s.mpkg", id, info.Version)
 			}
-			doms, err := df.resolve(reg, id)
+			doms, err := df.Resolve(reg, id)
 			if err != nil {
 				return err
 			}
 			opts := automation.ExportOptions{Actions: splitCSV(actions), WithRecordings: withRecordings, Domains: doms}
-			sum, err := writeHashed(outFile, func(w io.Writer) error { return reg.Export(id, w, opts) })
+			sum, err := WriteHashed(outFile, func(w io.Writer) error { return reg.Export(id, w, opts) })
 			if err != nil {
 				return err
 			}
-			return printFileResult(cmd.OutOrStdout(), cfg, outFile, sum, "Exported")
+			return d.PrintFileResult(cmd.OutOrStdout(), outFile, sum, "Exported")
 		},
 	}
 	cmd.Flags().StringVarP(&outFile, "output", "o", "", "Output file (default <id>-<version>.mpkg)")
 	cmd.Flags().StringVar(&actions, "actions", "", "Only these actions (comma-separated) and what they reference")
 	cmd.Flags().BoolVar(&withRecordings, "with-recordings", false, "Include recordings/ (real page content)")
-	df.register(cmd)
+	df.Register(cmd)
 	return cmd
 }
 
-// newAutomationLifecycleCmds builds uninstall/restore/enable/disable/rollback,
+// NewLifecycleCmds builds uninstall/restore/enable/disable/rollback,
 // which all print {"ok":true,"info":InstalledInfo|null}.
-func newAutomationLifecycleCmds(cfg *globalConfig) []*cobra.Command {
+func (d Deps) NewLifecycleCmds() []*cobra.Command {
 	type op struct {
 		use, short, done string
 		run              func(*automation.Registry, string) error
@@ -337,7 +340,7 @@ func newAutomationLifecycleCmds(cfg *globalConfig) []*cobra.Command {
 		{"uninstall", "Uninstall an automation (a built-in stays removed until restored)", "Uninstalled",
 			func(r *automation.Registry, id string) error { return r.Uninstall(id) }},
 		{"restore", "Reinstall an official automation (now installed from monoes.me)", "Restored",
-			func(r *automation.Registry, id string) error { return restoreFromLibraryError(id) }},
+			func(r *automation.Registry, id string) error { return d.restoreFromLibraryError(id) }},
 		{"enable", "Enable an installed automation", "Enabled",
 			func(r *automation.Registry, id string) error { return r.SetEnabled(id, true) }},
 		{"disable", "Disable an installed automation", "Disabled",
@@ -353,7 +356,7 @@ func newAutomationLifecycleCmds(cfg *globalConfig) []*cobra.Command {
 			Short: o.short,
 			Args:  cobra.ExactArgs(1),
 			RunE: func(cmd *cobra.Command, args []string) error {
-				reg, err := openAutomationRegistry()
+				reg, err := d.OpenRegistry()
 				if err != nil {
 					return err
 				}
@@ -366,7 +369,7 @@ func newAutomationLifecycleCmds(cfg *globalConfig) []*cobra.Command {
 					info = nil // e.g. an uninstalled imported package is gone
 				}
 				out := cmd.OutOrStdout()
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return writeJSONTo(out, map[string]any{"ok": true, "info": info})
 				}
 				if info != nil {
@@ -383,6 +386,6 @@ func newAutomationLifecycleCmds(cfg *globalConfig) []*cobra.Command {
 
 // restoreFromLibraryError is `automation restore`'s answer: this binary no
 // longer ships built-in packages, so the official copy comes from monoes.me.
-func restoreFromLibraryError(id string) error {
-	return errNotFound("automation %s: this version of monoagent no longer ships built-in automations; reinstall the official copy from monoes.me: log in with `monoagentcli library login`, then run `monoagentcli library install automation %s`", id, id)
+func (d Deps) restoreFromLibraryError(id string) error {
+	return d.NotFound("automation %s: this version of monoagent no longer ships built-in automations; reinstall the official copy from monoes.me: log in with `monoagentcli library login`, then run `monoagentcli library install automation %s`", id, id)
 }

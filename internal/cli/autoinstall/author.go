@@ -1,4 +1,4 @@
-package main
+package autoinstall
 
 import (
 	"crypto/sha256"
@@ -18,7 +18,8 @@ import (
 // Authoring commands: validate, pack (new is in automation_new.go, test in
 // automation_fixtures.go).
 
-func newAutomationValidateCmd(cfg *globalConfig) *cobra.Command {
+// NewValidateCmd builds `automation validate`.
+func (d Deps) NewValidateCmd() *cobra.Command {
 	var builtin bool
 	cmd := &cobra.Command{
 		Use:   "validate <dir|file.mpkg|action.json>",
@@ -29,15 +30,15 @@ func newAutomationValidateCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ok := !issuesHaveErrors(issues)
+			ok := !IssuesHaveErrors(issues)
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				if err := writeJSONTo(out, map[string]any{"ok": ok, "issues": issues}); err != nil {
 					return err
 				}
 				if !ok {
 					// Exit 1; the JSON above already says why (one document).
-					return reportedError{fmt.Errorf("%s has validation errors", args[0])}
+					return d.Reported(fmt.Errorf("%s has validation errors", args[0]))
 				}
 				return nil
 			}
@@ -74,7 +75,7 @@ func validateTarget(target string, builtin bool) ([]automation.IssueJSON, error)
 	if err != nil {
 		return nil, err
 	}
-	if builtin || isBuiltinSourceDir(target) {
+	if builtin || IsBuiltinSourceDir(target) {
 		pkg.Source = automation.SourceBuiltin
 	}
 	issues := automation.Validate(pkg)
@@ -84,10 +85,10 @@ func validateTarget(target string, builtin bool) ([]automation.IssueJSON, error)
 	return issues, nil
 }
 
-// isBuiltinSourceDir reports whether dir is one of the official packages'
+// IsBuiltinSourceDir reports whether dir is one of the official packages'
 // sources in a checkout: automations/<id> (next to automations/embed.go),
 // or data/automations/<id> in a checkout from before the move.
-func isBuiltinSourceDir(dir string) bool {
+func IsBuiltinSourceDir(dir string) bool {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return false
@@ -122,7 +123,8 @@ func validateActionFile(file string) ([]automation.IssueJSON, error) {
 	return out, nil
 }
 
-func issuesHaveErrors(issues []automation.IssueJSON) bool {
+// IssuesHaveErrors reports whether any issue is an error (warnings and notes are not).
+func IssuesHaveErrors(issues []automation.IssueJSON) bool {
 	for _, is := range issues {
 		if is.Severity == "error" {
 			return true
@@ -131,7 +133,8 @@ func issuesHaveErrors(issues []automation.IssueJSON) bool {
 	return false
 }
 
-func newAutomationPackCmd(cfg *globalConfig) *cobra.Command {
+// NewPackCmd builds `automation pack`.
+func (d Deps) NewPackCmd() *cobra.Command {
 	var outFile string
 	cmd := &cobra.Command{
 		Use:   "pack <dir>",
@@ -143,8 +146,8 @@ func newAutomationPackCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if issues := automation.Validate(pkg); issuesHaveErrors(issues) {
-				if !cfg.JSONOutput {
+			if issues := automation.Validate(pkg); IssuesHaveErrors(issues) {
+				if !d.JSONOutput() {
 					printIssues(cmd.ErrOrStderr(), issues)
 				}
 				return fmt.Errorf("%s has validation errors; fix them before packing", dir)
@@ -152,20 +155,20 @@ func newAutomationPackCmd(cfg *globalConfig) *cobra.Command {
 			if outFile == "" {
 				outFile = fmt.Sprintf("%s-%s.mpkg", pkg.Manifest.ID, pkg.Manifest.Version)
 			}
-			sum, err := writeHashed(outFile, func(w io.Writer) error { return automation.Pack(dir, w) })
+			sum, err := WriteHashed(outFile, func(w io.Writer) error { return automation.Pack(dir, w) })
 			if err != nil {
 				return err
 			}
-			return printFileResult(cmd.OutOrStdout(), cfg, outFile, sum, "Packed")
+			return d.PrintFileResult(cmd.OutOrStdout(), outFile, sum, "Packed")
 		},
 	}
 	cmd.Flags().StringVarP(&outFile, "output", "o", "", "Output file (default <id>-<version>.mpkg)")
 	return cmd
 }
 
-// writeHashed creates file, streams write into it and returns the sha256 of
+// WriteHashed creates file, streams write into it and returns the sha256 of
 // what was written. A failed write removes the partial file.
-func writeHashed(file string, write func(io.Writer) error) (string, error) {
+func WriteHashed(file string, write func(io.Writer) error) (string, error) {
 	f, err := os.Create(file)
 	if err != nil {
 		return "", err
@@ -183,13 +186,13 @@ func writeHashed(file string, write func(io.Writer) error) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// printFileResult prints {"file","sha256"} (contracts §5) or a line.
-func printFileResult(out io.Writer, cfg *globalConfig, file, sum, verb string) error {
+// PrintFileResult prints {"file","sha256"} (contracts §5) or a line.
+func (d Deps) PrintFileResult(out io.Writer, file, sum, verb string) error {
 	abs, err := filepath.Abs(file)
 	if err != nil {
 		abs = file
 	}
-	if cfg.JSONOutput {
+	if d.JSONOutput() {
 		return writeJSONTo(out, map[string]string{"file": abs, "sha256": sum})
 	}
 	fmt.Fprintf(out, "%s: %s\nsha256: %s\n", verb, abs, sum)
