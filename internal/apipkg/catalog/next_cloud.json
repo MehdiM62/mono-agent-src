@@ -478,7 +478,8 @@
           "contentType": "{{ el.propstat.prop.getcontenttype }}",
           "type": "{{ el.propstat.prop.resourcetype | then:'folder' | default:'file' }}",
           "eTag": "{{ el.propstat.prop.getetag | replace:'\"','' }}"
-        }
+        },
+        "skip": 1
       }
     },
     {

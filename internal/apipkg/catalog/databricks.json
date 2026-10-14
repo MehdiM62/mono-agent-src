@@ -351,11 +351,15 @@
           "help": "Path inside the volume, e.g. reports/q1.csv"
         }
       ],
-      "description": "Succeeds when the file exists (response headers are not returned yet).",
+      "description": "Reads the file's metadata from the response headers.",
       "output": {
         "to": {
-          "success": true,
-          "filePath": "{{ p.filePath }}"
+          "volumePath": "{{ p.volumePath }}",
+          "filePath": "{{ p.filePath }}",
+          "headers": "{{ hdr }}",
+          "contentLength": "{{ hdr.Content-Length }}",
+          "contentType": "{{ hdr.Content-Type }}",
+          "lastModified": "{{ hdr.Last-Modified }}"
         }
       }
     },
