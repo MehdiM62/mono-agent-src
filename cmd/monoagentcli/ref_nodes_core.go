@@ -31,7 +31,8 @@ Commonly used to pull news, blog posts, or podcast episodes.`,
 		Config: `{
   "url":            "https://rss.dw.com/rdf/rss-en-all",
   "limit":          15,
-  "since_last_run": false   // true: emit only entries newer than the previous run saw
+  "since_last_run": false,  // true: emit only entries newer than the previous run saw
+  "baseline":       false   // with since_last_run: the first run records the feed and emits nothing
 }`,
 		Inputs:  "none (URL comes from config)",
 		Outputs: "title, description, link, pubDate, guid, author, categories",
