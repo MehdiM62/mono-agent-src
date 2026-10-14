@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronRight, ChevronDown, ChevronUp, KeyRound, ShieldAlert, Zap, Loader2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { JevStatus, JevSetKey, JevTestKey, JevRemoveKey, JevSetSurface, JevUsage } from '../../wailsjs/go/main/App'
 
 // TypeSafe Jev settings. Everything goes through `monoagentcli jev …` (Go
@@ -40,8 +41,9 @@ export function testError(raw) {
   return raw
 }
 
-function keyChip(st) {
+function keyChip(st, t) {
   switch (st?.key_source) {
+    case 'profile-vault': return { text: t('settings.jev.keyProfileVault'), color: 'var(--cyan)', bg: 'rgba(0,180,216,.1)', bd: 'rgba(0,180,216,.25)' }
     case 'vault': return { text: `Vault entry "${st.key_entry || 'typesafe'}"`, color: 'var(--green-neon)', bg: 'rgba(16,185,129,.1)', bd: 'rgba(74,222,128,.25)' }
     case 'env': return { text: 'Environment variable (TYPESAFE_API_KEY)', color: 'var(--cyan)', bg: 'rgba(0,180,216,.1)', bd: 'rgba(0,180,216,.25)' }
     case 'config': return { text: 'Set in configuration', color: 'var(--cyan)', bg: 'rgba(0,180,216,.1)', bd: 'rgba(0,180,216,.25)' }
@@ -211,7 +213,10 @@ function UsageTable({ usage, titles }) {
 // expandToken is what a jump to this section passes (Settings gives the navigation data, a new object for each
 // navigation): the section opens whenever it changes to a value, also after the user folded it by hand, which
 // defaultExpanded cannot do because it does not change from one jump to the next.
-export default function JevSection({ collapsible = false, defaultExpanded = false, expandToken = null } = {}) {
+// part: 'machine' shows the machine-wide half (the API key), 'profile' the active profile's half (the features and
+// their usage); left out, both in one section.
+export default function JevSection({ collapsible = false, defaultExpanded = false, expandToken = null, part = 'all' } = {}) {
+  const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(defaultExpanded)
   useEffect(() => {
     if (defaultExpanded) setIsExpanded(true)
@@ -268,7 +273,7 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
   const header = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
       <span style={{ fontFamily: mono, fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 2 }}>
-        TypeSafe Jev
+        {part === 'profile' ? t('settings.jev.featuresTitle') : 'TypeSafe Jev'}
       </span>
       <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
     </div>
@@ -276,9 +281,9 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
 
   if (!status) {
     return (
-      <div id="settings-jev" data-testid="jev-section">
+      <div id={part === 'profile' ? 'settings-jev-features' : 'settings-jev'} data-testid={part === 'profile' ? 'jev-features-section' : 'jev-section'}>
         {header}
-        {collapsible ? (
+        {collapsible && part !== 'profile' ? (
           <>
             <div
               role="button"
@@ -365,12 +370,55 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
     )
   }
 
-  const chip = keyChip(status)
+  const chip = keyChip(status, t)
   const surfaces = status.surfaces || []
   const titles = Object.fromEntries(surfaces.map(s => [s.surface, s.title || s.surface]))
   const hasKey = status.key_source && status.key_source !== 'none'
   const disabled = !!busy
   const activeCount = surfaces.filter(s => s.enabled).length
+  const machine = part === 'machine'
+  const removable = status.key_source === 'vault'
+
+  const featuresBlock = (
+    <>
+      {part === 'profile' && <div style={hint}>{t('settings.jev.consent')}</div>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <span style={label}>Features</span>
+        {!hasKey && surfaces.some(s => s.enabled) && (
+          <div style={{ ...hint, color: 'var(--yellow)' }}>Enabled features stay inactive until a key is set.</div>
+        )}
+        {surfaces.length === 0 && <div style={hint}>This version of monoagentcli reports no Jev features.</div>}
+        {surfaces.map(s => (
+          <SurfaceRow
+            key={s.surface} s={s} busy={disabled} pending={pending === s.surface}
+            onStartEnable={name => { setErr(''); setPending(name) }}
+            onCancelEnable={() => setPending('')}
+            onConfirmEnable={(name, thr) => setSurface(name, true, thr)}
+            onDisable={name => setSurface(name, false, 0)}
+            onThreshold={(name, thr) => setSurface(name, true, thr)}
+          />
+        ))}
+      </div>
+
+      {/* Usage */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border-dim)', paddingTop: 12 }}>
+        <span style={label}>Usage · last 7 days</span>
+        {usageErr ? <div style={errText}>Couldn't read usage: {usageErr}</div> : <UsageTable usage={usage} titles={titles} />}
+      </div>
+    </>
+  )
+
+  if (part === 'profile') {
+    return (
+      <div id="settings-jev-features" data-testid="jev-features-section">
+        {header}
+        <div style={card}>
+          {err && <div role="alert" style={errText}>{err}</div>}
+          {featuresBlock}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div id="settings-jev" data-testid="jev-section">
@@ -420,7 +468,7 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
               <KeyRound size={11} /> {chip.text}
             </span>
 
-            <span
+            {!machine && <span
               data-testid="jev-fold-features-badge"
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: mono, fontSize: 10.5,
@@ -431,11 +479,11 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
               }}
             >
               {activeCount} {activeCount === 1 ? 'feature' : 'features'} active
-            </span>
+            </span>}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {usage?.total?.calls ? (
+            {!machine && usage?.total?.calls ? (
               <span style={{ fontFamily: mono, fontSize: 10, color: 'var(--text-muted)' }}>
                 {usage.total.calls} {usage.total.calls === 1 ? 'call' : 'calls'} (7d) · {formatUSD(usage.total.estimated_usd)}
               </span>
@@ -453,7 +501,7 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
         <div style={card}>
         <div style={hint}>
           Fast pick-one and yes/no decisions for a few monoagent features. Jev never writes text,
-          and nothing is sent to TypeSafe until you turn a feature on below. Get an API key at console.typesafe.ai.
+          and nothing is sent to TypeSafe until you turn a feature on{machine ? " in a profile's settings" : ' below'}. Get an API key at console.typesafe.ai.
         </div>
 
         {/* API key */}
@@ -484,10 +532,15 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
             <button type="button" className="btn btn-secondary btn-sm" disabled={disabled || !hasKey} onClick={testKey}>
               {busy === 'test' ? 'Testing…' : 'Test'}
             </button>
-            {status.key_source === 'vault' && !confirmRemove && (
+            {removable && !confirmRemove && (
               <button type="button" className="btn btn-danger btn-sm" disabled={disabled} onClick={() => setConfirmRemove(true)}>Remove</button>
             )}
           </form>
+          {status.key_source === 'profile-vault' && (
+            <div data-testid="jev-adopt-hint" style={hint}>
+              {t('settings.jev.adoptHint')} <code style={{ fontFamily: mono }}>monoagentcli jev key adopt</code>
+            </div>
+          )}
           {status.key_source === 'env' && (
             <div style={hint}>The key comes from TYPESAFE_API_KEY. A key saved here goes to the vault and is used instead.</div>
           )}
@@ -514,30 +567,7 @@ export default function JevSection({ collapsible = false, defaultExpanded = fals
 
         {err && <div role="alert" style={errText}>{err}</div>}
 
-        {/* Features */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <span style={label}>Features</span>
-          {!hasKey && surfaces.some(s => s.enabled) && (
-            <div style={{ ...hint, color: 'var(--yellow)' }}>Enabled features stay inactive until a key is set.</div>
-          )}
-          {surfaces.length === 0 && <div style={hint}>This version of monoagentcli reports no Jev features.</div>}
-          {surfaces.map(s => (
-            <SurfaceRow
-              key={s.surface} s={s} busy={disabled} pending={pending === s.surface}
-              onStartEnable={name => { setErr(''); setPending(name) }}
-              onCancelEnable={() => setPending('')}
-              onConfirmEnable={(name, thr) => setSurface(name, true, thr)}
-              onDisable={name => setSurface(name, false, 0)}
-              onThreshold={(name, thr) => setSurface(name, true, thr)}
-            />
-          ))}
-        </div>
-
-        {/* Usage */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border-dim)', paddingTop: 12 }}>
-          <span style={label}>Usage · last 7 days</span>
-          {usageErr ? <div style={errText}>Couldn't read usage: {usageErr}</div> : <UsageTable usage={usage} titles={titles} />}
-        </div>
+        {!machine && featuresBlock}
       </div>
       )}
     </div>
