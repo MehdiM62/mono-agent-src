@@ -88,6 +88,7 @@ var Manifest = []ManifestEntry{
 
 	// --- agent.* / ai.* (local-agent nodes, not the deprecated ai.* provider stubs) ---
 	{NodeType: "agent.ask", GoFile: "internal/nodes/agent/ask_schema.go", StructName: "AskNodeSchema"},
+	{NodeType: "agent.memory", GoFile: "internal/nodes/agent/memory_schema.go", StructName: "MemoryNodeSchema"},
 	{NodeType: "browser.jev", GoFile: "internal/nodes/browserjev/schema.go", StructName: "NodeSchema"},
 	{NodeType: "ai.choose", GoFile: "internal/nodes/ai/choose/choose_schema.go", StructName: "ChooseNodeSchema"},
 	{NodeType: "ai.extract_page", GoFile: "internal/nodes/ai/crawl/extract_page_schema.go", StructName: "ExtractPageNodeSchema"},
