@@ -1,4 +1,4 @@
-package main
+package sociallist
 
 import (
 	"database/sql"
@@ -8,11 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/spf13/cobra"
 )
 
-func newListCmd(cfg *globalConfig) *cobra.Command {
+// NewCommand returns `list` with its subcommands.
+func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "Manage social lists",
@@ -20,24 +22,24 @@ func newListCmd(cfg *globalConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		newListLsCmd(cfg),
-		newListCreateCmd(cfg),
-		newListShowCmd(cfg),
-		newListDeleteCmd(cfg),
-		newListAddItemCmd(cfg),
+		d.newListLsCmd(),
+		d.newListCreateCmd(),
+		d.newListShowCmd(),
+		d.newListDeleteCmd(),
+		d.newListAddItemCmd(),
 	)
 
 	return cmd
 }
 
-func newListLsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newListLsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "ls",
 		Short: "Show all social lists",
 		Example: `  monoagentcli list ls
   monoagentcli list ls --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -47,7 +49,7 @@ func newListLsCmd(cfg *globalConfig) *cobra.Command {
 				`SELECT id, COALESCE(list_type,''), name, item_count, created_at, updated_at
 				 FROM social_lists WHERE profile_id = ?
 				 ORDER BY created_at DESC`,
-				cfg.ProfileID,
+				d.ProfileID(),
 			)
 			if err != nil {
 				return fmt.Errorf("querying social lists: %w", err)
@@ -66,7 +68,7 @@ func newListLsCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("iterating social lists: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(lists)
@@ -77,7 +79,7 @@ func newListLsCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			table := newPlainTable(os.Stdout, []string{"ID", "Name", "Type", "Items", "Created"}, nil)
+			table := clicore.NewPlainTable(os.Stdout, []string{"ID", "Name", "Type", "Items", "Created"}, nil)
 
 			for _, l := range lists {
 				shortID := l.ID
@@ -86,7 +88,7 @@ func newListLsCmd(cfg *globalConfig) *cobra.Command {
 				}
 				table.Append([]string{
 					shortID,
-					truncateStr(l.Name, 30),
+					clicore.TruncateStr(l.Name, 30),
 					l.ListType,
 					fmt.Sprintf("%d", l.ItemCount),
 					l.CreatedAt.Format("2006-01-02 15:04"),
@@ -99,7 +101,7 @@ func newListLsCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newListCreateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newListCreateCmd() *cobra.Command {
 	var name string
 
 	cmd := &cobra.Command{
@@ -111,7 +113,7 @@ func newListCreateCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("--name is required")
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -123,13 +125,13 @@ func newListCreateCmd(cfg *globalConfig) *cobra.Command {
 			_, err = db.DB.Exec(
 				`INSERT INTO social_lists (id, name, item_count, profile_id, created_at, updated_at)
 				 VALUES (?, ?, 0, ?, ?, ?)`,
-				listID, name, cfg.ProfileID, now, now,
+				listID, name, d.ProfileID(), now, now,
 			)
 			if err != nil {
 				return fmt.Errorf("creating list: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]interface{}{
@@ -149,7 +151,7 @@ func newListCreateCmd(cfg *globalConfig) *cobra.Command {
 	return cmd
 }
 
-func newListShowCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newListShowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <id>",
 		Short: "Show items in a social list",
@@ -157,7 +159,7 @@ func newListShowCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			listID := args[0]
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -167,7 +169,7 @@ func newListShowCmd(cfg *globalConfig) *cobra.Command {
 			var listName string
 			var itemCount int
 			err = db.DB.QueryRow(
-				"SELECT name, item_count FROM social_lists WHERE id = ? AND profile_id = ?", listID, cfg.ProfileID,
+				"SELECT name, item_count FROM social_lists WHERE id = ? AND profile_id = ?", listID, d.ProfileID(),
 			).Scan(&listName, &itemCount)
 			if err == sql.ErrNoRows {
 				return fmt.Errorf("list %q not found", listID)
@@ -203,7 +205,7 @@ func newListShowCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("iterating list items: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]interface{}{
@@ -221,7 +223,7 @@ func newListShowCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			table := newPlainTable(os.Stdout, []string{"ID", "Username", "Platform", "Name", "Followers"}, nil)
+			table := clicore.NewPlainTable(os.Stdout, []string{"ID", "Username", "Platform", "Name", "Followers"}, nil)
 
 			for _, item := range items {
 				shortID := item.ID
@@ -230,9 +232,9 @@ func newListShowCmd(cfg *globalConfig) *cobra.Command {
 				}
 				table.Append([]string{
 					shortID,
-					truncateStr(item.PlatformUsername, 20),
+					clicore.TruncateStr(item.PlatformUsername, 20),
 					item.Platform,
-					truncateStr(item.FullName, 20),
+					clicore.TruncateStr(item.FullName, 20),
 					fmt.Sprintf("%d", item.FollowerCount),
 				})
 			}
@@ -243,7 +245,7 @@ func newListShowCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newListDeleteCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newListDeleteCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete <id>",
 		Short: "Delete a social list and its items",
@@ -251,7 +253,7 @@ func newListDeleteCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			listID := args[0]
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -261,7 +263,7 @@ func newListDeleteCmd(cfg *globalConfig) *cobra.Command {
 			// deleting anything — social_list_items has no profile_id, so an
 			// unscoped item delete would wipe another profile's list items.
 			var existingID string
-			err = db.DB.QueryRow("SELECT id FROM social_lists WHERE id = ? AND profile_id = ?", listID, cfg.ProfileID).Scan(&existingID)
+			err = db.DB.QueryRow("SELECT id FROM social_lists WHERE id = ? AND profile_id = ?", listID, d.ProfileID()).Scan(&existingID)
 			if err == sql.ErrNoRows {
 				return fmt.Errorf("list %q not found", listID)
 			}
@@ -276,7 +278,7 @@ func newListDeleteCmd(cfg *globalConfig) *cobra.Command {
 			}
 			itemCount, _ := itemResult.RowsAffected()
 
-			if _, err := db.DB.Exec("DELETE FROM social_lists WHERE id = ? AND profile_id = ?", listID, cfg.ProfileID); err != nil {
+			if _, err := db.DB.Exec("DELETE FROM social_lists WHERE id = ? AND profile_id = ?", listID, d.ProfileID()); err != nil {
 				return fmt.Errorf("deleting list: %w", err)
 			}
 
@@ -286,7 +288,7 @@ func newListDeleteCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newListAddItemCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newListAddItemCmd() *cobra.Command {
 	var (
 		username string
 		platform string
@@ -307,7 +309,7 @@ func newListAddItemCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("--platform is required")
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -315,7 +317,7 @@ func newListAddItemCmd(cfg *globalConfig) *cobra.Command {
 
 			// Verify list exists and belongs to the active profile.
 			var listName string
-			err = db.DB.QueryRow("SELECT name FROM social_lists WHERE id = ? AND profile_id = ?", listID, cfg.ProfileID).Scan(&listName)
+			err = db.DB.QueryRow("SELECT name FROM social_lists WHERE id = ? AND profile_id = ?", listID, d.ProfileID()).Scan(&listName)
 			if err == sql.ErrNoRows {
 				return fmt.Errorf("list %q not found", listID)
 			}
@@ -354,7 +356,7 @@ func newListAddItemCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("committing transaction: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]interface{}{

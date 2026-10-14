@@ -1,4 +1,4 @@
-package main
+package configcli
 
 import (
 	"database/sql"
@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/olekukonko/tablewriter/tw"
 	"github.com/spf13/cobra"
 )
 
-func newConfigCmd(cfg *globalConfig) *cobra.Command {
+// NewCommand returns `config` with its subcommands.
+func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage configuration entries",
@@ -19,23 +21,23 @@ func newConfigCmd(cfg *globalConfig) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		newConfigListCmd(cfg),
-		newConfigGetCmd(cfg),
-		newConfigSetCmd(cfg),
-		newConfigDeleteCmd(cfg),
+		d.newConfigListCmd(),
+		d.newConfigGetCmd(),
+		d.newConfigSetCmd(),
+		d.newConfigDeleteCmd(),
 	)
 
 	return cmd
 }
 
-func newConfigListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConfigListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List all config entries",
 		Example: `  monoagentcli config list
   monoagentcli config list --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -61,7 +63,7 @@ func newConfigListCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("iterating configs: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(configs)
@@ -72,12 +74,12 @@ func newConfigListCmd(cfg *globalConfig) *cobra.Command {
 				return nil
 			}
 
-			table := newPlainTable(os.Stdout, []string{"Name", "Value", "Updated"}, nil)
+			table := clicore.NewPlainTable(os.Stdout, []string{"Name", "Value", "Updated"}, nil)
 
 			for _, c := range configs {
 				table.Append([]string{
 					c.Name,
-					truncateStr(c.ConfigData, 50),
+					clicore.TruncateStr(c.ConfigData, 50),
 					c.UpdatedAt.Format("2006-01-02 15:04"),
 				})
 			}
@@ -88,7 +90,7 @@ func newConfigListCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newConfigGetCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConfigGetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <name>",
 		Short: "Show config value",
@@ -96,7 +98,7 @@ func newConfigGetCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -113,13 +115,13 @@ func newConfigGetCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("querying config: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(c)
 			}
 
-			table := newPlainTable(os.Stdout, []string{"Field", "Value"}, []tw.Align{tw.AlignRight, tw.AlignLeft})
+			table := clicore.NewPlainTable(os.Stdout, []string{"Field", "Value"}, []tw.Align{tw.AlignRight, tw.AlignLeft})
 
 			table.Append([]string{"Name", c.Name})
 			table.Append([]string{"Value", c.ConfigData})
@@ -132,7 +134,7 @@ func newConfigGetCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newConfigSetCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConfigSetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <name> <value>",
 		Short: "Set a config value",
@@ -143,7 +145,7 @@ func newConfigSetCmd(cfg *globalConfig) *cobra.Command {
 			name := args[0]
 			value := args[1]
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -161,7 +163,7 @@ func newConfigSetCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("setting config: %w", err)
 			}
 
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(map[string]string{
@@ -176,7 +178,7 @@ func newConfigSetCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newConfigDeleteCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newConfigDeleteCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete <name>",
 		Short: "Delete a config entry",
@@ -184,7 +186,7 @@ func newConfigDeleteCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
