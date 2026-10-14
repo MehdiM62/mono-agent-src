@@ -1,0 +1,309 @@
+{
+  "questions.getAll": {
+    "params": {},
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/card/",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      },
+      "items": 2
+    },
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/api/session",
+        "body": {
+          "username": "u@x.io",
+          "password": "pw"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/card/",
+        "headers": {
+          "X-Metabase-Session": "sess1"
+        }
+      }
+    ]
+  },
+  "questions.get": {
+    "params": {
+      "questionId": "5"
+    },
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/card/5",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      }
+    }
+  },
+  "questions.resultData": {
+    "params": {
+      "questionId": "5",
+      "format": "json"
+    },
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      [
+        {
+          "a": 1
+        },
+        {
+          "a": 2
+        }
+      ]
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/card/5/query/json",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      },
+      "items": 2
+    }
+  },
+  "alerts.getAll": {
+    "params": {},
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      [
+        {
+          "id": 1
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/alert/",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      },
+      "items": 1
+    }
+  },
+  "alerts.get": {
+    "params": {
+      "alertId": "3"
+    },
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/alert/3",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      }
+    }
+  },
+  "databases.getAll": {
+    "params": {},
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      {
+        "data": [
+          {
+            "id": 1,
+            "name": "db",
+            "details": {
+              "host": "h"
+            }
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/database/",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      },
+      "items": 1
+    }
+  },
+  "databases.addNewDatasource": {
+    "params": {
+      "engine": "postgres",
+      "name": "Main",
+      "host": "db.local",
+      "user": "u",
+      "password": "p",
+      "dbName": "app"
+    },
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/database",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      },
+      "body": {
+        "engine": "postgres",
+        "name": "Main",
+        "is_full_sync": true,
+        "details": {
+          "host": "db.local",
+          "port": 5432,
+          "user": "u",
+          "password": "p",
+          "db": "app"
+        }
+      }
+    }
+  },
+  "databases.getFields": {
+    "params": {
+      "databaseId": "2"
+    },
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      [
+        {
+          "id": 1
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/database/2/fields",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      },
+      "items": 1
+    }
+  },
+  "metrics.getAll": {
+    "params": {},
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      [
+        {
+          "id": 1
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/metric/",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      },
+      "items": 1
+    }
+  },
+  "metrics.get": {
+    "params": {
+      "metricId": "9"
+    },
+    "credential": {
+      "url": "https://mb.example",
+      "username": "u@x.io",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "id": "sess1"
+      },
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/metric/9",
+      "headers": {
+        "X-Metabase-Session": "sess1"
+      }
+    }
+  }
+}

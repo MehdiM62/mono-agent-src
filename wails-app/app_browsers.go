@@ -56,3 +56,19 @@ func (a *App) BindBrowser(instance, profileID string) (*BrowserRow, error) {
 	}
 	return &row, nil
 }
+
+// GetExtensionStatus returns `monoagentcli extension status --json`
+// verbatim: whether a bridge is running, whether the extension is attached,
+// and whether this client's pairing token is accepted (clientPairing). The
+// dashboard reads it so "connected" means usable, not just "port open".
+func (a *App) GetExtensionStatus() string {
+	return a.rawCLI(profileCLITimeout, "extension", "status")
+}
+
+// PairExtension returns `monoagentcli extension pair --open --json`
+// verbatim: it opens the running bridge's one-time pairing page and says
+// whether it did, or what to do instead ({opened, url, fallback, hint,
+// error}; never the token itself).
+func (a *App) PairExtension() string {
+	return a.rawCLI(profileCLITimeout, "extension", "pair", "--open")
+}

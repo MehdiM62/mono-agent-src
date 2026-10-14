@@ -1,0 +1,782 @@
+{
+  "card.create": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "title": "Card",
+      "swimlaneId": "s1",
+      "authorId": "u1",
+      "additionalFields": {
+        "description": "d",
+        "members": [
+          "u2"
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/boards/b1/lists/l1/cards",
+      "body": {
+        "title": "Card",
+        "swimlaneId": "s1",
+        "authorId": "u1",
+        "description": "d",
+        "members": [
+          "u2"
+        ]
+      },
+      "items": 1,
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "card.delete": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/boards/b1/lists/l1/cards/c1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "card.get": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1/lists/l1/cards/c1",
+      "items": 1,
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "card.getAll": {
+    "params": {
+      "boardId": "b1",
+      "fromObject": "swimlane",
+      "swimlaneId": "s1",
+      "limit": 2
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      [
+        {
+          "_id": "1"
+        },
+        {
+          "_id": "2"
+        },
+        {
+          "_id": "3"
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1/swimlanes/s1/cards",
+      "query": {},
+      "items": 2,
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    },
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/users/login",
+        "body": {
+          "username": "ada",
+          "password": "pw"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/api/boards/b1/swimlanes/s1/cards",
+        "headers": {
+          "Authorization": "Bearer tok"
+        }
+      }
+    ]
+  },
+  "card.update": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "updateFields": {
+        "title": "New",
+        "isOverTime": true,
+        "sort": 0
+      }
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/api/boards/b1/lists/l1/cards/c1",
+      "body": {
+        "title": "New",
+        "isOverTime": true,
+        "sort": 0
+      },
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "board.create": {
+    "params": {
+      "title": "B",
+      "owner": "u1",
+      "additionalFields": {
+        "color": "belize",
+        "permission": "public"
+      }
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/boards",
+      "body": {
+        "title": "B",
+        "owner": "u1",
+        "color": "belize",
+        "permission": "public"
+      },
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "board.delete": {
+    "params": {
+      "boardId": "b1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/boards/b1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "board.get": {
+    "params": {
+      "boardId": "b1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "board.getAll": {
+    "params": {
+      "IdUser": "u1",
+      "returnAll": true
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      [
+        {
+          "_id": "1"
+        },
+        {
+          "_id": "2"
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/users/u1/boards",
+      "items": 2,
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "cardComment.create": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "authorId": "u1",
+      "comment": "hi"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/boards/b1/cards/c1/comments",
+      "body": {
+        "authorId": "u1",
+        "comment": "hi"
+      },
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "cardComment.delete": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "commentId": "m1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/boards/b1/cards/c1/comments/m1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "cardComment.get": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "commentId": "m1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1/cards/c1/comments/m1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "cardComment.getAll": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      [
+        {
+          "_id": "1"
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1/cards/c1/comments",
+      "items": 1,
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "checklist.getAll": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      [
+        {
+          "_id": "1"
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1/cards/c1/checklists",
+      "items": 1,
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "checklist.create": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "title": "T",
+      "items": [
+        "a",
+        "b"
+      ]
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/boards/b1/cards/c1/checklists",
+      "body": {
+        "title": "T",
+        "items": [
+          "a",
+          "b"
+        ]
+      },
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "checklist.delete": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "checklistId": "k1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/boards/b1/cards/c1/checklists/k1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "checklist.get": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "checklistId": "k1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1/cards/c1/checklists/k1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "checklistItem.get": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "checklistId": "k1",
+      "checklistItemId": "i1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1/cards/c1/checklists/k1/items/i1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "checklistItem.delete": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "checklistId": "k1",
+      "checklistItemId": "i1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/boards/b1/cards/c1/checklists/k1/items/i1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "checklistItem.update": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1",
+      "cardId": "c1",
+      "checklistId": "k1",
+      "checklistItemId": "i1",
+      "updateFields": {
+        "isFinished": true
+      }
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/api/boards/b1/cards/c1/checklists/k1/items/i1",
+      "body": {
+        "isFinished": true
+      },
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "list.create": {
+    "params": {
+      "boardId": "b1",
+      "title": "L"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/boards/b1/lists",
+      "body": {
+        "title": "L"
+      },
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "list.delete": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/boards/b1/lists/l1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "list.get": {
+    "params": {
+      "boardId": "b1",
+      "listId": "l1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      {
+        "_id": "x"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1/lists/l1",
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  },
+  "list.getAll": {
+    "params": {
+      "boardId": "b1"
+    },
+    "credential": {
+      "url": "https://wekan.test/",
+      "username": "ada",
+      "password": "pw"
+    },
+    "responses": [
+      {
+        "token": "tok",
+        "id": "u1"
+      },
+      [
+        {
+          "_id": "1"
+        }
+      ]
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/boards/b1/lists",
+      "items": 1,
+      "headers": {
+        "Authorization": "Bearer tok"
+      }
+    }
+  }
+}

@@ -47,7 +47,29 @@ type WebhookRegistration struct {
 	HMACSecret string             // if non-empty, validate X-Hub-Signature-256 header
 	AuthHeader string             // if non-empty, validate this header equals AuthToken
 	AuthToken  string             // secret value expected in AuthHeader
-	TriggerFn  func(items []Item) // called when the webhook fires
+	TriggerFn  func(items []Item) // called when the webhook fires (when the server has no runner)
+
+	// MaxBodyBytes caps the request body; 0 means 1MB.
+	MaxBodyBytes int64
+	// ResponseMode is WebhookRespondOnReceived (""), WebhookRespondLastNode
+	// or WebhookRespondNode. The waiting modes need the server's runner.
+	ResponseMode string
+	// ResponseCode is the status of an onReceived answer; 0 means 200.
+	ResponseCode int
+	// ResponseData picks what lastNode answers with: "firstEntryJson" (""),
+	// "allEntries" or "noData".
+	ResponseData string
+	// ResponseTimeout bounds a waiting mode; 0 means 30s.
+	ResponseTimeout time.Duration
+	// DedupeHeader names the request header carrying a delivery ID; a
+	// delivery whose ID was seen before starts no run.
+	DedupeHeader string
+	// VerifyToken, when set, must equal a hub.challenge check's
+	// hub.verify_token (webhook_handshake.go).
+	VerifyToken string
+	// Verify, when set, checks a delivery's signature (app webhooks whose
+	// vendor signs them); an error answers 401 and starts no run.
+	Verify func(header http.Header, body []byte) error
 }
 
 // WebhookServer is a standalone net/http server on a configurable port.
@@ -73,6 +95,36 @@ type WebhookServer struct {
 	// lockedLog spaces the log lines of requests refused for a locked
 	// account (webhook_account.go).
 	lockedLog webhookLockedLog
+	// runner starts runs and reports their execution ID; execs reads them
+	// back for the waiting response modes. nil runner: registrations'
+	// TriggerFn is called and only onReceived is answered (webhook_run.go).
+	runner WebhookRunner
+	execs  WebhookExecutions
+	// deliveries remembers delivery IDs for registrations with a
+	// DedupeHeader; nil disables dedupe.
+	deliveries WebhookDeliveries
+	// replies serves /reply/ (wait_reply_http.go); nil answers 404.
+	replies http.Handler
+	// handshakes answers vendor URL checks (webhook_handshake.go).
+	handshakes webhookHandshakes
+	// forms are the trigger.form pages at /form/<path> (form_serve.go).
+	forms formRoutes
+}
+
+// SetRunner makes the server start runs through run, which reports the
+// execution ID (answered to the caller) or why no run started, and read them
+// back through execs for the waiting response modes.
+func (s *WebhookServer) SetRunner(run WebhookRunner, execs WebhookExecutions) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.runner, s.execs = run, execs
+}
+
+// SetDeliveryStore installs the store of seen delivery IDs (dedupe_header).
+func (s *WebhookServer) SetDeliveryStore(d WebhookDeliveries) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deliveries = d
 }
 
 // TraceAdmitter records that a request carrying a verified trace on chain
@@ -273,12 +325,17 @@ func (s *WebhookServer) Deregister(path string) {
 
 // ServeHTTP handles all incoming webhook requests.
 // Routes: POST/GET /webhook/{path}
-// Returns 404 if path not found, 405 if method doesn't match, 200 on success.
+// Returns 404 if path not found, 405 if method doesn't match; once the
+// request is accepted, serveRun (webhook_run.go) starts the run and answers.
 //
 // A locked monoes.me account refuses every request first (refuseWhileLocked),
 // before the body is read and before admitTrace writes to the org ledger.
 func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if s.refuseWhileLocked(w, r) {
+	if s.refuseWhileLocked(w, r) || s.serveReply(w, r) {
+		return
+	}
+	if p, ok := strings.CutPrefix(r.URL.Path, "/form/"); ok {
+		s.serveForm(w, r, p)
 		return
 	}
 	// Parse path: must be /webhook/{path}
@@ -310,6 +367,9 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if ok && reg.AuthHeader != "" {
 				allowedHeaders += ", " + reg.AuthHeader
 			}
+			if ok && reg.DedupeHeader != "" {
+				allowedHeaders += ", " + reg.DedupeHeader
+			}
 			// The response varies with the Origin header; without Vary a
 			// shared cache could replay this at a disallowed origin.
 			w.Header().Set("Vary", "Origin")
@@ -332,6 +392,12 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Vendor URL checks come before the method and auth checks: the vendor
+	// proves the URL before it is configured with either.
+	if s.answerHandshake(w, r, reg) {
+		return
+	}
+
 	// Validate HTTP method
 	if reg.Method != "ANY" {
 		if r.Method != reg.Method {
@@ -346,13 +412,19 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Limit body size to 1MB
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	maxBody := reg.MaxBodyBytes
+	if maxBody <= 0 {
+		maxBody = defaultWebhookMaxBody
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, maxBody)
 
 	// Read body
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		writeJSONError(w, http.StatusRequestEntityTooLarge, "request body too large or read error")
+		return
+	}
+	if s.answerBodyHandshake(w, r, reg, bodyBytes) {
 		return
 	}
 
@@ -378,47 +450,7 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse body as JSON into map[string]interface{}
-	var data map[string]interface{}
-	if len(bodyBytes) == 0 {
-		data = make(map[string]interface{})
-	} else {
-		if err := json.Unmarshal(bodyBytes, &data); err != nil {
-			writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("invalid JSON body: %s", err.Error()))
-			return
-		}
-	}
-
-	// A body of `null` unmarshals to a nil map; the run still gets an empty
-	// item (and a chain) rather than a panic on the assignment below.
-	if data == nil {
-		data = make(map[string]interface{})
-	}
-	// The run's chain comes only from a verified signed header, never from
-	// the body: whatever the body put under the reserved key is dropped.
-	delete(data, WebhookTraceKey)
-	trace, status, msg := s.admitTrace(r.Context(), reg.WorkflowID, r.Header.Get(tracesig.Header))
-	if status != 0 {
-		writeJSONError(w, status, msg)
-		return
-	}
-	if trace != nil {
-		data[WebhookTraceKey] = trace
-	}
-
-	item := NewItem(data)
-
-	s.logger.Debug().
-		Str("path", pathKey).
-		Str("workflow_id", reg.WorkflowID).
-		Str("method", r.Method).
-		Msg("webhook triggered")
-
-	// Call the trigger function
-	reg.TriggerFn([]Item{item})
-
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(`{"success":true}`))
+	s.serveRun(w, r, reg, pathKey, bodyBytes)
 }
 
 // parseWebhookAllowedOrigins parses MONOAGENT_WEBHOOK_ALLOWED_ORIGINS — a

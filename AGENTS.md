@@ -16,7 +16,9 @@ desktop GUI (`wails-app/`).
 - All state lives in `~/.monoagent/` (SQLite + JSON workflow files). Every
   command works from any directory — there is no per-project setup. One
   exception: `monoagentcli init` also copies skill files into
-  `~/.claude/skills/` when `~/.claude` exists (a local file copy; no
+  `~/.claude/skills/` when `~/.claude` exists, and into `~/.codex/skills/`,
+  `~/.gemini/skills/` and `~/.config/opencode/skills/` (opencode only
+  without `~/.claude`) when those folders exist (a local file copy; no
   network).
 - A monoes.me sign-in is required since 2026-10-11 UTC (see
   [monoes.me account](#monoesme-account)). Your data stays on your machine, and there are no analytics or usage
@@ -153,12 +155,22 @@ subcommand: `monoagentcli --json workflow search`.
 # What can this already do? Returns ready-to-run commands per hit.
 monoagentcli --json workflow search <query>
 
-# JSON schema for a node type (exit 2 on unknown type).
+# JSON schema for a node type (exit 2 on unknown type): config fields and,
+# for most nodes, `outputs` (the keys its items carry; "*" = input passed
+# through, "<name>" = a key named by a config field or an open key set).
 monoagentcli node schema <type>
 
-# Validate a workflow without running it (exit 3 on invalid).
+# Validate a workflow without running it (exit 3 on invalid). --json adds
+# issues[]: {node_id, field, code, severity, message, hint}; codes
+# invalid_workflow, unknown_node_type, missing_required, invalid_option,
+# dangling_node_ref, bad_expression (errors) and unknown_field,
+# unknown_upstream_field, needs_setup (warnings: e.g. no account chosen yet).
 monoagentcli workflow validate <id>
 monoagentcli workflow validate --file <workflow.json>
+
+# Draft a workflow from a description: an agent turn writes it, validate's
+# errors go back to it until it passes, and it is saved inactive.
+monoagentcli workflow generate "<description>" [--runtime <rt>|auto] [--no-save] [--json]
 
 # Run controls:
 monoagentcli workflow run <id> --dry-run    # validate + print execution plan, no run
@@ -169,7 +181,9 @@ monoagentcli --json workflow run <id>       # execution record + per-node output
 
 Typical agent loop: `workflow search --json` → inspect template with
 `workflow templates show <id>` → `workflow run --dry-run` → real run with
-`--json` → read per-node outputs.
+`--json` → read per-node outputs. To build one: `node schema` → write the
+JSON → `workflow validate --json` → `node run` single nodes → `workflow save`
+→ dry-run → run (the `monoagent-build` skill walks through it).
 
 ### At a glance: `summary`
 
@@ -238,8 +252,10 @@ The desktop app does everything through these commands; they are equally usable 
 - **Image vault:** `image list|search|get|data|add|label|delete|stats|export`, scoped to the active profile. `image data` returns a data URL. `image sync` scans the profile folder and reconciles discovered images. `image delete` keeps files that live in the profile folder and hides them from later syncs; `image unignore <path>` or `image add <path>` brings one back.
 - **Workflows:**
   - `workflow save` creates or replaces a workflow from the editor's document on stdin.
-  - `workflow execution <id>` shows run detail with redacted items.
+  - `workflow execution <id>` shows run detail with redacted items; a WAITING run
+    lists its resume or reply URLs (`waiting_for` in --json).
   - `workflow cancel <execution-id>` stops the recorded process (never the daemon), marks the run cancelled and rejects its pending HIL items. It leaves a finished run alone.
+  - `workflow retry <execution-id> [--json] [--timeout]` runs a finished execution again with its trigger data (a new execution, current workflow version) and waits like `workflow run`. A queued, running or waiting execution, or one an org started, is refused (exit 3).
   - `workflow delete <id> --yes` refuses a workflow that an org uses; `--force` also revokes its grants.
   - `workflow get`, `workflow export` and `workflow delete` are profile-scoped.
 - **Sessions and connections:**
@@ -487,16 +503,32 @@ monoagentcli mcp --allow-mutations   # also serve mutating tools
 monoagentcli mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
 monoagentcli mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
 monoagentcli --profile work mcp --tasks-only --allow-mutations   # the user's task board's tools (task_*) and no other, for one profile
+monoagentcli mcp --allow-mutations --workflow-tools   # also each saved workflow as a tool wf_<slug>
+monoagentcli mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
 ```
 
 Register it with any MCP client (stdio transport). Prefer MCP when the
-host supports it; the CLI covers the same surface. Tools carry
+host supports it; the CLI covers the same surface. `doctor fix
+integrations.mcp_monoagent.register` (or `setup --mcp`) registers it as
+`monoagent` running `monoagentcli mcp --allow-mutations` with every installed
+runtime: Claude Code (`claude mcp add --scope user`), Codex (`codex mcp add`),
+Gemini CLI (`mcpServers` in `~/.gemini/settings.json`) and opencode (`mcp` in
+`~/.config/opencode/opencode.json`; both JSON edits keep a `.bak`). A
+registration without `--allow-mutations` is reported as outdated and the fix
+replaces it. Tools carry
 `readOnly`/`destructive` annotations where applicable, so hosts can gate
 dangerous calls.
 
 **Read-only, always exposed:**
 
-- `workflow_list`, `workflow_get`, `workflow_validate`, `workflow_status`
+- `workflow_list`, `workflow_get`, `workflow_validate` (the report of
+  `workflow validate --json`, with `issues[]`), `workflow_status`
+- `workflow_search` (templates and saved workflows by id, name, description or
+  node type), `workflow_inputs` (the trigger fields a workflow reads, with an
+  input skeleton for `workflow_run`), `workflow_executions` (recent runs of one
+  workflow or all), `workflow_template_list`, `workflow_template_show` (bundled
+  workflow templates; `template_list` below is message templates)
+- `doctor` (this binary's `doctor --json`; never applies a fix)
 - `node_list` (optional `category` filter — see the tool's own
   description for values), `node_schema`
 - `hil_list`
@@ -557,6 +589,27 @@ existing MCP client config that relies on them.
 
 - `workflow_run`, `workflow_create`, `workflow_delete`,
   `workflow_set_active`, `workflow_node_add`
+- authoring, each the same steps as its command: `workflow_connect` /
+  `workflow_disconnect` (`workflow connect|disconnect`), `workflow_node_update`
+  (config replace, or `merge: true`) / `workflow_node_delete` (`workflow node
+  set|remove`), `workflow_save` (create or replace a whole workflow document,
+  `workflow save`), `workflow_template_instantiate` (a new inactive workflow
+  from a template, `workflow templates use`)
+- `node_run` (one node with config and input, as `node run`; an outbound send
+  an agent starts is still queued for approval)
+- `workflow_generate`, the MCP side of `monoagentcli workflow generate
+  "<description>" [--runtime auto|claude|codex|...] [--model M] [--name N]
+  [--max-attempts N] [--no-save]`: a local AI agent (monomind) writes the
+  workflow, its validation problems go back to it until it passes or the
+  attempts run out (default 3, max 10), and it is saved as an INACTIVE draft
+  (`save: false` / `--no-save` returns the JSON only)
+- with `--workflow-tools` (or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`, or a list), one
+  tool `wf_<slug>` per saved workflow of the profile (a-z, 0-9 and `_`, at most
+  64 characters; a name clash gets a short id suffix), or per listed id or
+  name. Its arguments are the workflow's trigger input (what `workflow inputs`
+  lists) plus `_timeout_seconds`; a call runs the workflow and waits, as
+  `workflow_run` does. Workflows are re-read at every `tools/list`. It cannot
+  be combined with `--api-only`, `--tasks-only` or `--grant`
 - `hil_approve`, `hil_reject`
 - `secret_add`, `secret_update`, `secret_delete`
 - `person_upsert`, `person_delete`
@@ -685,6 +738,25 @@ existing MCP client config that relies on them.
   It cannot be combined with `--api-only` (refused at start, the environment
   variables included) or `--grant`. A host that has tools of its own, such as a
   shell tool, is not stopped by it. Nothing registers it for you.
+
+**Workflows as tools.** `monoagentcli mcp --allow-mutations --workflow-tools`
+(or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`) also serves every active workflow of the
+profile as a tool `wf_<slug>`; `--workflow-tools=<id|name>,...` serves only
+those. A tool's input schema comes from the workflow's trigger fields
+(`workflow inputs`), and a call runs it as `workflow_run` does (same wait,
+result and redaction; `_timeout_seconds` sets the wait). Workflows are re-read
+on every `tools/list`. It cannot be combined with `--api-only`, `--tasks-only`
+or `--grant`.
+
+**Protocol.** Besides tools the server answers `resources/list`,
+`resources/templates/list` and `resources/read`: `monoagent://ref/<topic>`
+(the `ref` topics, `api-tools` among them for the long descriptions of the
+`api_*` tools) and `monoagent://node/<type>` (a node's schema). Grant mode and
+`--tasks-only` serve no resources, `--api-only` only `api-tools`. A
+`workflow_run` call that carries `_meta.progressToken` gets
+`notifications/progress`; JSON results also come back as `structuredContent`
+(not `api_key_create`), and `workflow_run`, `workflow_status` and
+`workflow_validate` declare an `outputSchema`.
 
 **Grant mode.** `monoagentcli mcp --grant <id> --profile <id>` is the tool
 provider monomind spawns for an org role. It serves only that role's
@@ -1417,7 +1489,7 @@ letters, digits and `._#@:-`, the same name for a whole task; `you`,
 `agent`, `capture`, `chrome` and `os` are reserved; a name is a label,
 not a credential), use `list`, `show`, `next`, `claim`, `comment` (on a
 task they hold), `finish`, `release` and `digest`, and may `add` to the
-Inbox (20 tasks an hour). `digest` has no gate: it runs the same in any
+Inbox. `digest` has no gate: it runs the same in any
 context, so a session-start hook can call it. A `comment` run under an
 agent context is an agent's comment: it needs a name.
 
@@ -1457,8 +1529,7 @@ A claim that has run out may be taken over by another agent, and a task
 another agent holds answers `claimed`.
 
 Limits: 2,000 open tasks per profile (every task that is not archived,
-Done ones included: archive some to make room) and 20 tasks an hour
-created by agents per profile; a task with 500 events takes no more
+Done ones included: archive some to make room); a task with 500 events takes no more
 comments, and one with 2,000 events no more claims. Passing a limit
 answers `limit`: finish or release a task you hold, otherwise leave it
 to the user.
@@ -2047,8 +2118,12 @@ login (and its bill) is what the turn uses.
   the priciest cost seen so far; models with unknown cost not included).
   With `--no-scan`, `next` names no runtime (`next_unchecked`). The roster section of the AI agents page has the toggle,
   which asks first and shows that estimate.
-- **Picking a runtime.** `chat` and `agent.ask` take an explicit runtime
-  (`--runtime` / `"runtime"`). `ai.extract_page` uses `MONOAGENT_AI_RUNTIME`,
+- **Picking a runtime.** `chat` without `--runtime` uses the one runtime with
+  a validated model, else the one installed runtime that runs headless, and
+  names the candidates when there are several. `agent.ask` takes `"runtime"`;
+  `"auto"` picks the cheapest, then fastest, validated model of the roster
+  (else the first installed runtime). `workflow generate --runtime auto` picks
+  the same way. `ai.extract_page` uses `MONOAGENT_AI_RUNTIME`,
   else the first installed runtime in a fixed order starting with `claude`
   and `codex`. Capture summaries use `MONOAGENT_SUMMARY_RUNTIME` (see
   "Runtime environment variables").
@@ -2475,14 +2550,16 @@ profiles or credentials.
 |---|---|
 | 0 | success |
 | 0 | run paused at a HIL node — status `WAITING` (paused for human review); the output carries a `hint` field pointing at `hil list` |
-| 1 | general error — also the exit for a run that ends `CANCELLED` |
+| 1 | general error — also the exit for a run that ends `CANCELLED`, and for a run that ends `SUCCESS_WITH_ERRORS` with no successful step (every non-trigger node failed; a partial success still exits 0) |
 | 2 | not found (workflow, node type, HIL item, secret name, …). Includes `hil approve`/`hil reject`, `secret rm`/`secret update`, and `workflow delete` on unknown ids |
 | 3 | invalid input / validation failure |
 | 4 | auth or connection failure — including `login_required`: no valid monoes.me sign-in (see [monoes.me account](#monoesme-account)) |
 
 Branch on these instead of parsing stderr.
 
-With `--json`, a classified failure's `{"error"}` object also carries a
+With `--json`, every command prints a failure as one JSON object on stdout
+(human text, if any, goes to stderr) with the same exit code; it may add a
+`"hint"` with the next step. A classified failure's `{"error"}` object also carries a
 `"code"`: `not_found` (2), `invalid_input` (3), `auth_or_connection` (4),
 or `agent_not_setup` — the AI agent is not set up (monomind missing or
 unusable, no runtime installed, the requested runtime missing or unknown,

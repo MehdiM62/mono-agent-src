@@ -1,0 +1,335 @@
+{
+  "post.create": {
+    "params": {
+      "subreddit": "test",
+      "title": "Hi",
+      "text": "body"
+    },
+    "response": {
+      "json": {
+        "data": {
+          "id": "p1"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/submit",
+      "query": {
+        "api_type": "json",
+        "title": "Hi",
+        "sr": "test",
+        "kind": "self",
+        "text": "body"
+      },
+      "items": 1
+    }
+  },
+  "post.delete": {
+    "params": {
+      "postId": "abc"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/del",
+      "query": {
+        "api_type": "json",
+        "id": "t3_abc"
+      },
+      "items": 1
+    }
+  },
+  "post.get": {
+    "params": {
+      "subreddit": "test",
+      "postId": "abc"
+    },
+    "response": [
+      {
+        "data": {
+          "children": [
+            {
+              "data": {
+                "id": "abc"
+              }
+            }
+          ]
+        }
+      },
+      {}
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/r/test/comments/abc.json",
+      "items": 1
+    }
+  },
+  "post.getAll": {
+    "params": {
+      "subreddit": "test",
+      "limit": 2,
+      "filters": {
+        "category": "hot"
+      }
+    },
+    "response": {
+      "data": {
+        "after": null,
+        "children": [
+          {
+            "data": {
+              "id": "0"
+            }
+          },
+          {
+            "data": {
+              "id": "1"
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/r/test/hot.json",
+      "query": {
+        "limit": "2"
+      },
+      "items": 2
+    }
+  },
+  "post.search": {
+    "params": {
+      "location": "subreddit",
+      "subreddit": "golang",
+      "keyword": "generics",
+      "limit": 5,
+      "additionalFields": {
+        "sort": "new"
+      }
+    },
+    "response": {
+      "data": {
+        "after": null,
+        "children": [
+          {
+            "data": {
+              "id": "0"
+            }
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/r/golang/search.json",
+      "query": {
+        "q": "generics",
+        "restrict_sr": "true",
+        "sort": "new",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "postComment.create": {
+    "params": {
+      "postId": "abc",
+      "commentText": "nice"
+    },
+    "response": {
+      "json": {
+        "data": {
+          "things": [
+            {
+              "data": {
+                "id": "c1"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/comment",
+      "query": {
+        "api_type": "json",
+        "text": "nice",
+        "thing_id": "t3_abc"
+      },
+      "items": 1
+    }
+  },
+  "postComment.getAll": {
+    "params": {
+      "subreddit": "test",
+      "postId": "abc",
+      "limit": 1
+    },
+    "response": [
+      {},
+      {
+        "data": {
+          "after": null,
+          "children": [
+            {
+              "data": {
+                "id": "0"
+              }
+            },
+            {
+              "data": {
+                "id": "1"
+              }
+            },
+            {
+              "data": {
+                "id": "2"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/r/test/comments/abc.json",
+      "query": {
+        "limit": "1"
+      },
+      "items": 1
+    }
+  },
+  "postComment.delete": {
+    "params": {
+      "commentId": "c1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/del",
+      "query": {
+        "api_type": "json",
+        "id": "t1_c1"
+      }
+    }
+  },
+  "postComment.reply": {
+    "params": {
+      "commentId": "c1",
+      "replyText": "thanks"
+    },
+    "response": {
+      "json": {
+        "data": {
+          "things": [
+            {
+              "data": {
+                "id": "c2"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/comment",
+      "query": {
+        "api_type": "json",
+        "text": "thanks",
+        "thing_id": "t1_c1"
+      }
+    }
+  },
+  "profile.get": {
+    "params": {
+      "details": "saved",
+      "limit": 2
+    },
+    "responses": [
+      {
+        "name": "ada"
+      },
+      {
+        "data": {
+          "after": null,
+          "children": [
+            {
+              "data": {
+                "id": "0"
+              }
+            },
+            {
+              "data": {
+                "id": "1"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/user/ada/saved.json",
+      "query": {
+        "limit": "2"
+      },
+      "items": 2
+    }
+  },
+  "subreddit.get": {
+    "params": {
+      "subreddit": "golang",
+      "content": "rules"
+    },
+    "response": {
+      "rules": [
+        {
+          "short_name": "a"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/r/golang/about/rules.json",
+      "items": 1
+    }
+  },
+  "subreddit.getAll": {
+    "params": {
+      "filters": {
+        "trending": true
+      },
+      "limit": 2
+    },
+    "response": {
+      "subreddit_names": [
+        "a",
+        "b",
+        "c"
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/trending_subreddits.json",
+      "items": 2
+    }
+  },
+  "user.get": {
+    "params": {
+      "username": "spez",
+      "details": "about"
+    },
+    "response": {
+      "data": {
+        "name": "spez"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/user/spez/about.json",
+      "items": 1
+    }
+  }
+}

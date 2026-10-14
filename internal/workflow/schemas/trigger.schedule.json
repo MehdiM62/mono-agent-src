@@ -17,6 +17,57 @@
       "label": "Timezone",
       "required": false,
       "type": "text"
+    },
+    {
+      "default": "allow",
+      "help": "allow: every tick starts a run. skip: drop the tick while a run of this workflow is queued, running or waiting. queue_one: keep at most one tick waiting for the current run to end.",
+      "key": "overlap",
+      "label": "When a run is still going",
+      "options": [
+        "allow",
+        "skip",
+        "queue_one"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "none",
+      "help": "What the daemon does on startup with ticks missed while it was not running (counted from the last scheduled run). none: skip them. one: a single run. all: one run per missed tick (at most 100).",
+      "key": "catch_up",
+      "label": "Missed runs",
+      "options": [
+        "none",
+        "one",
+        "all"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "Only catch up ticks missed within this long before startup (a duration such as 30m or 6h). Empty: no limit.",
+      "key": "catch_up_window",
+      "label": "Catch-up window",
+      "placeholder": "e.g. 6h",
+      "required": false,
+      "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "always \"schedule\"",
+      "key": "trigger_type",
+      "type": "string"
+    },
+    {
+      "description": "fire time, RFC 3339 UTC",
+      "key": "timestamp",
+      "type": "string"
+    },
+    {
+      "description": "true on a catch-up run for a missed tick (absent otherwise)",
+      "key": "catch_up",
+      "type": "boolean"
     }
   ]
 }

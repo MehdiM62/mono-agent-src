@@ -1,0 +1,928 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "twist",
+  "node_type": "app.twist",
+  "title": "Twist",
+  "description": "Channels, threads, comments and conversation messages in Twist",
+  "category": "app",
+  "docs_url": "https://developer.twist.com/v3/",
+  "n8n_types": [
+    "n8n-nodes-base.twist"
+  ],
+  "base_url": "https://api.twist.com/api/v3",
+  "credentials": [
+    {
+      "platform": "twist",
+      "name": "Twist",
+      "n8n_credential": "twistOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://twist.com/oauth/authorize",
+        "token_url": "https://twist.com/oauth/access_token",
+        "extra_params": {
+          "scope": "attachments:write,channels:remove,comments:remove,messages:remove,threads:remove,workspaces:read"
+        }
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "messageConversation",
+      "label": "Message conversation"
+    },
+    {
+      "value": "channel",
+      "label": "Channel"
+    },
+    {
+      "value": "comment",
+      "label": "Comment"
+    },
+    {
+      "value": "thread",
+      "label": "Thread"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "messageConversation",
+      "operation": "create",
+      "title": "Send a message in a conversation",
+      "method": "POST",
+      "path": "/conversation_messages/add",
+      "body": {
+        "conversation_id": "{{ p.conversationId }}",
+        "workspace_id": "{{ p.workspaceId }}",
+        "content": {
+          "$join": [
+            {
+              "$join": {
+                "$map": "{{ p.additionalFields.direct_mentions }}",
+                "$to": "[name](twist-mention://{{ el }})"
+              },
+              "$sep": " "
+            },
+            "{{ p.content }}"
+          ],
+          "$sep": " "
+        },
+        "$merge": "{{ p.additionalFields | omit:'actionsUi,binaryProperties' }}",
+        "actions": "{{ p.additionalFields.actionsUi.actionValues }}",
+        "attachments": "{{ pres.0 }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "actionsUi",
+            "binaryProperties",
+            "direct_mentions"
+          ],
+          "help": "actionsUi.actionValues: [{action, button_text, message, type, url}]; direct_mentions: user IDs to mention; binaryProperties: comma-separated binary properties, each uploaded and attached"
+        }
+      ],
+      "before": [
+        {
+          "for_each": "{{ p.additionalFields.binaryProperties | split }}",
+          "upload": true,
+          "method": "POST",
+          "path": "/attachments/upload",
+          "body_type": "multipart",
+          "body": {
+            "attachment_id": "{{ uuid }}"
+          }
+        }
+      ],
+      "binary": {
+        "upload_field": "additionalFields",
+        "upload_when": "false",
+        "multipart_field": "file_name"
+      }
+    },
+    {
+      "resource": "messageConversation",
+      "operation": "delete",
+      "title": "Delete a conversation message",
+      "method": "POST",
+      "path": "/conversation_messages/remove",
+      "query": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "messageConversation",
+      "operation": "get",
+      "title": "Get a conversation message",
+      "method": "GET",
+      "path": "/conversation_messages/getone",
+      "query": {
+        "id": "{{ p.id }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "messageConversation",
+      "operation": "getAll",
+      "title": "Get many conversation messages",
+      "method": "GET",
+      "path": "/conversation_messages/get",
+      "query": {
+        "conversation_id": "{{ p.conversationId }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "from_obj_index",
+            "limit",
+            "order_by",
+            "to_obj_index"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "messageConversation",
+      "operation": "update",
+      "title": "Update a conversation message",
+      "method": "POST",
+      "path": "/conversation_messages/update",
+      "body": {
+        "id": "{{ p.id }}",
+        "content": {
+          "$join": [
+            {
+              "$join": {
+                "$map": "{{ p.updateFields.direct_mentions }}",
+                "$to": "[name](twist-mention://{{ el }})"
+              },
+              "$sep": " "
+            },
+            "{{ p.updateFields.content }}"
+          ],
+          "$sep": " "
+        },
+        "$merge": "{{ p.updateFields | omit:'actionsUi,binaryProperties' }}",
+        "actions": "{{ p.updateFields.actionsUi.actionValues }}",
+        "attachments": "{{ pres.0 }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "actionsUi",
+            "binaryProperties",
+            "direct_mentions",
+            "content"
+          ],
+          "help": "actionsUi.actionValues: [{action, button_text, message, type, url}]; direct_mentions: user IDs to mention; binaryProperties: comma-separated binary properties, each uploaded and attached"
+        }
+      ],
+      "before": [
+        {
+          "for_each": "{{ p.updateFields.binaryProperties | split }}",
+          "upload": true,
+          "method": "POST",
+          "path": "/attachments/upload",
+          "body_type": "multipart",
+          "body": {
+            "attachment_id": "{{ uuid }}"
+          }
+        }
+      ],
+      "binary": {
+        "upload_field": "updateFields",
+        "upload_when": "false",
+        "multipart_field": "file_name"
+      }
+    },
+    {
+      "resource": "channel",
+      "operation": "create",
+      "title": "Create a channel",
+      "method": "POST",
+      "path": "/channels/add",
+      "body": {
+        "workspace_id": "{{ p.workspaceId }}",
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "color",
+            "description",
+            "public",
+            "temp_id",
+            "user_ids"
+          ],
+          "help": "color: 0-11"
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "archive",
+      "title": "Archive a channel",
+      "method": "POST",
+      "path": "/channels/archive",
+      "query": {
+        "id": "{{ p.channelId }}"
+      },
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "delete",
+      "title": "Delete a channel",
+      "method": "POST",
+      "path": "/channels/remove",
+      "query": {
+        "id": "{{ p.channelId }}"
+      },
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "get",
+      "title": "Get a channel",
+      "method": "GET",
+      "path": "/channels/getone",
+      "query": {
+        "id": "{{ p.channelId }}"
+      },
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "getAll",
+      "title": "Get many channels",
+      "method": "GET",
+      "path": "/channels/get",
+      "query": {
+        "workspace_id": "{{ p.workspaceId }}",
+        "archived": "{{ p.filters.archived }}"
+      },
+      "output": {
+        "limit": true
+      },
+      "fields": [
+        {
+          "key": "workspaceId",
+          "label": "Workspace ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "archived"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "unarchive",
+      "title": "Unarchive a channel",
+      "method": "POST",
+      "path": "/channels/unarchive",
+      "query": {
+        "id": "{{ p.channelId }}"
+      },
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "channel",
+      "operation": "update",
+      "title": "Update a channel",
+      "method": "POST",
+      "path": "/channels/update",
+      "body": {
+        "id": "{{ p.channelId }}",
+        "$merge": "{{ p.updateFields }}"
+      },
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "color",
+            "description",
+            "name",
+            "public"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "create",
+      "title": "Create a comment",
+      "method": "POST",
+      "path": "/comments/add",
+      "body": {
+        "thread_id": "{{ p.threadId }}",
+        "content": {
+          "$join": [
+            {
+              "$join": {
+                "$map": "{{ p.additionalFields.direct_mentions }}",
+                "$to": "[name](twist-mention://{{ el }})"
+              },
+              "$sep": " "
+            },
+            "{{ p.content }}"
+          ],
+          "$sep": " "
+        },
+        "$merge": "{{ p.additionalFields | omit:'actionsUi,binaryProperties' }}",
+        "actions": "{{ p.additionalFields.actionsUi.actionValues }}",
+        "attachments": "{{ pres.0 }}"
+      },
+      "fields": [
+        {
+          "key": "threadId",
+          "label": "Thread ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "actionsUi",
+            "binaryProperties",
+            "direct_mentions",
+            "mark_thread_position",
+            "recipients",
+            "temp_id",
+            "send_as_integration"
+          ],
+          "help": "actionsUi.actionValues: [{action, button_text, message, type, url}]; direct_mentions: user IDs to mention; binaryProperties: comma-separated binary properties, each uploaded and attached"
+        }
+      ],
+      "before": [
+        {
+          "for_each": "{{ p.additionalFields.binaryProperties | split }}",
+          "upload": true,
+          "method": "POST",
+          "path": "/attachments/upload",
+          "body_type": "multipart",
+          "body": {
+            "attachment_id": "{{ uuid }}"
+          }
+        }
+      ],
+      "binary": {
+        "upload_field": "additionalFields",
+        "upload_when": "false",
+        "multipart_field": "file_name"
+      }
+    },
+    {
+      "resource": "comment",
+      "operation": "delete",
+      "title": "Delete a comment",
+      "method": "POST",
+      "path": "/comments/remove",
+      "query": {
+        "id": "{{ p.commentId }}"
+      },
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "get",
+      "title": "Get a comment",
+      "method": "GET",
+      "path": "/comments/getone",
+      "query": {
+        "id": "{{ p.commentId }}"
+      },
+      "output": {
+        "path": "comment"
+      },
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "getAll",
+      "title": "Get many comments",
+      "method": "GET",
+      "path": "/comments/get",
+      "query": {
+        "thread_id": "{{ p.threadId }}",
+        "$merge": "{{ p.filters | omit:'newer_than_ts,older_than_ts' }}",
+        "newer_than_ts": "{{ p.filters.newer_than_ts | epoch }}",
+        "older_than_ts": "{{ p.filters.older_than_ts | epoch }}",
+        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+      },
+      "output": {
+        "to": {
+          "ID": "{{ el }}"
+        },
+        "to_when": "{{ p.filters.as_ids }}"
+      },
+      "fields": [
+        {
+          "key": "threadId",
+          "label": "Thread ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "as_ids",
+            "from_obj_index",
+            "newer_than_ts",
+            "older_than_ts",
+            "order_by",
+            "to_obj_index"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "update",
+      "title": "Update a comment",
+      "method": "POST",
+      "path": "/comments/update",
+      "body": {
+        "id": "{{ p.commentId }}",
+        "content": {
+          "$join": [
+            {
+              "$join": {
+                "$map": "{{ p.updateFields.direct_mentions }}",
+                "$to": "[name](twist-mention://{{ el }})"
+              },
+              "$sep": " "
+            },
+            "{{ p.updateFields.content }}"
+          ],
+          "$sep": " "
+        },
+        "$merge": "{{ p.updateFields | omit:'actionsUi,binaryProperties' }}",
+        "actions": "{{ p.updateFields.actionsUi.actionValues }}",
+        "attachments": "{{ pres.0 }}"
+      },
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "actionsUi",
+            "binaryProperties",
+            "direct_mentions",
+            "content"
+          ],
+          "help": "actionsUi.actionValues: [{action, button_text, message, type, url}]; direct_mentions: user IDs to mention; binaryProperties: comma-separated binary properties, each uploaded and attached"
+        }
+      ],
+      "before": [
+        {
+          "for_each": "{{ p.updateFields.binaryProperties | split }}",
+          "upload": true,
+          "method": "POST",
+          "path": "/attachments/upload",
+          "body_type": "multipart",
+          "body": {
+            "attachment_id": "{{ uuid }}"
+          }
+        }
+      ],
+      "binary": {
+        "upload_field": "updateFields",
+        "upload_when": "false",
+        "multipart_field": "file_name"
+      }
+    },
+    {
+      "resource": "thread",
+      "operation": "create",
+      "title": "Create a thread",
+      "method": "POST",
+      "path": "/threads/add",
+      "body": {
+        "channel_id": "{{ p.channelId }}",
+        "title": "{{ p.title }}",
+        "content": {
+          "$join": [
+            {
+              "$join": {
+                "$map": "{{ p.additionalFields.direct_mentions }}",
+                "$to": "[name](twist-mention://{{ el }})"
+              },
+              "$sep": " "
+            },
+            "{{ p.content }}"
+          ],
+          "$sep": " "
+        },
+        "$merge": "{{ p.additionalFields | omit:'actionsUi,binaryProperties' }}",
+        "actions": "{{ p.additionalFields.actionsUi.actionValues }}",
+        "attachments": "{{ pres.0 }}"
+      },
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "actionsUi",
+            "binaryProperties",
+            "direct_mentions",
+            "recipients",
+            "send_as_integration",
+            "temp_id"
+          ],
+          "help": "actionsUi.actionValues: [{action, button_text, message, type, url}]; direct_mentions: user IDs to mention; binaryProperties: comma-separated binary properties, each uploaded and attached"
+        }
+      ],
+      "before": [
+        {
+          "for_each": "{{ p.additionalFields.binaryProperties | split }}",
+          "upload": true,
+          "method": "POST",
+          "path": "/attachments/upload",
+          "body_type": "multipart",
+          "body": {
+            "attachment_id": "{{ uuid }}"
+          }
+        }
+      ],
+      "binary": {
+        "upload_field": "additionalFields",
+        "upload_when": "false",
+        "multipart_field": "file_name"
+      }
+    },
+    {
+      "resource": "thread",
+      "operation": "delete",
+      "title": "Delete a thread",
+      "method": "POST",
+      "path": "/threads/remove",
+      "query": {
+        "id": "{{ p.threadId }}"
+      },
+      "fields": [
+        {
+          "key": "threadId",
+          "label": "Thread ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "thread",
+      "operation": "get",
+      "title": "Get a thread",
+      "method": "GET",
+      "path": "/threads/getone",
+      "query": {
+        "id": "{{ p.threadId }}"
+      },
+      "fields": [
+        {
+          "key": "threadId",
+          "label": "Thread ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "thread",
+      "operation": "getAll",
+      "title": "Get many threads",
+      "method": "GET",
+      "path": "/threads/get",
+      "query": {
+        "channel_id": "{{ p.channelId }}",
+        "$merge": "{{ p.filters | omit:'newer_than_ts,older_than_ts' }}",
+        "newer_than_ts": "{{ p.filters.newer_than_ts | epoch }}",
+        "older_than_ts": "{{ p.filters.older_than_ts | epoch }}",
+        "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+      },
+      "output": {
+        "to": {
+          "ID": "{{ el }}"
+        },
+        "to_when": "{{ p.filters.as_ids }}"
+      },
+      "fields": [
+        {
+          "key": "channelId",
+          "label": "Channel ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "as_ids",
+            "filter_by",
+            "newer_than_ts",
+            "older_than_ts"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "thread",
+      "operation": "update",
+      "title": "Update a thread",
+      "method": "POST",
+      "path": "/threads/update",
+      "body": {
+        "id": "{{ p.threadId }}",
+        "content": {
+          "$join": [
+            {
+              "$join": {
+                "$map": "{{ p.updateFields.direct_mentions }}",
+                "$to": "[name](twist-mention://{{ el }})"
+              },
+              "$sep": " "
+            },
+            "{{ p.updateFields.content }}"
+          ],
+          "$sep": " "
+        },
+        "$merge": "{{ p.updateFields | omit:'actionsUi,binaryProperties' }}",
+        "actions": "{{ p.updateFields.actionsUi.actionValues }}",
+        "attachments": "{{ pres.0 }}"
+      },
+      "fields": [
+        {
+          "key": "threadId",
+          "label": "Thread ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "actionsUi",
+            "binaryProperties",
+            "direct_mentions",
+            "content",
+            "title"
+          ],
+          "help": "actionsUi.actionValues: [{action, button_text, message, type, url}]; direct_mentions: user IDs to mention; binaryProperties: comma-separated binary properties, each uploaded and attached"
+        }
+      ],
+      "before": [
+        {
+          "for_each": "{{ p.updateFields.binaryProperties | split }}",
+          "upload": true,
+          "method": "POST",
+          "path": "/attachments/upload",
+          "body_type": "multipart",
+          "body": {
+            "attachment_id": "{{ uuid }}"
+          }
+        }
+      ],
+      "binary": {
+        "upload_field": "updateFields",
+        "upload_when": "false",
+        "multipart_field": "file_name"
+      }
+    }
+  ]
+}

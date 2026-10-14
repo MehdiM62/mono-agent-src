@@ -1,0 +1,7261 @@
+{
+  "communication.checkSocialDomainExist": {
+    "params": {
+      "domain": "v_domain",
+      "additionalOptions": {
+        "dataWebhook": "https://hook"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-social-domain-exist",
+        "params": {
+          "domain": "v_domain"
+        },
+        "callback": {
+          "data": "https://hook"
+        }
+      }
+    }
+  },
+  "communication.checkDomainCatchall": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-domain-catchall",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "communication.checkDomainFree": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-domain-free",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "communication.checkDomainDisposable": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-domain-disposable",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "communication.checkEmailExistsExtended": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-email-exists-extended",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkEmailExists": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-email-exists",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkEmailSmtp": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-email-smtp",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkSocialEmailExist": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-social-email-exist",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkEmailFormat": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-email-format",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkEmailCatchall": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-email-catchall",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkEmailDisposable": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-email-disposable",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkEmailFree": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-email-free",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkRobinsonEmailExist": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-robinson-email-exist",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkEmailRole": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-email-role",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkEmailSpamtrap": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-email-spamtrap",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.checkMobileImei": {
+    "params": {
+      "imei": "v_imei"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-mobile-imei",
+        "params": {
+          "imei": "v_imei"
+        }
+      }
+    }
+  },
+  "communication.checkLinkedinProfileIsContact": {
+    "params": {
+      "profile": "v_profile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-linkedin-profile-is-contact",
+        "params": {
+          "profile": "v_profile"
+        }
+      }
+    }
+  },
+  "communication.checkMobileExist": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-mobile-exist",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.checkSocialMobileExist": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-social-mobile-exist",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.checkMobileFormat": {
+    "params": {
+      "mobile": "v_mobile",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-mobile-format",
+        "params": {
+          "mobile": "v_mobile",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "communication.checkMobileFormatEs": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-mobile-format-es",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.checkMobileValidPrefix": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-mobile-valid-prefix",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.checkMobileValidPrefixEs": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-mobile-valid-prefix-es",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.checkMobileAlive": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-mobile-alive",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.checkMobileSms": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-mobile-sms",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.checkRobinsonPhoneExist": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-robinson-phone-exist",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "communication.checkPhoneOrMobileValid": {
+    "params": {
+      "phone": "v_phone",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-phone-or-mobile-valid",
+        "params": {
+          "phone": "v_phone",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "communication.checkPhoneFormatEs": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-phone-format-es",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "communication.checkPhoneFormat": {
+    "params": {
+      "phone": "v_phone",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-phone-format",
+        "params": {
+          "phone": "v_phone",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "communication.checkPhoneValidPrefix": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-phone-valid-prefix",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "communication.getPhoneNormalized": {
+    "params": {
+      "phone": "v_phone",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-phone-normalized",
+        "params": {
+          "phone": "v_phone",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "communication.getMobileCountryCode": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-mobile-country-code",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.getEmailDomain": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-domain",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.getEmailRecipientByCompanyFirstnameAndLastname": {
+    "params": {
+      "company": "v_company",
+      "firstname": "v_firstname",
+      "lastname": "v_lastname",
+      "mode": "v_mode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-recipient-by-company-firstname-and-lastname",
+        "params": {
+          "company": "v_company",
+          "firstname": "v_firstname",
+          "lastname": "v_lastname",
+          "mode": "v_mode"
+        }
+      }
+    }
+  },
+  "communication.getEmailRecipientByCompanyAndFullname": {
+    "params": {
+      "company": "v_company",
+      "fullname": "v_fullname",
+      "mode": "v_mode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-recipient-by-company-and-fullname",
+        "params": {
+          "company": "v_company",
+          "fullname": "v_fullname",
+          "mode": "v_mode"
+        }
+      }
+    }
+  },
+  "communication.getEmailRecipientByDomainAndFullname": {
+    "params": {
+      "domain": "v_domain",
+      "fullname": "v_fullname",
+      "mode": "v_mode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-recipient-by-domain-and-fullname",
+        "params": {
+          "domain": "v_domain",
+          "fullname": "v_fullname",
+          "mode": "v_mode"
+        }
+      }
+    }
+  },
+  "communication.getEmailRecipient": {
+    "params": {
+      "domain": "v_domain",
+      "firstname": "v_firstname",
+      "lastname": "v_lastname",
+      "mode": "v_mode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-recipient",
+        "params": {
+          "domain": "v_domain",
+          "firstname": "v_firstname",
+          "lastname": "v_lastname",
+          "mode": "v_mode"
+        }
+      }
+    }
+  },
+  "communication.getEmailRecipientByProfile": {
+    "params": {
+      "profile": "v_profile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-recipient-by-profile",
+        "params": {
+          "profile": "v_profile"
+        }
+      }
+    }
+  },
+  "communication.getEmailType": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-type",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.getEmailListByDomain": {
+    "params": {
+      "domain": "v_domain",
+      "page": "v_page"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-list-by-domain",
+        "params": {
+          "domain": "v_domain",
+          "page": "v_page"
+        }
+      }
+    }
+  },
+  "communication.getEmailListByEmail": {
+    "params": {
+      "email": "v_email",
+      "page": "v_page"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-list-by-email",
+        "params": {
+          "email": "v_email",
+          "page": "v_page"
+        }
+      }
+    }
+  },
+  "communication.getEmailFirstReferences": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-first-references",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.getEmailFix": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-fix",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.getPhoneFixed": {
+    "params": {
+      "phone": "v_phone",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-phone-fixed",
+        "params": {
+          "phone": "v_phone",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "communication.getMobileFormatted": {
+    "params": {
+      "mobile": "v_mobile",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-mobile-formatted",
+        "params": {
+          "mobile": "v_mobile",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "communication.getEmailGdprListByDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-gdpr-list-by-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "communication.getMobileHlrLookup": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-mobile-hlr-lookup",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.getMobileOrPhoneMnpEs": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-mobile-or-phone-mnp-es",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinProfilesByCompany": {
+    "params": {
+      "url": "v_url",
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-profiles-by-company",
+        "params": {
+          "url": "v_url",
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinGroupMembers": {
+    "params": {
+      "url": "v_url",
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-group-members",
+        "params": {
+          "url": "v_url",
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinConnections": {
+    "params": {
+      "list": "v_list",
+      "mode": "v_mode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-connections",
+        "params": {
+          "list": "v_list",
+          "mode": "v_mode"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinInvitations": {
+    "params": {
+      "list": "v_list",
+      "mode": "v_mode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-invitations",
+        "params": {
+          "list": "v_list",
+          "mode": "v_mode"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinPostComments": {
+    "params": {
+      "url": "v_url",
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-post-comments",
+        "params": {
+          "url": "v_url",
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinPostLikes": {
+    "params": {
+      "url": "v_url",
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-post-likes",
+        "params": {
+          "url": "v_url",
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinProfile": {
+    "params": {
+      "profile": "v_profile",
+      "list": "v_list",
+      "mode": "v_mode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-profile",
+        "params": {
+          "profile": "v_profile",
+          "list": "v_list",
+          "mode": "v_mode"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinProfiles": {
+    "params": {
+      "url": "v_url",
+      "list": "v_list",
+      "mode": "v_mode",
+      "amount": "v_amount"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-profiles",
+        "params": {
+          "url": "v_url",
+          "list": "v_list",
+          "mode": "v_mode",
+          "amount": "v_amount"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinProfilesByContent": {
+    "params": {
+      "keywords": "v_keywords",
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-profiles-by-content",
+        "params": {
+          "keywords": "v_keywords",
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "communication.getMobileLookup": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-mobile-lookup",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.getMobileMnpLookup": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-mobile-mnp-lookup",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.getMobileOrPhoneLookupEs": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-mobile-or-phone-lookup-es",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "communication.getEmailNormalized": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-normalized",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.getMobileNormalized": {
+    "params": {
+      "mobile": "v_mobile",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-mobile-normalized",
+        "params": {
+          "mobile": "v_mobile",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "communication.getPhoneParsed": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-phone-parsed",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "communication.getEmailPersonalRecipientByProfile": {
+    "params": {
+      "profile": "v_profile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-personal-recipient-by-profile",
+        "params": {
+          "profile": "v_profile"
+        }
+      }
+    }
+  },
+  "communication.getMobileCountryPrefix": {
+    "params": {
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-mobile-country-prefix",
+        "params": {
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinPublicProfileBySalesProfile": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-public-profile-by-sales-profile",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "communication.getLinkedinSearchContactsUrl": {
+    "params": {
+      "type": "v_type",
+      "current_company": "v_current_company",
+      "current_title": "v_current_title",
+      "included_companies": "v_included_companies",
+      "excluded_companies": "v_excluded_companies",
+      "included_titles": "v_included_titles",
+      "excluded_titles": "v_excluded_titles",
+      "included_keywords": "v_included_keywords",
+      "excluded_keywords": "v_excluded_keywords"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-linkedin-search-contacts-url",
+        "params": {
+          "type": "v_type",
+          "current_company": "v_current_company",
+          "current_title": "v_current_title",
+          "included_companies": "v_included_companies",
+          "excluded_companies": "v_excluded_companies",
+          "included_titles": "v_included_titles",
+          "excluded_titles": "v_excluded_titles",
+          "included_keywords": "v_included_keywords",
+          "excluded_keywords": "v_excluded_keywords"
+        }
+      }
+    }
+  },
+  "communication.getSocialUriParsed": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-social-uri-parsed",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "communication.getSocialDomainParsed": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-social-domain-parsed",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "communication.getSocialDomainLookup": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-social-domain-lookup",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "communication.getSocialEmailLookup": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-social-email-lookup",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.getSocialMobileLookup": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-social-mobile-lookup",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "communication.getEmailReferences": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-email-references",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "communication.sendLinkedinInvitation": {
+    "params": {
+      "profile": "v_profile",
+      "message": "v_message"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "send-linkedin-invitation",
+        "params": {
+          "profile": "v_profile",
+          "message": "v_message"
+        }
+      }
+    }
+  },
+  "communication.sendEmailCustom": {
+    "params": {
+      "email_from": "v_email_from",
+      "email_to": "v_email_to",
+      "subject": "v_subject",
+      "body": "v_body"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "send-email-custom",
+        "params": {
+          "email_from": "v_email_from",
+          "email_to": "v_email_to",
+          "subject": "v_subject",
+          "body": "v_body"
+        }
+      }
+    }
+  },
+  "communication.sendMobileSms": {
+    "params": {
+      "mobile": "v_mobile",
+      "text": "v_text",
+      "url_dlr": "v_url_dlr"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "send-mobile-sms",
+        "params": {
+          "mobile": "v_mobile",
+          "text": "v_text",
+          "url_dlr": "v_url_dlr"
+        }
+      }
+    }
+  },
+  "communication.sendLinkedinInvitationOrMessage": {
+    "params": {
+      "profile": "v_profile",
+      "message1": "v_message1",
+      "message2": "v_message2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "send-linkedin-invitation-or-message",
+        "params": {
+          "profile": "v_profile",
+          "message1": "v_message1",
+          "message2": "v_message2"
+        }
+      }
+    }
+  },
+  "communication.sendLinkedinVisit": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "send-linkedin-visit",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "communication.sendLinkedinMessage": {
+    "params": {
+      "profile": "v_profile",
+      "message": "v_message"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "send-linkedin-message",
+        "params": {
+          "profile": "v_profile",
+          "message": "v_message"
+        }
+      }
+    }
+  },
+  "audio.getAudioAdvancedSpeechByText": {
+    "params": {
+      "text": "v_text",
+      "gender": "v_gender",
+      "language": "v_language"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-audio-advanced-speech-by-text",
+        "params": {
+          "text": "v_text",
+          "gender": "v_gender",
+          "language": "v_language"
+        }
+      }
+    }
+  },
+  "audio.getAudioSpeechByText": {
+    "params": {
+      "text": "v_text",
+      "gender": "v_gender",
+      "language": "v_language"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-audio-speech-by-text",
+        "params": {
+          "text": "v_text",
+          "gender": "v_gender",
+          "language": "v_language"
+        }
+      }
+    }
+  },
+  "company.checkCifValid": {
+    "params": {
+      "cif": "v_cif"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-cif-valid",
+        "params": {
+          "cif": "v_cif"
+        }
+      }
+    }
+  },
+  "company.checkCompanyDebtorByTaxid": {
+    "params": {
+      "taxid": "v_taxid"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-company-debtor-by-taxid",
+        "params": {
+          "taxid": "v_taxid"
+        }
+      }
+    }
+  },
+  "company.checkNumberIsin": {
+    "params": {
+      "isin": "v_isin"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-isin",
+        "params": {
+          "isin": "v_isin"
+        }
+      }
+    }
+  },
+  "company.checkNumberSsEs": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-ss-es",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "company.getRoleClassified": {
+    "params": {
+      "role": "v_role"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-role-classified",
+        "params": {
+          "role": "v_role"
+        }
+      }
+    }
+  },
+  "company.getCompanyByCif": {
+    "params": {
+      "cif": "v_cif"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-by-cif",
+        "params": {
+          "cif": "v_cif"
+        }
+      }
+    }
+  },
+  "company.getCompanyByDuns": {
+    "params": {
+      "duns": "v_duns"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-by-duns",
+        "params": {
+          "duns": "v_duns"
+        }
+      }
+    }
+  },
+  "company.getCompanyByDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-by-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "company.getCompanyByEmail": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-by-email",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "company.getCompanyByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "company.getCompanyByName": {
+    "params": {
+      "name": "v_name",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-by-name",
+        "params": {
+          "name": "v_name",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "company.getCompanyByPhone": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-by-phone",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "company.getCompanyByProfile": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-by-profile",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "company.getCompanyNameByDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-name-by-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "company.getPersonDecisionMaker": {
+    "params": {
+      "company": "v_company",
+      "area": "v_area"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-decision-maker",
+        "params": {
+          "company": "v_company",
+          "area": "v_area"
+        }
+      }
+    }
+  },
+  "company.getPersonDecisionMakerBySearch": {
+    "params": {
+      "company": "v_company",
+      "area": "v_area",
+      "clevel": "v_clevel",
+      "location": "v_location",
+      "keyword": "v_keyword"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-decision-maker-by-search",
+        "params": {
+          "company": "v_company",
+          "area": "v_area",
+          "clevel": "v_clevel",
+          "location": "v_location",
+          "keyword": "v_keyword"
+        }
+      }
+    }
+  },
+  "company.getPersonEmailsByDomainAndArea": {
+    "params": {
+      "domain": "v_domain",
+      "area": "v_area"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-emails-by-domain-and-area",
+        "params": {
+          "domain": "v_domain",
+          "area": "v_area"
+        }
+      }
+    }
+  },
+  "company.getPersonMultipleDecisionMakerBySearch": {
+    "params": {
+      "company": "v_company",
+      "area": "v_area",
+      "clevel": "v_clevel",
+      "location": "v_location",
+      "keyword": "v_keyword"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-multiple-decision-maker-by-search",
+        "params": {
+          "company": "v_company",
+          "area": "v_area",
+          "clevel": "v_clevel",
+          "location": "v_location",
+          "keyword": "v_keyword"
+        }
+      }
+    }
+  },
+  "company.getCompanyDomainByName": {
+    "params": {
+      "name": "v_name"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-domain-by-name",
+        "params": {
+          "name": "v_name"
+        }
+      }
+    }
+  },
+  "company.getPersonListByParams": {
+    "params": {
+      "country": "v_country",
+      "company": "v_company",
+      "area": "v_area",
+      "seniority": "v_seniority",
+      "email": "v_email",
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-list-by-params",
+        "params": {
+          "country": "v_country",
+          "company": "v_company",
+          "area": "v_area",
+          "seniority": "v_seniority",
+          "email": "v_email",
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "company.getProfileFacebookByCompany": {
+    "params": {
+      "company": "v_company"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-facebook-by-company",
+        "params": {
+          "company": "v_company"
+        }
+      }
+    }
+  },
+  "company.getProfileFacebookByCompanyDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-facebook-by-company-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "company.getCompanyGeocodedByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-geocoded-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "company.getProfileGithubByCompanyDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-github-by-company-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "company.getProfileInstagramByCompanyDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-instagram-by-company-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "company.getProfileLinkedinByCompany": {
+    "params": {
+      "company": "v_company"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-linkedin-by-company",
+        "params": {
+          "company": "v_company"
+        }
+      }
+    }
+  },
+  "company.getProfileLinkedinByCompanyDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-linkedin-by-company-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "company.getCifNormalized": {
+    "params": {
+      "cif": "v_cif"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-cif-normalized",
+        "params": {
+          "cif": "v_cif"
+        }
+      }
+    }
+  },
+  "company.getCompanyPhoneByDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-phone-by-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "company.getCompanyPhoneByName": {
+    "params": {
+      "name": "v_name"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-phone-by-name",
+        "params": {
+          "name": "v_name"
+        }
+      }
+    }
+  },
+  "company.getProfilePinterestByCompanyDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-pinterest-by-company-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "company.getCompanyFinancialByDuns": {
+    "params": {
+      "duns": "v_duns",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-financial-by-duns",
+        "params": {
+          "duns": "v_duns",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "company.getCompanyFinancialByDomain": {
+    "params": {
+      "domain": "v_domain",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-financial-by-domain",
+        "params": {
+          "domain": "v_domain",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "company.getCompanyFinancialByName": {
+    "params": {
+      "name": "v_name",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-financial-by-name",
+        "params": {
+          "name": "v_name",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "company.getCompanyFinancialByTaxid": {
+    "params": {
+      "taxid": "v_taxid",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-company-financial-by-taxid",
+        "params": {
+          "taxid": "v_taxid",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "company.getProfileTwitterByCompany": {
+    "params": {
+      "company": "v_company"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-twitter-by-company",
+        "params": {
+          "company": "v_company"
+        }
+      }
+    }
+  },
+  "company.getProfileTwitterByCompanyDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-twitter-by-company-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "company.getProfileYoutubeByCompanyDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-youtube-by-company-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "finance.checkBankBicValid": {
+    "params": {
+      "bic": "v_bic"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-bank-bic-valid",
+        "params": {
+          "bic": "v_bic"
+        }
+      }
+    }
+  },
+  "finance.checkBankAccountValidEs": {
+    "params": {
+      "account": "v_account"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-bank-account-valid-es",
+        "params": {
+          "account": "v_account"
+        }
+      }
+    }
+  },
+  "finance.checkCreditcardChecksum": {
+    "params": {
+      "credit_card": "v_credit_card"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-creditcard-checksum",
+        "params": {
+          "credit_card": "v_credit_card"
+        }
+      }
+    }
+  },
+  "finance.checkCryptoWalletAddressValid": {
+    "params": {
+      "address": "v_address",
+      "coin": "v_coin"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-crypto-wallet-address-valid",
+        "params": {
+          "address": "v_address",
+          "coin": "v_coin"
+        }
+      }
+    }
+  },
+  "finance.checkBankIbanValid": {
+    "params": {
+      "iban": "v_iban"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-bank-iban-valid",
+        "params": {
+          "iban": "v_iban"
+        }
+      }
+    }
+  },
+  "finance.checkCurrencyValidIso": {
+    "params": {
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-currency-valid-iso",
+        "params": {
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "finance.checkVatExist": {
+    "params": {
+      "isocode": "v_isocode",
+      "tin": "v_tin"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-vat-exist",
+        "params": {
+          "isocode": "v_isocode",
+          "tin": "v_tin"
+        }
+      }
+    }
+  },
+  "finance.getCurrencyConvertedBetweenIsocodeDate": {
+    "params": {
+      "amount": "v_amount",
+      "isocode1": "v_isocode1",
+      "isocode2": "v_isocode2",
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-currency-converted-between-isocode-date",
+        "params": {
+          "amount": "v_amount",
+          "isocode1": "v_isocode1",
+          "isocode2": "v_isocode2",
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "finance.getCreditcardType": {
+    "params": {
+      "credit_card": "v_credit_card"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-creditcard-type",
+        "params": {
+          "credit_card": "v_credit_card"
+        }
+      }
+    }
+  },
+  "finance.getCurrencyListByCountry": {
+    "params": {
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-currency-list-by-country",
+        "params": {
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "finance.getCurrencyListByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-currency-list-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "finance.getCurrencyListByIsocode": {
+    "params": {
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-currency-list-by-isocode",
+        "params": {
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "finance.getCurrencyByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-currency-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "finance.getCurrencyByIsocode": {
+    "params": {
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-currency-by-isocode",
+        "params": {
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "finance.getCurrencyByCountryIsocode": {
+    "params": {
+      "country_code": "v_country_code"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-currency-by-country-isocode",
+        "params": {
+          "country_code": "v_country_code"
+        }
+      }
+    }
+  },
+  "finance.getCurrencyByCountry": {
+    "params": {
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-currency-by-country",
+        "params": {
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "finance.getVatByNumber": {
+    "params": {
+      "isocode": "v_isocode",
+      "tin": "v_tin"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-vat-by-number",
+        "params": {
+          "isocode": "v_isocode",
+          "tin": "v_tin"
+        }
+      }
+    }
+  },
+  "finance.getBankIbanByAccount": {
+    "params": {
+      "account": "v_account",
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-bank-iban-by-account",
+        "params": {
+          "account": "v_account",
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "finance.getBankIbanLookup": {
+    "params": {
+      "iban": "v_iban"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-bank-iban-lookup",
+        "params": {
+          "iban": "v_iban"
+        }
+      }
+    }
+  },
+  "finance.getSwiftLookup": {
+    "params": {
+      "swift": "v_swift"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-swift-lookup",
+        "params": {
+          "swift": "v_swift"
+        }
+      }
+    }
+  },
+  "finance.getVatByAddress": {
+    "params": {
+      "address": "v_address"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-vat-by-address",
+        "params": {
+          "address": "v_address"
+        }
+      }
+    }
+  },
+  "finance.getVatByCoordinates": {
+    "params": {
+      "coordinates": "v_coordinates"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-vat-by-coordinates",
+        "params": {
+          "coordinates": "v_coordinates"
+        }
+      }
+    }
+  },
+  "finance.getVatByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-vat-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "finance.getVatByIsocode": {
+    "params": {
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-vat-by-isocode",
+        "params": {
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "finance.getVatByPhone": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-vat-by-phone",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "finance.getVatByZipcode": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-vat-by-zipcode",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.checkCountryValidIso": {
+    "params": {
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-country-valid-iso",
+        "params": {
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "geographic.checkDistanceEq": {
+    "params": {
+      "coordinates1": "v_coordinates1",
+      "coordinates2": "v_coordinates2",
+      "distance": "v_distance"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-distance-eq",
+        "params": {
+          "coordinates1": "v_coordinates1",
+          "coordinates2": "v_coordinates2",
+          "distance": "v_distance"
+        }
+      }
+    }
+  },
+  "geographic.checkDistanceGt": {
+    "params": {
+      "coordinates1": "v_coordinates1",
+      "coordinates2": "v_coordinates2",
+      "distance": "v_distance"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-distance-gt",
+        "params": {
+          "coordinates1": "v_coordinates1",
+          "coordinates2": "v_coordinates2",
+          "distance": "v_distance"
+        }
+      }
+    }
+  },
+  "geographic.checkDistanceGe": {
+    "params": {
+      "coordinates1": "v_coordinates1",
+      "coordinates2": "v_coordinates2",
+      "distance": "v_distance"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-distance-ge",
+        "params": {
+          "coordinates1": "v_coordinates1",
+          "coordinates2": "v_coordinates2",
+          "distance": "v_distance"
+        }
+      }
+    }
+  },
+  "geographic.checkDistanceLt": {
+    "params": {
+      "coordinates1": "v_coordinates1",
+      "coordinates2": "v_coordinates2",
+      "distance": "v_distance"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-distance-lt",
+        "params": {
+          "coordinates1": "v_coordinates1",
+          "coordinates2": "v_coordinates2",
+          "distance": "v_distance"
+        }
+      }
+    }
+  },
+  "geographic.checkDistanceLe": {
+    "params": {
+      "coordinates1": "v_coordinates1",
+      "coordinates2": "v_coordinates2",
+      "distance": "v_distance"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-distance-le",
+        "params": {
+          "coordinates1": "v_coordinates1",
+          "coordinates2": "v_coordinates2",
+          "distance": "v_distance"
+        }
+      }
+    }
+  },
+  "geographic.checkAddressExist": {
+    "params": {
+      "address": "v_address",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-address-exist",
+        "params": {
+          "address": "v_address",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "geographic.checkAddressNumberExist": {
+    "params": {
+      "address": "v_address",
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-address-number-exist",
+        "params": {
+          "address": "v_address",
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "geographic.checkCoordinateValid": {
+    "params": {
+      "coordinates": "v_coordinates"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-coordinate-valid",
+        "params": {
+          "coordinates": "v_coordinates"
+        }
+      }
+    }
+  },
+  "geographic.checkZipcodeExist": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-zipcode-exist",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.checkZipcodeFormat": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-zipcode-format",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.getCoordinateCartesian": {
+    "params": {
+      "coordinates": "v_coordinates"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-coordinate-cartesian",
+        "params": {
+          "coordinates": "v_coordinates"
+        }
+      }
+    }
+  },
+  "geographic.getCityListByPhone": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-city-list-by-phone",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "geographic.getCityListByName": {
+    "params": {
+      "city": "v_city"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-city-list-by-name",
+        "params": {
+          "city": "v_city"
+        }
+      }
+    }
+  },
+  "geographic.getCityListByZipcode": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-city-list-by-zipcode",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.getCityByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-city-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getCityByName": {
+    "params": {
+      "city": "v_city"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-city-by-name",
+        "params": {
+          "city": "v_city"
+        }
+      }
+    }
+  },
+  "geographic.getCityByPhone": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-city-by-phone",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "geographic.getCityByZipcode": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-city-by-zipcode",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.getCommunityByZipcode": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-community-by-zipcode",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.getCoordinateByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-coordinate-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getCoordinateBySearch": {
+    "params": {
+      "address": "v_address"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-coordinate-by-search",
+        "params": {
+          "address": "v_address"
+        }
+      }
+    }
+  },
+  "geographic.getCountryListByCurrencyCode": {
+    "params": {
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-list-by-currency-code",
+        "params": {
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "geographic.getCountryListByCode": {
+    "params": {
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-list-by-code",
+        "params": {
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "geographic.getCountryListByName": {
+    "params": {
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-list-by-name",
+        "params": {
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "geographic.getCountryByCurrencyCode": {
+    "params": {
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-by-currency-code",
+        "params": {
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "geographic.getCountryByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getCountryByCode": {
+    "params": {
+      "isocode": "v_isocode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-by-code",
+        "params": {
+          "isocode": "v_isocode"
+        }
+      }
+    }
+  },
+  "geographic.getCountryByName": {
+    "params": {
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-by-name",
+        "params": {
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "geographic.getCountryByPhone": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-by-phone",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "geographic.getCountryCodeByName": {
+    "params": {
+      "country": "v_country"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-code-by-name",
+        "params": {
+          "country": "v_country"
+        }
+      }
+    }
+  },
+  "geographic.getCoordinateDecimal": {
+    "params": {
+      "coordinates": "v_coordinates"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-coordinate-decimal",
+        "params": {
+          "coordinates": "v_coordinates"
+        }
+      }
+    }
+  },
+  "geographic.getDistanceByAddresses": {
+    "params": {
+      "address1": "v_address1",
+      "address2": "v_address2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-distance-by-addresses",
+        "params": {
+          "address1": "v_address1",
+          "address2": "v_address2"
+        }
+      }
+    }
+  },
+  "geographic.getDistanceByCoordinates": {
+    "params": {
+      "coordinates1": "v_coordinates1",
+      "coordinates2": "v_coordinates2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-distance-by-coordinates",
+        "params": {
+          "coordinates1": "v_coordinates1",
+          "coordinates2": "v_coordinates2"
+        }
+      }
+    }
+  },
+  "geographic.getDistanceByIps": {
+    "params": {
+      "ip1": "v_ip1",
+      "ip2": "v_ip2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-distance-by-ips",
+        "params": {
+          "ip1": "v_ip1",
+          "ip2": "v_ip2"
+        }
+      }
+    }
+  },
+  "geographic.getDistanceByPhones": {
+    "params": {
+      "phone1": "v_phone1",
+      "phone2": "v_phone2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-distance-by-phones",
+        "params": {
+          "phone1": "v_phone1",
+          "phone2": "v_phone2"
+        }
+      }
+    }
+  },
+  "geographic.getDistanceByZipcodes": {
+    "params": {
+      "zipcode1": "v_zipcode1",
+      "zipcode2": "v_zipcode2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-distance-by-zipcodes",
+        "params": {
+          "zipcode1": "v_zipcode1",
+          "zipcode2": "v_zipcode2"
+        }
+      }
+    }
+  },
+  "geographic.getAddressBySearch": {
+    "params": {
+      "address": "v_address"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-address-by-search",
+        "params": {
+          "address": "v_address"
+        }
+      }
+    }
+  },
+  "geographic.getLocationExtendedByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-extended-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getLocationGeocodedByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-geocoded-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getAddressSplittedBest": {
+    "params": {
+      "address": "v_address"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-address-splitted-best",
+        "params": {
+          "address": "v_address"
+        }
+      }
+    }
+  },
+  "geographic.getLocaleByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-locale-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getLocationByCoordinates": {
+    "params": {
+      "coordinates": "v_coordinates"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-by-coordinates",
+        "params": {
+          "coordinates": "v_coordinates"
+        }
+      }
+    }
+  },
+  "geographic.getLocationByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getLocationByPhone": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-by-phone",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "geographic.getLocationByName": {
+    "params": {
+      "name": "v_name"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-by-name",
+        "params": {
+          "name": "v_name"
+        }
+      }
+    }
+  },
+  "geographic.getLocationByParams": {
+    "params": {
+      "name": "v_name",
+      "category": "v_category",
+      "location": "v_location",
+      "radius": "v_radius"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-by-params",
+        "params": {
+          "name": "v_name",
+          "category": "v_category",
+          "location": "v_location",
+          "radius": "v_radius"
+        }
+      }
+    }
+  },
+  "geographic.getLocationByZipcode": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-by-zipcode",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.getLocationListByName": {
+    "params": {
+      "name": "v_name"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-list-by-name",
+        "params": {
+          "name": "v_name"
+        }
+      }
+    }
+  },
+  "geographic.getLocationListByParams": {
+    "params": {
+      "name": "v_name",
+      "category": "v_category",
+      "location": "v_location",
+      "radius": "v_radius"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-location-list-by-params",
+        "params": {
+          "name": "v_name",
+          "category": "v_category",
+          "location": "v_location",
+          "radius": "v_radius"
+        }
+      }
+    }
+  },
+  "geographic.getNameListByPrefix": {
+    "params": {
+      "name": "v_name",
+      "gender": "v_gender"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-name-list-by-prefix",
+        "params": {
+          "name": "v_name",
+          "gender": "v_gender"
+        }
+      }
+    }
+  },
+  "geographic.getNetByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-net-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getAddressNormalized": {
+    "params": {
+      "address": "v_address"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-address-normalized",
+        "params": {
+          "address": "v_address"
+        }
+      }
+    }
+  },
+  "geographic.getCityNormalized": {
+    "params": {
+      "city": "v_city"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-city-normalized",
+        "params": {
+          "city": "v_city"
+        }
+      }
+    }
+  },
+  "geographic.getCountryNormalized": {
+    "params": {
+      "country": "v_country",
+      "language": "v_language"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-country-normalized",
+        "params": {
+          "country": "v_country",
+          "language": "v_language"
+        }
+      }
+    }
+  },
+  "geographic.getProvinceNormalized": {
+    "params": {
+      "province": "v_province"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-province-normalized",
+        "params": {
+          "province": "v_province"
+        }
+      }
+    }
+  },
+  "geographic.getZipcodeNormalized": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-zipcode-normalized",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.getAddressSplitted": {
+    "params": {
+      "address": "v_address"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-address-splitted",
+        "params": {
+          "address": "v_address"
+        }
+      }
+    }
+  },
+  "geographic.getProvinceByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-province-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getProvinceByName": {
+    "params": {
+      "province": "v_province"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-province-by-name",
+        "params": {
+          "province": "v_province"
+        }
+      }
+    }
+  },
+  "geographic.getProvinceByPhone": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-province-by-phone",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "geographic.getProvinceByZipcode": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-province-by-zipcode",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.getProvinceListByName": {
+    "params": {
+      "province": "v_province"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-province-list-by-name",
+        "params": {
+          "province": "v_province"
+        }
+      }
+    }
+  },
+  "geographic.getProvinceListByPhone": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-province-list-by-phone",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "geographic.getProvinceListByZipcode": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-province-list-by-zipcode",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.getReputationByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-reputation-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getRouteByAddresses": {
+    "params": {
+      "address1": "v_address1",
+      "address2": "v_address2",
+      "fuel_consumption": "v_fuel_consumption",
+      "price_liter": "v_price_liter"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-route-by-addresses",
+        "params": {
+          "address1": "v_address1",
+          "address2": "v_address2",
+          "fuel_consumption": "v_fuel_consumption",
+          "price_liter": "v_price_liter"
+        }
+      }
+    }
+  },
+  "geographic.getRouteByCoordinates": {
+    "params": {
+      "coordinates1": "v_coordinates1",
+      "coordinates2": "v_coordinates2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-route-by-coordinates",
+        "params": {
+          "coordinates1": "v_coordinates1",
+          "coordinates2": "v_coordinates2"
+        }
+      }
+    }
+  },
+  "geographic.getRouteByIps": {
+    "params": {
+      "ip1": "v_ip1",
+      "ip2": "v_ip2",
+      "fuel_consumption": "v_fuel_consumption",
+      "price_liter": "v_price_liter"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-route-by-ips",
+        "params": {
+          "ip1": "v_ip1",
+          "ip2": "v_ip2",
+          "fuel_consumption": "v_fuel_consumption",
+          "price_liter": "v_price_liter"
+        }
+      }
+    }
+  },
+  "geographic.getRouteByPhones": {
+    "params": {
+      "phone1": "v_phone1",
+      "phone2": "v_phone2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-route-by-phones",
+        "params": {
+          "phone1": "v_phone1",
+          "phone2": "v_phone2"
+        }
+      }
+    }
+  },
+  "geographic.getRouteByZipcodes": {
+    "params": {
+      "zipcode1": "v_zipcode1",
+      "zipcode2": "v_zipcode2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-route-by-zipcodes",
+        "params": {
+          "zipcode1": "v_zipcode1",
+          "zipcode2": "v_zipcode2"
+        }
+      }
+    }
+  },
+  "geographic.getTimeByCoordinates": {
+    "params": {
+      "latitude": "v_latitude",
+      "longitude": "v_longitude"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-time-by-coordinates",
+        "params": {
+          "latitude": "v_latitude",
+          "longitude": "v_longitude"
+        }
+      }
+    }
+  },
+  "geographic.getTimeByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-time-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getTimeByAddress": {
+    "params": {
+      "address": "v_address"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-time-by-address",
+        "params": {
+          "address": "v_address"
+        }
+      }
+    }
+  },
+  "geographic.getCoordinateUsng": {
+    "params": {
+      "coordinates": "v_coordinates"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-coordinate-usng",
+        "params": {
+          "coordinates": "v_coordinates"
+        }
+      }
+    }
+  },
+  "geographic.getCoordinateUtm": {
+    "params": {
+      "coordinates": "v_coordinates"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-coordinate-utm",
+        "params": {
+          "coordinates": "v_coordinates"
+        }
+      }
+    }
+  },
+  "geographic.getZipcodeByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-zipcode-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "geographic.getZipcodeByPrefix": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-zipcode-by-prefix",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "geographic.getZipcodeListByPrefix": {
+    "params": {
+      "zipcode": "v_zipcode"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-zipcode-list-by-prefix",
+        "params": {
+          "zipcode": "v_zipcode"
+        }
+      }
+    }
+  },
+  "image.getQrDecoded": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-qr-decoded",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "image.getImageExif": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-image-exif",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "image.getBarcodeEncoded": {
+    "params": {
+      "text": "v_text",
+      "bcid": "v_bcid"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-barcode-encoded",
+        "params": {
+          "text": "v_text",
+          "bcid": "v_bcid"
+        }
+      }
+    }
+  },
+  "image.getQrEncoded": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-qr-encoded",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "image.getImageWithText": {
+    "params": {
+      "url": "v_url",
+      "text": "v_text",
+      "size": "v_size"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-image-with-text",
+        "params": {
+          "url": "v_url",
+          "text": "v_text",
+          "size": "v_size"
+        }
+      }
+    }
+  },
+  "image.getDomainLogo": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-logo",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "image.getImageOcr": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-image-ocr",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "image.getUrlScreenshot": {
+    "params": {
+      "url": "v_url",
+      "width": "v_width",
+      "fullpage": "v_fullpage",
+      "useragent": "v_useragent",
+      "selector": "v_selector",
+      "delay": "v_delay",
+      "viewport": "v_viewport"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-screenshot",
+        "params": {
+          "url": "v_url",
+          "width": "v_width",
+          "fullpage": "v_fullpage",
+          "useragent": "v_useragent",
+          "selector": "v_selector",
+          "delay": "v_delay",
+          "viewport": "v_viewport"
+        }
+      }
+    }
+  },
+  "internet.checkDomainExist": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-domain-exist",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.checkDomainRecord": {
+    "params": {
+      "domain": "v_domain",
+      "type": "v_type"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-domain-record",
+        "params": {
+          "domain": "v_domain",
+          "type": "v_type"
+        }
+      }
+    }
+  },
+  "internet.checkDomainReverse": {
+    "params": {
+      "domain": "v_domain",
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-domain-reverse",
+        "params": {
+          "domain": "v_domain",
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "internet.checkDomainMx": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-domain-mx",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.checkDomainCertificate": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-domain-certificate",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.checkDomainFormat": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-domain-format",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.checkNetHostAlive": {
+    "params": {
+      "host": "v_host"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-net-host-alive",
+        "params": {
+          "host": "v_host"
+        }
+      }
+    }
+  },
+  "internet.checkNetServiceUp": {
+    "params": {
+      "host": "v_host",
+      "port": "v_port"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-net-service-up",
+        "params": {
+          "host": "v_host",
+          "port": "v_port"
+        }
+      }
+    }
+  },
+  "internet.checkUrlContains": {
+    "params": {
+      "url": "v_url",
+      "regex": "v_regex"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-url-contains",
+        "params": {
+          "url": "v_url",
+          "regex": "v_regex"
+        }
+      }
+    }
+  },
+  "internet.checkUrlExist": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-url-exist",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.checkUrlValid": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-url-valid",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getDomainCertificate": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-certificate",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getUrlContents": {
+    "params": {
+      "url": "v_url",
+      "selector": "v_selector"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-contents",
+        "params": {
+          "url": "v_url",
+          "selector": "v_selector"
+        }
+      }
+    }
+  },
+  "internet.getUrlDecode": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-decode",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getUrlByDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-by-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getDeviceByUa": {
+    "params": {
+      "useragent": "v_useragent"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-device-by-ua",
+        "params": {
+          "useragent": "v_useragent"
+        }
+      }
+    }
+  },
+  "internet.getDomainByIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-by-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "internet.getDomainRecords": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-records",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getDomainRecord": {
+    "params": {
+      "domain": "v_domain",
+      "type": "v_type"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-record",
+        "params": {
+          "domain": "v_domain",
+          "type": "v_type"
+        }
+      }
+    }
+  },
+  "internet.getUrlEncode": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-encode",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getFeedEntriesByDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-feed-entries-by-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getFileCopiedBetweenUrls": {
+    "params": {
+      "source": "v_source",
+      "destination": "v_destination"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-file-copied-between-urls",
+        "params": {
+          "source": "v_source",
+          "destination": "v_destination"
+        }
+      }
+    }
+  },
+  "internet.getNetFixip": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-net-fixip",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "internet.getDomainReverseIp": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-reverse-ip",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getNetNtoa": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-net-ntoa",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "internet.getDomainIsp": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-isp",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getFeedLastEntryByDomain": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-feed-last-entry-by-domain",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getUrlUnshortened": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-unshortened",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getNetAton": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-net-aton",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "internet.getNetScan": {
+    "params": {
+      "host": "v_host"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-net-scan",
+        "params": {
+          "host": "v_host"
+        }
+      }
+    }
+  },
+  "internet.getUrlListContentsParsed": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-list-contents-parsed",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getUrlContentsParsed": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-contents-parsed",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getUrlParsed": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-parsed",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getUrlPdf": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-pdf",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getDomainByUrl": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-by-url",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getUrlShareableLinks": {
+    "params": {
+      "url": "v_url",
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-shareable-links",
+        "params": {
+          "url": "v_url",
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "internet.getUrlTables": {
+    "params": {
+      "url": "v_url",
+      "table": "v_table"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-tables",
+        "params": {
+          "url": "v_url",
+          "table": "v_table"
+        }
+      }
+    }
+  },
+  "internet.getDomainTechnologies": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-technologies",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getUrlTechnologies": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-technologies",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getUrlAnalysis": {
+    "params": {
+      "url": "v_url"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-url-analysis",
+        "params": {
+          "url": "v_url"
+        }
+      }
+    }
+  },
+  "internet.getDomainVisits": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-visits",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getDomainWhois": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-whois",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "internet.getIpWhois": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-ip-whois",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "personal.checkAgeBetw": {
+    "params": {
+      "date": "v_date",
+      "years1": "v_years1",
+      "years2": "v_years2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-betw",
+        "params": {
+          "date": "v_date",
+          "years1": "v_years1",
+          "years2": "v_years2"
+        }
+      }
+    }
+  },
+  "personal.checkAgeIsTwenties": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-is-twenties",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.checkAgeIsForties": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-is-forties",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.checkAgeGt": {
+    "params": {
+      "date": "v_date",
+      "years": "v_years"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-gt",
+        "params": {
+          "date": "v_date",
+          "years": "v_years"
+        }
+      }
+    }
+  },
+  "personal.checkAgeGe": {
+    "params": {
+      "date": "v_date",
+      "years": "v_years"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-ge",
+        "params": {
+          "date": "v_date",
+          "years": "v_years"
+        }
+      }
+    }
+  },
+  "personal.checkAgeIsRetired": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-is-retired",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.checkAgeIsAdult": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-is-adult",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.checkAgeLt": {
+    "params": {
+      "date": "v_date",
+      "years": "v_years"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-lt",
+        "params": {
+          "date": "v_date",
+          "years": "v_years"
+        }
+      }
+    }
+  },
+  "personal.checkAgeLe": {
+    "params": {
+      "date": "v_date",
+      "years": "v_years"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-le",
+        "params": {
+          "date": "v_date",
+          "years": "v_years"
+        }
+      }
+    }
+  },
+  "personal.checkAgeEq": {
+    "params": {
+      "date": "v_date",
+      "years": "v_years"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-age-eq",
+        "params": {
+          "date": "v_date",
+          "years": "v_years"
+        }
+      }
+    }
+  },
+  "personal.checkDateBetw": {
+    "params": {
+      "date1": "v_date1",
+      "date2": "v_date2",
+      "date3": "v_date3"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-date-betw",
+        "params": {
+          "date1": "v_date1",
+          "date2": "v_date2",
+          "date3": "v_date3"
+        }
+      }
+    }
+  },
+  "personal.checkDateGt": {
+    "params": {
+      "date1": "v_date1",
+      "date2": "v_date2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-date-gt",
+        "params": {
+          "date1": "v_date1",
+          "date2": "v_date2"
+        }
+      }
+    }
+  },
+  "personal.checkDateGe": {
+    "params": {
+      "date1": "v_date1",
+      "date2": "v_date2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-date-ge",
+        "params": {
+          "date1": "v_date1",
+          "date2": "v_date2"
+        }
+      }
+    }
+  },
+  "personal.checkDateLeap": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-date-leap",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.checkDateLt": {
+    "params": {
+      "date1": "v_date1",
+      "date2": "v_date2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-date-lt",
+        "params": {
+          "date1": "v_date1",
+          "date2": "v_date2"
+        }
+      }
+    }
+  },
+  "personal.checkDateLe": {
+    "params": {
+      "date1": "v_date1",
+      "date2": "v_date2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-date-le",
+        "params": {
+          "date1": "v_date1",
+          "date2": "v_date2"
+        }
+      }
+    }
+  },
+  "personal.checkDateValid": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-date-valid",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.checkDateEq": {
+    "params": {
+      "date1": "v_date1",
+      "date2": "v_date2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-date-eq",
+        "params": {
+          "date1": "v_date1",
+          "date2": "v_date2"
+        }
+      }
+    }
+  },
+  "personal.checkGenderValid": {
+    "params": {
+      "gender": "v_gender"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-gender-valid",
+        "params": {
+          "gender": "v_gender"
+        }
+      }
+    }
+  },
+  "personal.checkNieValid": {
+    "params": {
+      "nie": "v_nie"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-nie-valid",
+        "params": {
+          "nie": "v_nie"
+        }
+      }
+    }
+  },
+  "personal.checkNifValid": {
+    "params": {
+      "nif": "v_nif"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-nif-valid",
+        "params": {
+          "nif": "v_nif"
+        }
+      }
+    }
+  },
+  "personal.checkNameExist": {
+    "params": {
+      "name": "v_name"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-name-exist",
+        "params": {
+          "name": "v_name"
+        }
+      }
+    }
+  },
+  "personal.checkNameValid": {
+    "params": {
+      "name": "v_name"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-name-valid",
+        "params": {
+          "name": "v_name"
+        }
+      }
+    }
+  },
+  "personal.checkRobinsonNifExist": {
+    "params": {
+      "nif": "v_nif"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-robinson-nif-exist",
+        "params": {
+          "nif": "v_nif"
+        }
+      }
+    }
+  },
+  "personal.checkSurnameValid": {
+    "params": {
+      "surname": "v_surname"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-surname-valid",
+        "params": {
+          "surname": "v_surname"
+        }
+      }
+    }
+  },
+  "personal.checkSurnameExist": {
+    "params": {
+      "surname": "v_surname"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-surname-exist",
+        "params": {
+          "surname": "v_surname"
+        }
+      }
+    }
+  },
+  "personal.checkDniValid": {
+    "params": {
+      "dni": "v_dni"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-dni-valid",
+        "params": {
+          "dni": "v_dni"
+        }
+      }
+    }
+  },
+  "personal.getAgeByDate": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-age-by-date",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.getAgeRange": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-age-range",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.getDateDifference": {
+    "params": {
+      "date1": "v_date1",
+      "date2": "v_date2",
+      "period": "v_period"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-date-difference",
+        "params": {
+          "date1": "v_date1",
+          "date2": "v_date2",
+          "period": "v_period"
+        }
+      }
+    }
+  },
+  "personal.getGenderByEmail": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-gender-by-email",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "personal.getGenderByPersonalName": {
+    "params": {
+      "name": "v_name"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-gender-by-personal-name",
+        "params": {
+          "name": "v_name"
+        }
+      }
+    }
+  },
+  "personal.getProfileLinkedinByEmail": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-linkedin-by-email",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "personal.getProfileByEmployeeData": {
+    "params": {
+      "firstname": "v_firstname",
+      "lastname": "v_lastname",
+      "company": "v_company"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-by-employee-data",
+        "params": {
+          "firstname": "v_firstname",
+          "lastname": "v_lastname",
+          "company": "v_company"
+        }
+      }
+    }
+  },
+  "personal.getProfileLinkedinByPhone": {
+    "params": {
+      "phone": "v_phone"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-linkedin-by-phone",
+        "params": {
+          "phone": "v_phone"
+        }
+      }
+    }
+  },
+  "personal.getNifByDni": {
+    "params": {
+      "dni": "v_dni"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-nif-by-dni",
+        "params": {
+          "dni": "v_dni"
+        }
+      }
+    }
+  },
+  "personal.getNameByPrefix": {
+    "params": {
+      "name": "v_name",
+      "gender": "v_gender"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-name-by-prefix",
+        "params": {
+          "name": "v_name",
+          "gender": "v_gender"
+        }
+      }
+    }
+  },
+  "personal.getDniNormalized": {
+    "params": {
+      "dni": "v_dni"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-dni-normalized",
+        "params": {
+          "dni": "v_dni"
+        }
+      }
+    }
+  },
+  "personal.getDateNormalized": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-date-normalized",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.getNieNormalized": {
+    "params": {
+      "nie": "v_nie"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-nie-normalized",
+        "params": {
+          "nie": "v_nie"
+        }
+      }
+    }
+  },
+  "personal.getNifNormalized": {
+    "params": {
+      "nif": "v_nif"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-nif-normalized",
+        "params": {
+          "nif": "v_nif"
+        }
+      }
+    }
+  },
+  "personal.getNameNormalized": {
+    "params": {
+      "name": "v_name"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-name-normalized",
+        "params": {
+          "name": "v_name"
+        }
+      }
+    }
+  },
+  "personal.getSurnameNormalized": {
+    "params": {
+      "surname": "v_surname"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-surname-normalized",
+        "params": {
+          "surname": "v_surname"
+        }
+      }
+    }
+  },
+  "personal.getDateParsed": {
+    "params": {
+      "date": "v_date"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-date-parsed",
+        "params": {
+          "date": "v_date"
+        }
+      }
+    }
+  },
+  "personal.getFullnameParsed": {
+    "params": {
+      "fullname": "v_fullname"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-fullname-parsed",
+        "params": {
+          "fullname": "v_fullname"
+        }
+      }
+    }
+  },
+  "personal.getPersonExtendedByEmail": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-extended-by-email",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "personal.getPersonExtendedByEmailAndCompany": {
+    "params": {
+      "email": "v_email",
+      "company": "v_company"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-extended-by-email-and-company",
+        "params": {
+          "email": "v_email",
+          "company": "v_company"
+        }
+      }
+    }
+  },
+  "personal.getPersonExtendedByProfile": {
+    "params": {
+      "profile": "v_profile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-extended-by-profile",
+        "params": {
+          "profile": "v_profile"
+        }
+      }
+    }
+  },
+  "personal.getPersonByEmail": {
+    "params": {
+      "email": "v_email"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-by-email",
+        "params": {
+          "email": "v_email"
+        }
+      }
+    }
+  },
+  "personal.getPersonByFirstnameLastnameCompanyLocation": {
+    "params": {
+      "firstname": "v_firstname",
+      "lastname": "v_lastname",
+      "company": "v_company",
+      "location": "v_location"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-by-firstname-lastname-company-location",
+        "params": {
+          "firstname": "v_firstname",
+          "lastname": "v_lastname",
+          "company": "v_company",
+          "location": "v_location"
+        }
+      }
+    }
+  },
+  "personal.getPersonByMobile": {
+    "params": {
+      "mobile": "v_mobile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-by-mobile",
+        "params": {
+          "mobile": "v_mobile"
+        }
+      }
+    }
+  },
+  "personal.getPersonByProfile": {
+    "params": {
+      "profile": "v_profile"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-by-profile",
+        "params": {
+          "profile": "v_profile"
+        }
+      }
+    }
+  },
+  "personal.getPersonFakedData": {
+    "params": {
+      "locality": "v_locality"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-person-faked-data",
+        "params": {
+          "locality": "v_locality"
+        }
+      }
+    }
+  },
+  "personal.getSurnameByPrefix": {
+    "params": {
+      "surname": "v_surname"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-surname-by-prefix",
+        "params": {
+          "surname": "v_surname"
+        }
+      }
+    }
+  },
+  "personal.getSurnameListByPrefix": {
+    "params": {
+      "surname": "v_surname"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-surname-list-by-prefix",
+        "params": {
+          "surname": "v_surname"
+        }
+      }
+    }
+  },
+  "personal.getProfileXingByEmployeeData": {
+    "params": {
+      "firstname": "v_firstname",
+      "lastname": "v_lastname",
+      "company": "v_company"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-profile-xing-by-employee-data",
+        "params": {
+          "firstname": "v_firstname",
+          "lastname": "v_lastname",
+          "company": "v_company"
+        }
+      }
+    }
+  },
+  "personal.sendPersonEmailToList": {
+    "params": {
+      "email": "v_email",
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "send-person-email-to-list",
+        "params": {
+          "email": "v_email",
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "personal.sendPersonProfileToList": {
+    "params": {
+      "profile": "v_profile",
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "send-person-profile-to-list",
+        "params": {
+          "profile": "v_profile",
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "product.checkAsinExist": {
+    "params": {
+      "asin": "v_asin"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-asin-exist",
+        "params": {
+          "asin": "v_asin"
+        }
+      }
+    }
+  },
+  "product.checkAsinValid": {
+    "params": {
+      "asin": "v_asin"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-asin-valid",
+        "params": {
+          "asin": "v_asin"
+        }
+      }
+    }
+  },
+  "product.checkEanExist": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-ean-exist",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkEanValid": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-ean-valid",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkEan13Valid": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-ean13-valid",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkEan14Valid": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-ean14-valid",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkEan18Valid": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-ean18-valid",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkEan8Valid": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-ean8-valid",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkGtinValid": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-gtin-valid",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkGtin13Valid": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-gtin13-valid",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkGtin14Valid": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-gtin14-valid",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkGtin8Valid": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-gtin8-valid",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.checkBookIsbnExist": {
+    "params": {
+      "isbn": "v_isbn"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-book-isbn-exist",
+        "params": {
+          "isbn": "v_isbn"
+        }
+      }
+    }
+  },
+  "product.checkBookIsbn": {
+    "params": {
+      "isbn": "v_isbn"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-book-isbn",
+        "params": {
+          "isbn": "v_isbn"
+        }
+      }
+    }
+  },
+  "product.checkBookIsbn10": {
+    "params": {
+      "isbn": "v_isbn"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-book-isbn10",
+        "params": {
+          "isbn": "v_isbn"
+        }
+      }
+    }
+  },
+  "product.checkBookIsbn13": {
+    "params": {
+      "isbn": "v_isbn"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-book-isbn13",
+        "params": {
+          "isbn": "v_isbn"
+        }
+      }
+    }
+  },
+  "product.checkUpcExist": {
+    "params": {
+      "upc": "v_upc"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-upc-exist",
+        "params": {
+          "upc": "v_upc"
+        }
+      }
+    }
+  },
+  "product.checkUpcFormat": {
+    "params": {
+      "upc": "v_upc"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-upc-format",
+        "params": {
+          "upc": "v_upc"
+        }
+      }
+    }
+  },
+  "product.checkVinFormat": {
+    "params": {
+      "vin": "v_vin"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-vin-format",
+        "params": {
+          "vin": "v_vin"
+        }
+      }
+    }
+  },
+  "product.getAsinByEan": {
+    "params": {
+      "ean": "v_ean"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-asin-by-ean",
+        "params": {
+          "ean": "v_ean"
+        }
+      }
+    }
+  },
+  "product.getBookAuthorLookup": {
+    "params": {
+      "author": "v_author"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-author-lookup",
+        "params": {
+          "author": "v_author"
+        }
+      }
+    }
+  },
+  "product.getBookCategoryLookup": {
+    "params": {
+      "category": "v_category"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-category-lookup",
+        "params": {
+          "category": "v_category"
+        }
+      }
+    }
+  },
+  "product.getBookPublisherLookup": {
+    "params": {
+      "publisher": "v_publisher"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-publisher-lookup",
+        "params": {
+          "publisher": "v_publisher"
+        }
+      }
+    }
+  },
+  "product.getBookIsbnLookup": {
+    "params": {
+      "isbn": "v_isbn"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-isbn-lookup",
+        "params": {
+          "isbn": "v_isbn"
+        }
+      }
+    }
+  },
+  "product.getBookTitleLookup": {
+    "params": {
+      "title": "v_title"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-title-lookup",
+        "params": {
+          "title": "v_title"
+        }
+      }
+    }
+  },
+  "product.getBookListAuthorLookup": {
+    "params": {
+      "author": "v_author"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-list-author-lookup",
+        "params": {
+          "author": "v_author"
+        }
+      }
+    }
+  },
+  "product.getBookListCategoryLookup": {
+    "params": {
+      "category": "v_category"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-list-category-lookup",
+        "params": {
+          "category": "v_category"
+        }
+      }
+    }
+  },
+  "product.getBookListPublisherLookup": {
+    "params": {
+      "publisher": "v_publisher"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-list-publisher-lookup",
+        "params": {
+          "publisher": "v_publisher"
+        }
+      }
+    }
+  },
+  "product.getBookListTitleLookup": {
+    "params": {
+      "title": "v_title"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-list-title-lookup",
+        "params": {
+          "title": "v_title"
+        }
+      }
+    }
+  },
+  "product.getVinLookup": {
+    "params": {
+      "vin": "v_vin"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-vin-lookup",
+        "params": {
+          "vin": "v_vin"
+        }
+      }
+    }
+  },
+  "product.getEanByAsin": {
+    "params": {
+      "asin": "v_asin"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-ean-by-asin",
+        "params": {
+          "asin": "v_asin"
+        }
+      }
+    }
+  },
+  "product.getBookIsbn13ToIsbn10": {
+    "params": {
+      "isbn": "v_isbn"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-isbn13-to-isbn10",
+        "params": {
+          "isbn": "v_isbn"
+        }
+      }
+    }
+  },
+  "product.getBookIsbn10ToIsbn13": {
+    "params": {
+      "isbn": "v_isbn"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-book-isbn10-to-isbn13",
+        "params": {
+          "isbn": "v_isbn"
+        }
+      }
+    }
+  },
+  "product.getUpcLookup": {
+    "params": {
+      "upc": "v_upc"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-upc-lookup",
+        "params": {
+          "upc": "v_upc"
+        }
+      }
+    }
+  },
+  "security.checkNumberLuhn": {
+    "params": {
+      "luhn": "v_luhn"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-luhn",
+        "params": {
+          "luhn": "v_luhn"
+        }
+      }
+    }
+  },
+  "security.checkPasswordStrong": {
+    "params": {
+      "password": "v_password"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-password-strong",
+        "params": {
+          "password": "v_password"
+        }
+      }
+    }
+  },
+  "security.checkNumberUuid": {
+    "params": {
+      "uuid": "v_uuid"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-uuid",
+        "params": {
+          "uuid": "v_uuid"
+        }
+      }
+    }
+  },
+  "security.getDomainBlacklists": {
+    "params": {
+      "domain": "v_domain"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-domain-blacklists",
+        "params": {
+          "domain": "v_domain"
+        }
+      }
+    }
+  },
+  "security.getIpBlacklists": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-ip-blacklists",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "text.checkStringAlpha": {
+    "params": {
+      "resource": "",
+      "operation": "",
+      "group": "text",
+      "tool": "checkStringAlpha",
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-alpha",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkStringAlphanumeric": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-alphanumeric",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkStringBoolean": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-boolean",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkNumberDecimal": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-decimal",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "text.checkNumberEven": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-even",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "text.checkListMax": {
+    "params": {
+      "list": "v_list",
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-max",
+        "params": {
+          "list": "v_list",
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "text.checkStringIp": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-ip",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "text.checkStringIp4": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-ip4",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "text.checkStringIp6": {
+    "params": {
+      "ip": "v_ip"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-ip6",
+        "params": {
+          "ip": "v_ip"
+        }
+      }
+    }
+  },
+  "text.checkListLengthBetw": {
+    "params": {
+      "list": "v_list",
+      "length1": "v_length1",
+      "length2": "v_length2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-length-betw",
+        "params": {
+          "list": "v_list",
+          "length1": "v_length1",
+          "length2": "v_length2"
+        }
+      }
+    }
+  },
+  "text.checkListLengthEq": {
+    "params": {
+      "list": "v_list",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-length-eq",
+        "params": {
+          "list": "v_list",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkListLengthGt": {
+    "params": {
+      "list": "v_list",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-length-gt",
+        "params": {
+          "list": "v_list",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkListLengthGe": {
+    "params": {
+      "list": "v_list",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-length-ge",
+        "params": {
+          "list": "v_list",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkListLengthLt": {
+    "params": {
+      "list": "v_list",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-length-lt",
+        "params": {
+          "list": "v_list",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkListLengthLe": {
+    "params": {
+      "list": "v_list",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-length-le",
+        "params": {
+          "list": "v_list",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkListContains": {
+    "params": {
+      "list": "v_list",
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-contains",
+        "params": {
+          "list": "v_list",
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkListEnds": {
+    "params": {
+      "list": "v_list",
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-ends",
+        "params": {
+          "list": "v_list",
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkListSorted": {
+    "params": {
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-sorted",
+        "params": {
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "text.checkListStarts": {
+    "params": {
+      "list": "v_list",
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-starts",
+        "params": {
+          "list": "v_list",
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkListMin": {
+    "params": {
+      "list": "v_list",
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-min",
+        "params": {
+          "list": "v_list",
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "text.checkNumberMod": {
+    "params": {
+      "number": "v_number",
+      "mod": "v_mod",
+      "rest": "v_rest"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-mod",
+        "params": {
+          "number": "v_number",
+          "mod": "v_mod",
+          "rest": "v_rest"
+        }
+      }
+    }
+  },
+  "text.checkNumberNatural": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-natural",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "text.checkNumberBetw": {
+    "params": {
+      "number1": "v_number1",
+      "number2": "v_number2",
+      "number3": "v_number3"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-betw",
+        "params": {
+          "number1": "v_number1",
+          "number2": "v_number2",
+          "number3": "v_number3"
+        }
+      }
+    }
+  },
+  "text.checkNumberEq": {
+    "params": {
+      "number1": "v_number1",
+      "number2": "v_number2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-eq",
+        "params": {
+          "number1": "v_number1",
+          "number2": "v_number2"
+        }
+      }
+    }
+  },
+  "text.checkNumberGt": {
+    "params": {
+      "number1": "v_number1",
+      "number2": "v_number2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-gt",
+        "params": {
+          "number1": "v_number1",
+          "number2": "v_number2"
+        }
+      }
+    }
+  },
+  "text.checkNumberGe": {
+    "params": {
+      "number1": "v_number1",
+      "number2": "v_number2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-ge",
+        "params": {
+          "number1": "v_number1",
+          "number2": "v_number2"
+        }
+      }
+    }
+  },
+  "text.checkNumberLt": {
+    "params": {
+      "number1": "v_number1",
+      "number2": "v_number2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-lt",
+        "params": {
+          "number1": "v_number1",
+          "number2": "v_number2"
+        }
+      }
+    }
+  },
+  "text.checkNumberLe": {
+    "params": {
+      "number1": "v_number1",
+      "number2": "v_number2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-le",
+        "params": {
+          "number1": "v_number1",
+          "number2": "v_number2"
+        }
+      }
+    }
+  },
+  "text.checkStringNumeric": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-numeric",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkNumberOdd": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-odd",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "text.checkNumberPrime": {
+    "params": {
+      "number": "v_number"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-number-prime",
+        "params": {
+          "number": "v_number"
+        }
+      }
+    }
+  },
+  "text.checkStringContains": {
+    "params": {
+      "text1": "v_text1",
+      "text2": "v_text2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-contains",
+        "params": {
+          "text1": "v_text1",
+          "text2": "v_text2"
+        }
+      }
+    }
+  },
+  "text.checkStringEnds": {
+    "params": {
+      "text1": "v_text1",
+      "text2": "v_text2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-ends",
+        "params": {
+          "text1": "v_text1",
+          "text2": "v_text2"
+        }
+      }
+    }
+  },
+  "text.checkStringBlank": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-blank",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkStringRandom": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-random",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkStringRegex": {
+    "params": {
+      "text": "v_text",
+      "regex": "v_regex"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-regex",
+        "params": {
+          "text": "v_text",
+          "regex": "v_regex"
+        }
+      }
+    }
+  },
+  "text.checkStringLengthBetw": {
+    "params": {
+      "text": "v_text",
+      "length1": "v_length1",
+      "length2": "v_length2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-length-betw",
+        "params": {
+          "text": "v_text",
+          "length1": "v_length1",
+          "length2": "v_length2"
+        }
+      }
+    }
+  },
+  "text.checkStringLengthEq": {
+    "params": {
+      "text": "v_text",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-length-eq",
+        "params": {
+          "text": "v_text",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkStringLengthGt": {
+    "params": {
+      "text": "v_text",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-length-gt",
+        "params": {
+          "text": "v_text",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkStringLengthGe": {
+    "params": {
+      "text": "v_text",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-length-ge",
+        "params": {
+          "text": "v_text",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkStringLengthLt": {
+    "params": {
+      "text": "v_text",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-length-lt",
+        "params": {
+          "text": "v_text",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkStringLengthLe": {
+    "params": {
+      "text": "v_text",
+      "length": "v_length"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-length-le",
+        "params": {
+          "text": "v_text",
+          "length": "v_length"
+        }
+      }
+    }
+  },
+  "text.checkStringStarts": {
+    "params": {
+      "text1": "v_text1",
+      "text2": "v_text2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-starts",
+        "params": {
+          "text1": "v_text1",
+          "text2": "v_text2"
+        }
+      }
+    }
+  },
+  "text.checkStringLowercase": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-lowercase",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkStringUppercase": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-string-uppercase",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.checkListUnique": {
+    "params": {
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-unique",
+        "params": {
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "text.checkListValid": {
+    "params": {
+      "list": "v_list",
+      "separator": "v_separator"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-list-valid",
+        "params": {
+          "list": "v_list",
+          "separator": "v_separator"
+        }
+      }
+    }
+  },
+  "text.checkWordCountBetw": {
+    "params": {
+      "text": "v_text",
+      "count1": "v_count1",
+      "count2": "v_count2"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-word-count-betw",
+        "params": {
+          "text": "v_text",
+          "count1": "v_count1",
+          "count2": "v_count2"
+        }
+      }
+    }
+  },
+  "text.checkWordCountEq": {
+    "params": {
+      "text": "v_text",
+      "count": "v_count"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-word-count-eq",
+        "params": {
+          "text": "v_text",
+          "count": "v_count"
+        }
+      }
+    }
+  },
+  "text.checkWordCountGt": {
+    "params": {
+      "text": "v_text",
+      "count": "v_count"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-word-count-gt",
+        "params": {
+          "text": "v_text",
+          "count": "v_count"
+        }
+      }
+    }
+  },
+  "text.checkWordCountGe": {
+    "params": {
+      "text": "v_text",
+      "count": "v_count"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-word-count-ge",
+        "params": {
+          "text": "v_text",
+          "count": "v_count"
+        }
+      }
+    }
+  },
+  "text.checkWordCountLt": {
+    "params": {
+      "text": "v_text",
+      "count": "v_count"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-word-count-lt",
+        "params": {
+          "text": "v_text",
+          "count": "v_count"
+        }
+      }
+    }
+  },
+  "text.checkWordCountLe": {
+    "params": {
+      "text": "v_text",
+      "count": "v_count"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "check-word-count-le",
+        "params": {
+          "text": "v_text",
+          "count": "v_count"
+        }
+      }
+    }
+  },
+  "text.getStringBase64": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-base64",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getWordBanned": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-word-banned",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringFieldName": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-field-name",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringByFormat": {
+    "params": {
+      "text": "v_text",
+      "format": "v_format"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-by-format",
+        "params": {
+          "text": "v_text",
+          "format": "v_format"
+        }
+      }
+    }
+  },
+  "text.getStringByRegex": {
+    "params": {
+      "regex": "v_regex"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-by-regex",
+        "params": {
+          "regex": "v_regex"
+        }
+      }
+    }
+  },
+  "text.getListMax": {
+    "params": {
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-list-max",
+        "params": {
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "text.getStringHtmlByMarkdown": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-html-by-markdown",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getListMin": {
+    "params": {
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-list-min",
+        "params": {
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "text.getStringLowercase": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-lowercase",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringMd5": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-md5",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringMarkdownByHtml": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-markdown-by-html",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringJoin": {
+    "params": {
+      "text1": "v_text1",
+      "text2": "v_text2",
+      "glue": "v_glue"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-join",
+        "params": {
+          "text1": "v_text1",
+          "text2": "v_text2",
+          "glue": "v_glue"
+        }
+      }
+    }
+  },
+  "text.getStringNormalized": {
+    "params": {
+      "field": "v_field",
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-normalized",
+        "params": {
+          "field": "v_field",
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringParsed": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-parsed",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringSha": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-sha",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getSentimentByText": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-sentiment-by-text",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getListSort": {
+    "params": {
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-list-sort",
+        "params": {
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "text.getStringSpin": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-spin",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringSplitAndJoin": {
+    "params": {
+      "text": "v_text",
+      "separator": "v_separator",
+      "glue": "v_glue"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-split-and-join",
+        "params": {
+          "text": "v_text",
+          "separator": "v_separator",
+          "glue": "v_glue"
+        }
+      }
+    }
+  },
+  "text.getStringSplit": {
+    "params": {
+      "text": "v_text",
+      "separator": "v_separator"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-split",
+        "params": {
+          "text": "v_text",
+          "separator": "v_separator"
+        }
+      }
+    }
+  },
+  "text.getStringLength": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-length",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringVlookup": {
+    "params": {
+      "text": "v_text",
+      "texts": "v_texts"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-vlookup",
+        "params": {
+          "text": "v_text",
+          "texts": "v_texts"
+        }
+      }
+    }
+  },
+  "text.getWordCleanAbuse": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-word-clean-abuse",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getStringReplaceFirst": {
+    "params": {
+      "text": "v_text",
+      "find": "v_find",
+      "replace": "v_replace"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-replace-first",
+        "params": {
+          "text": "v_text",
+          "find": "v_find",
+          "replace": "v_replace"
+        }
+      }
+    }
+  },
+  "text.getStringWithoutHtml": {
+    "params": {
+      "html": "v_html"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-without-html",
+        "params": {
+          "html": "v_html"
+        }
+      }
+    }
+  },
+  "text.getStringReplaceAll": {
+    "params": {
+      "text": "v_text",
+      "find": "v_find",
+      "replace": "v_replace"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-replace-all",
+        "params": {
+          "text": "v_text",
+          "find": "v_find",
+          "replace": "v_replace"
+        }
+      }
+    }
+  },
+  "text.getStringTranslated": {
+    "params": {
+      "text": "v_text",
+      "language": "v_language"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-translated",
+        "params": {
+          "text": "v_text",
+          "language": "v_language"
+        }
+      }
+    }
+  },
+  "text.getListUnique": {
+    "params": {
+      "list": "v_list"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-list-unique",
+        "params": {
+          "list": "v_list"
+        }
+      }
+    }
+  },
+  "text.getStringUppercase": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-string-uppercase",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  },
+  "text.getWordCount": {
+    "params": {
+      "text": "v_text"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/process",
+      "body": {
+        "processor": "get-word-count",
+        "params": {
+          "text": "v_text"
+        }
+      }
+    }
+  }
+}

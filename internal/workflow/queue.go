@@ -41,6 +41,24 @@ func SlotFromContext(ctx context.Context) (ConcurrencySlot, bool) {
 	return s, ok
 }
 
+// YieldSlotWhile runs fn with the execution's ConcurrencySlot released, so
+// other executions can run while this one only waits (a retry back-off, a
+// core.wait delay), then re-acquires the slot. Without a slot in ctx it just
+// runs fn. fn's error wins; otherwise a failed re-acquire (ctx cancelled while
+// waiting for a free slot) returns ErrExecutionCancelled.
+func YieldSlotWhile(ctx context.Context, fn func() error) error {
+	slot, ok := SlotFromContext(ctx)
+	if !ok {
+		return fn()
+	}
+	slot.Release()
+	err := fn()
+	if aerr := slot.Acquire(ctx); aerr != nil && err == nil {
+		err = ErrExecutionCancelled
+	}
+	return err
+}
+
 // gate bounds the number of executions actively doing work via a token channel.
 type gate struct {
 	tokens chan struct{}
@@ -111,7 +129,10 @@ type ExecutionQueue struct {
 	wg          sync.WaitGroup
 	cancelFuncs sync.Map // executionID → context.CancelCauseFunc
 	handler     func(ctx context.Context, req ExecutionRequest)
-	logger      zerolog.Logger
+	// claim, when set, makes this process the owner of a request's row
+	// before it is buffered, so a row waiting here is never adoptable.
+	claim  func(executionID string)
+	logger zerolog.Logger
 
 	mu     sync.Mutex // guards closed and serialises sends against Stop's close
 	closed bool
@@ -228,6 +249,9 @@ func (q *ExecutionQueue) StopWithGrace(grace time.Duration) {
 // the (non-blocking) send are serialised under mu against Stop's close, so a
 // trigger firing during shutdown can never panic with send-on-closed-channel.
 func (q *ExecutionQueue) Enqueue(req ExecutionRequest) error {
+	if q.claim != nil {
+		q.claim(req.ExecutionID)
+	}
 	q.mu.Lock()
 	if q.closed {
 		q.mu.Unlock()
@@ -265,9 +289,6 @@ func (q *ExecutionQueue) RunningIDs() []string {
 	return ids
 }
 
-// Cancel signals cancellation for a specific execution.
-func (q *ExecutionQueue) Cancel(executionID string) { q.CancelWithCause(executionID, nil) }
-
 // CancelWithCause cancels an execution and records why in its context, where
 // context.Cause reads it. A nil cause is a plain cancel.
 func (q *ExecutionQueue) CancelWithCause(executionID string, cause error) {
@@ -279,9 +300,4 @@ func (q *ExecutionQueue) CancelWithCause(executionID string, cause error) {
 				Msg("execution cancellation signalled")
 		}
 	}
-}
-
-// Len returns the current number of items waiting in the queue.
-func (q *ExecutionQueue) Len() int {
-	return len(q.ch)
 }

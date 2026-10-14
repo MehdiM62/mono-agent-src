@@ -1,0 +1,809 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "halo_psa",
+  "node_type": "app.halo_psa",
+  "title": "HaloPSA",
+  "description": "Clients, sites, tickets and users in HaloPSA",
+  "category": "app",
+  "docs_url": "https://halopsa.com/apidoc/",
+  "n8n_types": [
+    "n8n-nodes-base.haloPSA"
+  ],
+  "base_url": "{{ cred.resource_api_url | re:'^(.*?)/*$' }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "halo_psa",
+      "name": "HaloPSA",
+      "n8n_credential": "haloPSAApi",
+      "n8n_field_map": {
+        "authUrl": "auth_url",
+        "resourceApiUrl": "resource_api_url",
+        "client_id": "client_id",
+        "client_secret": "client_secret",
+        "tenant": "tenant",
+        "scope": "scopes",
+        "hostingType": "hosting_type"
+      },
+      "methods": [
+        "client_credentials"
+      ],
+      "fields": [
+        {
+          "key": "auth_url",
+          "label": "Authorisation server URL",
+          "required": true,
+          "help": "e.g. https://acme.halopsa.com/auth"
+        },
+        {
+          "key": "resource_api_url",
+          "label": "Resource server URL",
+          "required": true,
+          "help": "Your Halo web app URL + /api"
+        },
+        {
+          "key": "client_id",
+          "label": "Client ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "Client secret",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "tenant",
+          "label": "Tenant",
+          "help": "Hosted Halo only"
+        },
+        {
+          "key": "scopes",
+          "label": "Scope",
+          "help": "Default: admin edit:tickets edit:customers"
+        },
+        {
+          "key": "hosting_type",
+          "label": "Hosting type (onPremise / hostedHalo)"
+        }
+      ],
+      "oauth": {
+        "token_url": "{{ cred.auth_url | re:'^(.*?)/*$' }}/token{{ cred.tenant | prefix:'?tenant=' }}",
+        "scopes": [],
+        "extra_params": {
+          "scope": "{{ cred.scopes | default:'admin edit:tickets edit:customers' }}"
+        }
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "client",
+      "label": "Client"
+    },
+    {
+      "value": "site",
+      "label": "Site"
+    },
+    {
+      "value": "ticket",
+      "label": "Ticket"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "client",
+      "operation": "create",
+      "title": "Create a client",
+      "method": "POST",
+      "path": "/client",
+      "fields": [
+        {
+          "key": "clientName",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "inactive",
+            "notes",
+            "is_vip",
+            "website"
+          ]
+        }
+      ],
+      "body": [
+        {
+          "name": "{{ p.clientName }}",
+          "$merge": "{{ p.additionalFields }}"
+        }
+      ]
+    },
+    {
+      "resource": "client",
+      "operation": "delete",
+      "title": "Delete a client",
+      "method": "DELETE",
+      "path": "/client/{{ p.clientId }}",
+      "fields": [
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "client",
+      "operation": "get",
+      "title": "Get a client",
+      "method": "GET",
+      "path": "/client/{{ p.clientId }}",
+      "fields": [
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": "{{ el | pick:'id,name,notes,is_vip,website' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "getAll",
+      "title": "Get many clients",
+      "method": "GET",
+      "path": "/client",
+      "fields": [
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activeStatus",
+            "search"
+          ],
+          "help": "activeStatus: active, all or inactive (n8n default active)"
+        }
+      ],
+      "query": {
+        "search": "{{ p.filters.search }}",
+        "pageinate": true,
+        "includeinactive": "{{ p.filters.activeStatus | ne:'active' | then:true | default:(p.filters.activeStatus | then:false) }}",
+        "includeactive": "{{ p.filters.activeStatus | ne:'inactive' | then:true | default:(p.filters.activeStatus | then:false) }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_no",
+        "limit_param": "page_size",
+        "page_size": 100,
+        "results_path": "clients"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | pick:'id,name,notes,is_vip,website' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "update",
+      "title": "Update a client",
+      "method": "POST",
+      "path": "/client",
+      "fields": [
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "inactive",
+            "name",
+            "notes",
+            "is_vip",
+            "website"
+          ]
+        }
+      ],
+      "body": [
+        {
+          "id": "{{ p.clientId }}",
+          "$merge": "{{ p.updateFields }}"
+        }
+      ]
+    },
+    {
+      "resource": "site",
+      "operation": "create",
+      "title": "Create a site",
+      "method": "POST",
+      "path": "/site",
+      "fields": [
+        {
+          "key": "siteName",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "selectOption",
+          "label": "Enter client ID manually",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "maincontact_name",
+            "notes",
+            "phonenumber"
+          ]
+        }
+      ],
+      "body": [
+        {
+          "name": "{{ p.siteName }}",
+          "client_id": "{{ p.clientId }}",
+          "$merge": "{{ p.additionalFields }}"
+        }
+      ]
+    },
+    {
+      "resource": "site",
+      "operation": "delete",
+      "title": "Delete a site",
+      "method": "DELETE",
+      "path": "/site/{{ p.siteId }}",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "site",
+      "operation": "get",
+      "title": "Get a site",
+      "method": "GET",
+      "path": "/site/{{ p.siteId }}",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": "{{ el | pick:'id,name,client_id,maincontact_name,notes,phonenumber' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "site",
+      "operation": "getAll",
+      "title": "Get many sites",
+      "method": "GET",
+      "path": "/site",
+      "fields": [
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activeStatus",
+            "search"
+          ],
+          "help": "activeStatus: active, all or inactive (n8n default all)"
+        }
+      ],
+      "query": {
+        "search": "{{ p.filters.search }}",
+        "pageinate": true,
+        "includeinactive": "{{ p.filters.activeStatus | ne:'active' | then:true | default:(p.filters.activeStatus | then:false) }}",
+        "includeactive": "{{ p.filters.activeStatus | ne:'inactive' | then:true | default:(p.filters.activeStatus | then:false) }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_no",
+        "limit_param": "page_size",
+        "page_size": 100,
+        "results_path": "sites"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | pick:'id,name,client_id,maincontact_name,notes,phonenumber' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "site",
+      "operation": "update",
+      "title": "Update a site",
+      "method": "POST",
+      "path": "/site",
+      "fields": [
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client_id",
+            "maincontact_name",
+            "name",
+            "notes",
+            "phonenumber"
+          ]
+        }
+      ],
+      "body": [
+        {
+          "id": "{{ p.siteId }}",
+          "$merge": "{{ p.updateFields }}"
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "delete",
+      "title": "Delete a ticket",
+      "method": "DELETE",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "create",
+      "title": "Create a ticket",
+      "method": "POST",
+      "path": "/tickets",
+      "fields": [
+        {
+          "key": "ticketType",
+          "label": "Ticket type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "summary",
+          "label": "Summary",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "details",
+          "label": "Details",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent_id",
+            "startdate",
+            "targetdate"
+          ]
+        }
+      ],
+      "body": [
+        {
+          "tickettype_id": "{{ p.ticketType }}",
+          "summary": "{{ p.summary }}",
+          "details": "{{ p.details }}",
+          "$merge": "{{ p.additionalFields }}"
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "get",
+      "title": "Get a ticket",
+      "method": "GET",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": "{{ el | pick:'id,summary,details,agent_id,startdate,targetdate' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "getAll",
+      "title": "Get many tickets",
+      "method": "GET",
+      "path": "/tickets",
+      "fields": [
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activeStatus",
+            "search"
+          ],
+          "help": "activeStatus: active, all or inactive (n8n default all)"
+        }
+      ],
+      "query": {
+        "search": "{{ p.filters.search }}",
+        "pageinate": true,
+        "includeinactive": "{{ p.filters.activeStatus | ne:'active' | then:true | default:(p.filters.activeStatus | then:false) }}",
+        "includeactive": "{{ p.filters.activeStatus | ne:'inactive' | then:true | default:(p.filters.activeStatus | then:false) }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_no",
+        "limit_param": "page_size",
+        "page_size": 100,
+        "results_path": "tickets"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | pick:'id,summary,details,agent_id,startdate,targetdate' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "update",
+      "title": "Update a ticket",
+      "method": "POST",
+      "path": "/tickets",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "agent_id",
+            "details",
+            "startdate",
+            "summary",
+            "targetdate"
+          ]
+        }
+      ],
+      "body": [
+        {
+          "id": "{{ p.ticketId }}",
+          "$merge": "{{ p.updateFields }}"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "userName",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "siteId",
+          "label": "Site ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailaddress",
+            "notes",
+            "password",
+            "surname",
+            "inactive"
+          ]
+        }
+      ],
+      "body": [
+        {
+          "name": "{{ p.userName }}",
+          "site_id": "{{ p.siteId }}",
+          "$merge": "{{ p.additionalFields }}"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/users/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": "{{ el | pick:'id,name,site_id,emailaddress,notes,surname,inactive' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activeStatus",
+            "search"
+          ],
+          "help": "activeStatus: active, all or inactive (n8n default all)"
+        }
+      ],
+      "query": {
+        "search": "{{ p.filters.search }}",
+        "pageinate": true,
+        "includeinactive": "{{ p.filters.activeStatus | ne:'active' | then:true | default:(p.filters.activeStatus | then:false) }}",
+        "includeactive": "{{ p.filters.activeStatus | ne:'inactive' | then:true | default:(p.filters.activeStatus | then:false) }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page_no",
+        "limit_param": "page_size",
+        "page_size": 100,
+        "results_path": "users"
+      },
+      "output": {
+        "to": {
+          "$merge": "{{ el | pick:'id,name,site_id,emailaddress,notes,surname,inactive' }}"
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "POST",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailaddress",
+            "name",
+            "notes",
+            "password",
+            "site_id",
+            "surname",
+            "inactive"
+          ]
+        }
+      ],
+      "body": [
+        {
+          "id": "{{ p.userId }}",
+          "$merge": "{{ p.updateFields }}"
+        }
+      ]
+    }
+  ]
+}

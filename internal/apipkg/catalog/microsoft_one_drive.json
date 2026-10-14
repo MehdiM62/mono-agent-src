@@ -1,0 +1,972 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "microsoft_one_drive",
+  "node_type": "app.microsoft_one_drive",
+  "title": "Microsoft OneDrive",
+  "description": "Files and folders in OneDrive (Microsoft Graph)",
+  "category": "app",
+  "docs_url": "https://learn.microsoft.com/en-us/graph/api/resources/onedrive",
+  "n8n_types": [
+    "n8n-nodes-base.microsoftOneDrive"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.microsoftOneDriveTrigger"
+  ],
+  "base_url": "https://graph.microsoft.com/v1.0/me/drive",
+  "credentials": [
+    {
+      "platform": "microsoft",
+      "name": "Microsoft 365 (OneDrive files)",
+      "n8n_credential": "microsoftOneDriveOAuth2Api",
+      "n8n_credential_alt": [
+        "microsoftOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "microsoft",
+      "scope_group": "files"
+    },
+    {
+      "platform": "microsoft_entra_app",
+      "name": "Microsoft Entra app (app-only Graph)",
+      "n8n_credential": "microsoftEntraServicePrincipalApi",
+      "n8n_field_map": {
+        "tenantId": "tenant_id",
+        "clientId": "client_id",
+        "clientSecret": "client_secret"
+      },
+      "methods": [
+        "client_credentials"
+      ],
+      "fields": [
+        {
+          "key": "tenant_id",
+          "label": "Tenant ID",
+          "required": true,
+          "help": "Directory (tenant) GUID or a verified domain such as contoso.onmicrosoft.com."
+        },
+        {
+          "key": "client_id",
+          "label": "Application (client) ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "Client secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "token_url": "https://login.microsoftonline.com/{{ cred.tenant_id }}/oauth2/v2.0/token",
+        "scopes": [
+          "https://graph.microsoft.com/.default"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "folder",
+      "label": "Folder"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a file",
+      "method": "PUT",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.parentId }}:/{{ p.fileName | default:bin.file_name }}:/content",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "help": "Defaults to the binary's file name."
+        },
+        {
+          "key": "parentId",
+          "label": "Parent folder ID",
+          "type": "text",
+          "required": true,
+          "help": "root for the drive root."
+        },
+        {
+          "key": "binaryData",
+          "label": "Upload binary",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "fileContent",
+          "label": "File content",
+          "type": "textarea",
+          "help": "Text to upload when Upload binary is off."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_text": "{{ p.binaryData | ne:'true' | then:p.fileContent }}",
+        "upload_session": {
+          "create": {
+            "method": "POST",
+            "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+            "path": "/items/{{ p.parentId }}:/{{ p.fileName | default:bin.file_name }}:/createUploadSession",
+            "body": {
+              "item": {
+                "@microsoft.graph.conflictBehavior": "replace"
+              }
+            }
+          }
+        }
+      },
+      "description": "Files over 4 MiB go through an upload session in 10 MiB chunks."
+    },
+    {
+      "resource": "file",
+      "operation": "copy",
+      "title": "Copy a file",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.fileId }}/copy",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ],
+          "help": "name: name of the copy."
+        },
+        {
+          "key": "parentReference",
+          "label": "Destination",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "driveId",
+            "driveType",
+            "id",
+            "listId",
+            "name",
+            "path",
+            "shareId",
+            "siteId"
+          ],
+          "help": "Graph itemReference of the destination folder (id or path)."
+        }
+      ],
+      "body": {
+        "parentReference": "{{ p.parentReference }}",
+        "name": "{{ p.additionalFields.name }}"
+      },
+      "output": {
+        "to": {
+          "location": "{{ hdr.Location }}"
+        }
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.fileId }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "download",
+      "title": "Download a file",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.fileId }}/content",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+        "path": "/items/{{ p.fileId }}"
+      },
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName",
+        "file_name": "{{ pre.name }}",
+        "mime_type": "{{ pre.file.mimeType }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "get",
+      "title": "Get a file",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.fileId }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "file",
+      "operation": "move",
+      "title": "Move a file",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.fileId }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "destinationFolderId",
+          "label": "Destination folder ID",
+          "type": "text",
+          "help": "Use root for the drive root. Leave empty to only rename."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ],
+          "help": "name: a new name for the moved item."
+        }
+      ],
+      "body": {
+        "parentReference": {
+          "id": "{{ p.destinationFolderId }}"
+        },
+        "name": "{{ p.additionalFields.name }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "rename",
+      "title": "Rename a file",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.itemId }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "newName",
+          "label": "New name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "name": "{{ p.newName }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "search",
+      "title": "Search files",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/root/search(q='{{ p.query | replace:\"'\",\"''\" }}')",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "query",
+          "label": "Query",
+          "type": "text",
+          "required": true,
+          "help": "Text matched against names and content. Results include both files and folders."
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value"
+      },
+      "output": {
+        "path": "value"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "share",
+      "title": "Share a file",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.fileId }}/createLink",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Link type",
+          "type": "select",
+          "required": true,
+          "options": [
+            "view",
+            "edit",
+            "embed"
+          ]
+        },
+        {
+          "key": "scope",
+          "label": "Link scope",
+          "type": "select",
+          "required": true,
+          "default": "organization",
+          "options": [
+            "anonymous",
+            "organization"
+          ]
+        }
+      ],
+      "body": {
+        "type": "{{ p.type }}",
+        "scope": "{{ p.scope }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "getChildren",
+      "title": "Get a folder's items",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.folderId }}/children",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "folderId",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "create",
+      "title": "Create a folder",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.options.parentFolderId | default:'root' }}{{ p.name | prefix:'/' | re:'^(.*)/[^/]+$' | prefix:':' | suffix:':' | path }}/children",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "name",
+          "label": "Folder name",
+          "type": "text",
+          "required": true,
+          "help": "A name, or a path like reports/2026/q1: the last part is created inside the folders before it, which must exist."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "parentFolderId"
+          ],
+          "help": "parentFolderId: create inside this folder instead of the drive root."
+        }
+      ],
+      "body": {
+        "name": "{{ p.name | split:'/' | get:'-1' }}",
+        "!folder": {}
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "delete",
+      "title": "Delete a folder",
+      "method": "DELETE",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.folderId }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "folderId",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "move",
+      "title": "Move a folder",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.folderId }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "folderId",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "destinationFolderId",
+          "label": "Destination folder ID",
+          "type": "text",
+          "help": "Use root for the drive root. Leave empty to only rename."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ],
+          "help": "name: a new name for the moved item."
+        }
+      ],
+      "body": {
+        "parentReference": {
+          "id": "{{ p.destinationFolderId }}"
+        },
+        "name": "{{ p.additionalFields.name }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "rename",
+      "title": "Rename a folder",
+      "method": "PATCH",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.itemId }}",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "itemId",
+          "label": "Item ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "newName",
+          "label": "New name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "name": "{{ p.newName }}"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "search",
+      "title": "Search folders",
+      "method": "GET",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/root/search(q='{{ p.query | replace:\"'\",\"''\" }}')",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "query",
+          "label": "Query",
+          "type": "text",
+          "required": true,
+          "help": "Text matched against names and content. Results include both files and folders."
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "@odata.nextLink",
+        "results_path": "value"
+      },
+      "output": {
+        "path": "value"
+      }
+    },
+    {
+      "resource": "folder",
+      "operation": "share",
+      "title": "Share a folder",
+      "method": "POST",
+      "base_url": "https://graph.microsoft.com/v1.0{{ p.resourceTarget | eq:'drive' | then:'/drives/' }}{{ p.resourceTarget | eq:'drive' | then:(p.driveTarget | rl) }}{{ p.resourceTarget | ne:'drive' | then:(p.userTarget | rl | prefix:'/users/' | default:'/me') }}{{ p.resourceTarget | ne:'drive' | then:'/drive' }}",
+      "path": "/items/{{ p.folderId }}/createLink",
+      "fields": [
+        {
+          "key": "resourceTarget",
+          "label": "App-only target",
+          "type": "select",
+          "default": "user",
+          "options": [
+            "user",
+            "drive"
+          ],
+          "help": "Only with an Entra app connection: act on a user's OneDrive or on a drive by ID."
+        },
+        {
+          "key": "userTarget",
+          "label": "User (app-only)",
+          "type": "text",
+          "help": "Entra app connection: the user's principal name or object ID. Leave empty to use your own OneDrive."
+        },
+        {
+          "key": "driveTarget",
+          "label": "Drive ID (app-only)",
+          "type": "text",
+          "help": "Entra app connection with target drive: the drive's ID."
+        },
+        {
+          "key": "folderId",
+          "label": "Folder ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Link type",
+          "type": "select",
+          "required": true,
+          "options": [
+            "view",
+            "edit",
+            "embed"
+          ]
+        },
+        {
+          "key": "scope",
+          "label": "Link scope",
+          "type": "select",
+          "required": true,
+          "default": "organization",
+          "options": [
+            "anonymous",
+            "organization"
+          ]
+        }
+      ],
+      "body": {
+        "type": "{{ p.type }}",
+        "scope": "{{ p.scope }}"
+      }
+    }
+  ]
+}

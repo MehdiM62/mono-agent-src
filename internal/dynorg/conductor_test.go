@@ -75,8 +75,6 @@ type execScript struct {
 	answers map[string]*monomind.TurnResult // model key -> result; missing = ok
 	mu      sync.Mutex
 	calls   []monomind.ExecOptions
-	active  map[string]int // access -> running count
-	maxBy   map[string]int
 	running int32
 	maxRun  int32
 }

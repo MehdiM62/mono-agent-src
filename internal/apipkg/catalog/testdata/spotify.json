@@ -1,0 +1,502 @@
+{
+  "player.addSongToQueue": {
+    "params": {
+      "id": "spotify:track:1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/me/player/queue",
+      "query": {
+        "uri": "spotify:track:1"
+      },
+      "items": 1
+    }
+  },
+  "player.currentlyPlaying": {
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/v1/me/player/currently-playing"
+    }
+  },
+  "player.nextSong": {
+    "params": {},
+    "expect": {
+      "method": "POST",
+      "path": "/v1/me/player/next"
+    }
+  },
+  "player.pause": {
+    "params": {},
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/me/player/pause"
+    }
+  },
+  "player.previousSong": {
+    "params": {},
+    "expect": {
+      "method": "POST",
+      "path": "/v1/me/player/previous"
+    }
+  },
+  "player.recentlyPlayed": {
+    "params": {
+      "limit": 5
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/me/player/recently-played",
+      "query": {
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "items": [
+        {
+          "a": 1
+        }
+      ],
+      "next": null
+    }
+  },
+  "player.resume": {
+    "params": {},
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/me/player/play"
+    }
+  },
+  "player.volume": {
+    "params": {
+      "volumePercent": 30
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/me/player/volume",
+      "query": {
+        "volume_percent": "30"
+      }
+    }
+  },
+  "player.startMusic": {
+    "params": {
+      "id": "spotify:album:9"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/v1/me/player/play",
+      "body": {
+        "context_uri": "spotify:album:9"
+      }
+    }
+  },
+  "album.get": {
+    "params": {
+      "id": "spotify:album:9"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/albums/9"
+    }
+  },
+  "album.getNewReleases": {
+    "params": {
+      "limit": 3,
+      "filters": {
+        "country": "DE"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/browse/new-releases",
+      "query": {
+        "country": "DE",
+        "limit": "3"
+      },
+      "items": 2
+    },
+    "response": {
+      "albums": {
+        "items": [
+          {
+            "a": 1
+          },
+          {
+            "a": 2
+          }
+        ],
+        "next": null
+      }
+    }
+  },
+  "album.getTracks": {
+    "params": {
+      "id": "9",
+      "limit": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/albums/9/tracks",
+      "query": {
+        "limit": "2"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "a": 1
+        }
+      ]
+    }
+  },
+  "album.search": {
+    "params": {
+      "query": "abba",
+      "limit": 2,
+      "filters": {
+        "market": "SE"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/search",
+      "query": {
+        "q": "abba",
+        "type": "album",
+        "market": "SE",
+        "limit": "2"
+      },
+      "items": 1
+    },
+    "response": {
+      "albums": {
+        "items": [
+          {
+            "a": 1
+          }
+        ],
+        "next": null
+      }
+    }
+  },
+  "artist.search": {
+    "params": {
+      "query": "abba",
+      "limit": 2,
+      "filters": {
+        "market": "SE"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/search",
+      "query": {
+        "q": "abba",
+        "type": "artist",
+        "market": "SE",
+        "limit": "2"
+      },
+      "items": 1
+    },
+    "response": {
+      "artists": {
+        "items": [
+          {
+            "a": 1
+          }
+        ],
+        "next": null
+      }
+    }
+  },
+  "playlist.search": {
+    "params": {
+      "query": "abba",
+      "limit": 2,
+      "filters": {
+        "market": "SE"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/search",
+      "query": {
+        "q": "abba",
+        "type": "playlist",
+        "market": "SE",
+        "limit": "2"
+      },
+      "items": 1
+    },
+    "response": {
+      "playlists": {
+        "items": [
+          {
+            "a": 1
+          }
+        ],
+        "next": null
+      }
+    }
+  },
+  "track.search": {
+    "params": {
+      "query": "abba",
+      "limit": 2,
+      "filters": {
+        "market": "SE"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/search",
+      "query": {
+        "q": "abba",
+        "type": "track",
+        "market": "SE",
+        "limit": "2"
+      },
+      "items": 1
+    },
+    "response": {
+      "tracks": {
+        "items": [
+          {
+            "a": 1
+          }
+        ],
+        "next": null
+      }
+    }
+  },
+  "artist.get": {
+    "params": {
+      "id": "spotify:artist:7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/artists/7"
+    }
+  },
+  "artist.getAlbums": {
+    "params": {
+      "id": "7",
+      "returnAll": true
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/artists/7/albums",
+      "query": {
+        "limit": "50"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "a": 1
+        }
+      ]
+    }
+  },
+  "artist.getRelatedArtists": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/artists/7/related-artists",
+      "items": 2
+    },
+    "response": {
+      "artists": [
+        {
+          "a": 1
+        },
+        {
+          "a": 2
+        }
+      ]
+    }
+  },
+  "artist.getTopTracks": {
+    "params": {
+      "id": "7"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/artists/7/top-tracks",
+      "query": {
+        "country": "US"
+      },
+      "items": 1
+    },
+    "response": {
+      "tracks": [
+        {
+          "a": 1
+        }
+      ]
+    }
+  },
+  "playlist.add": {
+    "params": {
+      "id": "spotify:playlist:p",
+      "trackID": "spotify:track:1",
+      "additionalFields": {
+        "position": 0
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/playlists/p/tracks",
+      "query": {
+        "uris": "spotify:track:1",
+        "position": "0"
+      }
+    }
+  },
+  "playlist.create": {
+    "params": {
+      "name": "Mix",
+      "additionalFields": {
+        "public": false
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/me/playlists",
+      "body": {
+        "name": "Mix",
+        "public": false
+      }
+    }
+  },
+  "playlist.delete": {
+    "params": {
+      "id": "p",
+      "trackID": "spotify:track:1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/playlists/p/tracks",
+      "body": {
+        "tracks": [
+          {
+            "uri": "spotify:track:1"
+          }
+        ]
+      }
+    }
+  },
+  "playlist.get": {
+    "params": {
+      "id": "p"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/playlists/p"
+    }
+  },
+  "playlist.getUserPlaylists": {
+    "params": {
+      "limit": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/me/playlists",
+      "query": {
+        "limit": "4"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "a": 1
+        }
+      ]
+    }
+  },
+  "playlist.getTracks": {
+    "params": {
+      "id": "p",
+      "limit": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/playlists/p/tracks",
+      "query": {
+        "limit": "4"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "a": 1
+        }
+      ]
+    }
+  },
+  "track.get": {
+    "params": {
+      "id": "spotify:track:1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/tracks/1"
+    }
+  },
+  "track.getAudioFeatures": {
+    "params": {
+      "id": "1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/audio-features/1"
+    }
+  },
+  "library.getLikedTracks": {
+    "params": {
+      "limit": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/me/tracks",
+      "query": {
+        "limit": "4"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "a": 1
+        }
+      ]
+    }
+  },
+  "myData.getFollowingArtists": {
+    "params": {
+      "limit": 4
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/me/following",
+      "query": {
+        "type": "artist",
+        "limit": "4"
+      },
+      "items": 1
+    },
+    "response": {
+      "artists": {
+        "items": [
+          {
+            "a": 1
+          }
+        ],
+        "next": null
+      }
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "google_cloud_natural_language",
+  "node_type": "app.google_cloud_natural_language",
+  "title": "Google Cloud Natural Language",
+  "description": "Sentiment analysis with Google Cloud Natural Language",
+  "category": "app",
+  "docs_url": "https://cloud.google.com/natural-language/docs/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.googleCloudNaturalLanguage"
+  ],
+  "base_url": "https://language.googleapis.com/v1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Cloud Natural Language)",
+      "n8n_credential": "googleCloudNaturalLanguageOAuth2Api",
+      "n8n_credential_alt": [
+        "googleApi",
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "document",
+      "label": "Document"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "document",
+      "operation": "analyzeSentiment",
+      "title": "Analyze sentiment",
+      "method": "POST",
+      "path": "/documents:analyzeSentiment",
+      "description": "Needs the cloud-language (or cloud-platform) scope on the Google connection.",
+      "fields": [
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "select",
+          "options": [
+            "content",
+            "gcsContentUri"
+          ],
+          "default": "content"
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea"
+        },
+        {
+          "key": "gcsContentUri",
+          "label": "Cloud Storage URI",
+          "type": "text",
+          "help": "gs://bucket/object"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "documentType",
+            "encodingType",
+            "language"
+          ],
+          "help": "documentType: PLAIN_TEXT (default) or HTML; encodingType: UTF16 (default), UTF8, UTF32 or NONE."
+        }
+      ],
+      "body": {
+        "document": {
+          "type": "{{ p.options.documentType | default:'PLAIN_TEXT' }}",
+          "content": "{{ p.source | default:'content' | eq:'content' | then:p.content }}",
+          "gcsContentUri": "{{ p.source | eq:'gcsContentUri' | then:p.gcsContentUri }}",
+          "language": "{{ p.options.language }}"
+        },
+        "encodingType": "{{ p.options.encodingType | default:'UTF16' }}"
+      }
+    }
+  ]
+}

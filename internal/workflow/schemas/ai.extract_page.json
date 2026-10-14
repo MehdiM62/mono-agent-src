@@ -84,5 +84,42 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "page URL",
+      "key": "url",
+      "type": "string"
+    },
+    {
+      "description": "the extracted object (a list with list_selector)",
+      "key": "extracted",
+      "type": "any"
+    },
+    {
+      "description": "the selectors applied",
+      "key": "selectors_used",
+      "type": "object"
+    },
+    {
+      "description": "how fields were extracted",
+      "key": "extract_mode",
+      "type": "string"
+    },
+    {
+      "description": "fetch time in ms",
+      "key": "fetch_time_ms",
+      "type": "number"
+    },
+    {
+      "description": "list mode: number of entries",
+      "key": "count",
+      "type": "number"
+    },
+    {
+      "description": "list mode: the list selector",
+      "key": "list_selector",
+      "type": "string"
+    }
   ]
 }

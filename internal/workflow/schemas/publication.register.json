@@ -111,5 +111,12 @@
       "required": false,
       "help": "Optional when supplied by the upstream item."
     }
+  ],
+  "outputs": [
+    {
+      "description": "the registered publication record",
+      "key": "<publication record fields>",
+      "type": "any"
+    }
   ]
 }

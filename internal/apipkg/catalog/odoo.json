@@ -1,0 +1,2276 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "odoo",
+  "title": "Odoo",
+  "description": "Contacts, activities, opportunities and any model in Odoo (JSON-2 API with an API key, or JSON-RPC with username and password)",
+  "category": "app",
+  "docs_url": "https://www.odoo.com/documentation/19.0/developer/reference/external_api.html",
+  "n8n_types": [
+    "n8n-nodes-base.odoo"
+  ],
+  "base_url": "{{ cred.url }}",
+  "error_when": "{{ res.jsonrpc | then:res.error }}",
+  "error_message": "{{ res.error.data.message | default:res.error.message }}",
+  "credentials": [
+    {
+      "platform": "odoo",
+      "name": "Odoo (API key)",
+      "n8n_credential": "odooApiKeyApi",
+      "n8n_field_map": {
+        "url": "url",
+        "db": "db",
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Site URL",
+          "required": true,
+          "help": "e.g. https://my-company.odoo.com (no trailing slash)"
+        },
+        {
+          "key": "db",
+          "label": "Database",
+          "help": "Empty = the first label of the site's host name"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Settings \u2192 Technical \u2192 API Keys (Odoo 19+)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "bearer {{ cred.api_key }}",
+          "X-Odoo-Database": "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}"
+        }
+      }
+    },
+    {
+      "platform": "odoo_password",
+      "name": "Odoo (username and password)",
+      "n8n_credential": "odooApi",
+      "n8n_field_map": {
+        "url": "url",
+        "db": "db",
+        "username": "username",
+        "password": "password"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Site URL",
+          "required": true,
+          "help": "e.g. https://my-company.odoo.com (no trailing slash)"
+        },
+        {
+          "key": "db",
+          "label": "Database",
+          "help": "Empty = the first label of the site's host name"
+        },
+        {
+          "key": "username",
+          "label": "User name (login e-mail)",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password or API key",
+          "secret": true,
+          "required": true,
+          "help": "Sent in the JSON-RPC calls (login, then execute)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-Odoo-Database": "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "activity",
+      "label": "Activity"
+    },
+    {
+      "value": "custom",
+      "label": "Custom resource"
+    },
+    {
+      "value": "opportunity",
+      "label": "Opportunity"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/res.partner/search_read' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter"
+          ],
+          "help": "{\"filter\": [{\"fieldName\": \"name\", \"operator\": \"like\", \"value\": \"Ada\"}]}; operators: equal, notEqual, greaterThen, lesserThen, greaterOrEqual, lesserOrEqual, like, in, notIn, childOf"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsList"
+          ],
+          "help": "fieldsList: fields to return"
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "!domain": {
+              "$map": "{{ p.filters.filter }}",
+              "$to": [
+                "{{ el.fieldName }}",
+                "{{ el.operator | eq:'equal' | then:'=' }}{{ el.operator | eq:'notEqual' | then:'!=' }}{{ el.operator | eq:'greaterThen' | then:'>' }}{{ el.operator | eq:'lesserThen' | then:'<' }}{{ el.operator | eq:'greaterOrEqual' | then:'>=' }}{{ el.operator | eq:'lesserOrEqual' | then:'<=' }}{{ el.operator | eq:'like' | then:'like' }}{{ el.operator | eq:'in' | then:'in' }}{{ el.operator | eq:'notIn' | then:'not in' }}{{ el.operator | eq:'childOf' | then:'child_of' }}",
+                "{{ el.operator | eq:'in' | then:(el.value | split) | default:(el.operator | eq:'notIn' | then:(el.value | split) | default:el.value) }}"
+              ]
+            },
+            "fields": "{{ p.options.fieldsList }}",
+            "offset": 0,
+            "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "res.partner",
+                  "search_read",
+                  {
+                    "$map": "{{ p.filters.filter }}",
+                    "$to": [
+                      "{{ el.fieldName }}",
+                      "{{ el.operator | eq:'equal' | then:'=' }}{{ el.operator | eq:'notEqual' | then:'!=' }}{{ el.operator | eq:'greaterThen' | then:'>' }}{{ el.operator | eq:'lesserThen' | then:'<' }}{{ el.operator | eq:'greaterOrEqual' | then:'>=' }}{{ el.operator | eq:'lesserOrEqual' | then:'<=' }}{{ el.operator | eq:'like' | then:'like' }}{{ el.operator | eq:'in' | then:'in' }}{{ el.operator | eq:'notIn' | then:'not in' }}{{ el.operator | eq:'childOf' | then:'child_of' }}",
+                      "{{ el.operator | eq:'in' | then:(el.value | split) | default:(el.operator | eq:'notIn' | then:(el.value | split) | default:el.value) }}"
+                    ]
+                  },
+                  "{{ p.options.fieldsList }}",
+                  0,
+                  "{{ p.returnAll | ne:'true' | then:p.limit }}"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_key | default:'rpc' | eq:'rpc' | then:'result' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/res.partner/create' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"mappingMode\": \"defineBelow\", \"value\": {\"name\": \"Ada\"}} or mappingMode autoMapInputData to send the input item."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "vals_list": [
+              {
+                "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+              }
+            ]
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "res.partner",
+                  "create",
+                  {
+                    "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "from": "{{ res.result | default:res | split }}",
+        "to": {
+          "id": "{{ el | numeric }}"
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/res.partner/unlink' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.contactId | rl | int }}"
+            ]
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "res.partner",
+                  "unlink",
+                  [
+                    "{{ p.contactId | rl | int }}"
+                  ]
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.contactId | rl | int }}",
+          "deleted": true
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/res.partner/read' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsList"
+          ],
+          "help": "fieldsList: fields to return"
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.contactId | rl | int }}"
+            ],
+            "fields": "{{ p.options.fieldsList }}"
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "res.partner",
+                  "read",
+                  [
+                    "{{ p.contactId | rl | int }}"
+                  ],
+                  "{{ p.options.fieldsList }}"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_key | default:'rpc' | eq:'rpc' | then:'result' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/res.partner/write' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"mappingMode\": \"defineBelow\", \"value\": {\"name\": \"Ada\"}} or mappingMode autoMapInputData to send the input item."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.contactId | rl | int }}"
+            ],
+            "vals": {
+              "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+            }
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "res.partner",
+                  "write",
+                  [
+                    "{{ p.contactId | rl | int }}"
+                  ],
+                  {
+                    "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.contactId | rl | int }}",
+          "updated": true
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "activity",
+      "operation": "getAll",
+      "title": "Get many activitys",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/mail.activity/search_read' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "res_model",
+            "res_id"
+          ]
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsList"
+          ],
+          "help": "fieldsList: fields to return"
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "!domain": {
+              "$concat": [
+                {
+                  "$map": "{{ p.filters.res_model | split }}",
+                  "$to": [
+                    "res_model",
+                    "=",
+                    "{{ el }}"
+                  ]
+                },
+                {
+                  "$map": "{{ p.filters.res_id | ne:'0' | then:p.filters.res_id | split }}",
+                  "$to": [
+                    "res_id",
+                    "=",
+                    "{{ el | numeric }}"
+                  ]
+                }
+              ]
+            },
+            "fields": "{{ p.options.fieldsList }}",
+            "offset": 0,
+            "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "mail.activity",
+                  "search_read",
+                  {
+                    "$concat": [
+                      {
+                        "$map": "{{ p.filters.res_model | split }}",
+                        "$to": [
+                          "res_model",
+                          "=",
+                          "{{ el }}"
+                        ]
+                      },
+                      {
+                        "$map": "{{ p.filters.res_id | ne:'0' | then:p.filters.res_id | split }}",
+                        "$to": [
+                          "res_id",
+                          "=",
+                          "{{ el | numeric }}"
+                        ]
+                      }
+                    ]
+                  },
+                  "{{ p.options.fieldsList }}",
+                  0,
+                  "{{ p.returnAll | ne:'true' | then:p.limit }}"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_key | default:'rpc' | eq:'rpc' | then:'result' }}"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "create",
+      "title": "Create a activity",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/mail.activity/create' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "res_model",
+          "label": "Linked document model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "e.g. res.partner; an n8n resource locator is accepted."
+        },
+        {
+          "key": "res_id",
+          "label": "Linked document ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "activity_type_id",
+          "label": "Activity type ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper of extra activity fields"
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "vals_list": [
+              {
+                "$merge": "{{ p.additionalFields.mappingMode | eq:'autoMapInputData' | then:item | default:p.additionalFields.value }}",
+                "res_model_id": "{{ pres.1.0.id | default:pres.2.result.0.id }}",
+                "res_id": "{{ p.res_id | rl | int }}",
+                "activity_type_id": "{{ p.activity_type_id | rl | int }}"
+              }
+            ]
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "mail.activity",
+                  "create",
+                  {
+                    "$merge": "{{ p.additionalFields.mappingMode | eq:'autoMapInputData' | then:item | default:p.additionalFields.value }}",
+                    "res_model_id": "{{ pres.1.0.id | default:pres.2.result.0.id }}",
+                    "res_id": "{{ p.res_id | rl | int }}",
+                    "activity_type_id": "{{ p.activity_type_id | rl | int }}"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "when": "{{ cred.api_key }}",
+          "method": "POST",
+          "path": "/json/2/ir.model/search_read",
+          "body": {
+            "domain": [
+              [
+                "model",
+                "=",
+                "{{ p.res_model | rl }}"
+              ]
+            ],
+            "fields": [
+              "id"
+            ],
+            "limit": 1,
+            "offset": 0
+          }
+        },
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "ir.model",
+                  "search_read",
+                  [
+                    [
+                      "model",
+                      "=",
+                      "{{ p.res_model | rl }}"
+                    ]
+                  ],
+                  [
+                    "id"
+                  ],
+                  0,
+                  1
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "from": "{{ res.result | default:res | split }}",
+        "to": {
+          "id": "{{ el | numeric }}"
+        }
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "delete",
+      "title": "Delete a activity",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/mail.activity/unlink' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.activityId | rl | int }}"
+            ]
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "mail.activity",
+                  "unlink",
+                  [
+                    "{{ p.activityId | rl | int }}"
+                  ]
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.activityId | rl | int }}",
+          "deleted": true
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "activity",
+      "operation": "get",
+      "title": "Get a activity",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/mail.activity/read' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsList"
+          ],
+          "help": "fieldsList: fields to return"
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.activityId | rl | int }}"
+            ],
+            "fields": "{{ p.options.fieldsList }}"
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "mail.activity",
+                  "read",
+                  [
+                    "{{ p.activityId | rl | int }}"
+                  ],
+                  "{{ p.options.fieldsList }}"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_key | default:'rpc' | eq:'rpc' | then:'result' }}"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "update",
+      "title": "Update a activity",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/mail.activity/write' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "activityId",
+          "label": "Activity ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"mappingMode\": \"defineBelow\", \"value\": {\"name\": \"Ada\"}} or mappingMode autoMapInputData to send the input item."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.activityId | rl | int }}"
+            ],
+            "vals": {
+              "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+            }
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "mail.activity",
+                  "write",
+                  [
+                    "{{ p.activityId | rl | int }}"
+                  ],
+                  {
+                    "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.activityId | rl | int }}",
+          "updated": true
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "custom",
+      "operation": "getAll",
+      "title": "Get many records",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/' | default:'rpc' }}{{ cred.api_key | then:(p.customResource | rl) }}{{ cred.api_key | then:'/search_read' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "customResource",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Odoo model name, e.g. res.partner; an n8n resource locator is accepted."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter"
+          ],
+          "help": "{\"filter\": [{\"fieldName\": \"name\", \"operator\": \"like\", \"value\": \"Ada\"}]}; operators: equal, notEqual, greaterThen, lesserThen, greaterOrEqual, lesserOrEqual, like, in, notIn, childOf"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsList"
+          ],
+          "help": "fieldsList: fields to return (comma-separated)"
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "!domain": {
+              "$map": "{{ p.filters.filter }}",
+              "$to": [
+                "{{ el.fieldName }}",
+                "{{ el.operator | eq:'equal' | then:'=' }}{{ el.operator | eq:'notEqual' | then:'!=' }}{{ el.operator | eq:'greaterThen' | then:'>' }}{{ el.operator | eq:'lesserThen' | then:'<' }}{{ el.operator | eq:'greaterOrEqual' | then:'>=' }}{{ el.operator | eq:'lesserOrEqual' | then:'<=' }}{{ el.operator | eq:'like' | then:'like' }}{{ el.operator | eq:'in' | then:'in' }}{{ el.operator | eq:'notIn' | then:'not in' }}{{ el.operator | eq:'childOf' | then:'child_of' }}",
+                "{{ el.operator | eq:'in' | then:(el.value | split) | default:(el.operator | eq:'notIn' | then:(el.value | split) | default:el.value) }}"
+              ]
+            },
+            "fields": "{{ p.options.fieldsList | split }}",
+            "offset": 0,
+            "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "{{ p.customResource | rl }}",
+                  "search_read",
+                  {
+                    "$map": "{{ p.filters.filter }}",
+                    "$to": [
+                      "{{ el.fieldName }}",
+                      "{{ el.operator | eq:'equal' | then:'=' }}{{ el.operator | eq:'notEqual' | then:'!=' }}{{ el.operator | eq:'greaterThen' | then:'>' }}{{ el.operator | eq:'lesserThen' | then:'<' }}{{ el.operator | eq:'greaterOrEqual' | then:'>=' }}{{ el.operator | eq:'lesserOrEqual' | then:'<=' }}{{ el.operator | eq:'like' | then:'like' }}{{ el.operator | eq:'in' | then:'in' }}{{ el.operator | eq:'notIn' | then:'not in' }}{{ el.operator | eq:'childOf' | then:'child_of' }}",
+                      "{{ el.operator | eq:'in' | then:(el.value | split) | default:(el.operator | eq:'notIn' | then:(el.value | split) | default:el.value) }}"
+                    ]
+                  },
+                  "{{ p.options.fieldsList | split }}",
+                  0,
+                  "{{ p.returnAll | ne:'true' | then:p.limit }}"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_key | default:'rpc' | eq:'rpc' | then:'result' }}"
+      }
+    },
+    {
+      "resource": "custom",
+      "operation": "create",
+      "title": "Create a record",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/' | default:'rpc' }}{{ cred.api_key | then:(p.customResource | rl) }}{{ cred.api_key | then:'/create' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "customResource",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Odoo model name, e.g. res.partner; an n8n resource locator is accepted."
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"mappingMode\": \"defineBelow\", \"value\": {\"name\": \"Ada\"}} or mappingMode autoMapInputData to send the input item."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "vals_list": [
+              {
+                "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+              }
+            ]
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "{{ p.customResource | rl }}",
+                  "create",
+                  {
+                    "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "from": "{{ res.result | default:res | split }}",
+        "to": {
+          "id": "{{ el | numeric }}"
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "custom",
+      "operation": "delete",
+      "title": "Delete a record",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/' | default:'rpc' }}{{ cred.api_key | then:(p.customResource | rl) }}{{ cred.api_key | then:'/unlink' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "customResource",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Odoo model name, e.g. res.partner; an n8n resource locator is accepted."
+        },
+        {
+          "key": "recordId",
+          "label": "Record ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.recordId | rl | int }}"
+            ]
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "{{ p.customResource | rl }}",
+                  "unlink",
+                  [
+                    "{{ p.recordId | rl | int }}"
+                  ]
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.recordId | rl | int }}",
+          "deleted": true
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "custom",
+      "operation": "get",
+      "title": "Get a record",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/' | default:'rpc' }}{{ cred.api_key | then:(p.customResource | rl) }}{{ cred.api_key | then:'/read' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "customResource",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Odoo model name, e.g. res.partner; an n8n resource locator is accepted."
+        },
+        {
+          "key": "recordId",
+          "label": "Record ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsList"
+          ],
+          "help": "fieldsList: fields to return (comma-separated)"
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.recordId | rl | int }}"
+            ],
+            "fields": "{{ p.options.fieldsList | split }}"
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "{{ p.customResource | rl }}",
+                  "read",
+                  [
+                    "{{ p.recordId | rl | int }}"
+                  ],
+                  "{{ p.options.fieldsList | split }}"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_key | default:'rpc' | eq:'rpc' | then:'result' }}"
+      }
+    },
+    {
+      "resource": "custom",
+      "operation": "update",
+      "title": "Update a record",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/' | default:'rpc' }}{{ cred.api_key | then:(p.customResource | rl) }}{{ cred.api_key | then:'/write' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "customResource",
+          "label": "Model",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Odoo model name, e.g. res.partner; an n8n resource locator is accepted."
+        },
+        {
+          "key": "recordId",
+          "label": "Record ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"mappingMode\": \"defineBelow\", \"value\": {\"name\": \"Ada\"}} or mappingMode autoMapInputData to send the input item."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.recordId | rl | int }}"
+            ],
+            "vals": {
+              "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+            }
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "{{ p.customResource | rl }}",
+                  "write",
+                  [
+                    "{{ p.recordId | rl | int }}"
+                  ],
+                  {
+                    "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.recordId | rl | int }}",
+          "updated": true
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "getAll",
+      "title": "Get many opportunitys",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/crm.lead/search_read' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter"
+          ],
+          "help": "{\"filter\": [{\"fieldName\": \"name\", \"operator\": \"like\", \"value\": \"Ada\"}]}; operators: equal, notEqual, greaterThen, lesserThen, greaterOrEqual, lesserOrEqual, like, in, notIn, childOf"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsList"
+          ],
+          "help": "fieldsList: fields to return"
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "!domain": {
+              "$map": "{{ p.filters.filter }}",
+              "$to": [
+                "{{ el.fieldName }}",
+                "{{ el.operator | eq:'equal' | then:'=' }}{{ el.operator | eq:'notEqual' | then:'!=' }}{{ el.operator | eq:'greaterThen' | then:'>' }}{{ el.operator | eq:'lesserThen' | then:'<' }}{{ el.operator | eq:'greaterOrEqual' | then:'>=' }}{{ el.operator | eq:'lesserOrEqual' | then:'<=' }}{{ el.operator | eq:'like' | then:'like' }}{{ el.operator | eq:'in' | then:'in' }}{{ el.operator | eq:'notIn' | then:'not in' }}{{ el.operator | eq:'childOf' | then:'child_of' }}",
+                "{{ el.operator | eq:'in' | then:(el.value | split) | default:(el.operator | eq:'notIn' | then:(el.value | split) | default:el.value) }}"
+              ]
+            },
+            "fields": "{{ p.options.fieldsList }}",
+            "offset": 0,
+            "limit": "{{ p.returnAll | ne:'true' | then:p.limit }}"
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "crm.lead",
+                  "search_read",
+                  {
+                    "$map": "{{ p.filters.filter }}",
+                    "$to": [
+                      "{{ el.fieldName }}",
+                      "{{ el.operator | eq:'equal' | then:'=' }}{{ el.operator | eq:'notEqual' | then:'!=' }}{{ el.operator | eq:'greaterThen' | then:'>' }}{{ el.operator | eq:'lesserThen' | then:'<' }}{{ el.operator | eq:'greaterOrEqual' | then:'>=' }}{{ el.operator | eq:'lesserOrEqual' | then:'<=' }}{{ el.operator | eq:'like' | then:'like' }}{{ el.operator | eq:'in' | then:'in' }}{{ el.operator | eq:'notIn' | then:'not in' }}{{ el.operator | eq:'childOf' | then:'child_of' }}",
+                      "{{ el.operator | eq:'in' | then:(el.value | split) | default:(el.operator | eq:'notIn' | then:(el.value | split) | default:el.value) }}"
+                    ]
+                  },
+                  "{{ p.options.fieldsList }}",
+                  0,
+                  "{{ p.returnAll | ne:'true' | then:p.limit }}"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_key | default:'rpc' | eq:'rpc' | then:'result' }}"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "create",
+      "title": "Create a opportunity",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/crm.lead/create' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"mappingMode\": \"defineBelow\", \"value\": {\"name\": \"Ada\"}} or mappingMode autoMapInputData to send the input item."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "vals_list": [
+              {
+                "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+              }
+            ]
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "crm.lead",
+                  "create",
+                  {
+                    "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "from": "{{ res.result | default:res | split }}",
+        "to": {
+          "id": "{{ el | numeric }}"
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "delete",
+      "title": "Delete a opportunity",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/crm.lead/unlink' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.opportunityId | rl | int }}"
+            ]
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "crm.lead",
+                  "unlink",
+                  [
+                    "{{ p.opportunityId | rl | int }}"
+                  ]
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.opportunityId | rl | int }}",
+          "deleted": true
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "opportunity",
+      "operation": "get",
+      "title": "Get a opportunity",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/crm.lead/read' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldsList"
+          ],
+          "help": "fieldsList: fields to return"
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.opportunityId | rl | int }}"
+            ],
+            "fields": "{{ p.options.fieldsList }}"
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "crm.lead",
+                  "read",
+                  [
+                    "{{ p.opportunityId | rl | int }}"
+                  ],
+                  "{{ p.options.fieldsList }}"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_key | default:'rpc' | eq:'rpc' | then:'result' }}"
+      }
+    },
+    {
+      "resource": "opportunity",
+      "operation": "update",
+      "title": "Update a opportunity",
+      "method": "POST",
+      "path": "/json{{ cred.api_key | then:'/2/crm.lead/write' | default:'rpc' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "odooApiKeyApi",
+          "options": [
+            "odooApiKeyApi",
+            "odooApi"
+          ],
+          "help": "odooApiKeyApi: API key, Odoo 19+ JSON-2 API; odooApi: username and password, JSON-RPC (Odoo 14-18). The connection you pick decides which API is called."
+        },
+        {
+          "key": "opportunityId",
+          "label": "Opportunity ID",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Numeric ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "fieldsToSend",
+          "label": "Fields",
+          "type": "json",
+          "default": {
+            "mappingMode": "defineBelow",
+            "value": null
+          },
+          "help": "n8n resource mapper: {\"mappingMode\": \"defineBelow\", \"value\": {\"name\": \"Ada\"}} or mappingMode autoMapInputData to send the input item."
+        }
+      ],
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_key }}",
+            "ids": [
+              "{{ p.opportunityId | rl | int }}"
+            ],
+            "vals": {
+              "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+            }
+          },
+          {
+            "$when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "object",
+              "method": "execute",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ pres.0.result }}",
+                  "{{ cred.password }}",
+                  "crm.lead",
+                  "write",
+                  [
+                    "{{ p.opportunityId | rl | int }}"
+                  ],
+                  {
+                    "$merge": "{{ p.fieldsToSend.mappingMode | eq:'autoMapInputData' | then:item | default:p.fieldsToSend.value }}"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "id": "{{ p.opportunityId | rl | int }}",
+          "updated": true
+        }
+      },
+      "before": [
+        {
+          "when": "{{ cred.api_key | default:'rpc' | eq:'rpc' }}",
+          "method": "POST",
+          "path": "/jsonrpc",
+          "body": {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+              "service": "common",
+              "method": "login",
+              "args": {
+                "$list": [
+                  "{{ cred.db | default:(cred.url | re:'//([^./]+)') }}",
+                  "{{ cred.username }}",
+                  "{{ cred.password }}"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

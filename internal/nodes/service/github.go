@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -26,6 +27,9 @@ type GitHubNode struct{}
 func (n *GitHubNode) Type() string { return "service.github" }
 
 func (n *GitHubNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.github", config) {
+		return apipkg.ExecuteExtension(ctx, "service.github", input, config)
+	}
 	token := strVal(config, "token")
 	if token == "" {
 		token = strVal(config, "access_token")

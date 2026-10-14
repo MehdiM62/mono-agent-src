@@ -1,0 +1,1417 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "freshworks_crm",
+  "node_type": "app.freshworks_crm",
+  "title": "Freshworks CRM",
+  "description": "Accounts, appointments, contacts, deals, notes, sales activities, tasks and search in Freshworks CRM (Freshsales)",
+  "category": "app",
+  "docs_url": "https://developers.freshworks.com/crm/api/",
+  "n8n_types": [
+    "n8n-nodes-base.freshworksCrm"
+  ],
+  "base_url": "https://{{ cred.domain }}.myfreshworks.com/crm/sales/api",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "freshworks_crm",
+      "name": "Freshworks CRM",
+      "n8n_credential": "freshworksCrmApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "domain": "domain"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Domain",
+          "required": true,
+          "help": "acme for acme.myfreshworks.com"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "Profile settings → API settings"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Token token={{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "account",
+      "label": "Account"
+    },
+    {
+      "value": "appointment",
+      "label": "Appointment"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "deal",
+      "label": "Deal"
+    },
+    {
+      "value": "note",
+      "label": "Note"
+    },
+    {
+      "value": "salesActivity",
+      "label": "Sales Activity"
+    },
+    {
+      "value": "search",
+      "label": "Search"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "account",
+      "operation": "create",
+      "title": "Create a account",
+      "method": "POST",
+      "path": "/sales_accounts",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "annual_revenue",
+            "business_type_id",
+            "city",
+            "country",
+            "facebook",
+            "industry_type_id",
+            "linkedin",
+            "number_of_employees",
+            "owner_id",
+            "parent_sales_account_id",
+            "phone",
+            "state",
+            "territory_id",
+            "twitter",
+            "website",
+            "zipcode"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "sales_account"
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "delete",
+      "title": "Delete a account",
+      "method": "DELETE",
+      "path": "/sales_accounts/{{ p.accountId }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "account ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "get",
+      "title": "Get a account",
+      "method": "GET",
+      "path": "/sales_accounts/{{ p.accountId }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "account ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "sales_account"
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "getAll",
+      "title": "Get many sales_accounts",
+      "method": "GET",
+      "path": "/sales_accounts/view/{{ p.view }}",
+      "fields": [
+        {
+          "key": "view",
+          "label": "View ID",
+          "type": "text",
+          "required": true,
+          "help": "ID of a saved view (filter), e.g. the 'All' view"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "sales_accounts"
+      }
+    },
+    {
+      "resource": "account",
+      "operation": "update",
+      "title": "Update a account",
+      "method": "PUT",
+      "path": "/sales_accounts/{{ p.accountId }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "annual_revenue",
+            "business_type_id",
+            "city",
+            "country",
+            "facebook",
+            "industry_type_id",
+            "linkedin",
+            "number_of_employees",
+            "owner_id",
+            "parent_sales_account_id",
+            "phone",
+            "state",
+            "territory_id",
+            "twitter",
+            "website",
+            "zipcode",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "sales_account"
+      }
+    },
+    {
+      "resource": "appointment",
+      "operation": "create",
+      "title": "Create a appointment",
+      "method": "POST",
+      "path": "/appointments",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fromDate",
+          "label": "Start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "endDate",
+          "label": "End",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "attendees",
+          "label": "Attendees",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attendee"
+          ],
+          "help": "{\"attendee\": [{\"type\": contact|user, \"contactId\", \"userId\"}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "creater_id",
+            "is_allday",
+            "latitude",
+            "location",
+            "longitude",
+            "outcome_id",
+            "targetable_id",
+            "targetable_type",
+            "time_zone"
+          ]
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "from_date": "{{ p.fromDate | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "end_date": "{{ p.additionalFields.is_allday | eq:'true' | then:(p.fromDate | date:'YYYY-MM-DDTHH:mm:ssZ') | default:(p.endDate | date:'YYYY-MM-DDTHH:mm:ssZ') }}",
+        "$merge": "{{ p.additionalFields }}",
+        "appointment_attendees_attributes": {
+          "$map": "{{ p.attendees.attendee }}",
+          "$to": {
+            "attendee_type": "{{ el.type | replace:'contact','Contact' | replace:'user','FdMultitenant::User' }}",
+            "attendee_id": "{{ el.type | eq:'contact' | then:(el.contactId | string) | default:(el.userId | string) }}"
+          }
+        }
+      },
+      "output": {
+        "path": "appointment"
+      }
+    },
+    {
+      "resource": "appointment",
+      "operation": "delete",
+      "title": "Delete a appointment",
+      "method": "DELETE",
+      "path": "/appointments/{{ p.appointmentId }}",
+      "fields": [
+        {
+          "key": "appointmentId",
+          "label": "appointment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "appointment",
+      "operation": "get",
+      "title": "Get a appointment",
+      "method": "GET",
+      "path": "/appointments/{{ p.appointmentId }}",
+      "fields": [
+        {
+          "key": "appointmentId",
+          "label": "appointment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "appointment"
+      }
+    },
+    {
+      "resource": "appointment",
+      "operation": "getAll",
+      "title": "Get many appointments",
+      "method": "GET",
+      "path": "/appointments",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "filter"
+          ],
+          "help": "include: creater, appointment_attendees, targetable; filter: past or upcoming"
+        }
+      ],
+      "query": {
+        "filter": "{{ p.filters.filter }}",
+        "include": "{{ p.filters.include | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "appointments"
+      }
+    },
+    {
+      "resource": "appointment",
+      "operation": "update",
+      "title": "Update a appointment",
+      "method": "PUT",
+      "path": "/appointments/{{ p.appointmentId }}",
+      "fields": [
+        {
+          "key": "appointmentId",
+          "label": "appointment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attendees",
+            "creater_id",
+            "endDate",
+            "is_allday",
+            "latitude",
+            "location",
+            "longitude",
+            "outcome_id",
+            "fromDate",
+            "targetable_id",
+            "targetable_type",
+            "time_zone",
+            "title"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'fromDate,endDate,attendees' }}",
+        "from_date": "{{ p.updateFields.fromDate | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "end_date": "{{ p.updateFields.endDate | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "appointment_attendees_attributes": {
+          "$map": "{{ p.updateFields.attendees.attendee }}",
+          "$to": {
+            "attendee_type": "{{ el.type | replace:'contact','Contact' | replace:'user','FdMultitenant::User' }}",
+            "attendee_id": "{{ el.type | eq:'contact' | then:(el.contactId | string) | default:(el.userId | string) }}"
+          }
+        }
+      },
+      "output": {
+        "path": "appointment"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "emails",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "campaign_id",
+            "city",
+            "contact_status_id",
+            "country",
+            "external_id",
+            "facebook",
+            "job_title",
+            "keyword",
+            "lead_source_id",
+            "lifecycle_stage_id",
+            "linkedin",
+            "medium",
+            "mobile_number",
+            "owner_id",
+            "sales_accounts",
+            "state",
+            "subscription_status",
+            "subscription_types",
+            "territory_id",
+            "time_zone",
+            "twitter",
+            "work_number",
+            "zipcode"
+          ],
+          "help": "sales_accounts: list of account IDs (the first is primary)"
+        }
+      ],
+      "body": {
+        "first_name": "{{ p.firstName }}",
+        "last_name": "{{ p.lastName }}",
+        "emails": "{{ p.emails }}",
+        "$merge": "{{ p.additionalFields | omit:'sales_accounts' }}",
+        "sales_accounts": {
+          "$map": "{{ p.additionalFields.sales_accounts }}",
+          "$to": {
+            "id": "{{ el }}",
+            "is_primary": "{{ el | eq:(p.additionalFields.sales_accounts.0 | string) | default:false }}"
+          }
+        }
+      },
+      "output": {
+        "path": "contact"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "contact"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts/view/{{ p.view }}",
+      "fields": [
+        {
+          "key": "view",
+          "label": "View ID",
+          "type": "text",
+          "required": true,
+          "help": "ID of a saved view (filter), e.g. the 'All' view"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "contacts"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PUT",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "campaign_id",
+            "city",
+            "contact_status_id",
+            "country",
+            "external_id",
+            "facebook",
+            "job_title",
+            "keyword",
+            "lead_source_id",
+            "lifecycle_stage_id",
+            "linkedin",
+            "medium",
+            "mobile_number",
+            "owner_id",
+            "sales_accounts",
+            "state",
+            "subscription_status",
+            "subscription_types",
+            "territory_id",
+            "time_zone",
+            "twitter",
+            "work_number",
+            "zipcode",
+            "first_name",
+            "last_name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'sales_accounts' }}",
+        "sales_accounts": {
+          "$map": "{{ p.updateFields.sales_accounts }}",
+          "$to": {
+            "id": "{{ el }}",
+            "is_primary": "{{ el | eq:(p.updateFields.sales_accounts.0 | string) | default:false }}"
+          }
+        }
+      },
+      "output": {
+        "path": "contact"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "create",
+      "title": "Create a deal",
+      "method": "POST",
+      "path": "/deals",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "base_currency_amount",
+            "campaign_id",
+            "currency_id",
+            "deal_payment_status_id",
+            "deal_pipeline_id",
+            "deal_product_id",
+            "deal_reason_id",
+            "deal_stage_id",
+            "deal_type_id",
+            "lead_source_id",
+            "owner_id",
+            "probability",
+            "sales_account_id",
+            "territory_id"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "amount": "{{ p.amount }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "deal"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "delete",
+      "title": "Delete a deal",
+      "method": "DELETE",
+      "path": "/deals/{{ p.dealId }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "deal ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "get",
+      "title": "Get a deal",
+      "method": "GET",
+      "path": "/deals/{{ p.dealId }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "deal ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "deal"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "getAll",
+      "title": "Get many deals",
+      "method": "GET",
+      "path": "/deals/view/{{ p.view }}",
+      "fields": [
+        {
+          "key": "view",
+          "label": "View ID",
+          "type": "text",
+          "required": true,
+          "help": "ID of a saved view (filter), e.g. the 'All' view"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "deals"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "update",
+      "title": "Update a deal",
+      "method": "PUT",
+      "path": "/deals/{{ p.dealId }}",
+      "fields": [
+        {
+          "key": "dealId",
+          "label": "deal ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "base_currency_amount",
+            "campaign_id",
+            "currency_id",
+            "deal_payment_status_id",
+            "deal_pipeline_id",
+            "deal_product_id",
+            "deal_reason_id",
+            "deal_stage_id",
+            "deal_type_id",
+            "lead_source_id",
+            "owner_id",
+            "probability",
+            "sales_account_id",
+            "territory_id",
+            "amount",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "deal"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "create",
+      "title": "Create a note",
+      "method": "POST",
+      "path": "/notes",
+      "fields": [
+        {
+          "key": "description",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "targetableType",
+          "label": "Related to type",
+          "type": "select",
+          "default": "Contact",
+          "options": [
+            "Contact",
+            "Deal",
+            "SalesAccount"
+          ]
+        },
+        {
+          "key": "targetable_id",
+          "label": "Related record ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "description": "{{ p.description }}",
+        "targetable_id": "{{ p.targetable_id }}",
+        "targetable_type": "{{ p.targetableType }}"
+      },
+      "output": {
+        "path": "note"
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "delete",
+      "title": "Delete a note",
+      "method": "DELETE",
+      "path": "/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "note ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "note",
+      "operation": "update",
+      "title": "Update a note",
+      "method": "PUT",
+      "path": "/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "note ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "targetable_id",
+            "targetable_type"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "output": {
+        "path": "note"
+      }
+    },
+    {
+      "resource": "salesActivity",
+      "operation": "get",
+      "title": "Get a salesActivity",
+      "method": "GET",
+      "path": "/sales_activities/{{ p.salesActivityId }}",
+      "fields": [
+        {
+          "key": "salesActivityId",
+          "label": "salesActivity ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "sales_activity"
+      }
+    },
+    {
+      "resource": "salesActivity",
+      "operation": "getAll",
+      "title": "Get many sales activities",
+      "method": "GET",
+      "path": "/sales_activities",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "sales_activities"
+      }
+    },
+    {
+      "resource": "salesActivity",
+      "operation": "create",
+      "title": "Create a salesActivity",
+      "method": "POST",
+      "path": "/sales_activities",
+      "fields": [
+        {
+          "key": "sales_activity_type_id",
+          "label": "Activity type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "ownerId",
+          "label": "Owner ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "from_date",
+          "label": "Start",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "end_date",
+          "label": "End",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "targetableType",
+          "label": "Related to type",
+          "type": "select",
+          "default": "Contact",
+          "options": [
+            "Contact",
+            "Deal",
+            "SalesAccount"
+          ]
+        },
+        {
+          "key": "targetable_id",
+          "label": "Related record ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "creater_id",
+            "latitude",
+            "location",
+            "longitude",
+            "notes",
+            "sales_activity_outcome_id"
+          ]
+        }
+      ],
+      "body": {
+        "sales_activity": {
+          "sales_activity_type_id": "{{ p.sales_activity_type_id }}",
+          "title": "{{ p.title }}",
+          "owner_id": "{{ p.ownerId }}",
+          "start_date": "{{ p.from_date | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+          "end_date": "{{ p.end_date | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+          "targetable_type": "{{ p.targetableType }}",
+          "targetable_id": "{{ p.targetable_id }}",
+          "$merge": "{{ p.additionalFields }}"
+        }
+      },
+      "output": {
+        "path": "sales_activity"
+      }
+    },
+    {
+      "resource": "salesActivity",
+      "operation": "delete",
+      "title": "Delete a salesActivity",
+      "method": "DELETE",
+      "path": "/sales_activities/{{ p.salesActivityId }}",
+      "fields": [
+        {
+          "key": "salesActivityId",
+          "label": "salesActivity ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "salesActivity",
+      "operation": "update",
+      "title": "Update a salesActivity",
+      "method": "PUT",
+      "path": "/sales_activities/{{ p.salesActivityId }}",
+      "fields": [
+        {
+          "key": "salesActivityId",
+          "label": "salesActivity ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "creater_id",
+            "end_date",
+            "latitude",
+            "location",
+            "longitude",
+            "notes",
+            "owner_id",
+            "sales_activity_outcome_id",
+            "sales_activity_type_id",
+            "from_date",
+            "targetable_id",
+            "targetable_type",
+            "title"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'from_date,end_date' }}",
+        "from_date": "{{ p.updateFields.from_date | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "end_date": "{{ p.updateFields.end_date | date:'YYYY-MM-DDTHH:mm:ssZ' }}"
+      },
+      "output": {
+        "path": "sales_activity"
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "query",
+      "title": "Search records",
+      "method": "GET",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "query",
+          "label": "Search term",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "entities",
+          "label": "Entities",
+          "type": "multiselect",
+          "required": true,
+          "default": [],
+          "options": [
+            "contact",
+            "deal",
+            "sales_account",
+            "user"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        }
+      ],
+      "query": {
+        "q": "{{ p.query }}",
+        "include": "{{ p.entities | csv }}",
+        "per_page": 100
+      },
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "search",
+      "operation": "lookup",
+      "title": "Look up records by a field",
+      "method": "GET",
+      "path": "/lookup",
+      "fields": [
+        {
+          "key": "searchField",
+          "label": "Search field",
+          "type": "select",
+          "required": true,
+          "default": "",
+          "options": [
+            "email",
+            "name",
+            "customField"
+          ]
+        },
+        {
+          "key": "fieldValue",
+          "label": "Value",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "customFieldName",
+          "label": "Custom field name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "customFieldValue",
+          "label": "Custom field value",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "entities"
+          ],
+          "help": "entities: contact, deal, sales_account"
+        }
+      ],
+      "query": {
+        "q": "{{ p.searchField | eq:'customField' | then:p.customFieldValue | default:p.fieldValue }}",
+        "f": "{{ p.searchField | eq:'customField' | then:p.customFieldName | default:p.searchField }}",
+        "entities": "{{ p.options.entities | csv }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dueDate",
+          "label": "Due date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "ownerId",
+          "label": "Owner ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "targetableType",
+          "label": "Related to type",
+          "type": "select",
+          "default": "Contact",
+          "options": [
+            "Contact",
+            "Deal",
+            "SalesAccount"
+          ]
+        },
+        {
+          "key": "targetable_id",
+          "label": "Related record ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "creater_id",
+            "outcome_id",
+            "task_type_id"
+          ]
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "owner_id": "{{ p.ownerId }}",
+        "due_date": "{{ p.dueDate | date:'YYYY-MM-DDTHH:mm:ssZ' }}",
+        "targetable_type": "{{ p.targetableType }}",
+        "targetable_id": "{{ p.targetable_id }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "task"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "task ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "task ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "task"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include",
+            "filter"
+          ],
+          "help": "include: owner, targetable, users; filter: open, due_today, due_tomorrow, overdue, completed"
+        }
+      ],
+      "query": {
+        "filter": "{{ p.filters.filter | default:'open' }}",
+        "include": "{{ p.filters.include }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "tasks"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PUT",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "creater_id",
+            "dueDate",
+            "outcome_id",
+            "owner_id",
+            "targetable_id",
+            "targetable_type",
+            "task_type_id",
+            "title"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'dueDate' }}",
+        "due_date": "{{ p.updateFields.dueDate | date:'YYYY-MM-DDTHH:mm:ssZ' }}"
+      },
+      "output": {
+        "path": "task"
+      }
+    }
+  ]
+}

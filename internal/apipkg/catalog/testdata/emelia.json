@@ -1,0 +1,237 @@
+{
+  "campaign.get": {
+    "params": {
+      "campaignId": "c1"
+    },
+    "response": {
+      "data": {
+        "campaign": {
+          "_id": "c1"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "operationName": "campaign",
+        "query": "query campaign($id: ID!) { campaign(id: $id) { _id name status createdAt provider startAt estimatedEnd recipients { total_count } schedule { dailyContact dailyLimit minInterval maxInterval trackLinks trackOpens timeZone days start end eventToStopMails } } }",
+        "variables": {
+          "id": "c1"
+        }
+      },
+      "items": 1
+    }
+  },
+  "campaign.addContact": {
+    "params": {
+      "campaignId": "c1",
+      "contactEmail": "a@b.co",
+      "additionalFields": {
+        "firstName": "Ann",
+        "customFieldsUi": {
+          "customFieldsValues": [
+            {
+              "fieldName": "plan",
+              "value": "pro"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "addContactToCampaignHook": "k1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "operationName": "AddContactToCampaignHook",
+        "query": "mutation AddContactToCampaignHook($id: ID!, $contact: JSON!) { addContactToCampaignHook(id: $id, contact: $contact) }",
+        "variables": {
+          "id": "c1",
+          "contact": {
+            "email": "a@b.co",
+            "firstName": "Ann",
+            "plan": "pro"
+          }
+        }
+      },
+      "items": 1
+    }
+  },
+  "campaign.create": {
+    "params": {
+      "campaignName": "Q4"
+    },
+    "response": {
+      "data": {
+        "createCampaign": {
+          "_id": "c2"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "operationName": "createCampaign",
+        "query": "mutation createCampaign($name: String!) { createCampaign(name: $name) { _id name status createdAt provider startAt estimatedEnd } }",
+        "variables": {
+          "name": "Q4"
+        }
+      }
+    }
+  },
+  "campaign.duplicate": {
+    "params": {
+      "campaignId": "c1",
+      "campaignName": "Copy",
+      "options": {
+        "copyContacts": true
+      }
+    },
+    "response": {
+      "data": {
+        "duplicateCampaign": "c3"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "operationName": "duplicateCampaign",
+        "query": "mutation duplicateCampaign($fromId: ID!, $name: String!, $copySettings: Boolean!, $copyMails: Boolean!, $copyContacts: Boolean!, $copyProvider: Boolean!) { duplicateCampaign(fromId: $fromId, name: $name, copySettings: $copySettings, copyMails: $copyMails, copyContacts: $copyContacts, copyProvider: $copyProvider) }",
+        "variables": {
+          "fromId": "c1",
+          "name": "Copy",
+          "copySettings": true,
+          "copyMails": true,
+          "copyContacts": true,
+          "copyProvider": true
+        }
+      }
+    }
+  },
+  "campaign.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "response": {
+      "data": {
+        "all_campaigns": [
+          {
+            "_id": "a"
+          },
+          {
+            "_id": "b"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "operationName": "all_campaigns",
+        "query": "query all_campaigns { all_campaigns { _id name status createdAt stats { mailsSent uniqueOpensPercent opens linkClickedPercent repliedPercent bouncedPercent unsubscribePercent progressPercent } } }"
+      },
+      "items": 1
+    }
+  },
+  "campaign.pause": {
+    "params": {
+      "campaignId": "c1"
+    },
+    "response": {
+      "data": {
+        "pauseCampaign": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "operationName": "pauseCampaign",
+        "query": "mutation pauseCampaign($id: ID!) { pauseCampaign(id: $id) }",
+        "variables": {
+          "id": "c1"
+        }
+      }
+    }
+  },
+  "campaign.start": {
+    "params": {
+      "campaignId": "c1"
+    },
+    "response": {
+      "data": {
+        "startCampaign": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "operationName": "startCampaign",
+        "query": "mutation startCampaign($id: ID!) { startCampaign(id: $id) }",
+        "variables": {
+          "id": "c1"
+        }
+      }
+    }
+  },
+  "contactList.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "data": {
+        "contact_lists": [
+          {
+            "_id": "a"
+          },
+          {
+            "_id": "b"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "operationName": "contact_lists",
+        "query": "query contact_lists { contact_lists { _id name contactCount fields usedInCampaign } }"
+      },
+      "items": 2
+    }
+  },
+  "contactList.add": {
+    "params": {
+      "contactListId": "l1",
+      "contactEmail": "a@b.co"
+    },
+    "response": {
+      "data": {
+        "addContactsToListHook": "k2"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/graphql",
+      "body": {
+        "operationName": "AddContactsToListHook",
+        "query": "mutation AddContactsToListHook($id: ID!, $contact: JSON!) { addContactsToListHook(id: $id, contact: $contact) }",
+        "variables": {
+          "id": "l1",
+          "contact": {
+            "email": "a@b.co"
+          }
+        }
+      }
+    }
+  }
+}

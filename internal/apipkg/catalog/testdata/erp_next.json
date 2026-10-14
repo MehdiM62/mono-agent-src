@@ -1,0 +1,148 @@
+{
+  "document.create": {
+    "params": {
+      "docType": "Customer",
+      "properties": {
+        "customProperty": [
+          {
+            "field": "customer_name",
+            "value": "Acme"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "name": "C1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/resource/Customer",
+      "body": {
+        "customer_name": "Acme"
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_key": "k",
+      "api_secret": "s",
+      "subdomain": "acme"
+    }
+  },
+  "document.delete": {
+    "params": {
+      "docType": "Customer",
+      "documentName": "C1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/resource/Customer/C1"
+    },
+    "credential": {
+      "api_key": "k",
+      "api_secret": "s",
+      "subdomain": "acme"
+    }
+  },
+  "document.get": {
+    "params": {
+      "docType": "Sales Invoice",
+      "documentName": "S1"
+    },
+    "credential": {
+      "api_key": "k",
+      "api_secret": "s",
+      "environment": "selfHosted",
+      "domain": "https://erp.example.com"
+    },
+    "response": {
+      "data": {
+        "name": "S1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/resource/Sales%20Invoice/S1",
+      "headers": {
+        "Authorization": "token k:s"
+      },
+      "items": 1
+    }
+  },
+  "document.getAll": {
+    "params": {
+      "docType": "Customer",
+      "limit": 5,
+      "options": {
+        "fields": [
+          "name",
+          "customer_name"
+        ],
+        "filters": {
+          "customProperty": [
+            {
+              "field": "territory",
+              "operator": "isNot",
+              "value": "EU"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "name": "C1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/resource/Customer",
+      "query": {
+        "fields": "[\"name\",\"customer_name\"]",
+        "filters": "[[\"Customer\",\"territory\",\"!=\",\"EU\"]]",
+        "limit_start": "0",
+        "limit_page_length": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_key": "k",
+      "api_secret": "s",
+      "subdomain": "acme"
+    }
+  },
+  "document.update": {
+    "params": {
+      "docType": "Customer",
+      "documentName": "C1",
+      "properties": {
+        "customProperty": [
+          {
+            "field": "territory",
+            "value": "US"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "name": "C1"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/resource/Customer/C1",
+      "body": {
+        "territory": "US"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "api_secret": "s",
+      "subdomain": "acme"
+    }
+  }
+}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -118,6 +119,9 @@ type LinearNode struct{}
 func (n *LinearNode) Type() string { return "service.linear" }
 
 func (n *LinearNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.linear", config) {
+		return apipkg.ExecuteExtension(ctx, "service.linear", input, config)
+	}
 	// Personal API keys go in the Authorization header as-is; OAuth access
 	// tokens require the standard "Bearer " prefix — sending either the
 	// wrong way authenticates neither.

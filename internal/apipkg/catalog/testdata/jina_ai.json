@@ -1,0 +1,99 @@
+{
+  "reader.read": {
+    "params": {
+      "url": "https://example.com/a?b=1",
+      "options": {
+        "outputFormat": "markdown",
+        "enableImageCaptioning": true
+      }
+    },
+    "response": {
+      "data": {
+        "content": "# Hi"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "url": "https://example.com/a?b=1"
+      },
+      "headers": {
+        "X-Return-Format": "markdown",
+        "X-With-Generated-Alt": "true"
+      },
+      "items": 1
+    }
+  },
+  "reader.search": {
+    "params": {
+      "searchQuery": "go generics",
+      "options": {
+        "siteFilter": "go.dev",
+        "pageNumber": 2
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "title": "a"
+        },
+        {
+          "title": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/",
+      "query": {
+        "q": "go generics",
+        "page": "2"
+      },
+      "headers": {
+        "X-Site": "go.dev"
+      },
+      "items": 2
+    }
+  },
+  "research.deepResearch": {
+    "params": {
+      "researchQuery": "Why is the sky blue?",
+      "options": {
+        "maxReturnedSources": 5,
+        "excludeSources": "a.com, b.com"
+      }
+    },
+    "response": {
+      "choices": [
+        {
+          "message": {
+            "content": "Rayleigh",
+            "annotations": []
+          }
+        }
+      ],
+      "usage": {
+        "tokens": 3
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "body": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Why is the sky blue?"
+          }
+        ],
+        "max_returned_urls": 5,
+        "bad_hostnames": [
+          "a.com",
+          "b.com"
+        ]
+      },
+      "items": 1
+    }
+  }
+}

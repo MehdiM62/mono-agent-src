@@ -1,0 +1,361 @@
+{
+  "balance.get": {
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/v1/balance"
+    }
+  },
+  "charge.get": {
+    "params": {
+      "chargeId": "ch_1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/charges/ch_1"
+    }
+  },
+  "charge.create": {
+    "params": {
+      "customerId": "cus_1",
+      "amount": 500,
+      "currency": "EUR",
+      "source": "src_1",
+      "additionalFields": {
+        "description": "d",
+        "metadata": {
+          "metadataProperties": [
+            {
+              "key": "order",
+              "value": "9"
+            }
+          ]
+        },
+        "shipping": {
+          "shippingProperties": [
+            {
+              "name": "Ada",
+              "address": {
+                "details": {
+                  "city": "X",
+                  "line1": "Main 1"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/charges",
+      "body": {
+        "customer": "cus_1",
+        "currency": "eur",
+        "amount": "500",
+        "source": "src_1",
+        "description": "d",
+        "metadata[order]": "9",
+        "shipping[name]": "Ada",
+        "shipping[address][city]": "X",
+        "shipping[address][line1]": "Main 1"
+      }
+    }
+  },
+  "charge.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/charges",
+      "query": {
+        "limit": "2"
+      },
+      "items": 2
+    },
+    "response": {
+      "data": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        }
+      ],
+      "has_more": true
+    }
+  },
+  "charge.update": {
+    "params": {
+      "chargeId": "ch_1",
+      "updateFields": {
+        "receipt_email": "a@b.c"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/charges/ch_1",
+      "body": {
+        "receipt_email": "a@b.c"
+      }
+    }
+  },
+  "coupon.create": {
+    "params": {
+      "duration": "forever",
+      "type": "fixedAmount",
+      "amountOff": 300,
+      "currency": "usd"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/coupons",
+      "body": {
+        "duration": "forever",
+        "amount_off": "300",
+        "currency": "usd"
+      }
+    }
+  },
+  "coupon.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/coupons",
+      "query": {
+        "limit": "100"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": "a"
+        }
+      ],
+      "has_more": false
+    }
+  },
+  "customer.get": {
+    "params": {
+      "customerId": "cus_1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/customers/cus_1"
+    }
+  },
+  "customer.create": {
+    "params": {
+      "name": "Ada",
+      "additionalFields": {
+        "email": "a@b.c",
+        "address": {
+          "details": {
+            "city": "X"
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/customers",
+      "body": {
+        "name": "Ada",
+        "email": "a@b.c",
+        "address[city]": "X"
+      }
+    }
+  },
+  "customer.delete": {
+    "params": {
+      "customerId": "cus_1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/customers/cus_1"
+    }
+  },
+  "customer.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "email": "a@b.c"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/customers",
+      "query": {
+        "email": "a@b.c",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "response": {
+      "data": [
+        {
+          "id": "a"
+        }
+      ],
+      "has_more": false
+    }
+  },
+  "customer.update": {
+    "params": {
+      "customerId": "cus_1",
+      "updateFields": {
+        "phone": "1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/customers/cus_1",
+      "body": {
+        "phone": "1"
+      }
+    }
+  },
+  "customerCard.get": {
+    "params": {
+      "customerId": "cus_1",
+      "sourceId": "card_1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/customers/cus_1/sources/card_1"
+    }
+  },
+  "customerCard.add": {
+    "params": {
+      "customerId": "cus_1",
+      "token": "tok_1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/customers/cus_1/sources",
+      "body": {
+        "source": "tok_1"
+      }
+    }
+  },
+  "customerCard.remove": {
+    "params": {
+      "customerId": "cus_1",
+      "cardId": "card_1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/customers/cus_1/sources/card_1"
+    }
+  },
+  "meterEvent.create": {
+    "params": {
+      "eventName": "api_calls",
+      "customerId": "cus_1",
+      "value": "3",
+      "additionalFields": {
+        "timestamp": "2026-01-02T00:00:00Z",
+        "customPayload": {
+          "properties": [
+            {
+              "key": "region",
+              "value": "eu"
+            }
+          ]
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/billing/meter_events",
+      "body": {
+        "event_name": "api_calls",
+        "timestamp": "1767312000",
+        "payload[stripe_customer_id]": "cus_1",
+        "payload[value]": "3",
+        "payload[region]": "eu"
+      }
+    }
+  },
+  "source.get": {
+    "params": {
+      "sourceId": "src_1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/sources/src_1"
+    }
+  },
+  "source.create": {
+    "params": {
+      "customerId": "cus_1",
+      "amount": 100,
+      "currency": "cny"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/sources",
+      "body": {
+        "type": "wechat",
+        "amount": "100",
+        "currency": "cny"
+      }
+    },
+    "responses": [
+      {
+        "id": "src_9"
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/v1/sources",
+        "body": {
+          "type": "wechat",
+          "amount": "100",
+          "currency": "cny"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/v1/customers/cus_1/sources",
+        "body": {
+          "source": "src_9"
+        }
+      }
+    ]
+  },
+  "source.delete": {
+    "params": {
+      "customerId": "cus_1",
+      "sourceId": "src_1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v1/customers/cus_1/sources/src_1"
+    }
+  },
+  "token.create": {
+    "params": {
+      "number": "4242424242424242",
+      "cvc": "123",
+      "expirationMonth": "12",
+      "expirationYear": "2030"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/tokens",
+      "body": {
+        "card[number]": "4242424242424242",
+        "card[exp_month]": "12",
+        "card[exp_year]": "2030",
+        "card[cvc]": "123"
+      }
+    }
+  }
+}

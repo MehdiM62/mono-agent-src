@@ -1,0 +1,29 @@
+{
+  "id": "write-text-file",
+  "mode": "both",
+  "workflow_name": "eval-write-text-file",
+  "prompt": "Create a workflow named \"eval-write-text-file\", run manually with the input\n{\"name\":\"Ada\"}, that builds the text \"Report for Ada: ok\" into a field and\nwrites that text (UTF-8, not base64) to the file {{OUT_DIR}}/report.txt.",
+  "fixtures": [],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "file",
+      "path": "{{OUT_DIR}}/report.txt",
+      "contains": [
+        "Report for Ada: ok"
+      ]
+    }
+  ],
+  "input": {
+    "name": "Ada"
+  }
+}

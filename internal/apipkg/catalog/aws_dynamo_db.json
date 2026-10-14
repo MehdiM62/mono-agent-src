@@ -1,0 +1,564 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_dynamo_db",
+  "node_type": "app.aws_dynamo_db",
+  "title": "AWS DynamoDB",
+  "description": "Items in Amazon DynamoDB tables",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_Operations_Amazon_DynamoDB.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsDynamoDb"
+  ],
+  "base_url": "https://dynamodb.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region",
+        "stsAccessKeyId": "access_key_id",
+        "stsSecretAccessKey": "secret_access_key",
+        "stsSessionToken": "session_token",
+        "roleArn": "role_arn",
+        "externalId": "external_id",
+        "roleSessionName": "role_session_name"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "dynamodb",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      },
+      "n8n_credential_alt": [
+        "awsAssumeRole"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "value": "item",
+      "label": "Item"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "item",
+      "operation": "upsert",
+      "title": "Create or update an item",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "DynamoDB_20120810.PutItem",
+        "Content-Type": "application/x-amz-json-1.0"
+      },
+      "body_type": "json",
+      "body": {
+        "TableName": "{{ p.tableName }}",
+        "Item": {
+          "$entries": "{{ (p.dataToSend | eq:'autoMapInputData' | then:(item | omit:p.inputsToIgnore) | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue')) | entries }}",
+          "$key": "{{ el.key }}",
+          "$value": {
+            "$merge": [
+              {
+                "$when": "{{ (el.value | json | matches:'^(true|false)$') }}",
+                "BOOL": "{{ el.value }}"
+              },
+              {
+                "$when": "{{ (el.value | json | matches:'^(true|false)$') | default:false | eq:'false' | then:(el.value | json | matches:'^-?[0-9]' | default:(p.autoParseNumbers | then:(el.value | string | matches:'^\\s*-?(\\d+\\.?\\d*|\\.\\d+)([eE][-+]?\\d+)?\\s*$'))) }}",
+                "N": "{{ el.value | string | replace:' ','' }}"
+              },
+              {
+                "$when": "{{ (el.value | json | matches:'^(true|false)$') | default:(el.value | json | matches:'^-?[0-9]' | default:(p.autoParseNumbers | then:(el.value | string | matches:'^\\s*-?(\\d+\\.?\\d*|\\.\\d+)([eE][-+]?\\d+)?\\s*$'))) | default:false | eq:'false' }}",
+                "S": "{{ el.value | json | matches:'^[\\[{]' | then:(el.value | json) | default:(el.value | string) }}"
+              }
+            ]
+          }
+        },
+        "ConditionExpression": "{{ p.additionalFields.conditionExpression }}",
+        "ExpressionAttributeValues": {
+          "$entries": "{{ p.additionalFields.eavUi.eavValues }}",
+          "$key": "{{ el.attribute | re:'^:?(.*)$' | prefix:':' }}",
+          "$value": {
+            "$merge": [
+              {
+                "$when": "{{ el.type | default:'S' | eq:'N' }}",
+                "N": "{{ el.value | string }}"
+              },
+              {
+                "$when": "{{ el.type | default:'S' | eq:'S' }}",
+                "S": "{{ el.value | string }}"
+              }
+            ]
+          }
+        },
+        "ExpressionAttributeNames": {
+          "$entries": "{{ p.additionalFields.eanUi.eanValues }}",
+          "$key": "{{ el.key | re:'^#?(.*)$' | prefix:'#' }}",
+          "$value": "{{ el.value }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataToSend",
+          "label": "Data to send",
+          "type": "select",
+          "default": "defineBelow",
+          "options": [
+            "autoMapInputData",
+            "defineBelow"
+          ]
+        },
+        {
+          "key": "autoParseNumbers",
+          "label": "Parse numbers",
+          "type": "boolean",
+          "default": true,
+          "help": "Send number-looking text as a Number (N)"
+        },
+        {
+          "key": "inputsToIgnore",
+          "label": "Inputs to ignore",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated input fields not to send (autoMapInputData)"
+        },
+        {
+          "key": "fieldsUi",
+          "label": "Fields to send",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fieldValues"
+          ],
+          "help": "{fieldValues: [{fieldId, fieldValue}]} (defineBelow)"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionExpression",
+            "eanUi",
+            "eavUi"
+          ],
+          "help": "eavUi: {eavValues: [{attribute, type: N|S, value}]}; eanUi: {eanValues: [{key, value}]}"
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": "{{ p.dataToSend | eq:'autoMapInputData' | then:(item | omit:p.inputsToIgnore) | default:(p.fieldsUi.fieldValues | kv:'fieldId,fieldValue') }}"
+        }
+      },
+      "description": "Nested objects and lists are stored as JSON text"
+    },
+    {
+      "resource": "item",
+      "operation": "delete",
+      "title": "Delete an item",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "DynamoDB_20120810.DeleteItem",
+        "Content-Type": "application/x-amz-json-1.0"
+      },
+      "body_type": "json",
+      "body": {
+        "TableName": "{{ p.tableName }}",
+        "Key": {
+          "$entries": "{{ p.keysUi.keyValues }}",
+          "$key": "{{ el.key }}",
+          "$value": {
+            "$merge": [
+              {
+                "$when": "{{ el.type | default:'S' | eq:'B' }}",
+                "B": "{{ el.value | string }}"
+              },
+              {
+                "$when": "{{ el.type | default:'S' | eq:'N' }}",
+                "N": "{{ el.value | string }}"
+              },
+              {
+                "$when": "{{ el.type | default:'S' | eq:'S' }}",
+                "S": "{{ el.value | string }}"
+              }
+            ]
+          }
+        },
+        "ReturnValues": "{{ p.returnValues }}",
+        "ConditionExpression": "{{ p.additionalFields.conditionExpression }}",
+        "ExpressionAttributeValues": {
+          "$entries": "{{ p.additionalFields.expressionAttributeUi.expressionAttributeValues }}",
+          "$key": "{{ el.attribute | re:'^:?(.*)$' | prefix:':' }}",
+          "$value": {
+            "$merge": [
+              {
+                "$when": "{{ el.type | default:'S' | eq:'N' }}",
+                "N": "{{ el.value | string }}"
+              },
+              {
+                "$when": "{{ el.type | default:'S' | eq:'S' }}",
+                "S": "{{ el.value | string }}"
+              }
+            ]
+          }
+        },
+        "ExpressionAttributeNames": {
+          "$entries": "{{ p.additionalFields.eanUi.eanValues }}",
+          "$key": "{{ el.key | re:'^#?(.*)$' | prefix:'#' }}",
+          "$value": "{{ el.value }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnValues",
+          "label": "Return",
+          "type": "select",
+          "default": "NONE",
+          "options": [
+            "ALL_OLD",
+            "NONE"
+          ]
+        },
+        {
+          "key": "keysUi",
+          "label": "Keys",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keyValues"
+          ],
+          "help": "Primary key: {keyValues: [{key, type: B|N|S, value}]}"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditionExpression",
+            "eanUi",
+            "expressionAttributeUi"
+          ],
+          "help": "expressionAttributeUi: {expressionAttributeValues: [{attribute, type, value}]}; eanUi: {eanValues: [{key, value}]}"
+        }
+      ],
+      "output": {
+        "to": {
+          "$merge": [
+            {
+              "$when": "{{ el.Attributes | default:false | eq:'false' }}",
+              "success": true
+            },
+            {
+              "$when": "{{ el.Attributes | then:p.simple }}",
+              "$merge": {
+                "$entries": "{{ el.Attributes | entries }}",
+                "$key": "{{ el.key }}",
+                "$value": "{{ el.value.S | default:(el.value.N | numeric) | default:el.value.BOOL | default:el.value.SS | default:el.value.NS | default:el.value.M | default:el.value.L }}"
+              }
+            },
+            {
+              "$when": "{{ el.Attributes | then:(p.simple | default:false | eq:'false') }}",
+              "Attributes": "{{ el.Attributes }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "get",
+      "title": "Get an item",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "DynamoDB_20120810.GetItem",
+        "Content-Type": "application/x-amz-json-1.0"
+      },
+      "body_type": "json",
+      "body": {
+        "TableName": "{{ p.tableName }}",
+        "Key": {
+          "$entries": "{{ p.keysUi.keyValues }}",
+          "$key": "{{ el.key }}",
+          "$value": {
+            "$merge": [
+              {
+                "$when": "{{ el.type | default:'S' | eq:'B' }}",
+                "B": "{{ el.value | string }}"
+              },
+              {
+                "$when": "{{ el.type | default:'S' | eq:'N' }}",
+                "N": "{{ el.value | string }}"
+              },
+              {
+                "$when": "{{ el.type | default:'S' | eq:'S' }}",
+                "S": "{{ el.value | string }}"
+              }
+            ]
+          }
+        },
+        "Select": "{{ p.select }}",
+        "ProjectionExpression": "{{ p.additionalFields.projectionExpression }}",
+        "ConsistentRead": "{{ p.additionalFields.readType | eq:'stronglyConsistentRead' | then:true | default:(p.additionalFields.readType | then:false) }}",
+        "ExpressionAttributeNames": {
+          "$entries": "{{ p.additionalFields.eanUi.eanValues }}",
+          "$key": "{{ el.key | re:'^#?(.*)$' | prefix:'#' }}",
+          "$value": "{{ el.value }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "select",
+          "label": "Select",
+          "type": "select",
+          "default": "ALL_ATTRIBUTES",
+          "options": [
+            "ALL_ATTRIBUTES",
+            "ALL_PROJECTED_ATTRIBUTES",
+            "SPECIFIC_ATTRIBUTES"
+          ]
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Decode DynamoDB attribute values"
+        },
+        {
+          "key": "keysUi",
+          "label": "Keys",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keyValues"
+          ],
+          "help": "Primary key: {keyValues: [{key, type: B|N|S, value}]}"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "eanUi",
+            "projectionExpression",
+            "readType"
+          ],
+          "help": "readType: stronglyConsistentRead or eventuallyConsistentRead; eanUi: {eanValues: [{key, value}]}"
+        }
+      ],
+      "output": {
+        "path": "Item",
+        "to": {
+          "$entries": "{{ el | entries }}",
+          "$key": "{{ el.key }}",
+          "$value": "{{ el.value.S | default:(el.value.N | numeric) | default:el.value.BOOL | default:el.value.SS | default:el.value.NS | default:el.value.M | default:el.value.L }}"
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "item",
+      "operation": "getAll",
+      "title": "Get many items",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "DynamoDB_20120810.{{ p.scan | then:'Scan' | default:'Query' }}",
+        "Content-Type": "application/x-amz-json-1.0"
+      },
+      "body_type": "json",
+      "body": {
+        "TableName": "{{ p.tableName }}",
+        "KeyConditionExpression": "{{ p.scan | ne:'true' | then:p.keyConditionExpression }}",
+        "FilterExpression": "{{ p.options.filterExpression | default:(p.scan | then:p.filterExpression) }}",
+        "IndexName": "{{ p.options.indexName }}",
+        "ProjectionExpression": "{{ p.select | ne:'COUNT' | then:p.options.projectionExpression }}",
+        "Select": "{{ p.select }}",
+        "Limit": "{{ p.select | eq:'COUNT' | then:(p.returnAll | ne:'true' | then:p.limit) }}",
+        "ExpressionAttributeValues": {
+          "$entries": "{{ p.eavUi.eavValues }}",
+          "$key": "{{ el.attribute | re:'^:?(.*)$' | prefix:':' }}",
+          "$value": {
+            "$merge": [
+              {
+                "$when": "{{ el.type | default:'S' | eq:'N' }}",
+                "N": "{{ el.value | string }}"
+              },
+              {
+                "$when": "{{ el.type | default:'S' | eq:'S' }}",
+                "S": "{{ el.value | string }}"
+              }
+            ]
+          }
+        },
+        "ExpressionAttributeNames": {
+          "$entries": "{{ p.options.eanUi.eanValues }}",
+          "$key": "{{ el.key | re:'^#?(.*)$' | prefix:'#' }}",
+          "$value": "{{ el.value }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "tableName",
+          "label": "Table",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "scan",
+          "label": "Scan",
+          "type": "boolean",
+          "default": false,
+          "help": "Scan the whole table instead of querying a key"
+        },
+        {
+          "key": "filterExpression",
+          "label": "Filter expression",
+          "type": "text",
+          "default": "",
+          "help": "Scan only"
+        },
+        {
+          "key": "keyConditionExpression",
+          "label": "Key condition expression",
+          "type": "text",
+          "default": "",
+          "placeholder": "id = :id",
+          "help": "Query only; required for a query"
+        },
+        {
+          "key": "eavUi",
+          "label": "Expression attribute values",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "eavValues"
+          ],
+          "help": "{eavValues: [{attribute, type: N|S, value}]}"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "select",
+          "label": "Select",
+          "type": "select",
+          "default": "ALL_ATTRIBUTES",
+          "options": [
+            "ALL_ATTRIBUTES",
+            "ALL_PROJECTED_ATTRIBUTES",
+            "COUNT",
+            "SPECIFIC_ATTRIBUTES"
+          ]
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "eanUi",
+            "filterExpression",
+            "indexName",
+            "projectionExpression"
+          ],
+          "help": "eanUi: {eanValues: [{key, value}]}"
+        }
+      ],
+      "output": {
+        "path": "{{ p.select | ne:'COUNT' | then:'Items' }}",
+        "to": {
+          "$entries": "{{ el | entries }}",
+          "$key": "{{ el.key }}",
+          "$value": "{{ el.value.S | default:(el.value.N | numeric) | default:el.value.BOOL | default:el.value.SS | default:el.value.NS | default:el.value.M | default:el.value.L }}"
+        },
+        "to_when": "{{ p.select | ne:'COUNT' | then:p.simple }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "ExclusiveStartKey",
+        "cursor_path": "LastEvaluatedKey",
+        "limit_param": "Limit",
+        "page_size": 100,
+        "param_in": "body",
+        "when": "{{ p.select | ne:'COUNT' }}"
+      }
+    }
+  ]
+}

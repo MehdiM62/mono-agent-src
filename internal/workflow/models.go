@@ -29,6 +29,58 @@ type NodeInput struct {
 	ExecutionID string
 	NodeID      string
 	NodeName    string
+	// ItemKeys, when set, holds the idempotency key of each item in Items
+	// (see ItemKey). Nil means the keys follow the items' positions.
+	ItemKeys []string
+	// Location is the workflow's timezone (settings.timezone), for the
+	// $now/$today of expressions a node evaluates itself. Nil means UTC.
+	Location *time.Location
+	// Trigger, Vars, RunIndex and PrevNode are $trigger, $vars, $runIndex
+	// and $prevNode for the expressions a node evaluates itself.
+	Trigger  map[string]interface{}
+	Vars     map[string]interface{}
+	RunIndex int
+	PrevNode string
+	// SubNodes are the AI sub-nodes attached to this node through "ai_…"
+	// connections, with their config resolved for this run. They never run
+	// as steps: the node uses them (a model, a memory, an output parser …).
+	SubNodes []SubNode
+}
+
+// SubNode is one AI sub-node attached to a root node.
+type SubNode struct {
+	ID, Name, Type string
+	Kind           string // the connection handle, e.g. "ai_languageModel"
+	Config         map[string]interface{}
+	SubNodes       []SubNode // the sub-node's own sub-nodes
+}
+
+// SubNodesOf returns the attached sub-nodes of one kind.
+func (in NodeInput) SubNodesOf(kind string) []SubNode {
+	var out []SubNode
+	for _, s := range in.SubNodes {
+		if s.Kind == kind {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// ItemContext is the expression context for a node evaluating its own
+// expressions against one item: the same variables the engine resolves
+// config templates with.
+func (in NodeInput) ItemContext(json map[string]interface{}) ExpressionContext {
+	return ExpressionContext{
+		JSON:        json,
+		Node:        in.NodeOutputs,
+		WorkflowID:  in.WorkflowID,
+		ExecutionID: in.ExecutionID,
+		Trigger:     in.Trigger,
+		Vars:        in.Vars,
+		RunIndex:    in.RunIndex,
+		PrevNode:    in.PrevNode,
+		Location:    in.Location,
+	}
 }
 
 // NodeOutput is returned by NodeExecutor.Execute.
@@ -85,6 +137,14 @@ type Workflow struct {
 	// Populated by LoadWorkflow — not stored directly
 	Nodes       []WorkflowNode       `json:"nodes,omitempty"`
 	Connections []WorkflowConnection `json:"connections,omitempty"`
+
+	// Settings holds workflow-level options, e.g. "error_workflow" (the id
+	// of the workflow to run when this one fails), "parallel_branches",
+	// "variables" ($vars), "executionTimeout" (seconds of active running
+	// time; see ExecutionTimeoutSetting), "per_item_execution"
+	// (PerItemExecutionSetting), "disabled_nodes" (DisabledNodesSetting)
+	// and "timezone" (TimezoneSetting).
+	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
 // WorkflowNode is one node in the workflow graph.
@@ -150,11 +210,12 @@ type WorkflowExecution struct {
 	// every scheduled/triggered execution unreachable by GetExecutionDetail
 	// (profile-scoped lookup) for any profile other than 'default'.
 	ProfileID   string `json:"profile_id" db:"profile_id"`
-	Status      string `json:"status" db:"status"` // QUEUED, RUNNING, SUCCESS, FAILED, CANCELLED
+	Status      string `json:"status" db:"status"` // QUEUED, RUNNING, WAITING, SUCCESS, SUCCESS_WITH_ERRORS, FAILED, REJECTED, CANCELLED
 	TriggerType string `json:"trigger_type" db:"trigger_type"`
-	// TriggerNodeID is the trigger node that fired this run (in-memory only; not
-	// persisted). Empty means every trigger node fires (manual/retry runs).
-	TriggerNodeID  string                 `json:"-" db:"-"`
+	// TriggerNodeID is the trigger node that fired this run, persisted so an
+	// adopted, resumed or retried run still fires only that node's branch.
+	// Empty means every trigger node fires (manual runs).
+	TriggerNodeID  string                 `json:"trigger_node_id,omitempty" db:"trigger_node_id"`
 	TriggerData    map[string]interface{} `json:"trigger_data" db:"-"`
 	TriggerDataRaw string                 `json:"-" db:"trigger_data"`
 	StartedAt      *time.Time             `json:"started_at" db:"started_at"`
@@ -166,6 +227,8 @@ type WorkflowExecution struct {
 	// execution — enough for RunExecution to skip already-completed nodes and
 	// continue from the pause point on resume. Empty for normal runs.
 	ResumeState string `json:"-" db:"resume_state"`
+	// ErrorClass is the class of the run's first failure (see ErrorClass).
+	ErrorClass string `json:"error_class,omitempty" db:"error_class"`
 	// Populated on load
 	Nodes []WorkflowExecutionNode `json:"nodes,omitempty"`
 }
@@ -204,6 +267,10 @@ type WorkflowExecutionNode struct {
 	StartedAt    *time.Time `json:"started_at" db:"started_at"`
 	FinishedAt   *time.Time `json:"finished_at" db:"finished_at"`
 	RetryCount   int        `json:"retry_count" db:"retry_count"`
+
+	// ErrorClass and ErrorHint classify a FAILED node (see ErrorClass).
+	ErrorClass string `json:"error_class,omitempty" db:"error_class"`
+	ErrorHint  string `json:"error_hint,omitempty" db:"error_hint"`
 }
 
 // ParseItems unmarshals InputRaw and OutputRaw JSON into InputItems and OutputItems.
@@ -271,6 +338,15 @@ type ExpressionContext struct {
 	WorkflowID  string
 	ExecutionID string
 	Env         map[string]string // env var access
+
+	// Optional — callers may leave these unset.
+	Trigger  map[string]interface{} // $trigger: the execution's trigger data
+	Vars     map[string]interface{} // $vars: workflow variables (never secrets)
+	RunIndex int                    // $runIndex: loop iteration, 0 outside a loop
+	PrevNode string                 // $prevNode: name of the node that fed this one
+	Location *time.Location         // zone of $now/$today; nil means UTC
+
+	base *exprBase // cached derived data; see Prepared
 }
 
 // ValidateConnectionsAgainstNodes checks that every connection's source and

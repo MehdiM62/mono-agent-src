@@ -16,16 +16,16 @@
 
 ## What is Mono Agent?
 
-**Mono Agent** is an automation platform that runs on your machine for humans **and** AI agents:
+**Mono Agent** is an automation platform that runs on your machine for humans **and** AI agents. **No AI credits:** AI steps run on the agent CLI you already pay for (Claude Code, Codex, OpenCode, Copilot and others), with that CLI's own login and plan.
 
 > **Project status:** pre-1.0, single maintainer. Core workflow engine and node set are exercised by CI (`go test ./...`), but expect breaking changes between minor versions until 1.0.
 
-- 🔁 **DAG workflow engine** — 167 built-in node types, social platform actions included: services (GitHub, Google Sheets / Gmail / Drive, Stripe, Salesforce, HubSpot, Jira, Linear, Notion, Airtable), databases, HTTP, data transforms, and comms (Gmail, Outlook, Slack, Telegram, Discord, and more)
+- 🔁 **DAG workflow engine** — 104 built-in node types (default build, 2026-10-13), plus the web automations you add from the monoes.me library: services (GitHub, Google Sheets / Gmail / Drive, Stripe, Salesforce, HubSpot, Jira, Linear, Notion, Airtable), databases, HTTP, data transforms, and comms (Gmail, Outlook, Slack, Telegram, Discord, and more)
 - 📦 **Single static Go binary** — zero CGO, SQLite embedded, no Docker, no Node.js runtime, no analytics or usage counters (AI steps hand off to the separate monomind runner — see [How AI works](#how-ai-works-in-mono-agent)). Workflow state stays on your machine (crash reports default to local files — see [SECURITY.md](SECURITY.md))
 - 🖥️ **Three ways to drive it** — a visual canvas editor (Wails desktop GUI), a 180+-command CLI with JSON output everywhere, and a built-in MCP server so AI agents can operate it safely
 - 🤝 **Human-in-the-loop as a platform primitive** — pause any workflow for review, edit the payload, then approve or reject; the queue is durable and survives restarts
 - 🌐 **Browser automation where no practical API exists** — drive *your own logged-in Chrome* via the bundled extension bridge, publishing to and reading your own accounts (same model as consumer RPA tools)
-- 📣 **Social platform nodes** (Instagram, LinkedIn, X, TikTok, Hacker News, Product Hunt) for managing your own accounts: their web automations are official packages on [monoes.me](https://monoes.me), added with `monoagentcli account login` (`library login` is the same sign-in) and `monoagentcli library install automation <id>` (a `-tags nosocial` build leaves the nodes out) — see [Usage Policy](docs/USAGE_POLICY.md)
+- 📣 **Social platform nodes** (Instagram, LinkedIn, X, TikTok, Hacker News, Product Hunt) for managing your own accounts: their web automations are official packages on [monoes.me](https://monoes.me), added with `monoagentcli account login` (`library login` is the same sign-in) and `monoagentcli library install automation <id>` (a `-tags nosocial` build leaves the nodes out) — see [Usage Policy](https://github.com/monoes/mono-agent/blob/HEAD/docs/USAGE_POLICY.md)
 - 📚 **monoes.me library** — browsing needs your monoes.me sign-in (`monoagentcli account login`; `library login` is the same sign-in), official items included; then browse, install and publish workflows, orgs and web automations (`library list | install | publish | update`); the desktop app has the same in its Templates, Browser Automations and Orgs pages
 
 Think of it as an honest, self-hosted n8n you can carry in a single file — with human approval gates and first-class agent access built in.
@@ -37,7 +37,7 @@ Think of it as an honest, self-hosted n8n you can carry in a single file — wit
 > - **Own accounts only** — actions run against sessions and credentials you personally control
 > - **Approval gates** — drop a `core.human_in_loop` node before any sensitive step so a human reviews (and can edit) what goes out
 > - **Platform terms apply** — automating your own account may still be subject to the platform's Terms of Service; that's between you and the platform
-> - **Read the full policy** — [docs/USAGE_POLICY.md](docs/USAGE_POLICY.md)
+> - **Read the full policy** — [docs/USAGE_POLICY.md](https://github.com/monoes/mono-agent/blob/HEAD/docs/USAGE_POLICY.md)
 >
 > Mono Agent is an independent, unofficial project, licensed under the Monoes Proprietary Software License. It is not affiliated with, endorsed by, or connected to any of the platforms it can talk to.
 
@@ -54,12 +54,14 @@ Think of it as an honest, self-hosted n8n you can carry in a single file — wit
 ```bash
 # Install the CLI (macOS, Linux; Windows: download the .exe from the releases page)
 curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/HEAD/install.sh | bash
+# ...and the desktop app too (Linux amd64, macOS arm64):
+curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/HEAD/install.sh | bash -s -- --app
 
 # Orientation
 monoagentcli version
 monoagentcli account login             # sign in to monoes.me (required, see above)
 monoagentcli ref                       # built-in offline docs: commands, nodes, expressions
-monoagentcli node list                 # all 167 node types
+monoagentcli node list                 # every node type this binary has
 
 # Try the flagship example workflow (prints the new workflow id)
 monoagentcli workflow templates list
@@ -72,7 +74,7 @@ monoagentcli workflow run <id>                   # run it now
 monoagentcli daemon
 ```
 
-`install.sh` installs the latest release from its release manifest (macOS arm64/amd64, Linux amd64/arm64; SHA256-verified, and signature-verified once a release signing key is published). You can also grab a CLI / desktop build from [releases](https://github.com/monoes/mono-agent/releases/latest). There's also [Docker](Dockerfile). This repository publishes releases only; the source is not public, so there is nothing to clone.
+`install.sh` installs the latest release (macOS arm64/amd64, Linux amd64/arm64). It reads the release's `manifest.json` from the latest GitHub release of monoes/mono-agent (monoes.me second), verifies the manifest's Ed25519 signature against the release key pinned in the script (key id `3b3e972f459a3151`; this needs an `openssl` with Ed25519, otherwise it says the install is checksum-only), and checks each download's SHA256 against the manifest. Without `INSTALL_DIR` it installs into `/usr/local/bin` when you can write there without sudo, else into `~/.local/bin`, and prints the line to add to your shell if that folder is not on your `PATH`; it never asks for sudo unless you chose an `INSTALL_DIR` that needs it. `--app` also installs the desktop app. You can also grab a CLI / desktop build from [releases](https://github.com/monoes/mono-agent/releases/latest). There's also [Docker](Dockerfile). This repository publishes releases only; the source is not public, so there is nothing to clone.
 
 ### Flagship example — "Morning Briefing"
 
@@ -287,7 +289,7 @@ Some features are not agent turns. [TypeSafe Jev](AGENTS.md#typesafe-jev-decisio
 
 ## Node Library
 
-> 167 built-in node types in the default build, social platform actions (below) included — 107 in a `-tags nosocial` build. `monoagentcli node list` prints the exact set your binary has.
+> 104 built-in node types in the default build (counted with `node list --json` on 2026-10-13). The social platform actions (below) come from web automation packages on the monoes.me library and add their node types once installed. `monoagentcli node list` prints the exact set your binary has.
 
 <details>
 <summary><strong>⚙️ Core Control (15 nodes)</strong></summary>
@@ -421,7 +423,7 @@ Some features are not agent turns. [TypeSafe Jev](AGENTS.md#typesafe-jev-decisio
 <details>
 <summary><strong>📱 Social platform actions</strong></summary>
 
-Publish to and read **your own accounts** on these platforms via the Chrome extension bridge. They are part of the default binary and every release (a `go build -tags nosocial` build leaves them out). They exist for managing your own presence; platform terms apply — see the [Usage Policy](docs/USAGE_POLICY.md).
+Publish to and read **your own accounts** on these platforms via the Chrome extension bridge. Their node types arrive with the platform's web automation package from the monoes.me library (`monoagentcli library install automation <id>`); a `go build -tags nosocial` build leaves them out. They exist for managing your own presence; platform terms apply — see the [Usage Policy](https://github.com/monoes/mono-agent/blob/HEAD/docs/USAGE_POLICY.md).
 
 | Platform | Available actions |
 |----------|-------------------|
@@ -576,24 +578,25 @@ Workflow triggers (`trigger.schedule`, `trigger.webhook`) only fire while a proc
 
 ## Chrome Extension
 
-`chrome-extension/` lets workflow nodes drive **your real, already-logged-in Chrome browser** — the same model as consumer RPA tools. No separate automation profile, no re-authenticating for sites (like Google) that invalidate sessions ported into a scripted browser.
+The MonoAgent Bridge browser extension lets workflow nodes drive **your real, already-logged-in Chrome browser** — the same model as consumer RPA tools. No separate automation profile, no re-authenticating for sites (like Google) that invalidate sessions ported into a scripted browser.
 
 - **Loopback by default** — the bridge server binds loopback, and the extension refuses non-loopback servers. A per-session "Allow non-loopback server (unsafe)" checkbox in the side panel overrides this for one save; it is never persisted
-- **Paired channel** — the bridge requires a shared secret (`~/.monoagent/extension.token`) as the first frame on every connection; run `monoagentcli extension pair` and paste the printed token into the extension side panel once. An unpaired connection is rejected and can never replace an already-paired one. Run `monoagentcli extension reset` to revoke and re-pair
-- **Per-site host permissions** — the extension requests site access on demand (via the side panel's "Authorize a site" field) rather than holding `<all_urls>` by default; grant only the sites your workflows actually target, and revoke from the same side panel
+- **Paired channel** — the bridge requires a shared secret (`~/.monoagent/extension.token`) as the first frame on every connection; run `monoagentcli extension pair --open` once (or paste the token `extension pair` prints into the side panel). An unpaired connection is rejected and can never replace an already-paired one. Run `monoagentcli extension reset` to revoke and re-pair
+- **Access to every site** — the extension asks for access to all sites (`<all_urls>`) when you install it, plus `debugger`, `cookies`, `tabs` and `scripting`: it has to read and act on whatever page a workflow or a capture targets, in your own signed-in browser. Its scripts load on every page so it can show your saved highlights there and act when asked; it sends page content only to the bridge on this machine (loopback, paired), and only for a capture, highlight, task or automation you start
 - **Shared connection** — multiple CLI processes share the bridge instead of fighting over the browser
-- **One browser per profile** — every browser profile with the extension connects on its own; bind each to a monoagent profile and that profile's automations run there, in parallel with the others. See [docs/BROWSER_PROFILES.md](docs/BROWSER_PROFILES.md)
+- **One browser per profile** — every browser profile with the extension connects on its own; bind each to a monoagent profile and that profile's automations run there, in parallel with the others. `monoagentcli extension browsers` lists them and `extension bind <browser> <profile>` binds one (the desktop app: **Settings → Browsers**)
 - **Tasks from the browser** — right-click selected text or a page and choose MonoAgent, *Add selection as task* or *Add page as task*; type one under *Add a task* in the side panel; or press the *add-task* shortcut (Ctrl+Shift+K, Cmd+Shift+K on a Mac; change it at `chrome://extensions/shortcuts`), which opens the side panel's task box and adds the selection if there is one. Each task lands in the Inbox of the profile the side panel is *Saving into* (with no profile chosen, the extension asks for one first), and an AI agent sees it only after you approve it. While MonoAgent is not running, tasks wait in the extension and sync later; a MonoAgent too old to take them keeps them waiting and says it needs updating; a task MonoAgent refuses (its profile was deleted, say) is listed under *Add a task* with its text, to copy. The extension files into MonoAgent's default database (`~/.monoagent/monoagent.db`), as its profile picker does. It is installed unpacked: after updating MonoAgent, reload the extension from `chrome://extensions` to get these.
 
-See [`docs/security/threat-model.md`](docs/security/threat-model.md) for the full trust-boundary breakdown.
+[SECURITY.md](SECURITY.md) covers what the app and the extension contact.
 
 Install (unpacked, not on the Web Store):
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked** and select the `chrome-extension/` folder (or the zip from the [latest release](https://github.com/monoes/mono-agent/releases/latest))
+1. Run `monoagentcli extension install`. It downloads the extension that matches your CLI version, checks it against the release's `SHA256SUMS.txt`, and unpacks it into `~/.monoagent/extension`
+2. Open `chrome://extensions` (Edge: `edge://extensions`) and enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** and choose `~/.monoagent/extension`
+4. Pair it: run `monoagentcli extension pair --open`. It opens a one-time pairing page in your browser and the extension pairs itself. (Or run `monoagentcli extension pair` and paste the token it prints into the side panel.)
 
-No configuration needed. Run any browser node and look for `Chrome extension connected -- using your browser` in the output. After pulling changes that touch `chrome-extension/`, reload it from `chrome://extensions`.
+Run any browser node and look for `Chrome extension connected -- using your browser` in the output. After updating MonoAgent, run `monoagentcli extension install` again and click **Reload** on the extension in `chrome://extensions`.
 
 ---
 
@@ -616,7 +619,7 @@ go build -o monoagentcli ./cmd/monoagentcli
 go build -tags nosocial -o monoagentcli ./cmd/monoagentcli   # without the social platform nodes
 ```
 
-About the prebuilt install: [install.sh](install.sh) (macOS arm64/amd64, Linux amd64/arm64; reads the release manifest, verifies its SHA256, and verifies the manifest signature when a signing key is configured; `MONOAGENT_MANIFEST_URL` points it at a mirror, `scripts/install-test.sh` tests it), or download from [releases](https://github.com/monoes/mono-agent/releases/latest) — CLI binaries for macOS, Linux (amd64/arm64), and Windows, plus desktop-app builds for macOS (arm64), Linux (amd64), and Windows.
+About the prebuilt install: [install.sh](install.sh) (macOS arm64/amd64, Linux amd64/arm64; reads the signed release manifest from the latest GitHub release, verifies its Ed25519 signature against the pinned release key and each download's SHA256; installs into `~/.local/bin` unless `/usr/local/bin` is writable without sudo; `--app` adds the desktop app; `MONOAGENT_MANIFEST_URL` points it at a mirror, `scripts/install-test.sh` tests it), or download from [releases](https://github.com/monoes/mono-agent/releases/latest) — CLI binaries for macOS, Linux (amd64/arm64), and Windows, plus desktop-app builds for macOS (arm64), Linux (amd64), and Windows.
 
 ### Desktop GUI
 
@@ -697,7 +700,7 @@ there instead of the vault. To remove Mono Agent completely:
 
 ```bash
 monoagentcli account logout          # revoke a machine sign-in, if present
-rm /usr/local/bin/monoagentcli        # or wherever you installed it
+rm ~/.local/bin/monoagentcli         # or /usr/local/bin/monoagentcli, wherever install.sh put it
 rm -rf ~/.monoagent                   # workflows, vault, sessions, crash reports, the sign-in
 ```
 
@@ -772,8 +775,8 @@ mono-agent/
 | Resource | What's inside |
 |----------|---------------|
 | [AGENTS.md](AGENTS.md) | Canonical entrypoint for AI agents: `ref`, `--json`, MCP, exit codes |
-| [docs/USAGE_POLICY.md](docs/USAGE_POLICY.md) | Scope of use, platform ToS, rate caps, anti-spam commitments |
-| [docs/COMPARISON.md](docs/COMPARISON.md) | Honest comparison vs n8n, Activepieces, Windmill, Node-RED |
+| [docs/USAGE_POLICY.md](https://github.com/monoes/mono-agent/blob/HEAD/docs/USAGE_POLICY.md) | Scope of use, platform ToS, rate caps, anti-spam commitments |
+| [docs/COMPARISON.md](https://github.com/monoes/mono-agent/blob/HEAD/docs/COMPARISON.md) | Honest comparison vs n8n, Activepieces, Windmill, Node-RED |
 | [docs/planning/FEATURE_n8n.md](docs/planning/FEATURE_n8n.md) | detailed n8n feature map used as our porting reference |
 | [examples/](examples/) | Ready-to-run workflow JSONs with webhook trigger examples |
 | [install.sh](install.sh) | One-line installer (macOS / Linux) |
@@ -812,19 +815,21 @@ mono-agent/
 - [x] Encrypted Secrets Vault — OS keyring + AES-256-GCM + portable encrypted export
 - [x] MCP server — AI agents can list, run, and validate workflows
 - [x] Bluesky/Mastodon publishing nodes (`comm.bluesky`, `comm.mastodon`) — official APIs (ATProto/ActivityPub)
+- [x] [monoes.me library](https://monoes.me/library) — browse, install and publish workflows, orgs and web automations (`monoagentcli library`)
 
 **Coming next**
 - [ ] More trigger types — email, file watcher, database change
 - [ ] Workflow versioning and rollback
 - [ ] Sub-workflow / reusable workflow node
 - [ ] Visual debugger — step-through execution in GUI
-- [ ] Marketplace — shareable workflow templates ([curation policy](docs/plans/workflow-marketplace-curation-policy.md) written; distribution plumbing not yet built)
 - [ ] MCP registry listing + agent tool marketplace
 - [ ] Metrics dashboard — success rates, throughput, latency per profile
 
 ---
 
 ## Community
+
+Want it built for you? [Monoes Workforce](https://monoes.me/workforce) sets up and runs automations for you.
 
 Questions, ideas, and "is this the right tool for X" go to [GitHub Discussions](https://github.com/monoes/mono-agent/discussions) — the issue tracker is kept for bugs and well-scoped feature requests. See [SUPPORT.md](SUPPORT.md) for the full breakdown, and [SECURITY.md](SECURITY.md) for reporting vulnerabilities (never in a public issue or Discussion).
 

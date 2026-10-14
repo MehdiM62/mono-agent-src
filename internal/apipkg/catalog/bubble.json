@@ -1,0 +1,247 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "bubble",
+  "node_type": "app.bubble",
+  "title": "Bubble",
+  "description": "Objects in a Bubble app's Data API",
+  "category": "app",
+  "docs_url": "https://manual.bubble.io/core-resources/api/the-bubble-api/the-data-api",
+  "n8n_types": [
+    "n8n-nodes-base.bubble"
+  ],
+  "base_url": "{{ cred.hosting | eq:'selfHosted' | then:cred.domain }}{{ cred.hosting | ne:'selfHosted' | then:cred.app_name | prefix:'https://' | suffix:'.bubbleapps.io' }}{{ cred.environment | eq:'development' | then:'/version-test' }}/api/1.1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "bubble",
+      "name": "Bubble",
+      "n8n_credential": "bubbleApi",
+      "n8n_field_map": {
+        "apiToken": "access_token",
+        "appName": "app_name",
+        "environment": "environment",
+        "hosting": "hosting",
+        "domain": "domain"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true,
+          "help": "Bubble editor: Settings → API → API tokens"
+        },
+        {
+          "key": "app_name",
+          "label": "App name",
+          "help": "The app's name as in <name>.bubbleapps.io (Bubble-hosted apps)"
+        },
+        {
+          "key": "environment",
+          "label": "Environment",
+          "help": "live (default) or development (uses /version-test)"
+        },
+        {
+          "key": "hosting",
+          "label": "Hosting",
+          "help": "bubbleHosted (default) or selfHosted"
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "help": "Self-hosted only: full root URL such as https://app.example.com"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "object",
+      "label": "Object"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "object",
+      "operation": "get",
+      "title": "Get an object",
+      "method": "GET",
+      "path": "/obj/{{ p.typeName | lower }}/{{ p.objectId }}",
+      "output": {
+        "path": "response"
+      },
+      "fields": [
+        {
+          "key": "typeName",
+          "label": "Type name",
+          "type": "text",
+          "required": true,
+          "help": "Data type name; it is lower-cased for the URL (write it without spaces)."
+        },
+        {
+          "key": "objectId",
+          "label": "Object ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "object",
+      "operation": "create",
+      "title": "Create an object",
+      "method": "POST",
+      "path": "/obj/{{ p.typeName | lower }}",
+      "body": {
+        "$merge": "{{ p.properties | kv:'key,value' }}"
+      },
+      "fields": [
+        {
+          "key": "typeName",
+          "label": "Type name",
+          "type": "text",
+          "required": true,
+          "help": "Data type name; it is lower-cased for the URL (write it without spaces)."
+        },
+        {
+          "key": "properties",
+          "label": "Properties",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "property"
+          ],
+          "help": "{\"property\": [{\"key\": \"name\", \"value\": \"x\"}]}"
+        }
+      ]
+    },
+    {
+      "resource": "object",
+      "operation": "delete",
+      "title": "Delete an object",
+      "method": "DELETE",
+      "path": "/obj/{{ p.typeName | lower }}/{{ p.objectId }}",
+      "fields": [
+        {
+          "key": "typeName",
+          "label": "Type name",
+          "type": "text",
+          "required": true,
+          "help": "Data type name; it is lower-cased for the URL (write it without spaces)."
+        },
+        {
+          "key": "objectId",
+          "label": "Object ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "object",
+      "operation": "getAll",
+      "title": "Get many objects",
+      "method": "GET",
+      "path": "/obj/{{ p.typeName | lower }}",
+      "query": {
+        "constraints": "{{ p.options.filters.filter | json | default:p.options.filtersJson }}",
+        "$merge": "{{ p.options.sort.sortValue }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "cursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "response.results"
+      },
+      "fields": [
+        {
+          "key": "typeName",
+          "label": "Type name",
+          "type": "text",
+          "required": true,
+          "help": "Data type name; it is lower-cased for the URL (write it without spaces)."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false,
+          "help": "Use options.filtersJson instead of options.filters."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filters",
+            "filtersJson",
+            "sort"
+          ],
+          "help": "filters: {\"filter\": [{\"key\": \"name\", \"constraint_type\": \"equals\", \"value\": \"x\"}]}; filtersJson: a JSON constraints array; sort: {\"sortValue\": {\"sort_field\": \"Created Date\", \"descending\": true, \"geo_reference\": \"\"}}"
+        }
+      ]
+    },
+    {
+      "resource": "object",
+      "operation": "update",
+      "title": "Update an object",
+      "method": "PATCH",
+      "path": "/obj/{{ p.typeName | lower }}/{{ p.objectId }}",
+      "body": {
+        "$merge": "{{ p.properties | kv:'key,value' }}"
+      },
+      "fields": [
+        {
+          "key": "typeName",
+          "label": "Type name",
+          "type": "text",
+          "required": true,
+          "help": "Data type name; it is lower-cased for the URL (write it without spaces)."
+        },
+        {
+          "key": "objectId",
+          "label": "Object ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "properties",
+          "label": "Properties",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "property"
+          ],
+          "help": "{\"property\": [{\"key\": \"name\", \"value\": \"x\"}]}"
+        }
+      ]
+    }
+  ]
+}

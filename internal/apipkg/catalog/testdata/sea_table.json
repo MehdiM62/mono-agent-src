@@ -1,0 +1,415 @@
+{
+  "row.create": {
+    "params": {
+      "tableName": "T",
+      "fieldsToSend": "defineBelow",
+      "columnsUi": {
+        "columnValues": [
+          {
+            "columnName": "Name",
+            "columnValue": "Ada"
+          }
+        ]
+      }
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {
+        "first_row": {
+          "_id": "r"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/U1/rows/",
+      "body": {
+        "table_name": "T",
+        "rows": [
+          {
+            "Name": "Ada"
+          }
+        ]
+      },
+      "headers": {
+        "Authorization": "Token AT"
+      }
+    }
+  },
+  "row.remove": {
+    "params": {
+      "tableName": "T",
+      "rowId": "r1"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api-gateway/api/v2/dtables/U1/rows/",
+      "body": {
+        "table_name": "T",
+        "row_ids": [
+          "r1"
+        ]
+      }
+    }
+  },
+  "row.get": {
+    "params": {
+      "tableName": "T",
+      "rowId": "r1"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {
+        "results": [
+          {
+            "_id": "r1",
+            "Name": "Ada"
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/U1/sql/",
+      "body": {
+        "sql": "SELECT * FROM `T` WHERE _id = 'r1'",
+        "convert_keys": true
+      },
+      "items": 1
+    }
+  },
+  "row.list": {
+    "params": {
+      "tableName": "T",
+      "viewName": "Default"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {
+        "rows": [
+          {
+            "_id": "a"
+          },
+          {
+            "_id": "b"
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api-gateway/api/v2/dtables/U1/rows/",
+      "query": {
+        "table_name": "T",
+        "view_name": "Default",
+        "limit": "1000",
+        "convert_keys": "true"
+      },
+      "items": 2
+    }
+  },
+  "row.lock": {
+    "params": {
+      "tableName": "T",
+      "rowId": "r1"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/api-gateway/api/v2/dtables/U1/lock-rows/",
+      "body": {
+        "table_name": "T",
+        "row_ids": [
+          "r1"
+        ]
+      }
+    }
+  },
+  "row.search": {
+    "params": {
+      "tableName": "T",
+      "searchColumn": "Name",
+      "searchTerm": "Ad",
+      "options": {
+        "insensitive": true
+      }
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {
+        "results": []
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/U1/sql",
+      "body": {
+        "sql": "SELECT * FROM `T` WHERE lower(`Name`) LIKE \"%ad%\"",
+        "convert_keys": true
+      }
+    }
+  },
+  "row.unlock": {
+    "params": {
+      "tableName": "T",
+      "rowId": "r1"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/api-gateway/api/v2/dtables/U1/unlock-rows/",
+      "body": {
+        "table_name": "T",
+        "row_ids": [
+          "r1"
+        ]
+      }
+    }
+  },
+  "row.update": {
+    "params": {
+      "tableName": "T",
+      "rowId": "r1",
+      "fieldsToSend": "autoMapInputData",
+      "inputsToIgnore": "skip"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/api-gateway/api/v2/dtables/U1/rows/",
+      "body": {
+        "table_name": "T",
+        "updates": [
+          {
+            "row_id": "r1",
+            "row": {
+              "Name": "Bo"
+            }
+          }
+        ]
+      }
+    },
+    "input": {
+      "Name": "Bo",
+      "skip": 1
+    }
+  },
+  "base.snapshot": {
+    "params": {},
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/U1/snapshot/",
+      "body": {
+        "dtable_name": "snapshot"
+      }
+    }
+  },
+  "base.metadata": {
+    "params": {},
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {
+        "metadata": {
+          "tables": []
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api-gateway/api/v2/dtables/U1/metadata/",
+      "items": 1
+    }
+  },
+  "base.collaborator": {
+    "params": {
+      "searchString": "ada"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {
+        "user_list": [
+          {
+            "name": "Ada"
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api-gateway/api/v2/dtables/U1/related-users/",
+      "items": 1
+    }
+  },
+  "asset.getPublicURL": {
+    "params": {
+      "assetPath": "/images/a.png"
+    },
+    "response": {
+      "download_link": "x"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2.1/dtable/app-download-link/",
+      "query": {
+        "path": "/images/a.png"
+      },
+      "headers": {
+        "Authorization": "Token test-token"
+      }
+    }
+  },
+  "link.add": {
+    "params": {
+      "tableName": "T:::t1",
+      "linkColumn": "L:::l1:::t2",
+      "linkColumnSourceId": "r1",
+      "linkColumnTargetId": "r2"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/U1/links/",
+      "body": {
+        "link_id": "l1",
+        "table_id": "t1",
+        "other_table_id": "t2",
+        "other_rows_ids_map": {
+          "r1": [
+            "r2"
+          ]
+        }
+      }
+    }
+  },
+  "link.list": {
+    "params": {
+      "tableName": "T:::t1",
+      "linkColumn": "L:::l1:::t2:::k1",
+      "rowId": "r1"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api-gateway/api/v2/dtables/U1/query-links/",
+      "body": {
+        "table_id": "t1",
+        "link_column_key": "k1",
+        "rows": [
+          {
+            "row_id": "r1",
+            "offset": 0,
+            "limit": 100
+          }
+        ]
+      }
+    }
+  },
+  "link.remove": {
+    "params": {
+      "tableName": "T:::t1",
+      "linkColumn": "L:::l1:::t2",
+      "linkColumnSourceId": "r1",
+      "linkColumnTargetId": "r2"
+    },
+    "responses": [
+      {
+        "access_token": "AT",
+        "dtable_uuid": "U1"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "DELETE",
+      "path": "/api-gateway/api/v2/dtables/U1/links/",
+      "body": {
+        "link_id": "l1",
+        "table_id": "t1",
+        "other_table_id": "t2",
+        "other_rows_ids_map": {
+          "r1": [
+            "r2"
+          ]
+        }
+      }
+    }
+  },
+  "asset.upload": {
+    "params": { "tableName": "T", "uploadColumn": "Photos:::image", "rowId": "r1" },
+    "input": { "file_name": "a.png", "data": "aGk=" },
+    "responses": [
+      { "upload_link": "https://cloud.seatable.io/seafhttp/upload-api/TOK", "parent_path": "/asset/U1", "img_relative_path": "images/2026-10", "file_relative_path": "files/2026-10" },
+      { "access_token": "AT", "dtable_uuid": "U1", "workspace_id": 7 },
+      { "Photos": ["https://cloud.seatable.io/workspace/7/asset/U1/images/2026-10/old.png"] },
+      [ { "name": "a.png", "size": 2 } ]
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/seafhttp/upload-api/TOK",
+      "query": { "ret-json": "true" },
+      "body": { "parent_dir": "/asset/U1", "replace": "0", "relative_path": "images/2026-10", "file": "file:a.png:hi" },
+      "items": 1
+    }
+  }
+}

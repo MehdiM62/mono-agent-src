@@ -1,0 +1,296 @@
+{
+  "invoice.create": {
+    "params": {
+      "organizationId": "org1",
+      "type": "ACCREC",
+      "contactId": "c1",
+      "lineItemsUi": {
+        "lineItemsValues": [
+          {
+            "description": "Work",
+            "quantity": 2,
+            "unitAmount": "50",
+            "taxType": "NONE"
+          }
+        ]
+      },
+      "additionalFields": {
+        "dueDate": "2024-02-01",
+        "status": "AUTHORISED",
+        "sendToContact": true
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "Invoices": [
+        {
+          "InvoiceID": "i1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api.xro/2.0/Invoices",
+      "body": {
+        "Type": "ACCREC",
+        "Contact": {
+          "ContactID": "c1"
+        },
+        "LineItems": [
+          {
+            "Description": "Work",
+            "Quantity": "2",
+            "UnitAmount": "50",
+            "TaxType": "NONE"
+          }
+        ],
+        "DueDate": "2024-02-01",
+        "Status": "AUTHORISED",
+        "SentToContact": true
+      },
+      "items": 1,
+      "headers": {
+        "Xero-tenant-id": "org1"
+      }
+    }
+  },
+  "invoice.get": {
+    "params": {
+      "organizationId": "org1",
+      "invoiceId": "i1"
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "Invoices": [
+        {
+          "InvoiceID": "i1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api.xro/2.0/Invoices/i1",
+      "items": 1,
+      "headers": {
+        "Xero-tenant-id": "org1"
+      }
+    }
+  },
+  "invoice.getAll": {
+    "params": {
+      "organizationId": "org1",
+      "limit": 1,
+      "options": {
+        "statuses": [
+          "DRAFT",
+          "AUTHORISED"
+        ],
+        "orderBy": "Date"
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "Invoices": [
+        {
+          "InvoiceID": "i1"
+        },
+        {
+          "InvoiceID": "i2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api.xro/2.0/Invoices",
+      "query": {
+        "statuses": "DRAFT,AUTHORISED",
+        "order": "Date DESC",
+        "page": "1"
+      },
+      "items": 1,
+      "headers": {
+        "Xero-tenant-id": "org1"
+      }
+    }
+  },
+  "invoice.update": {
+    "params": {
+      "organizationId": "org1",
+      "invoiceId": "i1",
+      "updateFields": {
+        "reference": "R1",
+        "contactId": "c2"
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "Invoices": [
+        {}
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api.xro/2.0/Invoices/i1",
+      "body": {
+        "Contact": {
+          "ContactID": "c2"
+        },
+        "Reference": "R1"
+      },
+      "headers": {
+        "Xero-tenant-id": "org1"
+      }
+    }
+  },
+  "contact.create": {
+    "params": {
+      "organizationId": "org1",
+      "name": "Acme",
+      "additionalFields": {
+        "emailAddress": "a@acme.io",
+        "phonesUi": {
+          "phonesValues": [
+            {
+              "phoneType": "MOBILE",
+              "phoneNumber": "555"
+            }
+          ]
+        },
+        "addressesUi": {
+          "addressesValues": [
+            {
+              "type": "STREET",
+              "line1": "Main 1",
+              "city": "Oslo"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "Contacts": [
+        {
+          "ContactID": "c1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api.xro/2.0/Contacts",
+      "body": {
+        "Contacts": [
+          {
+            "Name": "Acme",
+            "EmailAddress": "a@acme.io",
+            "Phones": [
+              {
+                "PhoneType": "MOBILE",
+                "PhoneNumber": "555"
+              }
+            ],
+            "Addresses": [
+              {
+                "AddressType": "STREET",
+                "AddressLine1": "Main 1",
+                "City": "Oslo"
+              }
+            ]
+          }
+        ]
+      },
+      "items": 1,
+      "headers": {
+        "Xero-tenant-id": "org1"
+      }
+    }
+  },
+  "contact.get": {
+    "params": {
+      "organizationId": "org1",
+      "contactId": "c1"
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api.xro/2.0/Contacts/c1",
+      "headers": {
+        "Xero-tenant-id": "org1"
+      }
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "organizationId": "org1",
+      "returnAll": true,
+      "options": {
+        "includeArchived": true,
+        "where": "Name==\"Acme\"",
+        "orderBy": "Name",
+        "sortOrder": "ASC"
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "Contacts": [
+        {
+          "ContactID": "c1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api.xro/2.0/Contacts",
+      "query": {
+        "includeArchived": "true",
+        "where": "Name==\"Acme\"",
+        "order": "Name ASC",
+        "page": "1"
+      },
+      "items": 1,
+      "headers": {
+        "Xero-tenant-id": "org1"
+      }
+    }
+  },
+  "contact.update": {
+    "params": {
+      "organizationId": "org1",
+      "contactId": "c1",
+      "updateFields": {
+        "name": "Acme2"
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api.xro/2.0/Contacts/c1",
+      "body": {
+        "Contacts": [
+          {
+            "Name": "Acme2"
+          }
+        ]
+      },
+      "headers": {
+        "Xero-tenant-id": "org1"
+      }
+    }
+  }
+}

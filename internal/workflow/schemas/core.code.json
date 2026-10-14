@@ -3,7 +3,7 @@
   "credential_platform": null,
   "fields": [
     {
-      "help": "Return an array of objects. Each object becomes an output item. Access input via $input.all() or $json (first item).",
+      "help": "Return an array of objects. Each object becomes an output item. Access input via $input.all() or $json (first item) and another node's output via $('Node Name').all(). A top-level return or await runs the code as an async function.",
       "key": "code",
       "label": "Code",
       "language": "javascript",
@@ -28,6 +28,13 @@
       "min": 1,
       "required": false,
       "type": "number"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the fields of the items the code returns",
+      "key": "<returned fields>",
+      "type": "any"
     }
   ]
 }

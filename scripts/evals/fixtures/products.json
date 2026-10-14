@@ -1,0 +1,6 @@
+{"items":[
+ {"name":"pen","price":3,"category":"office","qty":10},
+ {"name":"book","price":15,"category":"books","qty":2},
+ {"name":"lamp","price":42,"category":"home","qty":1},
+ {"name":"cup","price":8,"category":"home","qty":4}
+]}

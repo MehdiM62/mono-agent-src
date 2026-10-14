@@ -1,0 +1,261 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "storyblok",
+  "title": "Storyblok",
+  "description": "Read published stories (Content Delivery API) or manage stories in a space (Management API) on Storyblok",
+  "category": "app",
+  "docs_url": "https://www.storyblok.com/docs/api",
+  "n8n_types": [
+    "n8n-nodes-base.storyblok"
+  ],
+  "base_url": "https://api.storyblok.com",
+  "credentials": [
+    {
+      "platform": "storyblok_content",
+      "name": "Storyblok Content API",
+      "n8n_credential": "storyblokContentApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "Access token (public or preview)",
+          "secret": true,
+          "required": true,
+          "help": "Space settings → Access Tokens"
+        }
+      ],
+      "inject": {
+        "query": {
+          "token": "{{ cred.api_key }}"
+        }
+      }
+    },
+    {
+      "platform": "storyblok_management",
+      "name": "Storyblok Management API",
+      "n8n_credential": "storyblokManagementApi",
+      "n8n_field_map": {
+        "accessToken": "management_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "management_token",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true,
+          "help": "My account → Personal access tokens"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.management_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "story",
+      "label": "Story"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "story",
+      "operation": "get",
+      "title": "Get a story",
+      "method": "GET",
+      "base_url": "{{ p.source | eq:'managementApi' | then:'https://mapi.storyblok.com' | default:'https://api.storyblok.com' }}",
+      "path": "/v1/{{ p.source | eq:'managementApi' | then:'spaces/' | default:'cdn' }}{{ p.space }}/stories/{{ p.identifier | path }}{{ p.storyId }}",
+      "fields": [
+        {
+          "key": "source",
+          "label": "API",
+          "type": "select",
+          "options": [
+            "contentApi",
+            "managementApi"
+          ],
+          "default": "contentApi"
+        },
+        {
+          "key": "identifier",
+          "label": "Story slug, ID or UUID",
+          "type": "text",
+          "help": "Content API: the full slug, ID or UUID"
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Management API"
+        },
+        {
+          "key": "storyId",
+          "label": "Story ID",
+          "type": "text",
+          "help": "Management API"
+        }
+      ],
+      "output": {
+        "path": "story"
+      }
+    },
+    {
+      "resource": "story",
+      "operation": "getAll",
+      "title": "Get many stories",
+      "method": "GET",
+      "base_url": "{{ p.source | eq:'managementApi' | then:'https://mapi.storyblok.com' | default:'https://api.storyblok.com' }}",
+      "path": "/v1/{{ p.source | eq:'managementApi' | then:'spaces/' | default:'cdn' }}{{ p.space }}/stories",
+      "fields": [
+        {
+          "key": "source",
+          "label": "API",
+          "type": "select",
+          "options": [
+            "contentApi",
+            "managementApi"
+          ],
+          "default": "contentApi"
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Management API"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "starts_with"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "stories"
+      }
+    },
+    {
+      "resource": "story",
+      "operation": "delete",
+      "title": "Delete a story (Management API)",
+      "method": "DELETE",
+      "base_url": "https://mapi.storyblok.com",
+      "path": "/v1/spaces/{{ p.space }}/stories/{{ p.storyId }}",
+      "fields": [
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "storyId",
+          "label": "Story ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "story"
+      }
+    },
+    {
+      "resource": "story",
+      "operation": "publish",
+      "title": "Publish a story (Management API)",
+      "method": "GET",
+      "base_url": "https://mapi.storyblok.com",
+      "path": "/v1/spaces/{{ p.space }}/stories/{{ p.storyId }}/publish",
+      "fields": [
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "storyId",
+          "label": "Story ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "releaseId",
+            "language"
+          ]
+        }
+      ],
+      "query": {
+        "release_id": "{{ p.options.releaseId }}",
+        "lang": "{{ p.options.language }}"
+      },
+      "output": {
+        "path": "story"
+      }
+    },
+    {
+      "resource": "story",
+      "operation": "unpublish",
+      "title": "Unpublish a story (Management API)",
+      "method": "GET",
+      "base_url": "https://mapi.storyblok.com",
+      "path": "/v1/spaces/{{ p.space }}/stories/{{ p.storyId }}/unpublish",
+      "fields": [
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "storyId",
+          "label": "Story ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "story"
+      }
+    }
+  ]
+}

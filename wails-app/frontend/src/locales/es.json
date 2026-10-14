@@ -237,6 +237,26 @@
       "switchTo": "Cambiar a {{name}}",
       "chipTitle": "Del perfil {{name}}",
       "line": "{{active}} activos · {{running}} en curso · {{failed}} fallidos (24 h) · {{waiting}} esperándote"
+    },
+    "getStarted": {
+      "title": "Primeros pasos",
+      "progress": "{{done}} de {{total}} hechos",
+      "dismiss": "Ocultar esta lista",
+      "optional": "opcional",
+      "done": "Hecho",
+      "signIn": "Inicia sesión en monoes.me",
+      "signInWhy": "MonoAgent necesita una cuenta de monoes.me antes de ejecutar nada.",
+      "signInAction": "Iniciar sesión",
+      "firstRun": "Ejecuta tu primer flujo de trabajo",
+      "firstRunWhy": "Empieza con una plantilla y pulsa Ejecutar.",
+      "firstRunAction": "Elegir una plantilla",
+      "extension": "Conecta la extensión del navegador",
+      "extensionWhy": "Las automatizaciones web se ejecutan en tu propio navegador a través de la extensión.",
+      "extensionWhyUnpaired": "El puente está en marcha pero aún no acepta esta app. Emparéjalo con el botón.",
+      "extensionAction": "Configurar",
+      "daemon": "Mantén los flujos en marcha en segundo plano",
+      "daemonWhy": "Las programaciones y los webhooks necesitan el servicio en segundo plano.",
+      "daemonAction": "Abrir configuración"
     }
   },
   "agentSetup": {
@@ -260,7 +280,17 @@
     "language": {
       "sectionTitle": "Idioma",
       "label": "Idioma de la interfaz",
-      "hint": "Piloto: solo inglés y español — consulta docs/i18n.md"
+      "hint": "Piloto: solo inglés y español"
+    },
+    "browsers": {
+      "notPaired": "Este navegador aún no está emparejado con MonoAgent.",
+      "notPairedWhy": "Emparéjalo para que las automatizaciones puedan ejecutarse en él. La extensión se empareja sola desde una página que abre el botón.",
+      "pair": "Emparejar navegador",
+      "pairing": "Emparejando…",
+      "pairOpened": "Se abrió la página de emparejamiento en tu navegador.",
+      "pairNotOpened": "No se pudo abrir la página de emparejamiento.",
+      "pairRestart": "El puente en marcha usa un token de emparejamiento distinto al de esta app.",
+      "details": "Detalles"
     },
     "health": {
       "sectionTitle": "Estado del sistema",

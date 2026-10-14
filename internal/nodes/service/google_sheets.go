@@ -11,18 +11,31 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // GoogleSheetsNode implements the service.google_sheets node type.
+//
+// read_rows with "since_last_run" returns only the rows appended since an
+// earlier run of the node (google_sheets_cursor.go).
 type GoogleSheetsNode struct{}
 
 func (n *GoogleSheetsNode) Type() string { return "service.google_sheets" }
 
+// sheetsBaseURL is a var (not const) so tests can point it at an httptest server.
+var sheetsBaseURL = "https://sheets.googleapis.com/v4/spreadsheets"
+
 func (n *GoogleSheetsNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.google_sheets", config) {
+		return apipkg.ExecuteExtension(ctx, "service.google_sheets", input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("google_sheets: access_token is required")
+	}
+	if err := credentialScopeCheck(config, "google_sheets"); err != nil {
+		return nil, fmt.Errorf("google_sheets: %w", err)
 	}
 
 	operation := strVal(config, "operation")
@@ -83,7 +96,7 @@ func (n *GoogleSheetsNode) Execute(ctx context.Context, input workflow.NodeInput
 	}
 	useHeaderRow := boolVal(config, "use_header_row")
 
-	baseURL := "https://sheets.googleapis.com/v4/spreadsheets/" + url.PathEscape(spreadsheetID)
+	baseURL := sheetsBaseURL + "/" + url.PathEscape(spreadsheetID)
 
 	var items []workflow.Item
 
@@ -96,6 +109,11 @@ func (n *GoogleSheetsNode) Execute(ctx context.Context, input workflow.NodeInput
 		}
 		values, _ := data["values"].([]interface{})
 		items = sheetsValuesToItems(values, useHeaderRow)
+		if boolVal(config, "since_last_run") {
+			if items, err = sheetsRowsSinceLastRun(ctx, input, spreadsheetID, rangeStr, len(values), items, workflow.PollBaseline(config)); err != nil {
+				return nil, fmt.Errorf("google_sheets read_rows: since_last_run: %w", err)
+			}
+		}
 
 	case "append_rows":
 		values := sheetsExtractValues(config)
@@ -174,7 +192,7 @@ func sheetsCreateSpreadsheet(ctx context.Context, accessToken, title string) (ma
 			"title": title,
 		},
 	}
-	return sheetsRequest(ctx, "POST", "https://sheets.googleapis.com/v4/spreadsheets", accessToken, body)
+	return sheetsRequest(ctx, "POST", sheetsBaseURL, accessToken, body)
 }
 
 // sheetsItemsToRows converts workflow Items to a [][]interface{} suitable for the Sheets API.

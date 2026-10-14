@@ -1,0 +1,364 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "okta",
+  "title": "Okta",
+  "description": "Users in an Okta organization",
+  "category": "app",
+  "docs_url": "https://developer.okta.com/docs/api/openapi/okta-management/management/tag/User/",
+  "n8n_types": [
+    "n8n-nodes-base.okta"
+  ],
+  "base_url": "{{ cred.url }}",
+  "credentials": [
+    {
+      "platform": "okta",
+      "name": "Okta",
+      "n8n_credential": "oktaApi",
+      "n8n_field_map": {
+        "url": "url",
+        "accessToken": "api_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Okta domain URL",
+          "required": true,
+          "help": "e.g. https://dev-123456.okta.com"
+        },
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "SSWS {{ cred.api_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/api/v1/users",
+      "fields": [
+        {
+          "key": "searchQuery",
+          "label": "Search query",
+          "type": "text",
+          "default": "",
+          "placeholder": "profile.lastName sw \"Smi\""
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1,
+          "max": 200
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "query": {
+        "search": "{{ p.searchQuery }}"
+      },
+      "pagination": {
+        "type": "link_header",
+        "limit_param": "limit",
+        "page_size": 200,
+        "results_path": ""
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "status": "{{ el.status }}",
+          "created": "{{ el.created }}",
+          "activated": "{{ el.activated }}",
+          "lastLogin": "{{ el.lastLogin }}",
+          "lastUpdated": "{{ el.lastUpdated }}",
+          "passwordChanged": "{{ el.passwordChanged }}",
+          "profile": {
+            "firstName": "{{ el.profile.firstName }}",
+            "lastName": "{{ el.profile.lastName }}",
+            "login": "{{ el.profile.login }}",
+            "email": "{{ el.profile.email }}"
+          }
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/api/v1/users",
+      "fields": [
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "login",
+          "label": "Username",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "activate",
+          "label": "Activate",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "getCreateFields",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "city",
+            "costCenter",
+            "countryCode",
+            "department",
+            "displayName",
+            "division",
+            "employeeNumber",
+            "honorificPrefix",
+            "honorificSuffix",
+            "locale",
+            "manager",
+            "managerId",
+            "middleName",
+            "mobilePhone",
+            "nickName",
+            "organization",
+            "password",
+            "postalAddress",
+            "preferredLanguage",
+            "primaryPhone",
+            "profileUrl",
+            "recoveryQuestionAnswer",
+            "recoveryQuestionQuestion",
+            "secondEmail",
+            "state",
+            "streetAddress",
+            "timezone",
+            "title",
+            "userType",
+            "zipCode"
+          ]
+        }
+      ],
+      "query": {
+        "activate": "{{ p.activate }}"
+      },
+      "body": {
+        "profile": {
+          "firstName": "{{ p.firstName }}",
+          "lastName": "{{ p.lastName }}",
+          "login": "{{ p.login }}",
+          "email": "{{ p.email }}",
+          "$merge": "{{ p.getCreateFields | omit:'password,recoveryQuestionAnswer,recoveryQuestionQuestion' }}"
+        },
+        "credentials": {
+          "password": {
+            "value": "{{ p.getCreateFields.password }}"
+          },
+          "recovery_question": {
+            "question": "{{ p.getCreateFields.recoveryQuestionQuestion }}",
+            "answer": "{{ p.getCreateFields.recoveryQuestionAnswer }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/api/v1/users/{{ p.userId | rl }}",
+      "description": "The first call deactivates an active user; a second call deletes it.",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "help": "User ID or login; an n8n resource locator is accepted."
+        },
+        {
+          "key": "sendEmail",
+          "label": "Send email",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "sendEmail": "{{ p.sendEmail | eq:'true' | then:true }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/api/v1/users/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "help": "User ID or login; an n8n resource locator is accepted."
+        },
+        {
+          "key": "simplify",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "status": "{{ el.status }}",
+          "created": "{{ el.created }}",
+          "activated": "{{ el.activated }}",
+          "lastLogin": "{{ el.lastLogin }}",
+          "lastUpdated": "{{ el.lastUpdated }}",
+          "passwordChanged": "{{ el.passwordChanged }}",
+          "profile": {
+            "firstName": "{{ el.profile.firstName }}",
+            "lastName": "{{ el.profile.lastName }}",
+            "login": "{{ el.profile.login }}",
+            "email": "{{ el.profile.email }}"
+          }
+        },
+        "to_when": "{{ p.simplify }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "POST",
+      "path": "/api/v1/users/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "default": "",
+          "help": "User ID or login; an n8n resource locator is accepted."
+        },
+        {
+          "key": "getUpdateFields",
+          "label": "Fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "city",
+            "costCenter",
+            "countryCode",
+            "department",
+            "displayName",
+            "division",
+            "email",
+            "employeeNumber",
+            "firstName",
+            "honorificPrefix",
+            "honorificSuffix",
+            "lastName",
+            "locale",
+            "login",
+            "manager",
+            "managerId",
+            "middleName",
+            "mobilePhone",
+            "nickName",
+            "organization",
+            "password",
+            "postalAddress",
+            "preferredLanguage",
+            "primaryPhone",
+            "profileUrl",
+            "recoveryQuestionAnswer",
+            "recoveryQuestionQuestion",
+            "secondEmail",
+            "state",
+            "streetAddress",
+            "timezone",
+            "title",
+            "userType",
+            "zipCode"
+          ]
+        }
+      ],
+      "body": {
+        "profile": {
+          "$merge": "{{ p.getUpdateFields | omit:'password,recoveryQuestionAnswer,recoveryQuestionQuestion' }}"
+        },
+        "credentials": {
+          "password": {
+            "value": "{{ p.getUpdateFields.password }}"
+          },
+          "recovery_question": {
+            "question": "{{ p.getUpdateFields.recoveryQuestionQuestion }}",
+            "answer": "{{ p.getUpdateFields.recoveryQuestionAnswer }}"
+          }
+        }
+      }
+    }
+  ]
+}

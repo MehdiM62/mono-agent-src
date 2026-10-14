@@ -63,31 +63,48 @@ func isOutboundNode(n workflow.WorkflowNode) bool {
 var readOnlyNodes = setOf(
 	// Triggers the engine passes through without running anything.
 	"trigger.manual", "trigger.org", "trigger.schedule", "trigger.webhook",
+	"trigger.local_file",
 	// Control flow and data shaping. core.code runs goja with only $input
 	// and $json bound; core.human_in_loop waits for a person.
 	"core.aggregate", "core.code", "core.compare_datasets", "core.filter",
 	"core.human_in_loop", "core.if", "core.limit", "core.merge",
 	"core.remove_duplicates", "core.set", "core.sort", "core.split_in_batches",
-	"core.stop_error", "core.switch", "core.wait",
+	"core.stop_error", "core.switch", "core.wait", "core.noop",
+	// core.respond_webhook only answers the webhook request that started
+	// the run; in any other run (a granted call) it does nothing.
+	"core.respond_webhook",
 	"data.compression", "data.crypto", "data.datetime", "data.html",
 	"data.markdown", "data.xml",
+	// n8n-parity data shaping: pure transforms of the items (convert/
+	// extract work on item data; jwt/totp only compute).
+	"data.convert_to_file", "data.debug_helper", "data.extract_from_file",
+	"data.ical", "data.jwt", "data.rename_keys", "data.split_out",
+	"data.summarize", "data.totp", "image.edit",
+	// Text chunking and document loading (from item data or local files).
+	"vector.split_text", "vector.load_document",
 	// Image transforms write a new derived file; image.info only reads.
 	// remove_background downloads its model with a GET.
 	"image.adjust", "image.convert", "image.crop", "image.info",
 	"image.remove_background", "image.resize", "image.thumbnail",
 	"image.vault_get", "vault.secret_get",
 	// Reads over the network.
-	"comm.email_read", "comm.outlook_read", "system.rss_read",
+	"comm.email_read", "system.rss_read",
 	"ai.read_page", // static GET, SSRF-guarded, no browser
 	// AI with no tools: ai.choose is a TypeSafe Jev classification (its
 	// input goes to TypeSafe's API). The other ai.* are deprecated stubs
 	// that fail without doing anything (ai.agent is left out regardless).
 	"ai.choose",
+	// ai.guardrails: local pattern checks, plus model-judged checks whose
+	// turns only judge the text and answer with a JSON verdict.
+	"ai.guardrails",
 	"ai.chat", "ai.classify", "ai.embed", "ai.extract", "ai.transform",
 	// Bookkeeping in mono-agent's own stores: nothing leaves the machine
 	// and nothing is overwritten beyond the rows the node owns.
 	// discovery.search_jobs reads public job boards with GETs.
 	"people.save", "people.sync_outlook_message",
+	"agent.memory", // the profile's own chat-memory rows (no model turn)
+	// AI sub-nodes: config read by their root, never run as steps.
+	"ai.model", "ai.memory", "ai.output_parser",
 	"applications.create", "applications.list",
 	"applications.prepare", "applications.set_status", "applications.tag",
 	"discovery.search_jobs", "documents.render", "image.vault_save", "publication.register",
@@ -196,6 +213,11 @@ var readOnlyByConfig = map[string]func(map[string]interface{}) bool{
 	"http_request":     httpReadOnly,
 	"data.spreadsheet": spreadsheetReadOnly,
 	"spreadsheet":      spreadsheetReadOnly,
+	// comm.outlook_read / comm.outlook_send are aliases of
+	// service.outlook_mail, which runs both config shapes.
+	"comm.outlook_read":    outlookLegacyReadOnly,
+	"comm.outlook_send":    outlookLegacyReadOnly,
+	"service.outlook_mail": outlookLegacyReadOnly,
 }
 
 // httpReadOnly: GET (the node's default) and HEAD. A templated method is
@@ -205,6 +227,22 @@ var readOnlyByConfig = map[string]func(map[string]interface{}) bool{
 func httpReadOnly(cfg map[string]interface{}) bool {
 	method, _ := cfg["method"].(string)
 	return method == "" || strings.EqualFold(method, "GET") || strings.EqualFold(method, "HEAD")
+}
+
+// outlookLegacyReadOnly: only the legacy comm.outlook_read shape — no
+// operation and none of the send keys — reads (service.outlook_mail runs it
+// as an IMAP list_messages). Every config with an operation stays outbound,
+// as service.outlook_mail always was.
+func outlookLegacyReadOnly(cfg map[string]interface{}) bool {
+	if op, _ := cfg["operation"].(string); op != "" {
+		return false
+	}
+	for _, k := range []string{"to", "subject", "body"} {
+		if _, ok := cfg[k]; ok {
+			return false
+		}
+	}
+	return true
 }
 
 func spreadsheetReadOnly(cfg map[string]interface{}) bool {
@@ -222,13 +260,21 @@ var outboundNodes = setOf(
 	// node keeps the runtime from using its tools.
 	"ai.extract_page", "applications.evaluate",
 	"browser.jev", // goal-driven agent in the user's browser
+	"mcp.call",    // calls any tool of an arbitrary MCP server
+	// Runs another workflow, which may contain any outbound node.
+	"core.execute_workflow",
 	"http.ftp", "http.ssh", "system.execute_command",
+	"http.graphql",
 	"data.write_binary_file", // writes any local path
+	"data.read_write_file",   // writes any local path
 	"vault.secret_save",      // overwrites credentials
 )
 
 var outboundPrefixes = []string{
 	"comm.", "service.", "action.", "db.", "org.",
+	// API packages (app.*) call third-party APIs; queue.* publish to
+	// brokers; vector.embed/store call embedding and vector-store APIs.
+	"app.", "queue.", "vector.",
 	// Browser automations; their read actions are in readOnlyActions.
 	"gemini.", "hackernews.", "instagram.", "linkedin.", "producthunt.",
 	"tiktok.", "x.",

@@ -1,0 +1,119 @@
+{
+  "item.create": {
+    "params": {
+      "siteId": "s",
+      "collectionId": "c1",
+      "live": true,
+      "fieldsUi": {
+        "fieldValues": [
+          {
+            "fieldId": "name",
+            "fieldValue": "Hi"
+          },
+          {
+            "fieldId": "slug",
+            "fieldValue": "hi"
+          }
+        ]
+      }
+    },
+    "response": {
+      "id": "i1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/collections/c1/items/live",
+      "body": {
+        "fieldData": {
+          "name": "Hi",
+          "slug": "hi"
+        }
+      },
+      "items": 1
+    }
+  },
+  "item.deleteItem": {
+    "params": {
+      "siteId": "s",
+      "collectionId": "c1",
+      "itemId": "i1"
+    },
+    "response_status": 204,
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/collections/c1/items/i1"
+    }
+  },
+  "item.delete": {
+    "params": {
+      "siteId": "s",
+      "collectionId": "c1",
+      "itemId": "i1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v2/collections/c1/items/i1"
+    }
+  },
+  "item.get": {
+    "params": {
+      "siteId": "s",
+      "collectionId": "c1",
+      "itemId": "i1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/collections/c1/items/i1"
+    }
+  },
+  "item.getAll": {
+    "params": {
+      "siteId": "s",
+      "collectionId": "c1",
+      "limit": 2
+    },
+    "response": {
+      "items": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/collections/c1/items",
+      "query": {
+        "offset": "0",
+        "limit": "2"
+      },
+      "items": 2
+    }
+  },
+  "item.update": {
+    "params": {
+      "siteId": "s",
+      "collectionId": "c1",
+      "itemId": "i1",
+      "fieldsUi": {
+        "fieldValues": [
+          {
+            "fieldId": "name",
+            "fieldValue": "X"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/v2/collections/c1/items/i1",
+      "body": {
+        "fieldData": {
+          "name": "X"
+        }
+      }
+    }
+  }
+}

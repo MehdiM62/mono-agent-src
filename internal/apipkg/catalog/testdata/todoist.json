@@ -1,0 +1,573 @@
+{
+  "task.create": {
+    "params": {
+      "project": {
+        "__rl": true,
+        "mode": "id",
+        "value": "2203306141"
+      },
+      "content": "Buy milk",
+      "labels": [
+        "errands"
+      ],
+      "options": {
+        "description": "2 litres",
+        "dueString": "tomorrow at 5pm",
+        "priority": 4,
+        "section": "7025"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tasks",
+      "body": {
+        "content": "Buy milk",
+        "project_id": "2203306141",
+        "labels": [
+          "errands"
+        ],
+        "description": "2 litres",
+        "due_string": "tomorrow at 5pm",
+        "priority": 4,
+        "section_id": "7025"
+      },
+      "items": 1
+    },
+    "response": {
+      "id": "2995104339",
+      "content": "Buy milk"
+    }
+  },
+  "task.close": {
+    "params": {
+      "taskId": "2995104339"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tasks/2995104339/close"
+    }
+  },
+  "task.delete": {
+    "params": {
+      "taskId": "2995104339"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/tasks/2995104339"
+    }
+  },
+  "task.get": {
+    "params": {
+      "taskId": "2995104339"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tasks/2995104339"
+    }
+  },
+  "task.reopen": {
+    "params": {
+      "taskId": "2995104339"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tasks/2995104339/reopen"
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "returnAll": false,
+      "limit": 2,
+      "filters": {
+        "filter": "today | overdue"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/tasks/filter",
+      "query": {
+        "query": "today | overdue",
+        "limit": "2"
+      },
+      "items": 2
+    },
+    "response": {
+      "results": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        },
+        {
+          "id": "3"
+        }
+      ],
+      "next_cursor": null
+    }
+  },
+  "task.move": {
+    "params": {
+      "taskId": "2995104339",
+      "project": "2203306141"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tasks/2995104339/move",
+      "body": {
+        "project_id": "2203306141"
+      }
+    }
+  },
+  "task.quickAdd": {
+    "params": {
+      "text": "Call mum tomorrow at 6pm #Family",
+      "options": {
+        "note": "about the trip"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tasks/quick",
+      "body": {
+        "text": "Call mum tomorrow at 6pm #Family",
+        "note": "about the trip"
+      }
+    }
+  },
+  "task.update": {
+    "params": {
+      "taskId": "2995104339",
+      "updateFields": {
+        "content": "Buy oat milk",
+        "priority": "3",
+        "labels": [
+          "errands",
+          "shop"
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/tasks/2995104339",
+      "body": {
+        "content": "Buy oat milk",
+        "priority": 3,
+        "labels": [
+          "errands",
+          "shop"
+        ]
+      }
+    }
+  },
+  "project.create": {
+    "params": {
+      "name": "Groceries",
+      "projectOptions": {
+        "color": "berry_red",
+        "is_favorite": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/projects",
+      "body": {
+        "name": "Groceries",
+        "color": "berry_red",
+        "is_favorite": true
+      }
+    }
+  },
+  "project.archive": {
+    "params": {
+      "projectId": "2203306141"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/projects/2203306141/archive"
+    }
+  },
+  "project.delete": {
+    "params": {
+      "projectId": "2203306141"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/projects/2203306141"
+    }
+  },
+  "project.get": {
+    "params": {
+      "projectId": "2203306141"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/projects/2203306141"
+    }
+  },
+  "project.unarchive": {
+    "params": {
+      "projectId": "2203306141"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/projects/2203306141/unarchive"
+    }
+  },
+  "project.getCollaborators": {
+    "params": {
+      "projectId": "2203306141"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/projects/2203306141/collaborators",
+      "query": {
+        "limit": "200"
+      },
+      "items": 1
+    },
+    "response": {
+      "results": [
+        {
+          "id": "u1"
+        }
+      ],
+      "next_cursor": null
+    }
+  },
+  "project.getAll": {
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/projects",
+      "query": {
+        "limit": "200"
+      },
+      "items": 2
+    },
+    "response": {
+      "results": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "next_cursor": null
+    }
+  },
+  "project.update": {
+    "params": {
+      "projectId": "2203306141",
+      "projectUpdateFields": {
+        "name": "Food",
+        "view_style": "board"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/projects/2203306141",
+      "body": {
+        "name": "Food",
+        "view_style": "board"
+      }
+    }
+  },
+  "section.create": {
+    "params": {
+      "sectionProject": {
+        "__rl": true,
+        "mode": "id",
+        "value": "2203306141"
+      },
+      "sectionName": "Dairy",
+      "sectionOptions": {
+        "order": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sections",
+      "body": {
+        "project_id": "2203306141",
+        "name": "Dairy",
+        "order": 1
+      }
+    }
+  },
+  "section.delete": {
+    "params": {
+      "sectionId": "7025"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/sections/7025"
+    }
+  },
+  "section.get": {
+    "params": {
+      "sectionId": "7025"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/sections/7025"
+    }
+  },
+  "section.getAll": {
+    "params": {
+      "sectionFilters": {
+        "project_id": "2203306141"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/sections",
+      "query": {
+        "project_id": "2203306141",
+        "limit": "200"
+      }
+    }
+  },
+  "section.update": {
+    "params": {
+      "sectionId": "7025",
+      "sectionUpdateFields": {
+        "name": "Milk & cheese"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sections/7025",
+      "body": {
+        "name": "Milk & cheese"
+      }
+    }
+  },
+  "comment.create": {
+    "params": {
+      "commentTaskId": "2995104339",
+      "commentContent": "Bought it"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/comments",
+      "body": {
+        "task_id": "2995104339",
+        "content": "Bought it"
+      }
+    }
+  },
+  "comment.delete": {
+    "params": {
+      "commentId": "992"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/comments/992"
+    }
+  },
+  "comment.get": {
+    "params": {
+      "commentId": "992"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/comments/992"
+    }
+  },
+  "comment.getAll": {
+    "params": {
+      "commentFilters": {
+        "task_id": "2995104339"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/comments",
+      "query": {
+        "task_id": "2995104339",
+        "limit": "200"
+      }
+    }
+  },
+  "comment.update": {
+    "params": {
+      "commentId": "992",
+      "commentUpdateFields": {
+        "content": "Bought two"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/comments/992",
+      "body": {
+        "content": "Bought two"
+      }
+    }
+  },
+  "label.create": {
+    "params": {
+      "labelName": "errands",
+      "labelOptions": {
+        "color": "red",
+        "order": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/labels",
+      "body": {
+        "name": "errands",
+        "color": "red",
+        "order": 1
+      }
+    }
+  },
+  "label.delete": {
+    "params": {
+      "labelId": "2156154810"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/labels/2156154810"
+    }
+  },
+  "label.get": {
+    "params": {
+      "labelId": "2156154810"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/labels/2156154810"
+    }
+  },
+  "label.getAll": {
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/labels",
+      "query": {
+        "limit": "200"
+      }
+    }
+  },
+  "label.update": {
+    "params": {
+      "labelId": "2156154810",
+      "labelUpdateFields": {
+        "is_favorite": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/labels/2156154810",
+      "body": {
+        "is_favorite": true
+      }
+    }
+  },
+  "reminder.create": {
+    "params": {
+      "itemId": "123",
+      "dueDateType": "fixed_timezone",
+      "datetime": "2024-05-01T09:00:00",
+      "timezone": "Europe/Oslo",
+      "reminderOptions": {
+        "type": "absolute"
+      }
+    },
+    "response": {
+      "sync_status": {}
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_add",
+            "uuid": "<any>",
+            "temp_id": "<any>",
+            "args": {
+              "item_id": "123",
+              "due": {
+                "datetime": "2024-05-01T09:00:00",
+                "timezone": "Europe/Oslo"
+              },
+              "type": "absolute"
+            }
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "reminder.delete": {
+    "params": {
+      "reminderId": "9"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_delete",
+            "uuid": "<any>",
+            "args": {
+              "id": "9"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "reminder.getAll": {
+    "response": {
+      "reminders": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sync",
+      "body": {
+        "sync_token": "*",
+        "resource_types": [
+          "reminders"
+        ]
+      },
+      "items": 2
+    }
+  },
+  "reminder.update": {
+    "params": {
+      "reminderId": "9",
+      "reminderUpdateFields": {
+        "minute_offset": 30
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_update",
+            "uuid": "<any>",
+            "args": {
+              "id": "9",
+              "minute_offset": 30
+            }
+          }
+        ]
+      }
+    }
+  }
+}

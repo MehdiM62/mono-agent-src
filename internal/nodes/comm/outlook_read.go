@@ -9,11 +9,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // OutlookReadNode fetches emails from Outlook / Hotmail via IMAP.
-// Type: "comm.outlook_read"
+//
+// It is no longer registered as a node type of its own: service.outlook_mail
+// runs it for list_messages with app-password authentication, and the
+// legacy "comm.outlook_read" type is an alias of service.outlook_mail.
 //
 // Config fields:
 //
@@ -31,12 +35,15 @@ type OutlookReadNode struct{}
 func (n *OutlookReadNode) Type() string { return "comm.outlook_read" }
 
 func (n *OutlookReadNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.outlook_read", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.outlook_read", input, config)
+	}
 	const imapHost = "outlook.office365.com"
 	const imapPort = 993
 
 	email, _ := config["email"].(string)
 	if email == "" {
-		return nil, fmt.Errorf("comm.outlook_read: email is required")
+		return nil, fmt.Errorf("outlook_mail list_messages (app password): email is required")
 	}
 
 	password, _ := config["password"].(string)
@@ -44,7 +51,7 @@ func (n *OutlookReadNode) Execute(ctx context.Context, input workflow.NodeInput,
 		password, _ = config["app_password"].(string)
 	}
 	if password == "" {
-		return nil, fmt.Errorf("comm.outlook_read: password is required")
+		return nil, fmt.Errorf("outlook_mail list_messages (app password): password is required")
 	}
 
 	mailbox := "INBOX"
@@ -70,7 +77,7 @@ func (n *OutlookReadNode) Execute(ctx context.Context, input workflow.NodeInput,
 
 	items, err := fetchOutlookMail(ctx, imapHost, imapPort, email, password, mailbox, limit, unreadOnly)
 	if err != nil {
-		return nil, fmt.Errorf("comm.outlook_read: %w", err)
+		return nil, fmt.Errorf("outlook_mail list_messages (app password): %w", err)
 	}
 
 	out := make([]workflow.Item, len(items))

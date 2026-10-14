@@ -1,0 +1,260 @@
+{
+  "message.sendTemplate": {
+    "params": {
+      "phoneNumberId": "123",
+      "recipientPhoneNumber": "+1(555)010-0000",
+      "template": "hello|en_US",
+      "components": {
+        "component": [
+          {
+            "type": "body",
+            "bodyParameters": {
+              "parameter": [
+                {
+                  "type": "text",
+                  "text": "Ada"
+                },
+                {
+                  "type": "currency",
+                  "code": "USD",
+                  "fallback_value": "$1",
+                  "amount_1000": 1.5
+                },
+                {
+                  "type": "date_time",
+                  "date_time": "2024-01-01"
+                }
+              ]
+            }
+          },
+          {
+            "type": "button",
+            "sub_type": "url",
+            "index": 1,
+            "buttonParameters": {
+              "parameter": {
+                "type": "text",
+                "text": "x"
+              }
+            }
+          },
+          {
+            "type": "header",
+            "headerParameters": {
+              "parameter": [
+                {
+                  "type": "image",
+                  "imageLink": "https://i/x.png"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "messages": [
+        {
+          "id": "w1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v19.0/123/messages",
+      "body": {
+        "messaging_product": "whatsapp",
+        "to": "15550100000",
+        "type": "template",
+        "template": {
+          "name": "hello",
+          "language": {
+            "code": "en_US"
+          },
+          "components": [
+            {
+              "type": "body",
+              "parameters": [
+                {
+                  "type": "text",
+                  "text": "Ada"
+                },
+                {
+                  "type": "currency",
+                  "currency": {
+                    "code": "USD",
+                    "fallback_value": "$1",
+                    "amount_1000": 1500
+                  }
+                },
+                {
+                  "type": "date_time",
+                  "date_time": {
+                    "fallback_value": "2024-01-01"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "button",
+              "sub_type": "url",
+              "index": "1",
+              "parameters": [
+                {
+                  "type": "text",
+                  "text": "x"
+                }
+              ]
+            },
+            {
+              "type": "header",
+              "parameters": [
+                {
+                  "type": "image",
+                  "image": {
+                    "link": "https://i/x.png"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "items": 1
+    }
+  },
+  "message.send": {
+    "params": {
+      "phoneNumberId": "123",
+      "recipientPhoneNumber": "15550100000",
+      "messageType": "document",
+      "mediaPath": "useMedian8n",
+      "mediaPropertyName": "data",
+      "additionalFields": {
+        "mediaCaption": "cap"
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "responses": [
+      {
+        "id": "m1"
+      },
+      {
+        "messages": [
+          {
+            "id": "w1"
+          }
+        ]
+      }
+    ],
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "fileName": "a.pdf",
+          "mimeType": "application/pdf"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v19.0/123/messages",
+      "body": {
+        "messaging_product": "whatsapp",
+        "to": "15550100000",
+        "type": "document",
+        "document": {
+          "id": "m1",
+          "caption": "cap",
+          "filename": "a.pdf"
+        }
+      }
+    },
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/v19.0/123/media",
+        "body": {
+          "messaging_product": "whatsapp",
+          "file": "file:a.pdf:hello"
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/v19.0/123/messages",
+        "body": {
+          "messaging_product": "whatsapp",
+          "to": "15550100000",
+          "type": "document",
+          "document": {
+            "id": "m1",
+            "caption": "cap",
+            "filename": "a.pdf"
+          }
+        }
+      }
+    ]
+  },
+  "media.mediaUpload": {
+    "params": {
+      "phoneNumberId": "123",
+      "mediaPropertyName": "data",
+      "additionalFields": {
+        "mediaFileName": "pic.png"
+      }
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "fileName": "a.png",
+          "mimeType": "image/png"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v19.0/123/media",
+      "body": {
+        "messaging_product": "whatsapp",
+        "file": "file:pic.png:hello"
+      }
+    }
+  },
+  "media.mediaUrlGet": {
+    "params": {
+      "mediaGetId": "m1"
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "response": {
+      "url": "https://x"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v19.0/m1",
+      "items": 1
+    }
+  },
+  "media.mediaDelete": {
+    "params": {
+      "mediaDeleteId": "m1"
+    },
+    "credential": {
+      "access_token": "tok"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/v19.0/m1"
+    }
+  }
+}

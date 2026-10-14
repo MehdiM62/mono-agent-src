@@ -10,7 +10,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"testing"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/statedir"
 )
 
 const (
@@ -37,9 +40,18 @@ type Client struct {
 	Now       func() time.Time // nil: time.Now
 }
 
+// LiveReleaseTestEnv opts a test binary into the live manifest: under go test
+// DefaultClient is otherwise unkeyed, so no test reaches the real release
+// server or writes release-state.json by accident.
+const LiveReleaseTestEnv = "MONOAGENT_TEST_LIVE_RELEASE"
+
 // DefaultClient is the production client: pinned keys, monoes.me first and
-// the releases repo second.
+// the releases repo second. Under go test (unless LiveReleaseTestEnv=1) it is
+// an unkeyed client: Available is false, so the signed path never runs.
 func DefaultClient() *Client {
+	if testing.Testing() && os.Getenv(LiveReleaseTestEnv) != "1" {
+		return &Client{}
+	}
 	return &Client{
 		Keys:          PinnedKeys(),
 		StatePath:     DefaultStatePath(),
@@ -220,9 +232,7 @@ func (c *Client) checkFresh(m *Manifest) error {
 	}
 	if next != st {
 		if b, err := json.Marshal(next); err == nil {
-			if os.MkdirAll(filepath.Dir(c.StatePath), 0o755) == nil {
-				_ = os.WriteFile(c.StatePath, b, 0o644)
-			}
+			_ = statedir.WriteFile(c.StatePath, b)
 		}
 	}
 	return nil

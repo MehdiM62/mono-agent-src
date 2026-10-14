@@ -284,8 +284,8 @@ func (a *App) runProfileMove(args ...string) error {
 	suppressConsole(cmd)
 	if _, err := cmd.Output(); err != nil {
 		var ee *exec.ExitError
-		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
-			return fmt.Errorf("%s", strings.TrimSpace(string(ee.Stderr)))
+		if errors.As(err, &ee) && cliStderr(ee.Stderr) != "" {
+			return fmt.Errorf("%s", cliStderr(ee.Stderr))
 		}
 		return err
 	}

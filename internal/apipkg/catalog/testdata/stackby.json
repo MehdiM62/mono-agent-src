@@ -1,0 +1,114 @@
+{
+  "append": {
+    "params": {
+      "stackId": "s1",
+      "table": "Leads",
+      "columns": "name, email"
+    },
+    "input": {
+      "name": "Ada",
+      "email": "a@b.c",
+      "x": 1
+    },
+    "response": [
+      {
+        "id": "r1",
+        "field": {
+          "name": "Ada"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/betav1/rowcreate/s1/Leads",
+      "body": {
+        "records": [
+          {
+            "field": {
+              "name": "Ada",
+              "email": "a@b.c"
+            }
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "delete": {
+    "params": {
+      "stackId": "s1",
+      "table": "Leads",
+      "id": "r1"
+    },
+    "response": {
+      "records": [
+        {
+          "id": "r1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/betav1/rowdelete/s1/Leads",
+      "query": {
+        "rowIds": "r1"
+      },
+      "items": 1
+    }
+  },
+  "list": {
+    "params": {
+      "stackId": "s1",
+      "table": "Leads",
+      "returnAll": false,
+      "limit": 5,
+      "additionalFields": {
+        "view": "v1"
+      }
+    },
+    "response": [
+      {
+        "field": {
+          "a": 1
+        }
+      },
+      {
+        "field": {
+          "a": 2
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/betav1/rowlist/s1/Leads",
+      "query": {
+        "view": "v1",
+        "offset": "0",
+        "maxrecord": "5"
+      },
+      "items": 2
+    }
+  },
+  "read": {
+    "params": {
+      "stackId": "s1",
+      "table": "Leads",
+      "id": "r1"
+    },
+    "response": [
+      {
+        "field": {
+          "a": 1
+        }
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/betav1/rowlist/s1/Leads",
+      "query": {
+        "rowIds": "r1"
+      },
+      "items": 1
+    }
+  }
+}

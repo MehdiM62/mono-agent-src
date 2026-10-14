@@ -21,7 +21,7 @@ const validWorkflowFile = `{
   "name": "test-wf",
   "nodes": [
     {"id": "trigger", "type": "trigger.manual", "name": "Manual", "position": {"x": 0, "y": 0}, "config": {}},
-    {"id": "set", "type": "core.set", "name": "Set", "position": {"x": 1, "y": 0}, "config": {"fields": {}}}
+    {"id": "set", "type": "core.set", "name": "Set", "position": {"x": 1, "y": 0}, "config": {"assignments": [{"field": "a", "value": "1"}]}}
   ],
   "connections": [
     {"id": "c1", "source": "trigger", "source_handle": "main", "target": "set", "target_handle": "main"}
@@ -59,7 +59,7 @@ const handlelessWorkflowFile = `{
   "name": "handleless-wf",
   "nodes": [
     {"id": "trigger", "type": "trigger.schedule", "name": "Cron", "position": {"x": 0, "y": 0}, "config": {"cron": "0 0 9 * * *"}},
-    {"id": "a", "type": "core.set", "name": "A", "position": {"x": 1, "y": 0}, "config": {}}
+    {"id": "a", "type": "core.set", "name": "A", "position": {"x": 1, "y": 0}, "config": {"assignments": [{"field": "a", "value": "1"}]}}
   ],
   "connections": [
     {"id": "c1", "source": "trigger", "target": "a"}
@@ -72,7 +72,7 @@ const legacyHandlelessWorkflowFile = `{
   "name": "legacy-handleless-wf",
   "nodes": [
     {"id": "trigger", "node_type": "trigger.manual", "name": "Manual", "position_x": 0, "position_y": 0, "config": {}},
-    {"id": "a", "node_type": "core.set", "name": "A", "position_x": 1, "position_y": 0, "config": {}}
+    {"id": "a", "node_type": "core.set", "name": "A", "position_x": 1, "position_y": 0, "config": {"assignments": [{"field": "a", "value": "1"}]}}
   ],
   "connections": [
     {"id": "c1", "source_node_id": "trigger", "target_node_id": "a"}
@@ -236,66 +236,6 @@ func TestNodeSchemaCmd_UnknownTypeExit2(t *testing.T) {
 	}
 }
 
-func TestDryRunSteps_PlanShape(t *testing.T) {
-	wf := &workflow.Workflow{
-		Name: "plan-wf",
-		Nodes: []workflow.WorkflowNode{
-			{ID: "trigger", Type: "trigger.manual", Config: map[string]interface{}{}},
-			{ID: "set", Type: "core.set", Config: map[string]interface{}{}},
-		},
-		Connections: []workflow.WorkflowConnection{
-			{ID: "c1", SourceNodeID: "trigger", SourceHandle: "main", TargetNodeID: "set", TargetHandle: "main"},
-		},
-	}
-	steps, err := dryRunSteps(wf)
-	if err != nil {
-		t.Fatalf("dryRunSteps: %v", err)
-	}
-	if len(steps) != 2 {
-		t.Fatalf("expected 2 steps, got %d (%+v)", len(steps), steps)
-	}
-	// Trigger nodes are seeded first in the topological queue.
-	if steps[0].ID != "trigger" || steps[0].Order != 1 || steps[0].Type != "trigger.manual" {
-		t.Fatalf("unexpected first step: %+v", steps[0])
-	}
-	if steps[1].ID != "set" || steps[1].Order != 2 || steps[1].Type != "core.set" {
-		t.Fatalf("unexpected second step: %+v", steps[1])
-	}
-}
-
-func TestDryRunSteps_RejectsCycle(t *testing.T) {
-	wf := &workflow.Workflow{
-		Name: "cycle-wf",
-		Nodes: []workflow.WorkflowNode{
-			{ID: "trigger", Type: "trigger.manual", Config: map[string]interface{}{}},
-			{ID: "a", Type: "core.set", Config: map[string]interface{}{}},
-			{ID: "b", Type: "core.set", Config: map[string]interface{}{}},
-		},
-		Connections: []workflow.WorkflowConnection{
-			{ID: "c1", SourceNodeID: "trigger", SourceHandle: "main", TargetNodeID: "a", TargetHandle: "main"},
-			{ID: "c2", SourceNodeID: "a", SourceHandle: "main", TargetNodeID: "b", TargetHandle: "main"},
-			{ID: "c3", SourceNodeID: "b", SourceHandle: "main", TargetNodeID: "a", TargetHandle: "main"},
-		},
-	}
-	if _, err := dryRunSteps(wf); err == nil {
-		t.Fatal("expected cycle to be rejected")
-	}
-}
-
-func TestDryRunSteps_MissingTrigger(t *testing.T) {
-	wf := &workflow.Workflow{
-		Name:  "no-trigger",
-		Nodes: []workflow.WorkflowNode{{ID: "set", Type: "core.set", Config: map[string]interface{}{}}},
-	}
-	_, err := dryRunSteps(wf)
-	if !errors.Is(err, workflow.ErrNoTriggerNode) {
-		t.Fatalf("expected ErrNoTriggerNode, got %v", err)
-	}
-	if code := exitCodeFor(err); code != 3 {
-		t.Fatalf("expected exit code 3 for missing trigger, got %d", code)
-	}
-}
-
 func TestExitCodeFor(t *testing.T) {
 	cases := []struct {
 		name string
@@ -316,26 +256,6 @@ func TestExitCodeFor(t *testing.T) {
 		if got := exitCodeFor(tc.err); got != tc.want {
 			t.Errorf("%s: exitCodeFor = %d, want %d", tc.name, got, tc.want)
 		}
-	}
-}
-
-func TestTruncateOutputItems(t *testing.T) {
-	small := workflow.Item{JSON: map[string]interface{}{"k": "v"}}
-	big := workflow.Item{JSON: map[string]interface{}{"k": strings.Repeat("x", maxOutputItemBytes)}}
-
-	got := truncateOutputItems([]workflow.Item{small, big})
-	if len(got) != 2 {
-		t.Fatalf("expected item count preserved (2), got %d", len(got))
-	}
-	if got[0].JSON["k"] != "v" {
-		t.Fatalf("small item should pass through unchanged, got %+v", got[0])
-	}
-	truncated, _ := got[1].JSON["truncated"].(bool)
-	if !truncated {
-		t.Fatalf("big item should be truncated, got %+v", got[1])
-	}
-	if note, _ := got[1].JSON["note"].(string); note == "" {
-		t.Fatal("truncated item should carry a note")
 	}
 }
 
@@ -1158,9 +1078,9 @@ func TestWorkflowTemplatesUse_PersistsSuccessfully(t *testing.T) {
 	}
 }
 
-// A valid workflow has no warnings; an unknown node type is a warning, and
-// the workflow still validates (node types were never checked before).
-func TestWorkflowValidateFile_UnknownNodeTypeWarns(t *testing.T) {
+// A valid workflow has no warnings or issues; an unknown node type is an
+// error (exit 3) whose issue keeps the hint about installing an automation.
+func TestWorkflowValidateFile_UnknownNodeTypeIsAnError(t *testing.T) {
 	out, err := runValidateCmd(t, true, "--file", writeTempWorkflow(t, validWorkflowFile))
 	if err != nil {
 		t.Fatal(err)
@@ -1169,20 +1089,57 @@ func TestWorkflowValidateFile_UnknownNodeTypeWarns(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Warnings) != 0 {
-		t.Fatalf("valid workflow got warnings: %v", got.Warnings)
+	if len(got.Warnings) != 0 || len(got.Issues) != 0 {
+		t.Fatalf("valid workflow got warnings/issues: %+v", got)
 	}
 
 	unknown := strings.Replace(validWorkflowFile, `"type": "core.set"`, `"type": "acme-crm.list_deals"`, 1)
 	out, err = runValidateCmd(t, true, "--file", writeTempWorkflow(t, unknown))
-	if err != nil {
-		t.Fatalf("unknown node type must not fail validation: %v", err)
+	if code := exitCodeFor(err); code != 3 {
+		t.Fatalf("unknown node type: exit %d (%v), want 3", code, err)
 	}
 	got = validationJSON{}
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	// The first JSON value; cobra's usage text may follow the error.
+	if err := json.NewDecoder(strings.NewReader(out)).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
-	if !got.Valid || len(got.Warnings) != 1 || !strings.Contains(got.Warnings[0], "acme-crm.list_deals") {
-		t.Fatalf("want valid with one warning naming the type, got %+v", got)
+	if got.Valid || len(got.Errors) != 1 || !strings.Contains(got.Errors[0], "acme-crm.list_deals") {
+		t.Fatalf("want invalid with one error naming the type, got %+v", got)
+	}
+	if len(got.Issues) != 1 || got.Issues[0].Code != "unknown_node_type" || got.Issues[0].NodeID != "set" ||
+		!strings.Contains(got.Issues[0].Hint, "automation") {
+		t.Fatalf("want one unknown_node_type issue with the install hint, got %+v", got.Issues)
+	}
+}
+
+// The schema-aware repro: a typo'd key, a method outside its options and
+// a reference to a node that does not exist.
+func TestWorkflowValidateFile_SchemaIssues(t *testing.T) {
+	const repro = `{"name": "repro", "nodes": [
+  {"id": "t", "type": "trigger.manual", "name": "Start", "config": {}},
+  {"id": "h", "type": "http.request", "name": "Fetch", "config": {"urll": "https://x", "method": "FETCH"}},
+  {"id": "s", "type": "core.set", "name": "Set", "config": {"value": "{{ $node[\"Nope\"].json.x }}"}}
+], "connections": [
+  {"id": "c1", "source": "t", "target": "h"}, {"id": "c2", "source": "h", "target": "s"}
+]}`
+	out, err := runValidateCmd(t, true, "--file", writeTempWorkflow(t, repro))
+	if code := exitCodeFor(err); code != 3 {
+		t.Fatalf("exit %d (%v), want 3", code, err)
+	}
+	var got validationJSON
+	if err := json.NewDecoder(strings.NewReader(out)).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	codes := map[string]bool{}
+	for _, is := range got.Issues {
+		codes[is.Code+"/"+is.NodeID+"/"+is.Field] = true
+	}
+	for _, want := range []string{"missing_required/h/url", "invalid_option/h/method", "unknown_field/h/urll", "dangling_node_ref/s/value"} {
+		if !codes[want] {
+			t.Errorf("missing issue %s in %+v", want, got.Issues)
+		}
+	}
+	if got.Valid || len(got.Errors) == 0 || len(got.Warnings) == 0 {
+		t.Errorf("want invalid with errors and warnings, got %+v", got)
 	}
 }

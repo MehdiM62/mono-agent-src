@@ -1,0 +1,251 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "pay_pal",
+  "title": "PayPal",
+  "description": "Batch payouts and payout items in PayPal",
+  "category": "app",
+  "docs_url": "https://developer.paypal.com/docs/api/payments.payouts-batch/v1/",
+  "n8n_types": [
+    "n8n-nodes-base.payPal"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.payPalTrigger"
+  ],
+  "base_url": "{{ cred.env | eq:'sanbox' | then:'https://api-m.sandbox.paypal.com' | default:'https://api-m.paypal.com' }}/v1",
+  "credentials": [
+    {
+      "platform": "paypal",
+      "name": "PayPal",
+      "n8n_credential": "payPalApi",
+      "n8n_field_map": {
+        "clientId": "client_id",
+        "secret": "client_secret",
+        "env": "env"
+      },
+      "methods": [
+        "client_credentials"
+      ],
+      "fields": [
+        {
+          "key": "client_id",
+          "label": "Client ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "Secret",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "env",
+          "label": "Environment",
+          "help": "live (default) or sanbox for the sandbox (n8n's spelling)"
+        }
+      ],
+      "oauth": {
+        "token_url": "{{ cred.env | eq:'sanbox' | then:'https://api-m.sandbox.paypal.com' | default:'https://api-m.paypal.com' }}/v1/oauth2/token",
+        "client_auth": "basic"
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "payout",
+      "label": "Payout"
+    },
+    {
+      "value": "payoutItem",
+      "label": "Payout item"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "payout",
+      "operation": "create",
+      "title": "Create a batch payout",
+      "method": "POST",
+      "path": "/payments/payouts",
+      "fields": [
+        {
+          "key": "senderBatchId",
+          "label": "Sender batch ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "itemsUi",
+          "label": "Items",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "itemsValues"
+          ],
+          "help": "{\"itemsValues\": [{\"recipientType\": \"email\", \"receiverValue\": \"a@b.io\", \"currency\": \"USD\", \"amount\": \"5.00\", \"note\": \"\", \"senderItemId\": \"\", \"recipientWallet\": \"paypal\"}]}"
+        },
+        {
+          "key": "itemsJson",
+          "label": "Items (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "With JSON parameters on: the PayPal items array."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailSubject",
+            "emailMessage",
+            "note"
+          ]
+        }
+      ],
+      "body": {
+        "sender_batch_header": {
+          "sender_batch_id": "{{ p.senderBatchId }}",
+          "email_subject": "{{ p.additionalFields.emailSubject }}",
+          "email_message": "{{ p.additionalFields.emailMessage }}",
+          "note": "{{ p.additionalFields.note }}"
+        },
+        "items": {
+          "$concat": [
+            "{{ p.jsonParameters | eq:'true' | then:(p.itemsJson | fromjson) }}",
+            {
+              "$map": "{{ p.jsonParameters | ne:'true' | then:p.itemsUi.itemsValues }}",
+              "$to": {
+                "amount": {
+                  "currency": "{{ el.currency | default:'USD' }}",
+                  "value": "{{ el.amount | float }}"
+                },
+                "note": "{{ el.note }}",
+                "receiver": "{{ el.receiverValue }}",
+                "recipient_type": "{{ el.recipientType | default:'email' }}",
+                "recipient_wallet": "{{ el.recipientWallet | default:'paypal' }}",
+                "sender_item_id": "{{ el.senderItemId }}"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "resource": "payout",
+      "operation": "get",
+      "title": "Get a batch payout's items",
+      "method": "GET",
+      "path": "/payments/payouts/{{ p.payoutBatchId }}",
+      "fields": [
+        {
+          "key": "payoutBatchId",
+          "label": "Payout batch ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 1000
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "page_size",
+        "page_size": 1000,
+        "results_path": "items"
+      }
+    },
+    {
+      "resource": "payoutItem",
+      "operation": "get",
+      "title": "Get a payout item",
+      "method": "GET",
+      "path": "/payments/payouts-item/{{ p.payoutItemId }}",
+      "fields": [
+        {
+          "key": "payoutItemId",
+          "label": "Payout item ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "payoutItem",
+      "operation": "cancel",
+      "title": "Cancel an unclaimed payout item",
+      "method": "POST",
+      "path": "/payments/payouts-item/{{ p.payoutItemId }}/cancel",
+      "fields": [
+        {
+          "key": "payoutItemId",
+          "label": "Payout item ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "events",
+        "label": "Events",
+        "type": "array",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/notifications/webhooks",
+        "body": {
+          "url": "{{ hook.url }}",
+          "event_types": {
+            "$map": "{{ p.events }}",
+            "$to": {
+              "name": "{{ el }}"
+            }
+          }
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/notifications/webhooks/{{ hook.id }}"
+      }
+    ],
+    "check": {
+      "method": "GET",
+      "path": "/notifications/webhooks/{{ hook.id }}"
+    }
+  }
+}

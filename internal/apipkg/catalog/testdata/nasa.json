@@ -1,0 +1,292 @@
+{
+  "astronomyPictureOfTheDay.get": {
+    "params": {
+      "download": false,
+      "additionalFields": {
+        "date": "2024-03-01"
+      }
+    },
+    "response": {
+      "title": "x",
+      "media_type": "image"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/planetary/apod",
+      "query": {
+        "date": "2024-03-01"
+      },
+      "items": 1
+    }
+  },
+  "asteroidNeoBrowse.getAll": {
+    "params": {
+      "limit": 2
+    },
+    "response": {
+      "links": {},
+      "near_earth_objects": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/neo/rest/v1/neo/browse",
+      "query": {
+        "size": "2"
+      },
+      "items": 2
+    }
+  },
+  "asteroidNeoFeed.get": {
+    "params": {
+      "additionalFields": {
+        "startDate": "2024-01-01",
+        "endDate": "2024-01-02"
+      }
+    },
+    "response": {
+      "near_earth_objects": {
+        "2024-01-01": [
+          {
+            "id": "a"
+          },
+          {
+            "id": "b"
+          }
+        ],
+        "2024-01-02": [
+          {
+            "id": "c"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/neo/rest/v1/feed",
+      "query": {
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-02"
+      },
+      "items": 2
+    }
+  },
+  "asteroidNeoLookup.get": {
+    "params": {
+      "asteroidId": "3542519"
+    },
+    "response": {
+      "id": "3542519",
+      "close_approach_data": [
+        1
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/neo/rest/v1/neo/3542519",
+      "items": 1
+    }
+  },
+  "earthAssets.get": {
+    "params": {
+      "lat": 1.5,
+      "lon": 100.75
+    },
+    "response": {
+      "date": "x"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/planetary/earth/assets",
+      "query": {
+        "lat": "1.5",
+        "lon": "100.75",
+        "dim": "0.025"
+      },
+      "items": 1
+    }
+  },
+  "earthImagery.get": {
+    "params": {
+      "lat": 1.5,
+      "lon": 100.75,
+      "additionalFields": {
+        "date": "2020-01-01",
+        "dim": 0.1
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/planetary/earth/imagery",
+      "query": {
+        "lat": "1.5",
+        "lon": "100.75",
+        "dim": "0.1",
+        "date": "2020-01-01"
+      },
+      "items": 1
+    }
+  },
+  "donkiCoronalMassEjection.get": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/DONKI/CME",
+      "query": {
+        "startDate": "<any>",
+        "endDate": "<any>"
+      },
+      "items": 1
+    }
+  },
+  "donkiHighSpeedStream.get": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/DONKI/HSS",
+      "query": {
+        "startDate": "<any>",
+        "endDate": "<any>"
+      },
+      "items": 1
+    }
+  },
+  "donkiInterplanetaryShock.get": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/DONKI/IPS",
+      "query": {
+        "startDate": "<any>",
+        "endDate": "<any>",
+        "location": "ALL",
+        "catalog": "ALL"
+      },
+      "items": 1
+    }
+  },
+  "donkiMagnetopauseCrossing.get": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/DONKI/MPC",
+      "query": {
+        "startDate": "<any>",
+        "endDate": "<any>"
+      },
+      "items": 1
+    }
+  },
+  "donkiNotifications.get": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/DONKI/notifications",
+      "query": {
+        "startDate": "<any>",
+        "endDate": "<any>",
+        "type": "all"
+      },
+      "items": 1
+    }
+  },
+  "donkiRadiationBeltEnhancement.get": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/DONKI/RBE",
+      "query": {
+        "startDate": "<any>",
+        "endDate": "<any>"
+      },
+      "items": 1
+    }
+  },
+  "donkiSolarEnergeticParticle.get": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/DONKI/SEP",
+      "query": {
+        "startDate": "<any>",
+        "endDate": "<any>"
+      },
+      "items": 1
+    }
+  },
+  "donkiSolarFlare.get": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/DONKI/FLR",
+      "query": {
+        "startDate": "<any>",
+        "endDate": "<any>"
+      },
+      "items": 1
+    }
+  },
+  "donkiWsaEnlilSimulation.get": {
+    "params": {},
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/DONKI/WSAEnlilSimulations",
+      "query": {
+        "startDate": "<any>",
+        "endDate": "<any>"
+      },
+      "items": 1
+    }
+  }
+}

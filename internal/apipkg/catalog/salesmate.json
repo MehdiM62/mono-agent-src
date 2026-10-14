@@ -1,0 +1,857 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "salesmate",
+  "node_type": "app.salesmate",
+  "title": "Salesmate",
+  "description": "Activities, companies and deals in the Salesmate CRM",
+  "category": "app",
+  "docs_url": "https://apidocs.salesmate.io/",
+  "n8n_types": [
+    "n8n-nodes-base.salesmate"
+  ],
+  "base_url": "https://apis.salesmate.io",
+  "credentials": [
+    {
+      "platform": "salesmate",
+      "name": "Salesmate",
+      "n8n_credential": "salesmateApi",
+      "n8n_field_map": {
+        "sessionToken": "session_token",
+        "url": "url"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "url",
+          "label": "Link name",
+          "required": true,
+          "help": "Your Salesmate domain, e.g. acme.salesmate.io"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "sessionToken": "{{ cred.session_token }}",
+          "x-linkname": "{{ cred.url }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "activity",
+      "label": "Activity"
+    },
+    {
+      "value": "company",
+      "label": "Company"
+    },
+    {
+      "value": "deal",
+      "label": "Deal"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "activity",
+      "operation": "create",
+      "title": "Create a activity",
+      "method": "POST",
+      "path": "/v1/activities",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "owner",
+          "label": "Owner ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text",
+          "required": true,
+          "help": "e.g. Call, Meeting, Task"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "tags",
+            "dueDate",
+            "duration",
+            "isCalendarInvite",
+            "isCompleted"
+          ]
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: drop the detail block (create/update) or flatten the field list (get)"
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "owner": "{{ p.owner | numeric }}",
+        "type": "{{ p.type }}",
+        "dueDate": "{{ p.additionalFields.dueDate | epoch_ms }}",
+        "duration": "{{ p.additionalFields.duration }}",
+        "isCalendarInvite": "{{ p.additionalFields.isCalendarInvite | bool | eq:'true' | then:true }}",
+        "isCompleted": "{{ p.additionalFields.isCompleted | bool | eq:'true' | then:true }}",
+        "description": "{{ p.additionalFields.description }}",
+        "tags": "{{ p.additionalFields.tags }}"
+      },
+      "output": {
+        "path": "Data",
+        "to_when": "{{ p.rawData | bool | ne:'true' }}",
+        "to": {
+          "$merge": "{{ el | omit:'detail' }}"
+        }
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "delete",
+      "title": "Delete a activity",
+      "method": "DELETE",
+      "path": "/v1/activities/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "activity",
+      "operation": "get",
+      "title": "Get a activity",
+      "method": "GET",
+      "path": "/v1/activities/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: drop the detail block (create/update) or flatten the field list (get)"
+        }
+      ],
+      "output": {
+        "from": "{{ p.rawData | bool | eq:'true' | then:res.Data | default:(res.Data | kv:'fieldName,value') }}"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "getAll",
+      "title": "Get many activitys",
+      "method": "POST",
+      "path": "/v2/activities/search",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "sortBy",
+            "sortOrder"
+          ],
+          "help": "fields: comma-separated field names"
+        },
+        {
+          "key": "filtersJson",
+          "label": "Filters (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "Whole search body as JSON (JSON parameters on)"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filtersUi"
+          ],
+          "help": "filtersUi: {operator: AND|OR, conditions: {conditionsUi: [{field, condition, value}]}}"
+        }
+      ],
+      "query": {
+        "sortBy": "{{ p.options.sortBy }}",
+        "sortOrder": "{{ p.options.sortOrder }}"
+      },
+      "body": {
+        "$merge": "{{ p.jsonParameters | bool | eq:'true' | then:(p.filtersJson | fromjson) }}",
+        "fields": "{{ p.jsonParameters | bool | ne:'true' | then:(p.options.fields | default:'title,dueDate,description,duration,owner,Deal.title,PrimaryContact.name,PrimaryContact.email,PrimaryCompany.name,PrimaryCompany.email,tags,type,createdAt,isCompleted' | split) }}",
+        "query": {
+          "$when": "{{ p.jsonParameters | bool | ne:'true' }}",
+          "group": {
+            "$when": "{{ p.jsonParameters | bool | ne:'true' }}",
+            "operator": "{{ p.filters.filtersUi.operator }}",
+            "rules": {
+              "$map": "{{ p.filters.filtersUi.conditions.conditionsUi }}",
+              "$to": {
+                "moduleName": "Task",
+                "field": {
+                  "fieldName": "{{ el.field }}"
+                },
+                "condition": "{{ el.condition }}",
+                "data": "{{ el.value }}"
+              }
+            }
+          }
+        }
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "pageNo",
+        "start_page": 1,
+        "limit_param": "rows",
+        "page_size": 25,
+        "results_path": "Data.data"
+      }
+    },
+    {
+      "resource": "activity",
+      "operation": "update",
+      "title": "Update a activity",
+      "method": "PUT",
+      "path": "/v1/activities/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: drop the detail block (create/update) or flatten the field list (get)"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "title",
+            "type",
+            "owner",
+            "description",
+            "tags",
+            "dueDate",
+            "duration",
+            "isCalendarInvite",
+            "isCompleted"
+          ]
+        }
+      ],
+      "body": {
+        "title": "{{ p.updateFields.title }}",
+        "type": "{{ p.updateFields.type }}",
+        "owner": "{{ p.updateFields.owner | numeric }}",
+        "dueDate": "{{ p.updateFields.dueDate | epoch_ms }}",
+        "duration": "{{ p.updateFields.duration }}",
+        "isCalendarInvite": "{{ p.updateFields.isCalendarInvite | bool | eq:'true' | then:true }}",
+        "isCompleted": "{{ p.updateFields.isCompleted | bool | eq:'true' | then:true }}",
+        "description": "{{ p.updateFields.description }}",
+        "tags": "{{ p.updateFields.tags }}"
+      },
+      "output": {
+        "path": "Data",
+        "to_when": "{{ p.rawData | bool | ne:'true' }}",
+        "to": {
+          "$merge": "{{ el | omit:'detail' }}"
+        }
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "create",
+      "title": "Create a company",
+      "method": "POST",
+      "path": "/v1/companies",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "owner",
+          "label": "Owner ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "website",
+            "phone",
+            "otherPhone",
+            "facebookHandle",
+            "googlePlusHandle",
+            "linkedInHandle",
+            "skypeId",
+            "twitterHandle",
+            "currency",
+            "billingAddressLine1",
+            "billingAddressLine2",
+            "billingCity",
+            "billingZipCode",
+            "billingState",
+            "description",
+            "tags"
+          ]
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: drop the detail block (create/update) or flatten the field list (get)"
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "owner": "{{ p.owner | numeric }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "Data",
+        "to_when": "{{ p.rawData | bool | ne:'true' }}",
+        "to": {
+          "$merge": "{{ el | omit:'detail' }}"
+        }
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "delete",
+      "title": "Delete a company",
+      "method": "DELETE",
+      "path": "/v1/companies/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "company",
+      "operation": "get",
+      "title": "Get a company",
+      "method": "GET",
+      "path": "/v1/companies/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: drop the detail block (create/update) or flatten the field list (get)"
+        }
+      ],
+      "output": {
+        "from": "{{ p.rawData | bool | eq:'true' | then:res.Data | default:(res.Data | kv:'fieldName,value') }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getAll",
+      "title": "Get many companys",
+      "method": "POST",
+      "path": "/v2/companies/search",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "sortBy",
+            "sortOrder"
+          ],
+          "help": "fields: comma-separated field names"
+        },
+        {
+          "key": "filtersJson",
+          "label": "Filters (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "Whole search body as JSON (JSON parameters on)"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filtersUi"
+          ],
+          "help": "filtersUi: {operator: AND|OR, conditions: {conditionsUi: [{field, condition, value}]}}"
+        }
+      ],
+      "query": {
+        "sortBy": "{{ p.options.sortBy }}",
+        "sortOrder": "{{ p.options.sortOrder }}"
+      },
+      "body": {
+        "$merge": "{{ p.jsonParameters | bool | eq:'true' | then:(p.filtersJson | fromjson) }}",
+        "fields": "{{ p.jsonParameters | bool | ne:'true' | then:(p.options.fields | default:'name,description,billingAddressLine1,billingAddressLine2,billingCity,billingZipCode,billingState,billingCountry,website,owner,tags,photo,createdAt' | split) }}",
+        "query": {
+          "$when": "{{ p.jsonParameters | bool | ne:'true' }}",
+          "group": {
+            "$when": "{{ p.jsonParameters | bool | ne:'true' }}",
+            "operator": "{{ p.filters.filtersUi.operator }}",
+            "rules": {
+              "$map": "{{ p.filters.filtersUi.conditions.conditionsUi }}",
+              "$to": {
+                "moduleName": "Company",
+                "field": {
+                  "fieldName": "{{ el.field }}"
+                },
+                "condition": "{{ el.condition }}",
+                "data": "{{ el.value }}"
+              }
+            }
+          }
+        }
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "pageNo",
+        "start_page": 1,
+        "limit_param": "rows",
+        "page_size": 25,
+        "results_path": "Data.data"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "update",
+      "title": "Update a company",
+      "method": "PUT",
+      "path": "/v1/companies/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: drop the detail block (create/update) or flatten the field list (get)"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "owner",
+            "website",
+            "phone",
+            "otherPhone",
+            "facebookHandle",
+            "googlePlusHandle",
+            "linkedInHandle",
+            "skypeId",
+            "twitterHandle",
+            "currency",
+            "billingAddressLine1",
+            "billingAddressLine2",
+            "billingCity",
+            "billingZipCode",
+            "billingState",
+            "description",
+            "tags"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}",
+        "owner": "{{ p.updateFields.owner | numeric }}"
+      },
+      "output": {
+        "path": "Data",
+        "to_when": "{{ p.rawData | bool | ne:'true' }}",
+        "to": {
+          "$merge": "{{ el | omit:'detail' }}"
+        }
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "create",
+      "title": "Create a deal",
+      "method": "POST",
+      "path": "/v1/deals",
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "owner",
+          "label": "Owner ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "primaryContact",
+          "label": "Primary contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "pipeline",
+          "label": "Pipeline",
+          "type": "text",
+          "required": true,
+          "help": "e.g. Sales"
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "required": true,
+          "default": "Open",
+          "options": [
+            "Open",
+            "Close",
+            "Lost"
+          ]
+        },
+        {
+          "key": "stage",
+          "label": "Stage",
+          "type": "text",
+          "required": true,
+          "help": "e.g. New (Untouched), Contacted, Qualified, In Negotiation, Proposal Presented"
+        },
+        {
+          "key": "currency",
+          "label": "Currency",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "tags",
+            "primaryCompany",
+            "source",
+            "estimatedCloseDate",
+            "dealValue",
+            "priority"
+          ]
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: drop the detail block (create/update) or flatten the field list (get)"
+        }
+      ],
+      "body": {
+        "title": "{{ p.title }}",
+        "owner": "{{ p.owner | numeric }}",
+        "primaryContact": "{{ p.primaryContact | numeric }}",
+        "pipeline": "{{ p.pipeline }}",
+        "status": "{{ p.status }}",
+        "stage": "{{ p.stage }}",
+        "currency": "{{ p.currency }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "output": {
+        "path": "Data",
+        "to_when": "{{ p.rawData | bool | ne:'true' }}",
+        "to": {
+          "$merge": "{{ el | omit:'detail' }}"
+        }
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "delete",
+      "title": "Delete a deal",
+      "method": "DELETE",
+      "path": "/v1/deals/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "deal",
+      "operation": "get",
+      "title": "Get a deal",
+      "method": "GET",
+      "path": "/v1/deals/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: drop the detail block (create/update) or flatten the field list (get)"
+        }
+      ],
+      "output": {
+        "from": "{{ p.rawData | bool | eq:'true' | then:res.Data | default:(res.Data | kv:'fieldName,value') }}"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "getAll",
+      "title": "Get many deals",
+      "method": "POST",
+      "path": "/v2/deals/search",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "sortBy",
+            "sortOrder"
+          ],
+          "help": "fields: comma-separated field names"
+        },
+        {
+          "key": "filtersJson",
+          "label": "Filters (JSON)",
+          "type": "json",
+          "default": "",
+          "help": "Whole search body as JSON (JSON parameters on)"
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filtersUi"
+          ],
+          "help": "filtersUi: {operator: AND|OR, conditions: {conditionsUi: [{field, condition, value}]}}"
+        }
+      ],
+      "query": {
+        "sortBy": "{{ p.options.sortBy }}",
+        "sortOrder": "{{ p.options.sortOrder }}"
+      },
+      "body": {
+        "$merge": "{{ p.jsonParameters | bool | eq:'true' | then:(p.filtersJson | fromjson) }}",
+        "fields": "{{ p.jsonParameters | bool | ne:'true' | then:(p.options.fields | default:'title,PrimaryContact.name,PrimaryContact.email,PrimaryCompany.name,PrimaryCompany.email,dealValue,priority,stage,status,owner,tags,createdAt' | split) }}",
+        "query": {
+          "$when": "{{ p.jsonParameters | bool | ne:'true' }}",
+          "group": {
+            "$when": "{{ p.jsonParameters | bool | ne:'true' }}",
+            "operator": "{{ p.filters.filtersUi.operator }}",
+            "rules": {
+              "$map": "{{ p.filters.filtersUi.conditions.conditionsUi }}",
+              "$to": {
+                "moduleName": "Deal",
+                "field": {
+                  "fieldName": "{{ el.field }}"
+                },
+                "condition": "{{ el.condition }}",
+                "data": "{{ el.value }}"
+              }
+            }
+          }
+        }
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "pageNo",
+        "start_page": 1,
+        "limit_param": "rows",
+        "page_size": 25,
+        "results_path": "Data.data"
+      }
+    },
+    {
+      "resource": "deal",
+      "operation": "update",
+      "title": "Update a deal",
+      "method": "PUT",
+      "path": "/v1/deals/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "rawData",
+          "label": "Raw data",
+          "type": "boolean",
+          "default": false,
+          "help": "Off: drop the detail block (create/update) or flatten the field list (get)"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "title",
+            "owner",
+            "primaryContact",
+            "pipeline",
+            "status",
+            "stage",
+            "currency",
+            "description",
+            "tags",
+            "primaryCompany",
+            "source",
+            "estimatedCloseDate",
+            "dealValue",
+            "priority"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}",
+        "owner": "{{ p.updateFields.owner | numeric }}",
+        "primaryContact": "{{ p.updateFields.primaryContact | numeric }}"
+      },
+      "output": {
+        "path": "Data",
+        "to_when": "{{ p.rawData | bool | ne:'true' }}",
+        "to": {
+          "$merge": "{{ el | omit:'detail' }}"
+        }
+      }
+    }
+  ]
+}

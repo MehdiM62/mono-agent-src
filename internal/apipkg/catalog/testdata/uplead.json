@@ -1,0 +1,42 @@
+{
+  "company.enrich": {
+    "params": {
+      "domain": "acme.com"
+    },
+    "response": {
+      "data": {
+        "id": 1
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/company-search",
+      "query": {
+        "domain": "acme.com"
+      },
+      "items": 1
+    }
+  },
+  "person.enrich": {
+    "params": {
+      "email": "a@acme.com",
+      "firstname": "Ada"
+    },
+    "response": {
+      "data": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/person-search",
+      "query": {
+        "email": "a@acme.com",
+        "first_name": "Ada"
+      },
+      "items": 1
+    }
+  }
+}

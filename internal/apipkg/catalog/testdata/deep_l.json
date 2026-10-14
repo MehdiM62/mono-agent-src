@@ -1,0 +1,35 @@
+{
+  "language.translate": {
+    "params": {
+      "text": "Hallo Welt",
+      "translateTo": "EN-US",
+      "additionalFields": {
+        "sourceLang": "EN-GB",
+        "formality": "more"
+      }
+    },
+    "credential": {
+      "api_key": "k:fx",
+      "api_plan": "free"
+    },
+    "response": {
+      "translations": [
+        {
+          "detected_source_language": "DE",
+          "text": "Hello world"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v2/translate",
+      "body": {
+        "text": "Hallo Welt",
+        "target_lang": "EN-US",
+        "source_lang": "EN",
+        "formality": "more"
+      },
+      "items": 1
+    }
+  }
+}

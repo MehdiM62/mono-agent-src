@@ -12,17 +12,37 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/monoes/mono-agent/internal/account"
-	"github.com/monoes/mono-agent/internal/accountdoor"
 	"github.com/monoes/mono-agent/internal/apiconfig"
 	"github.com/monoes/mono-agent/internal/secrets"
 )
 
-const protocolVersion = "2024-11-05"
+// protocolVersion is the version this server answers a client that asks
+// for none, or for one it does not know: the latest it supports. A client
+// that asks for one of supportedProtocolVersions gets that one back.
+const protocolVersion = "2025-06-18"
+
+// supportedProtocolVersions are the MCP revisions this server speaks. What
+// the later ones add (progress messages, structuredContent, outputSchema)
+// are fields an earlier client ignores.
+var supportedProtocolVersions = map[string]bool{
+	"2024-11-05": true,
+	"2025-03-26": true,
+	"2025-06-18": true,
+}
+
+// negotiateProtocolVersion is the version initialize answers for params.
+func negotiateProtocolVersion(params json.RawMessage) string {
+	var p struct {
+		ProtocolVersion string `json:"protocolVersion"`
+	}
+	if len(params) > 0 && json.Unmarshal(params, &p) == nil && supportedProtocolVersions[p.ProtocolVersion] {
+		return p.ProtocolVersion
+	}
+	return protocolVersion
+}
 
 // maxRequestLineBytes caps a single request line. A longer line is
 // discarded and answered with a -32700 "request too large" error, but the
@@ -84,6 +104,10 @@ type Options struct {
 	// settable via MONOAGENT_MCP_TASKS_ONLY=="1". Serve refuses it together with
 	// APIOnly; grant mode ignores it.
 	TasksOnly bool
+	// WorkflowTools serves saved workflows as tools wf_<slug> (workflow_tools.go):
+	// "all" every workflow of the profile, otherwise a comma list of workflow IDs
+	// or names; empty serves none. Also settable via MONOAGENT_MCP_WORKFLOW_TOOLS.
+	WorkflowTools string
 	// APIEnv is what the API tools (api_status, api_config_get/set/apply) read
 	// of this process: its environment, the daemon's heartbeat, the service
 	// manager (api_config_apply restarts the daemon through it) and the HTTP
@@ -124,7 +148,10 @@ type toolContent struct {
 
 type toolResult struct {
 	Content []toolContent `json:"content"`
-	IsError bool          `json:"isError"`
+	// StructuredContent is the result again as a JSON object, for a tool
+	// whose result is one (MCP 2025-06-18); the text block stays the same.
+	StructuredContent json.RawMessage `json:"structuredContent,omitempty"`
+	IsError           bool            `json:"isError"`
 }
 
 // Server dispatches MCP JSON-RPC requests to tool handlers.
@@ -160,6 +187,9 @@ func NewServer(opts Options) *Server {
 	if !opts.TasksOnly {
 		opts.TasksOnly = os.Getenv("MONOAGENT_MCP_TASKS_ONLY") == "1"
 	}
+	if opts.WorkflowTools == "" {
+		opts.WorkflowTools = os.Getenv("MONOAGENT_MCP_WORKFLOW_TOOLS")
+	}
 	return &Server{opts: opts, actorSuffix: newActorSuffix()}
 }
 
@@ -189,6 +219,9 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 	if s.opts.Grant == "" && s.opts.TasksOnly && s.opts.APIOnly {
 		return ErrTasksOnlyWithAPIOnly
 	}
+	if s.opts.Grant == "" && workflowToolsRequested(s.opts.WorkflowTools) && (s.opts.TasksOnly || s.opts.APIOnly) {
+		return ErrWorkflowToolsWithNarrowMode
+	}
 
 	// serveCtx is cancelled as soon as the read loop ends (client closed
 	// stdin) — handlers below receive it, so waitForExecution-style waits
@@ -206,11 +239,29 @@ func (s *Server) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 		writeErr error
 	)
 	var wg sync.WaitGroup
+	// notify writes one JSON-RPC notification (progress) between responses.
+	notify := func(method string, params interface{}) {
+		b, err := json.Marshal(map[string]interface{}{"jsonrpc": "2.0", "method": method, "params": params})
+		if err != nil {
+			return
+		}
+		wmu.Lock()
+		defer wmu.Unlock()
+		if _, werr := w.Write(append(b, '\n')); werr == nil {
+			werr = w.Flush()
+			if werr != nil && writeErr == nil {
+				writeErr = werr
+			}
+		} else if writeErr == nil {
+			writeErr = werr
+		}
+	}
+	handlerCtx := withNotifier(serveCtx, notify)
 	dispatch := func(line []byte) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			resp := s.handleLine(serveCtx, line)
+			resp := s.handleLine(handlerCtx, line)
 			if resp == nil {
 				return
 			}
@@ -322,156 +373,4 @@ func readLine(r *bufio.Reader, max int) (line []byte, tooLong bool, err error) {
 func hasRequestID(req rpcRequest) bool {
 	id := bytes.TrimSpace(req.ID)
 	return len(id) > 0 && !bytes.Equal(id, []byte("null"))
-}
-
-func (s *Server) handleLine(ctx context.Context, line []byte) *rpcResponse {
-	var req rpcRequest
-	if err := json.Unmarshal(line, &req); err != nil {
-		return &rpcResponse{
-			JSONRPC: "2.0",
-			ID:      json.RawMessage("null"),
-			Error:   &rpcError{Code: -32700, Message: "parse error: " + err.Error()},
-		}
-	}
-	// The jsonrpc member is mandatory and must be exactly "2.0" — a
-	// missing or wrong version is an Invalid Request, not a parse error.
-	if req.JSONRPC != "2.0" {
-		id := json.RawMessage("null")
-		if hasRequestID(req) {
-			id = req.ID
-		}
-		return &rpcResponse{
-			JSONRPC: "2.0",
-			ID:      id,
-			Error:   &rpcError{Code: -32600, Message: `invalid request: jsonrpc member must be "2.0"`},
-		}
-	}
-	isNotificationMethod := strings.HasPrefix(req.Method, "notifications/")
-
-	// A notifications/* method with a non-null id is a protocol violation.
-	if isNotificationMethod && hasRequestID(req) {
-		return &rpcResponse{
-			JSONRPC: "2.0",
-			ID:      req.ID,
-			Error:   &rpcError{Code: -32600, Message: "invalid request: " + req.Method + " is a notification and must not carry an id"},
-		}
-	}
-	// Notifications (id-less requests) never get a response — for any
-	// method, per JSON-RPC 2.0.
-	if isNotificationMethod || !hasRequestID(req) {
-		return nil
-	}
-
-	switch req.Method {
-	case "initialize":
-		s.recordClient(req.Params)
-		return s.result(req.ID, map[string]interface{}{
-			"protocolVersion": protocolVersion,
-			"capabilities": map[string]interface{}{
-				"tools": map[string]interface{}{"listChanged": false},
-			},
-			"serverInfo": map[string]interface{}{
-				"name":    "monoagentcli",
-				"version": s.version(),
-			},
-			"instructions": s.instructions(),
-		})
-
-	case "ping":
-		return s.result(req.ID, map[string]interface{}{})
-
-	case "tools/list":
-		if s.opts.Grant != "" {
-			return s.result(req.ID, map[string]interface{}{"tools": s.grantToolDefinitions(ctx)})
-		}
-		return s.result(req.ID, map[string]interface{}{"tools": definitionsOf(s.servedTools(), s.opts.AllowMutations)})
-
-	case "tools/call":
-		return s.handleToolsCall(ctx, req)
-
-	default:
-		return &rpcResponse{
-			JSONRPC: "2.0",
-			ID:      req.ID,
-			Error:   &rpcError{Code: -32601, Message: "method not found: " + req.Method},
-		}
-	}
-}
-
-// handleToolsCall runs one tool. A locked monoes.me account refuses every call,
-// grant mode included, with a tool error (isError) that says what to do, before
-// the call is parsed. initialize and tools/list still answer.
-func (s *Server) handleToolsCall(ctx context.Context, req rpcRequest) *rpcResponse {
-	if err := account.Require(ctx); err != nil {
-		return s.result(req.ID, toolResult{
-			Content: []toolContent{{Type: "text", Text: accountdoor.Message}},
-			IsError: true,
-		})
-	}
-	var params struct {
-		Name      string          `json:"name"`
-		Arguments json.RawMessage `json:"arguments,omitempty"`
-		Meta      json.RawMessage `json:"_meta,omitempty"`
-	}
-	if len(req.Params) > 0 {
-		if err := json.Unmarshal(req.Params, &params); err != nil {
-			return &rpcResponse{
-				JSONRPC: "2.0",
-				ID:      req.ID,
-				Error:   &rpcError{Code: -32602, Message: "invalid tools/call params: " + err.Error()},
-			}
-		}
-	}
-	var result string
-	var err error
-	if s.opts.Grant != "" {
-		result, err = s.callGrantTool(withMeta(ctx, params.Meta), params.Name, params.Arguments)
-	} else {
-		result, err = callTool(ctx, s, params.Name, params.Arguments)
-	}
-	text := result
-	if err != nil {
-		text = err.Error()
-	}
-	return s.result(req.ID, toolResult{
-		Content: []toolContent{{Type: "text", Text: text}},
-		IsError: err != nil,
-	})
-}
-
-// closeRuntime releases the lazily-bootstrapped runtime, if any. (A plain
-// `defer s.rt.Close()` would capture s.rt at defer time — before lazy
-// bootstrap — and no-op.) Safe when the runtime was never built.
-func (s *Server) closeRuntime() {
-	s.rtMu.Lock()
-	rt := s.rt
-	s.rtMu.Unlock()
-	rt.Close()
-}
-
-func (s *Server) instructions() string {
-	if s.opts.Grant != "" {
-		return "Tools here run automations your org granted you. Each call starts a workflow run; outputs are redacted and bounded."
-	}
-	if s.opts.TasksOnly {
-		return tasksOnlyInstructions
-	}
-	if s.opts.APIOnly {
-		return "Tools here manage the OpenAI-compatible API: its keys, its models, its status and its settings. Start with api_status or api_config_get."
-	}
-	return "Start with docs(topic) or workflow_list; validate before run; hil_list for pending approvals. The user's task board: task_next shows what is ready to work on."
-}
-
-func (s *Server) result(id json.RawMessage, result interface{}) *rpcResponse {
-	if len(id) == 0 {
-		id = json.RawMessage("null")
-	}
-	return &rpcResponse{JSONRPC: "2.0", ID: id, Result: result}
-}
-
-func (s *Server) version() string {
-	if s.opts.Version == "" {
-		return "dev"
-	}
-	return s.opts.Version
 }

@@ -1,0 +1,418 @@
+{
+  "file.download": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "bucketName": "b",
+      "fileKey": "dir/a b.txt"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/b/dir/a%20b.txt"
+    },
+    "responses": [
+      {
+        "LocationConstraint": "eu-west-2"
+      },
+      {}
+    ]
+  },
+  "file.copy": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "sourcePath": "/b/a.txt",
+      "destinationPath": "/c/x/a.txt",
+      "additionalFields": {
+        "acl": "bucketOwnerFullControl",
+        "storageClass": "standardIA"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/c/x/a.txt",
+      "headers": {
+        "x-amz-copy-source": "/b/a.txt",
+        "x-amz-acl": "bucket-owner-full-control",
+        "x-amz-storage-class": "STANDARD_IA"
+      }
+    },
+    "responses": [
+      {
+        "LocationConstraint": "eu-west-2"
+      },
+      {}
+    ]
+  },
+  "file.delete": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "bucketName": "b",
+      "fileKey": "a.txt",
+      "options": {
+        "versionId": "v1"
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/b/a.txt",
+      "query": {
+        "versionId": "v1"
+      },
+      "items": 1
+    },
+    "responses": [
+      {
+        "LocationConstraint": "eu-west-2"
+      },
+      {}
+    ]
+  },
+  "file.getAll": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "bucketName": "b",
+      "limit": 2,
+      "options": {
+        "folderKey": "dir/"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/b",
+      "query": {
+        "list-type": "2",
+        "delimiter": "/",
+        "prefix": "dir/",
+        "max-keys": "2"
+      },
+      "items": 1
+    },
+    "responses": [
+      {
+        "LocationConstraint": "eu-west-2"
+      },
+      {
+        "ListBucketResult": {
+          "Contents": [
+            {
+              "Key": "dir/a"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/b",
+        "query": {
+          "location": ""
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/b",
+        "query": {
+          "list-type": "2",
+          "delimiter": "/",
+          "prefix": "dir/",
+          "max-keys": "2"
+        }
+      }
+    ]
+  },
+  "file.upload": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "bucketName": "b",
+      "fileName": "n.txt",
+      "binaryData": false,
+      "fileContent": "hello",
+      "additionalFields": {
+        "parentFolderKey": "dir"
+      },
+      "tagsUi": {
+        "tagsValues": [
+          {
+            "key": "a",
+            "value": "1"
+          },
+          {
+            "key": "b",
+            "value": "2"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/b/dir/n.txt",
+      "body": "hello",
+      "headers": {
+        "x-amz-tagging": "a=1&b=2"
+      },
+      "items": 1
+    },
+    "responses": [
+      {
+        "LocationConstraint": "eu-west-2"
+      },
+      {}
+    ]
+  },
+  "bucket.create": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "name": "nb",
+      "additionalFields": {
+        "acl": "publicRead"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/nb",
+      "body": "<CreateBucketConfiguration xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><LocationConstraint>eu-west-1</LocationConstraint></CreateBucketConfiguration>",
+      "headers": {
+        "x-amz-acl": "public-read"
+      }
+    }
+  },
+  "bucket.delete": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "name": "nb"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/nb"
+    }
+  },
+  "bucket.getAll": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "limit": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/",
+      "items": 1
+    },
+    "response": {
+      "ListAllMyBucketsResult": {
+        "Buckets": {
+          "Bucket": [
+            {
+              "Name": "a"
+            },
+            {
+              "Name": "b"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "bucket.search": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "bucketName": "b",
+      "additionalFields": {
+        "prefix": "x",
+        "delimiter": "/",
+        "includeCommonPrefixes": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/b",
+      "query": {
+        "list-type": "2",
+        "prefix": "x",
+        "max-keys": "100",
+        "delimiter": "/"
+      },
+      "items": 2
+    },
+    "responses": [
+      {
+        "LocationConstraint": "eu-west-2"
+      },
+      {
+        "ListBucketResult": {
+          "CommonPrefixes": [
+            {
+              "Prefix": "x/a/"
+            },
+            {
+              "Prefix": "x/b/"
+            }
+          ],
+          "Contents": {
+            "Key": "x1"
+          }
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/b",
+        "query": {
+          "location": ""
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/b",
+        "query": {
+          "list-type": "2",
+          "prefix": "x",
+          "max-keys": "100",
+          "delimiter": "/"
+        }
+      }
+    ]
+  },
+  "folder.create": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "bucketName": "b",
+      "folderName": "new",
+      "additionalFields": {
+        "parentFolderKey": "dir/"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/b/dir/new/"
+    },
+    "responses": [
+      {
+        "LocationConstraint": "eu-west-2"
+      },
+      {}
+    ]
+  },
+  "folder.delete": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "bucketName": "b",
+      "folderKey": "dir/"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/b/dir/"
+    },
+    "responses": [
+      {
+        "LocationConstraint": "eu-west-2"
+      },
+      {
+        "ListBucketResult": {
+          "Contents": [
+            {
+              "Key": "dir/"
+            },
+            {
+              "Key": "dir/a.txt"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "folder.getAll": {
+    "credential": {
+      "region": "eu-west-1",
+      "access_key_id": "AK",
+      "secret_access_key": "SK"
+    },
+    "params": {
+      "bucketName": "b"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/b",
+      "query": {
+        "list-type": "2",
+        "delimiter": "/",
+        "max-keys": "100"
+      }
+    },
+    "responses": [
+      {
+        "LocationConstraint": "eu-west-2"
+      },
+      {
+        "ListBucketResult": {
+          "CommonPrefixes": [
+            {
+              "Prefix": "dir/"
+            }
+          ]
+        }
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/b",
+        "query": {
+          "location": ""
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/b",
+        "query": {
+          "list-type": "2",
+          "delimiter": "/",
+          "max-keys": "100"
+        }
+      }
+    ]
+  }
+}

@@ -97,6 +97,8 @@ export function BindBrowser(arg1:string,arg2:string):Promise<main.BrowserRow>;
 
 export function CancelHealthRun(arg1:string):Promise<string>;
 
+export function CancelPlatformOAuth(arg1:string):Promise<string>;
+
 export function CancelWorkflow(arg1:string):Promise<void>;
 
 export function CheckForUpdate():Promise<main.UpdateInfo>;
@@ -134,6 +136,8 @@ export function ComposePersonMessage(arg1:string,arg2:string,arg3:string,arg4:st
 export function ConfirmSocialLogin(arg1:string):Promise<string>;
 
 export function ConnectPlatformOAuth(arg1:string):Promise<string>;
+
+export function ConnectPlatformOAuthFields(arg1:string,arg2:Array<string>,arg3:string):Promise<string>;
 
 export function ControlOrg(arg1:string,arg2:string):Promise<string>;
 
@@ -234,6 +238,8 @@ export function GetDraftPersonMessages():Promise<Array<storage.PersonMessageWith
 export function GetEffectiveTools(arg1:string,arg2:string):Promise<string>;
 
 export function GetExecutionDetail(arg1:string):Promise<Record<string, any>>;
+
+export function GetExtensionStatus():Promise<string>;
 
 export function GetGlobalOrgSummary(arg1:boolean):Promise<string>;
 
@@ -491,6 +497,8 @@ export function MarkPersonMessagesRead(arg1:string,arg2:Array<string>):Promise<v
 
 export function MoveProfileFolder(arg1:string,arg2:string):Promise<void>;
 
+export function NodeConfigFromCurl(arg1:string):Promise<main.CurlImport>;
+
 export function OpenAnyFilePicker(arg1:string):Promise<string>;
 
 export function OpenJSONFilePicker(arg1:string):Promise<string>;
@@ -515,9 +523,13 @@ export function OrgSignatureReview(arg1:string):Promise<string>;
 
 export function OrgSignatureStatus(arg1:string):Promise<string>;
 
+export function PairExtension():Promise<string>;
+
 export function PauseOrgAutonomy(arg1:string,arg2:string):Promise<string>;
 
 export function PickCoderFolder():Promise<string>;
+
+export function PlatformNames():Promise<Record<string, string>>;
 
 export function PromoteRoleToRoot(arg1:string,arg2:string):Promise<string>;
 
@@ -616,6 +628,8 @@ export function SetOrgSchedule(arg1:string,arg2:string):Promise<string>;
 export function SetWorkflowActive(arg1:string,arg2:boolean):Promise<void>;
 
 export function ShowAutomation(arg1:string):Promise<string>;
+
+export function ShowPlatform(arg1:string):Promise<string>;
 
 export function ShowRecording(arg1:string):Promise<string>;
 

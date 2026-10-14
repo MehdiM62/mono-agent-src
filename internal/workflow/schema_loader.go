@@ -31,6 +31,10 @@ type NodeSchemaField struct {
 	ItemType  string                `json:"item_type,omitempty"`
 	Resource  *ResourcePickerConfig `json:"resource,omitempty"`
 	DependsOn *FieldDependency      `json:"depends_on,omitempty"`
+	// VisibleFor, when set, shows the field only for configs matching one
+	// entry exactly (every key's value equal), e.g. an API package field
+	// shown for {resource: message, operation: reply}.
+	VisibleFor []map[string]string `json:"visible_for,omitempty"`
 }
 
 // ResourcePickerConfig configures a resource_picker field.
@@ -47,10 +51,40 @@ type FieldDependency struct {
 	Values []string `json:"values"`
 }
 
+// NodeSchemaOutput is one top-level key of the items a node emits on its
+// main output. Keys follow two conventions: "*" means the input item's
+// fields are passed through, and "<name>" is a key named at run time —
+// by the node's config field <name> when it has one, else by the data
+// (an open key set).
+type NodeSchemaOutput struct {
+	Key         string `json:"key"`
+	Type        string `json:"type,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 // NodeSchema is the schema embedded in each workflow node.
 type NodeSchema struct {
 	CredentialPlatform *string           `json:"credential_platform"`
 	Fields             []NodeSchemaField `json:"fields"`
+	// Outputs, when declared, lists the keys of the node's output items.
+	Outputs []NodeSchemaOutput `json:"outputs,omitempty"`
+	// SubInputs are the AI sub-node connections a root node takes (n8n's
+	// ai_languageModel, ai_memory, ai_tool, …), drawn as ports on the
+	// node's bottom edge in the editor.
+	SubInputs []NodeSubInput `json:"sub_inputs,omitempty"`
+	// SubOutput is the kind a sub-node attaches as (e.g. "ai_tool"): the
+	// handle of its connection into a root node's matching sub-input.
+	SubOutput string `json:"sub_output,omitempty"`
+}
+
+// NodeSubInput is one AI sub-node connection a node takes. Handle is the
+// connection kind (also the connection's source and target handle), Max the
+// most sub-nodes it takes (0 = no limit), Required whether the node needs one.
+type NodeSubInput struct {
+	Handle   string `json:"handle"`
+	Label    string `json:"label"`
+	Max      int    `json:"max,omitempty"`
+	Required bool   `json:"required,omitempty"`
 }
 
 // legacyFormPlatforms are the platforms whose nodes without a schema file
@@ -101,6 +135,9 @@ func LoadDefaultSchema(nodeType string) (*NodeSchema, error) {
 // here from the node type.
 func resolveSchemaJSON(nodeType string) ([]byte, bool) {
 	data, ok := schemaFile(nodeType)
+	if pd, pok := providedSchema(nodeType, data); pok {
+		data, ok = pd, true
+	}
 	if !ok {
 		gen, ok := generateActionSchema(nodeType)
 		if !ok {

@@ -99,7 +99,7 @@ test("one MonoAgent parent, four page modes, the video one only on videos, and t
     "Save screenshot only",
     "Save page summary",
     "Save video summary",
-    "Save selection to monomind",
+    "Save selection to MonoAgent",
     "Add page as task",
     "Add selection as task",
   ]);

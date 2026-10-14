@@ -1,0 +1,1550 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "databricks",
+  "node_type": "app.databricks",
+  "title": "Databricks",
+  "description": "SQL, files, Genie, jobs, model serving, Unity Catalog and vector search in Databricks",
+  "category": "app",
+  "docs_url": "https://docs.databricks.com/api/workspace/introduction",
+  "n8n_types": [
+    "n8n-nodes-base.databricks"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.databricksTrigger"
+  ],
+  "base_url": "{{ cred.host }}",
+  "credentials": [
+    {
+      "platform": "databricks",
+      "name": "Databricks (access token)",
+      "n8n_credential": "databricksApi",
+      "n8n_field_map": {
+        "host": "host",
+        "token": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "host",
+          "label": "Workspace URL",
+          "required": true,
+          "help": "e.g. https://adb-1234567890.12.azuredatabricks.net"
+        },
+        {
+          "key": "access_token",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    },
+    {
+      "platform": "databricks_sp",
+      "name": "Databricks (service principal)",
+      "n8n_credential": "databricksOAuth2Api",
+      "n8n_field_map": {
+        "host": "host",
+        "clientId": "client_id",
+        "clientSecret": "client_secret"
+      },
+      "methods": [
+        "client_credentials"
+      ],
+      "fields": [
+        {
+          "key": "host",
+          "label": "Workspace URL",
+          "required": true
+        },
+        {
+          "key": "client_id",
+          "label": "Client ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "Client secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "token_url": "{{ cred.host }}/oidc/v1/token",
+        "scopes": [
+          "all-apis"
+        ],
+        "client_auth": "basic"
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "databricksSql",
+      "label": "Databricks SQL"
+    },
+    {
+      "value": "files",
+      "label": "File"
+    },
+    {
+      "value": "genie",
+      "label": "Genie agent"
+    },
+    {
+      "value": "job",
+      "label": "Job"
+    },
+    {
+      "value": "modelServing",
+      "label": "Model serving"
+    },
+    {
+      "value": "pipeline",
+      "label": "Pipeline"
+    },
+    {
+      "value": "unityCatalog",
+      "label": "Unity Catalog"
+    },
+    {
+      "value": "vectorSearch",
+      "label": "Vector search"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "databricksSql",
+      "operation": "executeQuery",
+      "title": "Run a SQL query",
+      "method": "POST",
+      "path": "/api/2.0/sql/statements",
+      "description": "Runs the statement on a SQL warehouse, waits for it to finish and returns one item per row (the first result chunk).",
+      "fields": [
+        {
+          "key": "warehouseId",
+          "label": "SQL warehouse ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "query",
+          "label": "Query",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "queryParameters",
+          "label": "Query parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "parameters"
+          ],
+          "help": "{\"parameters\": [{\"name\", \"value\", \"type\"}]} for :name markers"
+        }
+      ],
+      "body": {
+        "warehouse_id": "{{ p.warehouseId | rl }}",
+        "statement": "{{ p.query }}",
+        "wait_timeout": "50s",
+        "on_wait_timeout": "CONTINUE",
+        "parameters": {
+          "$map": "{{ p.queryParameters.parameters }}",
+          "$to": {
+            "name": "{{ el.name }}",
+            "value": "{{ el.value }}",
+            "type": "{{ el.type }}"
+          }
+        }
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/api/2.0/sql/statements/{{ main.statement_id }}",
+        "until": "{{ res.status.state | ne:'PENDING' | then:(res.status.state | ne:'RUNNING') }}",
+        "interval_ms": 5000,
+        "max_wait_ms": 300000
+      },
+      "output": {
+        "path": "result.data_array",
+        "to": "{{ el | zip:res.manifest.schema.columns,'name' }}"
+      }
+    },
+    {
+      "resource": "files",
+      "operation": "listDirectory",
+      "title": "List a directory",
+      "method": "GET",
+      "path": "/api/2.0/fs/directories/Volumes/{{ p.volumePath | replace:'.','/' | path }}{{ p.directoryPath | then:'/' }}{{ p.directoryPath | path }}",
+      "fields": [
+        {
+          "key": "volumePath",
+          "label": "Volume",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.volume, e.g. main.default.my_volume"
+        },
+        {
+          "key": "directoryPath",
+          "label": "Directory path",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "help": "Empty for the volume root"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "pageSize",
+            "pageToken"
+          ]
+        }
+      ],
+      "query": {
+        "page_size": "{{ p.additionalFields.pageSize }}",
+        "page_token": "{{ p.additionalFields.pageToken }}"
+      }
+    },
+    {
+      "resource": "files",
+      "operation": "createDirectory",
+      "title": "Create a directory",
+      "method": "PUT",
+      "path": "/api/2.0/fs/directories/Volumes/{{ p.volumePath | replace:'.','/' | path }}/{{ p.directoryPath | path }}",
+      "fields": [
+        {
+          "key": "volumePath",
+          "label": "Volume",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.volume, e.g. main.default.my_volume"
+        },
+        {
+          "key": "directoryPath",
+          "label": "Directory path",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true,
+          "volumePath": "{{ p.volumePath }}",
+          "directoryPath": "{{ p.directoryPath }}"
+        }
+      }
+    },
+    {
+      "resource": "files",
+      "operation": "deleteDirectory",
+      "title": "Delete a directory",
+      "method": "DELETE",
+      "path": "/api/2.0/fs/directories/Volumes/{{ p.volumePath | replace:'.','/' | path }}/{{ p.directoryPath | path }}",
+      "fields": [
+        {
+          "key": "volumePath",
+          "label": "Volume",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.volume, e.g. main.default.my_volume"
+        },
+        {
+          "key": "directoryPath",
+          "label": "Directory path",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true,
+          "volumePath": "{{ p.volumePath }}",
+          "directoryPath": "{{ p.directoryPath }}"
+        }
+      }
+    },
+    {
+      "resource": "files",
+      "operation": "deleteFile",
+      "title": "Delete a file",
+      "method": "DELETE",
+      "path": "/api/2.0/fs/files/Volumes/{{ p.volumePath | replace:'.','/' | path }}/{{ p.filePath | path }}",
+      "fields": [
+        {
+          "key": "volumePath",
+          "label": "Volume",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.volume, e.g. main.default.my_volume"
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true,
+          "help": "Path inside the volume, e.g. reports/q1.csv"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true,
+          "volumePath": "{{ p.volumePath }}",
+          "filePath": "{{ p.filePath }}"
+        }
+      }
+    },
+    {
+      "resource": "files",
+      "operation": "downloadFile",
+      "title": "Download a file",
+      "method": "GET",
+      "path": "/api/2.0/fs/files/Volumes/{{ p.volumePath | replace:'.','/' | path }}/{{ p.filePath | path }}",
+      "fields": [
+        {
+          "key": "volumePath",
+          "label": "Volume",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.volume, e.g. main.default.my_volume"
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true,
+          "help": "Path inside the volume, e.g. reports/q1.csv"
+        }
+      ],
+      "binary": {
+        "download": true
+      }
+    },
+    {
+      "resource": "files",
+      "operation": "getFileInfo",
+      "title": "Check a file exists",
+      "method": "HEAD",
+      "path": "/api/2.0/fs/files/Volumes/{{ p.volumePath | replace:'.','/' | path }}/{{ p.filePath | path }}",
+      "fields": [
+        {
+          "key": "volumePath",
+          "label": "Volume",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.volume, e.g. main.default.my_volume"
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true,
+          "help": "Path inside the volume, e.g. reports/q1.csv"
+        }
+      ],
+      "description": "Reads the file's metadata from the response headers.",
+      "output": {
+        "to": {
+          "volumePath": "{{ p.volumePath }}",
+          "filePath": "{{ p.filePath }}",
+          "headers": "{{ hdr }}",
+          "contentLength": "{{ hdr.Content-Length }}",
+          "contentType": "{{ hdr.Content-Type }}",
+          "lastModified": "{{ hdr.Last-Modified }}"
+        }
+      }
+    },
+    {
+      "resource": "files",
+      "operation": "uploadFile",
+      "title": "Upload a file",
+      "method": "PUT",
+      "path": "/api/2.0/fs/files/Volumes/{{ p.volumePath | replace:'.','/' | path }}/{{ p.filePath | path }}",
+      "fields": [
+        {
+          "key": "dataFieldName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "volumePath",
+          "label": "Volume",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.volume, e.g. main.default.my_volume"
+        },
+        {
+          "key": "filePath",
+          "label": "File path",
+          "type": "text",
+          "required": true,
+          "help": "Path inside the volume, e.g. reports/q1.csv"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "overwrite"
+          ]
+        }
+      ],
+      "query": {
+        "overwrite": "{{ p.additionalFields.overwrite }}"
+      },
+      "binary": {
+        "upload_field": "dataFieldName"
+      },
+      "output": {
+        "to": {
+          "success": true,
+          "filePath": "{{ p.filePath }}"
+        }
+      }
+    },
+    {
+      "resource": "genie",
+      "operation": "startConversation",
+      "title": "Start a Genie conversation",
+      "method": "POST",
+      "path": "/api/2.0/genie/spaces/{{ p.spaceId }}/start-conversation",
+      "fields": [
+        {
+          "key": "spaceId",
+          "label": "Genie space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "initialMessage",
+          "label": "Question",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "content": "{{ p.initialMessage }}"
+      }
+    },
+    {
+      "resource": "genie",
+      "operation": "createMessage",
+      "title": "Ask a follow-up question",
+      "method": "POST",
+      "path": "/api/2.0/genie/spaces/{{ p.spaceId }}/conversations/{{ p.conversationId }}/messages",
+      "fields": [
+        {
+          "key": "spaceId",
+          "label": "Genie space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Question",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "content": "{{ p.message }}"
+      }
+    },
+    {
+      "resource": "genie",
+      "operation": "executeMessageQuery",
+      "title": "Run a message's query",
+      "method": "POST",
+      "path": "/api/2.0/genie/spaces/{{ p.spaceId }}/conversations/{{ p.conversationId }}/messages/{{ p.messageId }}/attachments/{{ p.attachmentId }}/execute-query",
+      "fields": [
+        {
+          "key": "spaceId",
+          "label": "Genie space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "genie",
+      "operation": "getMessage",
+      "title": "Get a message",
+      "method": "GET",
+      "path": "/api/2.0/genie/spaces/{{ p.spaceId }}/conversations/{{ p.conversationId }}/messages/{{ p.messageId }}",
+      "fields": [
+        {
+          "key": "spaceId",
+          "label": "Genie space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "genie",
+      "operation": "getSpace",
+      "title": "Get a Genie space",
+      "method": "GET",
+      "path": "/api/2.0/genie/spaces/{{ p.spaceId }}",
+      "fields": [
+        {
+          "key": "spaceId",
+          "label": "Genie space ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "genie",
+      "operation": "getQueryResults",
+      "title": "Get query results",
+      "method": "GET",
+      "path": "/api/2.0/genie/spaces/{{ p.spaceId }}/conversations/{{ p.conversationId }}/messages/{{ p.messageId }}/attachments/{{ p.attachmentId }}/query-result",
+      "fields": [
+        {
+          "key": "spaceId",
+          "label": "Genie space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "conversationId",
+          "label": "Conversation ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "messageId",
+          "label": "Message ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "job",
+      "operation": "run",
+      "title": "Run a job",
+      "method": "POST",
+      "path": "/api/2.2/jobs/run-now",
+      "fields": [
+        {
+          "key": "jobId",
+          "label": "Job ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jobParameters",
+          "label": "Job parameters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "parameters"
+          ],
+          "help": "{\"parameters\": [{\"name\", \"value\"}]}"
+        },
+        {
+          "key": "waitForCompletion",
+          "label": "Wait for completion",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "timeout"
+          ],
+          "help": "timeout: seconds to wait (up to 1 hour here)"
+        }
+      ],
+      "body": {
+        "job_id": "{{ p.jobId | rl | numeric }}",
+        "job_parameters": "{{ p.jobParameters.parameters | kv:'name,value' }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/api/2.2/jobs/runs/get",
+        "query": {
+          "run_id": "{{ main.run_id }}"
+        },
+        "until": "{{ p.waitForCompletion | ne:'true' | default:(res.status.state | eq:'TERMINATED') | default:(res.state.life_cycle_state | eq:'TERMINATED') | default:(res.status.state | eq:'SKIPPED') | default:(res.state.life_cycle_state | eq:'SKIPPED') | default:(res.status.state | eq:'INTERNAL_ERROR') | default:(res.state.life_cycle_state | eq:'INTERNAL_ERROR') }}",
+        "interval_ms": 5000,
+        "max_wait_ms": 3600000
+      }
+    },
+    {
+      "resource": "job",
+      "operation": "getJob",
+      "title": "Get a job",
+      "method": "GET",
+      "path": "/api/2.2/jobs/get",
+      "fields": [
+        {
+          "key": "jobId",
+          "label": "Job ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "job_id": "{{ p.jobId | rl }}",
+        "include_trigger_state": "true"
+      }
+    },
+    {
+      "resource": "job",
+      "operation": "getRun",
+      "title": "Get a job run",
+      "method": "GET",
+      "path": "/api/2.2/jobs/runs/get",
+      "fields": [
+        {
+          "key": "runId",
+          "label": "Run ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "run_id": "{{ p.runId | rl }}"
+      }
+    },
+    {
+      "resource": "job",
+      "operation": "getRunOutput",
+      "title": "Get a run's task outputs",
+      "method": "GET",
+      "path": "/api/2.2/jobs/runs/get",
+      "fields": [
+        {
+          "key": "runId",
+          "label": "Run ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "run_id": "{{ p.runId | rl }}"
+      },
+      "output": {
+        "path": "tasks",
+        "expand": {
+          "method": "GET",
+          "path": "/api/2.2/jobs/runs/get-output",
+          "query": {
+            "run_id": "{{ el.run_id }}"
+          }
+        },
+        "to": {
+          "run_id": "{{ p.runId | rl | numeric }}",
+          "job_id": "{{ res.job_id }}",
+          "$merge": "{{ el }}"
+        }
+      }
+    },
+    {
+      "resource": "job",
+      "operation": "listRuns",
+      "title": "List job runs",
+      "description": "Lists the runs of a job (or of every job), newest first.",
+      "method": "GET",
+      "path": "/api/2.2/jobs/runs/list",
+      "query": {
+        "job_id": "{{ p.jobId | rl | re:'jobs?/([0-9]+)' }}",
+        "start_time_from": "{{ p.filters.startTimeFrom | epoch_ms }}",
+        "start_time_to": "{{ p.filters.startTimeTo | epoch_ms }}",
+        "active_only": "{{ p.filters.activeOnly | then:'true' }}",
+        "completed_only": "{{ p.filters.completedOnly | then:'true' }}",
+        "run_type": "{{ p.filters.runType }}",
+        "expand_tasks": "{{ p.filters.expandTasks | then:'true' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page_token",
+        "cursor_path": "next_page_token",
+        "has_more_path": "has_more",
+        "limit_param": "limit",
+        "page_size": 25,
+        "results_path": "runs"
+      },
+      "fields": [
+        {
+          "key": "jobId",
+          "label": "Job ID",
+          "type": "text",
+          "default": "",
+          "help": "Empty lists the runs of every job."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "startTimeFrom",
+            "startTimeTo",
+            "activeOnly",
+            "completedOnly",
+            "runType",
+            "expandTasks"
+          ],
+          "help": "startTimeFrom/startTimeTo: ISO 8601 time or epoch milliseconds. activeOnly / completedOnly: only running or only finished runs. runType: JOB_RUN, WORKFLOW_RUN or SUBMIT_RUN. expandTasks: include each run's tasks."
+        }
+      ]
+    },
+    {
+      "resource": "modelServing",
+      "operation": "queryEndpoint",
+      "title": "Query a serving endpoint",
+      "method": "POST",
+      "path": "/serving-endpoints/{{ p.endpointName | rl }}/invocations",
+      "fields": [
+        {
+          "key": "endpointName",
+          "label": "Endpoint name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "requestBody",
+          "label": "Request body",
+          "type": "json",
+          "default": "{}",
+          "required": true,
+          "help": "e.g. {\"messages\": [{\"role\": \"user\", \"content\": \"hi\"}]} or {\"dataframe_records\": [...]}"
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.requestBody | fromjson }}"
+      }
+    },
+    {
+      "resource": "pipeline",
+      "operation": "listUpdates",
+      "title": "List pipeline updates",
+      "description": "Lists the updates of a Lakeflow Declarative (Delta Live Tables) pipeline, newest first.",
+      "method": "GET",
+      "path": "/api/2.0/pipelines/{{ p.pipelineId | rl | re:'pipelines/([0-9a-fA-F-]{36})' }}/updates",
+      "query": {
+        "until_update_id": "{{ p.options.untilUpdateId }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page_token",
+        "cursor_path": "next_page_token",
+        "limit_param": "max_results",
+        "page_size": 100,
+        "results_path": "updates"
+      },
+      "fields": [
+        {
+          "key": "pipelineId",
+          "label": "Pipeline ID",
+          "type": "text",
+          "required": true,
+          "help": "The pipeline's UUID or its URL."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "untilUpdateId"
+          ],
+          "help": "untilUpdateId: stop at this update."
+        }
+      ]
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "listTables",
+      "title": "List tables",
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/tables",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": false,
+          "default": ""
+        },
+        {
+          "key": "schemaName",
+          "label": "Schema",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "query": {
+        "catalog_name": "{{ p.catalogName | rl }}",
+        "schema_name": "{{ p.schemaName | rl }}"
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "createCatalog",
+      "title": "Create a catalog",
+      "method": "POST",
+      "path": "/api/2.1/unity-catalog/catalogs",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "comment",
+          "label": "Comment",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "body": {
+        "name": "{{ p.catalogName | rl }}",
+        "comment": "{{ p.comment }}"
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "createFunction",
+      "title": "Create a function",
+      "method": "POST",
+      "path": "/api/2.1/unity-catalog/functions",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "schemaName",
+          "label": "Schema",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "functionName",
+          "label": "Function name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "inputParams",
+          "label": "Input parameters",
+          "type": "json",
+          "default": "[]",
+          "required": false,
+          "help": "[{\"name\", \"type_name\", \"position\"}] or {\"parameters\": [...]}"
+        },
+        {
+          "key": "returnType",
+          "label": "Return type",
+          "type": "text",
+          "required": false,
+          "default": "STRING"
+        },
+        {
+          "key": "routineBody",
+          "label": "Routine body",
+          "type": "text",
+          "required": false,
+          "default": "SQL"
+        },
+        {
+          "key": "routineDefinition",
+          "label": "Routine definition",
+          "type": "textarea",
+          "required": true
+        }
+      ],
+      "body": {
+        "function_info": {
+          "name": "{{ p.functionName }}",
+          "catalog_name": "{{ p.catalogName | rl }}",
+          "schema_name": "{{ p.schemaName | rl }}",
+          "!input_params": {
+            "!parameters": {
+              "$map": "{{ p.inputParams | fromjson | get:'parameters' | default:(p.inputParams | fromjson) }}",
+              "$to": {
+                "$merge": "{{ el }}",
+                "type_text": "{{ el.type_text | default:el.type_name }}",
+                "type_json": "{{ el.type_json | default:(el.type_name | prefix:'{\"name\":\"' | suffix:'\"}') }}"
+              }
+            }
+          },
+          "data_type": "{{ p.returnType | default:'STRING' }}",
+          "full_data_type": "{{ p.returnType | default:'STRING' }}",
+          "specific_name": "{{ p.functionName }}",
+          "parameter_style": "S",
+          "security_type": "DEFINER",
+          "sql_data_access": "CONTAINS_SQL",
+          "is_deterministic": false,
+          "is_null_call": true,
+          "routine_body": "{{ p.routineBody | default:'SQL' }}",
+          "routine_definition": "{{ p.routineDefinition }}"
+        }
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "createTable",
+      "title": "Create an external table",
+      "method": "POST",
+      "path": "/api/2.1/unity-catalog/tables",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "schemaName",
+          "label": "Schema",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tableName",
+          "label": "Table name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "storageLocation",
+          "label": "Storage location",
+          "type": "text",
+          "required": true,
+          "help": "e.g. s3://bucket/path"
+        },
+        {
+          "key": "tableAdditionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "columns",
+            "comment"
+          ],
+          "help": "columns: JSON list of column definitions"
+        }
+      ],
+      "body": {
+        "catalog_name": "{{ p.catalogName | rl }}",
+        "schema_name": "{{ p.schemaName | rl }}",
+        "name": "{{ p.tableName }}",
+        "table_type": "EXTERNAL",
+        "data_source_format": "DELTA",
+        "storage_location": "{{ p.storageLocation }}",
+        "columns": "{{ p.tableAdditionalFields.columns | fromjson }}",
+        "comment": "{{ p.tableAdditionalFields.comment }}"
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "createVolume",
+      "title": "Create a volume",
+      "method": "POST",
+      "path": "/api/2.1/unity-catalog/volumes",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "schemaName",
+          "label": "Schema",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "volumeName",
+          "label": "Volume name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "volumeType",
+          "label": "Volume type",
+          "type": "select",
+          "default": "MANAGED",
+          "options": [
+            "MANAGED",
+            "EXTERNAL"
+          ]
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "comment",
+            "storage_location"
+          ]
+        }
+      ],
+      "body": {
+        "catalog_name": "{{ p.catalogName | rl }}",
+        "schema_name": "{{ p.schemaName | rl }}",
+        "name": "{{ p.volumeName }}",
+        "volume_type": "{{ p.volumeType }}",
+        "comment": "{{ p.additionalFields.comment }}",
+        "storage_location": "{{ p.additionalFields.storage_location }}"
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "deleteCatalog",
+      "title": "Delete a catalog",
+      "method": "DELETE",
+      "path": "/api/2.1/unity-catalog/catalogs/{{ p.catalogName | rl }}",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "deleteFunction",
+      "title": "Delete a function",
+      "method": "DELETE",
+      "path": "/api/2.1/unity-catalog/functions/{{ p.fullName | rl }}",
+      "fields": [
+        {
+          "key": "fullName",
+          "label": "Full name",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.name"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "deleteTable",
+      "title": "Delete a table",
+      "method": "DELETE",
+      "path": "/api/2.1/unity-catalog/tables/{{ p.fullName | rl }}",
+      "fields": [
+        {
+          "key": "fullName",
+          "label": "Full name",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.name"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "deleteVolume",
+      "title": "Delete a volume",
+      "method": "DELETE",
+      "path": "/api/2.1/unity-catalog/volumes/{{ p.catalogName | rl }}.{{ p.schemaName | rl }}.{{ p.volumeName }}",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "schemaName",
+          "label": "Schema",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "volumeName",
+          "label": "Volume name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "getCatalog",
+      "title": "Get a catalog",
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/catalogs/{{ p.catalogName | rl }}",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "getFunction",
+      "title": "Get a function",
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/functions/{{ p.fullName | rl }}",
+      "fields": [
+        {
+          "key": "fullName",
+          "label": "Full name",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.name"
+        }
+      ]
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "getTable",
+      "title": "Get a table",
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/tables/{{ p.fullName | rl }}",
+      "fields": [
+        {
+          "key": "fullName",
+          "label": "Full name",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.name"
+        }
+      ]
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "getVolume",
+      "title": "Get a volume",
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/volumes/{{ p.catalogName | rl }}.{{ p.schemaName | rl }}.{{ p.volumeName }}",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "schemaName",
+          "label": "Schema",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "volumeName",
+          "label": "Volume name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "listCatalogs",
+      "title": "List catalogs",
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/catalogs"
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "listFunctions",
+      "title": "List functions",
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/functions",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": false,
+          "default": ""
+        },
+        {
+          "key": "schemaName",
+          "label": "Schema",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "query": {
+        "catalog_name": "{{ p.catalogName | rl }}",
+        "schema_name": "{{ p.schemaName | rl }}"
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "listVolumes",
+      "title": "List volumes",
+      "method": "GET",
+      "path": "/api/2.1/unity-catalog/volumes",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": false,
+          "default": ""
+        },
+        {
+          "key": "schemaName",
+          "label": "Schema",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "query": {
+        "catalog_name": "{{ p.catalogName | rl }}",
+        "schema_name": "{{ p.schemaName | rl }}"
+      }
+    },
+    {
+      "resource": "unityCatalog",
+      "operation": "updateCatalog",
+      "title": "Update a catalog",
+      "method": "PATCH",
+      "path": "/api/2.1/unity-catalog/catalogs/{{ p.catalogName | rl }}",
+      "fields": [
+        {
+          "key": "catalogName",
+          "label": "Catalog",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "comment",
+          "label": "Comment",
+          "type": "text",
+          "required": false,
+          "default": ""
+        }
+      ],
+      "body": {
+        "!comment": "{{ p.comment }}"
+      }
+    },
+    {
+      "resource": "vectorSearch",
+      "operation": "listIndexes",
+      "title": "List indexes",
+      "method": "GET",
+      "path": "/api/2.0/vector-search/indexes",
+      "fields": [
+        {
+          "key": "endpointName",
+          "label": "Endpoint name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "endpoint_name": "{{ p.endpointName }}"
+      }
+    },
+    {
+      "resource": "vectorSearch",
+      "operation": "createIndex",
+      "title": "Create an index",
+      "method": "POST",
+      "path": "/api/2.0/vector-search/indexes",
+      "fields": [
+        {
+          "key": "indexName",
+          "label": "Index name",
+          "type": "text",
+          "required": true,
+          "help": "catalog.schema.index"
+        },
+        {
+          "key": "endpointName",
+          "label": "Endpoint name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "primaryKey",
+          "label": "Primary key",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "indexType",
+          "label": "Index type",
+          "type": "select",
+          "default": "DELTA_SYNC",
+          "options": [
+            "DELTA_SYNC",
+            "DIRECT_ACCESS"
+          ]
+        },
+        {
+          "key": "deltaSyncIndexSpec",
+          "label": "Delta Sync index spec",
+          "type": "json",
+          "default": "",
+          "required": false
+        },
+        {
+          "key": "directAccessIndexSpec",
+          "label": "Direct Access index spec",
+          "type": "json",
+          "default": "",
+          "required": false
+        }
+      ],
+      "body": {
+        "name": "{{ p.indexName }}",
+        "endpoint_name": "{{ p.endpointName }}",
+        "primary_key": "{{ p.primaryKey }}",
+        "index_type": "{{ p.indexType }}",
+        "delta_sync_index_spec": "{{ p.indexType | eq:'DELTA_SYNC' | then:(p.deltaSyncIndexSpec | fromjson) }}",
+        "direct_access_index_spec": "{{ p.indexType | eq:'DIRECT_ACCESS' | then:(p.directAccessIndexSpec | fromjson) }}"
+      }
+    },
+    {
+      "resource": "vectorSearch",
+      "operation": "getIndex",
+      "title": "Get an index",
+      "method": "GET",
+      "path": "/api/2.0/vector-search/indexes/{{ p.indexName }}",
+      "fields": [
+        {
+          "key": "indexName",
+          "label": "Index name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "vectorSearch",
+      "operation": "queryIndex",
+      "title": "Query an index",
+      "method": "POST",
+      "path": "/api/2.0/vector-search/indexes/{{ p.indexName }}/query",
+      "fields": [
+        {
+          "key": "indexName",
+          "label": "Index name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "queryType",
+          "label": "Query by",
+          "type": "select",
+          "default": "text",
+          "options": [
+            "text",
+            "vector"
+          ]
+        },
+        {
+          "key": "queryText",
+          "label": "Query text",
+          "type": "text",
+          "required": false,
+          "default": ""
+        },
+        {
+          "key": "queryVector",
+          "label": "Query vector",
+          "type": "json",
+          "default": "[]",
+          "required": false
+        },
+        {
+          "key": "searchMode",
+          "label": "Search mode",
+          "type": "select",
+          "default": "ANN",
+          "options": [
+            "ANN",
+            "HYBRID",
+            "FULL_TEXT"
+          ]
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated columns to return"
+        },
+        {
+          "key": "numResults",
+          "label": "Number of results",
+          "type": "number",
+          "default": 10
+        },
+        {
+          "key": "enableReranking",
+          "label": "Rerank",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "rerankerModel",
+          "label": "Reranker model",
+          "type": "text",
+          "required": false,
+          "default": "databricks_reranker"
+        },
+        {
+          "key": "columnsToRerank",
+          "label": "Columns to rerank",
+          "type": "text",
+          "required": false,
+          "default": "",
+          "help": "Comma-separated"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filterExpression",
+            "scoreThreshold"
+          ]
+        }
+      ],
+      "body": {
+        "num_results": "{{ p.numResults }}",
+        "query_type": "{{ p.searchMode }}",
+        "query_text": "{{ p.queryType | ne:'vector' | then:p.queryText }}",
+        "query_vector": "{{ p.queryType | eq:'vector' | then:(p.queryVector | fromjson) }}",
+        "!columns": "{{ p.columns | split }}",
+        "filters_json": "{{ p.options.filterExpression }}",
+        "score_threshold": "{{ p.options.scoreThreshold }}",
+        "reranker": {
+          "$when": "{{ p.enableReranking | eq:'true' }}",
+          "model": "{{ p.rerankerModel | default:'databricks_reranker' }}",
+          "parameters": {
+            "columns_to_rerank": "{{ p.columnsToRerank | split }}"
+          }
+        }
+      }
+    }
+  ]
+}

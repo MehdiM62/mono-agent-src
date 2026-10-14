@@ -1,0 +1,558 @@
+{
+  "client.create": {
+    "params": {
+      "clientName": "Acme",
+      "additionalFields": {
+        "is_vip": true
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/client",
+      "body": [
+        {
+          "name": "Acme",
+          "is_vip": true
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "client.delete": {
+    "params": {
+      "clientId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/client/5"
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "client.get": {
+    "params": {
+      "clientId": "5"
+    },
+    "response": {
+      "id": 5,
+      "extra": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/client/5",
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "client.getAll": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "activeStatus": "active",
+        "search": "a"
+      }
+    },
+    "response": {
+      "clients": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "record_count": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/client",
+      "query": {
+        "search": "a",
+        "pageinate": "true",
+        "includeinactive": "false",
+        "includeactive": "true",
+        "page_no": "1",
+        "page_size": "2"
+      },
+      "items": 2
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "client.update": {
+    "params": {
+      "clientId": "5",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": [
+      {
+        "id": 5
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/client",
+      "body": [
+        {
+          "id": "5",
+          "notes": "n"
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "site.create": {
+    "params": {
+      "siteName": "HQ",
+      "clientId": "3"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/site",
+      "body": [
+        {
+          "name": "HQ",
+          "client_id": "3"
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "site.delete": {
+    "params": {
+      "siteId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/site/5"
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "site.get": {
+    "params": {
+      "siteId": "5"
+    },
+    "response": {
+      "id": 5,
+      "extra": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/site/5",
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "site.getAll": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "activeStatus": "active",
+        "search": "a"
+      }
+    },
+    "response": {
+      "sites": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "record_count": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/site",
+      "query": {
+        "search": "a",
+        "pageinate": "true",
+        "includeinactive": "false",
+        "includeactive": "true",
+        "page_no": "1",
+        "page_size": "2"
+      },
+      "items": 2
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "site.update": {
+    "params": {
+      "siteId": "5",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": [
+      {
+        "id": 5
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/site",
+      "body": [
+        {
+          "id": "5",
+          "notes": "n"
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "ticket.create": {
+    "params": {
+      "ticketType": "1",
+      "summary": "S",
+      "details": "D"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/tickets",
+      "body": [
+        {
+          "tickettype_id": "1",
+          "summary": "S",
+          "details": "D"
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "ticket.delete": {
+    "params": {
+      "ticketId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/tickets/5"
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "ticket.get": {
+    "params": {
+      "ticketId": "5"
+    },
+    "response": {
+      "id": 5,
+      "extra": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/tickets/5",
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "ticket.getAll": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "activeStatus": "active",
+        "search": "a"
+      }
+    },
+    "response": {
+      "tickets": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "record_count": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/tickets",
+      "query": {
+        "search": "a",
+        "pageinate": "true",
+        "includeinactive": "false",
+        "includeactive": "true",
+        "page_no": "1",
+        "page_size": "2"
+      },
+      "items": 2
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "ticket.update": {
+    "params": {
+      "ticketId": "5",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": [
+      {
+        "id": 5
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/tickets",
+      "body": [
+        {
+          "id": "5",
+          "notes": "n"
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "user.create": {
+    "params": {
+      "userName": "Bo",
+      "siteId": "2",
+      "additionalFields": {
+        "surname": "X"
+      }
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/users",
+      "body": [
+        {
+          "name": "Bo",
+          "site_id": "2",
+          "surname": "X"
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "user.delete": {
+    "params": {
+      "userId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/users/5"
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "user.get": {
+    "params": {
+      "userId": "5"
+    },
+    "response": {
+      "id": 5,
+      "extra": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/users/5",
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "activeStatus": "active",
+        "search": "a"
+      }
+    },
+    "response": {
+      "users": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "record_count": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/users",
+      "query": {
+        "search": "a",
+        "pageinate": "true",
+        "includeinactive": "false",
+        "includeactive": "true",
+        "page_no": "1",
+        "page_size": "2"
+      },
+      "items": 2
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  },
+  "user.update": {
+    "params": {
+      "userId": "5",
+      "updateFields": {
+        "notes": "n"
+      }
+    },
+    "response": [
+      {
+        "id": 5
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/api/users",
+      "body": [
+        {
+          "id": "5",
+          "notes": "n"
+        }
+      ],
+      "items": 1
+    },
+    "credential": {
+      "auth_url": "https://h.test/auth",
+      "resource_api_url": "https://h.test/api",
+      "client_id": "i",
+      "client_secret": "s",
+      "access_token": "tok"
+    }
+  }
+}

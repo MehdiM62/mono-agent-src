@@ -1,0 +1,136 @@
+{
+  "deploy.getAll": {
+    "params": {
+      "siteId": "s1",
+      "limit": 3
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": [
+      {
+        "id": "d1"
+      },
+      {
+        "id": "d2"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/sites/s1/deploys",
+      "query": {
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "deploy.cancel": {
+    "params": {
+      "deployId": "d1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "id": "d1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/deploys/d1/cancel",
+      "items": 1
+    }
+  },
+  "deploy.create": {
+    "params": {
+      "siteId": "s1",
+      "additionalFields": {
+        "title": "Release",
+        "branch": "main"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "id": "d3"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v1/sites/s1/deploys",
+      "query": {
+        "title": "Release"
+      },
+      "body": {
+        "branch": "main"
+      },
+      "items": 1
+    }
+  },
+  "deploy.get": {
+    "params": {
+      "siteId": "s1",
+      "deployId": "d1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "id": "d1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/sites/s1/deploys/d1",
+      "items": 1
+    }
+  },
+  "site.delete": {
+    "params": {
+      "siteId": "s1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v1/sites/s1"
+    }
+  },
+  "site.get": {
+    "params": {
+      "siteId": "s1"
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": {
+      "id": "s1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/sites/s1",
+      "items": 1
+    }
+  },
+  "site.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "response": [
+      {
+        "id": "s1"
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v1/sites",
+      "query": {
+        "filter": "all",
+        "per_page": "100"
+      },
+      "items": 1
+    }
+  }
+}

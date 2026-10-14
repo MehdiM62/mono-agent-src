@@ -1,0 +1,489 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "coin_gecko",
+  "node_type": "app.coin_gecko",
+  "title": "CoinGecko",
+  "description": "Coin prices, markets, tickers and events from CoinGecko",
+  "category": "app",
+  "docs_url": "https://docs.coingecko.com/v3.0.1/reference/introduction",
+  "n8n_types": [
+    "n8n-nodes-base.coinGecko"
+  ],
+  "base_url": "https://api.coingecko.com/api/v3",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "resources": [
+    {
+      "value": "coin",
+      "label": "Coin"
+    },
+    {
+      "value": "event",
+      "label": "Event"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "coin",
+      "operation": "getAll",
+      "title": "List all coins",
+      "method": "GET",
+      "path": "/coins/list",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "page",
+        "cursor_path": "next_page_unused",
+        "results_path": ""
+      },
+      "description": "The API returns the whole list in one response; Limit trims it.",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        }
+      ]
+    },
+    {
+      "resource": "coin",
+      "operation": "candlestick",
+      "title": "Get OHLC candles",
+      "method": "GET",
+      "path": "/coins/{{ p.baseCurrency }}/ohlc",
+      "query": {
+        "vs_currency": "{{ p.quoteCurrency }}",
+        "days": "{{ p.days }}"
+      },
+      "description": "One item per candle: [time, open, high, low, close].",
+      "fields": [
+        {
+          "key": "baseCurrency",
+          "label": "Coin ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "quoteCurrency",
+          "label": "Quote currency",
+          "type": "text",
+          "required": true,
+          "help": "e.g. usd"
+        },
+        {
+          "key": "days",
+          "label": "Days",
+          "type": "select",
+          "required": true,
+          "options": [
+            "1",
+            "7",
+            "14",
+            "30",
+            "90",
+            "180",
+            "365",
+            "max"
+          ],
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "coin",
+      "operation": "get",
+      "title": "Get a coin",
+      "method": "GET",
+      "path": "/coins/{{ p.searchBy | eq:'coinId' | then:p.coinId }}{{ p.searchBy | eq:'contractAddress' | then:p.platformId }}{{ p.searchBy | eq:'contractAddress' | then:'/contract/' }}{{ p.searchBy | eq:'contractAddress' | then:p.contractAddress }}",
+      "query": {
+        "community_data": "{{ p.options.community_data | default:false }}",
+        "developer_data": "{{ p.options.developer_data | default:false }}",
+        "localization": "{{ p.options.localization | default:false }}",
+        "market_data": "{{ p.options.market_data | default:false }}",
+        "sparkline": "{{ p.options.sparkline | default:false }}",
+        "tickers": "{{ p.options.tickers | default:false }}"
+      },
+      "fields": [
+        {
+          "key": "searchBy",
+          "label": "Search by",
+          "type": "select",
+          "options": [
+            "coinId",
+            "contractAddress"
+          ],
+          "default": "coinId"
+        },
+        {
+          "key": "coinId",
+          "label": "Coin ID",
+          "type": "text",
+          "help": "With Search by = coinId"
+        },
+        {
+          "key": "platformId",
+          "label": "Platform ID",
+          "type": "text",
+          "default": "ethereum",
+          "help": "Asset platform, with Search by = contractAddress"
+        },
+        {
+          "key": "contractAddress",
+          "label": "Contract address",
+          "type": "text",
+          "help": "With Search by = contractAddress"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "community_data",
+            "developer_data",
+            "localization",
+            "market_data",
+            "sparkline",
+            "tickers"
+          ],
+          "help": "Each defaults to false."
+        }
+      ]
+    },
+    {
+      "resource": "coin",
+      "operation": "history",
+      "title": "Get coin data on a date",
+      "method": "GET",
+      "path": "/coins/{{ p.coinId }}/history",
+      "query": {
+        "date": "{{ p.date | date:'DD-MM-YYYY' }}",
+        "localization": "{{ p.options.localization }}"
+      },
+      "fields": [
+        {
+          "key": "coinId",
+          "label": "Coin ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "date",
+          "label": "Date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "localization"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "coin",
+      "operation": "market",
+      "title": "Get coin market data",
+      "method": "GET",
+      "path": "/coins/markets",
+      "query": {
+        "vs_currency": "{{ p.baseCurrency }}",
+        "ids": "{{ p.options.ids }}",
+        "category": "{{ p.options.category }}",
+        "order": "{{ p.options.order }}",
+        "sparkline": "{{ p.options.sparkline }}",
+        "price_change_percentage": "{{ p.options.price_change_percentage | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 250,
+        "results_path": ""
+      },
+      "fields": [
+        {
+          "key": "baseCurrency",
+          "label": "Quote currency",
+          "type": "text",
+          "required": true,
+          "help": "vs_currency, e.g. usd"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ids",
+            "category",
+            "order",
+            "sparkline",
+            "price_change_percentage"
+          ],
+          "help": "ids: comma-separated coin IDs; price_change_percentage: list like [\"1h\",\"24h\"]"
+        }
+      ]
+    },
+    {
+      "resource": "coin",
+      "operation": "marketChart",
+      "title": "Get historical market chart",
+      "method": "GET",
+      "path": "/coins/{{ p.searchBy | eq:'coinId' | then:p.baseCurrency }}{{ p.searchBy | eq:'contractAddress' | then:p.platformId }}{{ p.searchBy | eq:'contractAddress' | then:'/contract/' }}{{ p.searchBy | eq:'contractAddress' | then:p.contractAddress }}/market_chart",
+      "query": {
+        "vs_currency": "{{ p.quoteCurrency }}",
+        "days": "{{ p.days }}"
+      },
+      "description": "Returns the prices, market_caps and total_volumes series as one item.",
+      "fields": [
+        {
+          "key": "searchBy",
+          "label": "Search by",
+          "type": "select",
+          "options": [
+            "coinId",
+            "contractAddress"
+          ],
+          "default": "coinId"
+        },
+        {
+          "key": "baseCurrency",
+          "label": "Coin ID",
+          "type": "text",
+          "help": "With Search by = coinId"
+        },
+        {
+          "key": "platformId",
+          "label": "Platform ID",
+          "type": "text",
+          "default": "ethereum",
+          "help": "Asset platform, with Search by = contractAddress"
+        },
+        {
+          "key": "contractAddress",
+          "label": "Contract address",
+          "type": "text",
+          "help": "With Search by = contractAddress"
+        },
+        {
+          "key": "quoteCurrency",
+          "label": "Quote currency",
+          "type": "text",
+          "required": true,
+          "help": "e.g. usd"
+        },
+        {
+          "key": "days",
+          "label": "Days",
+          "type": "select",
+          "required": true,
+          "options": [
+            "1",
+            "7",
+            "14",
+            "30",
+            "90",
+            "180",
+            "365",
+            "max"
+          ],
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "coin",
+      "operation": "price",
+      "title": "Get current prices",
+      "method": "GET",
+      "path": "/simple/{{ p.searchBy | eq:'coinId' | then:'price' }}{{ p.searchBy | eq:'contractAddress' | then:'token_price/' }}{{ p.searchBy | eq:'contractAddress' | then:p.platformId }}",
+      "query": {
+        "ids": "{{ p.searchBy | eq:'coinId' | then:p.baseCurrencies | csv }}",
+        "contract_addresses": "{{ p.searchBy | eq:'contractAddress' | then:p.contractAddresses }}",
+        "vs_currencies": "{{ p.quoteCurrencies | csv }}",
+        "$merge": "{{ p.options }}"
+      },
+      "fields": [
+        {
+          "key": "searchBy",
+          "label": "Search by",
+          "type": "select",
+          "options": [
+            "coinId",
+            "contractAddress"
+          ],
+          "default": "coinId"
+        },
+        {
+          "key": "baseCurrencies",
+          "label": "Coin IDs",
+          "type": "array",
+          "item_type": "text",
+          "default": [],
+          "help": "With Search by = coinId"
+        },
+        {
+          "key": "platformId",
+          "label": "Platform ID",
+          "type": "text",
+          "default": "ethereum",
+          "help": "Asset platform, with Search by = contractAddress"
+        },
+        {
+          "key": "contractAddresses",
+          "label": "Contract addresses",
+          "type": "text",
+          "help": "Comma-separated, with Search by = contractAddress"
+        },
+        {
+          "key": "quoteCurrencies",
+          "label": "Quote currencies",
+          "type": "array",
+          "required": true,
+          "item_type": "text",
+          "default": []
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "include_24hr_change",
+            "include_24hr_vol",
+            "include_last_updated_at",
+            "include_market_cap"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "coin",
+      "operation": "ticker",
+      "title": "Get coin tickers",
+      "method": "GET",
+      "path": "/coins/{{ p.coinId }}/tickers",
+      "query": {
+        "exchange_ids": "{{ p.options.exchange_ids | csv }}",
+        "include_exchange_logo": "{{ p.options.include_exchange_logo }}",
+        "order": "{{ p.options.order }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "results_path": "tickers"
+      },
+      "fields": [
+        {
+          "key": "coinId",
+          "label": "Coin ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "exchange_ids",
+            "include_exchange_logo",
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "event",
+      "operation": "getAll",
+      "title": "Get many events",
+      "method": "GET",
+      "path": "/events",
+      "query": {
+        "$merge": "{{ p.options }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 250,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "country_code",
+            "from_date",
+            "to_date",
+            "type",
+            "upcoming_events_only"
+          ]
+        }
+      ]
+    }
+  ]
+}

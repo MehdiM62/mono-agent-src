@@ -1,0 +1,433 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "emelia",
+  "node_type": "app.emelia",
+  "title": "Emelia",
+  "description": "Cold-email campaigns and contact lists in Emelia (GraphQL API)",
+  "category": "app",
+  "docs_url": "https://docs.emelia.io/",
+  "n8n_types": [
+    "n8n-nodes-base.emelia"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.emeliaTrigger"
+  ],
+  "base_url": "https://graphql.emelia.io",
+  "error_when": "{{ res.errors }}",
+  "error_message": "{{ res.errors | pluck:'message' | join:'; ' }}",
+  "credentials": [
+    {
+      "platform": "emelia",
+      "name": "Emelia",
+      "n8n_credential": "emeliaApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "campaign",
+      "label": "Campaign"
+    },
+    {
+      "value": "contactList",
+      "label": "Contact list"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "campaign",
+      "operation": "get",
+      "title": "Get a campaign",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "operationName": "campaign",
+        "query": "query campaign($id: ID!) { campaign(id: $id) { _id name status createdAt provider startAt estimatedEnd recipients { total_count } schedule { dailyContact dailyLimit minInterval maxInterval trackLinks trackOpens timeZone days start end eventToStopMails } } }",
+        "variables": {
+          "id": "{{ p.campaignId }}"
+        }
+      },
+      "output": {
+        "path": "data.campaign"
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "addContact",
+      "title": "Add a contact to a campaign",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactEmail",
+          "label": "Contact email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "firstName",
+            "lastContacted",
+            "lastName",
+            "lastOpen",
+            "lastReplied",
+            "mailsSent",
+            "phoneNumber"
+          ],
+          "help": "customFieldsUi: {\"customFieldsValues\": [{\"fieldName\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "operationName": "AddContactToCampaignHook",
+        "query": "mutation AddContactToCampaignHook($id: ID!, $contact: JSON!) { addContactToCampaignHook(id: $id, contact: $contact) }",
+        "variables": {
+          "id": "{{ p.campaignId }}",
+          "contact": {
+            "email": "{{ p.contactEmail }}",
+            "$merge": [
+              "{{ p.additionalFields | omit:'customFieldsUi' }}",
+              "{{ p.additionalFields.customFieldsUi | kv:'fieldName,value' }}"
+            ]
+          }
+        }
+      },
+      "output": {
+        "path": "data",
+        "to": {
+          "contactId": "{{ el.addContactToCampaignHook }}"
+        }
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "create",
+      "title": "Create a campaign",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "campaignName",
+          "label": "Campaign name",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "operationName": "createCampaign",
+        "query": "mutation createCampaign($name: String!) { createCampaign(name: $name) { _id name status createdAt provider startAt estimatedEnd } }",
+        "variables": {
+          "name": "{{ p.campaignName }}"
+        }
+      },
+      "output": {
+        "path": "data.createCampaign"
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "duplicate",
+      "title": "Duplicate a campaign",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "campaignName",
+          "label": "New campaign name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "copyContacts",
+            "copyProvider",
+            "copyMails",
+            "copySettings"
+          ],
+          "help": "Defaults: copy settings, mails and provider; not contacts"
+        }
+      ],
+      "body": {
+        "operationName": "duplicateCampaign",
+        "query": "mutation duplicateCampaign($fromId: ID!, $name: String!, $copySettings: Boolean!, $copyMails: Boolean!, $copyContacts: Boolean!, $copyProvider: Boolean!) { duplicateCampaign(fromId: $fromId, name: $name, copySettings: $copySettings, copyMails: $copyMails, copyContacts: $copyContacts, copyProvider: $copyProvider) }",
+        "variables": {
+          "fromId": "{{ p.campaignId }}",
+          "name": "{{ p.campaignName }}",
+          "copySettings": "{{ p.options.copySettings | default:true | bool }}",
+          "copyMails": "{{ p.options.copyMails | default:true | bool }}",
+          "copyContacts": "{{ p.options.copyContacts | default:false | bool }}",
+          "copyProvider": "{{ p.options.copyProvider | default:true | bool }}"
+        }
+      },
+      "output": {
+        "path": "data",
+        "to": {
+          "_id": "{{ el.duplicateCampaign }}"
+        }
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "getAll",
+      "title": "Get many campaigns",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "body": {
+        "operationName": "all_campaigns",
+        "query": "query all_campaigns { all_campaigns { _id name status createdAt stats { mailsSent uniqueOpensPercent opens linkClickedPercent repliedPercent bouncedPercent unsubscribePercent progressPercent } } }"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__single_page__",
+        "results_path": "data.all_campaigns"
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "pause",
+      "title": "Pause a campaign",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "operationName": "pauseCampaign",
+        "query": "mutation pauseCampaign($id: ID!) { pauseCampaign(id: $id) }",
+        "variables": {
+          "id": "{{ p.campaignId }}"
+        }
+      },
+      "output": {
+        "path": "data",
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "campaign",
+      "operation": "start",
+      "title": "Start a campaign",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "campaignId",
+          "label": "Campaign ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "body": {
+        "operationName": "startCampaign",
+        "query": "mutation startCampaign($id: ID!) { startCampaign(id: $id) }",
+        "variables": {
+          "id": "{{ p.campaignId }}"
+        }
+      },
+      "output": {
+        "path": "data",
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contactList",
+      "operation": "getAll",
+      "title": "Get many contact lists",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "body": {
+        "operationName": "contact_lists",
+        "query": "query contact_lists { contact_lists { _id name contactCount fields usedInCampaign } }"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__single_page__",
+        "results_path": "data.contact_lists"
+      }
+    },
+    {
+      "resource": "contactList",
+      "operation": "add",
+      "title": "Add a contact to a list",
+      "method": "POST",
+      "path": "/graphql",
+      "fields": [
+        {
+          "key": "contactListId",
+          "label": "Contact list ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactEmail",
+          "label": "Contact email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "firstName",
+            "lastContacted",
+            "lastName",
+            "lastOpen",
+            "lastReplied",
+            "mailsSent",
+            "phoneNumber"
+          ],
+          "help": "customFieldsUi: {\"customFieldsValues\": [{\"fieldName\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "operationName": "AddContactsToListHook",
+        "query": "mutation AddContactsToListHook($id: ID!, $contact: JSON!) { addContactsToListHook(id: $id, contact: $contact) }",
+        "variables": {
+          "id": "{{ p.contactListId }}",
+          "contact": {
+            "email": "{{ p.contactEmail }}",
+            "$merge": [
+              "{{ p.additionalFields | omit:'customFieldsUi' }}",
+              "{{ p.additionalFields.customFieldsUi | kv:'fieldName,value' }}"
+            ]
+          }
+        }
+      },
+      "output": {
+        "path": "data",
+        "to": {
+          "contactId": "{{ el.addContactsToListHook }}"
+        }
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "campaignId",
+        "label": "Campaign ID",
+        "type": "text",
+        "required": true
+      },
+      {
+        "key": "events",
+        "label": "Events",
+        "type": "array",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/webhook/webhook",
+        "body": {
+          "hookUrl": "{{ hook.url }}",
+          "campaignId": "{{ p.campaignId }}",
+          "events": {
+            "$map": "{{ p.events }}",
+            "$to": "{{ el | upper }}"
+          }
+        }
+      }
+    ],
+    "id": "{{ res.webhookId | default:'campaign' }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/webhook/webhook",
+        "body": {
+          "hookUrl": "{{ hook.url }}",
+          "campaignId": "{{ p.campaignId }}"
+        }
+      }
+    ]
+  }
+}

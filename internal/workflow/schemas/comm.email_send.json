@@ -98,5 +98,17 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "true when sent",
+      "key": "sent",
+      "type": "boolean"
+    },
+    {
+      "description": "recipients",
+      "key": "to",
+      "type": "array"
+    }
   ]
 }

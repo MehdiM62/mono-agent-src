@@ -1,0 +1,1547 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "jira",
+  "extends": "service.jira",
+  "title": "Jira Software",
+  "description": "Issues, comments, attachments, transitions, notifications and users in Jira Cloud and Server (n8n operations)",
+  "category": "app",
+  "docs_url": "https://developer.atlassian.com/cloud/jira/platform/rest/v2/",
+  "n8n_types": [
+    "n8n-nodes-base.jira"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.jiraTrigger"
+  ],
+  "base_url": "https://api.atlassian.com",
+  "headers": {
+    "Accept": "application/json",
+    "X-Atlassian-Token": "no-check"
+  },
+  "credentials": [
+    {
+      "platform": "jira",
+      "reuse_platform": "jira",
+      "name": "Jira (OAuth or personal access token)",
+      "n8n_credential": "jiraSoftwareCloudOAuth2Api",
+      "n8n_credential_alt": [
+        "jiraSoftwareServerPatApi"
+      ],
+      "n8n_field_map": {
+        "personalAccessToken": "access_token",
+        "domain": "domain"
+      },
+      "methods": [
+        "oauth",
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "domain",
+          "label": "Jira domain",
+          "help": "Cloud site (picks the site when the token reaches several) or Server URL for a personal access token"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    },
+    {
+      "platform": "jira",
+      "reuse_platform": "jira",
+      "name": "Jira (email + API token)",
+      "n8n_credential": "jiraSoftwareCloudApi",
+      "n8n_credential_alt": [
+        "jiraSoftwareServerApi"
+      ],
+      "n8n_field_map": {
+        "email": "email",
+        "apiToken": "api_token",
+        "password": "api_token",
+        "domain": "domain"
+      },
+      "methods": [
+        "api_key",
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "required": true
+        },
+        {
+          "key": "api_token",
+          "label": "API token (Server: password)",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "domain",
+          "label": "Jira domain",
+          "required": true,
+          "help": "e.g. your-team.atlassian.net"
+        }
+      ],
+      "inject": {
+        "basic": {
+          "username": "{{ cred.email }}",
+          "password": "{{ cred.api_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "issue",
+      "label": "Issue"
+    },
+    {
+      "value": "issueAttachment",
+      "label": "Issue Attachment"
+    },
+    {
+      "value": "issueComment",
+      "label": "Issue Comment"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "issue",
+      "operation": "create",
+      "title": "Create an issue",
+      "method": "POST",
+      "path": "/api/2/issue",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "project",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "issueType",
+          "label": "Issue type ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "summary",
+          "label": "Summary",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "description",
+            "componentIds",
+            "customFieldsUi",
+            "labels",
+            "serverLabels",
+            "parentIssueKey",
+            "priority",
+            "reporter",
+            "updateHistory"
+          ],
+          "help": "customFieldsUi.customFieldsValues: list of {fieldId, fieldValue}; assignee/reporter: account ID (cloud) or user name (server)"
+        }
+      ],
+      "query": {
+        "updateHistory": "{{ p.additionalFields.updateHistory | eq:'true' | then:'true' }}"
+      },
+      "body": {
+        "fields": {
+          "description": "{{ p.additionalFields.description }}",
+          "labels": "{{ p.additionalFields.serverLabels | default:p.additionalFields.labels }}",
+          "priority": {
+            "id": "{{ p.additionalFields.priority | rl }}"
+          },
+          "assignee": {
+            "id": "{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | ne:'~server' | then:(p.additionalFields.assignee | rl) }}",
+            "name": "{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:(p.additionalFields.assignee | rl) }}"
+          },
+          "reporter": {
+            "id": "{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | ne:'~server' | then:(p.additionalFields.reporter | rl) }}",
+            "name": "{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:(p.additionalFields.reporter | rl) }}"
+          },
+          "parent": {
+            "key": "{{ p.additionalFields.parentIssueKey | upper }}"
+          },
+          "$merge": {
+            "$entries": "{{ p.additionalFields.customFieldsUi.customFieldsValues }}",
+            "$key": "{{ el.fieldId | rl }}",
+            "$value": "{{ el.fieldValue }}"
+          },
+          "summary": "{{ p.summary }}",
+          "project": {
+            "id": "{{ p.project | rl }}"
+          },
+          "issuetype": {
+            "id": "{{ p.issueType | rl }}"
+          },
+          "components": {
+            "$map": "{{ p.additionalFields.componentIds }}",
+            "$to": {
+              "id": "{{ el }}"
+            }
+          }
+        }
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "changelog",
+      "title": "Get an issue's changelog",
+      "method": "GET",
+      "path": "/api/2/issue/{{ p.issueKey }}/changelog",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "offset",
+        "offset_param": "startAt",
+        "limit_param": "maxResults",
+        "page_size": 100,
+        "results_path": "values"
+      },
+      "output": {
+        "path": "values"
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "delete",
+      "title": "Delete an issue",
+      "method": "DELETE",
+      "path": "/api/2/issue/{{ p.issueKey }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "deleteSubtasks",
+          "label": "Delete subtasks",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "!deleteSubtasks": "{{ p.deleteSubtasks | string }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "get",
+      "title": "Get an issue",
+      "description": "Simplify output is not applied; the raw issue is returned",
+      "method": "GET",
+      "path": "/api/2/issue/{{ p.issueKey }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "simplifyOutput",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expand",
+            "fields",
+            "fieldsByKey",
+            "properties",
+            "updateHistory"
+          ]
+        }
+      ],
+      "query": {
+        "fields": "{{ p.additionalFields.fields }}",
+        "fieldsByKey": "{{ p.additionalFields.fieldsByKey | eq:'true' | then:'true' }}",
+        "expand": "{{ p.additionalFields.expand }}{{ p.simplifyOutput | eq:'true' | then:',names' }}",
+        "properties": "{{ p.additionalFields.properties }}",
+        "updateHistory": "{{ p.additionalFields.updateHistory | eq:'true' | then:'true' }}"
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "getAll",
+      "title": "Search issues",
+      "description": "Cloud pages with nextPageToken; Server returns the first page only",
+      "method": "POST",
+      "path": "/api/2/search{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | ne:'~server' | then:'/jql' }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expand",
+            "fields",
+            "fieldsByKey",
+            "jql"
+          ],
+          "help": "fields: comma-separated (default *navigable); jql default: all issues"
+        }
+      ],
+      "body": {
+        "fields": "{{ p.options.fields | default:'*navigable' | split }}",
+        "jql": "{{ p.options.jql | default:'created >= \"1970-01-01\"' }}",
+        "expand": "{{ p.options.expand | csv | then:(p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:(p.options.expand | csv | split) | default:(p.options.expand | csv)) }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "nextPageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 100,
+        "param_in": "body",
+        "results_path": "issues"
+      },
+      "output": {
+        "path": "issues"
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "notify",
+      "title": "Send an issue notification",
+      "method": "POST",
+      "path": "/api/2/issue/{{ p.issueKey }}/notify",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "htmlBody",
+            "subject",
+            "textBody"
+          ]
+        },
+        {
+          "key": "notificationRecipientsUi",
+          "label": "Recipients",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "notificationRecipientsValues"
+          ],
+          "help": "notificationRecipientsValues: {reporter, assignee, watchers, voters, users (account IDs), groups (names)}"
+        },
+        {
+          "key": "notificationRecipientsRestrictionsUi",
+          "label": "Restrictions",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "notificationRecipientsRestrictionsValues"
+          ],
+          "help": "notificationRecipientsRestrictionsValues: {groups (names)}"
+        },
+        {
+          "key": "notificationRecipientsJson",
+          "label": "Recipients (JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "notificationRecipientsRestrictionsJson",
+          "label": "Restrictions (JSON)",
+          "type": "json",
+          "default": ""
+        }
+      ],
+      "body": {
+        "subject": "{{ p.additionalFields.subject }}",
+        "textBody": "{{ p.additionalFields.textBody }}",
+        "htmlBody": "{{ p.additionalFields.htmlBody }}",
+        "$merge": [
+          "{{ p.jsonParameters | eq:'true' | then:(p.notificationRecipientsJson | fromjson) }}"
+        ],
+        "to": {
+          "$merge": "{{ p.jsonParameters | eq:'true' | then:(p.notificationRecipientsJson | fromjson) }}",
+          "reporter": "{{ p.jsonParameters | ne:'true' | then:(p.notificationRecipientsUi.notificationRecipientsValues.reporter | eq:'true') }}",
+          "assignee": "{{ p.jsonParameters | ne:'true' | then:(p.notificationRecipientsUi.notificationRecipientsValues.assignee | eq:'true') }}",
+          "watchers": "{{ p.jsonParameters | ne:'true' | then:(p.notificationRecipientsUi.notificationRecipientsValues.watchers | eq:'true') }}",
+          "voters": "{{ p.jsonParameters | ne:'true' | then:(p.notificationRecipientsUi.notificationRecipientsValues.voters | eq:'true') }}",
+          "users": {
+            "$map": "{{ p.jsonParameters | ne:'true' | then:p.notificationRecipientsUi.notificationRecipientsValues.users }}",
+            "$to": {
+              "accountId": "{{ el }}"
+            }
+          },
+          "groups": {
+            "$map": "{{ p.jsonParameters | ne:'true' | then:p.notificationRecipientsUi.notificationRecipientsValues.groups }}",
+            "$to": {
+              "name": "{{ el }}"
+            }
+          }
+        },
+        "restrict": {
+          "$merge": "{{ p.jsonParameters | eq:'true' | then:(p.notificationRecipientsRestrictionsJson | fromjson) }}",
+          "groups": {
+            "$map": "{{ p.jsonParameters | ne:'true' | then:p.notificationRecipientsRestrictionsUi.notificationRecipientsRestrictionsValues.groups }}",
+            "$to": {
+              "name": "{{ el }}"
+            }
+          }
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "transitions",
+      "title": "Get an issue's transitions",
+      "method": "GET",
+      "path": "/api/2/issue/{{ p.issueKey }}/transitions",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expand",
+            "transitionId",
+            "skipRemoteOnlyCondition"
+          ]
+        }
+      ],
+      "query": {
+        "transitionId": "{{ p.additionalFields.transitionId }}",
+        "expand": "{{ p.additionalFields.expand }}",
+        "skipRemoteOnlyCondition": "{{ p.additionalFields.skipRemoteOnlyCondition | eq:'true' | then:'true' }}"
+      },
+      "output": {
+        "path": "transitions"
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issue",
+      "operation": "update",
+      "title": "Update an issue",
+      "method": "PUT",
+      "path": "/api/2/issue/{{ p.issueKey }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assignee",
+            "description",
+            "customFieldsUi",
+            "issueType",
+            "labels",
+            "serverLabels",
+            "parentIssueKey",
+            "priority",
+            "reporter",
+            "summary",
+            "statusId"
+          ],
+          "help": "customFieldsUi.customFieldsValues: list of {fieldId, fieldValue}; assignee/reporter: account ID (cloud) or user name (server); statusId: transition ID to move the issue"
+        }
+      ],
+      "body": {
+        "fields": {
+          "description": "{{ p.updateFields.description }}",
+          "labels": "{{ p.updateFields.serverLabels | default:p.updateFields.labels }}",
+          "priority": {
+            "id": "{{ p.updateFields.priority | rl }}"
+          },
+          "assignee": {
+            "id": "{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | ne:'~server' | then:(p.updateFields.assignee | rl) }}",
+            "name": "{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:(p.updateFields.assignee | rl) }}"
+          },
+          "reporter": {
+            "id": "{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | ne:'~server' | then:(p.updateFields.reporter | rl) }}",
+            "name": "{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:(p.updateFields.reporter | rl) }}"
+          },
+          "parent": {
+            "key": "{{ p.updateFields.parentIssueKey | upper }}"
+          },
+          "$merge": {
+            "$entries": "{{ p.updateFields.customFieldsUi.customFieldsValues }}",
+            "$key": "{{ el.fieldId | rl }}",
+            "$value": "{{ el.fieldValue }}"
+          },
+          "summary": "{{ p.updateFields.summary }}",
+          "issuetype": {
+            "id": "{{ p.updateFields.issueType | rl }}"
+          }
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.updateFields.statusId | rl }}",
+          "method": "POST",
+          "path": "/api/2/issue/{{ p.issueKey }}/transitions",
+          "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+          "body": {
+            "transition": {
+              "id": "{{ p.updateFields.statusId | rl }}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "resource": "issueAttachment",
+      "operation": "add",
+      "title": "Add an attachment",
+      "method": "POST",
+      "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/issue/{{ p.issueKey }}/attachments",
+      "body_type": "multipart",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "multipart_field": "file"
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issueAttachment",
+      "operation": "get",
+      "title": "Get an attachment",
+      "description": "With Download on, the file is added to the item as binary data",
+      "method": "GET",
+      "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/attachment/{{ p.attachmentId }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "download",
+          "label": "Download",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "output": {
+        "download": {
+          "when": "{{ p.download }}",
+          "method": "GET",
+          "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+          "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/attachment/content/{{ el.id }}",
+          "property": "{{ p.binaryProperty }}",
+          "file_name": "{{ el.filename }}",
+          "mime_type": "{{ el.mimeType }}"
+        }
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issueAttachment",
+      "operation": "getAll",
+      "title": "Get an issue's attachments",
+      "description": "With Download on, each attachment's file is added to its item as binary data",
+      "method": "GET",
+      "path": "/api/2/issue/{{ p.issueKey }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "download",
+          "label": "Download",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Output binary field",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "output": {
+        "path": "fields.attachment",
+        "limit": true,
+        "download": {
+          "when": "{{ p.download }}",
+          "method": "GET",
+          "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+          "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/attachment/content/{{ el.id }}",
+          "property": "{{ p.binaryProperty }}",
+          "file_name": "{{ el.filename }}",
+          "mime_type": "{{ el.mimeType }}"
+        }
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issueAttachment",
+      "operation": "remove",
+      "title": "Remove an attachment",
+      "method": "DELETE",
+      "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/attachment/{{ p.attachmentId }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issueComment",
+      "operation": "add",
+      "title": "Add a comment",
+      "method": "POST",
+      "path": "/api/{{ p.options.wikiMarkup | eq:'true' | then:'2' | default:(p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3') }}/issue/{{ p.issueKey }}/comment",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "comment",
+          "label": "Comment",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "commentJson",
+          "label": "Comment (Atlassian Document Format JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expand",
+            "wikiMarkup"
+          ],
+          "help": "expand: renderedBody; wikiMarkup: send the comment as wiki markup (API v2)"
+        }
+      ],
+      "query": {
+        "expand": "{{ p.options.expand | csv }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ p.jsonParameters | eq:'true' }}",
+            "body": "{{ p.commentJson | fromjson }}"
+          },
+          {
+            "$when": "{{ p.jsonParameters | ne:'true' | then:(p.options.wikiMarkup | eq:'true' | default:(p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server')) }}",
+            "body": "{{ p.comment }}"
+          },
+          {
+            "$when": "{{ p.jsonParameters | ne:'true' | then:(p.options.wikiMarkup | ne:'true' | then:(p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | ne:'~server')) }}",
+            "body": {
+              "type": "doc",
+              "version": 1,
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{{ p.comment }}"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issueComment",
+      "operation": "get",
+      "title": "Get a comment",
+      "method": "GET",
+      "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/issue/{{ p.issueKey }}/comment/{{ p.commentId }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expand"
+          ]
+        }
+      ],
+      "query": {
+        "expand": "{{ p.options.expand | csv }}"
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issueComment",
+      "operation": "getAll",
+      "title": "Get many comments",
+      "method": "GET",
+      "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/issue/{{ p.issueKey }}/comment",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expand",
+            "orderBy"
+          ],
+          "help": "orderBy: +created or -created"
+        }
+      ],
+      "query": {
+        "expand": "{{ p.options.expand | csv }}",
+        "orderBy": "{{ p.options.orderBy }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "startAt",
+        "limit_param": "maxResults",
+        "page_size": 100,
+        "results_path": "comments"
+      },
+      "output": {
+        "path": "comments"
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issueComment",
+      "operation": "remove",
+      "title": "Remove a comment",
+      "method": "DELETE",
+      "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/issue/{{ p.issueKey }}/comment/{{ p.commentId }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "issueComment",
+      "operation": "update",
+      "title": "Update a comment",
+      "method": "PUT",
+      "path": "/api/{{ p.options.wikiMarkup | eq:'true' | then:'2' | default:(p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3') }}/issue/{{ p.issueKey }}/comment/{{ p.commentId }}",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "issueKey",
+          "label": "Issue key",
+          "type": "text",
+          "required": true,
+          "placeholder": "PROJ-123"
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "comment",
+          "label": "Comment",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "commentJson",
+          "label": "Comment (Atlassian Document Format JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expand",
+            "wikiMarkup"
+          ]
+        }
+      ],
+      "query": {
+        "expand": "{{ p.options.expand | csv }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ p.jsonParameters | eq:'true' }}",
+            "body": "{{ p.commentJson | fromjson }}"
+          },
+          {
+            "$when": "{{ p.jsonParameters | ne:'true' | then:(p.options.wikiMarkup | eq:'true' | default:(p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server')) }}",
+            "body": "{{ p.comment }}"
+          },
+          {
+            "$when": "{{ p.jsonParameters | ne:'true' | then:(p.options.wikiMarkup | ne:'true' | then:(p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | ne:'~server')) }}",
+            "body": {
+              "type": "doc",
+              "version": 1,
+              "content": [
+                {
+                  "type": "paragraph",
+                  "content": [
+                    {
+                      "type": "text",
+                      "text": "{{ p.comment }}"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/user",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "emailAddress",
+          "label": "Email address",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "displayName",
+          "label": "Display name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "password",
+            "notification"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.username }}",
+        "emailAddress": "{{ p.emailAddress }}",
+        "displayName": "{{ p.displayName }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/user",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {
+        "accountId": "{{ p.accountId }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/api/{{ p.jiraVersion | default:'cloud' | prefix:'~' | replace:'~serverPat','~server' | eq:'~server' | then:'2' | default:'3' }}/user",
+      "fields": [
+        {
+          "key": "jiraVersion",
+          "label": "Jira version",
+          "type": "select",
+          "options": [
+            "cloud",
+            "cloudOAuth2",
+            "cloudServiceAccount",
+            "server",
+            "serverPat"
+          ],
+          "default": "cloud",
+          "help": "server/serverPat use Jira Server/Data Center field shapes and API v2"
+        },
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "expand"
+          ],
+          "help": "expand: groups, applicationRoles"
+        }
+      ],
+      "query": {
+        "accountId": "{{ p.accountId }}",
+        "expand": "{{ p.additionalFields.expand | csv }}"
+      },
+      "base_url": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat' | then:(pres.0 | find:'url',(cred.domain | prefix:'https://' | replace:'https://https://','https://' | re:'^(.*?)/*$') | get:'id' | default:pres.0.0.id | prefix:'https://api.atlassian.com/ex/jira/')) | default:(cred.domain | prefix:'https://' | replace:'https://http://','http://' | replace:'https://https://','https://' | re:'^(.*?)/*$') }}/rest",
+      "before": [
+        {
+          "when": "{{ cred.access_token | then:(p.jiraVersion | ne:'serverPat') }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ]
+    }
+  ]
+}

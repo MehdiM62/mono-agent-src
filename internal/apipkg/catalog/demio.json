@@ -1,0 +1,218 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "demio",
+  "node_type": "app.demio",
+  "title": "Demio",
+  "description": "Webinar events, registrations and reports in Demio",
+  "category": "app",
+  "docs_url": "https://publicdemioapi.docs.apiary.io/",
+  "n8n_types": [
+    "n8n-nodes-base.demio"
+  ],
+  "base_url": "https://my.demio.com/api/v1",
+  "credentials": [
+    {
+      "platform": "demio",
+      "name": "Demio",
+      "n8n_credential": "demioApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "apiSecret": "api_secret"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "api_secret",
+          "label": "API secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Api-Key": "{{ cred.api_key }}",
+          "Api-Secret": "{{ cred.api_secret }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "event",
+      "label": "Event"
+    },
+    {
+      "value": "report",
+      "label": "Report"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "event",
+      "operation": "get",
+      "title": "Get an event",
+      "method": "GET",
+      "path": "/event/{{ p.eventId }}{{ p.additionalFields.date_id | then:'/date/' }}{{ p.additionalFields.date_id }}",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "date_id"
+          ],
+          "help": "date_id: return one session (date) of the event"
+        }
+      ],
+      "query": {
+        "active": "{{ p.additionalFields.active }}"
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "getAll",
+      "title": "Get many events",
+      "method": "GET",
+      "path": "/events",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "type"
+          ],
+          "help": "type: automated, past or upcoming"
+        }
+      ],
+      "query": {
+        "type": "{{ p.filters.type }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "__single_page__",
+        "results_path": ""
+      }
+    },
+    {
+      "resource": "event",
+      "operation": "register",
+      "title": "Register someone for an event",
+      "method": "PUT",
+      "path": "/event/register",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "company",
+            "customFieldsUi",
+            "ref_url",
+            "gdpr",
+            "last_name",
+            "phone_number",
+            "date_id",
+            "website"
+          ],
+          "help": "customFieldsUi: {\"customFieldsValues\": [{\"fieldId\", \"value\"}]}"
+        }
+      ],
+      "body": {
+        "$merge": [
+          "{{ p.additionalFields | omit:'customFieldsUi' }}",
+          "{{ p.additionalFields.customFieldsUi | kv:'fieldId,value' }}"
+        ],
+        "name": "{{ p.firstName }}",
+        "email": "{{ p.email }}",
+        "id": "{{ p.eventId }}"
+      }
+    },
+    {
+      "resource": "report",
+      "operation": "get",
+      "title": "Get a session's participants",
+      "method": "GET",
+      "path": "/report/{{ p.dateId }}/participants",
+      "fields": [
+        {
+          "key": "eventId",
+          "label": "Event ID",
+          "type": "text",
+          "help": "Only used to pick the session"
+        },
+        {
+          "key": "dateId",
+          "label": "Session (date) ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status"
+          ],
+          "help": "status: attended, banned, completed, did-not-attend or left-early"
+        }
+      ],
+      "query": {
+        "status": "{{ p.filters.status }}"
+      },
+      "output": {
+        "path": "participants"
+      }
+    }
+  ]
+}

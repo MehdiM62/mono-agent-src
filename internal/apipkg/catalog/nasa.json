@@ -1,0 +1,545 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "nasa",
+  "node_type": "app.nasa",
+  "title": "NASA",
+  "description": "Astronomy picture of the day, near-Earth asteroids, DONKI space weather and Earth imagery from api.nasa.gov",
+  "category": "app",
+  "docs_url": "https://api.nasa.gov/",
+  "n8n_types": [
+    "n8n-nodes-base.nasa"
+  ],
+  "base_url": "https://api.nasa.gov",
+  "credentials": [
+    {
+      "platform": "nasa",
+      "name": "NASA",
+      "n8n_credential": "nasaApi",
+      "n8n_field_map": {
+        "api_key": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "DEMO_KEY works with low rate limits"
+        }
+      ],
+      "inject": {
+        "query": {
+          "api_key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "astronomyPictureOfTheDay",
+      "label": "Astronomy Picture of the Day"
+    },
+    {
+      "value": "asteroidNeoBrowse",
+      "label": "Asteroid NEO Browse"
+    },
+    {
+      "value": "asteroidNeoFeed",
+      "label": "Asteroid NEO Feed"
+    },
+    {
+      "value": "asteroidNeoLookup",
+      "label": "Asteroid NEO Lookup"
+    },
+    {
+      "value": "donkiCoronalMassEjection",
+      "label": "DONKI Coronal Mass Ejection"
+    },
+    {
+      "value": "donkiHighSpeedStream",
+      "label": "DONKI High Speed Stream"
+    },
+    {
+      "value": "donkiInterplanetaryShock",
+      "label": "DONKI Interplanetary Shock"
+    },
+    {
+      "value": "donkiMagnetopauseCrossing",
+      "label": "DONKI Magnetopause Crossing"
+    },
+    {
+      "value": "donkiNotifications",
+      "label": "DONKI Notification"
+    },
+    {
+      "value": "donkiRadiationBeltEnhancement",
+      "label": "DONKI Radiation Belt Enhancement"
+    },
+    {
+      "value": "donkiSolarEnergeticParticle",
+      "label": "DONKI Solar Energetic Particle"
+    },
+    {
+      "value": "donkiSolarFlare",
+      "label": "DONKI Solar Flare"
+    },
+    {
+      "value": "donkiWsaEnlilSimulation",
+      "label": "DONKI WSA+Enlil Simulation"
+    },
+    {
+      "value": "earthAssets",
+      "label": "Earth Asset"
+    },
+    {
+      "value": "earthImagery",
+      "label": "Earth Imagery"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "astronomyPictureOfTheDay",
+      "operation": "get",
+      "title": "Get the astronomy picture of the day",
+      "description": "With download on and an image of the day, the HD image is downloaded to the binary property",
+      "method": "GET",
+      "before": {
+        "when": "{{ p.download }}",
+        "method": "GET",
+        "path": "/planetary/apod",
+        "query": {
+          "date": "{{ p.additionalFields.date | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+        }
+      },
+      "path": "{{ p.download | eq:'true' | then:(pre.media_type | eq:'image' | then:pre.hdurl) | default:'/planetary/apod' }}",
+      "fields": [
+        {
+          "key": "download",
+          "label": "Download image",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "date"
+          ],
+          "help": "date: YYYY-MM-DD (default today)"
+        }
+      ],
+      "query": {
+        "date": "{{ p.additionalFields.date | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      },
+      "binary": {
+        "download_when": "{{ p.download | eq:'true' | then:(pre.media_type | eq:'image') }}",
+        "property_field": "binaryPropertyName"
+      }
+    },
+    {
+      "resource": "asteroidNeoBrowse",
+      "operation": "getAll",
+      "title": "Browse near-Earth objects",
+      "method": "GET",
+      "path": "/neo/rest/v1/neo/browse",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 20,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "links.next",
+        "limit_param": "size",
+        "page_size": 20,
+        "results_path": "near_earth_objects"
+      }
+    },
+    {
+      "resource": "asteroidNeoFeed",
+      "operation": "get",
+      "title": "Get near-Earth objects by approach date",
+      "method": "GET",
+      "path": "/neo/rest/v1/feed",
+      "description": "Returns the objects of the first date in the range",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endDate",
+            "startDate"
+          ],
+          "help": "Dates as YYYY-MM-DD (default today)"
+        }
+      ],
+      "query": {
+        "start_date": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}",
+        "end_date": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      },
+      "output": {
+        "path": "near_earth_objects",
+        "to": "{{ el | entries | get:'0.value' }}"
+      }
+    },
+    {
+      "resource": "asteroidNeoLookup",
+      "operation": "get",
+      "title": "Look up a near-Earth object",
+      "method": "GET",
+      "path": "/neo/rest/v1/neo/{{ p.asteroidId }}",
+      "fields": [
+        {
+          "key": "asteroidId",
+          "label": "Asteroid ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeCloseApproachData"
+          ]
+        }
+      ],
+      "output": {
+        "to": "{{ el | omit:'close_approach_data' }}",
+        "to_when": "{{ p.additionalFields.includeCloseApproachData | ne:'true' }}"
+      }
+    },
+    {
+      "resource": "donkiCoronalMassEjection",
+      "operation": "get",
+      "title": "Get DONKI Coronal Mass Ejection events",
+      "method": "GET",
+      "path": "/DONKI/CME",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endDate",
+            "startDate"
+          ],
+          "help": "Dates as YYYY-MM-DD (default: the last 30 days)"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DD') }}",
+        "endDate": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      }
+    },
+    {
+      "resource": "donkiHighSpeedStream",
+      "operation": "get",
+      "title": "Get DONKI High Speed Stream events",
+      "method": "GET",
+      "path": "/DONKI/HSS",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endDate",
+            "startDate"
+          ],
+          "help": "Dates as YYYY-MM-DD (default: the last 30 days)"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DD') }}",
+        "endDate": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      }
+    },
+    {
+      "resource": "donkiInterplanetaryShock",
+      "operation": "get",
+      "title": "Get DONKI Interplanetary Shock events",
+      "method": "GET",
+      "path": "/DONKI/IPS",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "catalog",
+            "endDate",
+            "location",
+            "startDate"
+          ],
+          "help": "Dates as YYYY-MM-DD (default: the last 30 days)"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DD') }}",
+        "endDate": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}",
+        "location": "{{ p.additionalFields.location | default:'ALL' }}",
+        "catalog": "{{ p.additionalFields.catalog | default:'ALL' }}"
+      }
+    },
+    {
+      "resource": "donkiMagnetopauseCrossing",
+      "operation": "get",
+      "title": "Get DONKI Magnetopause Crossing events",
+      "method": "GET",
+      "path": "/DONKI/MPC",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endDate",
+            "startDate"
+          ],
+          "help": "Dates as YYYY-MM-DD (default: the last 30 days)"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DD') }}",
+        "endDate": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      }
+    },
+    {
+      "resource": "donkiNotifications",
+      "operation": "get",
+      "title": "Get DONKI Notification events",
+      "method": "GET",
+      "path": "/DONKI/notifications",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endDate",
+            "startDate",
+            "type"
+          ],
+          "help": "Dates as YYYY-MM-DD (default: the last 30 days)"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DD') }}",
+        "endDate": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}",
+        "type": "{{ p.additionalFields.type | default:'all' }}"
+      }
+    },
+    {
+      "resource": "donkiRadiationBeltEnhancement",
+      "operation": "get",
+      "title": "Get DONKI Radiation Belt Enhancement events",
+      "method": "GET",
+      "path": "/DONKI/RBE",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endDate",
+            "startDate"
+          ],
+          "help": "Dates as YYYY-MM-DD (default: the last 30 days)"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DD') }}",
+        "endDate": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      }
+    },
+    {
+      "resource": "donkiSolarEnergeticParticle",
+      "operation": "get",
+      "title": "Get DONKI Solar Energetic Particle events",
+      "method": "GET",
+      "path": "/DONKI/SEP",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endDate",
+            "startDate"
+          ],
+          "help": "Dates as YYYY-MM-DD (default: the last 30 days)"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DD') }}",
+        "endDate": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      }
+    },
+    {
+      "resource": "donkiSolarFlare",
+      "operation": "get",
+      "title": "Get DONKI Solar Flare events",
+      "method": "GET",
+      "path": "/DONKI/FLR",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endDate",
+            "startDate"
+          ],
+          "help": "Dates as YYYY-MM-DD (default: the last 30 days)"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DD') }}",
+        "endDate": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      }
+    },
+    {
+      "resource": "donkiWsaEnlilSimulation",
+      "operation": "get",
+      "title": "Get DONKI WSA+Enlil Simulation events",
+      "method": "GET",
+      "path": "/DONKI/WSAEnlilSimulations",
+      "fields": [
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "endDate",
+            "startDate"
+          ],
+          "help": "Dates as YYYY-MM-DD (default: the last 30 days)"
+        }
+      ],
+      "query": {
+        "startDate": "{{ p.additionalFields.startDate | date:'YYYY-MM-DD' | default:(now | epoch | sub:2592000 | date:'YYYY-MM-DD') }}",
+        "endDate": "{{ p.additionalFields.endDate | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      }
+    },
+    {
+      "resource": "earthAssets",
+      "operation": "get",
+      "title": "Get Landsat asset dates for a location",
+      "method": "GET",
+      "path": "/planetary/earth/assets",
+      "fields": [
+        {
+          "key": "lat",
+          "label": "Latitude",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "lon",
+          "label": "Longitude",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "date",
+            "dim"
+          ],
+          "help": "dim: tile width and height in degrees (default 0.025)"
+        }
+      ],
+      "query": {
+        "lat": "{{ p.lat }}",
+        "lon": "{{ p.lon }}",
+        "dim": "{{ p.additionalFields.dim | default:0.025 }}",
+        "date": "{{ p.additionalFields.date | date:'YYYY-MM-DD' }}"
+      }
+    },
+    {
+      "resource": "earthImagery",
+      "operation": "get",
+      "title": "Get a Landsat image of a location",
+      "method": "GET",
+      "path": "/planetary/earth/imagery",
+      "fields": [
+        {
+          "key": "lat",
+          "label": "Latitude",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "lon",
+          "label": "Longitude",
+          "type": "number",
+          "required": true
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "date",
+            "dim"
+          ],
+          "help": "dim: tile width and height in degrees (default 0.025)"
+        }
+      ],
+      "query": {
+        "lat": "{{ p.lat }}",
+        "lon": "{{ p.lon }}",
+        "dim": "{{ p.additionalFields.dim | default:0.025 }}",
+        "date": "{{ p.additionalFields.date | date:'YYYY-MM-DD' | default:(now | date:'YYYY-MM-DD') }}"
+      },
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName"
+      }
+    }
+  ]
+}

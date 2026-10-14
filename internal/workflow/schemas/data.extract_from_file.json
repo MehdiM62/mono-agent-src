@@ -1,0 +1,350 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "csv",
+      "help": "csv/html/ods/rtf/xlsx return one item per row; the others put the file's content in one field.",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "csv",
+        "html",
+        "ics",
+        "json",
+        "ods",
+        "pdf",
+        "rtf",
+        "text",
+        "xml",
+        "xlsx",
+        "binary_to_property"
+      ],
+      "required": true,
+      "type": "select"
+    },
+    {
+      "default": "data",
+      "key": "binary_property_name",
+      "label": "Input Binary Field",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "default": "data",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json",
+          "text",
+          "xml",
+          "ics",
+          "binary_to_property"
+        ]
+      },
+      "help": "Field the content is written to (dot paths allowed).",
+      "key": "destination_key",
+      "label": "Destination Output Field",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "json",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "json",
+          "text",
+          "xml",
+          "ics",
+          "binary_to_property",
+          "pdf"
+        ]
+      },
+      "help": "What of the input item to keep next to the result: its JSON, its files, or both.",
+      "key": "keep_source",
+      "label": "Keep Source",
+      "options": [
+        "json",
+        "binary",
+        "both"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv",
+          "json",
+          "text",
+          "xml",
+          "ics"
+        ]
+      },
+      "help": "utf8 (default; a UTF-16 byte order mark is honoured), utf16le, utf16be, latin1, ascii, or a WHATWG label such as windows-1252.",
+      "key": "encoding",
+      "label": "Encoding",
+      "placeholder": "utf8",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv",
+          "json",
+          "text",
+          "xml",
+          "ics"
+        ]
+      },
+      "key": "strip_bom",
+      "label": "Strip Byte Order Mark",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv",
+          "html",
+          "ods",
+          "rtf",
+          "xlsx"
+        ]
+      },
+      "help": "The first row holds the column names. Off: each item is {row: [cells]}.",
+      "key": "header_row",
+      "label": "Header Row",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv",
+          "html",
+          "ods",
+          "rtf",
+          "xlsx"
+        ]
+      },
+      "help": "Keep empty cells as empty strings.",
+      "key": "include_empty_cells",
+      "label": "Include Empty Cells",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": ",",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv"
+        ]
+      },
+      "help": "One character; \\t for a tab.",
+      "key": "delimiter",
+      "label": "Delimiter",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 0,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv"
+        ]
+      },
+      "help": "1-based line to start reading at; 0 or 1 read from the first line.",
+      "key": "from_line",
+      "label": "Starting Line",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": -1,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv",
+          "html",
+          "ods",
+          "rtf",
+          "xlsx"
+        ]
+      },
+      "help": "Data rows to return; -1 for all.",
+      "key": "max_rows",
+      "label": "Max Rows",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "csv"
+        ]
+      },
+      "help": "Accept quotes inside unquoted fields instead of failing.",
+      "key": "relax_quotes",
+      "label": "Relax Quotes",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ods",
+          "xlsx"
+        ]
+      },
+      "help": "The first sheet when empty.",
+      "key": "sheet_name",
+      "label": "Sheet Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "html",
+          "ods",
+          "xlsx"
+        ]
+      },
+      "help": "A 0-based row to start at (its row is the header), or an A1 range.",
+      "key": "range",
+      "label": "Range",
+      "placeholder": "A1:D100",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ods",
+          "xlsx"
+        ]
+      },
+      "help": "Return every cell as its text; by default numeric and boolean cells become JSON numbers and booleans.",
+      "key": "raw_data",
+      "label": "Raw Data",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "ods",
+          "xlsx"
+        ]
+      },
+      "help": "Same as Raw Data: cells are returned as text.",
+      "key": "read_as_string",
+      "label": "Read As String",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "pdf"
+        ]
+      },
+      "help": "Off: text is a list with one entry per page.",
+      "key": "join_pages",
+      "label": "Join Pages",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": 0,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "pdf"
+        ]
+      },
+      "help": "Pages to read; 0 for all.",
+      "key": "max_pages",
+      "label": "Max Pages",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "pdf"
+        ]
+      },
+      "help": "For encrypted PDFs.",
+      "key": "password",
+      "label": "Password",
+      "required": false,
+      "type": "password"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "csv/html/ods/rtf/xlsx: one item per row, keyed by the header row's column names; rtf without a table: {text}",
+      "key": "<columns>",
+      "type": "any"
+    },
+    {
+      "description": "csv/html/ods/rtf/xlsx with header_row off: the row's cell values",
+      "key": "row",
+      "type": "array"
+    },
+    {
+      "description": "json/text/xml/ics/binary_to_property/pdf: the input item, kept per keep_source (json: without the file, binary: only the file, both: everything)",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "json/text/xml/ics/binary_to_property: the extracted value (parsed JSON; text; parsed calendar; base64 string)",
+      "key": "<destination_key>",
+      "type": "any"
+    },
+    {
+      "description": "pdf: the document's text (a string, or one string per page when join_pages is off); rtf without a table: the document's text",
+      "key": "text",
+      "type": "any"
+    },
+    {
+      "description": "pdf: number of pages",
+      "key": "numpages",
+      "type": "number"
+    },
+    {
+      "description": "pdf: number of pages",
+      "key": "numrender",
+      "type": "number"
+    },
+    {
+      "description": "pdf: document information (PDFFormatVersion, IsEncrypted, Title, Author, ...)",
+      "key": "info",
+      "type": "object"
+    }
+  ]
+}

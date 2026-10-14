@@ -1,0 +1,215 @@
+{
+  "bucket.getAll": {
+    "params": {
+      "projectRLC": {
+        "__rl": true,
+        "mode": "id",
+        "value": "proj1"
+      },
+      "returnAll": true
+    },
+    "response": {
+      "items": [
+        {
+          "name": "a"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/storage/v1/b",
+      "query": {
+        "project": "proj1",
+        "projection": "noAcl",
+        "maxResults": "200"
+      },
+      "items": 1
+    }
+  },
+  "bucket.create": {
+    "params": {
+      "projectId": "proj1",
+      "bucketName": "bk",
+      "createBody": {
+        "location": "EU",
+        "labels": "{\"env\":\"prod\"}"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/storage/v1/b",
+      "query": {
+        "project": "proj1",
+        "projection": "noAcl"
+      },
+      "body": {
+        "name": "bk",
+        "location": "EU",
+        "labels": {
+          "env": "prod"
+        }
+      }
+    }
+  },
+  "bucket.delete": {
+    "params": {
+      "bucketName": "bk"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/storage/v1/b/bk"
+    }
+  },
+  "bucket.get": {
+    "params": {
+      "bucketName": "bk"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/storage/v1/b/bk",
+      "query": {
+        "projection": "noAcl"
+      }
+    }
+  },
+  "bucket.update": {
+    "params": {
+      "bucketName": "bk",
+      "createBody": {
+        "storageClass": "NEARLINE"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/storage/v1/b/bk",
+      "query": {
+        "projection": "noAcl"
+      },
+      "body": {
+        "storageClass": "NEARLINE"
+      }
+    }
+  },
+  "object.getAll": {
+    "params": {
+      "bucketName": "bk",
+      "maxResults": 10,
+      "listFilters": {
+        "prefix": "logs/"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "name": "o"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/storage/v1/b/bk/o",
+      "query": {
+        "projection": "noAcl",
+        "prefix": "logs/",
+        "maxResults": "10"
+      },
+      "items": 1
+    }
+  },
+  "object.create": {
+    "params": {
+      "bucketName": "bk",
+      "objectName": "a.txt",
+      "createFromBinary": false,
+      "createContent": "hi",
+      "createData": {
+        "cacheControl": "no-cache"
+      }
+    },
+    "responses": [
+      {
+        "name": "a.txt"
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/upload/storage/v1/b/bk/o",
+        "query": {
+          "uploadType": "media",
+          "name": "a.txt",
+          "projection": "full"
+        },
+        "body": "hi"
+      },
+      {
+        "method": "PATCH",
+        "path": "/storage/v1/b/bk/o/a.txt",
+        "body": {
+          "cacheControl": "no-cache"
+        }
+      }
+    ]
+  },
+  "object.delete": {
+    "params": {
+      "bucketName": "bk",
+      "objectName": "dir/a.txt",
+      "getParameters": {
+        "generation": 5
+      }
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/storage/v1/b/bk/o/dir%2Fa.txt",
+      "query": {
+        "generation": "5"
+      }
+    }
+  },
+  "object.get": {
+    "params": {
+      "bucketName": "bk",
+      "objectName": "a.txt",
+      "alt": "media",
+      "encryptionHeaders": {
+        "X-Goog-Encryption-Key": "k"
+      }
+    },
+    "response": "hello",
+    "expect": {
+      "method": "GET",
+      "path": "/storage/v1/b/bk/o/a.txt",
+      "query": {
+        "projection": "noAcl",
+        "alt": "media"
+      },
+      "headers": {
+        "X-Goog-Encryption-Key": "k"
+      },
+      "items": 1
+    }
+  },
+  "object.update": {
+    "params": {
+      "bucketName": "bk",
+      "objectName": "a.txt",
+      "updateData": {
+        "metadata": "{\"k\":\"v\"}"
+      }
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/storage/v1/b/bk/o/a.txt",
+      "query": {
+        "projection": "full"
+      },
+      "body": {
+        "metadata": {
+          "k": "v"
+        }
+      }
+    }
+  }
+}

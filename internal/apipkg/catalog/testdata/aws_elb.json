@@ -1,0 +1,216 @@
+{
+  "loadBalancer.create": {
+    "params": {
+      "name": "web",
+      "schema": "internal",
+      "subnets": [
+        "s-1",
+        "s-2"
+      ],
+      "additionalFields": {
+        "securityGroups": [
+          "sg-1"
+        ],
+        "tagsUi": {
+          "tagValues": [
+            {
+              "key": "env",
+              "value": "prod"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "CreateLoadBalancerResponse": {
+        "CreateLoadBalancerResult": {
+          "LoadBalancers": {
+            "member": {
+              "LoadBalancerName": "web"
+            }
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "CreateLoadBalancer",
+        "Version": "2015-12-01",
+        "IpAddressType": "ipv4",
+        "Name": "web",
+        "Scheme": "internal",
+        "Type": "application",
+        "Subnets.member.1": "s-1",
+        "Subnets.member.2": "s-2",
+        "SecurityGroups.member.1": "sg-1",
+        "Tags.member.1.Key": "env",
+        "Tags.member.1.Value": "prod"
+      },
+      "items": 1
+    }
+  },
+  "loadBalancer.delete": {
+    "params": {
+      "loadBalancerId": "arn:lb"
+    },
+    "response": {
+      "DeleteLoadBalancerResponse": {
+        "ResponseMetadata": {}
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "DeleteLoadBalancer",
+        "Version": "2015-12-01",
+        "LoadBalancerArn": "arn:lb"
+      },
+      "items": 1
+    }
+  },
+  "loadBalancer.get": {
+    "params": {
+      "loadBalancerId": "arn:lb"
+    },
+    "response": {
+      "DescribeLoadBalancersResponse": {
+        "DescribeLoadBalancersResult": {
+          "LoadBalancers": {
+            "member": {
+              "LoadBalancerName": "web"
+            }
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "DescribeLoadBalancers",
+        "Version": "2015-12-01",
+        "LoadBalancerArns.member.1": "arn:lb"
+      },
+      "items": 1
+    }
+  },
+  "loadBalancer.getMany": {
+    "params": {
+      "limit": 10,
+      "filters": {
+        "names": "a, b"
+      }
+    },
+    "response": {
+      "DescribeLoadBalancersResponse": {
+        "DescribeLoadBalancersResult": {
+          "LoadBalancers": {
+            "member": [
+              {
+                "LoadBalancerName": "a"
+              },
+              {
+                "LoadBalancerName": "b"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "DescribeLoadBalancers",
+        "Version": "2015-12-01",
+        "Names.member.1": "a",
+        "Names.member.2": "b",
+        "PageSize": "10"
+      },
+      "items": 2
+    }
+  },
+  "listenerCertificate.add": {
+    "params": {
+      "loadBalancerId": "arn:lb",
+      "listenerId": "arn:l",
+      "certificateId": "arn:c"
+    },
+    "response": {
+      "AddListenerCertificatesResponse": {
+        "AddListenerCertificatesResult": {
+          "Certificates": {
+            "member": {
+              "CertificateArn": "arn:c"
+            }
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "AddListenerCertificates",
+        "Version": "2015-12-01",
+        "ListenerArn": "arn:l",
+        "Certificates.member.1.CertificateArn": "arn:c"
+      },
+      "items": 1
+    }
+  },
+  "listenerCertificate.getMany": {
+    "params": {
+      "loadBalancerId": "arn:lb",
+      "listenerId": "arn:l"
+    },
+    "response": {
+      "DescribeListenerCertificatesResponse": {
+        "DescribeListenerCertificatesResult": {
+          "Certificates": {
+            "member": {
+              "CertificateArn": "arn:c"
+            }
+          }
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "DescribeListenerCertificates",
+        "Version": "2015-12-01",
+        "ListenerArn": "arn:l",
+        "PageSize": "100"
+      },
+      "items": 1
+    }
+  },
+  "listenerCertificate.remove": {
+    "params": {
+      "loadBalancerId": "arn:lb",
+      "listenerId": "arn:l",
+      "certificateId": "arn:c"
+    },
+    "response": {
+      "RemoveListenerCertificatesResponse": {
+        "ResponseMetadata": {}
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "Action": "RemoveListenerCertificates",
+        "Version": "2015-12-01",
+        "ListenerArn": "arn:l",
+        "Certificates.member.1.CertificateArn": "arn:c"
+      },
+      "items": 1
+    }
+  }
+}

@@ -369,29 +369,15 @@ func sourceKindFor(actor Actor, requested string) (string, error) {
 // equalities are five seeks in the index, bounded by the 2,000 open tasks.
 const openTasksSQL = `SELECT COUNT(*) FROM tasks WHERE profile_id = ? AND status IN ('inbox', 'ready', 'in_progress', 'review', 'done')`
 
-// checkAddLimits refuses a task that would pass the board's size or the hourly
-// limit on agent-created tasks.
-func (s *Store) checkAddLimits(ctx context.Context, x dbx, profileID, kind string) error {
+// checkAddLimits refuses a task that would pass the board's size. Agents add
+// as many tasks as they need: there is no hourly allowance.
+func (s *Store) checkAddLimits(ctx context.Context, x dbx, profileID string) error {
 	var open int
 	if err := x.QueryRowContext(ctx, openTasksSQL, profileID).Scan(&open); err != nil {
 		return fmt.Errorf("tasks: counting tasks: %w", err)
 	}
 	if open >= MaxOpenTasks {
 		return limit("this profile already has %d open tasks: archive some first", MaxOpenTasks)
-	}
-	if kind != SourceAgent {
-		return nil
-	}
-	// A task created exactly an hour ago no longer counts, as a lease that ends
-	// exactly now has ended.
-	since := s.now().UTC().Add(-time.Hour).Format(timeFmt)
-	var recent int
-	if err := x.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM tasks WHERE profile_id = ? AND source_kind = 'agent' AND created_at > ?`, profileID, since).Scan(&recent); err != nil {
-		return fmt.Errorf("tasks: counting agent tasks: %w", err)
-	}
-	if recent >= AgentTasksPerHour {
-		return limit("agents may add %d tasks an hour to a profile: wait, or ask the operator", AgentTasksPerHour)
 	}
 	return nil
 }
@@ -451,7 +437,7 @@ func (s *Store) Add(ctx context.Context, profileID string, in AddInput, actor Ac
 				return fmt.Errorf("tasks: looking up the client id: %w", err)
 			}
 		}
-		if err := s.checkAddLimits(ctx, x, profileID, kind); err != nil {
+		if err := s.checkAddLimits(ctx, x, profileID); err != nil {
 			return err
 		}
 		pos, err := s.edgePosition(ctx, x, profileID, status, atTop(status), 0)

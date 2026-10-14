@@ -1,0 +1,259 @@
+{
+  "incident.create": {
+    "params": {
+      "title": "Down",
+      "serviceId": "S1",
+      "email": "a@b.io",
+      "additionalFields": {
+        "priorityId": "P1",
+        "urgency": "high",
+        "details": "x"
+      },
+      "conferenceBridgeUi": {
+        "conferenceBridgeValues": {
+          "conferenceUrl": "https://z"
+        }
+      }
+    },
+    "response": {
+      "incident": {
+        "id": "I1"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/incidents",
+      "headers": {
+        "From": "a@b.io"
+      },
+      "body": {
+        "incident": {
+          "type": "incident",
+          "title": "Down",
+          "service": {
+            "id": "S1",
+            "type": "service_reference"
+          },
+          "body": {
+            "type": "incident_body",
+            "details": "x"
+          },
+          "priority": {
+            "id": "P1",
+            "type": "priority_reference"
+          },
+          "urgency": "high",
+          "conference_bridge": {
+            "conference_url": "https://z"
+          }
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_token": "T"
+    }
+  },
+  "incident.get": {
+    "params": {
+      "incidentId": "I1"
+    },
+    "response": {
+      "incident": {
+        "id": "I1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/incidents/I1",
+      "items": 1
+    },
+    "credential": {
+      "api_token": "T"
+    }
+  },
+  "incident.getAll": {
+    "params": {
+      "limit": 5,
+      "options": {
+        "statuses": [
+          "triggered",
+          "acknowledged"
+        ],
+        "include": [
+          "conferenceBridge"
+        ],
+        "userIds": "U1,U2",
+        "sortBy": "created_at:desc"
+      }
+    },
+    "response": {
+      "incidents": [
+        {
+          "id": "I1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/incidents",
+      "query": {
+        "statuses[]": [
+          "triggered",
+          "acknowledged"
+        ],
+        "include[]": "conference_bridge",
+        "user_ids[]": [
+          "U1",
+          "U2"
+        ],
+        "sort_by": "created_at:desc",
+        "offset": "0",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_token": "T"
+    }
+  },
+  "incident.update": {
+    "params": {
+      "incidentId": "I1",
+      "email": "a@b.io",
+      "updateFields": {
+        "status": "resolved",
+        "escalationLevel": 2
+      }
+    },
+    "response": {
+      "incident": {
+        "id": "I1"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/incidents/I1",
+      "body": {
+        "incident": {
+          "type": "incident",
+          "status": "resolved",
+          "escalation_level": 2
+        }
+      }
+    },
+    "credential": {
+      "api_token": "T"
+    }
+  },
+  "incidentNote.create": {
+    "params": {
+      "incidentId": "I1",
+      "content": "hi",
+      "email": "a@b.io"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/incidents/I1/notes",
+      "body": {
+        "note": {
+          "content": "hi"
+        }
+      }
+    },
+    "credential": {
+      "api_token": "T"
+    }
+  },
+  "incidentNote.getAll": {
+    "params": {
+      "incidentId": "I1",
+      "limit": 3
+    },
+    "response": {
+      "notes": [
+        {
+          "id": "n"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/incidents/I1/notes",
+      "query": {
+        "offset": "0",
+        "limit": "3"
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_token": "T"
+    }
+  },
+  "logEntry.get": {
+    "params": {
+      "logEntryId": "L1"
+    },
+    "response": {
+      "log_entry": {
+        "id": "L1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/log_entries/L1",
+      "items": 1
+    },
+    "credential": {
+      "api_token": "T"
+    }
+  },
+  "logEntry.getAll": {
+    "params": {
+      "returnAll": true,
+      "options": {
+        "isOverview": true,
+        "timeZone": "UTC"
+      }
+    },
+    "response": {
+      "log_entries": [
+        {
+          "id": "L1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/log_entries",
+      "query": {
+        "is_overview": "true",
+        "time_zone": "UTC",
+        "offset": "0",
+        "limit": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "api_token": "T"
+    }
+  },
+  "user.get": {
+    "params": {
+      "userId": "U1"
+    },
+    "response": {
+      "user": {
+        "id": "U1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/users/U1",
+      "items": 1
+    },
+    "credential": {
+      "api_token": "T"
+    }
+  }
+}

@@ -1,0 +1,253 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "aws_certificate_manager",
+  "node_type": "app.aws_certificate_manager",
+  "title": "AWS Certificate Manager",
+  "description": "Certificates in AWS Certificate Manager (ACM)",
+  "category": "app",
+  "docs_url": "https://docs.aws.amazon.com/acm/latest/APIReference/API_Operations.html",
+  "n8n_types": [
+    "n8n-nodes-base.awsCertificateManager"
+  ],
+  "base_url": "https://acm.{{ cred.region | default:'us-east-1' }}.amazonaws.com{{ cred.region | matches:'^cn-' | then:'.cn' }}",
+  "credentials": [
+    {
+      "platform": "aws",
+      "reuse_platform": "aws",
+      "name": "AWS",
+      "n8n_credential": "aws",
+      "n8n_field_map": {
+        "accessKeyId": "access_key_id",
+        "secretAccessKey": "secret_access_key",
+        "sessionToken": "session_token",
+        "region": "region",
+        "stsAccessKeyId": "access_key_id",
+        "stsSecretAccessKey": "secret_access_key",
+        "stsSessionToken": "session_token",
+        "roleArn": "role_arn",
+        "externalId": "external_id",
+        "roleSessionName": "role_session_name"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key_id",
+          "label": "Access key ID",
+          "required": true
+        },
+        {
+          "key": "secret_access_key",
+          "label": "Secret access key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "region",
+          "label": "Region",
+          "help": "Default us-east-1"
+        },
+        {
+          "key": "session_token",
+          "label": "Session token",
+          "secret": true,
+          "help": "Only for temporary credentials"
+        }
+      ],
+      "inject": {
+        "aws_sigv4": {
+          "service": "acm",
+          "region": "{{ cred.region | default:'us-east-1' }}"
+        }
+      },
+      "n8n_credential_alt": [
+        "awsAssumeRole"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "value": "certificate",
+      "label": "Certificate"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "certificate",
+      "operation": "renew",
+      "title": "Renew a certificate",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "CertificateManager.RenewCertificate",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "CertificateArn": "{{ p.certificateArn }}"
+      },
+      "fields": [
+        {
+          "key": "certificateArn",
+          "label": "Certificate ARN",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "certificate",
+      "operation": "delete",
+      "title": "Delete a certificate",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "CertificateManager.DeleteCertificate",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "CertificateArn": "{{ p.certificateArn }}"
+      },
+      "fields": [
+        {
+          "key": "certificateArn",
+          "label": "Certificate ARN",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "bucketName",
+          "label": "Bucket name",
+          "type": "text",
+          "default": "",
+          "help": "Unused; kept for n8n imports"
+        },
+        {
+          "key": "certificateKey",
+          "label": "Certificate key",
+          "type": "text",
+          "default": "",
+          "help": "Unused; kept for n8n imports"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "certificate",
+      "operation": "get",
+      "title": "Get a certificate",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "CertificateManager.GetCertificate",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "CertificateArn": "{{ p.certificateArn }}"
+      },
+      "fields": [
+        {
+          "key": "certificateArn",
+          "label": "Certificate ARN",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "certificate",
+      "operation": "getMany",
+      "title": "Get many certificates",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "CertificateManager.ListCertificates",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "CertificateStatuses": "{{ p.options.certificateStatuses }}",
+        "Includes": {
+          "extendedKeyUsage": "{{ p.options.extendedKeyUsage }}",
+          "keyTypes": "{{ p.options.keyTypes }}",
+          "keyUsage": "{{ p.options.keyUsage }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "certificateStatuses",
+            "extendedKeyUsage",
+            "keyTypes",
+            "keyUsage"
+          ],
+          "help": "Lists of ACM values, e.g. certificateStatuses: [\"ISSUED\"], keyTypes: [\"RSA_2048\"]"
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "NextToken",
+        "cursor_path": "NextToken",
+        "limit_param": "MaxItems",
+        "page_size": 1000,
+        "param_in": "body",
+        "results_path": "CertificateSummaryList"
+      }
+    },
+    {
+      "resource": "certificate",
+      "operation": "getMetadata",
+      "title": "Get a certificate's metadata",
+      "method": "POST",
+      "path": "/",
+      "headers": {
+        "X-Amz-Target": "CertificateManager.DescribeCertificate",
+        "Content-Type": "application/x-amz-json-1.1"
+      },
+      "body_type": "json",
+      "body": {
+        "CertificateArn": "{{ p.certificateArn }}"
+      },
+      "fields": [
+        {
+          "key": "certificateArn",
+          "label": "Certificate ARN",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "Certificate"
+      }
+    }
+  ]
+}

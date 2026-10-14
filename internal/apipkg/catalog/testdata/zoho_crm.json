@@ -1,0 +1,2191 @@
+{
+  "account.create": {
+    "params": {
+      "accountName": "V",
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        },
+        "Billing_Address": {
+          "address_fields": {
+            "Street_X": "Main 1"
+          }
+        }
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/accounts",
+      "body": {
+        "data": [
+          {
+            "Account_Name": "V",
+            "Description": "d",
+            "Cf_1": "c",
+            "Street_X": "Main 1"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "account.upsert": {
+    "params": {
+      "accountName": "V"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/accounts/upsert",
+      "body": {
+        "data": [
+          {
+            "Account_Name": "V"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "account.delete": {
+    "params": {
+      "accountId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/accounts/1",
+      "items": 1
+    }
+  },
+  "account.get": {
+    "params": {
+      "accountId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/accounts/1",
+      "items": 1
+    }
+  },
+  "account.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/accounts",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "account.update": {
+    "params": {
+      "accountId": "1",
+      "updateFields": {
+        "Description": "u"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/accounts/1",
+      "body": {
+        "data": [
+          {
+            "Description": "u"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "contact.create": {
+    "params": {
+      "lastName": "V",
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        },
+        "Mailing_Address": {
+          "address_fields": {
+            "Street_X": "Main 1"
+          }
+        },
+        "Date_of_Birth": "2024-03-01T00:00:00.000Z"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/contacts",
+      "body": {
+        "data": [
+          {
+            "Last_Name": "V",
+            "Description": "d",
+            "Cf_1": "c",
+            "Street_X": "Main 1",
+            "Date_of_Birth": "2024-03-01"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "contact.upsert": {
+    "params": {
+      "lastName": "V"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/contacts/upsert",
+      "body": {
+        "data": [
+          {
+            "Last_Name": "V"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/contacts/1",
+      "items": 1
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/contacts/1",
+      "items": 1
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/contacts",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "1",
+      "updateFields": {
+        "Description": "u"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/contacts/1",
+      "body": {
+        "data": [
+          {
+            "Description": "u"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "deal.create": {
+    "params": {
+      "dealName": "V",
+      "stage": "V",
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        },
+        "Closing_Date": "2024-03-01T00:00:00.000Z"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/deals",
+      "body": {
+        "data": [
+          {
+            "Deal_Name": "V",
+            "Stage": "V",
+            "Description": "d",
+            "Cf_1": "c",
+            "Closing_Date": "2024-03-01"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "deal.upsert": {
+    "params": {
+      "dealName": "V",
+      "stage": "V"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/deals/upsert",
+      "body": {
+        "data": [
+          {
+            "Deal_Name": "V",
+            "Stage": "V"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "deal.delete": {
+    "params": {
+      "dealId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/deals/1",
+      "items": 1
+    }
+  },
+  "deal.get": {
+    "params": {
+      "dealId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/deals/1",
+      "items": 1
+    }
+  },
+  "deal.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/deals",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "deal.update": {
+    "params": {
+      "dealId": "1",
+      "updateFields": {
+        "Description": "u"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/deals/1",
+      "body": {
+        "data": [
+          {
+            "Description": "u"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "invoice.create": {
+    "params": {
+      "subject": "V",
+      "Product_Details": [
+        {
+          "id": "p1",
+          "quantity": 2,
+          "list_price": 10
+        }
+      ],
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        },
+        "Billing_Address": {
+          "address_fields": {
+            "Street_X": "Main 1"
+          }
+        },
+        "Invoice_Date": "2024-03-01T00:00:00.000Z",
+        "accountId": "r1"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/invoices",
+      "body": {
+        "data": [
+          {
+            "Subject": "V",
+            "Product_Details": [
+              {
+                "product": {
+                  "id": "p1"
+                },
+                "quantity": 2,
+                "list_price": 10,
+                "id": "p1"
+              }
+            ],
+            "Description": "d",
+            "Cf_1": "c",
+            "Street_X": "Main 1",
+            "Invoice_Date": "2024-03-01",
+            "Account_Name": {
+              "id": "r1"
+            }
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "invoice.upsert": {
+    "params": {
+      "subject": "V",
+      "Product_Details": [
+        {
+          "id": "p1",
+          "quantity": 2,
+          "list_price": 10
+        }
+      ]
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/invoices/upsert",
+      "body": {
+        "data": [
+          {
+            "Subject": "V",
+            "Product_Details": [
+              {
+                "product": {
+                  "id": "p1"
+                },
+                "quantity": 2,
+                "list_price": 10,
+                "id": "p1"
+              }
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "invoice.delete": {
+    "params": {
+      "invoiceId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/invoices/1",
+      "items": 1
+    }
+  },
+  "invoice.get": {
+    "params": {
+      "invoiceId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/invoices/1",
+      "items": 1
+    }
+  },
+  "invoice.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/invoices",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "invoice.update": {
+    "params": {
+      "invoiceId": "1",
+      "updateFields": {
+        "Product_Details": [
+          {
+            "id": "p2"
+          }
+        ],
+        "accountId": "a1"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/invoices/1",
+      "body": {
+        "data": [
+          {
+            "Account_Name": {
+              "id": "a1"
+            },
+            "Product_Details": [
+              {
+                "product": {
+                  "id": "p2"
+                },
+                "quantity": 1,
+                "id": "p2"
+              }
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "lead.create": {
+    "params": {
+      "Company": "V",
+      "lastName": "V",
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        },
+        "Address": {
+          "address_fields": {
+            "Street_X": "Main 1"
+          }
+        }
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/leads",
+      "body": {
+        "data": [
+          {
+            "Company": "V",
+            "Last_Name": "V",
+            "Description": "d",
+            "Cf_1": "c",
+            "Street_X": "Main 1"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "lead.upsert": {
+    "params": {
+      "Company": "V",
+      "lastName": "V"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/leads/upsert",
+      "body": {
+        "data": [
+          {
+            "Company": "V",
+            "Last_Name": "V"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "lead.delete": {
+    "params": {
+      "leadId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/leads/1",
+      "items": 1
+    }
+  },
+  "lead.get": {
+    "params": {
+      "leadId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/leads/1",
+      "items": 1
+    }
+  },
+  "lead.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/leads",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "lead.update": {
+    "params": {
+      "leadId": "1",
+      "updateFields": {
+        "Description": "u"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/leads/1",
+      "body": {
+        "data": [
+          {
+            "Description": "u"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "product.create": {
+    "params": {
+      "productName": "V",
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        }
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/products",
+      "body": {
+        "data": [
+          {
+            "Product_Name": "V",
+            "Description": "d",
+            "Cf_1": "c"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "product.upsert": {
+    "params": {
+      "productName": "V"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/products/upsert",
+      "body": {
+        "data": [
+          {
+            "Product_Name": "V"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "product.delete": {
+    "params": {
+      "productId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/products/1",
+      "items": 1
+    }
+  },
+  "product.get": {
+    "params": {
+      "productId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/products/1",
+      "items": 1
+    }
+  },
+  "product.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/products",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "product.update": {
+    "params": {
+      "productId": "1",
+      "updateFields": {
+        "Description": "u"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/products/1",
+      "body": {
+        "data": [
+          {
+            "Description": "u"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "purchaseOrder.create": {
+    "params": {
+      "subject": "V",
+      "vendorId": "x1",
+      "Product_Details": [
+        {
+          "id": "p1",
+          "quantity": 2,
+          "list_price": 10
+        }
+      ],
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        },
+        "Billing_Address": {
+          "address_fields": {
+            "Street_X": "Main 1"
+          }
+        },
+        "Due_Date": "2024-03-01T00:00:00.000Z"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/purchase_orders",
+      "body": {
+        "data": [
+          {
+            "Subject": "V",
+            "Vendor_Name": {
+              "id": "x1"
+            },
+            "Product_Details": [
+              {
+                "product": {
+                  "id": "p1"
+                },
+                "quantity": 2,
+                "list_price": 10,
+                "id": "p1"
+              }
+            ],
+            "Description": "d",
+            "Cf_1": "c",
+            "Street_X": "Main 1",
+            "Due_Date": "2024-03-01"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "purchaseOrder.upsert": {
+    "params": {
+      "subject": "V",
+      "vendorId": "x1",
+      "Product_Details": [
+        {
+          "id": "p1",
+          "quantity": 2,
+          "list_price": 10
+        }
+      ]
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/purchase_orders/upsert",
+      "body": {
+        "data": [
+          {
+            "Subject": "V",
+            "Vendor_Name": {
+              "id": "x1"
+            },
+            "Product_Details": [
+              {
+                "product": {
+                  "id": "p1"
+                },
+                "quantity": 2,
+                "list_price": 10,
+                "id": "p1"
+              }
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "purchaseOrder.delete": {
+    "params": {
+      "purchaseOrderId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/purchase_orders/1",
+      "items": 1
+    }
+  },
+  "purchaseOrder.get": {
+    "params": {
+      "purchaseOrderId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/purchase_orders/1",
+      "items": 1
+    }
+  },
+  "purchaseOrder.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/purchase_orders",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "purchaseOrder.update": {
+    "params": {
+      "purchaseOrderId": "1",
+      "updateFields": {
+        "Description": "u"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/purchase_orders/1",
+      "body": {
+        "data": [
+          {
+            "Description": "u"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "quote.create": {
+    "params": {
+      "subject": "V",
+      "Product_Details": [
+        {
+          "id": "p1",
+          "quantity": 2,
+          "list_price": 10
+        }
+      ],
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        },
+        "Billing_Address": {
+          "address_fields": {
+            "Street_X": "Main 1"
+          }
+        },
+        "Valid_Till": "2024-03-01T00:00:00.000Z"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/quotes",
+      "body": {
+        "data": [
+          {
+            "Subject": "V",
+            "Product_Details": [
+              {
+                "product": {
+                  "id": "p1"
+                },
+                "quantity": 2,
+                "list_price": 10,
+                "id": "p1"
+              }
+            ],
+            "Description": "d",
+            "Cf_1": "c",
+            "Street_X": "Main 1",
+            "Valid_Till": "2024-03-01"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "quote.upsert": {
+    "params": {
+      "subject": "V",
+      "Product_Details": [
+        {
+          "id": "p1",
+          "quantity": 2,
+          "list_price": 10
+        }
+      ]
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/quotes/upsert",
+      "body": {
+        "data": [
+          {
+            "Subject": "V",
+            "Product_Details": [
+              {
+                "product": {
+                  "id": "p1"
+                },
+                "quantity": 2,
+                "list_price": 10,
+                "id": "p1"
+              }
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "quote.delete": {
+    "params": {
+      "quoteId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/quotes/1",
+      "items": 1
+    }
+  },
+  "quote.get": {
+    "params": {
+      "quoteId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/quotes/1",
+      "items": 1
+    }
+  },
+  "quote.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/quotes",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "quote.update": {
+    "params": {
+      "quoteId": "1",
+      "updateFields": {
+        "Description": "u"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/quotes/1",
+      "body": {
+        "data": [
+          {
+            "Description": "u"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "salesOrder.create": {
+    "params": {
+      "accountId": "x1",
+      "subject": "V",
+      "Product_Details": [
+        {
+          "id": "p1",
+          "quantity": 2,
+          "list_price": 10
+        }
+      ],
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        },
+        "Billing_Address": {
+          "address_fields": {
+            "Street_X": "Main 1"
+          }
+        },
+        "Due_Date": "2024-03-01T00:00:00.000Z",
+        "contactId": "r1",
+        "dealId": "r1"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/sales_orders",
+      "body": {
+        "data": [
+          {
+            "Account_Name": {
+              "id": "x1"
+            },
+            "Subject": "V",
+            "Product_Details": [
+              {
+                "product": {
+                  "id": "p1"
+                },
+                "quantity": 2,
+                "list_price": 10,
+                "id": "p1"
+              }
+            ],
+            "Description": "d",
+            "Cf_1": "c",
+            "Street_X": "Main 1",
+            "Due_Date": "2024-03-01",
+            "Contact_Name": {
+              "id": "r1"
+            },
+            "Deal_Name": {
+              "id": "r1"
+            }
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "salesOrder.upsert": {
+    "params": {
+      "accountId": "x1",
+      "subject": "V",
+      "Product_Details": [
+        {
+          "id": "p1",
+          "quantity": 2,
+          "list_price": 10
+        }
+      ]
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/sales_orders/upsert",
+      "body": {
+        "data": [
+          {
+            "Account_Name": {
+              "id": "x1"
+            },
+            "Subject": "V",
+            "Product_Details": [
+              {
+                "product": {
+                  "id": "p1"
+                },
+                "quantity": 2,
+                "list_price": 10
+              }
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "salesOrder.delete": {
+    "params": {
+      "salesOrderId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/sales_orders/1",
+      "items": 1
+    }
+  },
+  "salesOrder.get": {
+    "params": {
+      "salesOrderId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/sales_orders/1",
+      "items": 1
+    }
+  },
+  "salesOrder.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/sales_orders",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "salesOrder.update": {
+    "params": {
+      "salesOrderId": "1",
+      "updateFields": {
+        "Description": "u"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/sales_orders/1",
+      "body": {
+        "data": [
+          {
+            "Description": "u"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "vendor.create": {
+    "params": {
+      "vendorName": "V",
+      "additionalFields": {
+        "Description": "d",
+        "customFields": {
+          "customFields": [
+            {
+              "fieldId": "Cf_1",
+              "value": "c"
+            }
+          ]
+        },
+        "Address": {
+          "address_fields": {
+            "Street_X": "Main 1"
+          }
+        }
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/vendors",
+      "body": {
+        "data": [
+          {
+            "Vendor_Name": "V",
+            "Description": "d",
+            "Cf_1": "c",
+            "Street_X": "Main 1"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "vendor.upsert": {
+    "params": {
+      "vendorName": "V"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/crm/v2/vendors/upsert",
+      "body": {
+        "data": [
+          {
+            "Vendor_Name": "V"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "vendor.delete": {
+    "params": {
+      "vendorId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/crm/v2/vendors/1",
+      "items": 1
+    }
+  },
+  "vendor.get": {
+    "params": {
+      "vendorId": "1"
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/vendors/1",
+      "items": 1
+    }
+  },
+  "vendor.getAll": {
+    "params": {
+      "limit": 3,
+      "options": {
+        "fields": [
+          "Email",
+          "Phone"
+        ],
+        "sort_order": "asc",
+        "approved": true
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ],
+      "info": {
+        "more_records": false
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/vendors",
+      "query": {
+        "fields": "Email,Phone",
+        "sort_order": "asc",
+        "approved": "true",
+        "page": "1",
+        "per_page": "3"
+      },
+      "items": 2
+    }
+  },
+  "vendor.update": {
+    "params": {
+      "vendorId": "1",
+      "updateFields": {
+        "Description": "u"
+      }
+    },
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "data": [
+        {
+          "details": {
+            "id": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/crm/v2/vendors/1",
+      "body": {
+        "data": [
+          {
+            "Description": "u"
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "lead.getFields": {
+    "params": {},
+    "credential": {
+      "access_token": "tok",
+      "api_domain": "https://www.zohoapis.eu"
+    },
+    "response": {
+      "fields": [
+        {
+          "api_name": "Email"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/crm/v2/settings/fields",
+      "query": {
+        "module": "leads"
+      },
+      "items": 1
+    }
+  }
+}

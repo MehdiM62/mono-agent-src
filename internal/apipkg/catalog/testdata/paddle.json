@@ -1,0 +1,279 @@
+{
+  "coupon.create": {
+    "params": {
+      "couponType": "product",
+      "productIds": [
+        "1",
+        "2"
+      ],
+      "discountType": "percentage",
+      "discountAmount": 10,
+      "additionalFields": {
+        "couponCode": "X",
+        "recurring": true,
+        "expires": "2025-01-02T10:00:00Z"
+      }
+    },
+    "response": {
+      "success": true,
+      "response": {
+        "coupon_codes": [
+          "X"
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.1/product/create_coupon",
+      "body": {
+        "vendor_id": "V",
+        "vendor_auth_code": "A",
+        "product_ids": "1,2",
+        "coupon_type": "product",
+        "discount_type": "percentage",
+        "discount_amount": 10,
+        "coupon_code": "X",
+        "recurring": 1,
+        "expires": "2025-01-02"
+      },
+      "items": 1
+    },
+    "credential": {
+      "vendor_id": "V",
+      "vendor_auth_code": "A"
+    }
+  },
+  "coupon.getAll": {
+    "params": {
+      "productId": "9",
+      "limit": 1
+    },
+    "response": {
+      "success": true,
+      "response": [
+        {
+          "coupon": "a"
+        },
+        {
+          "coupon": "b"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/product/list_coupons",
+      "body": {
+        "vendor_id": "V",
+        "vendor_auth_code": "A",
+        "product_id": "9"
+      },
+      "items": 1
+    },
+    "credential": {
+      "vendor_id": "V",
+      "vendor_auth_code": "A"
+    }
+  },
+  "coupon.update": {
+    "params": {
+      "couponCode": "X",
+      "additionalFields": {
+        "newCouponCode": "Y",
+        "discount": {
+          "discountProperties": {
+            "discountType": "flat",
+            "discountAmount": 5,
+            "currency": "USD"
+          }
+        }
+      }
+    },
+    "response": {
+      "success": true,
+      "response": {
+        "updated": 1
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.1/product/update_coupon",
+      "body": {
+        "vendor_id": "V",
+        "vendor_auth_code": "A",
+        "coupon_code": "X",
+        "new_coupon_code": "Y",
+        "discount_amount": 5,
+        "currency": "USD"
+      },
+      "items": 1
+    },
+    "credential": {
+      "vendor_id": "V",
+      "vendor_auth_code": "A"
+    }
+  },
+  "payment.getAll": {
+    "params": {
+      "jsonParameters": true,
+      "additionalFieldsJson": "{\"plan\": 3}"
+    },
+    "response": {
+      "success": true,
+      "response": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/subscription/payments",
+      "body": {
+        "vendor_id": "V",
+        "vendor_auth_code": "A",
+        "plan": 3
+      },
+      "items": 1
+    },
+    "credential": {
+      "vendor_id": "V",
+      "vendor_auth_code": "A"
+    }
+  },
+  "payment.reschedule": {
+    "params": {
+      "paymentId": "7",
+      "date": "2025-03-04"
+    },
+    "response": {
+      "success": true
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/subscription/payments_reschedule",
+      "body": {
+        "vendor_id": "V",
+        "vendor_auth_code": "A",
+        "payment_id": "7",
+        "date": "2025-03-04"
+      }
+    },
+    "credential": {
+      "vendor_id": "V",
+      "vendor_auth_code": "A"
+    }
+  },
+  "plan.get": {
+    "params": {
+      "planId": "5"
+    },
+    "response": {
+      "success": true,
+      "response": [
+        {
+          "id": 5
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/subscription/plans",
+      "body": {
+        "vendor_id": "V",
+        "vendor_auth_code": "A",
+        "plan": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "vendor_id": "V",
+      "vendor_auth_code": "A"
+    }
+  },
+  "plan.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "response": {
+      "success": true,
+      "response": [
+        {
+          "id": 5
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/subscription/plans",
+      "body": {
+        "vendor_id": "V",
+        "vendor_auth_code": "A"
+      },
+      "items": 1
+    },
+    "credential": {
+      "vendor_id": "V",
+      "vendor_auth_code": "A"
+    }
+  },
+  "product.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "success": true,
+      "response": {
+        "products": [
+          {
+            "id": 1
+          }
+        ]
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/product/get_products",
+      "body": {
+        "vendor_id": "V",
+        "vendor_auth_code": "A"
+      },
+      "items": 1
+    },
+    "credential": {
+      "vendor_id": "V",
+      "vendor_auth_code": "A"
+    }
+  },
+  "user.getAll": {
+    "params": {
+      "limit": 10,
+      "additionalFields": {
+        "state": "active"
+      }
+    },
+    "response": {
+      "success": true,
+      "response": [
+        {
+          "user_id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/2.0/subscription/users",
+      "body": {
+        "vendor_id": "V",
+        "vendor_auth_code": "A",
+        "state": "active",
+        "page": 1,
+        "results_per_page": 10
+      },
+      "items": 1
+    },
+    "credential": {
+      "vendor_id": "V",
+      "vendor_auth_code": "A"
+    }
+  }
+}

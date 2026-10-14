@@ -1,0 +1,339 @@
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
+
+	"github.com/monoes/mono-agent/internal/noderegistry"
+	"github.com/monoes/mono-agent/internal/workflow"
+)
+
+// ── workflow tools ───────────────────────────────────────────────────────────
+
+func toolWorkflowList(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
+	rt, err := s.runtime()
+	if err != nil {
+		return nil, err
+	}
+	wfs, err := rt.store.ListWorkflows(ctx, rt.profileID)
+	if err != nil {
+		return nil, fmt.Errorf("list workflows: %w", err)
+	}
+	// Node counts without an N+1: one aggregate query over workflow_nodes
+	// covers SQL-stored workflows; file-store workflows already arrive
+	// with their nodes parsed by ListWorkflows.
+	nodeCounts := map[string]int{}
+	rows, err := rt.db.DB.QueryContext(ctx,
+		`SELECT workflow_id, COUNT(*) FROM workflow_nodes GROUP BY workflow_id`)
+	if err != nil {
+		return nil, fmt.Errorf("count workflow nodes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, fmt.Errorf("scan node count: %w", err)
+		}
+		nodeCounts[id] = n
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate node counts: %w", err)
+	}
+
+	out := []map[string]interface{}{}
+	for _, wf := range wfs {
+		nodeCount := len(wf.Nodes)
+		if nodeCount == 0 {
+			nodeCount = nodeCounts[wf.ID]
+		}
+		out = append(out, map[string]interface{}{
+			"id":         wf.ID,
+			"name":       wf.Name,
+			"active":     wf.IsActive,
+			"node_count": nodeCount,
+		})
+	}
+	return out, nil
+}
+
+func toolWorkflowGet(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
+	var a struct {
+		ID string `json:"id"`
+	}
+	if err := decodeArgs(args, &a); err != nil {
+		return nil, err
+	}
+	if a.ID == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	rt, err := s.runtime()
+	if err != nil {
+		return nil, err
+	}
+	wf, err := rt.store.GetWorkflow(ctx, a.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get workflow: %w", err)
+	}
+	if wf == nil || crossProfile(wf.ProfileID, rt.profileID) {
+		return nil, fmt.Errorf("workflow %q not found", a.ID)
+	}
+	return wf, nil
+}
+
+// crossProfile reports whether a record's owning profile (empty means
+// unscoped/legacy, and is always considered in-profile) differs from the
+// active profile. A cross-profile lookup is surfaced as "not found" by
+// every caller here, matching internal/httpapi/handlers.go's
+// handleWorkflowGet/handleWorkflowExecutions and
+// internal/workflow/engine.go's checkWorkflowProfile — never a
+// distinguishable "forbidden", so a guessed or leaked ID from another
+// profile can't be used to probe for existence.
+func crossProfile(ownerProfileID, activeProfileID string) bool {
+	return ownerProfileID != "" && ownerProfileID != activeProfileID
+}
+
+// parseWorkflowBytes accepts both the file-store workflow JSON format
+// (type/source/target keys) and the legacy DB export format, mirroring
+// `monoagentcli workflow import`.
+func parseWorkflowBytes(raw []byte) (workflow.Workflow, error) {
+	wf, err := workflow.ParseWorkflowFileBytes(raw)
+	if err == nil {
+		return wf, nil
+	}
+	var legacy workflow.Workflow
+	if err2 := json.Unmarshal(raw, &legacy); err2 != nil {
+		return wf, err
+	}
+	return legacy, nil
+}
+
+func toolWorkflowValidate(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
+	var a struct {
+		ID       string                 `json:"id"`
+		File     string                 `json:"file"`
+		Workflow map[string]interface{} `json:"workflow"`
+	}
+	if err := decodeArgs(args, &a); err != nil {
+		return nil, err
+	}
+
+	var wf workflow.Workflow
+	switch {
+	case a.ID != "":
+		rt, err := s.runtime()
+		if err != nil {
+			return nil, err
+		}
+		loaded, err := rt.store.GetWorkflow(ctx, a.ID)
+		if err != nil {
+			return nil, fmt.Errorf("get workflow: %w", err)
+		}
+		if loaded == nil || crossProfile(loaded.ProfileID, rt.profileID) {
+			return nil, fmt.Errorf("workflow %q not found", a.ID)
+		}
+		wf = *loaded
+	case a.File != "":
+		raw, err := os.ReadFile(a.File)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, fmt.Errorf("file not found: %s", a.File)
+			}
+			// Collapse non-existence read errors (permissions, dirs, …)
+			// to a fixed message: no path-derived or OS-error detail.
+			return nil, fmt.Errorf("file is not a valid workflow")
+		}
+		wf, err = parseWorkflowBytes(raw)
+		if err != nil {
+			// No content-derived parse detail either.
+			return nil, fmt.Errorf("file is not a valid workflow")
+		}
+	case a.Workflow != nil:
+		raw, err := json.Marshal(a.Workflow)
+		if err != nil {
+			return nil, fmt.Errorf("render workflow JSON: %w", err)
+		}
+		if wf, err = parseWorkflowBytes(raw); err != nil {
+			return nil, fmt.Errorf("parse workflow JSON: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("provide one of: id, file, or workflow")
+	}
+
+	// ValidateWorkflow runs ValidateForActivation (structure, DAG,
+	// triggers) plus the schema-aware checks, as `workflow validate` does.
+	rep := workflow.ValidateWorkflow(&wf, workflow.ValidateOptions{KnownNodeType: noderegistry.Build(nil).Has})
+	return map[string]interface{}{
+		"valid":    rep.Valid,
+		"errors":   rep.Errors,
+		"warnings": rep.Warnings,
+		"issues":   rep.Issues,
+	}, nil
+}
+
+func toolWorkflowRun(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
+	var a struct {
+		ID             string                 `json:"id"`
+		Input          map[string]interface{} `json:"input"`
+		TimeoutSeconds float64                `json:"timeout_seconds"`
+	}
+	if err := decodeArgs(args, &a); err != nil {
+		return nil, err
+	}
+	if a.ID == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	rt, err := s.runtime()
+	if err != nil {
+		return nil, err
+	}
+	if err := rt.ensureEngine(ctx); err != nil {
+		return nil, err
+	}
+
+	execID, err := rt.engine.TriggerWorkflow(ctx, a.ID, a.Input)
+	if err != nil {
+		return nil, fmt.Errorf("trigger workflow: %w", err)
+	}
+
+	timeout := clampTimeoutSeconds(a.TimeoutSeconds)
+	var exec *workflow.WorkflowExecution
+	if p := progressFrom(ctx); p != nil {
+		exec = waitWithProgress(ctx, rt, execID, a.ID, timeout, p)
+	} else {
+		exec = waitForExecution(ctx, rt, execID, timeout)
+	}
+
+	nodeTypes := map[string]string{}
+	if wf, err := rt.store.GetWorkflow(ctx, exec.WorkflowID); err == nil && wf != nil {
+		for _, n := range wf.Nodes {
+			nodeTypes[n.ID] = n.Type
+		}
+	}
+
+	nodes := []map[string]interface{}{}
+	for _, en := range exec.Nodes {
+		outputItems := workflow.RedactAndTruncateItems(en.OutputItems)
+		if outputItems == nil {
+			outputItems = []workflow.Item{}
+		}
+		row := map[string]interface{}{
+			"node_id":      en.NodeID,
+			"type":         nodeTypes[en.NodeID],
+			"status":       en.Status,
+			"output_items": outputItems,
+		}
+		if en.ErrorMessage != "" {
+			row["error"] = en.ErrorMessage
+		}
+		nodes = append(nodes, row)
+	}
+	result := map[string]interface{}{
+		"execution_id": exec.ID,
+		"status":       exec.Status,
+		"nodes":        nodes,
+	}
+	if exec.ErrorMessage != "" {
+		result["error"] = exec.ErrorMessage
+	}
+	if exec.Status == "RUNNING" || exec.Status == "QUEUED" {
+		result["timed_out"] = true
+	}
+	return result, nil
+}
+
+// waitForExecution polls the execution's STATUS only (a single-column
+// query) until it reaches a terminal or paused status, the timeout
+// elapses, or ctx is cancelled; the full record (with node outputs) is
+// then loaded exactly once. Returns the latest snapshot either way.
+func waitForExecution(ctx context.Context, rt *runtime, executionID string, timeout time.Duration) *workflow.WorkflowExecution {
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	load := func() *workflow.WorkflowExecution {
+		exec, err := rt.store.GetExecution(context.Background(), executionID)
+		if err != nil || exec == nil {
+			return &workflow.WorkflowExecution{ID: executionID, Status: "UNKNOWN"}
+		}
+		return exec
+	}
+	for {
+		select {
+		case <-ticker.C:
+			status, err := rt.store.GetExecutionStatus(ctx, executionID)
+			if err != nil || status == "" {
+				continue
+			}
+			switch status {
+			case "QUEUED", "RUNNING":
+				if time.Now().After(deadline) {
+					return load()
+				}
+			default: // SUCCESS, FAILED, CANCELLED, WAITING (HIL pause)
+				return load()
+			}
+		case <-ctx.Done():
+			return load()
+		}
+	}
+}
+
+func toolWorkflowStatus(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
+	var a struct {
+		ExecutionID string `json:"execution_id"`
+	}
+	if err := decodeArgs(args, &a); err != nil {
+		return nil, err
+	}
+	if a.ExecutionID == "" {
+		return nil, fmt.Errorf("execution_id is required")
+	}
+	rt, err := s.runtime()
+	if err != nil {
+		return nil, err
+	}
+	exec, err := rt.store.GetExecution(ctx, a.ExecutionID)
+	if err != nil {
+		return nil, fmt.Errorf("get execution: %w", err)
+	}
+	if exec == nil || crossProfile(exec.ProfileID, rt.profileID) {
+		return nil, fmt.Errorf("execution %q not found", a.ExecutionID)
+	}
+	// Same output pipeline as workflow_run: credential-key redaction (no
+	// opt-out over MCP) followed by the per-item size cap.
+	for i := range exec.Nodes {
+		exec.Nodes[i].OutputItems = workflow.RedactAndTruncateItems(exec.Nodes[i].OutputItems)
+	}
+	if exec.Status != "WAITING" {
+		return exec, nil
+	}
+	// A run paused for a reply (core.wait webhook/form, approval links) is
+	// resumed only through its URL: name it.
+	waiting, err := workflow.PendingReplies(ctx, rt.db.DB, exec.ID)
+	if err != nil {
+		return nil, err
+	}
+	return struct {
+		*workflow.WorkflowExecution
+		Waiting []workflow.PendingReply `json:"waiting_for,omitempty"`
+	}{exec, waiting}, nil
+}
+
+// clampTimeoutSeconds maps the workflow_run timeout_seconds argument to a
+// duration clamped to [1s, 600s]; zero/negative values fall back to the
+// 120s default. The clamp bounds how long one tool call can run.
+func clampTimeoutSeconds(secs float64) time.Duration {
+	switch {
+	case secs <= 0:
+		return 120 * time.Second
+	case secs < 1:
+		return 1 * time.Second
+	case secs > 600:
+		return 600 * time.Second
+	default:
+		return time.Duration(secs * float64(time.Second))
+	}
+}

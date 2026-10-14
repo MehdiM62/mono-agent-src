@@ -6,12 +6,16 @@ import (
 	"net"
 	"net/smtp"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/fsconfine"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // OutlookSendNode sends an email via Outlook / Hotmail SMTP.
-// Type: "comm.outlook_send"
+//
+// It is no longer registered as a node type of its own: service.outlook_mail
+// runs it for send_message with app-password authentication, and the
+// legacy "comm.outlook_send" type is an alias of service.outlook_mail.
 //
 // Config fields:
 //
@@ -37,12 +41,15 @@ type OutlookSendNode struct{}
 func (n *OutlookSendNode) Type() string { return "comm.outlook_send" }
 
 func (n *OutlookSendNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("comm.outlook_send", config) {
+		return apipkg.ExecuteExtension(ctx, "comm.outlook_send", input, config)
+	}
 	const smtpHost = "smtp-mail.outlook.com"
 	const smtpPort = 587
 
 	email, _ := config["email"].(string)
 	if email == "" {
-		return nil, fmt.Errorf("comm.outlook_send: email is required")
+		return nil, fmt.Errorf("outlook_mail send_message (app password): email is required")
 	}
 
 	// Support both "password" and "app_password" keys (connection saves as app_password).
@@ -51,12 +58,12 @@ func (n *OutlookSendNode) Execute(ctx context.Context, input workflow.NodeInput,
 		password, _ = config["app_password"].(string)
 	}
 	if password == "" {
-		return nil, fmt.Errorf("comm.outlook_send: password is required")
+		return nil, fmt.Errorf("outlook_mail send_message (app password): password is required")
 	}
 
 	toAddrs := toStringSlice(config["to"])
 	if len(toAddrs) == 0 {
-		return nil, fmt.Errorf("comm.outlook_send: to is required")
+		return nil, fmt.Errorf("outlook_mail send_message (app password): to is required")
 	}
 
 	ccAddrs := toStringSlice(config["cc"])
@@ -64,12 +71,12 @@ func (n *OutlookSendNode) Execute(ctx context.Context, input workflow.NodeInput,
 
 	subject, _ := config["subject"].(string)
 	if subject == "" {
-		return nil, fmt.Errorf("comm.outlook_send: subject is required")
+		return nil, fmt.Errorf("outlook_mail send_message (app password): subject is required")
 	}
 
 	body, _ := config["body"].(string)
 	if body == "" {
-		return nil, fmt.Errorf("comm.outlook_send: body is required")
+		return nil, fmt.Errorf("outlook_mail send_message (app password): body is required")
 	}
 
 	bodyType := "text"
@@ -94,7 +101,7 @@ func (n *OutlookSendNode) Execute(ctx context.Context, input workflow.NodeInput,
 	// workdir when a role's grant started this run.
 	attachmentPaths, err := fsconfine.Paths(ctx, attachmentPaths)
 	if err != nil {
-		return nil, fmt.Errorf("comm.outlook_send: attachments: %w", err)
+		return nil, fmt.Errorf("outlook_mail send_message (app password): attachments: %w", err)
 	}
 
 	// Optional threading: pass the original message's Message-ID header (get
@@ -116,14 +123,14 @@ func (n *OutlookSendNode) Execute(ctx context.Context, input workflow.NodeInput,
 
 	msgBytes, err := buildMIMEMessage(email, toAddrs, ccAddrs, subject, body, bodyType, attachmentPaths, inReplyTo, references)
 	if err != nil {
-		return nil, fmt.Errorf("comm.outlook_send: build message: %w", err)
+		return nil, fmt.Errorf("outlook_mail send_message (app password): build message: %w", err)
 	}
 
 	addr := net.JoinHostPort(smtpHost, fmt.Sprintf("%d", smtpPort))
 	auth := smtp.PlainAuth("", email, password, smtpHost)
 
 	if err := smtp.SendMail(addr, auth, email, allRecipients, msgBytes); err != nil {
-		return nil, fmt.Errorf("comm.outlook_send: %w", err)
+		return nil, fmt.Errorf("outlook_mail send_message (app password): %w", err)
 	}
 
 	result := workflow.NewItem(map[string]interface{}{

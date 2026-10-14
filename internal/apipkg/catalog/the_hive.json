@@ -1,0 +1,2774 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "the_hive",
+  "node_type": "app.the_hive",
+  "title": "TheHive (3/4)",
+  "description": "Alerts, cases, tasks, logs and observables in TheHive 3 and 4 (legacy API)",
+  "category": "app",
+  "docs_url": "https://docs.thehive-project.org/thehive/api/",
+  "n8n_types": [
+    "n8n-nodes-base.theHive"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.theHiveTrigger"
+  ],
+  "base_url": "{{ cred.url }}/api",
+  "credentials": [
+    {
+      "platform": "the_hive",
+      "name": "TheHive (3/4)",
+      "n8n_credential": "theHiveApi",
+      "n8n_field_map": {
+        "ApiKey": "api_key",
+        "url": "url",
+        "apiVersion": "api_version",
+        "allowUnauthorizedCerts": "allow_unauthorized_certs"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Instance URL",
+          "required": true
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "api_version",
+          "label": "API version",
+          "help": "v1 for TheHive 4 (default empty = TheHive 3, API v0)"
+        },
+        {
+          "key": "allow_unauthorized_certs",
+          "label": "Ignore SSL issues",
+          "help": "true to accept self-signed or invalid TLS certificates (self-hosted servers)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "alert",
+      "label": "Alert"
+    },
+    {
+      "value": "case",
+      "label": "Case"
+    },
+    {
+      "value": "log",
+      "label": "Log"
+    },
+    {
+      "value": "observable",
+      "label": "Observable"
+    },
+    {
+      "value": "task",
+      "label": "Task"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "alert",
+      "operation": "create",
+      "title": "Create an alert",
+      "method": "POST",
+      "path": "/alert",
+      "before": {
+        "when": "{{ p.jsonParameters | default:true | ne:'true' | then:p.additionalFields.customFieldsUi.customFields }}",
+        "method": "GET",
+        "path": "{{ cred.api_version | eq:'v1' | then:'/customField' | default:'/list/custom_fields' }}"
+      },
+      "body": {
+        "title": "{{ p.title }}",
+        "description": "{{ p.description }}",
+        "severity": "{{ p.severity }}",
+        "date": "{{ p.date | epoch_ms }}",
+        "tags": "{{ p.tags | split }}",
+        "tlp": "{{ p.tlp }}",
+        "status": "{{ p.status }}",
+        "type": "{{ p.type }}",
+        "source": "{{ p.source }}",
+        "sourceRef": "{{ p.sourceRef }}",
+        "follow": "{{ p.follow | default:true }}",
+        "caseTemplate": "{{ p.additionalFields.caseTemplate }}",
+        "customFields": {
+          "$merge": [
+            {
+              "$when": "{{ p.jsonParameters | default:true | eq:'true' }}",
+              "$merge": "{{ p.additionalFields.customFieldsJson | fromjson }}"
+            },
+            {
+              "$when": "{{ p.jsonParameters | default:true | ne:'true' }}",
+              "$entries": "{{ p.additionalFields.customFieldsUi.customFields }}",
+              "$key": "{{ el.field }}",
+              "$value": {
+                "$entries": {
+                  "$list": [
+                    "{{ el }}"
+                  ]
+                },
+                "$key": "{{ pre | values | find:'reference',el.field | get:'type' }}",
+                "$value": "{{ el.value }}"
+              }
+            }
+          ]
+        },
+        "artifacts": {
+          "$map": "{{ p.artifactUi.artifactValues }}",
+          "$to": {
+            "message": "{{ el.message }}",
+            "tags": "{{ el.tags | split }}",
+            "dataType": "{{ el.dataType }}",
+            "data": "{{ el.dataType | ne:'file' | then:el.data }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | get:'file_name' }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | then:';' }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | get:'mime_type' }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | then:';' }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | get:'base64' }}"
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "severity",
+          "label": "Severity",
+          "type": "number",
+          "required": true,
+          "default": 2
+        },
+        {
+          "key": "date",
+          "label": "Date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tlp",
+          "label": "TLP",
+          "type": "number",
+          "required": true,
+          "default": 2
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "text",
+          "required": true,
+          "default": "New"
+        },
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "source",
+          "label": "Source",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sourceRef",
+          "label": "Source reference",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "follow",
+          "label": "Follow",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "artifactUi",
+          "label": "Artifacts",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "artifactValues"
+          ],
+          "help": "artifactValues: [{dataType, data, message, tags}] (a file artifact is {dataType: \"file\", binaryProperty: \"data\"}: the input binary is sent as name;type;base64)"
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caseTemplate",
+            "customFieldsUi",
+            "customFieldsJson"
+          ],
+          "help": "customFieldsJson: JSON object of custom fields (with jsonParameters on); customFieldsUi.customFields: [{field, value}]"
+        }
+      ],
+      "body_type": "json",
+      "binary": {
+        "upload_field": "artifactUi",
+        "properties": "{{ p.artifactUi.artifactValues | pluck:'binaryProperty' }}",
+        "upload_when": "{{ p.artifactUi.artifactValues | find:'dataType','file' }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "alert",
+      "operation": "count",
+      "title": "Count alerts",
+      "method": "POST",
+      "path": "/v1/query",
+      "query": {
+        "name": "count-Alert"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "listAlert"
+          },
+          {
+            "_name": "filter",
+            "!_and": {
+              "$concat": [
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ el.key | in:'tags' }}",
+                    "_in": {
+                      "_field": "{{ el.key }}",
+                      "_values": "{{ el.value | split }}"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ el.key | in:'title,description' }}",
+                    "_wildcard": {
+                      "_field": "{{ el.key }}",
+                      "_value": "*{{ el.value }}*"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                    "_field": "{{ el.key }}",
+                    "_value": "{{ el.value }}"
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                    "_field": "{{ el.key }}",
+                    "_value": "{{ el.value | epoch_ms }}"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_name": "count"
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "description",
+            "follow",
+            "severity",
+            "tags",
+            "title",
+            "tlp"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id }}",
+        "objectType": "alert"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "get",
+      "title": "Get an alert",
+      "method": "GET",
+      "path": "/alert/{{ p.id }}",
+      "query": {
+        "similarity": "{{ p.options.includeSimilar | eq:'true' }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeSimilar"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "getAll",
+      "title": "Get many alerts",
+      "method": "POST",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/alert/_search' }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'alerts' }}",
+        "range": "{{ cred.api_version | ne:'v1' | then:(p.returnAll | ne:'true' | then:(p.limit | prefix:'0-')) }}",
+        "sort": "{{ cred.api_version | ne:'v1' | then:p.options.sort }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": {
+              "$concat": [
+                {
+                  "_name": "listAlert"
+                },
+                {
+                  "$when": "{{ p.filters | omit:'customFieldsUi,customFieldsJson' }}",
+                  "_name": "filter",
+                  "_and": {
+                    "$concat": [
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ el.key | in:'tags' }}",
+                          "_in": {
+                            "_field": "{{ el.key }}",
+                            "_values": "{{ el.value | split }}"
+                          }
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ el.key | in:'title,description' }}",
+                          "_wildcard": {
+                            "_field": "{{ el.key }}",
+                            "_value": "*{{ el.value }}*"
+                          }
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                          "_field": "{{ el.key }}",
+                          "_value": "{{ el.value }}"
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                          "_field": "{{ el.key }}",
+                          "_value": "{{ el.value | epoch_ms }}"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "$when": "{{ p.options.sort }}",
+                  "_name": "sort",
+                  "_fields": [
+                    {
+                      "$entries": {
+                        "$list": [
+                          "{{ p.options.sort }}"
+                        ]
+                      },
+                      "$key": "{{ el | re:'^[+-](.*)$' }}",
+                      "$value": "{{ el | re:'^([+-])' | eq:'+' | then:'asc' | default:'desc' }}"
+                    }
+                  ]
+                },
+                {
+                  "$when": "{{ p.returnAll | ne:'true' }}",
+                  "_name": "page",
+                  "from": 0,
+                  "to": "{{ p.limit }}"
+                }
+              ]
+            }
+          },
+          {
+            "$when": "{{ cred.api_version | ne:'v1' }}",
+            "query": {
+              "_and": {
+                "$concat": [
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ el.key | in:'tags' }}",
+                      "_in": {
+                        "_field": "{{ el.key }}",
+                        "_values": "{{ el.value | split }}"
+                      }
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ el.key | in:'title,description' }}",
+                      "_wildcard": {
+                        "_field": "{{ el.key }}",
+                        "_value": "*{{ el.value }}*"
+                      }
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                      "_field": "{{ el.key }}",
+                      "_value": "{{ el.value }}"
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                      "_field": "{{ el.key }}",
+                      "_value": "{{ el.value | epoch_ms }}"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "description",
+            "follow",
+            "severity",
+            "tags",
+            "title",
+            "tlp"
+          ],
+          "help": "Filters on field values; tags (comma list) match any, title/description match as substring"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: +field (ascending) or -field (descending)"
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "markAsRead",
+      "title": "Mark an alert as read",
+      "method": "POST",
+      "path": "/alert/{{ p.id }}/markAsRead",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "markAsUnread",
+      "title": "Mark an alert as unread",
+      "method": "POST",
+      "path": "/alert/{{ p.id }}/markAsUnread",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "merge",
+      "title": "Merge an alert into a case",
+      "method": "POST",
+      "path": "/alert/{{ p.id }}/merge/{{ p.caseId }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "promote",
+      "title": "Promote an alert to a case",
+      "method": "POST",
+      "path": "/alert/{{ p.id }}/createCase",
+      "body": {
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "caseTemplate"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "alert",
+      "operation": "update",
+      "title": "Update an alert",
+      "method": "PATCH",
+      "path": "/alert/{{ p.id }}",
+      "before": {
+        "when": "{{ p.jsonParameters | default:true | ne:'true' | then:p.updateFields.customFieldsUi.customFields }}",
+        "method": "GET",
+        "path": "{{ cred.api_version | eq:'v1' | then:'/customField' | default:'/list/custom_fields' }}"
+      },
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'artifactUi,customFieldsUi,customFieldsJson' }}",
+        "customFields": {
+          "$merge": [
+            {
+              "$when": "{{ p.jsonParameters | default:true | eq:'true' }}",
+              "$merge": "{{ p.updateFields.customFieldsJson | fromjson }}"
+            },
+            {
+              "$when": "{{ p.jsonParameters | default:true | ne:'true' }}",
+              "$entries": "{{ p.updateFields.customFieldsUi.customFields }}",
+              "$key": "{{ el.field }}",
+              "$value": {
+                "$entries": {
+                  "$list": [
+                    "{{ el }}"
+                  ]
+                },
+                "$key": "{{ pre | values | find:'reference',el.field | get:'type' }}",
+                "$value": "{{ el.value }}"
+              }
+            }
+          ]
+        },
+        "artifacts": {
+          "$map": "{{ p.updateFields.artifactUi.artifactValues }}",
+          "$to": {
+            "message": "{{ el.message }}",
+            "tags": "{{ el.tags | split }}",
+            "dataType": "{{ el.dataType }}",
+            "data": "{{ el.dataType | ne:'file' | then:el.data }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | get:'file_name' }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | then:';' }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | get:'mime_type' }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | then:';' }}{{ (el.dataType | eq:'file' | then:(bin.files | find:'property',(el.binaryProperty | default:'data'))) | get:'base64' }}"
+          }
+        }
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "artifactUi",
+            "customFieldsUi",
+            "customFieldsJson",
+            "caseTemplate",
+            "description",
+            "follow",
+            "severity",
+            "status",
+            "tags",
+            "title",
+            "tlp"
+          ]
+        }
+      ],
+      "body_type": "json",
+      "binary": {
+        "upload_field": "updateFields",
+        "properties": "{{ p.updateFields.artifactUi.artifactValues | pluck:'binaryProperty' }}",
+        "upload_when": "{{ p.updateFields.artifactUi.artifactValues | find:'dataType','file' }}",
+        "fallback_body_type": "json"
+      }
+    },
+    {
+      "resource": "case",
+      "operation": "getAll",
+      "title": "Get many cases",
+      "method": "POST",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/_search' }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'cases' }}",
+        "range": "{{ cred.api_version | ne:'v1' | then:(p.returnAll | ne:'true' | then:(p.limit | prefix:'0-')) }}",
+        "sort": "{{ cred.api_version | ne:'v1' | then:p.options.sort }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": {
+              "$concat": [
+                {
+                  "_name": "listCase"
+                },
+                {
+                  "$when": "{{ p.filters | omit:'customFieldsUi,customFieldsJson' }}",
+                  "_name": "filter",
+                  "_and": {
+                    "$concat": [
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ el.key | in:'tags' }}",
+                          "_in": {
+                            "_field": "{{ el.key }}",
+                            "_values": "{{ el.value | split }}"
+                          }
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ el.key | in:'title,description' }}",
+                          "_wildcard": {
+                            "_field": "{{ el.key }}",
+                            "_value": "*{{ el.value }}*"
+                          }
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                          "_field": "{{ el.key }}",
+                          "_value": "{{ el.value }}"
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                          "_field": "{{ el.key }}",
+                          "_value": "{{ el.value | epoch_ms }}"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "$when": "{{ p.options.sort }}",
+                  "_name": "sort",
+                  "_fields": [
+                    {
+                      "$entries": {
+                        "$list": [
+                          "{{ p.options.sort }}"
+                        ]
+                      },
+                      "$key": "{{ el | re:'^[+-](.*)$' }}",
+                      "$value": "{{ el | re:'^([+-])' | eq:'+' | then:'asc' | default:'desc' }}"
+                    }
+                  ]
+                },
+                {
+                  "$when": "{{ p.returnAll | ne:'true' }}",
+                  "_name": "page",
+                  "from": 0,
+                  "to": "{{ p.limit }}"
+                }
+              ]
+            }
+          },
+          {
+            "$when": "{{ cred.api_version | ne:'v1' }}",
+            "query": {
+              "_and": {
+                "$concat": [
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ el.key | in:'tags' }}",
+                      "_in": {
+                        "_field": "{{ el.key }}",
+                        "_values": "{{ el.value | split }}"
+                      }
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ el.key | in:'title,description' }}",
+                      "_wildcard": {
+                        "_field": "{{ el.key }}",
+                        "_value": "*{{ el.value }}*"
+                      }
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                      "_field": "{{ el.key }}",
+                      "_value": "{{ el.value }}"
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                      "_field": "{{ el.key }}",
+                      "_value": "{{ el.value | epoch_ms }}"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "description",
+            "endDate",
+            "flag",
+            "impactStatus",
+            "owner",
+            "resolutionStatus",
+            "severity",
+            "startDate",
+            "status",
+            "summary",
+            "tags",
+            "title",
+            "tlp"
+          ],
+          "help": "Filters on field values; tags (comma list) match any, title/description match as substring"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: +field (ascending) or -field (descending)"
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "count",
+      "title": "Count cases",
+      "method": "POST",
+      "path": "/v1/query",
+      "query": {
+        "name": "count-cases"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "listCase"
+          },
+          {
+            "_name": "filter",
+            "!_and": {
+              "$concat": [
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ el.key | in:'tags' }}",
+                    "_in": {
+                      "_field": "{{ el.key }}",
+                      "_values": "{{ el.value | split }}"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ el.key | in:'title,description' }}",
+                    "_wildcard": {
+                      "_field": "{{ el.key }}",
+                      "_value": "*{{ el.value }}*"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                    "_field": "{{ el.key }}",
+                    "_value": "{{ el.value }}"
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ (el.key | in:'tags,title,description' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                    "_field": "{{ el.key }}",
+                    "_value": "{{ el.value | epoch_ms }}"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_name": "count"
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "description",
+            "endDate",
+            "flag",
+            "impactStatus",
+            "owner",
+            "resolutionStatus",
+            "severity",
+            "startDate",
+            "status",
+            "summary",
+            "tags",
+            "title",
+            "tlp"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "create",
+      "title": "Create a case",
+      "method": "POST",
+      "path": "/case",
+      "before": {
+        "when": "{{ p.jsonParameters | default:true | ne:'true' | then:p.options.customFieldsUi.customFields }}",
+        "method": "GET",
+        "path": "{{ cred.api_version | eq:'v1' | then:'/customField' | default:'/list/custom_fields' }}"
+      },
+      "body": {
+        "$merge": "{{ p.options | omit:'customFieldsUi,customFieldsJson' }}",
+        "tags": "{{ p.tags | split }}",
+        "startDate": "{{ p.startDate | epoch_ms }}",
+        "endDate": "{{ p.options.endDate | epoch_ms }}",
+        "metrics": "{{ p.options.metrics | fromjson }}",
+        "title": "{{ p.title }}",
+        "description": "{{ p.description }}",
+        "severity": "{{ p.severity }}",
+        "owner": "{{ p.owner }}",
+        "flag": "{{ p.flag | default:false }}",
+        "tlp": "{{ p.tlp }}",
+        "customFields": {
+          "$merge": [
+            {
+              "$when": "{{ p.jsonParameters | default:true | eq:'true' }}",
+              "$merge": "{{ p.options.customFieldsJson | fromjson }}"
+            },
+            {
+              "$when": "{{ p.jsonParameters | default:true | ne:'true' }}",
+              "$entries": "{{ p.options.customFieldsUi.customFields }}",
+              "$key": "{{ el.field }}",
+              "$value": {
+                "$entries": {
+                  "$list": [
+                    "{{ el }}"
+                  ]
+                },
+                "$key": "{{ pre | values | find:'reference',el.field | get:'type' }}",
+                "$value": "{{ el.value }}"
+              }
+            }
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "severity",
+          "label": "Severity",
+          "type": "number",
+          "required": true,
+          "default": 2
+        },
+        {
+          "key": "startDate",
+          "label": "Start date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "owner",
+          "label": "Owner",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "flag",
+          "label": "Flag",
+          "type": "boolean",
+          "required": true,
+          "default": false
+        },
+        {
+          "key": "tlp",
+          "label": "TLP",
+          "type": "number",
+          "required": true,
+          "default": 2
+        },
+        {
+          "key": "tags",
+          "label": "Tags",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "customFieldsJson",
+            "endDate",
+            "summary",
+            "metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id }}",
+        "objectType": "case"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "get",
+      "title": "Get a case",
+      "method": "{{ cred.api_version | eq:'v1' | then:'POST' | default:'GET' }}",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/' }}{{ cred.api_version | ne:'v1' | then:p.id }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'get-case-' }}{{ cred.api_version | eq:'v1' | then:p.id }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": [
+              {
+                "_name": "getCase",
+                "idOrName": "{{ p.id }}"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "case",
+      "operation": "update",
+      "title": "Update a case",
+      "method": "PATCH",
+      "path": "/case/{{ p.id }}",
+      "before": {
+        "when": "{{ p.jsonParameters | default:true | ne:'true' | then:p.updateFields.customFieldsUi.customFields }}",
+        "method": "GET",
+        "path": "{{ cred.api_version | eq:'v1' | then:'/customField' | default:'/list/custom_fields' }}"
+      },
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFieldsUi,customFieldsJson' }}",
+        "tags": "{{ p.updateFields.tags | split }}",
+        "startDate": "{{ p.updateFields.startDate | epoch_ms }}",
+        "endDate": "{{ p.updateFields.endDate | epoch_ms }}",
+        "metrics": "{{ p.updateFields.metrics | fromjson }}",
+        "customFields": {
+          "$merge": [
+            {
+              "$when": "{{ p.jsonParameters | default:true | eq:'true' }}",
+              "$merge": "{{ p.updateFields.customFieldsJson | fromjson }}"
+            },
+            {
+              "$when": "{{ p.jsonParameters | default:true | ne:'true' }}",
+              "$entries": "{{ p.updateFields.customFieldsUi.customFields }}",
+              "$key": "{{ el.field }}",
+              "$value": {
+                "$entries": {
+                  "$list": [
+                    "{{ el }}"
+                  ]
+                },
+                "$key": "{{ pre | values | find:'reference',el.field | get:'type' }}",
+                "$value": "{{ el.value }}"
+              }
+            }
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "jsonParameters",
+          "label": "JSON parameters",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customFieldsUi",
+            "customFieldsJson",
+            "description",
+            "endDate",
+            "flag",
+            "impactStatus",
+            "metrics",
+            "owner",
+            "resolutionStatus",
+            "severity",
+            "startDate",
+            "status",
+            "summary",
+            "tags",
+            "title",
+            "tlp"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "getAll",
+      "title": "Get many logs of a task",
+      "method": "POST",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/log/_search' }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'case-task-logs' }}",
+        "range": "{{ cred.api_version | ne:'v1' | then:(p.returnAll | ne:'true' | then:(p.limit | prefix:'0-')) }}",
+        "sort": "{{ cred.api_version | ne:'v1' | then:p.options.sort }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": {
+              "$concat": [
+                {
+                  "_name": "getTask",
+                  "idOrName": "{{ p.taskId }}"
+                },
+                {
+                  "_name": "logs"
+                },
+                {
+                  "$when": "{{ p.options.sort }}",
+                  "_name": "sort",
+                  "_fields": [
+                    {
+                      "$entries": {
+                        "$list": [
+                          "{{ p.options.sort }}"
+                        ]
+                      },
+                      "$key": "{{ el | re:'^[+-](.*)$' }}",
+                      "$value": "{{ el | re:'^([+-])' | eq:'+' | then:'asc' | default:'desc' }}"
+                    }
+                  ]
+                },
+                {
+                  "$when": "{{ p.returnAll | ne:'true' }}",
+                  "_name": "page",
+                  "from": 0,
+                  "to": "{{ p.limit }}"
+                }
+              ]
+            }
+          },
+          {
+            "$when": "{{ cred.api_version | ne:'v1' }}",
+            "query": {
+              "_and": [
+                {
+                  "_parent": {
+                    "_type": "task",
+                    "_query": {
+                      "_id": "{{ p.taskId }}"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: +field (ascending) or -field (descending)"
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "create",
+      "title": "Create a task log",
+      "method": "POST",
+      "path": "/case/task/{{ p.taskId }}/log",
+      "body_type": "multipart",
+      "body": {
+        "$merge": {
+          "$when": "{{ p.options.attachmentValues.attachmentValues.binaryProperty | default:'-' | eq:'-' }}",
+          "message": "{{ p.message }}",
+          "startDate": "{{ p.startDate | epoch_ms }}",
+          "status": "{{ p.status }}"
+        },
+        "_json": {
+          "$json": {
+            "$when": "{{ p.options.attachmentValues.attachmentValues.binaryProperty }}",
+            "message": "{{ p.message }}",
+            "startDate": "{{ p.startDate | epoch_ms }}",
+            "status": "{{ p.status }}"
+          }
+        }
+      },
+      "binary": {
+        "upload_field": "options",
+        "property": "{{ p.options.attachmentValues.attachmentValues.binaryProperty }}",
+        "multipart_field": "attachment",
+        "upload_when": "{{ p.options.attachmentValues.attachmentValues.binaryProperty }}",
+        "fallback_body_type": "json"
+      },
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "startDate",
+          "label": "Start date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentValues"
+          ],
+          "help": "attachmentValues.attachmentValues.binaryProperty: input binary property to attach"
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id }}",
+        "objectType": "case_task_log"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Log ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "log",
+      "operation": "get",
+      "title": "Get a log",
+      "method": "{{ cred.api_version | eq:'v1' | then:'POST' | default:'POST' }}",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/log/_search' }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'get-log-' }}{{ cred.api_version | eq:'v1' | then:p.id }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": [
+              {
+                "_name": "getLog",
+                "idOrName": "{{ p.id }}"
+              }
+            ]
+          },
+          {
+            "$when": "{{ cred.api_version | ne:'v1' }}",
+            "query": {
+              "_id": "{{ p.id }}"
+            }
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Log ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "getAll",
+      "title": "Get many observables of a case",
+      "method": "POST",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/artifact/_search' }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'observables' }}",
+        "range": "{{ cred.api_version | ne:'v1' | then:(p.returnAll | ne:'true' | then:(p.limit | prefix:'0-')) }}",
+        "sort": "{{ cred.api_version | ne:'v1' | then:p.options.sort }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": {
+              "$concat": [
+                {
+                  "_name": "getCase",
+                  "idOrName": "{{ p.caseId }}"
+                },
+                {
+                  "_name": "observables"
+                },
+                {
+                  "$when": "{{ p.options.sort }}",
+                  "_name": "sort",
+                  "_fields": [
+                    {
+                      "$entries": {
+                        "$list": [
+                          "{{ p.options.sort }}"
+                        ]
+                      },
+                      "$key": "{{ el | re:'^[+-](.*)$' }}",
+                      "$value": "{{ el | re:'^([+-])' | eq:'+' | then:'asc' | default:'desc' }}"
+                    }
+                  ]
+                },
+                {
+                  "$when": "{{ p.returnAll | ne:'true' }}",
+                  "_name": "page",
+                  "from": 0,
+                  "to": "{{ p.limit }}"
+                }
+              ]
+            }
+          },
+          {
+            "$when": "{{ cred.api_version | ne:'v1' }}",
+            "query": {
+              "_parent": {
+                "_type": "case",
+                "_query": {
+                  "_id": "{{ p.caseId }}"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: +field (ascending) or -field (descending)"
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "count",
+      "title": "Count observables",
+      "method": "POST",
+      "path": "/v1/query",
+      "query": {
+        "name": "count-observables"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "listObservable"
+          },
+          {
+            "_name": "filter",
+            "!_and": {
+              "$concat": [
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ el.key | in:'dataType,tags' }}",
+                    "_in": {
+                      "_field": "{{ el.key }}",
+                      "_values": "{{ el.value | split }}"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ el.key | in:'description,keyword,message' }}",
+                    "_wildcard": {
+                      "_field": "{{ el.key }}",
+                      "_value": "*{{ el.value }}*"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ (el.key | in:'dataType,tags,description,keyword,message' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                    "_field": "{{ el.key }}",
+                    "_value": "{{ el.value }}"
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ (el.key | in:'dataType,tags,description,keyword,message' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                    "_field": "{{ el.key }}",
+                    "_value": "{{ el.value | epoch_ms }}"
+                  }
+                },
+                [
+                  {
+                    "$when": "{{ p.filters.range.dateRange }}",
+                    "_between": {
+                      "_field": "startDate",
+                      "_from": "{{ p.filters.range.dateRange.fromDate | epoch_ms }}",
+                      "_to": "{{ p.filters.range.dateRange.toDate | epoch_ms }}"
+                    }
+                  }
+                ]
+              ]
+            }
+          },
+          {
+            "_name": "count"
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dataType",
+            "range",
+            "description",
+            "ioc",
+            "keyword",
+            "message",
+            "tags",
+            "sighted",
+            "status",
+            "tlp",
+            "data"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "create",
+      "title": "Create an observable",
+      "method": "POST",
+      "path": "/case/{{ p.caseId }}/artifact",
+      "body_type": "multipart",
+      "body": {
+        "$merge": {
+          "$when": "{{ p.dataType | ne:'file' }}",
+          "dataType": "{{ p.dataType }}",
+          "data": "{{ p.data }}",
+          "message": "{{ p.message }}",
+          "startDate": "{{ p.startDate | epoch_ms }}",
+          "tlp": "{{ p.tlp }}",
+          "ioc": "{{ p.ioc | default:false }}",
+          "sighted": "{{ p.sighted | default:false }}",
+          "status": "{{ p.status }}",
+          "tags": "{{ p.options.tags | split }}"
+        },
+        "_json": {
+          "$json": {
+            "$when": "{{ p.dataType | eq:'file' }}",
+            "dataType": "{{ p.dataType }}",
+            "message": "{{ p.message }}",
+            "startDate": "{{ p.startDate | epoch_ms }}",
+            "tlp": "{{ p.tlp }}",
+            "ioc": "{{ p.ioc | default:false }}",
+            "sighted": "{{ p.sighted | default:false }}",
+            "status": "{{ p.status }}",
+            "tags": "{{ p.options.tags | split }}"
+          }
+        }
+      },
+      "binary": {
+        "upload_field": "binaryProperty",
+        "multipart_field": "attachment",
+        "upload_when": "{{ p.dataType | eq:'file' }}",
+        "fallback_body_type": "json"
+      },
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataType",
+          "label": "Data type",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "data",
+          "label": "Data",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "binaryProperty",
+          "label": "Input binary property",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "startDate",
+          "label": "Start date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "tlp",
+          "label": "TLP",
+          "type": "number",
+          "required": true,
+          "default": 2
+        },
+        {
+          "key": "ioc",
+          "label": "IOC",
+          "type": "boolean",
+          "required": true,
+          "default": false
+        },
+        {
+          "key": "sighted",
+          "label": "Sighted",
+          "type": "boolean",
+          "required": true,
+          "default": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "tags"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "executeAnalyzer",
+      "title": "Run a Cortex analyzer",
+      "method": "POST",
+      "path": "/connector/cortex/job",
+      "body": {
+        "analyzerId": "{{ p.analyzers | split | get:'0' | split:'::' | get:'0' }}",
+        "cortexId": "{{ p.analyzers | split | get:'0' | split:'::' | get:'1' }}",
+        "artifactId": "{{ p.id }}"
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/connector/cortex/job/{{ main.id }}",
+        "query": {
+          "name": "observable-jobs"
+        },
+        "until": "{{ res.status | ne:'Waiting' | then:(res.status | ne:'InProgress') }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Observable ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dataType",
+          "label": "Data type",
+          "type": "text"
+        },
+        {
+          "key": "analyzers",
+          "label": "Analyzers",
+          "type": "array",
+          "required": true,
+          "item_type": "text",
+          "help": "analyzerId::cortexId entries; only the first is run"
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id }}",
+        "objectType": "case_artifact"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "log-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Observable ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "get",
+      "title": "Get a observable",
+      "method": "{{ cred.api_version | eq:'v1' | then:'POST' | default:'GET' }}",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/artifact/' }}{{ cred.api_version | ne:'v1' | then:p.id }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'get-observable-' }}{{ cred.api_version | eq:'v1' | then:p.id }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": [
+              {
+                "_name": "getObservable",
+                "idOrName": "{{ p.id }}"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Observable ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "search",
+      "title": "Search observables",
+      "method": "POST",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/artifact/_search' }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'observables' }}",
+        "range": "{{ cred.api_version | ne:'v1' | then:(p.returnAll | ne:'true' | then:(p.limit | prefix:'0-')) }}",
+        "sort": "{{ cred.api_version | ne:'v1' | then:p.options.sort }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": {
+              "$concat": [
+                {
+                  "_name": "listObservable"
+                },
+                {
+                  "$when": "{{ p.filters | omit:'customFieldsUi,customFieldsJson' }}",
+                  "_name": "filter",
+                  "_and": {
+                    "$concat": [
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ el.key | in:'dataType,tags' }}",
+                          "_in": {
+                            "_field": "{{ el.key }}",
+                            "_values": "{{ el.value | split }}"
+                          }
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ el.key | in:'description,keyword,message' }}",
+                          "_wildcard": {
+                            "_field": "{{ el.key }}",
+                            "_value": "*{{ el.value }}*"
+                          }
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ (el.key | in:'dataType,tags,description,keyword,message' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                          "_field": "{{ el.key }}",
+                          "_value": "{{ el.value }}"
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ (el.key | in:'dataType,tags,description,keyword,message' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                          "_field": "{{ el.key }}",
+                          "_value": "{{ el.value | epoch_ms }}"
+                        }
+                      },
+                      [
+                        {
+                          "$when": "{{ p.filters.range.dateRange }}",
+                          "_between": {
+                            "_field": "startDate",
+                            "_from": "{{ p.filters.range.dateRange.fromDate | epoch_ms }}",
+                            "_to": "{{ p.filters.range.dateRange.toDate | epoch_ms }}"
+                          }
+                        }
+                      ]
+                    ]
+                  }
+                },
+                {
+                  "$when": "{{ p.options.sort }}",
+                  "_name": "sort",
+                  "_fields": [
+                    {
+                      "$entries": {
+                        "$list": [
+                          "{{ p.options.sort }}"
+                        ]
+                      },
+                      "$key": "{{ el | re:'^[+-](.*)$' }}",
+                      "$value": "{{ el | re:'^([+-])' | eq:'+' | then:'asc' | default:'desc' }}"
+                    }
+                  ]
+                },
+                {
+                  "$when": "{{ p.returnAll | ne:'true' }}",
+                  "_name": "page",
+                  "from": 0,
+                  "to": "{{ p.limit }}"
+                }
+              ]
+            }
+          },
+          {
+            "$when": "{{ cred.api_version | ne:'v1' }}",
+            "query": {
+              "_and": {
+                "$concat": [
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ el.key | in:'dataType,tags' }}",
+                      "_in": {
+                        "_field": "{{ el.key }}",
+                        "_values": "{{ el.value | split }}"
+                      }
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ el.key | in:'description,keyword,message' }}",
+                      "_wildcard": {
+                        "_field": "{{ el.key }}",
+                        "_value": "*{{ el.value }}*"
+                      }
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ (el.key | in:'dataType,tags,description,keyword,message' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                      "_field": "{{ el.key }}",
+                      "_value": "{{ el.value }}"
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ (el.key | in:'dataType,tags,description,keyword,message' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                      "_field": "{{ el.key }}",
+                      "_value": "{{ el.value | epoch_ms }}"
+                    }
+                  },
+                  [
+                    {
+                      "$when": "{{ p.filters.range.dateRange }}",
+                      "_between": {
+                        "_field": "startDate",
+                        "_from": "{{ p.filters.range.dateRange.fromDate | epoch_ms }}",
+                        "_to": "{{ p.filters.range.dateRange.toDate | epoch_ms }}"
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "dataType",
+            "range",
+            "description",
+            "ioc",
+            "keyword",
+            "message",
+            "tags",
+            "sighted",
+            "status",
+            "tlp",
+            "data"
+          ],
+          "help": "dataType/tags match any; description/keyword/message as substring; range.dateRange {fromDate, toDate} on startDate"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: +field (ascending) or -field (descending)"
+        }
+      ]
+    },
+    {
+      "resource": "observable",
+      "operation": "update",
+      "title": "Update an observable",
+      "method": "PATCH",
+      "path": "/case/artifact/{{ p.id }}",
+      "body": {
+        "$merge": "{{ p.updateFields }}",
+        "tags": "{{ p.updateFields.tags | split }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Observable ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "message",
+            "tags",
+            "tlp",
+            "ioc",
+            "sighted",
+            "status"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks of a case",
+      "method": "POST",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/_search' }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'case-tasks' }}",
+        "range": "{{ cred.api_version | ne:'v1' | then:(p.returnAll | ne:'true' | then:(p.limit | prefix:'0-')) }}",
+        "sort": "{{ cred.api_version | ne:'v1' | then:p.options.sort }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": {
+              "$concat": [
+                {
+                  "_name": "getCase",
+                  "idOrName": "{{ p.caseId }}"
+                },
+                {
+                  "_name": "tasks"
+                },
+                {
+                  "$when": "{{ p.options.sort }}",
+                  "_name": "sort",
+                  "_fields": [
+                    {
+                      "$entries": {
+                        "$list": [
+                          "{{ p.options.sort }}"
+                        ]
+                      },
+                      "$key": "{{ el | re:'^[+-](.*)$' }}",
+                      "$value": "{{ el | re:'^([+-])' | eq:'+' | then:'asc' | default:'desc' }}"
+                    }
+                  ]
+                },
+                {
+                  "$when": "{{ p.returnAll | ne:'true' }}",
+                  "_name": "page",
+                  "from": 0,
+                  "to": "{{ p.limit }}"
+                }
+              ]
+            }
+          },
+          {
+            "$when": "{{ cred.api_version | ne:'v1' }}",
+            "query": {
+              "_and": [
+                {
+                  "_parent": {
+                    "_type": "case",
+                    "_query": {
+                      "_id": "{{ p.caseId }}"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: +field (ascending) or -field (descending)"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "count",
+      "title": "Count tasks",
+      "method": "POST",
+      "path": "/v1/query",
+      "query": {
+        "name": "count-tasks"
+      },
+      "body": {
+        "query": [
+          {
+            "_name": "listTask"
+          },
+          {
+            "_name": "filter",
+            "!_and": {
+              "$concat": [
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ el.key | in:'title,description' }}",
+                    "_wildcard": {
+                      "_field": "{{ el.key }}",
+                      "_value": "*{{ el.value }}*"
+                    }
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ (el.key | in:'title,description' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                    "_field": "{{ el.key }}",
+                    "_value": "{{ el.value }}"
+                  }
+                },
+                {
+                  "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                  "$to": {
+                    "$when": "{{ (el.key | in:'title,description' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                    "_field": "{{ el.key }}",
+                    "_value": "{{ el.value | epoch_ms }}"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "_name": "count"
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "count": "{{ el.data }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "endDate",
+            "flag",
+            "owner",
+            "startDate",
+            "status",
+            "title"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/case/{{ p.caseId }}/task",
+      "body": {
+        "$merge": "{{ p.options | omit:'customFieldsUi,customFieldsJson' }}",
+        "tags": "{{ p.options.tags | split }}",
+        "startDate": "{{ p.options.startDate | epoch_ms }}",
+        "endDate": "{{ p.options.endDate | epoch_ms }}",
+        "metrics": "{{ p.options.metrics | fromjson }}",
+        "title": "{{ p.title }}",
+        "status": "{{ p.status }}",
+        "flag": "{{ p.flag | default:false }}"
+      },
+      "fields": [
+        {
+          "key": "caseId",
+          "label": "Case ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "text",
+          "required": true,
+          "default": "Waiting"
+        },
+        {
+          "key": "flag",
+          "label": "Flag",
+          "type": "boolean",
+          "required": true,
+          "default": false
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "endDate",
+            "owner",
+            "startDate"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "executeResponder",
+      "title": "Run a Cortex responder",
+      "method": "POST",
+      "path": "/connector/cortex/action",
+      "body": {
+        "responderId": "{{ p.responder }}",
+        "objectId": "{{ p.id }}",
+        "objectType": "case_task"
+      },
+      "poll": {
+        "method": "POST",
+        "path": "/v1/query",
+        "query": {
+          "name": "task-actions"
+        },
+        "body": {
+          "query": [
+            {
+              "_name": "listAction"
+            },
+            {
+              "_name": "filter",
+              "_and": [
+                {
+                  "_field": "cortexId",
+                  "_value": "{{ main.cortexId }}"
+                },
+                {
+                  "_field": "objectId",
+                  "_value": "{{ main.objectId }}"
+                },
+                {
+                  "_field": "startDate",
+                  "_value": "{{ main.startDate }}"
+                }
+              ]
+            }
+          ]
+        },
+        "until": "{{ res.cortexId | default:'-' | eq:'-' | then:(res.0.status | ne:'Waiting' | then:(res.0.status | ne:'InProgress')) }}",
+        "interval_ms": 1000
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "responder",
+          "label": "Responder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "{{ cred.api_version | eq:'v1' | then:'POST' | default:'GET' }}",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/' }}{{ cred.api_version | ne:'v1' | then:p.id }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'get-task-' }}{{ cred.api_version | eq:'v1' | then:p.id }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": [
+              {
+                "_name": "getTask",
+                "idOrName": "{{ p.id }}"
+              }
+            ]
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "search",
+      "title": "Search tasks",
+      "method": "POST",
+      "path": "{{ cred.api_version | eq:'v1' | then:'/v1/query' | default:'/case/task/_search' }}",
+      "query": {
+        "name": "{{ cred.api_version | eq:'v1' | then:'tasks' }}",
+        "range": "{{ cred.api_version | ne:'v1' | then:(p.returnAll | ne:'true' | then:(p.limit | prefix:'0-')) }}",
+        "sort": "{{ cred.api_version | ne:'v1' | then:p.options.sort }}"
+      },
+      "body": {
+        "$merge": [
+          {
+            "$when": "{{ cred.api_version | eq:'v1' }}",
+            "query": {
+              "$concat": [
+                {
+                  "_name": "listTask"
+                },
+                {
+                  "$when": "{{ p.filters | omit:'customFieldsUi,customFieldsJson' }}",
+                  "_name": "filter",
+                  "_and": {
+                    "$concat": [
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ el.key | in:'title,description' }}",
+                          "_wildcard": {
+                            "_field": "{{ el.key }}",
+                            "_value": "*{{ el.value }}*"
+                          }
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ (el.key | in:'title,description' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                          "_field": "{{ el.key }}",
+                          "_value": "{{ el.value }}"
+                        }
+                      },
+                      {
+                        "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                        "$to": {
+                          "$when": "{{ (el.key | in:'title,description' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                          "_field": "{{ el.key }}",
+                          "_value": "{{ el.value | epoch_ms }}"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "$when": "{{ p.options.sort }}",
+                  "_name": "sort",
+                  "_fields": [
+                    {
+                      "$entries": {
+                        "$list": [
+                          "{{ p.options.sort }}"
+                        ]
+                      },
+                      "$key": "{{ el | re:'^[+-](.*)$' }}",
+                      "$value": "{{ el | re:'^([+-])' | eq:'+' | then:'asc' | default:'desc' }}"
+                    }
+                  ]
+                },
+                {
+                  "$when": "{{ p.returnAll | ne:'true' }}",
+                  "_name": "page",
+                  "from": 0,
+                  "to": "{{ p.limit }}"
+                }
+              ]
+            }
+          },
+          {
+            "$when": "{{ cred.api_version | ne:'v1' }}",
+            "query": {
+              "_and": {
+                "$concat": [
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ el.key | in:'title,description' }}",
+                      "_wildcard": {
+                        "_field": "{{ el.key }}",
+                        "_value": "*{{ el.value }}*"
+                      }
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ (el.key | in:'title,description' | then:'n' | default:'y' | eq:'y') | then:((el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') | then:'n' | default:'y') | eq:'y' }}",
+                      "_field": "{{ el.key }}",
+                      "_value": "{{ el.value }}"
+                    }
+                  },
+                  {
+                    "$map": "{{ p.filters | omit:'customFieldsUi,customFieldsJson,range' | entries }}",
+                    "$to": {
+                      "$when": "{{ (el.key | in:'title,description' | then:'n' | default:'y' | eq:'y') | then:(el.value | string | matches:'^[0-9]{4}-[0-9]{2}-[0-9]{2}T') }}",
+                      "_field": "{{ el.key }}",
+                      "_value": "{{ el.value | epoch_ms }}"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "endDate",
+            "flag",
+            "owner",
+            "startDate",
+            "status",
+            "title"
+          ],
+          "help": "Filters on field values; tags (comma list) match any, title/description match as substring"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: +field (ascending) or -field (descending)"
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PATCH",
+      "path": "/case/task/{{ p.id }}",
+      "body": {
+        "$merge": "{{ p.updateFields | omit:'customFieldsUi,customFieldsJson' }}",
+        "tags": "{{ p.updateFields.tags | split }}",
+        "startDate": "{{ p.updateFields.startDate | epoch_ms }}",
+        "endDate": "{{ p.updateFields.endDate | epoch_ms }}",
+        "metrics": "{{ p.updateFields.metrics | fromjson }}"
+      },
+      "fields": [
+        {
+          "key": "id",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "endDate",
+            "flag",
+            "owner",
+            "startDate",
+            "status",
+            "title"
+          ]
+        }
+      ]
+    }
+  ]
+}

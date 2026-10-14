@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -19,7 +20,8 @@ type StripeNode struct{}
 
 func (n *StripeNode) Type() string { return "service.stripe" }
 
-const stripeBaseURL = "https://api.stripe.com/v1"
+// stripeBaseURL is a var (not const) so tests can point it at an httptest server.
+var stripeBaseURL = "https://api.stripe.com/v1"
 
 // stripeFormEncode encodes a map to application/x-www-form-urlencoded format.
 // Keys are sorted for deterministic output.
@@ -152,6 +154,9 @@ func stripeGetList(ctx context.Context, endpoint, apiKey string, params map[stri
 }
 
 func (n *StripeNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.stripe", config) {
+		return apipkg.ExecuteExtension(ctx, "service.stripe", input, config)
+	}
 	// Registry connections store the key as secret_key (the field
 	// internal/connections/registry.go defines for stripe); api_key is the
 	// legacy key older hand-written workflows used — accepted as fallback.
@@ -220,6 +225,8 @@ func (n *StripeNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 		items = data
 
 	case "create_charge":
+		// Legacy Charges API: kept for existing workflows; new ones should
+		// use create_payment_intent (or create_checkout_session).
 		amount := intVal(config, "amount")
 		if amount == 0 {
 			return nil, fmt.Errorf("stripe: amount is required for create_charge")
@@ -306,6 +313,13 @@ func (n *StripeNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 			return nil, err
 		}
 		items = []workflow.Item{workflow.NewItem(data)}
+
+	case "create_refund", "get_payment_intent", "list_payment_intents", "create_checkout_session":
+		data, err := stripeExecuteOp(ctx, operation, apiKey, config, limit, currency)
+		if err != nil {
+			return nil, err
+		}
+		items = data
 
 	default:
 		return nil, fmt.Errorf("stripe: unknown operation %q", operation)

@@ -1,0 +1,155 @@
+{
+  "activity.create": {
+    "params": {
+      "name": "Morning run",
+      "sport_type": "Run",
+      "startDate": "2026-01-02T07:00:00Z",
+      "elapsedTime": 1800,
+      "additionalFields": {
+        "distance": 5000,
+        "trainer": true
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v3/activities",
+      "body": {
+        "name": "Morning run",
+        "start_date_local": "2026-01-02T07:00:00.000Z",
+        "elapsed_time": "1800",
+        "sport_type": "Run",
+        "distance": "5000",
+        "trainer": "1"
+      },
+      "items": 1
+    }
+  },
+  "activity.get": {
+    "params": {
+      "activityId": "9"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/activities/9"
+    }
+  },
+  "activity.getComments": {
+    "params": {
+      "activityId": "9",
+      "limit": 1
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/activities/9/comments",
+      "items": 1
+    }
+  },
+  "activity.getKudos": {
+    "params": {
+      "activityId": "9",
+      "returnAll": true
+    },
+    "response": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/activities/9/kudos",
+      "items": 2
+    }
+  },
+  "activity.getLaps": {
+    "params": {
+      "activityId": "9"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/activities/9/laps",
+      "items": 1
+    }
+  },
+  "activity.getZones": {
+    "params": {
+      "activityId": "9"
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/activities/9/zones",
+      "items": 1
+    }
+  },
+  "activity.getAll": {
+    "params": {
+      "limit": 5
+    },
+    "response": [
+      {
+        "id": 1
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/athlete/activities",
+      "query": {
+        "page": "1",
+        "per_page": "5"
+      },
+      "items": 1
+    }
+  },
+  "activity.getStreams": {
+    "params": {
+      "activityId": "9",
+      "keys": [
+        "time",
+        "heartrate"
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v3/activities/9/streams",
+      "query": {
+        "keys": "time,heartrate",
+        "key_by_type": "true"
+      }
+    }
+  },
+  "activity.update": {
+    "params": {
+      "activityId": "9",
+      "updateFields": {
+        "name": "Evening"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/api/v3/activities/9",
+      "body": {
+        "name": "Evening"
+      }
+    }
+  }
+}

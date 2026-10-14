@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest'
-import { parseTriggerInput, rememberTriggerInput, rememberedTriggerInput } from './triggerInput.js'
+import { formFromJSON, jsonFromForm, parseTriggerInput, rememberTriggerInput, rememberedTriggerInput } from './triggerInput.js'
 
 // Which fields a workflow reads is the CLI's answer (`workflow inputs
 // --json`, covered by internal/workflow/trigger_inputs_test.go). What is
@@ -59,5 +59,33 @@ describe('remembering trigger input', () => {
     rememberTriggerInput('wf-3', '{"a":1}')
     rememberTriggerInput('wf-3', '')
     expect(rememberedTriggerInput('wf-3', skeleton)).toContain('generate an image that')
+  })
+})
+
+describe('trigger input form', () => {
+  const fields = [{ name: 'prompt', structured: false }, { name: 'prompts', structured: true }]
+
+  it('splits JSON into per-field values and builds it back', () => {
+    const form = formFromJSON('{"prompt":"a red bicycle","prompts":["a","b"],"other":1}', fields)
+    expect(form.values.prompt).toBe('a red bicycle')
+    expect(form.asJSON).toEqual({ prompt: false, prompts: true })
+    expect(JSON.parse(form.values.prompts)).toEqual(['a', 'b'])
+    const back = jsonFromForm(form, fields)
+    expect(back.ok).toBe(true)
+    expect(JSON.parse(back.text)).toEqual({ prompt: 'a red bicycle', prompts: ['a', 'b'], other: 1 })
+  })
+
+  it('leaves empty fields out and names a field with bad JSON', () => {
+    const form = formFromJSON('{}', fields)
+    expect(JSON.parse(jsonFromForm(form, fields).text)).toEqual({})
+    form.values.prompts = '["a",'
+    const bad = jsonFromForm(form, fields)
+    expect(bad.ok).toBe(false)
+    expect(bad.error).toMatch(/^prompts: not valid JSON/)
+  })
+
+  it('has no form for text that is not a JSON object', () => {
+    expect(formFromJSON('{oops', fields)).toBeNull()
+    expect(formFromJSON('[1]', fields)).toBeNull()
   })
 })

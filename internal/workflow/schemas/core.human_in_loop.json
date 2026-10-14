@@ -36,5 +36,12 @@
       "rows": 4,
       "type": "code"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the approved items, with the reviewer's edits",
+      "key": "*",
+      "type": "object"
+    }
   ]
 }

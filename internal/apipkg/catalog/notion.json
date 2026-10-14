@@ -1,0 +1,1780 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "notion",
+  "extends": "service.notion",
+  "title": "Notion",
+  "description": "Pages, database pages, data sources, blocks and users in Notion (n8n version 3 operations)",
+  "category": "app",
+  "docs_url": "https://developers.notion.com/reference/intro",
+  "n8n_types": [
+    "n8n-nodes-base.notion"
+  ],
+  "n8n_version_defaults": {
+    "<3": {
+      "keyCase": "ascii"
+    }
+  },
+  "n8n_trigger_types": [
+    "n8n-nodes-base.notionTrigger"
+  ],
+  "base_url": "https://api.notion.com/v1",
+  "headers": {
+    "Notion-Version": "2026-03-11"
+  },
+  "credentials": [
+    {
+      "platform": "notion",
+      "reuse_platform": "notion",
+      "name": "Notion",
+      "n8n_credential": "notionApi",
+      "n8n_credential_alt": [
+        "notionOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "apiKey": "token"
+      },
+      "methods": [
+        "api_key",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "token",
+          "label": "Integration token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.token | default:cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "page",
+      "label": "Page"
+    },
+    {
+      "value": "block",
+      "label": "Block"
+    },
+    {
+      "value": "dataSource",
+      "label": "Data source"
+    },
+    {
+      "value": "database",
+      "label": "Database"
+    },
+    {
+      "value": "databasePage",
+      "label": "Database page"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "page",
+      "operation": "create",
+      "title": "Create a page",
+      "method": "POST",
+      "path": "/pages",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "pageId",
+          "label": "Page",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Page URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "contentType",
+          "label": "Content",
+          "type": "select",
+          "default": "blockUi",
+          "options": [
+            "blockUi",
+            "json",
+            "markdown"
+          ]
+        },
+        {
+          "key": "blocksJson",
+          "label": "Blocks (JSON)",
+          "type": "code",
+          "default": "",
+          "language": "json"
+        },
+        {
+          "key": "blockUi",
+          "label": "Blocks",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "blockValues"
+          ],
+          "help": "{\"blockValues\": [{\"type\": \"paragraph\", \"textContent\": \"Hello\"}]}; to_do takes checked, child_page title, image url; richText true reads text.text entries."
+        },
+        {
+          "key": "markdown",
+          "label": "Markdown",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "icon"
+          ],
+          "help": "icon: an emoji or an image URL"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "body": {
+        "parent": {
+          "page_id": "{{ p.pageId | rl | re:'[?&]p=([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}"
+        },
+        "properties": {
+          "title": [
+            {
+              "text": {
+                "content": "{{ p.title }}"
+              }
+            }
+          ]
+        },
+        "children": {
+          "$concat": [
+            "{{ p.contentType | eq:'json' | then:(p.blocksJson | fromjson) }}",
+            {
+              "$map": "{{ p.contentType | default:'blockUi' | eq:'blockUi' | then:p.blockUi.blockValues }}",
+              "$to": {
+                "object": "block",
+                "type": "{{ el.type }}",
+                "$merge": {
+                  "$entries": "{{ el | json | split:'\u0001' }}",
+                  "$key": "{{ el | fromjson | get:'type' }}",
+                  "$value": {
+                    "rich_text": {
+                      "$concat": [
+                        [
+                          {
+                            "text": {
+                              "content": "{{ el | fromjson | get:'richText' | ne:'true' | then:(el | fromjson | get:'textContent') }}"
+                            }
+                          }
+                        ],
+                        {
+                          "$map": "{{ el | fromjson | get:'richText' | eq:'true' | then:(el | fromjson | get:'text' | get:'text') }}",
+                          "$to": {
+                            "type": "{{ el.textType }}",
+                            "text": {
+                              "$when": "{{ el.textType | eq:'text' }}",
+                              "content": "{{ el.text }}",
+                              "link": {
+                                "url": "{{ el.isLink | eq:'true' | then:el.textLink }}"
+                              }
+                            },
+                            "equation": {
+                              "$when": "{{ el.textType | eq:'equation' }}",
+                              "expression": "{{ el.expression }}"
+                            },
+                            "annotations": "{{ el.annotationUi }}"
+                          }
+                        }
+                      ]
+                    },
+                    "checked": "{{ el | fromjson | get:'type' | eq:'to_do' | then:(el | fromjson | get:'checked' | bool) }}",
+                    "title": "{{ el | fromjson | get:'type' | eq:'child_page' | then:(el | fromjson | get:'title') }}",
+                    "type": "{{ el | fromjson | get:'type' | eq:'image' | then:'external' }}",
+                    "external": {
+                      "url": "{{ el | fromjson | get:'type' | eq:'image' | then:(el | fromjson | get:'url') }}"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "markdown": "{{ p.contentType | eq:'markdown' | then:p.markdown }}",
+        "icon": {
+          "$when": "{{ p.options.icon }}",
+          "type": "{{ p.options.icon | re:'^https?://()' | then:'N' | default:'Y' | eq:'Y' | then:'external' | default:'emoji' }}",
+          "external": {
+            "url": "{{ p.options.icon | re:'^https?://()' | then:'N' | default:'Y' | eq:'Y' | then:p.options.icon }}"
+          },
+          "emoji": "{{ p.options.icon | re:'^https?://()' | then:'N' | default:'Y' | eq:'N' | then:p.options.icon }}"
+        }
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "page",
+      "operation": "archive",
+      "title": "Archive a page",
+      "method": "PATCH",
+      "path": "/pages/{{ p.pageId | rl | re:'[?&]p=([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "pageId",
+          "label": "Page",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Page URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "body": {
+        "in_trash": true
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "page",
+      "operation": "getMarkdown",
+      "title": "Get a page as markdown",
+      "method": "GET",
+      "path": "/pages/{{ p.pageId | rl | re:'[?&]p=([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}/markdown",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "pageId",
+          "label": "Page",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Page URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "includeTranscript",
+          "label": "Include transcript",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "include_transcript": "{{ p.includeTranscript | eq:'true' | then:true }}"
+      }
+    },
+    {
+      "resource": "page",
+      "operation": "search",
+      "title": "Search pages",
+      "method": "POST",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "text",
+          "label": "Search text",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: {\"sortValue\": {\"direction\": \"descending\", \"timestamp\": \"last_edited_time\"}}"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "body": {
+        "filter": {
+          "property": "object",
+          "value": "page"
+        },
+        "query": "{{ p.text }}",
+        "sort": {
+          "$when": "{{ p.options.sort.sortValue.direction }}",
+          "direction": "{{ p.options.sort.sortValue.direction }}",
+          "timestamp": "{{ p.options.sort.sortValue.timestamp | default:'last_edited_time' }}"
+        }
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "start_cursor",
+        "cursor_path": "next_cursor",
+        "has_more_path": "has_more",
+        "limit_param": "page_size",
+        "page_size": 100,
+        "param_in": "body",
+        "results_path": "results"
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "page",
+      "operation": "updateMarkdown",
+      "title": "Update a page's markdown",
+      "method": "PATCH",
+      "path": "/pages/{{ p.pageId | rl | re:'[?&]p=([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}/markdown",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "pageId",
+          "label": "Page",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Page URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "markdownUpdateType",
+          "label": "Update type",
+          "type": "select",
+          "default": "replace_content",
+          "options": [
+            "replace_content",
+            "update_content"
+          ]
+        },
+        {
+          "key": "markdown",
+          "label": "Markdown",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "contentUpdates",
+          "label": "Content updates",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "updates"
+          ],
+          "help": "{\"updates\": [{\"oldString\": \"a\", \"newString\": \"b\", \"replaceAllMatches\": false}]}"
+        }
+      ],
+      "body": {
+        "type": "{{ p.markdownUpdateType }}",
+        "replace_content": {
+          "new_str": "{{ p.markdownUpdateType | eq:'replace_content' | then:p.markdown }}"
+        },
+        "update_content": {
+          "content_updates": {
+            "$map": "{{ p.markdownUpdateType | eq:'update_content' | then:p.contentUpdates.updates }}",
+            "$to": {
+              "old_str": "{{ el.oldString }}",
+              "new_str": "{{ el.newString }}",
+              "replace_all_matches": "{{ el.replaceAllMatches | eq:'true' | then:true }}"
+            }
+          }
+        }
+      }
+    },
+    {
+      "resource": "databasePage",
+      "operation": "create",
+      "title": "Create a database page",
+      "method": "POST",
+      "path": "/pages",
+      "before": [
+        {
+          "when": "{{ p.dataSourceId | rl | then:'' | default:p.databaseId }}",
+          "method": "GET",
+          "path": "/databases/{{ p.databaseId | rl | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}"
+        },
+        {
+          "method": "GET",
+          "path": "/data_sources/{{ p.dataSourceId | rl | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' | default:pres.0.data_sources.0.id }}"
+        }
+      ],
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "dataSourceId",
+          "label": "Data source",
+          "type": "text",
+          "default": "",
+          "help": "Data source ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "databaseId",
+          "label": "Database",
+          "type": "text",
+          "default": "",
+          "help": "Database ID; its first data source is used when Data source is empty."
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "propertiesUi",
+          "label": "Properties",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "propertyValues"
+          ],
+          "help": "{\"propertyValues\": [{\"key\": \"Status|select\", \"selectValue\": \"Done\"}]}: key is \"Name|type\"; value fields title, textContent, numberValue, checkboxValue, selectValue, statusValue, multiSelectValue, urlValue, emailValue, phoneValue, peopleValue, relationValue, date / range+dateStart+dateEnd, fileUrls."
+        },
+        {
+          "key": "contentType",
+          "label": "Content",
+          "type": "select",
+          "default": "blockUi",
+          "options": [
+            "blockUi",
+            "json",
+            "markdown"
+          ]
+        },
+        {
+          "key": "blocksJson",
+          "label": "Blocks (JSON)",
+          "type": "code",
+          "default": "",
+          "language": "json"
+        },
+        {
+          "key": "blockUi",
+          "label": "Blocks",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "blockValues"
+          ],
+          "help": "{\"blockValues\": [{\"type\": \"paragraph\", \"textContent\": \"Hello\"}]}; to_do takes checked, child_page title, image url; richText true reads text.text entries."
+        },
+        {
+          "key": "markdown",
+          "label": "Markdown",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "icon"
+          ],
+          "help": "icon: an emoji or an image URL"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "body": {
+        "parent": {
+          "type": "data_source_id",
+          "data_source_id": "{{ p.dataSourceId | rl | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' | default:pres.0.data_sources.0.id }}"
+        },
+        "properties": {
+          "$merge": [
+            {
+              "$entries": "{{ pres.1.properties | values | find:'type','title' | get:'name' | split:'\u0001' }}",
+              "$key": "{{ el }}",
+              "$value": {
+                "title": [
+                  {
+                    "text": {
+                      "content": "{{ p.title }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "$entries": "{{ p.propertiesUi.propertyValues }}",
+              "$key": "{{ el.key | re:'^(.*)\\|[^|]*$' }}",
+              "$value": {
+                "title": [
+                  {
+                    "text": {
+                      "content": "{{ el.key | split:'|' | get:'-1' | eq:'title' | then:(el.title) }}"
+                    }
+                  }
+                ],
+                "rich_text": [
+                  {
+                    "text": {
+                      "content": "{{ el.key | split:'|' | get:'-1' | eq:'rich_text' | then:(el.textContent) }}"
+                    }
+                  }
+                ],
+                "number": "{{ el.key | split:'|' | get:'-1' | eq:'number' | then:(el.numberValue) }}",
+                "checkbox": "{{ el.key | split:'|' | get:'-1' | eq:'checkbox' | then:(el.checkboxValue | bool) }}",
+                "select": {
+                  "name": "{{ el.key | split:'|' | get:'-1' | eq:'select' | then:(el.selectValue) }}"
+                },
+                "status": {
+                  "name": "{{ el.key | split:'|' | get:'-1' | eq:'status' | then:(el.statusValue) }}"
+                },
+                "multi_select": {
+                  "$map": "{{ el.key | split:'|' | get:'-1' | eq:'multi_select' | then:(el.multiSelectValue | split) }}",
+                  "$to": {
+                    "name": "{{ el }}"
+                  }
+                },
+                "url": "{{ el.key | split:'|' | get:'-1' | eq:'url' | then:(el.urlValue) }}",
+                "email": "{{ el.key | split:'|' | get:'-1' | eq:'email' | then:(el.emailValue) }}",
+                "phone_number": "{{ el.key | split:'|' | get:'-1' | eq:'phone_number' | then:(el.phoneValue) }}",
+                "people": {
+                  "$map": "{{ el.key | split:'|' | get:'-1' | eq:'people' | then:(el.peopleValue | split) }}",
+                  "$to": {
+                    "id": "{{ el }}"
+                  }
+                },
+                "relation": {
+                  "$map": "{{ el.key | split:'|' | get:'-1' | eq:'relation' | then:(el.relationValue | split) }}",
+                  "$to": {
+                    "id": "{{ el }}"
+                  }
+                },
+                "date": {
+                  "start": "{{ el.key | split:'|' | get:'-1' | eq:'date' | then:(el.range | eq:'true' | then:el.dateStart | default:el.date) }}",
+                  "end": "{{ el.key | split:'|' | get:'-1' | eq:'date' | then:(el.range | eq:'true' | then:el.dateEnd) }}"
+                },
+                "files": {
+                  "$map": "{{ el.key | split:'|' | get:'-1' | eq:'files' | then:(el.fileUrls.fileUrl) }}",
+                  "$to": {
+                    "name": "{{ el.name }}",
+                    "type": "external",
+                    "external": {
+                      "url": "{{ el.url }}"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "children": {
+          "$concat": [
+            "{{ p.contentType | eq:'json' | then:(p.blocksJson | fromjson) }}",
+            {
+              "$map": "{{ p.contentType | default:'blockUi' | eq:'blockUi' | then:p.blockUi.blockValues }}",
+              "$to": {
+                "object": "block",
+                "type": "{{ el.type }}",
+                "$merge": {
+                  "$entries": "{{ el | json | split:'\u0001' }}",
+                  "$key": "{{ el | fromjson | get:'type' }}",
+                  "$value": {
+                    "rich_text": {
+                      "$concat": [
+                        [
+                          {
+                            "text": {
+                              "content": "{{ el | fromjson | get:'richText' | ne:'true' | then:(el | fromjson | get:'textContent') }}"
+                            }
+                          }
+                        ],
+                        {
+                          "$map": "{{ el | fromjson | get:'richText' | eq:'true' | then:(el | fromjson | get:'text' | get:'text') }}",
+                          "$to": {
+                            "type": "{{ el.textType }}",
+                            "text": {
+                              "$when": "{{ el.textType | eq:'text' }}",
+                              "content": "{{ el.text }}",
+                              "link": {
+                                "url": "{{ el.isLink | eq:'true' | then:el.textLink }}"
+                              }
+                            },
+                            "equation": {
+                              "$when": "{{ el.textType | eq:'equation' }}",
+                              "expression": "{{ el.expression }}"
+                            },
+                            "annotations": "{{ el.annotationUi }}"
+                          }
+                        }
+                      ]
+                    },
+                    "checked": "{{ el | fromjson | get:'type' | eq:'to_do' | then:(el | fromjson | get:'checked' | bool) }}",
+                    "title": "{{ el | fromjson | get:'type' | eq:'child_page' | then:(el | fromjson | get:'title') }}",
+                    "type": "{{ el | fromjson | get:'type' | eq:'image' | then:'external' }}",
+                    "external": {
+                      "url": "{{ el | fromjson | get:'type' | eq:'image' | then:(el | fromjson | get:'url') }}"
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "markdown": "{{ p.contentType | eq:'markdown' | then:p.markdown }}",
+        "icon": {
+          "$when": "{{ p.options.icon }}",
+          "type": "{{ p.options.icon | re:'^https?://()' | then:'N' | default:'Y' | eq:'Y' | then:'external' | default:'emoji' }}",
+          "external": {
+            "url": "{{ p.options.icon | re:'^https?://()' | then:'N' | default:'Y' | eq:'Y' | then:p.options.icon }}"
+          },
+          "emoji": "{{ p.options.icon | re:'^https?://()' | then:'N' | default:'Y' | eq:'N' | then:p.options.icon }}"
+        }
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "databasePage",
+      "operation": "get",
+      "title": "Get a database page",
+      "method": "GET",
+      "path": "/pages/{{ p.pageId | rl | re:'[?&]p=([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "pageId",
+          "label": "Page",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Page URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "downloadFiles"
+          ],
+          "help": "downloadFiles: put each file of the page's file properties on the item (binary <property>_<index>)."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}",
+        "download": {
+          "when": "{{ p.options.downloadFiles }}",
+          "auth": false,
+          "files": {
+            "$map": "{{ el.properties | entries }}",
+            "$to": {
+              "$map": "{{ el.value.type | eq:'files' | then:el.value.files }}",
+              "$to": {
+                "url": "{{ el.file.url | default:el.external.url }}",
+                "property": "{{ up.key }}_{{ idx }}",
+                "name": "{{ el.name }}"
+              }
+            }
+          },
+          "method": "GET",
+          "path": "{{ el.url }}",
+          "property": "{{ el.property }}",
+          "file_name": "{{ el.name }}"
+        }
+      }
+    },
+    {
+      "resource": "databasePage",
+      "operation": "getAll",
+      "title": "Query a data source's pages",
+      "method": "POST",
+      "path": "/data_sources/{{ p.dataSourceId | rl | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' | default:pre.data_sources.0.id }}/query",
+      "before": {
+        "when": "{{ p.dataSourceId | rl | then:'' | default:p.databaseId }}",
+        "method": "GET",
+        "path": "/databases/{{ p.databaseId | rl | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "dataSourceId",
+          "label": "Data source",
+          "type": "text",
+          "default": "",
+          "help": "Data source ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "databaseId",
+          "label": "Database",
+          "type": "text",
+          "default": "",
+          "help": "Database ID; its first data source is used when Data source is empty."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filterType",
+          "label": "Filter",
+          "type": "select",
+          "default": "none",
+          "options": [
+            "none",
+            "manual",
+            "json"
+          ]
+        },
+        {
+          "key": "matchType",
+          "label": "Match",
+          "type": "select",
+          "default": "anyFilter",
+          "options": [
+            "anyFilter",
+            "allFilters"
+          ]
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "conditions"
+          ],
+          "help": "{\"conditions\": [{\"key\": \"Status|status\", \"condition\": \"equals\", \"optionValue\": \"Done\"}]}"
+        },
+        {
+          "key": "filterJson",
+          "label": "Filter (JSON)",
+          "type": "code",
+          "default": "",
+          "language": "json"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort",
+            "downloadFiles"
+          ],
+          "help": "sort: {\"sortValue\": [{\"key\": \"Due|date\", \"direction\": \"ascending\"}, {\"timestamp\": true, \"key\": \"created_time\", \"direction\": \"descending\"}]}"
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "body": {
+        "filter": {
+          "$merge": [
+            "{{ p.filterType | eq:'json' | then:(p.filterJson | fromjson) }}",
+            {
+              "$entries": "{{ p.filterType | eq:'manual' | then:p.matchType | split }}",
+              "$key": "{{ el | eq:'allFilters' | then:'and' | default:'or' }}",
+              "$value": {
+                "$map": "{{ p.filters.conditions }}",
+                "$to": {
+                  "property": "{{ el.key | re:'^(.*)\\|[^|]*$' }}",
+                  "$merge": {
+                    "$entries": "{{ el | json | split:'\u0001' }}",
+                    "$key": "{{ el | fromjson | get:'key' | split:'|' | get:'-1' | eq:'title' | then:'rich_text' | default:(el | fromjson | get:'key' | split:'|' | get:'-1' | eq:'url' | then:'rich_text') | default:(el | fromjson | get:'key' | split:'|' | get:'-1' | eq:'email' | then:'rich_text') | default:(el | fromjson | get:'key' | split:'|' | get:'-1' | eq:'created_by' | then:'people') | default:(el | fromjson | get:'key' | split:'|' | get:'-1' | eq:'last_edited_by' | then:'people') | default:(el | fromjson | get:'key' | split:'|' | get:'-1') }}",
+                    "$value": {
+                      "$merge": {
+                        "$entries": "{{ el | split:'\u0001' }}",
+                        "$key": "{{ el | fromjson | get:'condition' }}",
+                        "$value": "{{ el | fromjson | get:'condition' | eq:'is_empty' | then:true | default:(el | fromjson | get:'condition' | eq:'is_not_empty' | then:true) | default:(el | fromjson | get:'richTextValue') | default:(el | fromjson | get:'numberValue') | default:(el | fromjson | get:'date' | date:'YYYY-MM-DDTHH:mm:ssZ') | default:(el | fromjson | get:'dateValue') | default:(el | fromjson | get:'optionValue') | default:(el | fromjson | get:'peopleValue') | default:(el | fromjson | get:'relationValue') | default:(el | fromjson | get:'verificationStatus') | default:(el | fromjson | get:'checkboxValue' | bool) }}"
+                      },
+                      "past_week": {
+                        "$when": "{{ el | fromjson | get:'condition' | eq:'past_week' }}"
+                      },
+                      "past_month": {
+                        "$when": "{{ el | fromjson | get:'condition' | eq:'past_month' }}"
+                      },
+                      "past_year": {
+                        "$when": "{{ el | fromjson | get:'condition' | eq:'past_year' }}"
+                      },
+                      "next_week": {
+                        "$when": "{{ el | fromjson | get:'condition' | eq:'next_week' }}"
+                      },
+                      "next_month": {
+                        "$when": "{{ el | fromjson | get:'condition' | eq:'next_month' }}"
+                      },
+                      "next_year": {
+                        "$when": "{{ el | fromjson | get:'condition' | eq:'next_year' }}"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "sorts": {
+          "$map": "{{ p.options.sort.sortValue }}",
+          "$to": {
+            "direction": "{{ el.direction }}",
+            "timestamp": "{{ el.timestamp | eq:'true' | then:(el.key | split:'|' | get:'0') }}",
+            "property": "{{ el.timestamp | ne:'true' | then:(el.key | re:'^(.*)\\|[^|]*$') }}"
+          }
+        }
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "start_cursor",
+        "cursor_path": "next_cursor",
+        "has_more_path": "has_more",
+        "limit_param": "page_size",
+        "page_size": 100,
+        "param_in": "body",
+        "results_path": "results"
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}",
+        "download": {
+          "when": "{{ p.options.downloadFiles }}",
+          "auth": false,
+          "files": {
+            "$map": "{{ el.properties | entries }}",
+            "$to": {
+              "$map": "{{ el.value.type | eq:'files' | then:el.value.files }}",
+              "$to": {
+                "url": "{{ el.file.url | default:el.external.url }}",
+                "property": "{{ up.key }}_{{ idx }}",
+                "name": "{{ el.name }}"
+              }
+            }
+          },
+          "method": "GET",
+          "path": "{{ el.url }}",
+          "property": "{{ el.property }}",
+          "file_name": "{{ el.name }}"
+        }
+      }
+    },
+    {
+      "resource": "databasePage",
+      "operation": "update",
+      "title": "Update a database page",
+      "method": "PATCH",
+      "path": "/pages/{{ p.pageId | rl | re:'[?&]p=([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "pageId",
+          "label": "Page",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Page URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "propertiesUi",
+          "label": "Properties",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "propertyValues"
+          ],
+          "help": "{\"propertyValues\": [{\"key\": \"Status|select\", \"selectValue\": \"Done\"}]}: key is \"Name|type\"; value fields title, textContent, numberValue, checkboxValue, selectValue, statusValue, multiSelectValue, urlValue, emailValue, phoneValue, peopleValue, relationValue, date / range+dateStart+dateEnd, fileUrls."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "icon"
+          ],
+          "help": "icon: an emoji or an image URL"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "body": {
+        "properties": {
+          "$entries": "{{ p.propertiesUi.propertyValues }}",
+          "$key": "{{ el.key | re:'^(.*)\\|[^|]*$' }}",
+          "$value": {
+            "title": [
+              {
+                "text": {
+                  "content": "{{ el.key | split:'|' | get:'-1' | eq:'title' | then:(el.title) }}"
+                }
+              }
+            ],
+            "rich_text": [
+              {
+                "text": {
+                  "content": "{{ el.key | split:'|' | get:'-1' | eq:'rich_text' | then:(el.textContent) }}"
+                }
+              }
+            ],
+            "number": "{{ el.key | split:'|' | get:'-1' | eq:'number' | then:(el.numberValue) }}",
+            "checkbox": "{{ el.key | split:'|' | get:'-1' | eq:'checkbox' | then:(el.checkboxValue | bool) }}",
+            "select": {
+              "name": "{{ el.key | split:'|' | get:'-1' | eq:'select' | then:(el.selectValue) }}"
+            },
+            "status": {
+              "name": "{{ el.key | split:'|' | get:'-1' | eq:'status' | then:(el.statusValue) }}"
+            },
+            "multi_select": {
+              "$map": "{{ el.key | split:'|' | get:'-1' | eq:'multi_select' | then:(el.multiSelectValue | split) }}",
+              "$to": {
+                "name": "{{ el }}"
+              }
+            },
+            "url": "{{ el.key | split:'|' | get:'-1' | eq:'url' | then:(el.urlValue) }}",
+            "email": "{{ el.key | split:'|' | get:'-1' | eq:'email' | then:(el.emailValue) }}",
+            "phone_number": "{{ el.key | split:'|' | get:'-1' | eq:'phone_number' | then:(el.phoneValue) }}",
+            "people": {
+              "$map": "{{ el.key | split:'|' | get:'-1' | eq:'people' | then:(el.peopleValue | split) }}",
+              "$to": {
+                "id": "{{ el }}"
+              }
+            },
+            "relation": {
+              "$map": "{{ el.key | split:'|' | get:'-1' | eq:'relation' | then:(el.relationValue | split) }}",
+              "$to": {
+                "id": "{{ el }}"
+              }
+            },
+            "date": {
+              "start": "{{ el.key | split:'|' | get:'-1' | eq:'date' | then:(el.range | eq:'true' | then:el.dateStart | default:el.date) }}",
+              "end": "{{ el.key | split:'|' | get:'-1' | eq:'date' | then:(el.range | eq:'true' | then:el.dateEnd) }}"
+            },
+            "files": {
+              "$map": "{{ el.key | split:'|' | get:'-1' | eq:'files' | then:(el.fileUrls.fileUrl) }}",
+              "$to": {
+                "name": "{{ el.name }}",
+                "type": "external",
+                "external": {
+                  "url": "{{ el.url }}"
+                }
+              }
+            }
+          }
+        },
+        "icon": {
+          "$when": "{{ p.options.icon }}",
+          "type": "{{ p.options.icon | re:'^https?://()' | then:'N' | default:'Y' | eq:'Y' | then:'external' | default:'emoji' }}",
+          "external": {
+            "url": "{{ p.options.icon | re:'^https?://()' | then:'N' | default:'Y' | eq:'Y' | then:p.options.icon }}"
+          },
+          "emoji": "{{ p.options.icon | re:'^https?://()' | then:'N' | default:'Y' | eq:'N' | then:p.options.icon }}"
+        }
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "block",
+      "operation": "append",
+      "title": "Append blocks",
+      "method": "PATCH",
+      "path": "/blocks/{{ p.blockId | rl | re:'#([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}/children",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "blockId",
+          "label": "Block",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Block URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "afterBlockId",
+          "label": "Insert after block ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "blockUi",
+          "label": "Blocks",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "blockValues"
+          ],
+          "help": "{\"blockValues\": [{\"type\": \"paragraph\", \"textContent\": \"Hello\"}]}; to_do takes checked, child_page title, image url; richText true reads text.text entries."
+        }
+      ],
+      "body": {
+        "children": {
+          "$map": "{{ p.blockUi.blockValues }}",
+          "$to": {
+            "object": "block",
+            "type": "{{ el.type }}",
+            "$merge": {
+              "$entries": "{{ el | json | split:'\u0001' }}",
+              "$key": "{{ el | fromjson | get:'type' }}",
+              "$value": {
+                "rich_text": {
+                  "$concat": [
+                    [
+                      {
+                        "text": {
+                          "content": "{{ el | fromjson | get:'richText' | ne:'true' | then:(el | fromjson | get:'textContent') }}"
+                        }
+                      }
+                    ],
+                    {
+                      "$map": "{{ el | fromjson | get:'richText' | eq:'true' | then:(el | fromjson | get:'text' | get:'text') }}",
+                      "$to": {
+                        "type": "{{ el.textType }}",
+                        "text": {
+                          "$when": "{{ el.textType | eq:'text' }}",
+                          "content": "{{ el.text }}",
+                          "link": {
+                            "url": "{{ el.isLink | eq:'true' | then:el.textLink }}"
+                          }
+                        },
+                        "equation": {
+                          "$when": "{{ el.textType | eq:'equation' }}",
+                          "expression": "{{ el.expression }}"
+                        },
+                        "annotations": "{{ el.annotationUi }}"
+                      }
+                    }
+                  ]
+                },
+                "checked": "{{ el | fromjson | get:'type' | eq:'to_do' | then:(el | fromjson | get:'checked' | bool) }}",
+                "title": "{{ el | fromjson | get:'type' | eq:'child_page' | then:(el | fromjson | get:'title') }}",
+                "type": "{{ el | fromjson | get:'type' | eq:'image' | then:'external' }}",
+                "external": {
+                  "url": "{{ el | fromjson | get:'type' | eq:'image' | then:(el | fromjson | get:'url') }}"
+                }
+              }
+            }
+          }
+        },
+        "position": {
+          "$when": "{{ p.afterBlockId }}",
+          "type": "after_block",
+          "after_block": {
+            "id": "{{ p.afterBlockId }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "block",
+      "operation": "getMarkdown",
+      "title": "Get a block as markdown",
+      "method": "GET",
+      "path": "/pages/{{ p.blockId | rl | re:'#([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}/markdown",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "blockId",
+          "label": "Block",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Block URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "includeTranscript",
+          "label": "Include transcript",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "query": {
+        "include_transcript": "{{ p.includeTranscript | eq:'true' | then:true }}"
+      }
+    },
+    {
+      "resource": "block",
+      "operation": "getAll",
+      "title": "Get many child blocks",
+      "method": "GET",
+      "path": "/blocks/{{ p.blockId | rl | re:'#([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}/children",
+      "description": "Nested blocks (fetchNestedBlocks) are not fetched.",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "blockId",
+          "label": "Block",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Block URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "fetchNestedBlocks",
+          "label": "Fetch nested blocks",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "simplifyOutput",
+          "label": "Simplify output",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "start_cursor",
+        "cursor_path": "next_cursor",
+        "has_more_path": "has_more",
+        "limit_param": "page_size",
+        "page_size": 100,
+        "param_in": "query",
+        "results_path": "results"
+      },
+      "output": {
+        "to_when": "{{ p.simplifyOutput }}",
+        "to": {
+          "$merge": "{{ el | omit:'created_time,last_edited_time,created_by' }}",
+          "root_id": "{{ p.blockId | rl | re:'#([0-9a-fA-F-]{32,36})' | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}",
+          "content": "{{ el | get:el.type | get:'title' | default:(el | get:el.type | get:'text' | pluck:'plain_text' | join:'') }}"
+        }
+      }
+    },
+    {
+      "resource": "dataSource",
+      "operation": "get",
+      "title": "Get a data source",
+      "method": "GET",
+      "path": "/data_sources/{{ p.dataSourceId | rl | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "dataSourceId",
+          "label": "Data source",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "An n8n resource locator is accepted."
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "dataSource",
+      "operation": "search",
+      "title": "Search data sources",
+      "method": "POST",
+      "path": "/search",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "text",
+          "label": "Search text",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ],
+          "help": "sort: {\"sortValue\": {\"direction\": \"descending\", \"timestamp\": \"last_edited_time\"}}"
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "body": {
+        "filter": {
+          "property": "object",
+          "value": "data_source"
+        },
+        "query": "{{ p.text }}",
+        "sort": {
+          "$when": "{{ p.options.sort.sortValue.direction }}",
+          "direction": "{{ p.options.sort.sortValue.direction }}",
+          "timestamp": "{{ p.options.sort.sortValue.timestamp | default:'last_edited_time' }}"
+        }
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "start_cursor",
+        "cursor_path": "next_cursor",
+        "has_more_path": "has_more",
+        "limit_param": "page_size",
+        "page_size": 100,
+        "param_in": "body",
+        "results_path": "results"
+      },
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "database",
+      "operation": "get",
+      "title": "Get a database",
+      "method": "GET",
+      "path": "/databases/{{ p.databaseId | rl | re:'([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})' }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "databaseId",
+          "label": "Database",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Database URL or ID; an n8n resource locator is accepted."
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return id, name, url and property_* values only."
+        },
+        {
+          "key": "keyCase",
+          "label": "Property key case",
+          "type": "select",
+          "default": "snake",
+          "options": [
+            "snake",
+            "ascii"
+          ],
+          "help": "How simplified output names property_<key> keys: snake (n8n node version 3), or ascii, which first turns non-ASCII letters into separators (n8n versions 1-2.2; imported nodes get it from their version)"
+        }
+      ],
+      "output": {
+        "to": {
+          "id": "{{ el.id }}",
+          "name": "{{ el.name | default:(el.title | pluck:'plain_text' | join:'') | default:(el.properties | values | find:'type','title' | get:'title' | pluck:'plain_text' | join:'') }}",
+          "url": "{{ el.url }}",
+          "$merge": {
+            "$entries": "{{ el.properties | entries }}",
+            "$key": "property_{{ el.key | snake:p.keyCase }}",
+            "$value": "{{ el.value.title | pluck:'plain_text' | join:'' | default:(el.value.rich_text | pluck:'plain_text' | join:'') | default:el.value.number | default:el.value.select.name | default:el.value.status.name | default:(el.value.multi_select | pluck:'name') | default:(el.value.people | pluck:'person.email') | default:(el.value.relation | pluck:'id') | default:(el.value.files | pluck:'file.url') | default:(el.value.files | pluck:'external.url') | default:el.value.date | default:el.value.url | default:el.value.email | default:el.value.phone_number | default:el.value.created_time | default:el.value.last_edited_time | default:el.value.created_by.name | default:el.value.last_edited_by.name | default:(el.value.formula | get:(el.value.formula.type)) | default:el.value.rollup.number | default:el.value.checkbox }}"
+          }
+        },
+        "to_when": "{{ p.simple }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.userId }}",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "default": "apiKey",
+          "options": [
+            "apiKey",
+            "oAuth2"
+          ],
+          "help": "Kept for n8n compatibility; the connection decides."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "start_cursor",
+        "cursor_path": "next_cursor",
+        "has_more_path": "has_more",
+        "limit_param": "page_size",
+        "page_size": 100,
+        "param_in": "query",
+        "results_path": "results"
+      }
+    }
+  ]
+}

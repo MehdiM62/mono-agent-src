@@ -1,0 +1,106 @@
+{
+  "payout.create": {
+    "credential": {
+      "client_id": "id",
+      "client_secret": "s",
+      "env": "sanbox",
+      "access_token": "tok"
+    },
+    "params": {
+      "senderBatchId": "b1",
+      "itemsUi": {
+        "itemsValues": [
+          {
+            "receiverValue": "a@b.io",
+            "amount": "5.5",
+            "currency": "EUR",
+            "note": "thx"
+          }
+        ]
+      },
+      "additionalFields": {
+        "emailSubject": "Hi"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/payments/payouts",
+      "body": {
+        "sender_batch_header": {
+          "sender_batch_id": "b1",
+          "email_subject": "Hi"
+        },
+        "items": [
+          {
+            "amount": {
+              "currency": "EUR",
+              "value": 5.5
+            },
+            "note": "thx",
+            "receiver": "a@b.io",
+            "recipient_type": "email",
+            "recipient_wallet": "paypal"
+          }
+        ]
+      }
+    }
+  },
+  "payout.get": {
+    "credential": {
+      "client_id": "id",
+      "client_secret": "s",
+      "env": "sanbox",
+      "access_token": "tok"
+    },
+    "params": {
+      "payoutBatchId": "B",
+      "limit": 10
+    },
+    "response": {
+      "items": [
+        {
+          "payout_item_id": "i1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/payments/payouts/B",
+      "query": {
+        "page": "1",
+        "page_size": "10"
+      },
+      "items": 1
+    }
+  },
+  "payoutItem.get": {
+    "credential": {
+      "client_id": "id",
+      "client_secret": "s",
+      "env": "sanbox",
+      "access_token": "tok"
+    },
+    "params": {
+      "payoutItemId": "I"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v1/payments/payouts-item/I"
+    }
+  },
+  "payoutItem.cancel": {
+    "credential": {
+      "client_id": "id",
+      "client_secret": "s",
+      "env": "sanbox",
+      "access_token": "tok"
+    },
+    "params": {
+      "payoutItemId": "I"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/payments/payouts-item/I/cancel"
+    }
+  }
+}

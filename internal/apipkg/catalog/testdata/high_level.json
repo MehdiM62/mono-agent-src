@@ -1,0 +1,446 @@
+{
+  "contact.create": {
+    "params": {
+      "email": "a@b.test",
+      "additionalFields": {
+        "firstName": "A",
+        "tags": "x, y",
+        "notes": "hello",
+        "customFields": {
+          "values": [
+            {
+              "fieldId": {
+                "__rl": true,
+                "mode": "list",
+                "value": "f1",
+                "cachedResultName": "Tier"
+              },
+              "fieldValue": "gold"
+            }
+          ]
+        }
+      }
+    },
+    "responses": [
+      {
+        "contact": {
+          "id": "c1",
+          "locationId": "L1"
+        }
+      },
+      {}
+    ],
+    "expect_requests": [
+      {
+        "method": "POST",
+        "path": "/contacts/upsert/",
+        "body": {
+          "email": "a@b.test",
+          "firstName": "A",
+          "tags": [
+            "x",
+            "y"
+          ],
+          "locationId": "L1",
+          "customFields": [
+            {
+              "id": "f1",
+              "key": "Tier",
+              "field_value": "gold"
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "path": "/contacts/c1/notes",
+        "body": {
+          "userId": "L1",
+          "body": "hello"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/contacts/upsert/",
+      "body": {
+        "email": "a@b.test",
+        "firstName": "A",
+        "tags": [
+          "x",
+          "y"
+        ],
+        "locationId": "L1",
+        "customFields": [
+          {
+            "id": "f1",
+            "key": "Tier",
+            "field_value": "gold"
+          }
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "contact.delete": {
+    "params": {
+      "contactId": "c1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/contacts/c1/"
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "contact.get": {
+    "params": {
+      "contactId": "c1"
+    },
+    "response": {
+      "contact": {
+        "id": "c1"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts/c1/",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "contact.getAll": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "query": "ada"
+      }
+    },
+    "response": {
+      "contacts": [
+        {
+          "id": "1"
+        }
+      ],
+      "meta": {}
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts/",
+      "query": {
+        "locationId": "L1",
+        "query": "ada",
+        "limit": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "contact.update": {
+    "params": {
+      "contactId": "c1",
+      "updateFields": {
+        "city": "Oslo",
+        "tags": [
+          "a"
+        ]
+      }
+    },
+    "response": {
+      "contact": {
+        "id": "c1"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/contacts/c1/",
+      "body": {
+        "city": "Oslo",
+        "tags": [
+          "a"
+        ]
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "opportunity.create": {
+    "params": {
+      "pipelineId": "p1",
+      "contactId": "c1",
+      "name": "Deal",
+      "additionalFields": {
+        "stageId": "s1",
+        "monetaryValue": 10
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/opportunities/",
+      "body": {
+        "pipelineId": "p1",
+        "contactId": "c1",
+        "name": "Deal",
+        "status": "open",
+        "locationId": "L1",
+        "pipelineStageId": "s1",
+        "monetaryValue": 10
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "opportunity.delete": {
+    "params": {
+      "opportunityId": "o1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/opportunities/o1"
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "opportunity.get": {
+    "params": {
+      "opportunityId": "o1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/opportunities/o1"
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "opportunity.getAll": {
+    "params": {
+      "returnAll": true,
+      "filters": {
+        "status": "won",
+        "startDate": "2024-01-01T00:00:00Z"
+      }
+    },
+    "response": {
+      "opportunities": [
+        {
+          "id": "1"
+        }
+      ],
+      "meta": {}
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/opportunities/search",
+      "query": {
+        "location_id": "L1",
+        "status": "won",
+        "date": "1704067200000",
+        "limit": "100"
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "opportunity.update": {
+    "params": {
+      "opportunityId": "o1",
+      "updateFields": {
+        "status": "lost",
+        "stageId": "s2"
+      }
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/opportunities/o1",
+      "body": {
+        "status": "lost",
+        "pipelineStageId": "s2"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "task.create": {
+    "params": {
+      "contactId": "c1",
+      "title": "Call",
+      "dueDate": "2024-05-01T10:00:00.000Z"
+    },
+    "response": {
+      "task": {
+        "id": "t"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/contacts/c1/tasks/",
+      "body": {
+        "title": "Call",
+        "dueDate": "2024-05-01T10:00:00Z",
+        "completed": false
+      },
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "task.delete": {
+    "params": {
+      "contactId": "c1",
+      "taskId": "t1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/contacts/c1/tasks/t1/"
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "task.get": {
+    "params": {
+      "contactId": "c1",
+      "taskId": "t1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts/c1/tasks/t1/"
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "task.getAll": {
+    "params": {
+      "contactId": "c1",
+      "limit": 1
+    },
+    "response": {
+      "tasks": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/contacts/c1/tasks/",
+      "items": 1
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "task.update": {
+    "params": {
+      "contactId": "c1",
+      "taskId": "t1",
+      "updateFields": {
+        "completed": true
+      }
+    },
+    "responses": [
+      {
+        "title": "Old",
+        "dueDate": "2024-05-01T10:00:00.000Z"
+      },
+      {}
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/contacts/c1/tasks/t1/",
+      "body": {
+        "completed": true,
+        "title": "Old",
+        "dueDate": "2024-05-01T10:00:00Z"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "calendar.bookAppointment": {
+    "params": {
+      "calendarId": "cal",
+      "locationId": "L1",
+      "contactId": "c1",
+      "startTime": "2024-05-01T10:00:00Z",
+      "additionalFields": {
+        "title": "Demo"
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/calendars/events/appointments",
+      "body": {
+        "calendarId": "cal",
+        "locationId": "L1",
+        "contactId": "c1",
+        "startTime": "2024-05-01T10:00:00Z",
+        "title": "Demo"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  },
+  "calendar.getFreeSlots": {
+    "params": {
+      "calendarId": "cal",
+      "startDate": 1700000000000,
+      "endDate": 1700600000000,
+      "additionalFields": {
+        "timezone": "UTC"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/calendars/cal/free-slots",
+      "query": {
+        "startDate": "1700000000000",
+        "endDate": "1700600000000",
+        "timezone": "UTC"
+      }
+    },
+    "credential": {
+      "access_token": "t",
+      "location_id": "L1"
+    }
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "file.upload": {
+    "credential": {
+      "url": "https://adc.example.com",
+      "username": "u",
+      "password": "p"
+    },
+    "params": {
+      "options": {
+        "fileName": "c.pem"
+      }
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "aGVsbG8=",
+          "fileName": "x.pem",
+          "mimeType": "text/plain"
+        }
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/nitro/v1/config/systemfile",
+      "body": {
+        "systemfile": {
+          "filename": "c.pem",
+          "filecontent": "aGVsbG8=",
+          "filelocation": "/nsconfig/ssl/",
+          "fileencoding": "BASE64"
+        }
+      }
+    }
+  },
+  "file.delete": {
+    "credential": {
+      "url": "https://adc.example.com",
+      "username": "u",
+      "password": "p"
+    },
+    "params": {
+      "fileName": "c.pem"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/nitro/v1/config/systemfile",
+      "query": {
+        "args": "filename:c.pem,filelocation:/nsconfig/ssl/"
+      },
+      "items": 1
+    }
+  },
+  "file.download": {
+    "credential": {
+      "url": "https://adc.example.com",
+      "username": "u",
+      "password": "p"
+    },
+    "params": {
+      "fileName": "c.pem"
+    },
+    "response": {
+      "systemfile": [
+        {
+          "filename": "c.pem",
+          "filecontent": "aGVsbG8="
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/nitro/v1/config/systemfile",
+      "query": {
+        "args": "filename:c.pem,filelocation:/nsconfig/ssl/"
+      },
+      "items": 1
+    }
+  },
+  "certificate.create": {
+    "credential": {
+      "url": "https://adc.example.com",
+      "username": "u",
+      "password": "p"
+    },
+    "params": {
+      "certificateFileName": "a.crt",
+      "certificateRequestFileName": "a.csr",
+      "certificateType": "SRVR_CERT",
+      "caCertificateFileName": "ca.crt",
+      "caPrivateKeyFileName": "ca.key",
+      "caSerialFileNumber": "ca.srl",
+      "privateKeyFileName": "ignored",
+      "additionalFields": {
+        "days": 30
+      }
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/nitro/v1/config/sslcert",
+      "query": {
+        "action": "create"
+      },
+      "body": {
+        "sslcert": {
+          "reqfile": "a.csr",
+          "certfile": "a.crt",
+          "certform": "PEM",
+          "certType": "SRVR_CERT",
+          "days": 30,
+          "cacert": "ca.crt",
+          "cacertform": "PEM",
+          "cakey": "ca.key",
+          "cakeyform": "PEM",
+          "caserial": "ca.srl"
+        }
+      }
+    }
+  },
+  "certificate.install": {
+    "credential": {
+      "url": "https://adc.example.com",
+      "username": "u",
+      "password": "p"
+    },
+    "params": {
+      "certificateKeyPairName": "kp",
+      "certificateFileName": "a.crt",
+      "privateKeyFileName": "a.key",
+      "password": "pw",
+      "notifyExpiration": true,
+      "notificationPeriod": 20
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/nitro/v1/config/sslcertkey",
+      "body": {
+        "sslcertkey": {
+          "cert": "a.crt",
+          "certkey": "kp",
+          "key": "a.key",
+          "inform": "PEM",
+          "passplain": "pw",
+          "bundle": "NO",
+          "expirymonitor": "ENABLED",
+          "notificationperiod": 20
+        }
+      }
+    }
+  }
+}

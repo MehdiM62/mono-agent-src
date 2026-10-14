@@ -45,5 +45,37 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "new Application id",
+      "key": "id",
+      "type": "string"
+    },
+    {
+      "description": "\"job\"",
+      "key": "kind",
+      "type": "string"
+    },
+    {
+      "description": "\"pending\"",
+      "key": "status",
+      "type": "string"
+    },
+    {
+      "description": "job title",
+      "key": "title",
+      "type": "string"
+    },
+    {
+      "description": "company",
+      "key": "company",
+      "type": "string"
+    },
+    {
+      "description": "posting URL",
+      "key": "url",
+      "type": "string"
+    }
   ]
 }
