@@ -99,6 +99,7 @@ func Palette(db *sql.DB, includeDeprecated bool) map[string][]PaletteNode {
 			mkNode("core.merge", "Merge", "control", "Merge multiple input branches into one"),
 			mkNode("core.split_in_batches", "Split In Batches", "control", "Loop over items in fixed-size batches; wire the loop body back into it"),
 			mkNode("core.wait", "Wait", "control", "Pause for a duration or until a specific time"),
+			mkNode("core.form", "Form Page", "control", "Show the next page (or the ending) of a Form trigger's form"),
 			mkNode("core.execute_workflow", "Execute Workflow", "control", "Run another workflow as a sub-workflow and use its output"),
 			mkNode("core.respond_webhook", "Respond to Webhook", "control", "Answer the webhook request that started the run"),
 			mkNode("core.stop_error", "Stop And Error", "control", "Halt workflow with an error message"),

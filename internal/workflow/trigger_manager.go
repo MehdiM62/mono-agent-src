@@ -208,7 +208,7 @@ func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) err
 			}
 
 		case TriggerNodeTypeForm:
-			if err := tm.activateForm(w.ID, node); err != nil {
+			if err := tm.activateForm(w, node); err != nil {
 				errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
 			}
 

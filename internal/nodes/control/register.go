@@ -22,5 +22,6 @@ func RegisterAll(r *workflow.NodeTypeRegistry) {
 	r.Register("core.execute_workflow", func() workflow.NodeExecutor { return &ExecuteWorkflowNode{} })
 	r.Register("core.respond_webhook", func() workflow.NodeExecutor { return &RespondWebhookNode{} })
 	r.Register("core.noop", func() workflow.NodeExecutor { return &NoOpNode{} })
+	r.Register("core.form", func() workflow.NodeExecutor { return &FormNode{} })
 	r.Register("core.data_table", func() workflow.NodeExecutor { return &DataTableNode{} })
 }

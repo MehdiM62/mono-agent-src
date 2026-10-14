@@ -198,6 +198,22 @@ limitWaitTime with limitType afterTimeInterval (resumeAmount, resumeUnit) or
 atSpecifiedTime (maxDateAndTime) gives up and passes the input items on.`,
 	},
 	{
+		Type:     "core.form",
+		Category: "core",
+		Short:    "Show the next page, or the ending, of a trigger.form's form",
+		Config:   `{ "operation": "page", "formTitle": "Step 2", "formFields": [{ "fieldLabel": "Phone" }] }  |  { "operation": "completion", "respondWith": "text", "completionTitle": "Thanks!", "completionMessage": "We will be in touch." }`,
+		Inputs:   "any items",
+		Outputs:  "page: the page's answers + submittedAt and formMode; completion: the input items",
+		Description: `Place after a trigger.form: the submission is held until the run reaches
+the next core.form, and the browser is sent to that page (on the
+execution's resume URL). Each page's answers resume the run; IF/Switch nodes
+between pages choose the next page. operation completion ends the form:
+respondWith text (completionTitle, completionMessage), redirect
+(redirectUrl) or showText (responseText, HTML shown as the page). A run that
+ends without a completion shows the default confirmation. limitWaitTime
+(as on core.wait) gives up on a page and passes the input items on.`,
+	},
+	{
 		Type:     "core.stop_error",
 		Category: "core",
 		Short:    "Abort workflow with an error message",
