@@ -130,7 +130,7 @@ func importCode(c *MapContext, param, code string) string {
 		return "throw new Error(\"the n8n code was set by an expression\");"
 	}
 	if m := unavailableInCodeNode.FindString(code); m != "" {
-		c.Warn(param, nil, "uses %q, which mono-agent code nodes do not provide (only this node's input items); it fails when that line runs", strings.TrimSpace(m))
+		c.Warn(param, nil, "uses %q, which mono-agent code nodes do not provide; it fails when that line runs", strings.TrimSpace(m))
 	}
 	return code
 }

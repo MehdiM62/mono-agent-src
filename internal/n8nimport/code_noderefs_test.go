@@ -73,3 +73,20 @@ func toF(v interface{}) float64 {
 	}
 	return -1
 }
+
+// Node's Buffer does not exist in mono code nodes; the report says so
+// instead of calling the node fully mapped.
+func TestImportedCodeUsingBufferIsReported(t *testing.T) {
+	_, rep, err := n8nimport.Convert([]byte(`{"name":"t","nodes":[
+{"id":"1","name":"Start","type":"n8n-nodes-base.manualTrigger","typeVersion":1,"position":[0,0],"parameters":{}},
+{"id":"2","name":"B64","type":"n8n-nodes-base.code","typeVersion":2,"position":[200,0],"parameters":{"jsCode":"return [{json:{b: Buffer.from('x').toString('base64')}}];"}}
+],"connections":{"Start":{"main":[[{"node":"B64","type":"main","index":0}]]}}}`))
+	if err != nil {
+		t.Fatalf("Convert: %v", err)
+	}
+	for _, nr := range rep.Nodes {
+		if nr.Name == "B64" && nr.Status == n8nimport.StatusFull {
+			t.Errorf("B64 reported fully mapped: %+v", nr)
+		}
+	}
+}
