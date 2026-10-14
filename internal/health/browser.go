@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -128,7 +129,13 @@ func checkBridge(ctx context.Context, env *Env) Result {
 		if env.RestartBridge != nil && !isDaemonOwned(ctx, env, b) {
 			unit = bridgeServiceUnit(ctx, env, b)
 		}
-		if unit != "" {
+		if unit != "" && !bridgeRestartHelps(b.PID) {
+			// The service's binary is the one already running: a restart
+			// brings back the same version (it would only interrupt the
+			// browser), so none is offered.
+			res.FixID = ""
+			res.Detail = fmt.Sprintf("the bridge runs %s but this CLI is %s — the %s service already runs its installed binary, so restarting it changes nothing; update one of the two binaries to match", b.Version, env.Version, unit)
+		} else if unit != "" {
 			res.FixID = FixBridgeServiceRestart
 			res.Detail = fmt.Sprintf("the bridge runs %s but this CLI is %s — restart its service: systemctl --user restart %s", b.Version, env.Version, unit)
 			res.FixCommand = "systemctl --user restart " + unit
@@ -327,4 +334,19 @@ func checkPaired(ctx context.Context, env *Env) Result {
 	default:
 		return Result{Status: StatusInfo, Summary: "extension not connected right now — the browser may be closed or idle"}
 	}
+}
+
+// bridgeRestartHelps reports whether restarting the bridge's process would
+// start a different build: on Linux, the binary it runs was replaced on disk
+// since it started (/proc/<pid>/exe reads "... (deleted)"). Where that cannot
+// be told it says true, as before. A variable so tests can set it.
+var bridgeRestartHelps = func(pid int) bool {
+	if runtime.GOOS != "linux" || pid <= 0 {
+		return true
+	}
+	exe, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid))
+	if err != nil {
+		return true
+	}
+	return strings.HasSuffix(exe, " (deleted)")
 }

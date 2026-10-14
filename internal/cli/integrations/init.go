@@ -1,4 +1,4 @@
-package main
+package integrations
 
 import (
 	"bytes"
@@ -10,16 +10,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/monoes/mono-agent/data"
 	"github.com/monoes/mono-agent/internal/statedir"
-	"github.com/spf13/cobra"
 )
 
-// claudeInitMarker is written after a successful first-run Claude check so we
+// ClaudeInitMarker is written after a successful first-run Claude check so we
 // don't repeat the check on every subsequent invocation.
-const claudeInitMarker = ".claude_init"
+const ClaudeInitMarker = ".claude_init"
 
-// claudeSkillNames are the skills distributed with monoagent. Each is embedded
+// ClaudeSkillNames are the skills distributed with monoagent. Each is embedded
 // as data/skills/<name>.md and installed as ~/.claude/skills/<name>/SKILL.md
 // (the folder layout Claude Code loads), and the same way into the skills
 // folders of Codex, Gemini CLI and opencode (skillTargets), so that a
@@ -27,7 +28,7 @@ const claudeInitMarker = ".claude_init"
 // how to drive it.
 // record-to-action is deliberately absent: it is the prompt `record analyze`
 // feeds the monomind runner, not a skill for interactive sessions.
-var claudeSkillNames = []string{
+var ClaudeSkillNames = []string{
 	"action-template-generator",
 	"monoagent-workflows",
 	"monoagent-tasks",
@@ -46,8 +47,8 @@ var legacyClaudeSkillSHA256 = map[string][]string{
 	},
 }
 
-// claudeSkillFile is where a skill lives under skillsDir.
-func claudeSkillFile(skillsDir, name string) string {
+// ClaudeSkillFile is where a skill lives under skillsDir.
+func ClaudeSkillFile(skillsDir, name string) string {
 	return filepath.Join(skillsDir, name, "SKILL.md")
 }
 
@@ -119,8 +120,8 @@ func (r skillRef) String() string {
 	return r.name + " (" + r.target.label + ")"
 }
 
-// newInitCmd returns the `monoagent init` command.
-func newInitCmd() *cobra.Command {
+// NewInitCommand returns the `monoagent init` command.
+func NewInitCommand() *cobra.Command {
 	var claudeFlag bool
 
 	cmd := &cobra.Command{
@@ -138,7 +139,7 @@ func newInitCmd() *cobra.Command {
 			if !claudeFlag {
 				return cmd.Help()
 			}
-			return installClaudeSkill(true)
+			return InstallClaudeSkill(true)
 		},
 	}
 
@@ -146,10 +147,10 @@ func newInitCmd() *cobra.Command {
 	return cmd
 }
 
-// installClaudeSkill writes every embedded skill to ~/.claude/skills and to
+// InstallClaudeSkill writes every embedded skill to ~/.claude/skills and to
 // the skills folder of every other runtime present, replacing what is
 // there. If verbose is true, it prints status messages.
-func installClaudeSkill(verbose bool) error {
+func InstallClaudeSkill(verbose bool) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("resolve home dir: %w", err)
@@ -159,13 +160,13 @@ func installClaudeSkill(verbose bool) error {
 		if err := os.MkdirAll(t.dir, 0o755); err != nil {
 			return fmt.Errorf("create skills dir: %w", err)
 		}
-		for _, name := range claudeSkillNames {
+		for _, name := range ClaudeSkillNames {
 			content, err := data.SkillsFS.ReadFile("skills/" + name + ".md")
 			if err != nil {
 				return fmt.Errorf("read embedded skill %s: %w", name, err)
 			}
 
-			dest := claudeSkillFile(t.dir, name)
+			dest := ClaudeSkillFile(t.dir, name)
 			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 				return fmt.Errorf("create skill dir: %w", err)
 			}
@@ -183,7 +184,7 @@ func installClaudeSkill(verbose bool) error {
 
 	// Write the marker so first-run check doesn't repeat.
 	monoagentDir := filepath.Join(home, ".monoagent")
-	_ = statedir.WriteFile(filepath.Join(monoagentDir, claudeInitMarker), []byte("1"))
+	_ = statedir.WriteFile(filepath.Join(monoagentDir, ClaudeInitMarker), []byte("1"))
 
 	if verbose {
 		fmt.Printf("\nIn Claude Code, run /action-template-generator to generate crawling templates.\n")
@@ -193,7 +194,7 @@ func installClaudeSkill(verbose bool) error {
 	return nil
 }
 
-// runClaudeFirstRunCheck installs monoagent's skills that are missing, for
+// RunClaudeFirstRunCheck installs monoagent's skills that are missing, for
 // every coding-agent runtime present (~/.claude, ~/.codex, ~/.gemini or
 // opencode's config folder exists). It checks the skills themselves rather
 // than trusting the first-run marker, so a monoagent version that ships a
@@ -202,7 +203,7 @@ func installClaudeSkill(verbose bool) error {
 // edited, or one another monoagent binary wrote, stays as it is.
 // Refreshing a stale skill is the doctor fix (integrations.claude_skills),
 // which asks first. Errors are silently ignored — this is best-effort.
-func runClaudeFirstRunCheck() {
+func RunClaudeFirstRunCheck() {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return
@@ -211,7 +212,7 @@ func runClaudeFirstRunCheck() {
 	targets := skillTargets(home, false)
 	if len(targets) == 0 {
 		// No coding agent installed — write marker so we don't re-check.
-		marker := filepath.Join(home, ".monoagent", claudeInitMarker)
+		marker := filepath.Join(home, ".monoagent", ClaudeInitMarker)
 		if _, err := os.Stat(marker); err != nil {
 			_ = statedir.WriteFile(marker, []byte("0"))
 		}
@@ -236,11 +237,11 @@ func runClaudeFirstRunCheck() {
 	fmt.Fprintf(os.Stderr, "[monoagent] Your agent can now run: monoagentcli workflow templates list\n")
 }
 
-// claudeSkillsState compares the skills folders of the runtimes present
+// ClaudeSkillsState compares the skills folders of the runtimes present
 // (see skillTargets) with the skills embedded in this binary. claudeFound
 // is false when no such runtime is installed. Names carry the runtime, as
 // "<skill> (Codex)", for any but Claude Code.
-func claudeSkillsState() (claudeFound bool, missing, stale []string) {
+func ClaudeSkillsState() (claudeFound bool, missing, stale []string) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return false, nil, nil
@@ -261,12 +262,12 @@ func claudeSkillsState() (claudeFound bool, missing, stale []string) {
 
 func skillsState(targets []skillTarget) (missing, stale []skillRef) {
 	for _, t := range targets {
-		for _, name := range claudeSkillNames {
+		for _, name := range ClaudeSkillNames {
 			want, err := data.SkillsFS.ReadFile("skills/" + name + ".md")
 			if err != nil {
 				continue
 			}
-			got, err := os.ReadFile(claudeSkillFile(t.dir, name))
+			got, err := os.ReadFile(ClaudeSkillFile(t.dir, name))
 			switch {
 			case err != nil:
 				missing = append(missing, skillRef{t, name})
@@ -286,7 +287,7 @@ func installMissingSkills(home string, refs []skillRef) error {
 		if err != nil {
 			return err
 		}
-		dest := claudeSkillFile(r.target.dir, r.name)
+		dest := ClaudeSkillFile(r.target.dir, r.name)
 		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 			return err
 		}
@@ -309,6 +310,6 @@ func installMissingSkills(home string, refs []skillRef) error {
 		}
 	}
 	monoagentDir := filepath.Join(home, ".monoagent")
-	_ = statedir.WriteFile(filepath.Join(monoagentDir, claudeInitMarker), []byte("1"))
+	_ = statedir.WriteFile(filepath.Join(monoagentDir, ClaudeInitMarker), []byte("1"))
 	return nil
 }
