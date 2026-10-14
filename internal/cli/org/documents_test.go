@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"encoding/json"
@@ -10,7 +10,7 @@ import (
 
 func runOrgDocuments(t *testing.T, root string, args ...string) (map[string]interface{}, error) {
 	t.Helper()
-	cmd := newOrgCmd(&globalConfig{})
+	cmd := newOrgCmd(&testConfig{})
 	cmd.SetArgs(append([]string{"--project", root, "documents"}, args...))
 	var runErr error
 	out := captureStdout(t, func() { runErr = cmd.Execute() })
@@ -27,7 +27,7 @@ func runOrgDocuments(t *testing.T, root string, args ...string) (map[string]inte
 // The synthetic run: a rework cycle that was accepted and an exhausted cap.
 func TestOrgDocumentsPrintsReworkAndExhaustedCap(t *testing.T) {
 	root := t.TempDir()
-	src := filepath.Join("..", "..", "internal", "orgbridge", "testdata", "documents-synthetic")
+	src := filepath.Join("..", "..", "orgbridge", "testdata", "documents-synthetic")
 	for from, to := range map[string]string{
 		"org-rework.json": "rework.json",
 		"events.jsonl":    "rework/docs/run-syn/events.jsonl",
@@ -63,7 +63,7 @@ func TestOrgScheduleAuditPrintsEntriesNewestFirst(t *testing.T) {
 	writeOrgFile(t, root, "sched/schedule-audit.jsonl",
 		`{"ts":1000,"event":"scheduled-start-refused","msg":"preflight refused"}`+"\n"+
 			`{"ts":2000,"event":"scheduled-tick-deferred","msg":"held"}`+"\n")
-	cmd := newOrgCmd(&globalConfig{})
+	cmd := newOrgCmd(&testConfig{})
 	cmd.SetArgs([]string{"--project", root, "schedule-audit", "sched"})
 	var runErr error
 	out := captureStdout(t, func() { runErr = cmd.Execute() })

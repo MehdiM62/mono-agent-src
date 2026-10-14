@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"encoding/json"
@@ -23,6 +23,12 @@ func newOrgLegacyCmd(env *orgEnv) *cobra.Command {
 	cmd.AddCommand(newOrgLegacyListCmd(env), newOrgLegacyMoveCmd(env))
 	return cmd
 }
+
+// legacyOrgProjectRoot is where the CLI kept org state before the
+// unification plan (C-31): orgs now resolve under the active profile's root,
+// the same folder the GUI, chat tools, and org.run use. Orgs still found
+// here are listed by `org legacy list` and moved by `org legacy move`.
+const legacyOrgProjectRoot = "~/.monoagent"
 
 func legacyRoot() string { return expandPath(legacyOrgProjectRoot) }
 

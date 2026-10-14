@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"bytes"
@@ -7,12 +7,28 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/monoes/mono-agent/internal/monomind"
 )
 
+// roleCaps is what the monomind of runOrgRole advertises (withRoleCaps).
+var roleCaps []string
+
+// withRoleCaps stands in for a monomind that advertises caps.
+func withRoleCaps(t *testing.T, caps ...string) {
+	t.Helper()
+	roleCaps = caps
+	t.Cleanup(func() { roleCaps = nil })
+}
+
 func runOrgRole(t *testing.T, root string, args ...string) (string, error) {
 	t.Helper()
-	cmd := newOrgRoleCmd(func() string { return root })
+	d := testDeps(&testConfig{})
+	d.CapabilityProbe = func(*cobra.Command) (*monomind.CapabilitySet, error) {
+		return monomind.NewCapabilitySet("9.0.0", roleCaps...), nil
+	}
+	cmd := newEnv(d, nil).newOrgRoleCmd(func() string { return root })
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetArgs(args)
@@ -35,7 +51,7 @@ func TestOrgRoleSetAccessIsHumanOnly(t *testing.T) {
 	root := t.TempDir()
 	logged := func() string { b, _ := os.ReadFile(argsLog); return string(b) }
 
-	withCoderCaps(t, monomind.CapOrgRoleFullAccess)
+	withRoleCaps(t, monomind.CapOrgRoleFullAccess)
 	for _, marker := range []string{"CLAUDECODE", "MONOMIND_AGENT_EXEC", "MONOMIND_ORG_ROLE", "CODEX_SANDBOX", "OPENCODE", "GEMINI_CLI", "AI_AGENT", "COPILOT_AGENT_SESSION_ID", "PI_CODING_AGENT"} {
 		t.Setenv(marker, "1")
 		if _, err := runOrgRole(t, root, "set-access", "growth", "builder", "full", "--yes-i-understand"); err == nil || !strings.Contains(err.Error(), marker) {
@@ -50,11 +66,11 @@ func TestOrgRoleSetAccessIsHumanOnly(t *testing.T) {
 	if _, err := runOrgRole(t, root, "set-access", "growth", "builder", "full"); exitCodeFor(err) != 3 {
 		t.Errorf("grant without --yes-i-understand: %v", err)
 	}
-	withCoderCaps(t)
+	withRoleCaps(t)
 	if _, err := runOrgRole(t, root, "set-access", "growth", "builder", "full", "--yes-i-understand"); err == nil || !strings.Contains(err.Error(), "org-role-full-access") {
 		t.Errorf("old monomind: %v", err)
 	}
-	withCoderCaps(t, monomind.CapOrgRoleFullAccess)
+	withRoleCaps(t, monomind.CapOrgRoleFullAccess)
 	if out, err := runOrgRole(t, root, "set-access", "growth", "builder", "full", "--yes-i-understand"); err != nil || !strings.Contains(out, `"access":"full"`) {
 		t.Fatalf("grant: %v %s", err, out)
 	}

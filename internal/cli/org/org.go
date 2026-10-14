@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -11,18 +11,20 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/monoes/mono-agent/internal/cli/org"
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/monomind"
 )
 
-// newOrgCmd exposes monomind's org observe/action surface: thin proxies over
-// `monomind org <sub> [<name>] --format json` (protocol §7). Output is
+// NewCommand is `org`: monomind's org observe/action surface, thin proxies
+// over `monomind org <sub> [<name>] --format json` (protocol §7), plus the
+// org files, grants, endpoints and autonomy mono-agent keeps. Output is
 // always JSON — these commands exist for monoagentcli's own Wails bindings
 // and for scripting, not interactive table browsing (mirrors the doctrine
 // established by `chat`: the CLI's machine output IS the UI contract).
-func newOrgCmd(cfg *globalConfig) *cobra.Command {
-	env := &orgEnv{cfg: cfg}
+func NewCommand(d Deps) *cobra.Command {
+	var project string
+	env := newEnv(d, orgenvFor(d, func() string { return project }))
 	cmd := &cobra.Command{
 		Use:   "org",
 		Short: "Local agent organizations (via the monomind engine)",
@@ -31,10 +33,9 @@ func newOrgCmd(cfg *globalConfig) *cobra.Command {
 			"stdout; there is no human table mode.",
 		PersistentPostRun: func(cmd *cobra.Command, args []string) { env.Close() },
 	}
-	cmd.PersistentFlags().StringVar(&env.projectFlag, "project", "",
+	cmd.PersistentFlags().StringVar(&project, "project", "",
 		"Project root orgs resolve under (<root>/.monomind/orgs/); default: the active profile's folder")
 	root := env.Root
-	d, e := orgDeps(cfg), env.env()
 
 	cmd.AddCommand(
 		newOrgListCmd(root),
@@ -57,18 +58,18 @@ func newOrgCmd(cfg *globalConfig) *cobra.Command {
 		newOrgGateApproveCmd(root),
 		newOrgGateRejectCmd(root),
 		newOrgEventsCmd(root),
-		newOrgValidateCmd(root),
+		env.newOrgValidateCmd(root),
 		newOrgSectionsRuntimesCmd(),
 		newOrgReloadCmd(root),
-		newOrgRoleCmd(root),
+		env.newOrgRoleCmd(root),
 		newOrgCreateJSONCmd(env),
 		newOrgSignCmd(env),
-		org.NewAutomationCommand(d, e),
-		org.NewGrantCommand(d, e),
-		org.NewEffectiveToolsCommand(d, e),
+		newOrgAutomationCmd(env),
+		newOrgGrantCmd(env),
+		newOrgEffectiveToolsCmd(env),
 		newOrgLegacyCmd(env),
-		org.NewAutonomyCommand(d, e),
-		org.NewSummaryCommand(d, e),
+		newOrgAutonomyCmd(env),
+		newOrgSummaryCmd(env),
 		newOrgServeCmd(env),
 		newOrgLifecycleCmd(env, "stop", "Ask a running org to stop", monomind.OrgStop),
 		newOrgLifecycleCmd(env, "pause", "Pause an org: current turns finish, no new cycles start", monomind.OrgPause),
@@ -80,10 +81,10 @@ func newOrgCmd(cfg *globalConfig) *cobra.Command {
 		newOrgScheduleAuditCmd(env),
 		newOrgRenameCmd(env),
 		newOrgDeleteCmd(env),
-		org.NewAutomationRoleCommand(d, e),
-		org.NewGroupCommand(d, e),
+		newOrgAutomationRoleCmd(env),
+		newOrgGroupCmd(env),
 		newOrgReconcileCmd(env),
-		org.NewReconcileDocCommand(d, e),
+		newOrgReconcileDocCmd(env),
 		newOrgTeardownProfileCmd(env),
 	)
 	return cmd
@@ -123,7 +124,7 @@ func newOrgStatusCmd(root func() string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return printOrgJSON(withOrgSignature(cmd.Context(), root(), out))
+			return printOrgJSON(orgenv.WithSignature(cmd.Context(), root(), out))
 		},
 	}
 }

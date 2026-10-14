@@ -1,6 +1,6 @@
 //go:build !windows
 
-package main
+package org
 
 import (
 	"errors"
@@ -48,7 +48,7 @@ exec sleep 60
 	os.Stdout = w
 	defer func() { os.Stdout = prev }()
 
-	cfg := &globalConfig{DBPath: filepath.Join(t.TempDir(), "o.db"), ProfileID: "default"}
+	cfg := &testConfig{DBPath: filepath.Join(t.TempDir(), "o.db"), ProfileID: "default"}
 	cmd := newOrgCmd(cfg)
 	cmd.SetArgs([]string{"--project", dir, "events", "growth", "--follow"})
 	cmd.SilenceUsage = true
@@ -77,6 +77,7 @@ exec sleep 60
 }
 
 func TestEventsWriterCancelsOnWriteError(t *testing.T) {
+	t.Parallel()
 	cancelled := false
 	w := &eventsWriter{w: failingWriter{}, cancel: func() { cancelled = true }}
 	w.writeLine([]byte(`{"id":"a"}`))

@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"github.com/spf13/cobra"
@@ -20,11 +20,11 @@ func newOrgScheduleAuditCmd(env *orgEnv) *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !orgdesign.ValidOrgName(args[0]) {
-				return errInvalidInput("invalid org name %q", args[0])
+				return env.d.InvalidInput("invalid org name %q", args[0])
 			}
 			v, err := orgbridge.ReadScheduleAudit(env.Root(), args[0])
 			if err != nil {
-				return errInvalidInput("%s", err.Error())
+				return env.d.InvalidInput("%s", err.Error())
 			}
 			return printJSONValue(v)
 		},

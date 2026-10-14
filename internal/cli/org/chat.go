@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -68,18 +68,18 @@ func newOrgChatSendCmd(env *orgEnv) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org := args[0]
 			if !orgdesign.ValidOrgName(org) {
-				return errInvalidInput("invalid org name %q", org)
+				return env.d.InvalidInput("invalid org name %q", org)
 			}
 			text := tail(cmd, args, 1)
 			if text == "" {
-				return errInvalidInput("the message is empty")
+				return env.d.InvalidInput("the message is empty")
 			}
 			db, profileID, root, err := env.Profile()
 			if err != nil {
 				return err
 			}
 			if _, err := orgdesign.Load(root, org); err != nil {
-				return errNotFound("org %q not found", org)
+				return env.d.NotFound("org %q not found", org)
 			}
 			res, err := orgChatSend(cmd.Context(), orgbridge.NewLedger(db.DB), orgbridge.SendRequest{
 				ProfileID: profileID, Root: root, Org: org, To: to, From: orgChatSender, Subject: orgChatSubject,
@@ -88,7 +88,7 @@ func newOrgChatSendCmd(env *orgEnv) *cobra.Command {
 			if err != nil {
 				var refused *orgbridge.ErrRefused
 				if errors.As(err, &refused) {
-					return errInvalidInput("%s", refused.Error())
+					return env.d.InvalidInput("%s", refused.Error())
 				}
 				return err
 			}
@@ -129,15 +129,15 @@ func newOrgChatHistoryCmd(env *orgEnv) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			org := args[0]
 			if !orgdesign.ValidOrgName(org) {
-				return errInvalidInput("invalid org name %q", org)
+				return env.d.InvalidInput("invalid org name %q", org)
 			}
 			if limit < 0 {
-				return errInvalidInput("--limit must be 0 or more")
+				return env.d.InvalidInput("--limit must be 0 or more")
 			}
 			root := env.Root()
 			doc, err := orgdesign.Load(root, org)
 			if err != nil {
-				return errNotFound("org %q not found", org)
+				return env.d.NotFound("org %q not found", org)
 			}
 			boss, bossTitle := "", ""
 			if r, ok := doc.RootRole(); ok {
@@ -252,19 +252,19 @@ func fetchOrgChat(ctx context.Context, root, org, run string) *orgChatState {
 
 func runOrgChatResolve(cmd *cobra.Command, env *orgEnv, req orgchat.Request) error {
 	if !orgdesign.ValidOrgName(req.Org) {
-		return errInvalidInput("invalid org name %q", req.Org)
+		return env.d.InvalidInput("invalid org name %q", req.Org)
 	}
 	if !orgChatRef.MatchString(req.Ref) {
-		return errInvalidInput("invalid item ref %q", req.Ref)
+		return env.d.InvalidInput("invalid item ref %q", req.Ref)
 	}
 	res, err := orgchat.Resolve(cmd.Context(), orgChatClient, env.Root(), req)
 	if err != nil {
 		var stopped *orgchat.NotRunningError
 		switch {
 		case errors.Is(err, orgchat.ErrNotFound):
-			return errNotFound("org %q has no question, approval or gate %q", req.Org, req.Ref)
+			return env.d.NotFound("org %q has no question, approval or gate %q", req.Org, req.Ref)
 		case errors.As(err, &stopped):
-			return errInvalidInput("%s", stopped.Error())
+			return env.d.InvalidInput("%s", stopped.Error())
 		}
 		return err
 	}
@@ -279,7 +279,7 @@ func newOrgChatAnswerCmd(env *orgEnv) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			text := tail(cmd, args, 2)
 			if text == "" {
-				return errInvalidInput("the answer is empty")
+				return env.d.InvalidInput("the answer is empty")
 			}
 			return runOrgChatResolve(cmd, env, orgchat.Request{Org: args[0], Ref: args[1], Answer: true, Text: text})
 		},

@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 // `org teardown-profile` revokes them with the org grants and endpoints.
 func TestOrgTeardownProfileRevokesAPIKeys(t *testing.T) {
 	f := newOrgCLIFixture(t)
-	db, profileID, _, err := (&orgEnv{cfg: f.cfg}).Profile()
+	db, profileID, _, err := testEnv(f.cfg).Profile()
 	if err != nil {
 		t.Fatal(err)
 	}

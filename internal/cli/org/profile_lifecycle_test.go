@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"os"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
 )
@@ -67,7 +68,7 @@ func TestOrgTeardownProfile(t *testing.T) {
 	if _, err := os.Stat(stopLog); err == nil {
 		t.Fatal("dry run stopped an org")
 	}
-	db, _, _, err := (&orgEnv{cfg: f.cfg}).Profile()
+	db, _, _, err := testEnv(f.cfg).Profile()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +154,7 @@ func TestOrgReconcileRewritesStaleProviders(t *testing.T) {
 	}
 	r, _ = f.load(t).FindRole("writer")
 	p := r.ToolProviders[0]
-	if p.Command != selfExecutable() || p.Args[len(p.Args)-1] != "default" || p.Args[2] == "grt_stale" {
+	if p.Command != orgenv.SelfExecutable() || p.Args[len(p.Args)-1] != "default" || p.Args[2] == "grt_stale" {
 		t.Fatalf("provider not regenerated: %+v", p)
 	}
 

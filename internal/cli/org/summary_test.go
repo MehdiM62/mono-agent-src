@@ -15,7 +15,7 @@ import (
 func runOrgSummary(t *testing.T, root string, args ...string) map[string]interface{} {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
-	cmd := testOrgCmd(filepath.Join(t.TempDir(), "o.db"))
+	cmd := newOrgCmd(&testConfig{DBPath: filepath.Join(t.TempDir(), "o.db"), ProfileID: "default"})
 	cmd.SetArgs(append([]string{"--project", root, "summary"}, args...))
 	var runErr error
 	out := captureStdout(t, func() { runErr = cmd.Execute() })
@@ -77,7 +77,7 @@ func TestOrgSummaryNeedsYouTimeoutHolds(t *testing.T) {
 	perOrgNeedsYouTimeout = time.Second
 	t.Cleanup(func() { perOrgNeedsYouTimeout = old })
 
-	env := testEnv(filepath.Join(t.TempDir(), "o.db"), "default", nil)
+	env := testEnv(&testConfig{DBPath: filepath.Join(t.TempDir(), "o.db"), ProfileID: "default"})
 	root := env.Root()
 	writeOrgFile(t, root, "acme.json", `{"name":"acme"}`)
 	cmd := newOrgSummaryCmd(env)
@@ -126,7 +126,7 @@ func TestOrgSummaryAllProfiles(t *testing.T) {
 	writeOrgFile(t, rootD, "home.json", `{"name":"home"}`)
 	writeOrgFile(t, rootW, "acme.json", `{"name":"acme"}`)
 
-	cmd := testOrgCmd(dbPath)
+	cmd := newOrgCmd(&testConfig{DBPath: dbPath, ProfileID: "default"})
 	cmd.SetArgs([]string{"summary", "--all-profiles", "--fast"})
 	var runErr error
 	out := captureStdout(t, func() { runErr = cmd.Execute() })

@@ -1,7 +1,6 @@
-package main
+package org
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -60,19 +59,6 @@ func TestOrgValidateInvalidExitsNonZero(t *testing.T) {
 	}
 	if dec.More() {
 		t.Fatalf("more than one JSON document: %q", out)
-	}
-
-	// main's error printing adds nothing on stdout for it (with --json),
-	// but still does for an ordinary org error.
-	var stdout, stderr bytes.Buffer
-	reportCommandError([]string{"--json", "org", "validate", "growth"}, runErr, &stdout, &stderr)
-	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "invalid") {
-		t.Fatalf("reportedError: stdout %q stderr %q", stdout.String(), stderr.String())
-	}
-	stdout.Reset()
-	reportCommandError([]string{"--json", "org", "status"}, errors.New("boom"), &stdout, &stderr)
-	if !strings.Contains(stdout.String(), `{"error":"boom"}`) {
-		t.Fatalf("plain org error: stdout %q", stdout.String())
 	}
 
 	// A valid org still exits 0 with valid:true.
