@@ -41,6 +41,10 @@ The bind address is loopback by default; set MONOAGENT_WEBHOOK_ADDR (e.g.
   "response_timeout": 30,           // lastNode/responseNode: seconds to wait, then 202
   "dedupe_header": "X-GitHub-Delivery", // optional: a repeated delivery id starts no run
   "verify_token": "",               // optional: hub.verify_token a hub.challenge check must carry
+  "register_with": "typeform",      // optional: register the URL with this app on activation
+  "public_url": "https://my-tunnel.example", // base the app reaches; default MONOAGENT_PUBLIC_URL
+  "credential_id": "typeform",      // connection whose token registers the hook
+  "register_config": {"form_id": "abc123"}, // the app's own keys
   "max_body_bytes": 1048576         // optional: raise the 1MB body cap (max 32MB)
 }`,
 		Inputs: "none",
@@ -62,7 +66,14 @@ Vendor URL checks are answered without starting a run: HEAD (200), GET
 ?validationToken (Microsoft Graph), an X-Hook-Secret header (Asana, Keap:
 echoed and kept, and a later X-Hook-Signature must match it), Slack
 url_verification, and an AWS SNS SubscriptionConfirmation (its https
-amazonaws.com SubscribeURL is visited).`,
+amazonaws.com SubscribeURL is visited).
+register_with registers <public_url>/webhook/<path> with the app's API when
+the workflow is activated and removes it when it is deactivated, deleted or
+its trigger edited (stopping the daemon keeps it). Built in: typeform
+(register_config form_id, tag; deliveries checked against
+Typeform-Signature) and calendly (organization, events, scope, user;
+Calendly-Webhook-Signature). Activation fails when no public URL is set:
+the app cannot reach 127.0.0.1.`,
 	},
 	{
 		Type:     "trigger.execute_workflow",

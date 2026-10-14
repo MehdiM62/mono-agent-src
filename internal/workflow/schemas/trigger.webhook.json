@@ -127,6 +127,39 @@
       "type": "password"
     },
     {
+      "help": "Optional. Registers this URL with the app's API on activation and removes it on deactivation (built in: typeform, calendly). Needs public_url (or MONOAGENT_PUBLIC_URL) and credential_id.",
+      "key": "register_with",
+      "label": "Register With App",
+      "placeholder": "typeform",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Base URL the app reaches this webhook server at (e.g. a tunnel to 127.0.0.1:9321). Empty: MONOAGENT_PUBLIC_URL.",
+      "key": "public_url",
+      "label": "Public Base URL",
+      "placeholder": "https://my-tunnel.example",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Connection (id or platform name) whose token registers the webhook.",
+      "key": "credential_id",
+      "label": "App Connection",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "The app's own keys. typeform: form_id, tag. calendly: organization, events (list), scope, user.",
+      "key": "register_config",
+      "label": "App Settings (JSON)",
+      "language": "json",
+      "placeholder": "{\"form_id\": \"abc123\"}",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
       "default": 1048576,
       "help": "Largest request body accepted, multipart files included.",
       "key": "max_body_bytes",

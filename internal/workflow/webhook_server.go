@@ -67,6 +67,9 @@ type WebhookRegistration struct {
 	// VerifyToken, when set, must equal a hub.challenge check's
 	// hub.verify_token (webhook_handshake.go).
 	VerifyToken string
+	// Verify, when set, checks a delivery's signature (app webhooks whose
+	// vendor signs them); an error answers 401 and starts no run.
+	Verify func(header http.Header, body []byte) error
 }
 
 // WebhookServer is a standalone net/http server on a configurable port.

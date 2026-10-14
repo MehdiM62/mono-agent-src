@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"sync"
 	"time"
@@ -66,6 +67,7 @@ type triggerEntry struct {
 	webhookPath string
 	deactivate  func()            // provider entries
 	schedule    *scheduleFirePlan // schedule entries: overlap policy + guarded fire
+	app         *appHookState     // webhook entries registered with an app's API
 }
 
 // TriggerManager activates and deactivates triggers for workflows.
@@ -79,6 +81,7 @@ type TriggerManager struct {
 	active        map[string]map[string]*triggerEntry // workflowID → nodeID → entry
 	fingerprints  map[string]string                   // workflowID → triggerFingerprint registered
 	providers     map[string]TriggerSource            // node type → provider
+	apps          appWebhookDeps                      // app webhook registration (webhook_appactivate.go)
 	logger        zerolog.Logger
 }
 
@@ -99,6 +102,7 @@ func NewTriggerManager(
 		active:        make(map[string]map[string]*triggerEntry),
 		fingerprints:  make(map[string]string),
 		providers:     make(map[string]TriggerSource),
+		apps:          appWebhookDeps{store: &appWebhookStore{}},
 		logger:        logger,
 	}
 }
@@ -198,7 +202,7 @@ func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) err
 			}
 
 		case "trigger.webhook":
-			if err := tm.activateWebhook(w.ID, node); err != nil {
+			if err := tm.activateWebhookNode(ctx, w, node); err != nil {
 				errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
 			}
 
@@ -208,6 +212,10 @@ func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) err
 			tm.mu.Unlock()
 			if p != nil {
 				if err := tm.activateProvider(w, node, p); err != nil {
+					errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
+				}
+			} else if WebhookRegistrarFor(node.Type) != nil {
+				if err := tm.activateWebhookNode(ctx, w, node); err != nil {
 					errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
 				}
 			}
@@ -306,20 +314,26 @@ func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode
 	return nil
 }
 
-// activateWebhook registers a webhook route for a trigger.webhook node.
-func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode) error {
+// registerWebhookRoute registers a webhook route for a trigger.webhook node
+// (or a node type with an app registrar, whose path defaults to
+// defaultPath). verify, when set, checks each delivery. It returns the path
+// and whether the route was added (false: the node was already active).
+func (tm *TriggerManager) registerWebhookRoute(workflowID string, node *WorkflowNode, defaultPath string, verify func(http.Header, []byte) error) (string, bool, error) {
 	key := node.ID
 
 	// Parse config outside the lock — no shared state involved.
 	if node.Config == nil {
 		if err := node.ParseConfig(); err != nil {
-			return fmt.Errorf("parse config: %w", err)
+			return "", false, fmt.Errorf("parse config: %w", err)
 		}
 	}
 
 	path, ok := node.Config["path"].(string)
 	if !ok || path == "" {
-		return fmt.Errorf("trigger.webhook: missing or invalid \"path\" field in config")
+		path = defaultPath
+	}
+	if path == "" {
+		return "", false, fmt.Errorf("trigger.webhook: missing or invalid \"path\" field in config")
 	}
 
 	method, _ := node.Config["method"].(string)
@@ -346,9 +360,10 @@ func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode)
 		TriggerFn: func(items []Item) {
 			tm.triggerFn(wfID, nID, items)
 		},
+		Verify: verify,
 	}
 	if err := applyWebhookOptions(reg, node.Config); err != nil {
-		return err
+		return "", false, err
 	}
 
 	// Hold the mutex through the entire check-then-act to prevent TOCTOU races.
@@ -360,13 +375,13 @@ func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode)
 				Str("workflow_id", workflowID).
 				Str("node_id", node.ID).
 				Msg("webhook trigger already active, skipping")
-			return nil
+			return path, false, nil
 		}
 	}
 
 	if err := tm.webhookServer.Register(reg); err != nil {
 		tm.mu.Unlock()
-		return fmt.Errorf("register webhook path %q: %w", path, err)
+		return "", false, fmt.Errorf("register webhook path %q: %w", path, err)
 	}
 
 	if tm.active[workflowID] == nil {
@@ -385,7 +400,7 @@ func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode)
 		Str("method", method).
 		Msg("webhook trigger activated")
 
-	return nil
+	return path, true, nil
 }
 
 // DeactivateWorkflow removes all triggers for the given workflow.
@@ -394,17 +409,23 @@ func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode)
 // "a_" (e.g. "a_b").
 func (tm *TriggerManager) DeactivateWorkflow(workflowID string) {
 	tm.mu.Lock()
-	defer tm.mu.Unlock()
-
 	delete(tm.fingerprints, workflowID)
 	entries := tm.active[workflowID]
-	if entries == nil {
-		return
-	}
+	var apps []*appHookState
 	for key, entry := range entries {
 		tm.deactivateEntry(key, entry)
+		if entry.app != nil {
+			apps = append(apps, entry.app)
+		}
 	}
 	delete(tm.active, workflowID)
+	tm.mu.Unlock()
+
+	// The vendor calls happen outside the lock. DeactivateAll (shutdown)
+	// leaves app webhooks registered: the workflow is still active.
+	for _, st := range apps {
+		tm.unregisterAppHook(st)
+	}
 }
 
 // DeactivateAll removes all triggers (called on shutdown).
