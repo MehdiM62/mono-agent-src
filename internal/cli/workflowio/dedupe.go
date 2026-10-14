@@ -1,4 +1,4 @@
-package main
+package workflowio
 
 import (
 	"context"
@@ -15,14 +15,15 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/workflowbundle"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // Import statuses (`workflow import --json` "status").
 const (
-	importCreated   = "created"
-	importUpdated   = "updated"
-	importUnchanged = "unchanged"
+	ImportCreated   = "created"
+	ImportUpdated   = "updated"
+	ImportUnchanged = "unchanged"
 )
 
 // importIndexEntry remembers one import so a repeated import of the same
@@ -119,9 +120,9 @@ func workflowContentHash(wf *workflow.Workflow) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// ownedWorkflow returns the local workflow id if it exists and belongs to
+// OwnedWorkflow returns the local workflow id if it exists and belongs to
 // profileID (a workflow with no SQLite row, or no profile, counts as ours).
-func ownedWorkflow(ctx context.Context, store *workflow.HybridWorkflowStore, db *sql.DB, profileID, id string) *workflow.Workflow {
+func OwnedWorkflow(ctx context.Context, store *workflow.HybridWorkflowStore, db *sql.DB, profileID, id string) *workflow.Workflow {
 	if id == "" {
 		return nil
 	}
@@ -185,14 +186,14 @@ func findImportTarget(ctx context.Context, store *workflow.HybridWorkflowStore, 
 	identicalCopy := func() *workflow.Workflow {
 		for i := len(idx) - 1; i >= 0; i-- {
 			if e := idx[i]; e.Source == source && e.Hash == hash {
-				if c := ownedWorkflow(ctx, store, db, profileID, e.ID); c != nil && workflowContentHash(c) == hash {
+				if c := OwnedWorkflow(ctx, store, db, profileID, e.ID); c != nil && workflowContentHash(c) == hash {
 					return c
 				}
 			}
 		}
 		return nil
 	}
-	if existing := ownedWorkflow(ctx, store, db, profileID, wf.ID); existing != nil {
+	if existing := OwnedWorkflow(ctx, store, db, profileID, wf.ID); existing != nil {
 		m := decide(existing, matchByID)
 		if !m.MayUpdate && workflowContentHash(existing) != hash {
 			if c := identicalCopy(); c != nil {
@@ -207,7 +208,7 @@ func findImportTarget(ctx context.Context, store *workflow.HybridWorkflowStore, 
 	} {
 		for i := len(idx) - 1; i >= 0; i-- {
 			if match(idx[i]) {
-				if existing := ownedWorkflow(ctx, store, db, profileID, idx[i].ID); existing != nil {
+				if existing := OwnedWorkflow(ctx, store, db, profileID, idx[i].ID); existing != nil {
 					return decide(existing, matchByImport)
 				}
 			}
@@ -241,7 +242,7 @@ func matchUnindexed(ctx context.Context, store *workflow.HybridWorkflowStore, db
 		if cand.Name != wf.Name {
 			continue
 		}
-		full := ownedWorkflow(ctx, store, db, profileID, cand.ID)
+		full := OwnedWorkflow(ctx, store, db, profileID, cand.ID)
 		if full == nil {
 			continue
 		}
@@ -298,7 +299,7 @@ func copyWarning(id, by string) string {
 // missingBundleHint lists bundled packages that were not installed and the
 // command that installs them (a re-import with --yes; imports are
 // idempotent, so the workflow itself is left unchanged).
-func missingBundleHint(items []bundleImportItem, inputFile string) ([]string, string) {
+func missingBundleHint(items []workflowbundle.ImportItem, inputFile string) ([]string, string) {
 	var missing []string
 	for _, it := range items {
 		// A package the exporter could not bundle cannot be installed by
@@ -328,21 +329,21 @@ func shellQuoteArg(s string) string {
 // printWorkflowImport handles the bundled automations and prints the
 // import result (JSON or human), including the status and, when bundled
 // packages are missing, which ones and the exact command installing them.
-func printWorkflowImport(cfg *globalConfig, cmd *cobra.Command, wf *workflow.Workflow, status string, warnings []string,
+func (d Deps) printWorkflowImport(cmd *cobra.Command, wf *workflow.Workflow, status string, warnings []string,
 	remapped, remappedConns map[string]string, raw []byte, yes, replaceAutomations bool, inputFile string, copied importCopy) error {
 	// Bundled automations (workflow export --bundle-automations):
 	// report present/missing ones, install missing with --yes or
 	// after a prompt (only when stdin is free, i.e. --file).
-	bundled := handleBundledAutomations(raw, bundleImportOptions{
-		yes:         yes,
-		replace:     replaceAutomations,
-		interactive: !cfg.JSONOutput && inputFile != "" && stdinIsTerminal(),
-		in:          cmd.InOrStdin(),
-		out:         os.Stderr,
+	bundled := d.Bundle.HandleBundledAutomations(raw, workflowbundle.ImportOptions{
+		Yes:         yes,
+		Replace:     replaceAutomations,
+		Interactive: !d.JSONOutput() && inputFile != "" && d.StdinIsTerminal(),
+		In:          cmd.InOrStdin(),
+		Out:         os.Stderr,
 	})
 	missing, installCmd := missingBundleHint(bundled, inputFile)
 
-	if cfg.JSONOutput {
+	if d.JSONOutput() {
 		out := map[string]interface{}{"id": wf.ID, "name": wf.Name, "status": status}
 		if len(warnings) > 0 {
 			out["warnings"] = warnings
@@ -366,9 +367,9 @@ func printWorkflowImport(cfg *globalConfig, cmd *cobra.Command, wf *workflow.Wor
 		return json.NewEncoder(cmd.OutOrStdout()).Encode(out)
 	}
 	switch status {
-	case importUnchanged:
+	case ImportUnchanged:
 		fmt.Fprintf(cmd.OutOrStdout(), "Workflow %q is already imported and unchanged (id: %s)\n", wf.Name, wf.ID)
-	case importUpdated:
+	case ImportUpdated:
 		fmt.Fprintf(cmd.OutOrStdout(), "Updated workflow %q in place (id: %s, %d nodes, %d connections)\n",
 			wf.Name, wf.ID, len(wf.Nodes), len(wf.Connections))
 	default:
@@ -391,7 +392,7 @@ func printWorkflowImport(cfg *globalConfig, cmd *cobra.Command, wf *workflow.Wor
 	}
 	printRemapped("node ids", remapped)
 	printRemapped("connection ids", remappedConns)
-	printBundleImport(cmd.OutOrStdout(), bundled)
+	workflowbundle.PrintBundleImport(cmd.OutOrStdout(), bundled)
 	if len(missing) > 0 {
 		fmt.Fprintf(cmd.OutOrStdout(), "The workflow was imported, but it needs %d automation(s) that are not installed: %s\nInstall them with: %s\n",
 			len(missing), strings.Join(missing, ", "), installCmd)

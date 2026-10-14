@@ -1,4 +1,4 @@
-package main
+package workflowio
 
 import (
 	"context"
@@ -10,11 +10,12 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monoes/mono-agent/internal/cli/workflowbundle"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
 
-// parseWorkflowDefinition parses workflow definition JSON for `workflow
+// ParseWorkflowDefinition parses workflow definition JSON for `workflow
 // import`: the documented WorkflowFile shape natively, plus legacy exports
 // (a marshaled *Workflow whose nodes use "node_type"/"position_x" and whose
 // connections use "source_node_id"/"target_node_id") converted first.
@@ -22,14 +23,14 @@ import (
 // empty type and connections referencing nothing. Any node that still has
 // no type afterwards is rejected — a workflow like that must never be
 // persisted.
-func parseWorkflowDefinition(raw []byte) (workflow.Workflow, error) {
-	normalized, err := normalizeLegacyWorkflowJSON(raw)
+func (d Deps) ParseWorkflowDefinition(raw []byte) (workflow.Workflow, error) {
+	normalized, err := NormalizeLegacyWorkflowJSON(raw)
 	if err != nil {
-		return workflow.Workflow{}, errInvalidInput("parse workflow JSON: %v", err)
+		return workflow.Workflow{}, d.InvalidInput("parse workflow JSON: %v", err)
 	}
 	wf, err := workflow.ParseWorkflowFileBytes(normalized)
 	if err != nil {
-		return workflow.Workflow{}, errInvalidInput("parse workflow JSON: %v", err)
+		return workflow.Workflow{}, d.InvalidInput("parse workflow JSON: %v", err)
 	}
 	for _, n := range wf.Nodes {
 		if n.Type == "" {
@@ -37,21 +38,21 @@ func parseWorkflowDefinition(raw []byte) (workflow.Workflow, error) {
 			if id == "" {
 				id = n.Name
 			}
-			return workflow.Workflow{}, errInvalidInput(
+			return workflow.Workflow{}, d.InvalidInput(
 				"node %q is missing a type — current files use \"type\", legacy exports \"node_type\"", id)
 		}
 	}
 	return wf, nil
 }
 
-// normalizeLegacyWorkflowJSON rewrites legacy export JSON — a marshaled
+// NormalizeLegacyWorkflowJSON rewrites legacy export JSON — a marshaled
 // *workflow.Workflow — into the documented WorkflowFile shape: node
 // "node_type" → "type", "position_x"/"position_y" → "position": {"x","y"},
 // connection "source_node_id"/"target_node_id" → "source"/"target". Mixed
 // documents are fine: only legacy keys are rewritten, and only when their
 // native counterpart is absent. Input without any legacy key is returned
 // unchanged.
-func normalizeLegacyWorkflowJSON(raw []byte) ([]byte, error) {
+func NormalizeLegacyWorkflowJSON(raw []byte) ([]byte, error) {
 	var doc map[string]interface{}
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, err
@@ -113,7 +114,7 @@ func normalizeLegacyWorkflowJSON(raw []byte) ([]byte, error) {
 }
 
 // newWorkflowImportCmd imports a full workflow definition from a JSON file.
-func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newImportCmd() *cobra.Command {
 	var inputFile string
 	var overwrite, yes, asNew bool
 	var replaceID string
@@ -132,7 +133,7 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 			}
 			if err != nil {
 				if os.IsNotExist(err) {
-					return errNotFound("read input: %v", err)
+					return d.NotFound("read input: %v", err)
 				}
 				return fmt.Errorf("read input: %w", err)
 			}
@@ -140,18 +141,18 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 			// Accepts the documented WorkflowFile shape natively and legacy
 			// exports (marshaled *Workflow JSON) via key conversion; rejects
 			// any node that ends up without a type.
-			wf, err := parseWorkflowDefinition(raw)
+			wf, err := d.ParseWorkflowDefinition(raw)
 			if err != nil {
 				return err
 			}
 
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			now := time.Now().UTC()
@@ -162,19 +163,19 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 			// workflow is left alone and the file is imported as a copy.
 			// --as-new always copies.
 			source, hash := workflowImportSource(inputFile), workflowContentHash(&wf)
-			status := importCreated
+			status := ImportCreated
 			var match importMatch
 			var warnings []string
 			var copied importCopy
 			switch {
 			case replaceID != "":
-				t := ownedWorkflow(ctx, store, db.DB, cfg.ProfileID, replaceID)
+				t := OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), replaceID)
 				if t == nil {
-					return errNotFound("--replace: no workflow %q in this profile", replaceID)
+					return d.NotFound("--replace: no workflow %q in this profile", replaceID)
 				}
 				match = importMatch{Target: t, MayUpdate: true, By: matchByID}
 			case !asNew:
-				match = findImportTarget(ctx, store, db.DB, cfg.ProfileID, &wf, source, hash)
+				match = findImportTarget(ctx, store, db.DB, d.ProfileID(), &wf, source, hash)
 			}
 			target := match.Target
 			if match.Clash != "" {
@@ -183,10 +184,10 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 			}
 			switch {
 			case target != nil && workflowContentHash(target) == hash:
-				status = importUnchanged
+				status = ImportUnchanged
 				wf.ID = target.ID
 			case target != nil && match.MayUpdate:
-				status, overwrite = importUpdated, true
+				status, overwrite = ImportUpdated, true
 				wf.ID = target.ID
 				if !target.CreatedAt.IsZero() {
 					now = target.CreatedAt
@@ -195,7 +196,7 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 				// --overwrite keeps the file's id, but that id is a
 				// different, locally edited workflow: never replace it
 				// implicitly, and never quietly import a copy instead.
-				return errInvalidInput("--overwrite: workflow %s already exists here and was edited locally; use --replace %s to replace it, or import without --overwrite to get a copy", target.ID, target.ID)
+				return d.InvalidInput("--overwrite: workflow %s already exists here and was edited locally; use --replace %s to replace it, or import without --overwrite to get a copy", target.ID, target.ID)
 			case target != nil:
 				// Edited (or created) locally since: keep the user's work.
 				warnings = append(warnings, copyWarning(target.ID, match.By))
@@ -203,18 +204,18 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 				wf.ID, overwrite = uuid.New().String(), false
 			case asNew || wf.ID == "":
 				wf.ID = uuid.New().String()
-			case ownedWorkflow(ctx, store, db.DB, "", wf.ID) == nil:
+			case OwnedWorkflow(ctx, store, db.DB, "", wf.ID) == nil:
 				// The id is free here: keep it, so a re-import finds it.
 			case overwrite:
-				return errInvalidInput("--overwrite: id %s is used by a workflow in another profile; import without --overwrite to get a copy with a new id", wf.ID)
+				return d.InvalidInput("--overwrite: id %s is used by a workflow in another profile; import without --overwrite to get a copy with a new id", wf.ID)
 			default:
 				wf.ID = uuid.New().String() // taken by another profile's workflow
 			}
 			wf.CreatedAt = now
 			wf.UpdatedAt = time.Now().UTC()
-			if status == importUnchanged {
+			if status == ImportUnchanged {
 				recordImport(importIndexEntry{ID: wf.ID, Name: wf.Name, Source: source, Hash: hash})
-				return printWorkflowImport(cfg, cmd, &wf, status, warnings, nil, nil, raw, yes, replaceAutomations, inputFile, importCopy{})
+				return d.printWorkflowImport(cmd, &wf, status, warnings, nil, nil, raw, yes, replaceAutomations, inputFile, importCopy{})
 			}
 
 			// workflow_nodes.id and workflow_connections.id are globally
@@ -301,7 +302,7 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 			// An import lands in the profile it was run for. The file's own
 			// profile_id is where it was exported from (or nothing, which
 			// the store reads as default), never where it is going.
-			wf.ProfileID = cfg.ProfileID
+			wf.ProfileID = d.ProfileID()
 
 			// Finalize every id BEFORE any store call: assign fresh UUIDs to
 			// nodes/connections that arrived without one. This must happen
@@ -334,12 +335,12 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 
-			if err := createOrOverwriteWorkflowAtomically(ctx, store, &wf, overwrite); err != nil {
+			if err := d.CreateWorkflow(ctx, store, &wf, overwrite); err != nil {
 				return err
 			}
 
 			recordImport(importIndexEntry{ID: wf.ID, Name: wf.Name, Source: source, Hash: hash})
-			return printWorkflowImport(cfg, cmd, &wf, status, warnings, remapped, remappedConns, raw, yes, replaceAutomations, inputFile, copied)
+			return d.printWorkflowImport(cmd, &wf, status, warnings, remapped, remappedConns, raw, yes, replaceAutomations, inputFile, copied)
 		},
 	}
 
@@ -352,18 +353,18 @@ func newWorkflowImportCmd(cfg *globalConfig) *cobra.Command {
 		"Replace installed automations whose bundled copy (same version) has different content, after showing the review (asks unless --yes)")
 	// With --json a failure is also {"error","code"} on stdout (contracts
 	// §5), as the automation commands do; the exit code is unchanged.
-	withJSONErrors(cfg, cmd)
-	withN8nImport(cfg, cmd)
+	d.WithJSONErrors(cmd)
+	d.withN8nImport(cmd)
 	return cmd
 }
 
-// workflowFileFromWorkflow converts a stored *Workflow into the documented
+// WorkflowFileFromWorkflow converts a stored *Workflow into the documented
 // WorkflowFile JSON shape — the same shape `workflow import` (and the file
 // store) parses natively — so export→import roundtrips are lossless. Export
 // used to emit a raw *Workflow marshal ("node_type"/"source_node_id" keys),
 // which import no longer produces natively; that legacy shape is still
 // accepted on import.
-func workflowFileFromWorkflow(wf *workflow.Workflow) workflow.WorkflowFile {
+func WorkflowFileFromWorkflow(wf *workflow.Workflow) workflow.WorkflowFile {
 	file := workflow.WorkflowFile{
 		ID:          wf.ID,
 		Name:        wf.Name,
@@ -403,7 +404,7 @@ func workflowFileFromWorkflow(wf *workflow.Workflow) workflow.WorkflowFile {
 }
 
 // newWorkflowExportCmd exports a workflow as JSON.
-func newWorkflowExportCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newExportCmd() *cobra.Command {
 	var outputFile string
 	var bundle, useSuggested bool
 	var autoDomains []string
@@ -413,35 +414,35 @@ func newWorkflowExportCmd(cfg *globalConfig) *cobra.Command {
 		Short: "Export a workflow as JSON",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
-			store := openWorkflowStore(db)
+			store := d.WorkflowStore(db)
 			ctx := context.Background()
 
 			wf, err := store.GetWorkflow(ctx, args[0])
 			if err != nil {
 				return fmt.Errorf("get workflow: %w", err)
 			}
-			if wf == nil || ownedWorkflow(ctx, store, db.DB, cfg.ProfileID, args[0]) == nil {
-				return errNotFound("workflow %q not found", args[0])
+			if wf == nil || OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), args[0]) == nil {
+				return d.NotFound("workflow %q not found", args[0])
 			}
 
-			var wfFile interface{} = workflowFileFromWorkflow(wf)
+			var wfFile interface{} = WorkflowFileFromWorkflow(wf)
 			if bundle {
-				domains, err := parseAutomationDomains(autoDomains)
+				domains, err := d.Bundle.ParseAutomationDomains(autoDomains)
 				if err != nil {
 					return err
 				}
-				b, err := bundleWorkflowAutomations(workflowFileFromWorkflow(wf),
-					bundleOptions{domains: domains, useSuggested: useSuggested})
+				b, err := d.Bundle.BundleWorkflowAutomations(WorkflowFileFromWorkflow(wf),
+					workflowbundle.Options{Domains: domains, UseSuggested: useSuggested})
 				if err != nil {
 					return err
 				}
-				for _, w := range append(suggestedNotices(b), unbundledWarnings(b)...) {
+				for _, w := range append(workflowbundle.SuggestedNotices(b), workflowbundle.UnbundledWarnings(b)...) {
 					fmt.Fprintln(os.Stderr, w)
 				}
 				wfFile = b
@@ -456,7 +457,7 @@ func newWorkflowExportCmd(cfg *globalConfig) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if err := writeFileAtomic(outputFile, append(b, '\n')); err != nil {
+				if err := workflowbundle.WriteFileAtomic(outputFile, append(b, '\n')); err != nil {
 					return fmt.Errorf("write output file: %w", err)
 				}
 				fmt.Fprintf(os.Stdout, "Exported workflow %q to %s\n", wf.Name, outputFile)
