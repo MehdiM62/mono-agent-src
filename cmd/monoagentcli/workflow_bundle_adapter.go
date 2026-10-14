@@ -62,4 +62,5 @@ func newBundleReviewDetail(r *automation.InstallResult) *workflowbundle.ReviewDe
 var (
 	suggestedNotices = workflowbundle.SuggestedNotices
 	packageResolver  = workflowbundle.PackageResolver
+	writeFileAtomic  = workflowbundle.WriteFileAtomic // library_api.go
 )
