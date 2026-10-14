@@ -32,7 +32,6 @@
   {"key": "@n8n/n8n-nodes-langchain.code", "category": "agents", "reason": "LangChain Code node runs custom LangChain JavaScript (models, tools, chains)"},
   {"key": "@n8n/n8n-nodes-langchain.databricksAiAgent", "category": "agents", "reason": "Databricks-hosted agent: no agent runtime for it"},
   {"key": "@n8n/n8n-nodes-langchain.googleGemini", "category": "agents", "reason": "Gemini vendor node (text, image, audio, video, file search): no Gemini API runtime in agent.ask"},
-  {"key": "@n8n/n8n-nodes-langchain.guardrails", "category": "agents", "reason": "LLM guardrail checks (jailbreak, PII, topical) need an agents-stream node"},
   {"key": "@n8n/n8n-nodes-langchain.memoryChatRetriever", "category": "agents", "reason": "reads a chat memory sub-node; agent.ask keeps no conversation memory"},
   {"key": "@n8n/n8n-nodes-langchain.memoryManager", "category": "agents", "reason": "edits a chat memory sub-node; agent.ask keeps no conversation memory"},
   {"key": "@n8n/n8n-nodes-langchain.minimax", "category": "agents", "reason": "MiniMax vendor node: no agent runtime for it"},
