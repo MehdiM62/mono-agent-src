@@ -379,3 +379,29 @@ test("the saved lookup asks about the stored profile, and a new choice re-asks",
   for (const fn of listeners) fn({ captureProfile: { newValue: "personal" } }, "local");
   assert.equal(sandbox.MonoSaved.cacheSize(), 0);
 });
+
+// Restoring a page's stored highlights fails closed: nothing is painted when
+// the worker cannot prove a sign-in (no signedIn dependency) or is signed out,
+// and the stored highlights are only painted signed in.
+test("restoring highlights paints nothing without a proven sign-in", async () => {
+  for (const [label, signedIn, want] of [
+    ["no signedIn dependency", undefined, 0],
+    ["signed out", () => false, 0],
+    ["signed in", () => true, 1],
+  ]) {
+    const chrome = chromeStub();
+    const painted = [];
+    chrome.tabs.sendMessage = async (tabId, msg) => {
+      if (msg && msg.type === "highlight_restore") painted.push(tabId);
+      return { ok: true };
+    };
+    const sandbox = loadExtensionScripts(["ask.js", "saved.js", "highlights.js", "recall_bridge.js"], { chrome });
+    const deps = { send: () => {}, isConnected: () => true, storage: chrome.storage.local };
+    if (signedIn) deps.signedIn = signedIn;
+    sandbox.MonoRecall.install(deps);
+    sandbox.MonoHighlights.load = async () => [{ id: "h1", text: "a sentence" }];
+    for (const fn of chrome.listeners.updated) fn(7, { status: "complete" }, { id: 7, url: PAGE_URL });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(painted.length, want, `${label}: painted ${painted.length} time(s), want ${want}`);
+  }
+});
