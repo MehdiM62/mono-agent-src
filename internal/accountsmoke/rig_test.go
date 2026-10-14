@@ -436,6 +436,17 @@ func (r *rig) read(rel string) string {
 }
 
 // execution is one row of the CLI's database, as the daemon left it (Status "" when there is none).
+// executionError is the error_message the run recorded ("" while it has none).
+func (r *rig) executionError(id string) string {
+	r.t.Helper()
+	db, err := sql.Open("sqlite", filepath.Join(r.home, ".monoagent", "monoagent.db"))
+	must(r.t, err)
+	defer db.Close()
+	var msg sql.NullString
+	_ = db.QueryRow(`SELECT error_message FROM workflow_executions WHERE id = ?`, id).Scan(&msg)
+	return msg.String
+}
+
 func (r *rig) execution(id string) (e struct {
 	Status string
 	PID    int

@@ -89,8 +89,10 @@ REFUSAL
   HTTP API and /v1: 401 login_required. GET /health stays open and reports the
   account. Webhooks: 503 without execution. Extension bridge: account_locked.
   MCP: tool error. A refused workflow run records FAILED / login_required:.
-  A locked daemon stays up, starts no new work, stops its org services and
-  resumes when a valid sign-in appears. The Docker version health check only
+  A locked daemon stays up, starts no new work, cancels the work in flight
+  (whatever ended the session: the 24-hour offline grace running out, a
+  logout, a refusal; the run records CANCELLED / login_required:), stops its
+  org services and resumes when a valid sign-in appears. The Docker version health check only
   tests liveness, not permission to work.
 
 HEADLESS AND DOCKER
