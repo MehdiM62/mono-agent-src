@@ -5,7 +5,11 @@
 # empty HOME (with no terminal, and with --yes for the core group). Runs in CI
 # (.github/workflows/ci.yml, job doctor-smoke) and locally:
 #
-#   go build -o /tmp/monoagentcli ./cmd/monoagentcli && scripts/doctor-smoke.sh /tmp/monoagentcli
+#   go build -tags devaccount -o /tmp/monoagentcli ./cmd/monoagentcli && scripts/doctor-smoke.sh /tmp/monoagentcli
+#
+# doctor and setup need a monoes.me sign-in. The build carries the devaccount tag so that the checks
+# can run in the warn period (MONOAGENT_DEV_ENFORCE_FROM in the future, nothing refused); the last
+# section sets the date in the past, with no session, and asserts that they are refused.
 set -euo pipefail
 
 cli="${1:?usage: doctor-smoke.sh <path to monoagentcli>}"
@@ -16,6 +20,7 @@ out="$root/out" # reports live outside HOME, so "doctor wrote nothing" can be ch
 mkdir -p "$home" "$out"
 trap 'rm -r "$root" 2>/dev/null || true' EXIT
 # Everything a run could write to goes under the scratch folder, locally too.
+export MONOAGENT_DEV_ENFORCE_FROM=2099-01-01T00:00:00Z
 export HOME="$home" USERPROFILE="$home" TMPDIR="$root/tmp" \
   XDG_CONFIG_HOME="$home/.config" XDG_CACHE_HOME="$home/.cache" XDG_DATA_HOME="$home/.local/share" XDG_STATE_HOME="$home/.local/state"
 mkdir -p "$TMPDIR"
@@ -110,5 +115,33 @@ set -e
 [ "$code" -eq 0 ] || fail "full report after --fix: exit $code; required failures: $(jq -c '[.results[] | select(.required and .status == "fail") | .id]' "$out/full.json")"
 jq -e '.v == 1 and (.results | length) > 5' "$out/full.json" >/dev/null || fail "full report is not a valid v1 report"
 jq -r '.results[] | select(.parent == null) | "\(.status)\t\(.id)\t\(.summary)"' "$out/full.json"
+
+echo "== signed out after the date: doctor, doctor fix and setup are refused (exit 4, login_required); version, help and account status run"
+locked_home="$root/locked-home"
+mkdir -p "$locked_home"
+login_line="Log in to monoes.me first: monoagentcli account login"
+locked() { HOME="$locked_home" USERPROFILE="$locked_home" MONOAGENT_DEV_ENFORCE_FROM=2020-01-01T00:00:00Z \
+  "$cli" --db-path "$locked_home/.monoagent/monoagent.db" "$@" < /dev/null; }
+for args in "doctor" "doctor fix core.db.migrate" "setup"; do
+  set +e
+  # shellcheck disable=SC2086 # the words are the command line
+  locked $args > "$out/locked.out" 2> "$out/locked.err"
+  code=$?
+  set -e
+  [ "$code" -eq 4 ] || fail "signed out, $args: exit $code, want 4"
+  [ "$(head -n 1 "$out/locked.err")" = "$login_line" ] || fail "signed out, $args: stderr $(head -c 200 "$out/locked.err")"
+done
+set +e
+locked --json doctor > "$out/locked.json" 2>/dev/null
+set -e
+jq -e '.login_required == true' "$out/locked.json" >/dev/null || fail "signed out, doctor --json: no login_required document"
+locked version > /dev/null || fail "signed out, version should run"
+locked help > /dev/null || fail "signed out, help should run"
+set +e
+locked account status > "$out/status.out" 2>&1
+code=$?
+set -e
+[ "$code" -eq 4 ] && grep -q "Not logged in" "$out/status.out" || fail "signed out, account status: exit $code, $(head -c 200 "$out/status.out")"
+[ ! -e "$locked_home/.monoagent/monoagent.db" ] || fail "a refused command created the database"
 
 echo "doctor smoke: ok"

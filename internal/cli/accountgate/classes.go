@@ -32,33 +32,32 @@ const (
 )
 
 // accountClasses is that table, keyed by command path without the root's
-// name. A command takes the class of its nearest listed ancestor: `ref` covers
-// every `ref` subcommand and `account` all the account commands. A command
+// name. A command takes the class of its nearest listed ancestor: `account`
+// covers all the account commands. A command
 // that nothing lists is gated, and so is one stamped with any other word.
 //
 // `org serve` is not a serving command here: it is a launcher that starts the
 // external monomind process and returns, so a refusal causes no respawn loop and
 // a locked machine does not start org services (D8).
 //
+// Open is the way in and nothing else: signing in (account, and the library
+// aliases of it), help, the version, and update, so that a broken install can
+// be fixed. Everything else, ref, doctor, setup, release and the completion
+// scripts included, waits for a login.
+//
 // help, completion and __complete are cobra's own: it adds them while a
 // command executes, after the gate has looked, so they reach the gate as the
-// root with leftover arguments (see InvocationClass) and are listed here for
-// the inventory test. __completeNoDesc is an alias of __complete.
+// root with leftover arguments (see InvocationClass). help is listed here;
+// completion and __complete (and its alias __completeNoDesc) are not listed,
+// so they are gated like every unlisted command.
 var accountClasses = map[string]string{
 	"version":        ClassOpen,
-	"ref":            ClassOpen,
 	"update":         ClassOpen,
-	"doctor":         ClassOpen,
-	"doctor fix":     ClassOpen,
-	"setup":          ClassOpen,
-	"release":        ClassOpen,
 	"account":        ClassOpen,
 	"library login":  ClassOpen,
 	"library logout": ClassOpen,
 	"library status": ClassOpen,
 	"help":           ClassOpen,
-	"completion":     ClassOpen,
-	"__complete":     ClassOpen,
 
 	"daemon":           ClassServe,
 	"daemon install":   ClassGated,

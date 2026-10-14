@@ -18,7 +18,6 @@ import (
 	"github.com/monoes/mono-agent/internal/docscan"
 	"github.com/monoes/mono-agent/internal/imagescan"
 	"github.com/monoes/mono-agent/internal/monomind"
-	"github.com/monoes/mono-agent/internal/nodes"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -41,7 +40,7 @@ type App struct {
 	orgEventStops  map[string]time.Time // stream id → when a stop for it arrived before it was registered
 
 	activeProfileIDPtr atomic.Pointer[string] // currently selected profile; access via get/setActiveProfileID (read/written across Wails goroutines)
-	ready              atomic.Bool            // set once startup()'s synchronous setup has finished; see IsReady
+	ready              atomic.Bool            // set once the signed-in setup has finished; see IsReady
 
 	orgWatchMu sync.Mutex
 	orgWatcher *orgdesign.Watcher // polls the active profile's .monomind/orgs/ dir; see restartOrgWatcher
@@ -60,6 +59,8 @@ type App struct {
 	taskWatchProfile string // the profile that watcher watches
 
 	dbMigratePending atomic.Bool // `db migrate` was refused for sign-in; AccountStatus retries it (app_db_prepare.go)
+
+	work signedInWork // what runs only while the session allows work; see app_account_gate.go
 }
 
 // NewApp creates the App instance.
@@ -92,10 +93,6 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	// The process guard for any layer-2 call this process makes; see app_account_guard.go.
 	a.startAccountGuard()
-	// Installed automation packages, before anything reads actions or forms.
-	if _, err := nodes.BootAutomations(""); err != nil {
-		runtime.LogWarningf(ctx, "automations: %v (using the built-in action set)", err)
-	}
 	// A first launch on a new machine has no ~/.monoagent yet; SQLite can't
 	// create the database file inside a folder that doesn't exist (the CLI's
 	// initDB makes it the same way).
@@ -108,48 +105,17 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.db = db
-	// The CLI owns the schema: `db migrate` applies pending migrations and
-	// the per-profile folder and vault migrations (app_db_prepare.go); this
-	// read-only handle only serves what the app still reads itself.
-	a.prepareDatabase()
 
-	// os.UserHomeDir (not $HOME) so vault/workflow dirs resolve on Windows too.
-	home, _ := os.UserHomeDir()
+	// Everything else waits for a session that allows work, and stops when
+	// it no longer does (app_account_gate.go).
+	a.syncSignedIn()
+	go a.watchSession(ctx)
 
-	// Ensure vault directory exists.
-	vaultDir := filepath.Join(home, ".monoagent", "vault")
-	if err := os.MkdirAll(vaultDir, 0700); err != nil {
-		runtime.LogErrorf(ctx, "vault dir error: %v", err)
-	}
-
-	// The chat supervisor reaches chat history only through the CLI
-	// (`chat history …`), which creates the chat tables itself.
-	a.initChatSupervisor()
-
-	// Load the active profile from settings; default to 'default' if not set.
-	var activeProfileID string
-	_ = db.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&activeProfileID)
-	if activeProfileID == "" {
-		activeProfileID = "default"
-	}
-	a.setActiveProfileID(activeProfileID)
-
-	a.restartOrgWatcher()
-	a.restartDocumentWatcher()
-	a.restartImageWatcher()
-	a.restartTaskWatcher()
-
-	a.emitLog("SYSTEM", "INFO", "Mono Agent UI connected to "+a.dbPath)
-
-	// Marks synchronous startup as finished — see IsReady. Must be the last
-	// line: everything above (profile resolution in particular) needs to
-	// have already happened before any page can trust IsReady()==true.
-	a.ready.Store(true)
-
+	// The sign-in screen offers the app update, so the check runs signed out.
 	go a.backgroundUpdateCheck()
 }
 
-// IsReady reports whether startup() has finished its synchronous setup
+// IsReady reports whether the signed-in setup (startSignedIn) has finished
 // (DB migrations, active-profile resolution, node registry, etc.). Wails
 // gives no guarantee the frontend won't become interactive before this
 // finishes — a page that queries profile-scoped data (e.g. Orgs) landing
@@ -157,6 +123,9 @@ func (a *App) startup(ctx context.Context) {
 // user navigates away and back. Polled by the frontend instead of guessing
 // with a fixed delay.
 func (a *App) IsReady() bool {
+	if a.signedOut() != nil {
+		return false
+	}
 	return a.ready.Load()
 }
 
@@ -166,32 +135,7 @@ func (a *App) shutdown(_ context.Context) {
 		a.chatSup.stopAll()
 	}
 
-	a.orgWatchMu.Lock()
-	if a.orgWatcher != nil {
-		a.orgWatcher.Stop()
-		a.orgWatcher = nil
-	}
-	a.orgWatchMu.Unlock()
-
-	a.docWatchMu.Lock()
-	if a.docWatcher != nil {
-		a.docWatcher.Stop()
-		a.docWatcher = nil
-	}
-	if a.capWatcher != nil {
-		a.capWatcher.Stop()
-		a.capWatcher = nil
-	}
-	a.docWatchMu.Unlock()
-
-	a.imgWatchMu.Lock()
-	if a.imgWatcher != nil {
-		a.imgWatcher.Stop()
-		a.imgWatcher = nil
-	}
-	a.imgWatchMu.Unlock()
-
-	a.stopTaskWatcher()
+	a.stopWatchers()
 
 	a.stopRunningCmds()
 	if a.db != nil {
@@ -306,7 +250,13 @@ func (a *App) emitLog(source, level, message string) {
 }
 
 // OpenURL opens a URL in the system default browser.
+//
+// Signed out it opens only a page of the monoes.me host: the sign-in
+// screen's fallback link to the sign-in page.
 func (a *App) OpenURL(url string) {
+	if a.signedOut() != nil && !signInURL(url) {
+		return
+	}
 	runtime.BrowserOpenURL(a.ctx, url)
 }
 
@@ -324,6 +274,9 @@ type ExportResult struct {
 // ExportData asks the user for a destination folder and exports all people
 // to JSON files there by invoking the CLI (`monoagentcli export`).
 func (a *App) ExportData() (*ExportResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
 		return nil, err
@@ -365,6 +318,9 @@ type LogEntry struct {
 }
 
 func (a *App) GetLogs() []LogEntry {
+	if a.signedOut() != nil {
+		return nil
+	}
 	a.logsMu.Lock()
 	defer a.logsMu.Unlock()
 	out := make([]LogEntry, len(a.logs))
@@ -373,6 +329,9 @@ func (a *App) GetLogs() []LogEntry {
 }
 
 func (a *App) ClearLogs() {
+	if a.signedOut() != nil {
+		return
+	}
 	a.logsMu.Lock()
 	a.logs = make([]LogEntry, 0, 200)
 	a.logsMu.Unlock()
@@ -383,10 +342,16 @@ func (a *App) ClearLogs() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func (a *App) GetDBPath() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.dbPath
 }
 
 func (a *App) IsDBConnected() bool {
+	if a.signedOut() != nil {
+		return false
+	}
 	if a.db == nil {
 		return false
 	}

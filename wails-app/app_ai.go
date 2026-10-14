@@ -45,6 +45,9 @@ func aiError(err error) string {
 // engine. Returns JSON {v, agents} or {error} with the actionable install
 // hint when monomind itself is missing.
 func (a *App) ScanAgentRuntimes() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	ctx, cancel := context.WithTimeout(a.ctx, 90*time.Second)
 	defer cancel()
 	res, err := monomind.Scan(ctx)
@@ -64,6 +67,9 @@ func (a *App) ScanAgentRuntimes() string {
 // (not an error) for a runtime ListModels doesn't recognize, so the
 // frontend can fall back to a plain free-text model field either way.
 func (a *App) GetAgentRuntimeModels(runtimeID, binary string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	ctx, cancel := context.WithTimeout(a.ctx, 30*time.Second)
 	defer cancel()
 	models, err := monomind.ListModels(ctx, runtimeID, binary)

@@ -45,9 +45,9 @@ Think of it as an honest, self-hosted n8n you can carry in a single file — wit
 
 > ### A monoes.me sign-in is required
 >
-> Sign in with `monoagentcli account login` (it opens your browser; on a machine without one, `account login --email you@example.com` mails you a code, and `--code-stdin` reads it from standard input). A monoes.me sign-in has been required since 2026-10-11 (UTC); `monoagentcli account status` shows the date as `enforce_from`. A gated command without a valid sign-in exits with code 4 and `login_required` and does nothing else. `version`, `help`, `ref`, `update`, `doctor`, `setup` and the `account` commands always work. A daemon or server (`daemon`, `httpapi`, `mcp`) started without a sign-in stays up and refuses its work until you sign in.
+> Sign in with `monoagentcli account login` (it opens your browser; on a machine without one, `account login --email you@example.com` mails you a code, and `--code-stdin` reads it from standard input). A monoes.me sign-in has been required since 2026-10-11 (UTC); `monoagentcli account status` shows the date as `enforce_from`. Nothing works before sign-in: every command but `account` (and its `library login`/`logout`/`status` aliases), `help`, `version` and `update` exits with code 4 and `login_required` and does nothing else; `ref`, `doctor`, `setup` and shell completion included. A daemon or server (`daemon`, `httpapi`, `mcp`, `extension serve`) started without a sign-in stays up and runs nothing (no schedules, webhooks or other triggers) until you sign in.
 >
-> Your workflows, run history, people, credentials and files stay on your machine. The app contacts monoes.me to sign you in and keep the sign-in fresh (about every half hour while a long-running process such as the daemon runs) and to check for updates; [SECURITY.md](SECURITY.md#network-use-telemetry-and-crash-reporting) lists exactly what is sent. A sign-in keeps working for 24 hours after it last reached monoes.me, and not longer. The production signing key is pinned in this build, so a sign-in is verified on your machine with no network call per command; `ref account` has the current state.
+> Your workflows, run history, people, credentials and files stay on your machine. The app contacts monoes.me to sign you in and keep the sign-in fresh (about every half hour while a long-running process such as the daemon runs) and to check for updates; [SECURITY.md](SECURITY.md#network-use-telemetry-and-crash-reporting) lists exactly what is sent. A sign-in keeps working for 24 hours after it last reached monoes.me, and not longer. The production signing key is pinned in this build, so a sign-in is verified on your machine with no network call per command; `account status` has the current state.
 
 ## Quick Start
 
@@ -687,9 +687,9 @@ monoagentcli account status [--offline]        # who is logged in, and until whe
 monoagentcli account logout                    # revoke and forget the session
 ```
 
-A gated command without a valid sign-in exits 4 with `login_required` and does nothing else; `version`, `help`, `ref`, `update`, `doctor`, `setup` and the `account` commands keep working. If something is wrong, `monoagentcli doctor --check core.monoes_account` says what.
+Nothing works before sign-in: every command but `account` (and the `library login`/`logout`/`status` aliases), `help`, `version` and `update` exits 4 with `login_required` and does nothing else. If something is wrong, `monoagentcli account status` says what.
 
-`monoagentcli ref account` has the same text offline.
+Once signed in, `monoagentcli ref account` has the same text offline.
 
 ### Uninstall & data
 

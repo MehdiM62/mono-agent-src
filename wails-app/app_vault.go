@@ -91,6 +91,9 @@ func (a *App) runVaultCLI(stdin string, result interface{}, args ...string) erro
 }
 
 func (a *App) ListSecrets() ([]VaultEntry, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var entries []VaultEntry
 	if err := a.runVaultCLI("", &entries, "list"); err != nil {
 		return nil, err
@@ -110,6 +113,9 @@ type secretStdinPayload struct {
 }
 
 func (a *App) AddSecret(kind, name, username, url, notes string, fields map[string]string) (string, error) {
+	if err := a.signedOut(); err != nil {
+		return "", err
+	}
 	args := []string{"add", "--stdin-json", "--kind", kind, "--name", name}
 	if username != "" {
 		args = append(args, "--username", username)
@@ -134,6 +140,9 @@ func (a *App) AddSecret(kind, name, username, url, notes string, fields map[stri
 }
 
 func (a *App) GetSecretFields(name string) (*VaultFieldsAndNotes, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var result VaultFieldsAndNotes
 	if err := a.runVaultCLI("", &result, "reveal", name, "--reveal"); err != nil {
 		return nil, err
@@ -142,6 +151,9 @@ func (a *App) GetSecretFields(name string) (*VaultFieldsAndNotes, error) {
 }
 
 func (a *App) UpdateSecret(name, newName, username, url, notes string, fields map[string]string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	args := []string{"update", name, "--name", newName, "--username", username, "--url", url, "--notes", notes}
 	// Only pipe a field set when there is one — an update touching just
 	// metadata must keep the CLI's "don't touch fields" semantics.
@@ -158,6 +170,9 @@ func (a *App) UpdateSecret(name, newName, username, url, notes string, fields ma
 }
 
 func (a *App) DeleteSecret(name string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	return a.runVaultCLI("", nil, "rm", name)
 }
 
@@ -165,6 +180,9 @@ func (a *App) DeleteSecret(name string) error {
 // profile's vault there. The returned passphrase is shown exactly once by
 // the caller — it is never persisted.
 func (a *App) ExportVaultAll() (*VaultExportResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	dest, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:           "Export Vault",
 		DefaultFilename: "vault-export.json.enc",
@@ -195,6 +213,9 @@ func (a *App) ExportVaultAll() (*VaultExportResult, error) {
 // OpenVaultImportFilePicker opens a native file picker for a vault export
 // file and returns the selected path (empty if cancelled).
 func (a *App) OpenVaultImportFilePicker() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Import Vault",
 		// Single extension only — see the matching comment on ExportVaultAll's
@@ -214,6 +235,9 @@ func (a *App) OpenVaultImportFilePicker() string {
 // per the design spec — never a flag) and imports every entry into the
 // active profile.
 func (a *App) ImportVaultAll(path, passphrase string) (*VaultImportResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var result VaultImportResult
 	if err := a.runVaultCLI(passphrase+"\n", &result, "import", path); err != nil {
 		return nil, err

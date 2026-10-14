@@ -133,7 +133,8 @@ test("capBytes cuts by UTF-8 bytes, never inside a character", () => {
 test("the shell is loaded into the page before the highlighter", () => {
   const manifest = JSON.parse(readFileSync(join(HERE, "manifest.json"), "utf8"));
   const scripts = manifest.content_scripts.find((c) => c.js.includes("highlight_page.js")).js;
-  assert.deepEqual(scripts, ["content.js", "highlights.js", "highlight_panel.js", "highlight_page.js"]);
+  // account_state.js first: the highlighter shows nothing signed out (gate.js).
+  assert.deepEqual(scripts, ["account_state.js", "content.js", "highlights.js", "highlight_panel.js", "highlight_page.js"]);
 });
 
 // From the source, since no automated run drives highlight_page.js in a page

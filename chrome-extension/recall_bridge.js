@@ -175,6 +175,8 @@
    *  The content script also asks for them on load; this covers a same-page
    *  navigation, where it never runs again. */
   async function restoreHighlights(tabId, url) {
+    // Signed out nothing is painted (gate.js); the highlights stay stored.
+    if (deps && deps.signedIn && !deps.signedIn()) return;
     const records = await root.MonoHighlights.load(storage(), url);
     if (!records.length) return;
     try {

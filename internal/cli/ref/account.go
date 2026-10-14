@@ -68,15 +68,19 @@ STATES
   Clock rollback can lock work; a freshly verified token resets the clock guard.
 
 WHAT STAYS OPEN
-  Open: version, help, completion (including __complete and __completeNoDesc),
-  ref, update, doctor (including doctor fix), setup, release (maintainer tools),
-  account (all subcommands), library login, library logout, library status.
-  doctor has a core.monoes_account row (fix: account login).
+  Open: account (all subcommands), library login, library logout, library
+  status, help (and --help on any command), version, update (so a broken
+  install can be fixed). monoagentcli with no arguments prints the help.
+  Everything else is gated, ref (this page), doctor, doctor fix, setup,
+  release, completion and __complete included, and local-only commands,
+  daemon install, daemon restart, daemon uninstall and org serve.
+  Signed in, doctor has a core.monoes_account row (fix: account login).
   Serving: daemon, httpapi, mcp (including --grant), extension serve (also the
-  bridge serve alias). They start while locked and refuse work; they stay up
-  so service managers do not repeatedly respawn them.
-  Every other command is gated, including local-only commands, daemon install,
-  daemon restart, daemon uninstall and org serve.
+  bridge serve alias). They start while locked and run nothing: no schedule,
+  webhook, queue, stream or file trigger is armed, no request is served but the
+  status a client needs to say "sign in", and the org services, the run memory,
+  the capture indexing and the housekeeping loops wait. They stay up so service
+  managers do not repeatedly respawn them.
 
 REFUSAL
   Exit 4; first line: Log in to monoes.me first: monoagentcli account login

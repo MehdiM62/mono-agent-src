@@ -12,6 +12,9 @@ type TemplateInfo struct {
 // there are none or the CLI fails — the frontend reads both as "no
 // templates".
 func (a *App) GetTemplates() []TemplateInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
 	var templates []TemplateInfo
 	if err := a.cliJSON(profileCLITimeout, &templates, "template", "list"); err != nil || len(templates) == 0 {
 		return nil

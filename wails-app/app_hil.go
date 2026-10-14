@@ -29,6 +29,9 @@ type HILItem struct {
 // suggestion (when the profile enabled surface hil) is in
 // node_config.suggestion; the CLI stores it, so polling never re-pays.
 func (a *App) GetHILItems() ([]HILItem, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	items := []HILItem{}
 	if err := a.runMonoCLI("", &items, "hil", "list", "--suggest"); err != nil {
 		return nil, fmt.Errorf("GetHILItems: %w", err)
@@ -42,6 +45,9 @@ func (a *App) GetHILItems() ([]HILItem, error) {
 // ApproveHIL approves a pending HIL item with optional edited data (JSON
 // string) — `hil approve <id> --data …`.
 func (a *App) ApproveHIL(id string, editedDataJSON string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	if err := a.resolveHIL(id, editedDataJSON, true); err != nil {
 		return err
 	}
@@ -52,6 +58,9 @@ func (a *App) ApproveHIL(id string, editedDataJSON string) error {
 // RejectHIL rejects a pending HIL item, causing the workflow to error out —
 // `hil reject <id>`.
 func (a *App) RejectHIL(id string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	if err := a.resolveHIL(id, "", false); err != nil {
 		return err
 	}

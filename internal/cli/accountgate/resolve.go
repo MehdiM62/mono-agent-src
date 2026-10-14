@@ -16,7 +16,10 @@ import (
 //   - help, completion, __complete and __completeNoDesc exist only once
 //     cobra's ExecuteC has added them, so here they resolve to the root with
 //     the arguments left over. So does an unknown command, and a bare root.
-//     Cobra prints help or an error for the root and runs nothing: open.
+//     Those are resolved again on a throwaway tree that has cobra's commands
+//     (rootInvocationClass): help is open, completion and __complete are
+//     gated, and where cobra prints help or an error for the root and runs
+//     nothing, it is open.
 //   - Find runs before the help flag exists and takes `--help` for a flag that
 //     wants a value, so whether cobra prints help instead of running the
 //     command needs the flags parsed: AsksForHelp.
@@ -26,10 +29,40 @@ import (
 func (gt Gate) InvocationClass(root *cobra.Command, args []string) string {
 	target, _, err := root.Find(args)
 	if err != nil || target == nil || target == root {
-		return ClassOpen
+		return gt.rootInvocationClass(args)
 	}
 	class := CommandClass(target)
 	if class == ClassOpen || gt.AsksForHelp(args) {
+		return ClassOpen
+	}
+	return class
+}
+
+// rootInvocationClass is the class of args that Find resolves to the root: it
+// finds them again on a throwaway tree to which cobra's own commands are added
+// as ExecuteC adds them (help, completion, and a stand-in for __complete, which
+// cobra adds unexported). A bare root, an unknown command and the root's help
+// flag still resolve to the root: cobra prints help or an error, open.
+func (gt Gate) rootInvocationClass(args []string) string {
+	probe := gt.NewTree()
+	probe.SetOut(io.Discard)
+	probe.SetErr(io.Discard)
+	probe.InitDefaultHelpCmd()
+	probe.InitDefaultCompletionCmd()
+	probe.AddCommand(&cobra.Command{Use: cobra.ShellCompRequestCmd, Aliases: []string{cobra.ShellCompNoDescRequestCmd},
+		Hidden: true, DisableFlagParsing: true})
+	Apply(probe)
+	target, _, err := probe.Find(args)
+	if err != nil || target == nil || target == probe {
+		return ClassOpen
+	}
+	class := CommandClass(target)
+	switch {
+	case class == ClassOpen:
+		return ClassOpen
+	case target.DisableFlagParsing: // __complete takes every word as data: `--help` is a word to complete
+		return class
+	case gt.AsksForHelp(args):
 		return ClassOpen
 	}
 	return class
