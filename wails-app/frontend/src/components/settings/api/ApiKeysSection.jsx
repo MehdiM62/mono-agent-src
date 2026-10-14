@@ -15,7 +15,7 @@ const card = {
   padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 16,
 }
 
-export default function ApiKeysSection({ isActive = true, status = null } = {}) {
+export default function ApiKeysSection({ isActive = true, status = null, profileId = '' } = {}) {
   const { t } = useTranslation()
   const tRef = useRef(t)
   tRef.current = t
@@ -44,6 +44,15 @@ export default function ApiKeysSection({ isActive = true, status = null } = {}) 
     wasActive.current = isActive
     if (returned) loadKeys()
   }, [isActive, loadKeys])
+
+  // Another profile has other keys: read them when the profile changes (not for the first one that becomes known).
+  const lastProfile = useRef(profileId)
+  useEffect(() => {
+    const changed = profileId !== lastProfile.current
+    const wasKnown = !!lastProfile.current
+    lastProfile.current = profileId
+    if (changed && wasKnown) loadKeys()
+  }, [profileId, loadKeys])
 
   const contextClasses = [...new Set(servingListeners(status).map(l => l.context_confinement).filter(Boolean))]
 

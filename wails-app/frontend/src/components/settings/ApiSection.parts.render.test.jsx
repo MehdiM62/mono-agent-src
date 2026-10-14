@@ -44,6 +44,14 @@ describe('API section parts', () => {
     expect(App.APIConfigShow).not.toHaveBeenCalled()
   })
 
+  it('reads the keys again when the profile changes', async () => {
+    const { default: ApiKeysSection } = await import('./api/ApiKeysSection.jsx')
+    const { rerender } = render(<ApiKeysSection profileId="a" />)
+    await waitFor(() => expect(App.APIKeyList).toHaveBeenCalledTimes(1))
+    rerender(<ApiKeysSection profileId="b" />)
+    await waitFor(() => expect(App.APIKeyList).toHaveBeenCalledTimes(2))
+  })
+
   it('tells the status it read, so that nothing else has to ask for it', async () => {
     const { default: ApiSection } = await import('./ApiSection.jsx')
     const onStatus = vi.fn()

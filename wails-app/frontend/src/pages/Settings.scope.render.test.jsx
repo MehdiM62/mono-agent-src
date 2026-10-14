@@ -25,6 +25,7 @@ vi.mock('../components/settings/ApiSection.jsx', () => stub('api'))
 vi.mock('../components/settings/CoderModeSection.jsx', () => stub('coder'))
 vi.mock('../components/settings/api/ApiKeysSection.jsx', () => stub('api-keys'))
 import Settings from './Settings.jsx'
+import { GetActiveProfile } from '../wailsjs/go/main/App'
 
 afterEach(cleanup)
 
@@ -62,5 +63,14 @@ describe('Settings scope groups', () => {
     expect(within(g).queryByTestId('api-keys')).toBeNull()
     expect(within(p).queryByTestId('jev-machine')).toBeNull()
     expect(within(p).queryByTestId('api-machine')).toBeNull()
+  })
+
+  it('reads the profile again when the page becomes active, as the app keeps it mounted', async () => {
+    const { rerender } = render(<Settings onNavigate={vi.fn()} isActive />)
+    await waitFor(() => expect(screen.getByTestId('scope-profile-line')).toHaveTextContent('profileLine:Work'))
+    rerender(<Settings onNavigate={vi.fn()} isActive={false} />)
+    GetActiveProfile.mockResolvedValueOnce({ id: 'home', name: 'Home' })
+    rerender(<Settings onNavigate={vi.fn()} isActive />)
+    await waitFor(() => expect(screen.getByTestId('scope-profile-line')).toHaveTextContent('profileLine:Home'))
   })
 })

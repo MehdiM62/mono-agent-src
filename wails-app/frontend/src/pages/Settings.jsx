@@ -314,13 +314,12 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   const [dbConnected, setDbConnected] = useState(false)
   const [connCount, setConnCount] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
-  const [profileName, setProfileName] = useState('')
+  const [profile, setProfile] = useState({ id: '', name: '' })
   const [apiStatus, setApiStatus] = useState(null) // the API section's status, shared with the keys block
 
   const load = useCallback(async () => {
     api.getDBPath().then(p => setDbPath(p || ''))
     api.isDBConnected().then(c => setDbConnected(!!c))
-    try { GetActiveProfile().then(p => setProfileName(p?.name || '')).catch(() => {}) } catch { /* no name: the heading says "the active profile" */ }
     // Count active connections
     return api.listConnections('').then(conns => {
       if (Array.isArray(conns)) {
@@ -331,6 +330,19 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // The app keeps this page mounted while another is shown, and the profile can be switched there: the profile is
+  // read again each time the page comes back.
+  const readProfile = useCallback(() => {
+    try { GetActiveProfile().then(p => setProfile({ id: p?.id || '', name: p?.name || '' })).catch(() => {}) } catch { /* no name: the heading says "the active profile" */ }
+  }, [])
+  const wasActive = useRef(isActive)
+  useEffect(() => {
+    const returned = isActive && !wasActive.current
+    wasActive.current = isActive
+    if (returned) { readProfile(); load() }
+  }, [isActive, readProfile, load])
+  useEffect(() => { readProfile() }, [readProfile])
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -445,7 +457,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
           </div>
         </ScopeGroup>
 
-        <ScopeGroup scope="profile" profileName={profileName}>
+        <ScopeGroup scope="profile" profileName={profile.name}>
           {/* Connections (OAuth credentials and accounts are the profile's) */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 28 }}>
             <QuickAccessCard
@@ -461,7 +473,7 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
 
           <JevSection part="profile" />
 
-          <ApiKeysSection isActive={isActive} status={apiStatus} />
+          <ApiKeysSection isActive={isActive} status={apiStatus} profileId={profile.id} />
 
           {/* Export people/actions as JSON (runs with --profile) */}
           <div style={headingStyle}>
