@@ -158,6 +158,9 @@ func Palette(db *sql.DB, includeDeprecated bool) map[string][]PaletteNode {
 		},
 		"ai": []PaletteNode{
 			mkNode("agent.ask", "Agent Ask", "ai", "Ask a locally-installed AI agent (claude, codex, …) one turn via the monomind engine"),
+			mkNode("ai.model", "Chat Model", "ai", "Sub-node: the agent runtime and model an Agent Ask (or Guardrails) uses — connect it to their Chat Model input"),
+			mkNode("ai.memory", "Simple Memory", "ai", "Sub-node: conversation memory for Agent Ask (or the session of Agent Memory) — connect it to their Memory input"),
+			mkNode("ai.output_parser", "Structured Output Parser", "ai", "Sub-node: the JSON shape Agent Ask answers with, from an example or a JSON Schema"),
 			mkNode("mcp.call", "MCP Call", "ai", "List or call the tools of an MCP server (stdio or Streamable HTTP) — Zapier, Pipedream, vendor servers, or monoagent's own"),
 			mkNode("agent.memory", "Agent Memory", "ai", "Read, add or clear the messages of a conversation that agent.ask remembers (memory option)"),
 			mkNode("ai.guardrails", "Guardrails", "ai", "Check text for PII, secrets, URLs, keywords, jailbreaks and off-topic content; pass/fail or sanitize"),
