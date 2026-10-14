@@ -141,6 +141,13 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 
 	// 1. Load the workflow — the version this execution is pinned to.
 	wf, err := e.loadExecutionWorkflow(ctx, log, req)
+	if err != nil && ctx.Err() != nil {
+		// Cancelled after the claim made it RUNNING (the status flip of a
+		// QUEUED cancel came too late): a cancel, not a broken workflow.
+		log.Warn().Err(err).Str("final_status", "CANCELLED").Msg("engine: execution cancelled before it started")
+		e.persistExecutionFinished(log, req.ExecutionID, "CANCELLED", cancelledMessage(ctx, err))
+		return
+	}
 	if err != nil {
 		log.Error().Err(err).Msg("engine: handleExecution: failed to load workflow")
 		e.persistExecutionFinished(log, req.ExecutionID, "FAILED", fmt.Sprintf("load workflow: %s", err.Error()))
@@ -372,11 +379,19 @@ func (e *WorkflowEngine) cancelExecution(executionID string, cause error) {
 		e.logger.Info().Str("execution_id", executionID).Msg("engine: queued/waiting execution cancelled")
 		e.onExecutionFinished(executionID) // wakes a parent waiting on this sub-workflow run
 	}
+	// Children go before a running parent is signalled: until then it holds
+	// its slot, so a child queued behind it cannot be dispatched and finish
+	// before its own cancel lands. A queued or waiting parent is already
+	// CANCELLED above, so the children's ends do not resume it.
+	cascade := status != "" && !isTerminalStatus(status)
+	if cascade {
+		e.cancelSubWorkflowChildren(executionID, cause)
+	}
 	// Signal cancellation for an already-dispatched (running) execution.
 	e.queue.CancelWithCause(executionID, cause)
 	e.logger.Info().Str("execution_id", executionID).Msg("engine: execution cancel requested")
-	if status != "" && !isTerminalStatus(status) {
-		e.cancelSubWorkflowChildren(executionID, cause)
+	if cascade {
+		e.cancelSubWorkflowChildren(executionID, cause) // any the parent started meanwhile
 	}
 }
 
