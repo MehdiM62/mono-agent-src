@@ -142,6 +142,49 @@ func (s *appWebhookStore) get(ctx context.Context, wf, node string) (*appWebhook
 	return &rec, nil
 }
 
+// list returns workflow wf's records.
+func (s *appWebhookStore) list(ctx context.Context, wf string) ([]appWebhookRecord, error) {
+	if s.db == nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		var out []appWebhookRecord
+		for _, rec := range s.mem {
+			if rec.WorkflowID == wf {
+				out = append(out, rec)
+			}
+		}
+		return out, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT node_id FROM app_webhooks WHERE workflow_id = ?`, wf)
+	if err != nil {
+		return nil, fmt.Errorf("app webhooks: list: %w", err)
+	}
+	var nodes []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("app webhooks: list: %w", err)
+		}
+		nodes = append(nodes, n)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("app webhooks: list: %w", err)
+	}
+	var out []appWebhookRecord
+	for _, n := range nodes {
+		rec, err := s.get(ctx, wf, n)
+		if err != nil {
+			return nil, err
+		}
+		if rec != nil {
+			out = append(out, *rec)
+		}
+	}
+	return out, nil
+}
+
 func (s *appWebhookStore) put(ctx context.Context, rec appWebhookRecord) error {
 	if s.db == nil {
 		s.mu.Lock()
