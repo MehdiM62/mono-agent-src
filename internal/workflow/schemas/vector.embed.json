@@ -14,7 +14,10 @@
         "mistral",
         "huggingface",
         "bedrock",
-        "azure_openai"
+        "azure_openai",
+        "databricks",
+        "vertex",
+        "oracle"
       ],
       "default": "openai_compatible",
       "help": "openai_compatible also covers OpenRouter-compatible and local servers (vLLM, LM Studio, llama.cpp) through Base URL."
@@ -24,7 +27,7 @@
       "label": "Connection",
       "type": "credential_picker",
       "required": false,
-      "help": "openai_compatible → openai, ollama → ollama, cohere, gemini → gemini_api, mistral, huggingface, bedrock → aws, azure_openai. Optional for local servers."
+      "help": "openai_compatible → openai, ollama → ollama, cohere, gemini → gemini_api, mistral, huggingface, bedrock → aws, azure_openai. Optional for local servers. databricks → databricks or databricks_sp, oracle → oracle; vertex takes a token or service-account fields below."
     },
     {
       "key": "model",
@@ -147,6 +150,85 @@
         ]
       },
       "placeholder": "us-east-1"
+    },
+    {
+      "key": "project_id",
+      "label": "Vertex Project ID",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex"
+        ]
+      }
+    },
+    {
+      "key": "location",
+      "label": "Vertex Location",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex"
+        ]
+      },
+      "placeholder": "us-central1",
+      "help": "A region, or global, eu, us."
+    },
+    {
+      "key": "client_email",
+      "label": "Service Account Email",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex"
+        ]
+      },
+      "help": "With Private Key: a cloud-platform token is fetched per run. Or set Access Token."
+    },
+    {
+      "key": "private_key",
+      "label": "Service Account Private Key (PEM)",
+      "type": "textarea",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex"
+        ]
+      },
+      "help": "Use a vault secret expression rather than pasting the key."
+    },
+    {
+      "key": "access_token",
+      "label": "Access Token",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "vertex",
+          "databricks"
+        ]
+      },
+      "help": "A ready token; for databricks usually from the connection."
+    },
+    {
+      "key": "connection_string",
+      "label": "Oracle Connection String",
+      "type": "text",
+      "required": false,
+      "depends_on": {
+        "key": "provider",
+        "values": [
+          "oracle"
+        ]
+      },
+      "help": "Usually from the oracle connection."
     }
   ],
   "outputs": [

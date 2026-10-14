@@ -119,8 +119,10 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 		"model": "model", "options.batchSize": "batch_size",
 	}, "full", ""),
 	N8nPrefix + "embeddingsGoogleGemini": embedNode(ProviderGemini, map[string]string{"modelName": "model"}, "full", ""),
-	N8nPrefix + "embeddingsGoogleVertex": embedNode(ProviderGemini, map[string]string{"modelName": "model"}, "partial",
-		"Vertex service-account auth is not supported; the node is mapped to the Gemini API, so connect a Gemini API key"),
+	N8nPrefix + "embeddingsGoogleVertex": embedNode(ProviderVertex, map[string]string{
+		"modelName": "model", "projectId": "project_id", "location": "location",
+	}, "partial", "the n8n Google service-account credential is not carried over (mono has no service-account connection): "+
+		"set embedding.client_email and embedding.private_key, or embedding.access_token, and embedding.location when it is not us-central1"),
 	N8nPrefix + "embeddingsHuggingFaceInference": embedNode(ProviderHuggingFace, map[string]string{
 		"modelName": "model", "options.endpointUrl": "base_url",
 	}, "full", ""),
@@ -132,8 +134,10 @@ var N8nNodeMappings = map[string]N8nNodeMapping{
 	N8nPrefix + "embeddingsLemonade": {Role: N8nRoleEmbedding, OurType: "vector.embed",
 		Fixed: map[string]interface{}{"provider": ProviderOpenAICompatible}, Params: map[string]string{"model": "model"},
 		Coverage: "partial", Notes: "Lemonade serves an OpenAI-compatible API; set base_url to the server (e.g. http://localhost:8000/api/v1)"},
-	N8nPrefix + "embeddingsDatabricks": {Role: N8nRoleEmbedding, Coverage: "unsupported", Notes: "no Databricks provider"},
-	N8nPrefix + "embeddingsOracleDb":   {Role: N8nRoleEmbedding, Coverage: "unsupported", Notes: "no Oracle DB provider"},
+	N8nPrefix + "embeddingsDatabricks": embedNode(ProviderDatabricks, map[string]string{
+		"model": "model", "options.batchSize": "batch_size",
+	}, "full", ""),
+	N8nPrefix + "embeddingsOracleDb": embedNode(ProviderOracle, map[string]string{"model": "model"}, "full", ""),
 
 	// ── vector stores ───────────────────────────────────────────────────────
 	N8nPrefix + "vectorStoreQdrant":         storeNode(StoreQdrant, "", qdrantParams, "partial", "options.collectionConfig (custom collection creation) is not mapped; collections are created with the vector size and Cosine distance"),
