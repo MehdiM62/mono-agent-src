@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestN8nStoreWithEmbeddingAndLoaderCollapses(t *testing.T) {
+func TestN8nStoreWithEmbeddingAndLoaderBecomesSubNodes(t *testing.T) {
 	root := N8nPrefix + "vectorStoreQdrant"
 	params := map[string]interface{}{
 		"mode":             "insert",
@@ -14,29 +14,31 @@ func TestN8nStoreWithEmbeddingAndLoaderCollapses(t *testing.T) {
 		"options":          map[string]interface{}{"collectionConfig": "{}"},
 	}
 	subs := []N8nSubNode{
-		{Type: N8nPrefix + "embeddingsOpenAi", ConnectionType: "ai_embedding", CredentialID: "openai-1",
+		{Name: "Embeddings", Type: N8nPrefix + "embeddingsOpenAi", ConnectionType: "ai_embedding", CredentialID: "openai-1",
 			Parameters: map[string]interface{}{"model": "text-embedding-3-large", "options": map[string]interface{}{"dimensions": 1024.0}}},
-		{Type: N8nPrefix + "documentDefaultDataLoader", ConnectionType: "ai_document",
+		{Name: "Loader", Type: N8nPrefix + "documentDefaultDataLoader", ConnectionType: "ai_document",
 			Parameters: map[string]interface{}{"dataType": "binary", "loader": "pdfLoader", "textSplittingMode": "custom"},
-			Children: []N8nSubNode{{Type: N8nPrefix + "textSplitterRecursiveCharacterTextSplitter", ConnectionType: "ai_textSplitter",
+			Children: []N8nSubNode{{Name: "Splitter", Type: N8nPrefix + "textSplitterRecursiveCharacterTextSplitter", ConnectionType: "ai_textSplitter",
 				Parameters: map[string]interface{}{"chunkSize": 500.0, "chunkOverlap": 50.0}}}},
 	}
-	res, err := CollapseN8nSubNodes(root, params, subs)
+	res, err := ConvertN8nTree(root, params, subs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantStore := map[string]interface{}{
-		"provider": "qdrant", "mode": "insert", "collection": "docs",
-		"embedding": map[string]interface{}{"provider": "openai_compatible", "model": "text-embedding-3-large", "dimensions": 1024.0, "credential_id": "openai-1"},
-	}
+	wantStore := map[string]interface{}{"provider": "qdrant", "mode": "insert", "collection": "docs"}
 	if res.Node.Type != "vector.store" || !reflect.DeepEqual(res.Node.Config, wantStore) {
 		t.Fatalf("store %s %#v", res.Node.Type, res.Node.Config)
 	}
-	wantLoader := N8nConverted{Type: "vector.load_document", Config: map[string]interface{}{
-		"source": "binary", "loader": "pdf", "split": true, "splitter": "recursive", "chunk_size": 500.0, "chunk_overlap": 50.0,
-	}}
-	if len(res.Before) != 1 || !reflect.DeepEqual(res.Before[0], wantLoader) {
-		t.Fatalf("before %#v", res.Before)
+	want := []N8nAttached{
+		{Name: "Embeddings", Kind: KindEmbedding, Node: N8nConverted{Type: TypeEmbeddings, Config: map[string]interface{}{
+			"provider": "openai_compatible", "model": "text-embedding-3-large", "dimensions": 1024.0, "credential_id": "openai-1"}}},
+		{Name: "Loader", Kind: KindDocument, Node: N8nConverted{Type: TypeDocumentLoader, Config: map[string]interface{}{
+			"source": "binary", "loader": "pdf"}},
+			Children: []N8nAttached{{Name: "Splitter", Kind: KindTextSplitter, Node: N8nConverted{Type: TypeTextSplitter,
+				Config: map[string]interface{}{"splitter": "recursive", "chunk_size": 500.0, "chunk_overlap": 50.0}}}}},
+	}
+	if !reflect.DeepEqual(res.Attached, want) {
+		t.Fatalf("attached %#v", res.Attached)
 	}
 	joined := strings.Join(res.Warnings, "\n")
 	for _, w := range []string{"collectionConfig", "language presets", "parameter options.collectionConfig is not mapped"} {
@@ -44,17 +46,24 @@ func TestN8nStoreWithEmbeddingAndLoaderCollapses(t *testing.T) {
 			t.Errorf("warnings missing %q:\n%s", w, joined)
 		}
 	}
+	// A second embedding and a reranker are not used.
+	res, err = ConvertN8nTree(root, params, append(subs[:1:1],
+		N8nSubNode{Type: N8nPrefix + "embeddingsOllama", ConnectionType: "ai_embedding"},
+		N8nSubNode{Type: N8nPrefix + "rerankerCohere", ConnectionType: "ai_reranker"}))
+	if err != nil || len(res.Attached) != 1 || !strings.Contains(strings.Join(res.Warnings, "\n"), "ai_reranker sub-node rerankerCohere is not used") {
+		t.Fatalf("extra subs: %v %#v %v", err, res.Attached, res.Warnings)
+	}
 }
 
 func TestN8nSimpleSplittingAndModes(t *testing.T) {
-	res, err := CollapseN8nSubNodes(N8nPrefix+"documentDefaultDataLoader",
+	res, err := ConvertN8nTree(N8nPrefix+"documentDefaultDataLoader",
 		map[string]interface{}{"dataType": "json", "jsonMode": "expressionData", "jsonData": "={{ $json.body }}", "textSplittingMode": "simple"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]interface{}{"source": "json", "text": "={{ $json.body }}", "split": true, "splitter": "recursive", "chunk_size": 1000, "chunk_overlap": 200}
-	if !reflect.DeepEqual(res.Node.Config, want) {
-		t.Fatalf("loader %#v", res.Node.Config)
+	if !reflect.DeepEqual(res.Node.Config, want) || len(res.Attached) != 0 {
+		t.Fatalf("loader %#v %#v", res.Node.Config, res.Attached)
 	}
 
 	conv, warns, err := ConvertN8nParams(N8nPrefix+"vectorStorePineconeLoad", map[string]interface{}{
@@ -75,21 +84,25 @@ func TestN8nSimpleSplittingAndModes(t *testing.T) {
 	}
 }
 
-func TestN8nRetrieverFoldsVectorStore(t *testing.T) {
-	res, err := CollapseN8nSubNodes(N8nPrefix+"retrieverVectorStore", map[string]interface{}{"topK": 8.0}, []N8nSubNode{{
+func TestN8nRetrieverSearchesVectorStore(t *testing.T) {
+	res, err := ConvertN8nTree(N8nPrefix+"retrieverVectorStore", map[string]interface{}{"topK": 8.0}, []N8nSubNode{{
 		Type: N8nPrefix + "vectorStoreSupabase", ConnectionType: "ai_vectorStore",
 		Parameters: map[string]interface{}{"tableName": map[string]interface{}{"__rl": true, "value": "documents"}},
-		Children:   []N8nSubNode{{Type: N8nPrefix + "embeddingsOllama", ConnectionType: "ai_embedding", Parameters: map[string]interface{}{"model": "nomic-embed-text"}}},
+		Children: []N8nSubNode{{Name: "Ollama", Type: N8nPrefix + "embeddingsOllama", ConnectionType: "ai_embedding",
+			Parameters: map[string]interface{}{"model": "nomic-embed-text"}}},
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]interface{}{"provider": "supabase", "collection": "documents", "mode": "search", "top_k": 8.0,
-		"embedding": map[string]interface{}{"provider": "ollama", "model": "nomic-embed-text"}}
+	want := map[string]interface{}{"provider": "supabase", "collection": "documents", "mode": "search", "top_k": 8.0}
 	if !reflect.DeepEqual(res.Node.Config, want) {
 		t.Fatalf("retriever %#v", res.Node.Config)
 	}
-	if _, err := CollapseN8nSubNodes(N8nPrefix+"retrieverVectorStore", nil, nil); err == nil {
+	if len(res.Attached) != 1 || res.Attached[0].Name != "Ollama" || res.Attached[0].Node.Type != TypeEmbeddings ||
+		!reflect.DeepEqual(res.Attached[0].Node.Config, map[string]interface{}{"provider": "ollama", "model": "nomic-embed-text"}) {
+		t.Fatalf("retriever attached %#v", res.Attached)
+	}
+	if _, err := ConvertN8nTree(N8nPrefix+"retrieverVectorStore", nil, nil); err == nil {
 		t.Fatal("retriever without a store should fail")
 	}
 }

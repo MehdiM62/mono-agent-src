@@ -99,7 +99,7 @@ type rawDoc struct {
 }
 
 func (n *LoadDocumentNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
-	c, err := parseLoadConfig(config)
+	c, err := parseLoadConfig(withSplitter(input, config))
 	if err != nil {
 		return nil, fmt.Errorf("vector.load_document: %w", err)
 	}

@@ -40,7 +40,9 @@ func (f *subflowFixture) childOf(t *testing.T, parentID string, statuses ...stri
 func (f *subflowFixture) waitStatus(t *testing.T, id, want string) {
 	t.Helper()
 	if st := f.waitTerminal(t, id); st != want {
-		t.Fatalf("execution %s = %s, want %s", id, st, want)
+		var msg string
+		_ = f.store.RawDB().QueryRow(`SELECT COALESCE(error_message,'') FROM workflow_executions WHERE id = ?`, id).Scan(&msg)
+		t.Fatalf("execution %s = %s (%q), want %s", id, st, msg, want)
 	}
 }
 

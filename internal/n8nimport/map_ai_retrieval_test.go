@@ -83,6 +83,27 @@ func qaChainNodes(t *testing.T, wf *workflow.WorkflowFile) []workflow.WorkflowFi
 	return out
 }
 
+// fileSubNodes are the AI sub-nodes attached to node id in wf, as the
+// engine passes them (their config is plain: no expressions to resolve).
+func fileSubNodes(wf *workflow.WorkflowFile, id string) []workflow.SubNode {
+	var out []workflow.SubNode
+	for _, e := range wf.Connections {
+		if e.Target != id || !workflow.IsSubNodeHandle(e.TargetHandle) {
+			continue
+		}
+		for _, n := range wf.Nodes {
+			if n.ID == e.Source && !n.Disabled {
+				cfg := map[string]interface{}{}
+				b, _ := json.Marshal(n.Config)
+				_ = json.Unmarshal(b, &cfg)
+				out = append(out, workflow.SubNode{ID: n.ID, Name: n.Name, Type: n.Type, Kind: e.TargetHandle, Config: cfg,
+					SubNodes: fileSubNodes(wf, n.ID)})
+			}
+		}
+	}
+	return out
+}
+
 func chainTypes(nodes []workflow.WorkflowFileNode) string {
 	var ts []string
 	for _, n := range nodes {
@@ -159,7 +180,7 @@ type qaFakes struct {
 // runQAChain runs the chain nodes in order the way the engine does
 // (outputs by name, a node with no input items is skipped) and returns
 // the last node's items.
-func runQAChain(t *testing.T, nodes []workflow.WorkflowFileNode, in []map[string]interface{}, f qaFakes) []map[string]interface{} {
+func runQAChain(t *testing.T, wf *workflow.WorkflowFile, nodes []workflow.WorkflowFileNode, in []map[string]interface{}, f qaFakes) []map[string]interface{} {
 	t.Helper()
 	reg := noderegistry.Build(nil)
 	outputs := map[string][]workflow.Item{}
@@ -208,7 +229,8 @@ func runQAChain(t *testing.T, nodes []workflow.WorkflowFileNode, in []map[string
 			cfg := map[string]interface{}{}
 			b, _ := json.Marshal(n.Config)
 			_ = json.Unmarshal(b, &cfg)
-			res, err := factory().Execute(context.Background(), workflow.NodeInput{Items: items, NodeOutputs: outputs}, cfg)
+			res, err := factory().Execute(context.Background(), workflow.NodeInput{Items: items, NodeOutputs: outputs,
+				SubNodes: fileSubNodes(wf, n.ID)}, cfg)
 			if err != nil {
 				t.Fatalf("%s (%s): %v", n.Name, n.Type, err)
 			}
@@ -236,14 +258,14 @@ var qaDocs = []string{
 
 func vectorRetrieverSubs(embedURL, key string) ([]map[string]interface{}, [][3]string) {
 	return []map[string]interface{}{
-		qaNode("Retriever", lcp+"retrieverVectorStore", 1, map[string]interface{}{"topK": 1}),
-		qaNode("Store", lcp+"vectorStoreInMemory", 1.1, map[string]interface{}{"memoryKey": key}),
-		qaNode("Embeddings", lcp+"embeddingsOpenAi", 1.2, map[string]interface{}{"model": "text-embedding-3-small",
-			"options": map[string]interface{}{"baseURL": embedURL}}),
-	}, [][3]string{
-		{"Store", "ai_vectorStore", "Retriever"},
-		{"Embeddings", "ai_embedding", "Store"},
-	}
+			qaNode("Retriever", lcp+"retrieverVectorStore", 1, map[string]interface{}{"topK": 1}),
+			qaNode("Store", lcp+"vectorStoreInMemory", 1.1, map[string]interface{}{"memoryKey": key}),
+			qaNode("Embeddings", lcp+"embeddingsOpenAi", 1.2, map[string]interface{}{"model": "text-embedding-3-small",
+				"options": map[string]interface{}{"baseURL": embedURL}}),
+		}, [][3]string{
+			{"Store", "ai_vectorStore", "Retriever"},
+			{"Embeddings", "ai_embedding", "Store"},
+		}
 }
 
 // answerWithSystem makes the answer the system prompt the agent got.
@@ -266,14 +288,15 @@ func TestRetrievalQAVectorStore(t *testing.T) {
 		t.Fatalf("chain %s, want %s", got, want)
 	}
 	store := qaStep(t, nodes, "QA (retrieve)").Config
-	emb, _ := store["embedding"].(map[string]interface{})
+	emb := attachedSub(t, wf, "QA (retrieve)", "ai_embedding").Config
 	if store["provider"] != "memory" || store["mode"] != "search" || store["memory_key"] != "qa-vs" ||
 		fmt.Sprint(store["top_k"]) != "1" || store["query_field"] != "__n8n_query" ||
 		emb["provider"] != "openai_compatible" || emb["base_url"] != srv.URL {
 		t.Fatalf("vector.store config %v", store)
 	}
 	ask := qaStep(t, nodes, "QA (answer)").Config
-	if ask["runtime"] != "codex" || ask["model"] != "gpt-4o-mini" || ask["system_prompt"] != "Use this: {{ $json.__n8n_context }}" {
+	model := attachedSub(t, wf, "QA (answer)", "ai_languageModel").Config
+	if model["runtime"] != "codex" || model["model"] != "gpt-4o-mini" || ask["system_prompt"] != "Use this: {{ $json.__n8n_context }}" {
 		t.Fatalf("agent.ask config %v", ask)
 	}
 	for _, nr := range rep.Nodes {
@@ -281,7 +304,7 @@ func TestRetrievalQAVectorStore(t *testing.T) {
 			t.Errorf("status %s: %+v", nr.Status, nr.Issues)
 		}
 	}
-	got := runQAChain(t, nodes, []map[string]interface{}{
+	got := runQAChain(t, wf, nodes, []map[string]interface{}{
 		{"chatInput": "What is the capital city of France?"},
 		{"chatInput": "Which mountain is the highest on Earth?"},
 	}, qaFakes{ask: answerWithSystem})
@@ -307,14 +330,15 @@ func TestRetrievalQAMultiQuery(t *testing.T) {
 		t.Fatalf("chain %s, want %s", got, want)
 	}
 	alt := qaStep(t, nodes, "QA (alternative queries)").Config
-	if alt["runtime"] != "claude" || alt["model"] != "claude-haiku-4-5" || alt["output_schema"] == nil ||
+	model := attachedSub(t, wf, "QA (alternative queries)", "ai_languageModel").Config
+	if model["runtime"] != "claude" || model["model"] != "claude-haiku-4-5" || alt["output_schema"] == nil ||
 		!strings.Contains(alt["prompt"].(string), "Write 2 different versions") {
 		t.Fatalf("multi-query agent.ask %v", alt)
 	}
 	if q := qaStep(t, nodes, "QA (question)").Config["assignments"]; !strings.Contains(fmt.Sprint(q), "$json.chatInput") {
 		t.Fatalf("v1.2 question %v", q)
 	}
-	got := runQAChain(t, nodes, []map[string]interface{}{{"chatInput": "capital of France"}}, qaFakes{
+	got := runQAChain(t, wf, nodes, []map[string]interface{}{{"chatInput": "capital of France"}}, qaFakes{
 		ask: func(key, prompt, system string, item map[string]interface{}) interface{} {
 			if key == "__n8n_queries" {
 				// One variant finds the same document again, one another.
@@ -362,7 +386,7 @@ func TestRetrievalQAWorkflowRetriever(t *testing.T) {
 		t.Error("no warning about document attribution")
 	}
 	var sent []map[string]interface{}
-	got := runQAChain(t, nodes, []map[string]interface{}{{"q": "refund policy?"}}, qaFakes{
+	got := runQAChain(t, wf, nodes, []map[string]interface{}{{"q": "refund policy?"}}, qaFakes{
 		ask: answerWithSystem,
 		exec: func(items []map[string]interface{}) []map[string]interface{} {
 			sent = items
@@ -394,11 +418,11 @@ func TestRetrievalQACompression(t *testing.T) {
 	if got := chainTypes(nodes); got != want {
 		t.Fatalf("chain %s, want %s", got, want)
 	}
-	cmp := qaStep(t, nodes, "QA (compress)").Config
+	cmp := attachedSub(t, wf, "QA (compress)", "ai_languageModel").Config
 	if cmp["runtime"] != "codex" || cmp["model"] != "gpt-4.1-mini" {
-		t.Fatalf("compressor %v", cmp)
+		t.Fatalf("compressor model %v", cmp)
 	}
-	got := runQAChain(t, nodes, []map[string]interface{}{{"chatInput": "Tell me about France"}}, qaFakes{
+	got := runQAChain(t, wf, nodes, []map[string]interface{}{{"chatInput": "Tell me about France"}}, qaFakes{
 		ask: func(key, prompt, system string, item map[string]interface{}) interface{} {
 			if key == "__n8n_extract" {
 				if !strings.Contains(prompt, "Tell me about France") {
@@ -431,7 +455,7 @@ func TestRetrievalQANoRetriever(t *testing.T) {
 			t.Fatalf("report %+v", nr)
 		}
 	}
-	got := runQAChain(t, nodes, []map[string]interface{}{{"input": "hi"}}, qaFakes{ask: answerWithSystem})
+	got := runQAChain(t, wf, nodes, []map[string]interface{}{{"input": "hi"}}, qaFakes{ask: answerWithSystem})
 	if text := got[0]["response"].(map[string]interface{})["text"].(string); !strings.HasPrefix(text, "Q=hi\n") {
 		t.Fatalf("answer %q", text)
 	}
