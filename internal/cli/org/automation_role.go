@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
@@ -37,25 +38,25 @@ func newOrgAutomationRoleAddCmd(env *orgEnv) *cobra.Command {
 			}
 			ref := doc.FindAutomation(alias)
 			if ref == nil {
-				return errInvalidInput("org %q has no automation %q; add it first with `org automation add`", doc.Name, alias)
+				return env.d.InvalidInput("org %q has no automation %q; add it first with `org automation add`", doc.Name, alias)
 			}
 			parent, _ := doc.FindRole(reportsTo)
 			if parent == nil {
-				return errInvalidInput("org %q has no role %q to report to", doc.Name, reportsTo)
+				return env.d.InvalidInput("org %q has no role %q to report to", doc.Name, reportsTo)
 			}
 			if parent.IsEndpoint() {
-				return errInvalidInput("an automation role cannot report to another automation role")
+				return env.d.InvalidInput("an automation role cannot report to another automation role")
 			}
 			if reply != "" && reply != "last_node" && !strings.HasPrefix(reply, "node:") {
-				return errInvalidInput("--reply must be last_node or node:<name>")
+				return env.d.InvalidInput("--reply must be last_node or node:<name>")
 			}
-			wf, err := orgWorkflowIn(ctx, db, profileID, ref.WorkflowID)
+			wf, err := env.orgWorkflowIn(ctx, db, profileID, ref.WorkflowID)
 			if err != nil {
 				return err
 			}
 			for _, r := range doc.Roles {
 				if r.IsEndpoint() && r.Automation != nil && r.Automation.WorkflowID == ref.WorkflowID {
-					return errInvalidInput("automation role %q already runs this workflow", r.ID)
+					return env.d.InvalidInput("automation role %q already runs this workflow", r.ID)
 				}
 			}
 			if title == "" {
@@ -73,18 +74,18 @@ func newOrgAutomationRoleAddCmd(env *orgEnv) *cobra.Command {
 			doc.Roles = append(doc.Roles, orgdesign.Role{
 				ID: id, Title: title, Type: "automation", ReportsTo: &parentID, Responsibilities: []string{},
 				Kind:       orgdesign.RoleKindEndpoint,
-				Endpoint:   &orgdesign.Endpoint{URL: orggrant.EndpointURL(orgAPIAddr(db), ep.ID), InputHint: firstSentence(wf.Description)},
+				Endpoint:   &orgdesign.Endpoint{URL: orggrant.EndpointURL(orgenv.APIAddr(db), ep.ID), InputHint: firstSentence(wf.Description)},
 				Automation: &orgdesign.EndpointAutomation{WorkflowID: ref.WorkflowID, Reply: reply, Alias: alias},
 			})
 			prefillFence(doc)
-			if _, err := saveOrgReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
+			if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
 				_ = orggrant.NewStore(db.DB).RevokeEndpoint(ctx, profileID, doc.Name, id)
 				return err
 			}
 			return printJSONValue(map[string]interface{}{
 				"v": 1, "org": doc.Name,
 				"role":         map[string]interface{}{"id": id, "title": title, "reports_to": parentID, "workflow_id": ref.WorkflowID},
-				"endpoint_url": orggrant.EndpointURL(orgAPIAddr(db), ep.ID),
+				"endpoint_url": orggrant.EndpointURL(orgenv.APIAddr(db), ep.ID),
 				"warnings":     nonNilStrings(capabilityWarnings(ctx, monomind.CapOrgEndpointRoles, "automation roles")),
 			})
 		},
@@ -122,13 +123,13 @@ func firstSentence(s string) string {
 	return s
 }
 
-func automationRole(doc *orgdesign.Doc, roleID string) (*orgdesign.Role, error) {
+func (env *orgEnv) automationRole(doc *orgdesign.Doc, roleID string) (*orgdesign.Role, error) {
 	r, _ := doc.FindRole(roleID)
 	if r == nil {
-		return nil, errInvalidInput("org %q has no role %q", doc.Name, roleID)
+		return nil, env.d.InvalidInput("org %q has no role %q", doc.Name, roleID)
 	}
 	if !r.IsEndpoint() {
-		return nil, errInvalidInput("role %q is not an automation role", roleID)
+		return nil, env.d.InvalidInput("role %q is not an automation role", roleID)
 	}
 	return r, nil
 }
@@ -145,7 +146,7 @@ func newOrgAutomationRoleRemoveCmd(env *orgEnv) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := automationRole(doc, roleID); err != nil {
+			if _, err := env.automationRole(doc, roleID); err != nil {
 				return err
 			}
 			if err := orggrant.NewStore(db.DB).RevokeEndpoint(ctx, profileID, doc.Name, roleID); err != nil {
@@ -154,7 +155,7 @@ func newOrgAutomationRoleRemoveCmd(env *orgEnv) *cobra.Command {
 			if _, err := doc.RemoveRole(roleID, orgdesign.Reparent); err != nil {
 				return err
 			}
-			if _, err := saveOrgReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
+			if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
 				return err
 			}
 			return printJSONValue(map[string]interface{}{"v": 1, "org": doc.Name, "removed": true, "role": roleID})
@@ -177,14 +178,14 @@ func newOrgAutomationRoleRotateCmd(env *orgEnv) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := automationRole(doc, roleID); err != nil {
+			if _, err := env.automationRole(doc, roleID); err != nil {
 				return err
 			}
 			ep, err := orggrant.NewStore(db.DB).RotateEndpoint(ctx, profileID, doc.Name, roleID)
 			if err != nil {
 				return fmt.Errorf("rotate endpoint of %q: %w", roleID, err)
 			}
-			if _, err := saveOrgReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
+			if _, err := orgenv.SaveReconciled(ctx, db, profileID, root, doc, env.genOptions(profileID)); err != nil {
 				return err
 			}
 			applies := "next org start"
@@ -196,7 +197,7 @@ func newOrgAutomationRoleRotateCmd(env *orgEnv) *cobra.Command {
 			}
 			return printJSONValue(map[string]interface{}{
 				"v": 1, "org": doc.Name, "role": roleID,
-				"endpoint_url": orggrant.EndpointURL(orgAPIAddr(db), ep.ID), "applies": applies,
+				"endpoint_url": orggrant.EndpointURL(orgenv.APIAddr(db), ep.ID), "applies": applies,
 			})
 		},
 	}

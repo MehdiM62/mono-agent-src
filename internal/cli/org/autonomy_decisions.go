@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/orgdecide"
 	"github.com/monoes/mono-agent/internal/orgdesign"
@@ -105,7 +106,7 @@ func newOrgAutonomyNeedsYouCmd(env *orgEnv) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			items, err := needsYou(cmd.Context(), db, profileID, root, doc.Name)
+			items, err := env.needsYou(cmd.Context(), db, profileID, root, doc.Name)
 			if err != nil {
 				return err
 			}
@@ -117,9 +118,9 @@ func newOrgAutonomyNeedsYouCmd(env *orgEnv) *cobra.Command {
 // needsYou lists pending items a person has to decide: everything when no
 // daemon runs; otherwise items the level routes to a person, and items the
 // daemon escalated or could not decide.
-func needsYou(ctx context.Context, db *storage.Database, profileID, root, org string) ([]map[string]interface{}, error) {
+func (env *orgEnv) needsYou(ctx context.Context, db *storage.Database, profileID, root, org string) ([]map[string]interface{}, error) {
 	svc := orgdecide.NewService(db.DB, nil)
-	svc.LoadWorkflow = grantWorkflowLoader(db)
+	svc.LoadWorkflow = orgenv.GrantWorkflowLoader(db, env.OpenWorkflowStore)
 	a, err := svc.Store.Get(ctx, profileID, org)
 	if err != nil {
 		return nil, err

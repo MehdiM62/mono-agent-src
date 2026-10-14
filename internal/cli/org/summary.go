@@ -1,4 +1,4 @@
-package main
+package org
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgbridge"
 	"github.com/monoes/mono-agent/internal/orgdecide"
@@ -45,8 +46,8 @@ func newOrgSummaryCmd(env *orgEnv) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if allProfiles {
-				if env.projectFlag != "" {
-					return errInvalidInput("--project names one profile's org root; drop it to use --all-profiles")
+				if env.Project() != "" {
+					return env.d.InvalidInput("--project names one profile's org root; drop it to use --all-profiles")
 				}
 				db, _, _, dbErr := env.Profile()
 				if dbErr != nil {
@@ -59,7 +60,7 @@ func newOrgSummaryCmd(env *orgEnv) *cobra.Command {
 				rows := []orgSummaryRow{}
 				serve := false
 				for _, p := range profiles {
-					r, live, err := orgSummaryFor(cmd.Context(), profiledir.Root(db.DB, p.ID), db, p.ID, nil, fast)
+					r, live, err := env.orgSummaryFor(cmd.Context(), profiledir.Root(db.DB, p.ID), db, p.ID, nil, fast)
 					if err != nil {
 						return fmt.Errorf("orgs of %s: %w", p.Name, err)
 					}
@@ -73,7 +74,7 @@ func newOrgSummaryCmd(env *orgEnv) *cobra.Command {
 			}
 			root := env.Root()
 			db, profileID, _, dbErr := env.Profile()
-			rows, live, err := orgSummaryFor(cmd.Context(), root, db, profileID, dbErr, fast)
+			rows, live, err := env.orgSummaryFor(cmd.Context(), root, db, profileID, dbErr, fast)
 			if err != nil {
 				return err
 			}
@@ -87,7 +88,7 @@ func newOrgSummaryCmd(env *orgEnv) *cobra.Command {
 
 // orgSummaryFor is one profile's org rows. db may be nil (dbErr says why):
 // the local facts (running, queued) are still reported.
-func orgSummaryFor(ctx context.Context, root string, db *storage.Database, profileID string, dbErr error, fast bool) ([]orgSummaryRow, bool, error) {
+func (env *orgEnv) orgSummaryFor(ctx context.Context, root string, db *storage.Database, profileID string, dbErr error, fast bool) ([]orgSummaryRow, bool, error) {
 	names, err := orgdesign.ListOrgNames(root)
 	if err != nil {
 		return nil, false, err
@@ -102,7 +103,7 @@ func orgSummaryFor(ctx context.Context, root string, db *storage.Database, profi
 	var svc *orgdecide.Service
 	if dbErr == nil {
 		svc = orgdecide.NewService(db.DB, nil)
-		svc.LoadWorkflow = grantWorkflowLoader(db)
+		svc.LoadWorkflow = orgenv.GrantWorkflowLoader(db, env.OpenWorkflowStore)
 	}
 	now := time.Now()
 	rows := make([]orgSummaryRow, len(names))
@@ -140,7 +141,7 @@ func orgSummaryFor(ctx context.Context, root string, db *storage.Database, profi
 			}
 			done := make(chan result, 1)
 			go func() {
-				items, err := needsYou(ctx, db, profileID, root, name)
+				items, err := env.needsYou(ctx, db, profileID, root, name)
 				done <- result{len(items), err}
 			}()
 			select {
