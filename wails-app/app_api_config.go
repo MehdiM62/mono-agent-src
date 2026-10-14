@@ -132,6 +132,9 @@ func confirmFlags(confirm, dryRun bool) []string {
 // APIConfigShow says, for each setting, what is saved, what the running daemon started with and
 // where that came from, and where the setting stands (`api config show`).
 func (a *App) APIConfigShow() (APIConfigInfo, error) {
+	if err := a.signedOut(); err != nil {
+		return APIConfigInfo{}, err
+	}
 	var info APIConfigInfo
 	if err := a.runAPICLI(&info, "api", "config", "show"); err != nil {
 		return APIConfigInfo{}, err
@@ -146,6 +149,9 @@ func (a *App) APIConfigShow() (APIConfigInfo, error) {
 // call with dryRun, whose document is the state the change would give and which saves nothing. The
 // CLI refuses a widening change without confirm, and a value that fails its rule, with exit 3.
 func (a *App) APIConfigSet(values map[string]string, confirm, dryRun bool) (APIConfigChange, error) {
+	if err := a.signedOut(); err != nil {
+		return APIConfigChange{}, err
+	}
 	if len(values) == 0 {
 		return APIConfigChange{}, errors.New("nothing to change")
 	}
@@ -167,6 +173,9 @@ func (a *App) APIConfigSet(values map[string]string, confirm, dryRun bool) (APIC
 // environment or the default (`api config unset`). Removing a value that held the server below its
 // default is a widening change like any other: see APIConfigSet for confirm and dryRun.
 func (a *App) APIConfigUnset(keys []string, confirm, dryRun bool) (APIConfigChange, error) {
+	if err := a.signedOut(); err != nil {
+		return APIConfigChange{}, err
+	}
 	if len(keys) == 0 {
 		return APIConfigChange{}, errors.New("nothing to change")
 	}
@@ -191,6 +200,9 @@ func (a *App) APIConfigUnset(keys []string, confirm, dryRun bool) (APIConfigChan
 // it without confirm, and a dry run says so, with the reason, and whether the row is unreadable
 // (`removed_unreadable_row`). See APIConfigSet for confirm and dryRun.
 func (a *App) APIConfigReset(confirm, dryRun bool) (APIConfigChange, error) {
+	if err := a.signedOut(); err != nil {
+		return APIConfigChange{}, err
+	}
 	return a.runConfigChange(append([]string{"api", "config", "unset", "--all"}, confirmFlags(confirm, dryRun)...))
 }
 
@@ -208,6 +220,9 @@ func (a *App) runConfigChange(args []string) (APIConfigChange, error) {
 // running (workflows, org runs): the page asks first. A daemon that is not registered cannot be
 // restarted by it (exit 3).
 func (a *App) DaemonRestart() (DaemonRestartResult, error) {
+	if err := a.signedOut(); err != nil {
+		return DaemonRestartResult{}, err
+	}
 	var res DaemonRestartResult
 	if err := a.runAPICLI(&res, "daemon", "restart"); err != nil {
 		return DaemonRestartResult{}, err

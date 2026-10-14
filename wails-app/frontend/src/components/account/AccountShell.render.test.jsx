@@ -262,11 +262,11 @@ describe('failing closed', () => {
     delete window.go; delete window.runtime
   })
 
-  it('does not lock when the status binding itself fails: a build without bindings is dormant', async () => {
+  it('locks when the status binding itself fails: a page with no Go side to ask shows the gate, not the app', async () => {
     go.AccountStatus.mockImplementation(() => Promise.reject(new Error('binding missing')))
     setup()
-    expect(await screen.findByTestId('shell')).toBeInTheDocument()
-    expect(screen.queryByRole('region')).not.toBeInTheDocument()
+    expect(await screen.findByRole('region')).toBeInTheDocument()
+    expect(screen.queryByTestId('shell')).not.toBeInTheDocument()
   })
 })
 

@@ -44,6 +44,9 @@ type chatTurnListItem struct {
 // workflowID is the tool/ownership context ("general"/"draft"/an owned
 // workflow id).
 func (a *App) CreateChatConversation(workflowID, runtimeID, model, effort string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if a.chatSup == nil {
 		return a.chatBindingError(fmt.Errorf("chat supervisor not initialized"))
 	}
@@ -67,6 +70,9 @@ func (a *App) CreateChatConversation(workflowID, runtimeID, model, effort string
 // (idempotent Start); a different turnID while one is active returns busy.
 // Every response carries turnId (plan §189).
 func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allowRuns bool) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if a.chatSup == nil {
 		return a.chatBindingError(fmt.Errorf("chat supervisor not initialized"))
 	}
@@ -92,6 +98,9 @@ func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allow
 // neither: nothing here would stop it, so that case reports an explicit
 // failure instead. See isForeignActiveTurn.
 func (a *App) StopChatTurn(conversationID, turnID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if a.chatSup == nil {
 		return a.chatBindingError(fmt.Errorf("chat supervisor not initialized"))
 	}
@@ -116,6 +125,9 @@ func (a *App) StopChatTurn(conversationID, turnID string) string {
 // stop was sent. The stage updates from the journal's agent events. The ids
 // go after "--" (and the agent as --agent=), so none can read as a flag.
 func (a *App) StopChatAgent(conversationID, turnID, agentID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if a.chatSup == nil {
 		return a.chatBindingError(fmt.Errorf("chat supervisor not initialized"))
 	}
@@ -136,6 +148,9 @@ type chatConversationPage struct {
 // ListChatConversations returns this profile's conversations, most recent
 // first.
 func (a *App) ListChatConversations(cursor string, limit int) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if a.chatSup == nil {
 		return `{"items":[]}`
 	}
@@ -164,6 +179,9 @@ type chatTurnPage struct {
 // item carries ownedByThisInstance: true for every turn except one that is
 // active AND owned by a different live instance — see isForeignActiveTurn.
 func (a *App) GetChatTurns(conversationID, cursor string, limit int) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if a.chatSup == nil {
 		return `{"items":[]}`
 	}
@@ -198,6 +216,9 @@ type chatEventPage struct {
 
 // GetChatEvents returns one turn's events after afterSeq, ascending.
 func (a *App) GetChatEvents(conversationID, turnID string, afterSeq int64, limit int) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if a.chatSup == nil {
 		return `{"items":[]}`
 	}
@@ -225,6 +246,9 @@ func (a *App) GetChatEvents(conversationID, turnID string, afterSeq int64, limit
 // DeleteChatConversation removes a conversation and its turns/events —
 // refused while a turn is active.
 func (a *App) DeleteChatConversation(conversationID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if a.chatSup == nil {
 		return a.chatBindingError(fmt.Errorf("chat supervisor not initialized"))
 	}

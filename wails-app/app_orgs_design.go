@@ -32,6 +32,9 @@ import (
 // GetOrgDesign returns one org's full design (roles, hierarchy, canvas
 // layout) plus validation status, in one round trip for the canvas to load.
 func (a *App) GetOrgDesign(orgName string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	d, err := orgdesign.Load(root, orgName)
 	if err != nil {
@@ -57,6 +60,9 @@ func (a *App) GetOrgDesign(orgName string) string {
 // `org list`'s runtime state: this reads config files directly, so it
 // includes designs that have never been run.
 func (a *App) ListOrgDesigns() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	names, err := orgdesign.ListOrgNames(root)
 	if err != nil {
@@ -105,6 +111,9 @@ func orgDocKind(d *orgdesign.Doc) string {
 // CreateOrgDesign creates a new org with a single root role. specJSON:
 // {"name","goal","schedule"?,"runtime"?,"workspace"?,"rootRoleId"?,"rootRoleTitle"?}
 func (a *App) CreateOrgDesign(specJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	var spec struct {
 		Name          string `json:"name"`
 		Goal          string `json:"goal"`
@@ -141,6 +150,9 @@ func (a *App) CreateOrgDesign(specJSON string) string {
 // teardown belongs to `monomind org delete` via the existing app_orgs.go
 // surface, not this method.
 func (a *App) DeleteOrgDesign(orgName string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	if err := orgdesign.Delete(root, orgName); err != nil {
 		return aiError(err)
@@ -152,6 +164,9 @@ func (a *App) DeleteOrgDesign(orgName string) string {
 // AddOrgRole adds a role to an org. roleJSON is a orgdesign.Role literal
 // (id may be omitted to auto-derive one from title).
 func (a *App) AddOrgRole(orgName, roleJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	d, err := orgdesign.Load(root, orgName)
 	if err != nil {
@@ -170,6 +185,9 @@ func (a *App) AddOrgRole(orgName, roleJSON string) string {
 // UpdateOrgRole applies a shallow patch to an existing role. patchJSON keys
 // present overwrite; keys absent are left unchanged.
 func (a *App) UpdateOrgRole(orgName, roleID, patchJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	d, err := orgdesign.Load(root, orgName)
 	if err != nil {
@@ -214,6 +232,9 @@ func (a *App) UpdateOrgRole(orgName, roleID, patchJSON string) string {
 // SetOrgRoleReportsTo(roleID, ""), which just refuses when a different root
 // already exists; this is the one-click "set as org boss" action.
 func (a *App) PromoteRoleToRoot(orgName, roleID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	d, err := orgdesign.Load(root, orgName)
 	if err != nil {
@@ -229,6 +250,9 @@ func (a *App) PromoteRoleToRoot(orgName, roleID string) string {
 // instructions_file path (markdown or plain text). Returns the chosen
 // absolute path, or "" if the user cancelled.
 func (a *App) ChooseInstructionsFile() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title: "Choose Instructions File",
 		Filters: []runtime.FileFilter{
@@ -246,6 +270,9 @@ func (a *App) ChooseInstructionsFile() string {
 // reports inherit the removed role's own manager) or "cascade" (the role
 // and its whole subtree).
 func (a *App) RemoveOrgRole(orgName, roleID, strategy string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	d, err := orgdesign.Load(root, orgName)
 	if err != nil {
@@ -271,6 +298,9 @@ func (a *App) RemoveOrgRole(orgName, roleID, strategy string) string {
 // SetOrgRoleReportsTo moves roleID under parentID. parentID == "" makes
 // roleID the root role (only allowed when the org has no other root).
 func (a *App) SetOrgRoleReportsTo(orgName, roleID, parentID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	d, err := orgdesign.Load(root, orgName)
 	if err != nil {
@@ -287,6 +317,9 @@ func (a *App) SetOrgRoleReportsTo(orgName, roleID, parentID string) string {
 // every drag-end, so it deliberately skips the CLI validate round-trip
 // (position can't break structural validity) — see orgdesign.SetLayout.
 func (a *App) SaveOrgLayout(orgName, layoutJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	d, err := orgdesign.Load(root, orgName)
 	if err != nil {
@@ -314,6 +347,9 @@ func (a *App) SaveOrgLayout(orgName, layoutJSON string) string {
 // operations like "tidy layout" or an initial import) — still runs the same
 // validate/CLI-check/rollback path as every other mutator.
 func (a *App) SaveOrgDesign(orgName, docJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	var d orgdesign.Doc
 	if err := json.Unmarshal([]byte(docJSON), &d); err != nil {
@@ -327,6 +363,9 @@ func (a *App) SaveOrgDesign(orgName, docJSON string) string {
 
 // ValidateOrgDesign checks an org's design without writing anything.
 func (a *App) ValidateOrgDesign(orgName string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	root := a.orgDesignRoot()
 	d, err := orgdesign.Load(root, orgName)
 	if err != nil {
@@ -342,5 +381,8 @@ func (a *App) ValidateOrgDesign(orgName string) string {
 // not the config's mtime). `org reload` resolves the active profile's org
 // folder itself.
 func (a *App) ReloadOrg(orgName string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.rawCLI(orgCLITimeout, "org", "reload", orgName)
 }

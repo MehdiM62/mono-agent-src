@@ -126,6 +126,9 @@ func workflowToDetail(wf *workflow.Workflow) *WorkflowDetail {
 // ListWorkflowTemplates returns metadata for all bundled, ready-to-use
 // workflow templates (e.g. "Outlook Email Sync") shipped with the app.
 func (a *App) ListWorkflowTemplates() []workflow.Template {
+	if a.signedOut() != nil {
+		return nil
+	}
 	return workflow.ListTemplates()
 }
 
@@ -134,6 +137,9 @@ func (a *App) ListWorkflowTemplates() []workflow.Template {
 // remapped to fresh UUIDs so multiple instantiations never collide, then
 // saved via the same path as a normal SaveWorkflow call.
 func (a *App) CreateWorkflowFromTemplate(templateID string) (*WorkflowSummary, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	tmpl, ok := workflow.GetTemplate(templateID)
 	if !ok {
 		return nil, fmt.Errorf("unknown template %q", templateID)
@@ -183,6 +189,9 @@ func (a *App) CreateWorkflowFromTemplate(templateID string) (*WorkflowSummary, e
 // ListWorkflows returns `monoagentcli workflow list`: the active profile's
 // workflows from the file store and SQLite, with node counts, newest first.
 func (a *App) ListWorkflows() ([]WorkflowSummary, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var rows []struct {
 		workflow.Workflow
 		NodeCount int `json:"node_count"`
@@ -205,6 +214,9 @@ func (a *App) ListWorkflows() ([]WorkflowSummary, error) {
 // GetWorkflow returns `workflow get <id>`; another profile's workflow is not
 // found.
 func (a *App) GetWorkflow(id string) (*WorkflowDetail, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var wf workflow.Workflow
 	if err := a.runMonoCLI("", &wf, "workflow", "get", id); err != nil {
 		return nil, err
@@ -217,6 +229,9 @@ func (a *App) GetWorkflow(id string) (*WorkflowDetail, error) {
 // existing workflow keeps its activation (that is SetWorkflowActive's job):
 // the editor never sends is_active.
 func (a *App) SaveWorkflow(req SaveWorkflowRequest) (*WorkflowSummary, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	doc, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -233,6 +248,9 @@ func (a *App) SaveWorkflow(req SaveWorkflowRequest) (*WorkflowSummary, error) {
 // DeleteWorkflow runs `workflow delete <id> --yes`: no prompt, but a
 // workflow that orgs use is refused with the CLI's explanation.
 func (a *App) DeleteWorkflow(id string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	if err := a.runMonoCLI("", nil, "workflow", "delete", id, "--yes"); err != nil {
 		return err
 	}
@@ -242,6 +260,9 @@ func (a *App) DeleteWorkflow(id string) error {
 
 // SetWorkflowActive runs `workflow activate` or `workflow deactivate`.
 func (a *App) SetWorkflowActive(id string, active bool) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	verb := "deactivate"
 	if active {
 		verb = "activate"
@@ -278,6 +299,9 @@ type WorkflowImportResult struct {
 // ExportWorkflow returns `monoagentcli workflow export <id>` verbatim: the
 // documented WorkflowFile JSON that `workflow import` reads back.
 func (a *App) ExportWorkflow(workflowID string) (string, error) {
+	if err := a.signedOut(); err != nil {
+		return "", err
+	}
 	var file json.RawMessage
 	if err := a.runMonoCLI("", &file, "workflow", "export", workflowID); err != nil {
 		return "", err
@@ -297,6 +321,9 @@ func (a *App) ExportWorkflow(workflowID string) (string, error) {
 // takes, including legacy-format normalization and node-id collision
 // remapping. Returns the imported workflow's {id, name}.
 func (a *App) ImportWorkflow(jsonOrPath string) (*WorkflowImportResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	jsonOrPath = strings.TrimSpace(jsonOrPath)
 	if jsonOrPath == "" {
 		return nil, fmt.Errorf("import input is empty — pass workflow JSON or a path to a JSON file")
@@ -353,6 +380,9 @@ func (a *App) ImportWorkflow(jsonOrPath string) (*WorkflowImportResult, error) {
 // is told, so the same answer is available to a script, a test, and the
 // dialog (see internal/workflow/trigger_inputs.go).
 func (a *App) GetWorkflowTriggerInputs(id string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	if strings.TrimSpace(id) == "" {
 		return aiError(fmt.Errorf("workflow id required"))
 	}

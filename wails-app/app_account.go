@@ -75,6 +75,7 @@ func (a *App) AccountStatus() string {
 		stderr = string(ee.Stderr)
 	}
 	status := classifyAccountStatus(out, stderr, runErr, ctx.Err() != nil)
+	a.followSession(status)
 	a.retryDBMigrateAfterLogin(status)
 	return status
 }

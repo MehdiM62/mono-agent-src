@@ -114,6 +114,9 @@ func summarize(raw rawApplication) ApplicationSummary {
 // string argument means "no filter on that dimension" (mirrors
 // `application list`'s own flag defaults).
 func (a *App) GetApplications(kind, status, tag string) ([]ApplicationSummary, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	args := []string{"application", "list"}
 	if kind != "" {
 		args = append(args, "--kind", kind)
@@ -161,6 +164,9 @@ type ApplicationDetail struct {
 
 // GetApplication returns one application's full detail and status history.
 func (a *App) GetApplication(id string) (*ApplicationDetail, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var result struct {
 		Application rawApplication      `json:"application"`
 		StatusLog   []rawStatusLogEntry `json:"status_log"`
@@ -195,6 +201,9 @@ func (a *App) GetApplication(id string) (*ApplicationDetail, error) {
 // a required field is missing, this method does not duplicate that
 // validation.
 func (a *App) AddApplication(kind, title, company, url, issuingOrg, submissionDeadline string) (string, error) {
+	if err := a.signedOut(); err != nil {
+		return "", err
+	}
 	args := []string{"application", "add", "--kind", kind, "--title", title, "--url", url}
 	if kind == "job" {
 		args = append(args, "--company", company)
@@ -225,6 +234,9 @@ func (a *App) AddApplication(kind, title, company, url, issuingOrg, submissionDe
 // newApplicationStatusCmd), so this is defense-in-depth in case a future
 // caller reaches the CLI a different way.
 func (a *App) SetApplicationStatus(id, status, note string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	if strings.EqualFold(status, "applied") {
 		return fmt.Errorf("\"applied\" is not a valid target here -- use SendApplication, which requires an explicit human action")
 	}
@@ -237,6 +249,9 @@ func (a *App) SetApplicationStatus(id, status, note string) error {
 
 // TagApplication adds or removes a tag. action must be "add" or "remove".
 func (a *App) TagApplication(id, tag, action string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	return a.runMonoCLI("", nil, "application", "tag", id, action, tag)
 }
 
@@ -258,6 +273,9 @@ type FitVerdictInfo struct {
 // EvaluateApplication scores one job application's fit via a local AI
 // agent. runtime defaults to "claude" if empty.
 func (a *App) EvaluateApplication(id, runtime string) (*FitVerdictInfo, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	if runtime == "" {
 		runtime = "claude"
 	}
@@ -278,6 +296,9 @@ type EvaluateBatchResult struct {
 // job application. limit of 0 means no limit. runtime defaults to
 // "claude" if empty.
 func (a *App) EvaluatePendingApplications(evalRuntime string, limit int) (*EvaluateBatchResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	if evalRuntime == "" {
 		evalRuntime = "claude"
 	}
@@ -311,6 +332,9 @@ type ApplyResult struct {
 // in the frontend (an upfront confirm() dialog before this method is
 // ever called) -- see the design spec's "non-obvious integration detail".
 func (a *App) ApplyToApplication(id string, cvData, coverLetterData map[string]interface{}) (*ApplyResult, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	cvFile, err := writeTempJSON(cvData)
 	if err != nil {
 		return nil, fmt.Errorf("writing cv data: %w", err)
@@ -334,6 +358,9 @@ func (a *App) ApplyToApplication(id string, cvData, coverLetterData map[string]i
 // themselves -- the only path in this entire feature that ever marks an
 // application "applied".
 func (a *App) SendApplication(id, note string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
 	args := []string{"application", "send", id}
 	if note != "" {
 		args = append(args, "--note", note)
@@ -348,6 +375,9 @@ func (a *App) SendApplication(id, note string) error {
 // caller doesn't justify adding one yet -- see the design spec's YAGNI
 // note); this method filters client-side in Go instead.
 func (a *App) HasGeneratedDocuments(id string) (bool, error) {
+	if err := a.signedOut(); err != nil {
+		return false, err
+	}
 	var docs []struct {
 		ApplicationID string
 		Source        string
@@ -366,6 +396,9 @@ func (a *App) HasGeneratedDocuments(id string) (bool, error) {
 // OpenJSONFilePicker opens a native file picker for a JSON file and
 // returns the selected path (empty string if cancelled).
 func (a *App) OpenJSONFilePicker(title string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
 		Title:   title,
 		Filters: []runtime.FileFilter{{DisplayName: "JSON files", Pattern: "*.json"}},
@@ -381,6 +414,9 @@ func (a *App) OpenJSONFilePicker(title string) string {
 // needing browser-side filesystem access (a Wails webview cannot read
 // local files directly; only the Go side can).
 func (a *App) ReadJSONFile(path string) (map[string]interface{}, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)

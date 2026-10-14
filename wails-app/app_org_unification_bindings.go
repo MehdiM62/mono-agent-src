@@ -49,100 +49,160 @@ func (a *App) runOrgSub(label string, sub []string, buildErr error) string {
 // ── Bindings (contracts §5) ────────────────────────────────────────────────
 
 func (a *App) ListOrgAutomations(org string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := automationListArgs(org)
 	return a.runOrgSub("automation list", sub, err)
 }
 
 func (a *App) ListUnassignedAutomations() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runOrgSub("automation unassigned", []string{"automation", "unassigned"}, nil)
 }
 
 func (a *App) AddOrgAutomation(org, workflowID, alias string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := automationAddArgs(org, workflowID, alias)
 	return a.runOrgSub("automation add", sub, err)
 }
 
 func (a *App) RemoveOrgAutomation(org, alias string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := automationRemoveArgs(org, alias)
 	return a.runOrgSub("automation remove", sub, err)
 }
 
 func (a *App) ListOrgGrants(org string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := grantListArgs(org)
 	return a.runOrgSub("grant list", sub, err)
 }
 
 func (a *App) SetOrgGrant(org, specJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := grantAddArgs(org, specJSON)
 	return a.runOrgSub("grant add", sub, err)
 }
 
 func (a *App) RemoveOrgGrant(org, role, alias string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := grantRemoveArgs(org, role, alias)
 	return a.runOrgSub("grant remove", sub, err)
 }
 
 func (a *App) AddAutomationRole(org, specJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := automationRoleAddArgs(org, specJSON)
 	return a.runOrgSub("automation-role add", sub, err)
 }
 
 func (a *App) RemoveAutomationRole(org, roleID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := automationRoleRemoveArgs(org, roleID)
 	return a.runOrgSub("automation-role remove", sub, err)
 }
 
 func (a *App) GetEffectiveTools(org, roleID string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := effectiveToolsArgs(org, roleID)
 	return a.runOrgSub("effective-tools", sub, err)
 }
 
 func (a *App) GetOrgAutonomy(org string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := autonomyShowArgs(org)
 	return a.runOrgSub("autonomy show", sub, err)
 }
 
 func (a *App) SetOrgAutonomy(org, specJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := autonomySetArgs(org, specJSON)
 	return a.runOrgSub("autonomy set", sub, err)
 }
 
 func (a *App) PauseOrgAutonomy(org, duration string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := autonomyPauseArgs(org, duration)
 	return a.runOrgSub("autonomy pause", sub, err)
 }
 
 func (a *App) ResumeOrgAutonomy(org string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := autonomyResumeArgs(org)
 	return a.runOrgSub("autonomy resume", sub, err)
 }
 
 func (a *App) ListOrgDecisionLog(org, run string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := autonomyDecisionsArgs(org, run)
 	return a.runOrgSub("autonomy decisions", sub, err)
 }
 
 func (a *App) ListNeedsYou(org string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := needsYouArgs(org)
 	return a.runOrgSub("autonomy needs-you", sub, err)
 }
 
 func (a *App) StartOrgGroup(holding string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := groupArgs("start", holding)
 	return a.runOrgSub("group start", sub, err)
 }
 
 func (a *App) StopOrgGroup(holding string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := groupArgs("stop", holding)
 	return a.runOrgSub("group stop", sub, err)
 }
 
 func (a *App) OrgGroupStatus(holding string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := groupArgs("status", holding)
 	return a.runOrgSub("group status", sub, err)
 }
 
 func (a *App) SendOrgMessage(org, specJSON string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := sendArgs(org, specJSON)
 	return a.runOrgSub("send", sub, err)
 }
@@ -151,5 +211,8 @@ func (a *App) SendOrgMessage(org, specJSON string) string {
 // endpoint receiver) and `org serve` are up — the "engine offline" badge on
 // automation roles reads daemon.running.
 func (a *App) GetDaemonStatus() string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.runUnifiedCLI("status", statusCLIArgs(a.getActiveProfileID()))
 }
