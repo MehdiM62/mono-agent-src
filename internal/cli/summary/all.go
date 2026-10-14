@@ -1,4 +1,4 @@
-package main
+package summarycli
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 
 // summaryOptions is what `summary` reads for one profile. It is shared by
 // the profile view and by --all-profiles, which builds it once per profile.
-func summaryOptions(cfg *globalConfig, db *storage.Database, profileID string, want map[string]bool) summary.Options {
+func (d Deps) summaryOptions(db *storage.Database, profileID string, want map[string]bool) summary.Options {
 	root := profiledir.Root(db.DB, profileID)
 	opts := summary.Options{
 		DB: db.DB, ProfileID: profileID, Now: time.Now(), Sections: want,
@@ -38,7 +38,7 @@ func summaryOptions(cfg *globalConfig, db *storage.Database, profileID string, w
 			return out
 		},
 		Daemon: summaryDaemon,
-		Bridge: summaryBridge,
+		Bridge: d.summaryBridge,
 		OrgServe: func() (bool, []string) {
 			hb, live := monomind.ReadServeHeartbeat(root)
 			if hb == nil || !live {
@@ -64,7 +64,7 @@ func summaryOptions(cfg *globalConfig, db *storage.Database, profileID string, w
 		SummaryState: func(dir string) string { return capturesummary.StateOf(dir, time.Now()) },
 	}
 	if want == nil || want["automations"] {
-		if reg, err := openAutomationRegistry(); err == nil {
+		if reg, err := d.OpenAutomationRegistry(); err == nil {
 			opts.Automations = summaryAutomations{reg: reg, db: db.DB}
 		}
 	}
@@ -95,7 +95,7 @@ func splitSections(want map[string]bool) (perProfile, shared map[string]bool) {
 // buildGlobalSummary is `summary --all-profiles`: every profile's sections,
 // merged, plus the shared ones once. The profile running the command is
 // marked current.
-func buildGlobalSummary(ctx context.Context, cfg *globalConfig, db *storage.Database, want map[string]bool) (summary.Summary, error) {
+func (d Deps) buildGlobalSummary(ctx context.Context, db *storage.Database, want map[string]bool) (summary.Summary, error) {
 	profiles, err := profiledir.List(ctx, db.DB)
 	if err != nil {
 		return summary.Summary{}, fmt.Errorf("list profiles: %w", err)
@@ -106,13 +106,13 @@ func buildGlobalSummary(ctx context.Context, cfg *globalConfig, db *storage.Data
 		for _, p := range profiles {
 			parts = append(parts, summary.ProfilePart{
 				ID: p.ID, Name: p.Name,
-				S: summary.Build(ctx, summaryOptions(cfg, db, p.ID, perProfile)),
+				S: summary.Build(ctx, d.summaryOptions(db, p.ID, perProfile)),
 			})
 		}
 	}
 	sharedSum := summary.Summary{GeneratedAt: time.Now().UTC().Format(time.RFC3339)}
 	if len(shared) > 0 {
-		sharedSum = summary.Build(ctx, summaryOptions(cfg, db, cfg.ProfileID, shared))
+		sharedSum = summary.Build(ctx, d.summaryOptions(db, d.ProfileID(), shared))
 	}
-	return summary.Merge(parts, sharedSum, cfg.ProfileID), nil
+	return summary.Merge(parts, sharedSum, d.ProfileID()), nil
 }
