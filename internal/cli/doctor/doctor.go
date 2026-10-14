@@ -1,4 +1,4 @@
-package main
+package doctor
 
 import (
 	"bufio"
@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/health"
 	"github.com/monoes/mono-agent/internal/nodemgr"
 )
@@ -21,8 +21,8 @@ import (
 const maxFixPasses = 4
 
 // runHealth runs the checks against a fresh environment.
-func runHealth(ctx context.Context, cfg *globalConfig, reg *health.Registry, opts health.Options) *health.Report {
-	env, closeEnv := newHealthEnv(cfg)
+func runHealth(ctx context.Context, cfg *Deps, reg *health.Registry, opts health.Options) *health.Report {
+	env, closeEnv := cfg.NewEnv(cfg.projects)
 	defer closeEnv()
 	return reg.Run(ctx, env, opts)
 }
@@ -44,7 +44,7 @@ func withoutServiceFixes(rep *health.Report) *health.Report {
 	return &cp
 }
 
-func fixUntilStable(ctx context.Context, cfg *globalConfig, reg *health.Registry, opts health.Options, rep *health.Report,
+func fixUntilStable(ctx context.Context, cfg *Deps, reg *health.Registry, opts health.Options, rep *health.Report,
 	confirm func(health.FixInfo) bool, progress func(string)) (*health.Report, []fixOutcome) {
 	var outcomes []fixOutcome
 	tried := map[string]bool{}
@@ -58,7 +58,7 @@ func fixUntilStable(ctx context.Context, cfg *globalConfig, reg *health.Registry
 		if holdServices {
 			view = withoutServiceFixes(rep)
 		}
-		got := applyReportFixes(ctx, cfg, reg, view, tried, confirm, progress, cfg.JSONOutput)
+		got := applyReportFixes(ctx, cfg, reg, view, tried, confirm, progress, cfg.JSONOutput())
 		outcomes = append(outcomes, got...)
 		rep = runHealth(ctx, cfg, reg, opts)
 		if len(got) == 0 {
@@ -73,7 +73,7 @@ func fixUntilStable(ctx context.Context, cfg *globalConfig, reg *health.Registry
 		// Every pass still fixed something: say so rather than end quietly
 		// with fixes that a later pass might have unblocked.
 		msg := fmt.Sprintf("stopped after %d passes with fixes still being applied — run doctor --fix again", maxFixPasses+1)
-		if cfg.JSONOutput {
+		if cfg.JSONOutput() {
 			writeFixEvent(os.Stderr, fixEvent{Kind: "line", Message: msg})
 		} else {
 			progress(msg)
@@ -86,10 +86,10 @@ func fixUntilStable(ctx context.Context, cfg *globalConfig, reg *health.Registry
 // exit code 1 without an {"error"} JSON line on stdout (the report already
 // is the JSON output).
 func errRequiredChecksFailed(n int) error {
-	return &cliError{Code: 1, Msg: fmt.Sprintf("%d required check(s) failed", n)}
+	return &clicore.Error{Code: 1, Msg: fmt.Sprintf("%d required check(s) failed", n)}
 }
 
-func newDoctorCmd(cfg *globalConfig) *cobra.Command {
+func newDoctorCmd(cfg *Deps) *cobra.Command {
 	var groups, skipGroups, ids []string
 	var deep, fix, yes, projects bool
 
@@ -125,7 +125,7 @@ Exit code 1 means a required check failed.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			reg := health.Default()
-			wantProjects := projects || len(cfg.projectFilter) > 0
+			wantProjects := projects || len(cfg.projects) > 0
 			opts := health.Options{Deep: deep, Groups: groups, SkipGroups: skipGroups, IDs: ids, OnDemand: wantProjects, Monomind: wantProjects}
 			out := cmd.OutOrStdout()
 
@@ -133,10 +133,10 @@ Exit code 1 means a required check failed.`,
 			var outcomes []fixOutcome
 			if fix {
 				rep, outcomes = fixUntilStable(ctx, cfg, reg, opts, rep,
-					fixPrompter(cmd, yes, cfg.JSONOutput), progressWriter(out, cfg.JSONOutput))
+					fixPrompter(cmd, yes, cfg.JSONOutput()), progressWriter(out, cfg.JSONOutput()))
 			}
 
-			if cfg.JSONOutput {
+			if cfg.JSONOutput() {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				if err := enc.Encode(doctorJSON{Report: rep, Fixes: outcomes}); err != nil {
@@ -146,9 +146,9 @@ Exit code 1 means a required check failed.`,
 				printDoctorReport(out, rep, fix)
 			}
 			if n := rep.RequiredFailures(); n > 0 {
-				if cfg.JSONOutput {
+				if cfg.JSONOutput() {
 					// The report above is the one JSON document.
-					return reportedError{Err: errRequiredChecksFailed(n)}
+					return clicore.Reported{Err: errRequiredChecksFailed(n)}
 				}
 				return errRequiredChecksFailed(n)
 			}
@@ -162,12 +162,12 @@ Exit code 1 means a required check failed.`,
 	cmd.Flags().BoolVar(&fix, "fix", false, "Apply fixes: auto ones directly, confirm ones after asking")
 	cmd.Flags().BoolVar(&yes, "yes", false, "With --fix: accept confirm fixes without asking")
 	cmd.Flags().BoolVar(&projects, "projects", false, "Also run monomind's checks, for the profile folder and every monomind project inside it (without the rest of --deep)")
-	cmd.Flags().StringSliceVar(&cfg.projectFilter, "project", nil, "Only these monomind projects (path relative to the profile folder, or folder name); implies --projects")
+	cmd.Flags().StringSliceVar(&cfg.projects, "project", nil, "Only these monomind projects (path relative to the profile folder, or folder name); implies --projects")
 	cmd.AddCommand(newDoctorFixCmd(cfg))
 	return cmd
 }
 
-func newDoctorFixCmd(cfg *globalConfig) *cobra.Command {
+func newDoctorFixCmd(cfg *Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "fix <fix-id>",
 		Short: "Apply one fix by id (as listed by doctor)",
@@ -179,11 +179,11 @@ func newDoctorFixCmd(cfg *globalConfig) *cobra.Command {
 			reg := health.Default()
 			f, ok := reg.Fix(args[0])
 			if !ok {
-				return errNotFound("unknown fix %q", args[0])
+				return clicore.NotFound("unknown fix %q", args[0])
 			}
 			out := cmd.OutOrStdout()
-			err := applyFix(cmd.Context(), cfg, f, progressWriter(out, cfg.JSONOutput))
-			return finishStreamed(out, cfg.JSONOutput, err, f.Label)
+			err := applyFix(cmd.Context(), cfg, f, progressWriter(out, cfg.JSONOutput()))
+			return cfg.FinishStreamed(out, cfg.JSONOutput(), err, f.Label)
 		},
 	}
 }
@@ -232,7 +232,7 @@ func fixPrompter(cmd *cobra.Command, yes, asJSON bool) func(health.FixInfo) bool
 	if yes {
 		return func(health.FixInfo) bool { return true }
 	}
-	if asJSON || !stdinIsTerminal() {
+	if asJSON || !clicore.StdinIsTerminal() {
 		return func(health.FixInfo) bool { return false }
 	}
 	in := bufio.NewReader(cmd.InOrStdin())
@@ -248,18 +248,11 @@ func fixPrompter(cmd *cobra.Command, yes, asJSON bool) func(health.FixInfo) bool
 	}
 }
 
-// stdinIsTerminal reports whether a person can answer on stdin. A character
-// device is not enough: /dev/null is one, and a prompt read from it gets
-// end-of-file, which setup took as "no" while looking like a normal run.
-func stdinIsTerminal() bool {
-	return term.IsTerminal(int(os.Stdin.Fd()))
-}
-
 // applyReportFixes applies every distinct fix the report offers, in report
 // order: auto directly, confirm when confirm() agrees, manual never.
-func applyReportFixes(ctx context.Context, cfg *globalConfig, reg *health.Registry, rep *health.Report,
+func applyReportFixes(ctx context.Context, cfg *Deps, reg *health.Registry, rep *health.Report,
 	tried map[string]bool, confirm func(health.FixInfo) bool, progress func(string), fixEvents bool) []fixOutcome {
-	if cfg.JSONOutput {
+	if cfg.JSONOutput() {
 		// stdout carries the final report; keep progress off it.
 		progress = progressWriter(os.Stderr, true)
 	}
@@ -287,14 +280,14 @@ func applyReportFixes(ctx context.Context, cfg *globalConfig, reg *health.Regist
 			// Same per-fix events as `setup --json` (which emits its own and
 			// passes false), on stderr beside the fix's own lines.
 			writeFixEvent(os.Stderr, fixEvent{Kind: "fix_start", FixID: f.ID, Message: f.Label})
-		} else if !cfg.JSONOutput {
+		} else if !cfg.JSONOutput() {
 			progress("→ " + f.Label)
 		}
 		if err := applyFix(ctx, cfg, f, progress); err != nil {
 			outcomes = append(outcomes, fixOutcome{ID: f.ID, Outcome: "failed", Error: err.Error()})
 			if fixEvents {
 				writeFixEvent(os.Stderr, fixEvent{Kind: "fix_end", FixID: f.ID, Outcome: "failed", Message: err.Error()})
-			} else if !cfg.JSONOutput {
+			} else if !cfg.JSONOutput() {
 				progress("✗ " + err.Error())
 			}
 			continue
@@ -308,7 +301,7 @@ func applyReportFixes(ctx context.Context, cfg *globalConfig, reg *health.Regist
 }
 
 // applyFix runs one fix against a fresh environment.
-func applyFix(ctx context.Context, cfg *globalConfig, f health.Fix, progress func(string)) error {
+func applyFix(ctx context.Context, cfg *Deps, f health.Fix, progress func(string)) error {
 	if f.Safety == health.SafetyManual {
 		msg := "this needs to be done by hand"
 		if f.Command != "" {
@@ -316,7 +309,7 @@ func applyFix(ctx context.Context, cfg *globalConfig, f health.Fix, progress fun
 		}
 		return fmt.Errorf("%s", msg)
 	}
-	env, closeEnv := newHealthEnv(cfg)
+	env, closeEnv := cfg.NewEnv(cfg.projects)
 	defer closeEnv()
 	return f.Apply(ctx, env, progress)
 }
