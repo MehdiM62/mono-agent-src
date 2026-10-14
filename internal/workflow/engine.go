@@ -90,6 +90,7 @@ func NewWorkflowEngineWithStore(store WorkflowStore, db *sql.DB, scheduler Sched
 	)
 	e.queue.claim = e.claimLocal
 	e.wireWebhookRuns()
+	e.wireWaitReplies()
 	return e
 }
 
