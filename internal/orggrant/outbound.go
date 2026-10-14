@@ -73,6 +73,9 @@ var readOnlyNodes = setOf(
 	// core.respond_webhook only answers the webhook request that started
 	// the run; in any other run (a granted call) it does nothing.
 	"core.respond_webhook",
+	// core.respond_chat only writes into the chat session that started the
+	// run (trigger.chat); without one it fails.
+	"core.respond_chat",
 	"data.compression", "data.crypto", "data.datetime", "data.html",
 	"data.markdown", "data.xml",
 	// n8n-parity data shaping: pure transforms of the items (convert/

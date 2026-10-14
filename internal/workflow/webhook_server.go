@@ -109,6 +109,8 @@ type WebhookServer struct {
 	handshakes webhookHandshakes
 	// forms are the trigger.form pages at /form/<path> (form_serve.go).
 	forms formRoutes
+	// chats are the trigger.chat pages at /chat/<path> (chat_serve.go).
+	chats chatRoutes
 }
 
 // SetRunner makes the server start runs through run, which reports the
@@ -336,6 +338,10 @@ func (s *WebhookServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if p, ok := strings.CutPrefix(r.URL.Path, "/form/"); ok {
 		s.serveForm(w, r, p)
+		return
+	}
+	if p, ok := strings.CutPrefix(r.URL.Path, "/chat/"); ok {
+		s.serveChat(w, r, p)
 		return
 	}
 	// Parse path: must be /webhook/{path}

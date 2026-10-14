@@ -120,6 +120,31 @@ formFields may be given as JSON text. There is no login on the form: anyone
 who can reach the URL can submit it.`,
 	},
 	{
+		Type:     "trigger.chat",
+		Category: "trigger",
+		Short:    "Serve a chat page at /chat/<path> and run the workflow with each message",
+		Description: `Serves a chat page at http://127.0.0.1:9321/chat/<path> while "monoagentcli
+daemon" runs (MONOAGENT_WEBHOOK_ADDR changes the bind). Each message starts a
+run; POST <path>/message with {"sessionId", "chatInput"} does the same from
+your own page. responseMode lastNode answers in the chat with the last node's
+output (its "output" or "text" field); responseNodes leaves the answers to
+core.respond_chat nodes, whose sendAndWait takes the person's next message
+as its answer instead of starting a run.`,
+		Config: `{
+  "path":             "support",             // required
+  "title":            "Support",
+  "subtitle":         "We answer in seconds",
+  "initialMessages":  "Hi there!\nHow can I help?",
+  "inputPlaceholder": "Type your question…",
+  "responseMode":     "lastNode"             // lastNode | responseNodes
+}`,
+		Inputs:  "none",
+		Outputs: `one item: {sessionId, action: "sendMessage", chatInput}.`,
+		Notes: `The workflow must be activated and the daemon running. Messages are kept in
+the daemon's memory for a day after a session's last message. There is no
+login on the chat: anyone who can reach the URL can use it.`,
+	},
+	{
 		Type:     "trigger.sse",
 		Category: "trigger",
 		Short:    "Run workflow on each Server-Sent Event from a URL",
@@ -249,6 +274,27 @@ unchanged. In any other run it only passes items through.`,
 }`,
 		Inputs:  "any items",
 		Outputs: "the same items",
+	},
+	{
+		Type:     "core.respond_chat",
+		Category: "core",
+		Short:    "Send a message into the chat that started the run; optionally wait for the answer",
+		Description: `For runs started by trigger.chat (best with responseMode "responseNodes"):
+operation send posts message into the person's chat; sendAndWait also waits
+(the run pauses durably) for their answer there. responseType freeTextChat:
+the next message typed is the answer; approval: Approve/Disapprove buttons
+(a typed message counts as disapproval). options.limitWaitTime gives up and
+passes the input items on.`,
+		Config: `{
+  "operation":    "sendAndWait",            // send | sendAndWait
+  "message":      "Shall I book it?",
+  "responseType": "approval",               // freeTextChat | approval
+  "approvalOptions": {"values": {"approvalType": "double"}}
+}`,
+		Inputs: "any items",
+		Outputs: `send: the same items. sendAndWait: a typed answer as {sessionId, action,
+chatInput} (approval adds data.approved false); a button as {data:
+{approved}}.`,
 	},
 
 	// ── Agents & orgs ─────────────────────────────────────────────────────────

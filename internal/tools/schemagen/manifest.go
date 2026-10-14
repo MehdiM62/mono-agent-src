@@ -35,6 +35,7 @@ var Manifest = []ManifestEntry{
 	{NodeType: "core.merge", GoFile: "internal/nodes/control/merge_schema.go", StructName: "MergeNodeSchema"},
 	{NodeType: "core.remove_duplicates", GoFile: "internal/nodes/control/remove_duplicates_schema.go", StructName: "RemoveDuplicatesNodeSchema"},
 	{NodeType: "core.respond_webhook", GoFile: "internal/nodes/control/respond_webhook_schema.go", StructName: "RespondWebhookNodeSchema"},
+	{NodeType: "core.respond_chat", GoFile: "internal/nodes/control/respond_chat_schema.go", StructName: "RespondChatNodeSchema"},
 	{NodeType: "core.sort", GoFile: "internal/nodes/control/sort_schema.go", StructName: "SortNodeSchema"},
 	{NodeType: "core.split_in_batches", GoFile: "internal/nodes/control/split_in_batches_schema.go", StructName: "SplitInBatchesNodeSchema"},
 	{NodeType: "core.stop_error", GoFile: "internal/nodes/control/stop_error_schema.go", StructName: "StopErrorNodeSchema"},

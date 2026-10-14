@@ -71,6 +71,7 @@ Core/control: core.set, core.if, core.switch, core.filter, core.sort,
   core.split_in_batches (loop: outputs "loop" per batch and "done" at the
     end; an edge from the loop body back into it continues the loop),
   core.execute_workflow (run another workflow as a sub-workflow),
+  core.respond_chat (message into a trigger.chat session; sendAndWait),
   core.respond_webhook (answer a responseNode webhook),
   core.human_in_loop (pauses for approval — pair with hil_list/hil_approve;
     optional "rejected" output)

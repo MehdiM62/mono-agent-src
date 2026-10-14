@@ -61,6 +61,9 @@ type WaitReplySpec struct {
 	Limit time.Time `json:"limit,omitempty"`
 	// HTTPMethod restricts a webhook reply to one method ("" = any).
 	HTTPMethod string `json:"http_method,omitempty"`
+	// ChatSession makes the reply answerable from that trigger.chat session:
+	// the person's next message there is the answer (chat_serve.go).
+	ChatSession string `json:"chat_session,omitempty"`
 	// ExecutionURL makes the reply answer the execution's resume URL
 	// ($execution.resumeUrl) instead of a URL of its own, as n8n's Wait node
 	// does. One such reply should be pending per execution at a time.
@@ -240,9 +243,12 @@ func NewWaitReply(ctx context.Context, input NodeInput, spec WaitReplySpec) (Wai
 		return WaitReply{}, fmt.Errorf("wait reply: %w", err)
 	}
 	var token string
-	if spec.ExecutionURL {
+	switch {
+	case spec.ChatSession != "":
+		token, err = signReply("chat", spec.ChatSession)
+	case spec.ExecutionURL:
 		token, err = signReply("execution", input.ExecutionID)
-	} else {
+	default:
 		token, err = signReply("node", input.ExecutionID, input.NodeID, fmt.Sprint(run))
 	}
 	if err != nil {

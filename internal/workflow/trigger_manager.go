@@ -211,6 +211,11 @@ func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) err
 				errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
 			}
 
+		case TriggerNodeTypeChat:
+			if err := tm.activateChat(w.ID, node); err != nil {
+				errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
+			}
+
 		default:
 			tm.mu.Lock()
 			p := tm.providers[node.Type]
@@ -473,6 +478,10 @@ func (tm *TriggerManager) deactivateEntry(key string, entry *triggerEntry) {
 	case "form":
 		tm.webhookServer.DeregisterForm(entry.webhookPath)
 		tm.logger.Info().Str("key", key).Str("path", entry.webhookPath).Msg("form trigger deactivated")
+
+	case "chat":
+		tm.webhookServer.DeregisterChat(entry.webhookPath)
+		tm.logger.Info().Str("key", key).Str("path", entry.webhookPath).Msg("chat trigger deactivated")
 
 	case "provider":
 		if entry.deactivate != nil {
