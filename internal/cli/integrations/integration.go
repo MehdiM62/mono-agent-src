@@ -1,4 +1,4 @@
-package main
+package integrations
 
 import (
 	"encoding/json"
@@ -15,15 +15,16 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/apipkg"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/n8nimport"
 )
 
 // maxSpecBytes caps an OpenAPI document fetched from a URL.
 const maxSpecBytes = 32 << 20
 
-// newIntegrationCmd manages declarative API packages (internal/apipkg):
+// NewIntegrationCommand manages declarative API packages (internal/apipkg):
 // the built-in catalog and the ones installed under ~/.monoagent/apipkgs.
-func newIntegrationCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) NewIntegrationCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "integration",
 		Short: "List, inspect, validate and import declarative API packages (app.* nodes)",
@@ -31,8 +32,8 @@ func newIntegrationCmd(cfg *globalConfig) *cobra.Command {
 			"Built-in packages ship in the binary; installed ones live in ~/.monoagent/apipkgs/<id>/package.json.\n" +
 			"The author guide is internal/apipkg/FORMAT.md in the source tree.",
 	}
-	cmd.AddCommand(newIntegrationListCmd(cfg), newIntegrationShowCmd(cfg),
-		newIntegrationImportOpenAPICmd(cfg), newIntegrationValidateCmd(cfg))
+	cmd.AddCommand(d.newIntegrationListCmd(), d.newIntegrationShowCmd(),
+		d.newIntegrationImportOpenAPICmd(), d.newIntegrationValidateCmd())
 	return cmd
 }
 
@@ -48,7 +49,7 @@ type integrationSummary struct {
 	Source     string   `json:"source"`
 }
 
-func newIntegrationListCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newIntegrationListCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List the API packages (built-in and installed)",
@@ -67,7 +68,7 @@ func newIntegrationListCmd(cfg *globalConfig) *cobra.Command {
 			if loadErr != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: some packages were left out:\n%v\n", loadErr)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(out).Encode(rows)
 			}
 			w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
@@ -95,7 +96,7 @@ func dash(s string) string {
 	return s
 }
 
-func newIntegrationShowCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newIntegrationShowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "show <id>",
 		Short: "Show one API package: its operations, or the whole file with --json",
@@ -104,10 +105,10 @@ func newIntegrationShowCmd(cfg *globalConfig) *cobra.Command {
 			apipkg.Load() // errors concern other packages; a missing one is reported below
 			p, ok := apipkg.ByID(args[0])
 			if !ok {
-				return errNotFound("no API package %q — run `monoagentcli integration list`", args[0])
+				return clicore.NotFound("no API package %q — run `monoagentcli integration list`", args[0])
 			}
 			out := cmd.OutOrStdout()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(p)
@@ -160,7 +161,7 @@ func triggerImport(n8nType string) string {
 	}
 }
 
-func newIntegrationValidateCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newIntegrationValidateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "validate <file>",
 		Short: "Validate an API package file against apipkg.v1 (schema and semantics)",
@@ -168,20 +169,20 @@ func newIntegrationValidateCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			b, err := os.ReadFile(args[0])
 			if err != nil {
-				return errNotFound("%v", err)
+				return clicore.NotFound("%v", err)
 			}
 			p, err := apipkg.Parse(b, args[0])
 			if err != nil {
 				var ve *apipkg.ValidationError
 				if errors.As(err, &ve) {
-					if cfg.JSONOutput {
+					if d.JSONOutput() {
 						_ = json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{"valid": false, "file": args[0], "problems": ve.Problems})
 					}
-					return errInvalidInput("%v", err)
+					return clicore.InvalidInput("%v", err)
 				}
 				return err
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{
 					"valid": true, "file": args[0], "id": p.ID, "operations": len(p.Operations)})
 			}
@@ -191,7 +192,7 @@ func newIntegrationValidateCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newIntegrationImportOpenAPICmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newIntegrationImportOpenAPICmd() *cobra.Command {
 	var id, ops, outDir string
 	cmd := &cobra.Command{
 		Use:   "import-openapi <file|url>",
@@ -219,7 +220,7 @@ func newIntegrationImportOpenAPICmd(cfg *globalConfig) *cobra.Command {
 			p, err := apipkg.OpenAPIToPackage(data, apipkg.OpenAPIOptions{ID: id, Tags: tags,
 				Warn: func(s string) { fmt.Fprintln(errOut, "warning:", s) }})
 			if err != nil {
-				return errInvalidInput("%v", err)
+				return clicore.InvalidInput("%v", err)
 			}
 			b, err := json.MarshalIndent(p, "", "  ")
 			if err != nil {
@@ -236,7 +237,7 @@ func newIntegrationImportOpenAPICmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 			apipkg.Reload()
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{
 					"id": p.ID, "node_type": p.NodeTypeOf(), "path": path, "operations": len(p.Operations)})
 			}
@@ -255,29 +256,29 @@ func readSpec(cmd *cobra.Command, src string) ([]byte, error) {
 	if !strings.HasPrefix(src, "http://") && !strings.HasPrefix(src, "https://") {
 		b, err := os.ReadFile(src)
 		if err != nil {
-			return nil, errNotFound("%v", err)
+			return nil, clicore.NotFound("%v", err)
 		}
 		return b, nil
 	}
 	client := &http.Client{Timeout: 60 * time.Second}
 	req, err := http.NewRequestWithContext(cmd.Context(), http.MethodGet, src, nil)
 	if err != nil {
-		return nil, errInvalidInput("%v", err)
+		return nil, clicore.InvalidInput("%v", err)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, errAuthConnection("fetch %s: %v", src, err)
+		return nil, clicore.AuthConnection("fetch %s: %v", src, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, errAuthConnection("fetch %s: HTTP %d", src, resp.StatusCode)
+		return nil, clicore.AuthConnection("fetch %s: HTTP %d", src, resp.StatusCode)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxSpecBytes+1))
 	if err != nil {
 		return nil, err
 	}
 	if len(b) > maxSpecBytes {
-		return nil, errInvalidInput("%s is larger than %d MiB", src, maxSpecBytes>>20)
+		return nil, clicore.InvalidInput("%s is larger than %d MiB", src, maxSpecBytes>>20)
 	}
 	return b, nil
 }

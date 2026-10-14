@@ -1,19 +1,20 @@
-package main
+package integrations
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/monoes/mono-agent/internal/mcp"
 	"github.com/spf13/cobra"
+
+	"github.com/monoes/mono-agent/internal/mcp"
 )
 
-// newMCPCmd returns the `mcp` cobra command: a stdio JSON-RPC MCP server
+// NewMCPCommand returns the `mcp` cobra command: a stdio JSON-RPC MCP server
 // exposing workflows, nodes, the HIL queue, monoagent-domain tools (vault,
 // secrets, people, orgs — the same surface the chat feature uses), and
 // reference docs as tools for AI agents. stdout is the protocol channel;
 // logs go to stderr only.
-func newMCPCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) NewMCPCommand() *cobra.Command {
 	var allowMutations, allowAPIExposure, apiOnly, tasksOnly bool
 	var grant, workflowTools string
 	cmd := &cobra.Command{
@@ -136,10 +137,10 @@ variable) and --db-path, exactly like every other command.`,
 			if tasksOnly && apiOnly {
 				return mcp.ErrTasksOnlyWithAPIOnly
 			}
-			return runMCP(mcp.Options{
-				DBPath:           cfg.DBPath,
-				Profile:          cfg.ProfileID,
-				Version:          version,
+			return d.RunMCP(mcp.Options{
+				DBPath:           d.DBPath(),
+				Profile:          d.ProfileID(),
+				Version:          d.Version,
 				AllowMutations:   allowMutations,
 				AllowAPIExposure: allowAPIExposure,
 				APIOnly:          apiOnly,
@@ -162,9 +163,5 @@ variable) and --db-path, exactly like every other command.`,
 	cmd.Flags().StringVar(&workflowTools, "workflow-tools", "",
 		"Also serve saved workflows as tools wf_<slug> whose arguments are the workflow's trigger input and whose call runs it and waits, as workflow_run does: --workflow-tools for every active workflow of the profile, --workflow-tools=<id or name>,... for those only (inactive workflows are not served: they cannot run). Mutating: needs --allow-mutations too. Cannot be combined with --api-only, --tasks-only or --grant; also settable via MONOAGENT_MCP_WORKFLOW_TOOLS=1 (or the list)")
 	cmd.Flags().Lookup("workflow-tools").NoOptDefVal = "all"
-	return servingCommand(cmd)
+	return d.Serving(cmd)
 }
-
-// runMCP serves the MCP server on stdin and stdout. A test replaces it to see what the command
-// would have started the server with.
-var runMCP = mcp.Run
