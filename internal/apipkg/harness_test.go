@@ -200,7 +200,11 @@ func checkCase(t *testing.T, p *Package, op *Operation, c opCase) {
 		cred = fakeCredential(p)
 	}
 	srv := newMockServer(t, c.Response, c.ResponseStatus, c.Responses...)
-	items, err := runPackageOp(p, params, cred, c.Input)
+	run := runPackageOp
+	if op.Wait != nil {
+		run = runWaitOp(t) // sends, then pauses for the callback
+	}
+	items, err := run(p, params, cred, c.Input)
 	if err != nil {
 		t.Fatalf("%s: the op failed: %v\n  (fix the package or the case's params)", where, err)
 	}

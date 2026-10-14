@@ -56,6 +56,14 @@ func (s *WebhookServer) serveReply(w http.ResponseWriter, r *http.Request) bool 
 	return true
 }
 
+// NewReplyHandler serves /reply/ requests over db: reply pages and resume
+// calls. wake (nil: none) is called with the execution an answer is for.
+// The engine installs its own; this one is for serving replies elsewhere
+// and for tests.
+func NewReplyHandler(db *sql.DB, wake func(executionID string), logger zerolog.Logger) http.Handler {
+	return &replyHandler{db: db, wake: wake, logger: logger}
+}
+
 // SetReplyHandler installs the handler of /reply/ requests.
 func (s *WebhookServer) SetReplyHandler(h http.Handler) {
 	s.mu.Lock()
