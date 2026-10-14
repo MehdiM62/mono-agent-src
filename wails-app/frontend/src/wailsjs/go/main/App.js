@@ -1030,12 +1030,20 @@ export function OrgSignatureStatus(arg1) {
   return window['go']['main']['App']['OrgSignatureStatus'](arg1);
 }
 
+export function PairExtension() {
+  return window['go']['main']['App']['PairExtension']();
+}
+
 export function PauseOrgAutonomy(arg1, arg2) {
   return window['go']['main']['App']['PauseOrgAutonomy'](arg1, arg2);
 }
 
 export function PickCoderFolder() {
   return window['go']['main']['App']['PickCoderFolder']();
+}
+
+export function PlatformNames() {
+  return window['go']['main']['App']['PlatformNames']();
 }
 
 export function PromoteRoleToRoot(arg1, arg2) {
