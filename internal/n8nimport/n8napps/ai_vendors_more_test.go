@@ -61,15 +61,15 @@ func TestMoreAIVendorsImport(t *testing.T) {
 			t.Errorf("%s: %s %v, want %v", name, types[name], c, w)
 		}
 	}
-	// Text messages run on the vendor's local agent runtime.
-	asks := map[string][2]string{ // node → runtime, model
-		"Chat (ask)":  {"antigravity", "gemini-3-flash-preview"},
-		"Llama (ask)": {"opencode", "ollama/llama3.2"},
-		"Mini (ask)":  {"opencode", "minimax/MiniMax-M2.7"},
+	// Text messages run on agent.ask with the vendor connection's key.
+	asks := map[string][2]string{ // node → credential_id, model
+		"Chat (ask)":  {"gemini_api", "gemini-3-flash-preview"},
+		"Llama (ask)": {"ollama", "llama3.2"},
+		"Mini (ask)":  {"minimax", "MiniMax-M2.7"},
 	}
 	for name, w := range asks {
 		c := cfgs[name]
-		if types[name] != "agent.ask" || c["runtime"] != w[0] || c["model"] != w[1] || c["prompt"] != "hi" {
+		if types[name] != "agent.ask" || c["credential_id"] != w[0] || c["model"] != w[1] || c["prompt"] != "hi" {
 			t.Errorf("%s: %s %v, want %v", name, types[name], c, w)
 		}
 	}

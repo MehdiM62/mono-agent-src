@@ -81,7 +81,7 @@ func mapVendorText(c *MapContext, v vendorText) Mapping {
 		}
 	}
 	useModel(c, cfg, SubNode{Kind: "ai_languageModel", Name: c.NodeName, Type: v.route,
-		Parameters: map[string]interface{}{"modelId": model}})
+		Parameters: map[string]interface{}{"modelId": model}, Credentials: c.Credentials})
 	var prompt []string
 	for i, m := range c.paramList(v.messages) {
 		text := fmt.Sprint(c.Translate(fmt.Sprintf("messages[%d]", i), m["content"]))
