@@ -60,6 +60,16 @@ type WebhookTriggerSchema struct {
 
 	DedupeHeader string `json:"dedupe_header" schema:"label=Delivery ID Header,type=text,placeholder=X-GitHub-Delivery,help=If set， a request whose value of this header was seen in the last 7 days starts no run and is answered with the first delivery's execution_id (e.g. Idempotency-Key)."`
 
+	VerifyToken string `json:"verify_token" schema:"label=Verify Token,type=password,help=If set， a hub.challenge URL check (Meta/Facebook， WhatsApp， WebSub) must carry this hub.verify_token. Vendor URL checks are answered without it too."`
+
+	RegisterWith string `json:"register_with" schema:"label=Register With App,type=text,placeholder=typeform,help=Optional. Registers this URL with the app's API on activation and removes it on deactivation (built in: typeform， calendly). Needs public_url (or MONOAGENT_PUBLIC_URL) and credential_id."`
+
+	PublicURL string `json:"public_url" schema:"label=Public Base URL,type=text,placeholder=https://my-tunnel.example,help=Base URL the app reaches this webhook server at (e.g. a tunnel to 127.0.0.1:9321). Empty: MONOAGENT_PUBLIC_URL."`
+
+	CredentialID string `json:"credential_id" schema:"label=App Connection,type=text,help=Connection (id or platform name) whose token registers the webhook."`
+
+	RegisterConfig string `json:"register_config" schema:"label=App Settings (JSON),type=code,language=json,rows=4,placeholder={\"form_id\": \"abc123\"},help=The app's own keys. typeform: form_id， tag. calendly: organization， events (list)， scope， user."`
+
 	MaxBodyBytes float64 `json:"max_body_bytes" schema:"label=Max Body Size (bytes),type=number,default=1048576,min=1,max=33554432,help=Largest request body accepted， multipart files included."`
 }
 
