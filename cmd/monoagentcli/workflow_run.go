@@ -197,7 +197,7 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 				fmt.Fprintf(os.Stdout, "Kept workflow %s\n", wf.ID)
 			}
 			if runErr != nil && cfg.JSONOutput {
-				return reportedError{runErr} // the record above is the one JSON document
+				return reportedError{Err: runErr} // the record above is the one JSON document
 			}
 			return runErr
 		},
@@ -308,7 +308,7 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 				}
 			}
 			if waitErr != nil && cfg.JSONOutput {
-				return reportedError{waitErr} // the record above is the one JSON document
+				return reportedError{Err: waitErr} // the record above is the one JSON document
 			}
 			return waitErr
 		},

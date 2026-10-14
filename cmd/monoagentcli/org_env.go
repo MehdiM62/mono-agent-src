@@ -53,7 +53,7 @@ func orgDeps(cfg *globalConfig) org.Deps {
 		JSONOutput:        func() bool { return cfg.JSONOutput },
 		NotFound:          errNotFound,
 		InvalidInput:      errInvalidInput,
-		Reported:          func(err error) error { return reportedError{err} },
+		Reported:          func(err error) error { return reportedError{Err: err} },
 		StdinIsTerminal:   stdinIsTerminal,
 		Serving:           servingCommand,
 		CapabilityProbe:   func(cmd *cobra.Command) (*monomind.CapabilitySet, error) { return capabilityProbe(cmd) },

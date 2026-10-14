@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/i18n"
 	"github.com/monoes/mono-agent/internal/nodemgr"
@@ -190,16 +191,7 @@ func rejectUnknownSubcommands(cmd *cobra.Command) {
 }
 
 // expandPath expands ~ to the user's home directory.
-func expandPath(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(home, path[2:])
-	}
-	return path
-}
+func expandPath(path string) string { return clicore.ExpandPath(path) }
 
 // initDB creates and returns a database connection, applying migrations.
 // It also resolves cfg.ProfileID: if not set via --profile, reads it from the settings table.

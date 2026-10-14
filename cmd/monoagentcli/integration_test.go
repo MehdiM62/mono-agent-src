@@ -69,7 +69,7 @@ func TestIntegrationValidate(t *testing.T) {
 	os.WriteFile(bad, []byte(`{"$schema":"apipkg.v1","id":"bad","title":"Bad","base_url":"https://x","operations":[{"resource":"","operation":"o","title":"O","method":"GET","path":"/{{ p.x }}"}]}`), 0o644)
 	out, err = runIntegration(t, true, "validate", bad)
 	var ce *cliError
-	if !errors.As(err, &ce) || ce.code != 3 || !strings.Contains(out, `\"x\" is not one of the op's fields`) {
+	if !errors.As(err, &ce) || ce.Code != 3 || !strings.Contains(out, `\"x\" is not one of the op's fields`) {
 		t.Errorf("invalid file: %v %s", err, out)
 	}
 }

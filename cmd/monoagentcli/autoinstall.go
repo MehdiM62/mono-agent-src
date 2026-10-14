@@ -24,11 +24,11 @@ func autoinstallDeps(cfg *globalConfig) autoinstall.Deps {
 		InstallResultOf: func(err error) *automation.InstallResult {
 			var re *installResultError
 			if errors.As(err, &re) {
-				return re.res
+				return re.Res
 			}
 			return nil
 		},
-		Reported: func(err error) error { return reportedError{err} },
+		Reported: func(err error) error { return reportedError{Err: err} },
 		NotFound: func(format string, a ...any) error { return errNotFound(format, a...) },
 	}
 }
