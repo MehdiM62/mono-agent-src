@@ -1,4 +1,4 @@
-package main
+package doctor
 
 import (
 	"context"
@@ -14,7 +14,11 @@ import (
 
 	"github.com/monoes/mono-agent/internal/autostart"
 	"github.com/monoes/mono-agent/internal/browserdetect"
+	"github.com/monoes/mono-agent/internal/cli/capture"
+	"github.com/monoes/mono-agent/internal/cli/chat"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/extensioncli"
+	"github.com/monoes/mono-agent/internal/cli/integrations"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/health"
@@ -24,14 +28,14 @@ import (
 )
 
 // addServiceHooks wires the browser, services and integrations checks to
-// the real machine. cfg carries doctor's --db-path/--profile to a daemon
+// the real machine. d carries doctor's --db-path/--profile to a daemon
 // it starts.
-func addServiceHooks(env *health.Env, cfg *globalConfig) {
+func addServiceHooks(env *health.Env, d EnvDeps) {
 	env.FindBrowser = browserdetect.FindBrowser
 	env.ExtensionInstalled = browserdetect.ExtensionInstalled
 	env.ExtensionDir = browserdetect.ExtensionDir
 	env.Bridge = func(ctx context.Context) (health.BridgeInfo, bool) {
-		st, addr, ok := findRunningBridgeCtx(ctx) // read-only GET of /monoagent/health
+		st, addr, ok := extensioncli.FindRunningBridge(ctx) // read-only GET of /monoagent/health
 		if !ok {
 			return health.BridgeInfo{}, false
 		}
@@ -41,7 +45,7 @@ func addServiceHooks(env *health.Env, cfg *globalConfig) {
 			daemonPID = hb.PID
 		}
 		unit := serviceUnit(st.PID)
-		return health.BridgeInfo{Addr: bridgeAddr(st, addr), URL: addr, Status: st.Status, PID: st.PID, Version: st.Version, UptimeSec: st.UptimeSec,
+		return health.BridgeInfo{Addr: extensioncli.BridgeAddr(st, addr), URL: addr, Status: st.Status, PID: st.PID, Version: st.Version, UptimeSec: st.UptimeSec,
 			Owner: bridgeOwner(st.PID, daemonPID, processCommand(st.PID), unit)}, true
 	}
 	env.ClientPairing = func(_ context.Context, baseURL string) string {
@@ -53,7 +57,7 @@ func addServiceHooks(env *health.Env, cfg *globalConfig) {
 		return bridgeUserService(ctx, pid, serviceUnit(pid))
 	}
 	env.RestartBridge = func(ctx context.Context, unit string, pid int, progress func(string)) error {
-		st, _, ok := findRunningBridgeCtx(ctx)
+		st, _, ok := extensioncli.FindRunningBridge(ctx)
 		if !ok || st.PID != pid || unit == "" || bridgeUserService(ctx, pid, serviceUnit(pid)) != unit {
 			return fmt.Errorf("the bridge is no longer pid %d run by %s — not restarting", pid, unit)
 		}
@@ -97,20 +101,20 @@ func addServiceHooks(env *health.Env, cfg *globalConfig) {
 	}
 	env.StartDaemon = func(ctx context.Context, progress func(string)) error {
 		// The profile as doctor resolved it: --profile may be a name.
-		return startDaemon(ctx, daemonArgs(cfg, env.ProfileID), autostart.New(), progress)
+		return startDaemon(ctx, daemonArgs(d.DBPath(), d.ProfileID(), env.ProfileID), autostart.New(), progress)
 	}
 	env.StopDaemon = stopDaemon
 	env.CanStartDaemon = func(ctx context.Context) error {
-		return daemonStartBlocked(ctx, daemonArgs(cfg, env.ProfileID), autostart.New())
+		return daemonStartBlocked(ctx, daemonArgs(d.DBPath(), d.ProfileID(), env.ProfileID), autostart.New())
 	}
 
-	env.ClaudeSkills = claudeSkillsState
-	env.InstallClaudeSkills = func() error { return installClaudeSkill(false) }
+	env.ClaudeSkills = integrations.ClaudeSkillsState
+	env.InstallClaudeSkills = func() error { return integrations.InstallClaudeSkill(false) }
 	// Every installed coding-agent runtime (Claude Code, Codex, Gemini CLI,
-	// opencode), registered with --allow-mutations (agent_integrations.go).
-	env.MCPRegistration = agentsMCPRegistration
-	env.MCPRuntimes = agentsMCPRuntimes
-	env.RegisterMCP = registerAgentsMCP
+	// opencode), registered with --allow-mutations (internal/cli/integrations).
+	env.MCPRegistration = integrations.AgentsMCPRegistration
+	env.MCPRuntimes = integrations.AgentsMCPRuntimes
+	env.RegisterMCP = integrations.RegisterAgentsMCP
 }
 
 // startDaemon starts `monoagentcli daemon` through its login service when
@@ -226,7 +230,7 @@ func stopDaemon(ctx context.Context, pid int, progress func(string)) error {
 	stopped := func() bool {
 		return !daemonhb.ProcessAlive(pid) || (holdsLock && !daemonhb.Locked())
 	}
-	if err := terminateProcess(pid); err != nil && !stopped() {
+	if err := chat.TerminateProcess(pid); err != nil && !stopped() {
 		return fmt.Errorf("signaling pid %d: %w", pid, err)
 	}
 	deadline := time.Now().Add(daemonStopGrace)
@@ -241,7 +245,7 @@ func stopDaemon(ctx context.Context, pid int, progress func(string)) error {
 			// daemon drains. pid was verified before the signal went out, and the
 			// loop saw it running as recently as one poll ago.
 			progress(fmt.Sprintf("pid %d did not stop within %s — forcing it", pid, daemonStopGrace))
-			if err := killProcess(pid); err != nil && !stopped() {
+			if err := chat.KillProcess(pid); err != nil && !stopped() {
 				return fmt.Errorf("force-stopping pid %d: %w", pid, err)
 			}
 			forced = true
@@ -269,18 +273,15 @@ func heartbeatNames(pid int) bool {
 	return ok && hb.PID == pid
 }
 
-// daemonArgs is `daemon` plus the --db-path and --profile doctor runs
-// with, when they were given: profileID is the profile as doctor resolved
-// it (--profile may be a name).
-func daemonArgs(cfg *globalConfig, profileID string) []string {
+// daemonArgs is `daemon` plus the --db-path (dbPath) and --profile (profileFlag) doctor runs
+// with, when they were given: profileID is the profile as doctor resolved it (--profile may be
+// a name).
+func daemonArgs(dbPath, profileFlag, profileID string) []string {
 	args := []string{"daemon"}
-	if cfg == nil {
-		return args
+	if dbPath != "" && clicore.ExpandPath(dbPath) != clicore.ExpandPath(capturecli.DefaultDBPath) {
+		args = append(args, "--db-path", clicore.ExpandPath(dbPath))
 	}
-	if cfg.DBPath != "" && expandPath(cfg.DBPath) != expandPath(defaultDBPath) {
-		args = append(args, "--db-path", expandPath(cfg.DBPath))
-	}
-	if cfg.ProfileID != "" && profileID != "" && profileID != "default" && strings.ToLower(cfg.ProfileID) != "default" {
+	if profileFlag != "" && profileID != "" && profileID != "default" && strings.ToLower(profileFlag) != "default" {
 		args = append(args, "--profile", profileID)
 	}
 	return args

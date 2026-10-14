@@ -1,14 +1,15 @@
-package main
+package doctor
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
 
-	"github.com/monoes/mono-agent/internal/agentinstall"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/health"
 	"github.com/monoes/mono-agent/internal/jev"
 	"github.com/monoes/mono-agent/internal/jev/jevconf"
@@ -20,39 +21,50 @@ import (
 	"github.com/monoes/mono-agent/internal/storage"
 )
 
-// newHealthEnv builds the real-machine environment for checks and fixes.
-// The database is opened only if it already exists and is never migrated
-// here — checks must not change anything; the migrate fix does that.
-func newHealthEnv(cfg *globalConfig) (*health.Env, func()) {
+// EnvDeps is what the real-machine environment takes from the CLI around it.
+type EnvDeps struct {
+	// DBPath is --db-path as given.
+	DBPath func() string
+	// ProfileID is --profile as given (an id or a name; "" for the active profile).
+	ProfileID func() string
+	// Version is this binary's version.
+	Version func() string
+	// LatestVersion is the tag of the latest release.
+	LatestVersion func(ctx context.Context) (string, error)
+	// MigrateDB opens the database --db-path names with --profile, applying its
+	// migrations, and closes it (the CLI's initDB).
+	MigrateDB func() error
+	// InstallRuntime installs one coding-agent runtime by its `agent scan` id; the fix is the
+	// consent, so vendor install scripts are allowed.
+	InstallRuntime func(ctx context.Context, id string, progress func(string)) error
+	// Hook, when set (tests only), adjusts every environment doctor builds — e.g. replaces
+	// the hooks that start processes or use the network.
+	Hook func(*health.Env)
+}
+
+// NewHealthEnv builds the real-machine environment for checks and fixes; projects narrows the
+// monomind projects (--project). The database is opened only if it already exists and is never
+// migrated here — checks must not change anything; the migrate fix does that.
+func NewHealthEnv(d EnvDeps, projects []string) (*health.Env, func()) {
 	home, _ := os.UserHomeDir()
 	exe, _ := os.Executable()
-	dbPath := expandPath(cfg.DBPath)
+	dbPath := clicore.ExpandPath(d.DBPath())
 	env := &health.Env{
-		Home:       home,
-		DataDir:    filepath.Join(home, ".monoagent"),
-		DBPath:     dbPath,
-		Version:    getVersion(),
-		Executable: exe,
-		ProfileID:  cfg.ProfileID,
-		LoginPath:  shellpath.LoginPath,
-		FreeBytes:  health.FreeBytes,
-		LatestVersion: func(ctx context.Context) (string, error) {
-			info, err := fetchLatest(ctx, false)
-			if err != nil {
-				return "", err
-			}
-			return info.Tag, nil
-		},
+		Home:          home,
+		DataDir:       filepath.Join(home, ".monoagent"),
+		DBPath:        dbPath,
+		Version:       d.Version(),
+		Executable:    exe,
+		ProfileID:     d.ProfileID(),
+		LoginPath:     shellpath.LoginPath,
+		FreeBytes:     health.FreeBytes,
+		LatestVersion: d.LatestVersion,
 		Migrate: func(_ context.Context, progress func(string)) error {
 			// The migration runner reports through the standard logger;
 			// route it into the fix's progress stream for the duration.
 			restore := captureStdLog(progress)
 			defer restore()
-			db, err := initDB(&globalConfig{DBPath: cfg.DBPath, ProfileID: cfg.ProfileID})
-			if err != nil {
-				return err
-			}
-			return db.Close()
+			return d.MigrateDB()
 		},
 	}
 	nm := nodemgr.New()
@@ -110,7 +122,7 @@ func newHealthEnv(cfg *globalConfig) (*health.Env, func()) {
 		}
 		return monomind.Doctor(ctx, bin, o)
 	}
-	env.MonomindProjects = func() []string { return profileProjects(env, cfg.projectFilter) }
+	env.MonomindProjects = func() []string { return profileProjects(env, projects) }
 	env.InitMonomindProfile = func(ctx context.Context, root string, progress func(string)) error {
 		return monomind.InitProfile(ctx, monomind.InitOptions{Root: root, Progress: progress})
 	}
@@ -127,10 +139,9 @@ func newHealthEnv(cfg *globalConfig) (*health.Env, func()) {
 	env.InstallRuntime = func(ctx context.Context, id string, progress func(string)) error {
 		// The fix itself is the consent (it is a confirm fix), so vendor
 		// scripts are allowed here.
-		_, err := installRuntime(ctx, realRuntimeMachine(), id, false, func(agentinstall.Recipe) bool { return true }, progress)
-		return err
+		return d.InstallRuntime(ctx, id, progress)
 	}
-	addServiceHooks(env, cfg)
+	addServiceHooks(env, d)
 	addMonoesAccountHook(env)
 	env.ProfileRoot = func(id string) string { return profiledir.Root(env.DB, id) }
 	env.EnsureProfile = func(id string) error { return profiledir.EnsureLayout(env.DB, id) }
@@ -154,7 +165,7 @@ func newHealthEnv(cfg *globalConfig) (*health.Env, func()) {
 				var id string
 				_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = ?`, profiledir.ActiveProfileSetting).Scan(&id)
 				env.ProfileID = id
-			} else if id, err := resolveProfileID(db.DB, env.ProfileID); err == nil {
+			} else if id, ok := resolveProfileID(db.DB, env.ProfileID); ok {
 				// --profile takes a name or an id, as it does for every other
 				// command; one that matches neither is left for the profile
 				// check to report.
@@ -190,15 +201,24 @@ func newHealthEnv(cfg *globalConfig) (*health.Env, func()) {
 		_, err = c.Models(ctx)
 		return err
 	}
-	if healthEnvHook != nil {
-		healthEnvHook(env)
+	if d.Hook != nil {
+		d.Hook(env)
 	}
 	return env, closeFn
 }
 
-// healthEnvHook, when set (tests only), adjusts every environment doctor
-// builds — e.g. replaces the hooks that start processes or use the network.
-var healthEnvHook func(*health.Env)
+// resolveProfileID is the id of the profile idOrName names, by id or else by name (the CLI's
+// resolveProfileID).
+func resolveProfileID(db *sql.DB, idOrName string) (string, bool) {
+	var id string
+	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
+		return id, true
+	}
+	if err := db.QueryRow(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?)`, idOrName).Scan(&id); err == nil {
+		return id, true
+	}
+	return "", false
+}
 
 // installMonomind runs install (npm install -g, returning the folder the
 // executable went to), then checks that the monomind Find now picks is
