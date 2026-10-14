@@ -50,6 +50,7 @@ func (n *FilterNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 			Node:        input.NodeOutputs,
 			WorkflowID:  input.WorkflowID,
 			ExecutionID: input.ExecutionID,
+			Location:    input.Location,
 		}
 
 		result, err := engine.EvaluateBool(condition, exprCtx)

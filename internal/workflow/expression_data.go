@@ -136,12 +136,17 @@ type exprBase struct {
 }
 
 func newExprBase(ctx ExpressionContext) *exprBase {
-	now := time.Now().UTC()
+	loc := ctx.Location
+	if loc == nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
+	y, m, d := now.Date()
 	return &exprBase{
 		srcNode: ctx.Node,
 		srcEnv:  ctx.Env,
 		now:     exprTime{now},
-		today:   exprTime{now.Truncate(24 * time.Hour)},
+		today:   exprTime{time.Date(y, m, d, 0, 0, 0, 0, loc)},
 	}
 }
 

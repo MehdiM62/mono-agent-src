@@ -84,6 +84,7 @@ func NewWorkflowEngineWithStore(store WorkflowStore, db *sql.DB, scheduler Sched
 		func(workflowID string, nodeID string, items []Item) { e.handleTrigger(workflowID, nodeID, items) },
 		logger,
 	)
+	e.triggerMgr.RegisterProvider(LocalFileTriggerType, localFileSource{})
 	e.queue = NewExecutionQueue(cfg.QueueCapacity, cfg.MaxConcurrent,
 		func(ctx context.Context, req ExecutionRequest) { e.handleExecution(ctx, req) },
 		logger,
