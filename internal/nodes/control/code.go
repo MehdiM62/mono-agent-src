@@ -11,7 +11,8 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// CodeNode executes JavaScript code via the goja runtime.
+// CodeNode executes JavaScript code via the goja runtime, or Python code
+// with the system python3 (code_python.go).
 // Config fields:
 //
 //	"code" (string, required): JavaScript code to execute.
@@ -26,6 +27,9 @@ import (
 //	    a promise of one; a top-level return or await runs the code as an
 //	    async function body.
 //	    Each returned object becomes an Item on the "main" handle.
+//	"language" (string, optional): "javascript" (default) or "python".
+//	"mode" (string, optional, Python only): "runOnceForAllItems" (default)
+//	    or "runOnceForEachItem".
 //	"timeout_seconds" (number, optional): execution timeout, default 30,
 //	    clamped to 1-600.
 //	"memory_limit_mb" (number, optional): JS runtime memory limit,
@@ -52,6 +56,10 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 	code, _ := config["code"].(string)
 	if code == "" {
 		return nil, fmt.Errorf("%w: code node requires \"code\"", workflow.ErrInvalidConfig)
+	}
+
+	if lang, _ := config["language"].(string); lang == "python" {
+		return runPython(ctx, input, config, code, codeTimeout(config))
 	}
 
 	rt := goja.New()
@@ -109,16 +117,7 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 	}
 
 	// Enforce the timeout via goja's interrupt mechanism.
-	timeoutSecs := codeDefaultTimeoutSecs
-	if v := configNumber(config, "timeout_seconds"); v > 0 {
-		timeoutSecs = int(v)
-	}
-	if timeoutSecs < codeMinTimeoutSecs {
-		timeoutSecs = codeMinTimeoutSecs
-	}
-	if timeoutSecs > codeMaxTimeoutSecs {
-		timeoutSecs = codeMaxTimeoutSecs
-	}
+	timeoutSecs := int(codeTimeout(config) / time.Second)
 	timer := time.AfterFunc(time.Duration(timeoutSecs)*time.Second, func() {
 		rt.Interrupt(fmt.Sprintf("code node: execution timeout (%ds)", timeoutSecs))
 	})
@@ -169,6 +168,22 @@ func (n *CodeNode) Execute(ctx context.Context, input workflow.NodeInput, config
 	return []workflow.NodeOutput{
 		{Handle: "main", Items: items},
 	}, nil
+}
+
+// codeTimeout is the config's timeout_seconds, default 30, clamped to
+// 1-600.
+func codeTimeout(config map[string]interface{}) time.Duration {
+	timeoutSecs := codeDefaultTimeoutSecs
+	if v := configNumber(config, "timeout_seconds"); v > 0 {
+		timeoutSecs = int(v)
+	}
+	if timeoutSecs < codeMinTimeoutSecs {
+		timeoutSecs = codeMinTimeoutSecs
+	}
+	if timeoutSecs > codeMaxTimeoutSecs {
+		timeoutSecs = codeMaxTimeoutSecs
+	}
+	return time.Duration(timeoutSecs) * time.Second
 }
 
 // configNumber reads a numeric config field whether it arrived as

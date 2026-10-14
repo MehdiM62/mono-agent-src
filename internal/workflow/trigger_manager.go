@@ -82,6 +82,7 @@ type TriggerManager struct {
 	fingerprints  map[string]string                   // workflowID → triggerFingerprint registered
 	providers     map[string]TriggerSource            // node type → provider
 	apps          appWebhookDeps                      // app webhook registration (webhook_appactivate.go)
+	renewFails    appRenewFailures                    // app webhook renewal retries (webhook_renew.go)
 	logger        zerolog.Logger
 }
 

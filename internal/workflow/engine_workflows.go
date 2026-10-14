@@ -170,6 +170,7 @@ func (e *WorkflowEngine) DeleteWorkflow(ctx context.Context, id string) error {
 	if existing.IsActive {
 		e.triggerMgr.DeactivateWorkflow(id)
 	}
+	e.triggerMgr.unregisterStoredAppHooks(ctx, id, workflowProfile(existing))
 
 	if err := e.store.DeleteWorkflow(ctx, id); err != nil {
 		return fmt.Errorf("engine: delete workflow: %w", err)
@@ -232,6 +233,9 @@ func (e *WorkflowEngine) DeactivateWorkflow(ctx context.Context, id string) erro
 	}
 
 	e.triggerMgr.DeactivateWorkflow(id)
+	// Hooks another process (the daemon) registered: this one has no
+	// trigger entry for them.
+	e.triggerMgr.unregisterStoredAppHooks(ctx, id, workflowProfile(existing))
 
 	if err := e.store.SetWorkflowActive(ctx, id, false); err != nil {
 		return fmt.Errorf("engine: deactivate workflow: %w", err)

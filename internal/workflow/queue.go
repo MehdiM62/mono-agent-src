@@ -152,6 +152,13 @@ func NewExecutionQueue(capacity int, maxConcurrent int, handler func(ctx context
 // Start launches the dispatcher goroutine. Must be called before Enqueue.
 // The provided context governs dispatcher and execution lifetime.
 func (q *ExecutionQueue) Start(ctx context.Context) {
+	q.startWith(ctx, ctx)
+}
+
+// startWith is Start with the executions under runCtx: the dispatcher stops
+// taking requests when ctx ends, while the runs it started go on until
+// runCtx ends (the engine's stop grace, WorkflowEngine.Stop).
+func (q *ExecutionQueue) startWith(ctx, runCtx context.Context) {
 	q.wg.Add(1)
 	go func() {
 		defer q.wg.Done()
@@ -166,7 +173,7 @@ func (q *ExecutionQueue) Start(ctx context.Context) {
 					return // channel closed by Stop()
 				}
 				q.wg.Add(1)
-				go q.run(ctx, req)
+				go q.run(runCtx, req)
 			}
 		}
 	}()
@@ -217,6 +224,22 @@ func (q *ExecutionQueue) run(ctx context.Context, req ExecutionRequest) {
 // goroutines may still be running when Stop returns).
 func (q *ExecutionQueue) Stop() {
 	q.StopWithGrace(15 * time.Second)
+}
+
+// waitRuns waits up to grace for the dispatcher (stopped by its context)
+// and every run it started to return, and reports whether they all did.
+func (q *ExecutionQueue) waitRuns(grace time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		q.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(grace):
+		return false
+	}
 }
 
 // StopWithGrace is Stop with an explicit drain deadline.

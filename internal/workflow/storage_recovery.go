@@ -182,6 +182,14 @@ func (s *SQLiteWorkflowStore) RecoverStaleExecutions(ctx context.Context) error 
 			WHERE id = ? AND status IN ('RUNNING', 'QUEUED')`, id); err != nil {
 			return fmt.Errorf("recovering stale execution %s: %w", id, err)
 		}
+		// The nodes it was in the middle of died with the process. Best
+		// effort: the run's own status is what recovery must get right.
+		_, _ = s.db.ExecContext(ctx, `
+			UPDATE workflow_execution_nodes
+			SET status = 'FAILED',
+			    error_message = 'interrupted: process restart',
+			    finished_at = CURRENT_TIMESTAMP
+			WHERE execution_id = ? AND status = 'RUNNING'`, id)
 	}
 	return nil
 }
