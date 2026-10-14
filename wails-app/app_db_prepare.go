@@ -107,12 +107,9 @@ func (a *App) retryDBMigrateAfterLogin(status string) {
 	}
 	go func() {
 		if a.prepareDatabase() {
-			// The watchers started before sign-in may have found no
-			// profile folder yet; `db migrate` has now created it.
-			a.restartOrgWatcher()
-			a.restartDocumentWatcher()
-			a.restartImageWatcher()
-			a.restartTaskWatcher()
+			// The watchers may have found no profile folder yet;
+			// `db migrate` has now created it.
+			a.startWatchers()
 		}
 	}()
 }
