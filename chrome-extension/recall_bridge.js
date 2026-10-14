@@ -176,7 +176,8 @@
    *  navigation, where it never runs again. */
   async function restoreHighlights(tabId, url) {
     // Signed out nothing is painted (gate.js); the highlights stay stored.
-    if (deps && deps.signedIn && !deps.signedIn()) return;
+    // Fail closed: without a signedIn dependency there is no proof of a sign-in.
+    if (!deps || typeof deps.signedIn !== "function" || !deps.signedIn()) return;
     const records = await root.MonoHighlights.load(storage(), url);
     if (!records.length) return;
     try {

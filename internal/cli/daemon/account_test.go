@@ -45,8 +45,11 @@ func newSupRig(t *testing.T, first account.Status) *supRig {
 			r.with(func() { ended = r.drained; r.calls = append(r.calls, "wait") })
 			return ended
 		},
-		cancelRunning: func() int { r.with(func() { r.cancels++; r.calls = append(r.calls, "cancel") }); return 2 },
-		logf:          func(f string, a ...any) { r.with(func() { r.logs = append(r.logs, fmt.Sprintf(f, a...)) }) },
+		cancelRunning: func(account.Status) int {
+			r.with(func() { r.cancels++; r.calls = append(r.calls, "cancel") })
+			return 2
+		},
+		logf: func(f string, a ...any) { r.with(func() { r.logs = append(r.logs, fmt.Sprintf(f, a...)) }) },
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { sup.run(ctx); close(r.done) }()
@@ -90,10 +93,9 @@ func supUntil(t *testing.T, what string, cond func() bool) {
 func supSettle() { time.Sleep(60 * time.Millisecond) }
 
 // The supervisor follows the account: it starts the org services while the
-// account is valid; at the 24 hours (expired) it stops them, cancels nothing
-// (the engine ends each run at its next node), logs once and does not end the
-// daemon; at the next sign-in it starts them again; on a refusal it stops them
-// and cancels what the engine is running, once per lock.
+// account is valid; on any lock (expired here, then a refusal) it stops them,
+// cancels what the engine is running once per lock, logs once and does not end
+// the daemon; at the next sign-in it starts them again.
 func TestSupervisorFollowsTheAccount(t *testing.T) {
 	rig := newSupRig(t, supOK)
 	supUntil(t, "the org services start", func() bool { n, live, _ := rig.state(); return n == 1 && live })
@@ -101,8 +103,10 @@ func TestSupervisorFollowsTheAccount(t *testing.T) {
 	rig.set(supLocked(account.ReasonExpired))
 	supUntil(t, "the lock is logged", func() bool { return rig.logged("account is locked (expired)") > 0 })
 	supSettle()
-	if n, live, c := rig.state(); live || c != 0 || n != 1 || rig.logged("account is locked (expired)") != 1 {
-		t.Fatalf("org services live %v, %d cancels and %d lock lines at expiry, want stopped, 0 and 1", live, c, rig.logged("account is locked (expired)"))
+	if n, live, c := rig.state(); live || c != 1 || n != 1 || rig.logged("account is locked (expired): nothing runs") != 1 ||
+		rig.logged("account is locked (expired): cancelled 2 running execution") != 1 {
+		t.Fatalf("org services live %v, %d cancels, %d lock lines and %d cancel lines across many polls of one expiry, want stopped, 1, 1 and 1",
+			live, c, rig.logged("account is locked (expired): nothing runs"), rig.logged("account is locked (expired): cancelled 2 running execution"))
 	}
 	select {
 	case <-rig.done:
@@ -114,16 +118,16 @@ func TestSupervisorFollowsTheAccount(t *testing.T) {
 	supUntil(t, "the org services start again", func() bool { n, live, _ := rig.state(); return n == 2 && live })
 
 	rig.set(supLocked(account.ReasonRefused))
-	supUntil(t, "the refusal is handled", func() bool { return rig.logged("cancelled 2 running execution") > 0 })
+	supUntil(t, "the refusal is handled", func() bool { return rig.logged("refused this account: cancelled 2 running execution") > 0 })
 	supSettle()
-	if _, live, c := rig.state(); live || c != 1 || rig.logged("cancelled 2 running execution") != 1 {
-		t.Fatalf("org services live %v, %d cancels and %d log lines across many polls of one refusal, want stopped, 1 and 1", live, c, rig.logged("cancelled 2 running execution"))
+	if _, live, c := rig.state(); live || c != 2 || rig.logged("refused this account: cancelled 2 running execution") != 1 {
+		t.Fatalf("org services live %v, %d cancels and %d log lines across many polls of one refusal, want stopped, 2 and 1", live, c, rig.logged("refused this account: cancelled 2 running execution"))
 	}
 
 	rig.set(supOK)
 	supUntil(t, "the org services start again", func() bool { n, live, _ := rig.state(); return n == 3 && live })
-	rig.set(supLocked(account.ReasonRefused))
-	supUntil(t, "the second refusal cancels again", func() bool { _, _, c := rig.state(); return c == 2 })
+	rig.set(supLocked(account.ReasonNotLoggedIn)) // logged out
+	supUntil(t, "a logout cancels again", func() bool { _, _, c := rig.state(); return c == 3 })
 }
 
 // A refusal cancels the running executions before the supervisor waits for the
@@ -151,8 +155,10 @@ func TestSupervisorStartedLockedWaitsForTheLogin(t *testing.T) {
 	rig := newSupRig(t, supLocked(account.ReasonNotLoggedIn))
 	supUntil(t, "the lock is logged with its command", func() bool { return rig.logged("run: monoagentcli account login") == 1 })
 	supSettle()
-	if n, _, c := rig.state(); n != 0 || c != 0 {
-		t.Fatalf("%d starts and %d cancels while locked at start, want none", n, c)
+	// A daemon that was never signed in starts nothing; it still asks the engine
+	// once to cancel anything running (nothing, at start), as every lock does.
+	if n, _, c := rig.state(); n != 0 || c != 1 {
+		t.Fatalf("%d starts and %d cancels while locked at start, want 0 and 1", n, c)
 	}
 
 	rig.set(supOK)
