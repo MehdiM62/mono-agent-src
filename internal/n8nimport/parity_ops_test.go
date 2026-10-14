@@ -17,7 +17,10 @@ import (
 // resource and operation parameters in its latest version (Param names the operation parameter
 // when it is not "operation"; Sub is the connection kind of a LangChain
 // sub-node, which only exists attached to a parent). An operation listed
-// under the resource "" is selected without a resource.
+// under the resource "" is selected without a resource. "<type>Tool" entries
+// with Sub ai_tool are the tool variants n8n generates for every node
+// marked usableAsTool, with their base node's operations; they are measured
+// attached to an agent and on their own in the main flow.
 type opsFixture struct {
 	Source string `json:"source"`
 	Nodes  []struct {
@@ -46,10 +49,7 @@ var allowCategories = map[string]bool{"engine": true, "impossible": true, "agent
 
 // subParents is the chain of parent nodes a sub-node of each connection
 // kind attaches to, innermost first, with the parent's parameters.
-var subParents = map[string][]struct {
-	typ, kind string
-	params    map[string]interface{}
-}{
+var subParents = map[string]parentChain{
 	"ai_languageModel": {{lc + "agent", "", nil}},
 	"ai_tool":          {{lc + "agent", "", nil}},
 	"ai_memory":        {{lc + "agent", "", nil}},
@@ -79,6 +79,31 @@ type parityCase struct {
 	key          string
 	version      float64
 	when         map[string]interface{}
+	// label tells apart extra measurements of one key (" (standalone)",
+	// " (under chainLlm)") in the results.
+	label string
+}
+
+// parentChain is the chain of parent nodes a sub-node attaches to,
+// innermost first, with the parent's parameters.
+type parentChain []struct {
+	typ, kind string
+	params    map[string]interface{}
+}
+
+// extraSubParents are more parents a sub-node of a kind is measured under,
+// by label: chat models also run LLM chains.
+var extraSubParents = map[string]map[string]parentChain{
+	"ai_languageModel": {"chainLlm": {{lc + "chainLlm", "", nil}}},
+}
+
+// subChildren are sub-nodes a node needs to map at all (a vector store
+// tool searches the store attached to it).
+var subChildren = map[string]struct {
+	typ, kind string
+	params    map[string]interface{}
+}{
+	lc + "toolVectorStore": {lc + "vectorStoreInMemoryLoad", "ai_vectorStore", map[string]interface{}{"memoryKey": "k"}},
 }
 
 func (pc parityCase) String() string {
@@ -90,6 +115,13 @@ func (pc parityCase) String() string {
 
 // parityStatus converts one case and says what a user gets.
 func parityStatus(t *testing.T, sub, param string, pc parityCase) (string, string) {
+	return parityStatusUnder(t, sub, subParents[sub], param, pc)
+}
+
+// parityStatusUnder converts one case with the sub-node attached to the
+// given parents. A sub-node that is placed on its own (an agent's tool)
+// counts as unmapped when it, or a parent, becomes a placeholder.
+func parityStatusUnder(t *testing.T, sub string, parents parentChain, param string, pc parityCase) (string, string) {
 	t.Helper()
 	params := map[string]interface{}{}
 	if pc.res != "" {
@@ -105,9 +137,15 @@ func parityStatus(t *testing.T, sub, param string, pc parityCase) (string, strin
 		"position": []int{0, 0}, "parameters": params}}
 	conns := map[string]interface{}{}
 	root := "Node"
+	if ch, ok := subChildren[pc.typ]; ok {
+		nodes = append(nodes, map[string]interface{}{"id": "c0", "name": "Child", "type": ch.typ, "typeVersion": 1,
+			"position": []int{0, -200}, "parameters": ch.params})
+		conns["Child"] = map[string]interface{}{ch.kind: []interface{}{[]interface{}{
+			map[string]interface{}{"node": "Node", "type": ch.kind, "index": 0}}}}
+	}
 	if sub != "" {
 		child, kind := "Node", sub
-		for i, p := range subParents[sub] {
+		for i, p := range parents {
 			name := fmt.Sprintf("Parent%d", i)
 			pp := p.params
 			if pp == nil {
@@ -124,6 +162,15 @@ func parityStatus(t *testing.T, sub, param string, pc parityCase) (string, strin
 	_, rep, err := n8nimport.Convert(raw)
 	if err != nil {
 		t.Fatalf("%s: convert: %v", pc, err)
+	}
+	for _, nr := range rep.Nodes {
+		if nr.Name != root && nr.Name != "Child" && nr.Status == n8nimport.StatusUnmapped {
+			var msgs []string
+			for _, is := range nr.Issues {
+				msgs = append(msgs, is.Message)
+			}
+			return "unmapped", nr.Name + ": " + strings.Join(msgs, "; ")
+		}
 	}
 	for _, nr := range rep.Nodes {
 		if nr.Name != root {
@@ -185,21 +232,34 @@ func TestN8nOperationParity(t *testing.T) {
 	used := map[string]bool{}
 	// record converts one case; a placeholder must be allowed by its own
 	// key or, for a bare-type entry, by its node type.
-	record := func(pc parityCase, sub, param string) {
-		status, detail := parityStatus(t, sub, param, pc)
+	// A "<type>Tool" variant has the gaps of its base type: its allow
+	// entries are the base type's.
+	fixtureTypes := map[string]bool{}
+	for _, n := range fx.Nodes {
+		fixtureTypes[n.Type] = true
+	}
+	allowKeys := func(pc parityCase) []string {
+		keys := []string{pc.key, pc.typ}
+		if base := strings.TrimSuffix(pc.typ, "Tool"); base != pc.typ && fixtureTypes[base] {
+			keys = append(keys, base+strings.TrimPrefix(pc.key, pc.typ), base)
+		}
+		return keys
+	}
+	record := func(pc parityCase, sub string, parents parentChain, param string) {
+		status, detail := parityStatusUnder(t, sub, parents, param, pc)
 		counts[status]++
-		r := result{Key: pc.key, Status: status}
+		r := result{Key: pc.key + pc.label, Status: status}
 		if status == "unmapped" {
-			key := pc.key
-			a, ok := allowed[key]
-			if !ok {
-				key = pc.typ
-				a, ok = allowed[key]
+			var a allowEntry
+			ok := false
+			for _, key := range allowKeys(pc) {
+				if a, ok = allowed[key]; ok {
+					used[key] = true
+					break
+				}
 			}
-			if ok {
-				used[key] = true
-			} else {
-				t.Errorf("%s imports as a placeholder and is not in n8n_ops_allow.json: %s", pc.key, detail)
+			if !ok {
+				t.Errorf("%s%s imports as a placeholder and is not in n8n_ops_allow.json: %s", pc.key, pc.label, detail)
 			}
 			r.Category, r.Detail = a.Category, detail
 		}
@@ -224,11 +284,21 @@ func TestN8nOperationParity(t *testing.T) {
 			cases = []parityCase{{typ: n.Type, key: n.Type, version: n.Version}}
 		}
 		for _, pc := range cases {
-			record(pc, n.Sub, param)
+			record(pc, n.Sub, subParents[n.Sub], param)
+			for _, label := range sortedOpKeys(extraSubParents[n.Sub]) {
+				pc.label = " (under " + label + ")"
+				record(pc, n.Sub, extraSubParents[n.Sub][label], param)
+			}
+			// n8n places a tool variant in the main flow too, where it
+			// runs like its base node.
+			if n.Sub == "ai_tool" && fixtureTypes[strings.TrimSuffix(n.Type, "Tool")] && strings.HasSuffix(n.Type, "Tool") {
+				pc.label = " (standalone)"
+				record(pc, "", nil, param)
+			}
 		}
 	}
 	for _, pc := range extraParityCases {
-		record(pc, "", "operation")
+		record(pc, "", nil, "operation")
 	}
 	for _, a := range allow {
 		if !used[a.Key] {
@@ -256,7 +326,7 @@ func readJSON(t *testing.T, path string, v interface{}) {
 	}
 }
 
-func sortedOpKeys(m map[string][]string) []string {
+func sortedOpKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

@@ -55,6 +55,8 @@ func ValidateConnection(ctx context.Context, c *Connection) (accountID string, e
 		return validateYouTube(ctx, c)
 	case "google":
 		return validateGoogleAccount(ctx, c)
+	case "google_service_account":
+		return validateGoogleServiceAccount(c)
 	case "microsoft":
 		return validateMicrosoftAccount(ctx, c)
 	case "outlook":

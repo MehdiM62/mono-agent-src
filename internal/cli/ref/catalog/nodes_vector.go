@@ -6,7 +6,7 @@ var vectorNodeDocs = []nodeDoc{
 	{
 		Type:     "vector.embed",
 		Category: "vector",
-		Short:    "Turn item text into embedding vectors (OpenAI-compatible, Ollama, Cohere, Gemini, Mistral, HF, Bedrock, Azure)",
+		Short:    "Turn item text into embedding vectors (OpenAI-compatible, Ollama, Cohere, Gemini, Vertex, Mistral, HF, Bedrock, Azure, Databricks, Oracle)",
 		Description: `Calls an embedding API once per batch and adds one vector per item under
 output_key (default "embedding"). Replaces the deprecated ai.embed.
 
@@ -18,6 +18,15 @@ Providers and their connection (credential_id):
   mistral            "mistral"           huggingface "huggingface"
   bedrock            "aws" (access keys + region; Titan or Cohere models)
   azure_openai       "azure_openai" (resource_name or endpoint; model = deployment)
+  databricks         "databricks" (host + access_token) or "databricks_sp" (host +
+                     client_id/client_secret); model = serving endpoint, called through
+                     the workspace AI gateway (OpenAI-compatible)
+  vertex             "google_service_account" (client_email + private_key, optional
+                     project_id and location), or access_token; project_id and
+                     location (default us-central1; global, eu, us work) on the node
+                     win — the token is fetched per run
+  oracle             "oracle" (connection_string); model = an ONNX model loaded into
+                     the database (VECTOR_EMBEDDING), one query per text
 
 Text comes from input_field / input_fields (dotted paths; several are joined by a
 blank line). Without them the first of pageContent, text, content is used, else the
@@ -35,7 +44,7 @@ whole item as JSON.`,
 }`,
 		Inputs:  "items carrying text",
 		Outputs: "the same items plus output_key: [float, …]",
-		Notes:   "Defaults: openai text-embedding-3-small, ollama nomic-embed-text, cohere embed-english-v3.0, gemini text-embedding-004, mistral mistral-embed, huggingface sentence-transformers/all-MiniLM-L6-v2, bedrock amazon.titan-embed-text-v2:0.",
+		Notes:   "Defaults: openai text-embedding-3-small, ollama nomic-embed-text, cohere embed-english-v3.0, gemini text-embedding-004, mistral mistral-embed, huggingface sentence-transformers/all-MiniLM-L6-v2, bedrock amazon.titan-embed-text-v2:0, vertex text-embedding-005 (batch_size 5). databricks and oracle need model.",
 	},
 	{
 		Type:     "vector.split_text",

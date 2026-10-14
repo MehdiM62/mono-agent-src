@@ -177,16 +177,7 @@ func guardrailsModel(c *MapContext, cfg map[string]interface{}, needed bool) {
 			continue
 		}
 		cfg["runtime"] = "claude"
-		model := modelName(s.Parameters)
-		if rt, ok := modelRuntimes[s.Type]; ok {
-			cfg["runtime"] = rt
-			if model != "" {
-				cfg["model"] = model
-			}
-			c.Note("model %q (%s) runs through the local %s agent", model, shortType(s.Type), rt)
-		} else {
-			c.Note("model %q (%s) has no local agent runtime; the claude runtime is used — set runtime/model to choose another", model, shortType(s.Type))
-		}
+		useModel(c, cfg, s)
 	}
 	if needed && !found {
 		cfg["runtime"] = "claude"
