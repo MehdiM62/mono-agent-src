@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/monoes/mono-agent/internal/account"
 )
@@ -13,6 +14,24 @@ import (
 // context or its error, so a person's cancel after a refusal is not mistaken for
 // one.
 var errAccountRefused = errors.New("monoes.me refused this account")
+
+// errAccountLocked is the cause of a cancel the daemon makes when the account
+// locks for any other reason (expired, logged out, never signed in, unreachable
+// past the grace): nothing runs without a valid sign-in, so what is in flight is
+// cancelled too (CancelRunningLocked), and the run records login_required.
+var errAccountLocked = errors.New("the monoes.me account is locked")
+
+// CancelRunningLocked cancels every execution this engine has dispatched and not
+// yet finished, recording that the account locked for reason. It returns how
+// many it asked to stop.
+func (e *WorkflowEngine) CancelRunningLocked(reason string) int {
+	cause := fmt.Errorf("%w (%s)", errAccountLocked, reason)
+	ids := e.queue.RunningIDs()
+	for _, id := range ids {
+		e.cancelExecution(id, cause)
+	}
+	return len(ids)
+}
 
 // refusedCancelError is what the node check returns when a refusal lands between
 // two nodes: ErrExecutionCancelled to everything that tests for a cancel, and
@@ -65,6 +84,9 @@ func (e *WorkflowEngine) onAccountRefused(st account.Status) {
 func cancelledMessage(ctx context.Context, runErr error) string {
 	if errors.Is(context.Cause(ctx), errAccountRefused) || errors.Is(runErr, errAccountRefused) {
 		return "login_required: monoes.me refused this account: " + runErr.Error()
+	}
+	if c := context.Cause(ctx); errors.Is(c, errAccountLocked) {
+		return "login_required: " + c.Error() + ": " + runErr.Error()
 	}
 	if errors.Is(context.Cause(ctx), ErrEngineStopping) {
 		return "cancelled: " + ErrEngineStopping.Error()

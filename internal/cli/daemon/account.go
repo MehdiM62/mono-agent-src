@@ -23,14 +23,15 @@ import (
 const orgStopWait = 30 * time.Second
 
 // accountSupervisor starts and stops the org services as the account verdict
-// changes, and cancels the running executions when monoes.me refused the account.
+// changes, and cancels the running executions whenever the account locks, for any
+// reason: nothing runs without a valid sign-in.
 // Its dependencies are fields so that a test can drive it.
 type accountSupervisor struct {
 	status        func() account.Status            // account.CurrentStatus in the daemon
 	poll          time.Duration                    // account.PollInterval in the daemon
 	startOrg      func(ctx context.Context)        // launches the org services; they end when ctx ends
 	waitOrg       func(timeout time.Duration) bool // whether everything startOrg launched has ended
-	cancelRunning func() int                       // cancels the engine's running executions
+	cancelRunning func(st account.Status) int      // cancels the engine's running executions under this lock
 	logf          func(format string, args ...any)
 }
 
@@ -40,7 +41,12 @@ func newAccountSupervisor(orgs *orgsvc.Services, engine *workflow.WorkflowEngine
 		poll:          account.PollInterval,
 		startOrg:      func(ctx context.Context) { orgs.Start(ctx, engine) },
 		waitOrg:       orgs.Wait,
-		cancelRunning: engine.CancelRunning,
+		cancelRunning: func(st account.Status) int {
+			if st.Reason == account.ReasonRefused {
+				return engine.CancelRunning() // records that monoes.me refused the account
+			}
+			return engine.CancelRunningLocked(string(st.Reason))
+		},
 		logf:          orgs.Logf,
 	}
 }
@@ -48,9 +54,9 @@ func newAccountSupervisor(orgs *orgsvc.Services, engine *workflow.WorkflowEngine
 // run applies the verdict at once and then every poll, until ctx ends. It never
 // returns because of a lock. A daemon that starts locked never starts the org
 // services; one that is locked later stops them and starts them again when the
-// account is valid. A refusal (and only a refusal: at the 24 hours, expired, the
-// engine ends each run at its next node) also cancels what the engine is running,
-// once per lock.
+// account is valid. Every lock (a refusal, an expired or removed session, a
+// daemon that was never signed in) also cancels what the engine is running, once
+// per lock: the user's rule is that nothing runs without a sign-in.
 func (s *accountSupervisor) run(ctx context.Context) {
 	var (
 		stop      context.CancelFunc // non-nil while the org services run
@@ -77,11 +83,15 @@ func (s *accountSupervisor) run(ctx context.Context) {
 			return
 		}
 		// The running executions are cancelled before the wait for the org
-		// services, which can last orgStopWait: a refused account runs nothing.
-		if st.Reason == account.ReasonRefused && !cancelled {
+		// services, which can last orgStopWait: a locked account runs nothing.
+		if !cancelled {
 			cancelled = true
-			if n := s.cancelRunning(); n > 0 {
-				s.logf("daemon: monoes.me refused this account: cancelled %d running execution(s)", n)
+			if n := s.cancelRunning(st); n > 0 {
+				if st.Reason == account.ReasonRefused {
+					s.logf("daemon: monoes.me refused this account: cancelled %d running execution(s)", n)
+				} else {
+					s.logf("daemon: the monoes.me account is locked (%s): cancelled %d running execution(s)", st.Reason, n)
+				}
 			}
 		}
 		if stop != nil {
