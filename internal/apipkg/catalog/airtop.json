@@ -827,6 +827,56 @@
       ]
     },
     {
+      "resource": "interaction",
+      "operation": "fill",
+      "title": "Fill a form",
+      "method": "POST",
+      "path": "/async/sessions/{{ p.sessionId | default:item.sessionId }}/windows/{{ p.windowId | default:item.windowId }}/execute-automation",
+      "body": {
+        "automationId": "auto",
+        "parameters": {
+          "customData": "{{ p.formData }}"
+        }
+      },
+      "poll": {
+        "method": "GET",
+        "path": "/requests/{{ main.requestId }}/status",
+        "until": "{{ res.status | in:'completed,error' }}",
+        "interval_ms": 1000,
+        "max_wait_ms": 300000
+      },
+      "output": {
+        "to": {
+          "sessionId": "{{ p.sessionId | default:item.sessionId }}",
+          "windowId": "{{ p.windowId | default:item.windowId }}",
+          "$merge": "{{ el }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "sessionId",
+          "label": "Session ID",
+          "type": "text",
+          "default": "",
+          "help": "Defaults to the input item's sessionId."
+        },
+        {
+          "key": "windowId",
+          "label": "Window ID",
+          "type": "text",
+          "default": "",
+          "help": "Defaults to the input item's windowId."
+        },
+        {
+          "key": "formData",
+          "label": "Form data",
+          "type": "textarea",
+          "required": true,
+          "help": "What to fill in, in plain words, e.g. Name: Ada, Email: ada@example.com"
+        }
+      ]
+    },
+    {
       "resource": "file",
       "operation": "getMany",
       "title": "Get many files",

@@ -97,6 +97,10 @@ type AppMapper struct {
 	// VersionDefaults: n8n typeVersion ("1", "2", "1.1") → param defaults
 	// filled in when the export omits them.
 	VersionDefaults map[string]map[string]any
+	// Operations lists the package's operation keys ("resource.operation",
+	// or "operation" when there is no resource). A node selecting another
+	// one becomes a placeholder; nil skips the check.
+	Operations map[string]bool
 }
 
 var (
@@ -236,6 +240,15 @@ func mapApp(a AppMapper, c *MapContext) Mapping {
 	key := operation
 	if resource != "" {
 		key = resource + "." + operation
+	}
+	if a.Operations != nil && !a.Operations[key] {
+		what := operation
+		if resource != "" {
+			what = resource + " / " + operation
+		}
+		c.issues = append(c.issues, Issue{Severity: SevError, Param: opParam, Value: what,
+			Message: fmt.Sprintf("operation %q is not in API package %s yet", what, a.PackageID)})
+		return Mapping{Unmapped: true}
 	}
 	rename := a.ParamMap[key]
 	for k, v := range a.VersionDefaults[strconv.FormatFloat(c.TypeVersion, 'f', -1, 64)] {

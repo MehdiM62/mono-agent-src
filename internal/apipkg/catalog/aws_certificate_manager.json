@@ -66,9 +66,15 @@
       ]
     }
   ],
+  "resources": [
+    {
+      "value": "certificate",
+      "label": "Certificate"
+    }
+  ],
   "operations": [
     {
-      "resource": "",
+      "resource": "certificate",
       "operation": "renew",
       "title": "Renew a certificate",
       "method": "POST",
@@ -96,7 +102,7 @@
       }
     },
     {
-      "resource": "",
+      "resource": "certificate",
       "operation": "delete",
       "title": "Delete a certificate",
       "method": "POST",
@@ -138,7 +144,7 @@
       }
     },
     {
-      "resource": "",
+      "resource": "certificate",
       "operation": "get",
       "title": "Get a certificate",
       "method": "POST",
@@ -161,7 +167,7 @@
       ]
     },
     {
-      "resource": "",
+      "resource": "certificate",
       "operation": "getMany",
       "title": "Get many certificates",
       "method": "POST",
@@ -218,7 +224,7 @@
       }
     },
     {
-      "resource": "",
+      "resource": "certificate",
       "operation": "getMetadata",
       "title": "Get a certificate's metadata",
       "method": "POST",
