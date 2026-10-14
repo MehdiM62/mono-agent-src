@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/monoes/mono-agent/internal/profilectx"
 )
 
-func newProfileContextCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newProfileContextCmd() *cobra.Command {
 	var recent int
 	cmd := &cobra.Command{
 		Use:   "context",
@@ -19,16 +19,16 @@ func newProfileContextCmd(cfg *globalConfig) *cobra.Command {
 			"Secrets, tokens and vault values are never included. The same block is put in coder chats' system prompts.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			c, err := profilectx.Build(cmd.Context(), db.DB, cfg.ProfileID, profilectx.Options{Recent: recent})
+			c, err := profilectx.Build(cmd.Context(), db.DB, d.ProfileID(), profilectx.Options{Recent: recent})
 			if err != nil {
 				return err
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printJSON(c)
 			}
 			fmt.Fprint(cmd.OutOrStdout(), c.Block())
@@ -36,6 +36,6 @@ func newProfileContextCmd(cfg *globalConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().IntVar(&recent, "recent", profilectx.DefaultRecent, "Recent items listed per section")
-	withJSONErrors(cfg, cmd)
+	d.WithJSONErrors(cmd)
 	return cmd
 }

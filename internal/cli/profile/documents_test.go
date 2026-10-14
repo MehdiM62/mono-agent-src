@@ -1,5 +1,5 @@
-// cmd/monoagentcli/profile_documents_test.go
-package main
+// internal/cli/profile/documents_test.go
+package profile
 
 import (
 	"bytes"
@@ -9,15 +9,10 @@ import (
 	"testing"
 )
 
-func newProfileDocsCLITestDB(t *testing.T) string {
-	t.Helper()
-	return newApplicationCLITestDB(t) // reuses the shared migration-seeding helper from application_test.go
-}
-
 func setFakeMonomindOnPathCLI(t *testing.T) {
 	t.Helper()
 	fakeDir := t.TempDir()
-	src, err := filepath.Abs("../../internal/monomind/testdata/fake-monomind.sh")
+	src, err := filepath.Abs("../../monomind/testdata/fake-monomind.sh")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,8 +27,8 @@ func setFakeMonomindOnPathCLI(t *testing.T) {
 
 func runProfileCmd(t *testing.T, dbPath string, args ...string) (string, error) {
 	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: true}
-	cmd := newProfileCmd(cfg)
+	cfg := &testConfig{DBPath: dbPath, JSONOutput: true}
+	cmd := NewCommand(testDeps(cfg))
 	cmd.SetArgs(args)
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -46,8 +41,8 @@ func runProfileCmd(t *testing.T, dbPath string, args ...string) (string, error) 
 // secret_test.go pairs runSecretCmd/runSecretCmdText.
 func runProfileCmdText(t *testing.T, dbPath string, args ...string) (string, error) {
 	t.Helper()
-	cfg := &globalConfig{DBPath: dbPath, JSONOutput: false}
-	cmd := newProfileCmd(cfg)
+	cfg := &testConfig{DBPath: dbPath, JSONOutput: false}
+	cmd := NewCommand(testDeps(cfg))
 	cmd.SetArgs(args)
 	var out bytes.Buffer
 	cmd.SetOut(&out)

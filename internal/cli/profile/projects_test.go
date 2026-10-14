@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"os"
@@ -25,6 +25,7 @@ func makeMonomindProject(t *testing.T, dir string) {
 // own profile folders) — filterMonomindProjects is what turns that into a
 // small, meaningful suggestion list.
 func TestFilterMonomindProjects(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
 
 	realProject := filepath.Join(base, "real-project")

@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"os"
@@ -12,6 +12,7 @@ import (
 // `monomind init`) instead of requiring an empty one — EnsureLayout only
 // ever adds .monoagent/ and .monomind/ alongside whatever is already there.
 func TestValidateFolderChoiceAllowsNonEmptyFolders(t *testing.T) {
+	t.Parallel()
 	t.Run("relative path rejected", func(t *testing.T) {
 		if err := validateFolderChoice("relative/path"); err == nil {
 			t.Fatal("expected an error for a relative path, got nil")

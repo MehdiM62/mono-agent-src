@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"database/sql"
@@ -96,7 +96,7 @@ func profileRootDirOverrides(db *sql.DB) map[string]bool {
 	return dirs
 }
 
-func newProfileProjectsCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newProfileProjectsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "projects",
 		Short: "List existing monomind projects that could become a new profile's folder",
@@ -108,13 +108,13 @@ func newProfileProjectsCmd(cfg *globalConfig) *cobra.Command {
 			projects := []monomindProject{}
 			if raw := readMonomindProjectsFile(); len(raw) > 0 {
 				existing := map[string]bool{}
-				if db, err := initDB(cfg); err == nil {
+				if db, err := d.OpenDB(); err == nil {
 					existing = profileRootDirOverrides(db.DB)
 					db.Close()
 				}
 				projects = filterMonomindProjects(raw, existing)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printJSON(projects)
 			}
 			for _, p := range projects {

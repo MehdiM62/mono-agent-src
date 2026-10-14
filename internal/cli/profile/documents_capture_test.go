@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"bytes"
@@ -39,8 +39,8 @@ func TestProfileDocumentsListIncludesBrowserCaptures(t *testing.T) {
 
 	list := func() []struct{ ID, Filename, Source, URL, Path, CaptureDir string } {
 		t.Helper()
-		cfg := &globalConfig{DBPath: dbPath, JSONOutput: true, ProfileID: profile}
-		cmd := newProfileCmd(cfg)
+		cfg := &testConfig{DBPath: dbPath, JSONOutput: true, ProfileID: profile}
+		cmd := NewCommand(testDeps(cfg))
 		cmd.SetArgs([]string{"documents", "list"})
 		var out bytes.Buffer
 		cmd.SetOut(&out)

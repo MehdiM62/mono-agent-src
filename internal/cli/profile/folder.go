@@ -1,4 +1,4 @@
-package main
+package profile
 
 import (
 	"fmt"
@@ -22,25 +22,25 @@ import (
 // (see org_profile_lifecycle.go); the desktop app's "Move profile folder"
 // runs exactly that.
 
-func newProfileFolderCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newProfileFolderCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "folder <name-or-id>",
 		Short: "Print a profile's folder, creating its layout if it is missing",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return err
 			}
 			defer db.Close()
-			p, err := lookupProfile(db.DB, args[0])
+			p, err := d.lookupProfile(db.DB, args[0])
 			if err != nil {
 				return err
 			}
 			if err := profiledir.EnsureLayout(db.DB, p.ID); err != nil {
 				return fmt.Errorf("preparing profile folder: %w", err)
 			}
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printJSON(map[string]string{"id": p.ID, "root_dir": p.RootDir})
 			}
 			fmt.Println(p.RootDir)
@@ -49,7 +49,7 @@ func newProfileFolderCmd(cfg *globalConfig) *cobra.Command {
 	}
 }
 
-func newProfileMoveCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newProfileMoveCmd() *cobra.Command {
 	var check bool
 	cmd := &cobra.Command{
 		Use:   "move <name-or-id> <new-folder>",
@@ -63,27 +63,27 @@ func newProfileMoveCmd(cfg *globalConfig) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newRoot := strings.TrimSpace(args[1])
 			if newRoot == "" {
-				return errInvalidInput("no folder chosen")
+				return d.InvalidInput("no folder chosen")
 			}
-			if err := validateFolderChoice(newRoot); err != nil {
+			if err := d.validateFolderChoice(newRoot); err != nil {
 				return err
 			}
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return err
 			}
 			defer db.Close()
-			p, err := lookupProfile(db.DB, args[0])
+			p, err := d.lookupProfile(db.DB, args[0])
 			if err != nil {
 				return err
 			}
 			oldRoot := p.RootDir
 			if newRoot == oldRoot {
-				return errInvalidInput("that's already this profile's folder")
+				return d.InvalidInput("that's already this profile's folder")
 			}
 			out := map[string]interface{}{"id": p.ID, "old_root_dir": oldRoot, "root_dir": newRoot, "moved": !check}
 			if check {
-				if cfg.JSONOutput {
+				if d.JSONOutput() {
 					return printJSON(out)
 				}
 				fmt.Printf("%s can move to %s\n", p.Name, newRoot)
@@ -127,7 +127,7 @@ func newProfileMoveCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("updating profile folder: %w", err)
 			}
 			out["moved_files"] = imgMoved + docMoved
-			if cfg.JSONOutput {
+			if d.JSONOutput() {
 				return printJSON(out)
 			}
 			fmt.Printf("Moved %s to %s\n", p.Name, newRoot)
@@ -148,9 +148,9 @@ func newProfileMoveCmd(cfg *globalConfig) *cobra.Command {
 // rejected here, is a `.monoagent` or `.monomind` entry that already exists
 // as a plain file rather than a directory — os.MkdirAll would fail
 // confusingly on that, so it's caught up front with a clear message instead.
-func validateFolderChoice(dir string) error {
+func (d Deps) validateFolderChoice(dir string) error {
 	if !filepath.IsAbs(dir) {
-		return errInvalidInput("folder path must be absolute: %q", dir)
+		return d.InvalidInput("folder path must be absolute: %q", dir)
 	}
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -160,7 +160,7 @@ func validateFolderChoice(dir string) error {
 		return fmt.Errorf("checking folder %q: %w", dir, err)
 	}
 	if !info.IsDir() {
-		return errInvalidInput("%q is not a folder", dir)
+		return d.InvalidInput("%q is not a folder", dir)
 	}
 	for _, name := range []string{".monoagent", ".monomind"} {
 		entryInfo, err := os.Stat(filepath.Join(dir, name))
@@ -168,7 +168,7 @@ func validateFolderChoice(dir string) error {
 			continue // doesn't exist — fine, EnsureLayout creates it
 		}
 		if !entryInfo.IsDir() {
-			return errInvalidInput("%q already contains a file named %q — move or rename it first", dir, name)
+			return d.InvalidInput("%q already contains a file named %q — move or rename it first", dir, name)
 		}
 	}
 	return nil

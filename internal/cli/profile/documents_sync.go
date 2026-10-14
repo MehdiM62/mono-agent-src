@@ -1,5 +1,5 @@
-// cmd/monoagentcli/profile_documents_sync.go
-package main
+// internal/cli/profile/documents_sync.go
+package profile
 
 import (
 	"encoding/json"
@@ -34,11 +34,11 @@ func newFolderSyncResult(profileID, root string, scanned int, r vault.ReconcileR
 	return out
 }
 
-// printFolderSync writes res as JSON or one summary line, with per-file
+// PrintFolderSync writes res as JSON or one summary line, with per-file
 // errors as stderr warnings in text mode. Per-file errors never fail the
 // command: the rest of the folder was still reconciled.
-func printFolderSync(cmd *cobra.Command, cfg *globalConfig, noun string, res folderSyncResult) error {
-	if cfg.JSONOutput {
+func PrintFolderSync(cmd *cobra.Command, jsonOut bool, noun string, res folderSyncResult) error {
+	if jsonOut {
 		enc := json.NewEncoder(cmd.OutOrStdout())
 		enc.SetIndent("", "  ")
 		return enc.Encode(res)
@@ -54,14 +54,14 @@ func printFolderSync(cmd *cobra.Command, cfg *globalConfig, noun string, res fol
 // newProfileDocumentsSyncCmd reconciles vault_documents with the documents
 // on disk in the active profile's folder, once. The desktop app runs it
 // when its folder watcher sees a change.
-func newProfileDocumentsSyncCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newProfileDocumentsSyncCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "sync",
 		Short:   "Register, refresh and remove discovered documents to match the profile folder",
 		Args:    cobra.NoArgs,
 		Example: `  monoagentcli profile documents sync --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := initDB(cfg)
+			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
@@ -69,9 +69,9 @@ func newProfileDocumentsSyncCmd(cfg *globalConfig) *cobra.Command {
 
 			// Root unmodified: see docscan.Scan for why it must match
 			// profiledir.Root byte-for-byte.
-			root := profiledir.Root(db.DB, cfg.ProfileID)
+			root := profiledir.Root(db.DB, d.ProfileID())
 			if root == "" {
-				return errInvalidInput("invalid profile id %q", cfg.ProfileID)
+				return d.InvalidInput("invalid profile id %q", d.ProfileID())
 			}
 			files, err := docscan.Scan(root)
 			if err != nil {
@@ -81,8 +81,8 @@ func newProfileDocumentsSyncCmd(cfg *globalConfig) *cobra.Command {
 			for i, f := range files {
 				found[i] = vault.DiscoveredFile{Path: f.Path, Filename: f.Filename, SizeBytes: f.SizeBytes}
 			}
-			r := vault.SyncDiscoveredDocuments(cmd.Context(), db.DB, cfg.ProfileID, found)
-			return printFolderSync(cmd, cfg, "documents", newFolderSyncResult(cfg.ProfileID, root, len(files), r))
+			r := vault.SyncDiscoveredDocuments(cmd.Context(), db.DB, d.ProfileID(), found)
+			return PrintFolderSync(cmd, d.JSONOutput(), "documents", newFolderSyncResult(d.ProfileID(), root, len(files), r))
 		},
 	}
 }
