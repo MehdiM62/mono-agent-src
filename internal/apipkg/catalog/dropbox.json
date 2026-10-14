@@ -374,8 +374,7 @@
           "key": "returnAll",
           "label": "Return all",
           "type": "boolean",
-          "default": false,
-          "help": "Up to 2000 results (one page)"
+          "default": false
         },
         {
           "key": "limit",
@@ -411,6 +410,23 @@
         "limit": "{{ p.returnAll | eq:'true' | then:2000 | default:p.limit }}",
         "$merge": "{{ p.filters }}"
       },
+      "pagination": {
+        "type": "cursor",
+        "cursor_path": "cursor",
+        "has_more_path": "has_more",
+        "results_path": "entries",
+        "next": {
+          "method": "POST",
+          "path": "https://api.dropboxapi.com/2/files/list_folder/continue",
+          "headers": {
+            "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+          },
+          "body": {
+            "cursor": "{{ page.cursor }}"
+          }
+        }
+      },
+      "description": "Pages through every result with Return all (the follow-up pages come from /files/list_folder/continue).",
       "output": {
         "path": "entries",
         "to": {
@@ -490,8 +506,7 @@
           "key": "returnAll",
           "label": "Return all",
           "type": "boolean",
-          "default": false,
-          "help": "Up to 1000 results (one page)"
+          "default": false
         },
         {
           "key": "limit",
@@ -538,6 +553,23 @@
           "max_results": "{{ p.returnAll | eq:'true' | then:1000 | default:p.limit }}"
         }
       },
+      "pagination": {
+        "type": "cursor",
+        "cursor_path": "cursor",
+        "has_more_path": "has_more",
+        "results_path": "matches",
+        "next": {
+          "method": "POST",
+          "path": "https://api.dropboxapi.com/2/files/search/continue_v2",
+          "headers": {
+            "Dropbox-API-Path-Root": "{{ pre.root_info.root_namespace_id | prefix:'{\"root\": \"' | suffix:'\", \".tag\": \"root\"}' }}"
+          },
+          "body": {
+            "cursor": "{{ page.cursor }}"
+          }
+        }
+      },
+      "description": "Pages through every result with Return all (the follow-up pages come from /files/search/continue_v2).",
       "output": {
         "path": "matches",
         "to": {

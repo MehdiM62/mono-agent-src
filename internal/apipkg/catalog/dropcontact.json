@@ -10,6 +10,8 @@
     "n8n-nodes-base.dropcontact"
   ],
   "base_url": "https://api.dropcontact.io",
+  "error_when": "{{ res.success | eq:'false' }}",
+  "error_message": "{{ res.reason | default:'invalid request' }}",
   "credentials": [
     {
       "platform": "dropcontact",
@@ -47,7 +49,7 @@
       "resource": "contact",
       "operation": "enrich",
       "title": "Enrich a contact",
-      "description": "Submits the contact; unless Simplify is on, waits for the enriched data (polling every 5 s, up to 10 min). With Simplify on it returns the request_id for Fetch Request.",
+      "description": "Submits the contact; unless Simplify is on, waits for the enriched data (polling every 5 s, up to 10 min; a reply that is not ready yet keeps waiting, a reported error fails). With Simplify on it returns the request_id for Fetch Request.",
       "method": "POST",
       "path": "/batch",
       "fields": [
@@ -110,7 +112,9 @@
         "path": "/batch/{{ main.request_id }}",
         "until": "{{ p.simplify | eq:'true' | default:(res.data | then:true) }}",
         "interval_ms": 5000,
-        "max_wait_ms": 600000
+        "max_wait_ms": 600000,
+        "error_when": "{{ res.error | eq:'true' }}",
+        "error_message": "{{ res.reason | default:'invalid request' }}"
       },
       "output": {
         "path": "{{ p.simplify | ne:'true' | then:'data' }}"

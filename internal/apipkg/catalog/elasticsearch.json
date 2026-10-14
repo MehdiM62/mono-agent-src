@@ -178,7 +178,7 @@
             "pipeline",
             "refresh"
           ],
-          "help": "refresh: true, wait_for or false. bulkOperation is accepted but each item is still sent as its own request"
+          "help": "refresh: true, wait_for or false. bulkOperation: send the items in one _bulk request per 50 (one output item per bulk result)"
         }
       ],
       "query": {
@@ -191,6 +191,45 @@
           "{{ p.dataToSend | eq:'autoMapInputData' | then:(item | omit:(p.inputsToIgnore | split)) }}",
           "{{ p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
         ]
+      },
+      "bulk": {
+        "when": "{{ p.options.bulkOperation }}",
+        "size": 50,
+        "method": "POST",
+        "path": "/_bulk",
+        "body_type": "ndjson",
+        "body": {
+          "$map": "{{ batch }}",
+          "$to": {
+            "$list": [
+              {
+                "index": {
+                  "_index": "{{ el.p.indexId }}",
+                  "_id": "{{ el.p.additionalFields.documentId }}"
+                }
+              },
+              {
+                "$merge": [
+                  "{{ el.p.dataToSend | eq:'autoMapInputData' | then:(el.item | omit:(el.p.inputsToIgnore | split)) }}",
+                  "{{ el.p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
+                ]
+              }
+            ]
+          }
+        },
+        "output": {
+          "path": "items",
+          "to": {
+            "$merge": [
+              "{{ el.index }}",
+              "{{ el.create }}",
+              "{{ el.update }}",
+              "{{ el.delete }}"
+            ]
+          }
+        },
+        "error_when": "{{ res.errors }}",
+        "error_message": "{{ res.items | pluck:'index.error' | default:(res.items | pluck:'create.error') | default:(res.items | pluck:'update.error') | default:(res.items | pluck:'delete.error') | get:'0' | pick:'type,reason' | json }}"
       }
     },
     {
@@ -220,16 +259,45 @@
           "options": [
             "bulkOperation"
           ],
-          "help": "bulkOperation is accepted but each item is still sent as its own request"
+          "help": "bulkOperation: send the items in one _bulk request per 50 (one output item per bulk result)"
         }
-      ]
+      ],
+      "bulk": {
+        "when": "{{ p.options.bulkOperation }}",
+        "size": 50,
+        "method": "POST",
+        "path": "/_bulk",
+        "body_type": "ndjson",
+        "body": {
+          "$map": "{{ batch }}",
+          "$to": {
+            "delete": {
+              "_index": "{{ el.p.indexId }}",
+              "_id": "{{ el.p.documentId }}"
+            }
+          }
+        },
+        "output": {
+          "path": "items",
+          "to": {
+            "$merge": [
+              "{{ el.index }}",
+              "{{ el.create }}",
+              "{{ el.update }}",
+              "{{ el.delete }}"
+            ]
+          }
+        },
+        "error_when": "{{ res.errors }}",
+        "error_message": "{{ res.items | pluck:'index.error' | default:(res.items | pluck:'create.error') | default:(res.items | pluck:'update.error') | default:(res.items | pluck:'delete.error') | get:'0' | pick:'type,reason' | json }}"
+      }
     },
     {
       "resource": "document",
       "operation": "getAll",
       "title": "Search documents",
       "method": "POST",
-      "path": "/{{ p.indexId }}/_search",
+      "path": "/{{ p.returnAll | eq:'true' | then:p.options.sort | not | then:p.indexId }}{{ p.returnAll | eq:'true' | then:p.options.sort | not | then:'/' }}_search",
       "fields": [
         {
           "key": "indexId",
@@ -242,7 +310,7 @@
           "label": "Return all",
           "type": "boolean",
           "default": false,
-          "help": "Up to 10,000 hits"
+          "help": "Without a sort: up to 10,000 hits in one request"
         },
         {
           "key": "limit",
@@ -292,7 +360,7 @@
             "track_total_hits",
             "version"
           ],
-          "help": "query: Elasticsearch query DSL as JSON, e.g. {\"query\": {\"match\": {\"title\": \"x\"}}}; other keys are search URL parameters"
+          "help": "query: Elasticsearch query DSL as JSON, e.g. {\"query\": {\"match\": {\"title\": \"$1\"}}}; queryParameters: a JSON array whose values replace $1, $2, \u2026 where a whole value or key is that placeholder; sort with Return all pages with a point in time; other keys are search URL parameters"
         }
       ],
       "query": {
@@ -301,8 +369,58 @@
         "size": "{{ p.returnAll | eq:'true' | then:10000 | default:p.limit }}"
       },
       "body": {
-        "$merge": "{{ p.options.query | fromjson }}"
+        "$merge": "{{ p.options.query | fromjson | bind:p.options.queryParameters }}",
+        "size": "{{ p.returnAll | eq:'true' | then:p.options.sort | then:10000 }}",
+        "pit": {
+          "id": "{{ p.returnAll | eq:'true' | then:p.options.sort | then:pre.id }}",
+          "keep_alive": "{{ p.returnAll | eq:'true' | then:p.options.sort | then:'1m' }}"
+        },
+        "track_total_hits": "{{ p.returnAll | eq:'true' | then:p.options.sort | then:false }}"
       },
+      "description": "With Return all and a sort, pages through every hit with a point in time and search_after (closed at the end).",
+      "before": {
+        "when": "{{ p.returnAll | eq:'true' | then:p.options.sort }}",
+        "method": "POST",
+        "path": "/{{ p.indexId }}/_pit",
+        "query": {
+          "keep_alive": "1m"
+        }
+      },
+      "pagination": {
+        "when": "{{ p.returnAll | eq:'true' | then:p.options.sort }}",
+        "type": "cursor",
+        "cursor_path": "hits.hits.-1.sort",
+        "results_path": "hits.hits",
+        "next": {
+          "method": "POST",
+          "path": "/_search",
+          "query": {
+            "$merge": "{{ p.options | omit:'query,queryParameters' }}",
+            "_source": "{{ p.options | then:true }}",
+            "size": "{{ p.returnAll | eq:'true' | then:10000 | default:p.limit }}"
+          },
+          "body": {
+            "$merge": "{{ p.options.query | fromjson | bind:p.options.queryParameters }}",
+            "size": 10000,
+            "pit": {
+              "id": "{{ res.pit_id }}",
+              "keep_alive": "1m"
+            },
+            "track_total_hits": false,
+            "search_after": "{{ page.cursor }}"
+          }
+        }
+      },
+      "also": [
+        {
+          "when": "{{ p.returnAll | eq:'true' | then:p.options.sort }}",
+          "method": "DELETE",
+          "path": "/_pit",
+          "body": {
+            "id": "{{ res.pit_id | default:pre.id }}"
+          }
+        }
+      ],
       "output": {
         "to": {
           "_id": "{{ el._id }}",
@@ -367,7 +485,7 @@
             "bulkOperation",
             "refresh"
           ],
-          "help": "bulkOperation is accepted but each item is still sent as its own request"
+          "help": "bulkOperation: send the items in one _bulk request per 50 (one output item per bulk result)"
         }
       ],
       "query": {
@@ -380,6 +498,47 @@
             "{{ p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
           ]
         }
+      },
+      "bulk": {
+        "when": "{{ p.options.bulkOperation }}",
+        "size": 50,
+        "method": "POST",
+        "path": "/_bulk",
+        "body_type": "ndjson",
+        "body": {
+          "$map": "{{ batch }}",
+          "$to": {
+            "$list": [
+              {
+                "update": {
+                  "_index": "{{ el.p.indexId }}",
+                  "_id": "{{ el.p.documentId }}"
+                }
+              },
+              {
+                "!doc": {
+                  "$merge": [
+                    "{{ el.p.dataToSend | eq:'autoMapInputData' | then:(el.item | omit:(el.p.inputsToIgnore | split)) }}",
+                    "{{ el.p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "output": {
+          "path": "items",
+          "to": {
+            "$merge": [
+              "{{ el.index }}",
+              "{{ el.create }}",
+              "{{ el.update }}",
+              "{{ el.delete }}"
+            ]
+          }
+        },
+        "error_when": "{{ res.errors }}",
+        "error_message": "{{ res.items | pluck:'index.error' | default:(res.items | pluck:'create.error') | default:(res.items | pluck:'update.error') | default:(res.items | pluck:'delete.error') | get:'0' | pick:'type,reason' | json }}"
       }
     },
     {

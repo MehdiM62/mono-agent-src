@@ -1,7 +1,6 @@
 package n8nimport
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -9,8 +8,6 @@ import (
 func init() {
 	Register("n8n-nodes-base.postgres", func(c *MapContext) Mapping { return mapSQL(c, "db.postgres", "postgresql", "postgres") })
 	Register("n8n-nodes-base.mySql", func(c *MapContext) Mapping { return mapSQL(c, "db.mysql", "mysql", "mySql") })
-	Register("n8n-nodes-base.mongoDb", mapMongo)
-	Register("n8n-nodes-base.redis", mapRedis)
 }
 
 // queryParams splits n8n's queryReplacement ("{{ $json.a }},{{ $json.b }}"
@@ -167,127 +164,4 @@ func sqlData(c *MapContext) (interface{}, []string) {
 		match = append(match, key)
 	}
 	return data, match
-}
-
-// staticJSON parses a JSON-text parameter, else translates it.
-func staticJSON(c *MapContext, param, def string) interface{} {
-	raw, _ := c.Raw(param).(string)
-	if raw == "" {
-		raw = def
-	}
-	if !strings.HasPrefix(raw, "=") {
-		var v interface{}
-		if json.Unmarshal([]byte(raw), &v) == nil {
-			return escapeDeep(v)
-		}
-	}
-	return c.Translate(param, raw)
-}
-
-func mapMongo(c *MapContext) Mapping {
-	cfg := map[string]interface{}{"credential_id": c.Credential("mongodb", "mongoDb"), "collection": c.Str("collection", "")}
-	c.Ignore("resource", "options.dateFields", "options.useDotNotation")
-	c.Note("the database comes from the mongodb connection")
-	fieldsDoc := func() interface{} {
-		fields := commaList(c.Literal("fields", ""))
-		if len(fields) == 0 {
-			return "{{ json $json }}"
-		}
-		doc := map[string]interface{}{}
-		for _, f := range fields {
-			doc[f] = "{{ index $json " + fmt.Sprintf("%q", f) + " }}"
-		}
-		return doc
-	}
-	switch op := c.Literal("operation", "find"); op {
-	case "find":
-		cfg["operation"] = "find"
-		cfg["filter"] = staticJSON(c, "query", "{}")
-		if c.Has("options.limit") {
-			cfg["limit"] = c.Num("options.limit", 0)
-		}
-		for _, o := range []string{"options.skip", "options.sort", "options.projection"} {
-			if c.Has(o) {
-				c.Unsupported(o)
-			}
-		}
-	case "insert":
-		cfg["operation"] = "insert_one"
-		cfg["document"] = fieldsDoc()
-	case "update", "findOneAndUpdate", "findOneAndReplace":
-		key := c.Literal("updateKey", "id")
-		cfg["operation"] = "update_one"
-		cfg["filter"] = map[string]interface{}{key: "{{ index $json " + fmt.Sprintf("%q", key) + " }}"}
-		cfg["update"] = map[string]interface{}{"$set": fieldsDoc()}
-		if c.Bool("upsert", false) {
-			c.Unsupported("upsert")
-		}
-		if op != "update" {
-			c.Note("%s became update_one ($set of the listed fields)", op)
-		}
-	case "delete":
-		cfg["operation"] = "delete_many"
-		cfg["filter"] = staticJSON(c, "query", "{}")
-	case "aggregate":
-		cfg["operation"] = "aggregate"
-		cfg["pipeline"] = staticJSON(c, "query", "[]")
-	default:
-		return c.OperationUnsupported("", op)
-	}
-	return Mapping{Type: "db.mongodb", Config: cfg}
-}
-
-func mapRedis(c *MapContext) Mapping {
-	cfg := map[string]interface{}{"credential_id": c.Credential("redis", "redis")}
-	c.Ignore("options.dotNotation")
-	op := c.Literal("operation", "info")
-	switch op {
-	case "get":
-		cfg["key"] = c.Str("key", "")
-		switch kt := c.Literal("keyType", "automatic"); kt {
-		case "hash":
-			cfg["operation"] = "hgetall"
-		case "list":
-			cfg["operation"], cfg["start"], cfg["stop"] = "lrange", 0.0, -1.0
-		case "sets":
-			return c.OperationUnsupported("", "get sets")
-		default:
-			cfg["operation"] = "get"
-		}
-		if p := c.Literal("propertyName", "propertyName"); p != "" {
-			c.Note("the value is returned in mono's redis output field, not in %q", p)
-		}
-	case "set":
-		cfg["key"] = c.Str("key", "")
-		cfg["value"] = c.Str("value", "")
-		cfg["operation"] = "set"
-		if kt := c.Literal("keyType", "automatic"); kt == "hash" || kt == "list" || kt == "sets" {
-			return c.OperationUnsupported("", "set "+kt)
-		}
-		if c.Bool("expire", false) {
-			cfg["ttl_seconds"] = c.Num("ttl", 60)
-		} else {
-			c.Ignore("ttl")
-		}
-		c.Ignore("valueIsJSON")
-	case "delete":
-		cfg["operation"], cfg["key"] = "del", c.Str("key", "")
-	case "incr":
-		cfg["operation"], cfg["key"] = "incr", c.Str("key", "")
-		if c.Bool("expire", false) {
-			c.Warn("expire", true, "incr does not set an expiry in mono-agent")
-			c.Ignore("ttl")
-		}
-	case "keys":
-		cfg["operation"], cfg["key"] = "keys", c.Str("keyPattern", "*")
-		c.Ignore("getValues")
-	case "push":
-		cfg["operation"], cfg["key"], cfg["value"] = "lpush", c.Str("list", ""), c.Str("messageData", "")
-		if c.Bool("tail", false) {
-			c.Warn("tail", true, "values are pushed to the head of the list")
-		}
-	default:
-		return c.OperationUnsupported("", op)
-	}
-	return Mapping{Type: "db.redis", Config: cfg}
 }

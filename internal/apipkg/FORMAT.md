@@ -89,7 +89,7 @@ Unknown keys are errors (typos are caught). Rules checked by `validate`:
   "base_url": "",                     // optional per-op override of the package base_url
   "query":   { "project_id": "{{ p.projectId }}" },
   "body":    { "content": "{{ p.content }}" },
-  "body_type": "json",                // json | form | multipart | raw | none
+  "body_type": "json",                // json | form | multipart | raw | ndjson | none
   "headers": { },
   "fields": [ … ],                    // §4
   "pagination": { … },                // §8, optional
@@ -182,6 +182,7 @@ Scopes:
 | `main.<path>` | the main request's response, unchanged while `poll` repeats rebind `res` (also set in `also` steps) |
 | `pres.<i>.<path>` | the response of `before` step `i` (0-based) when `before` is a list |
 | `now` | the current UTC time (RFC 3339): `{{ now \| epoch \| add:p.duration \| date:'YYYY-MM-DDTHH:mm:ssZ' }}` |
+| `batch` | in a `bulk` request, the chunk's items as `{p, item, index}` (§9) |
 | `idx` | the element's position inside `$map`/`$entries` (pivot parallel lists: `{{ p.mrr \| get:(idx \| string) }}`) |
 | `uuid` | a new random UUID each time (e.g. a Calendar conference `requestId`) |
 
@@ -269,6 +270,11 @@ through, so an unset param stays unset:
 | `wrap:n` | text broken into lines of at most `n` characters joined by CRLF (base64 bodies in MIME messages: `{{ p.message \| base64 \| wrap:76 }}`) |
 | `mime_parts:'boundary'` | `bin.files` → one base64 attachment part per file (Content-Type with the file's MIME type and name, Content-Disposition attachment, lines wrapped at 76) plus the closing `--boundary--`; an empty list is nil, a file without data fails naming its property. The template writes the `multipart/mixed` header and the text part (Gmail send/reply/draft) |
 | `sealbox:key` | the value's text sealed for a base64 X25519 public key (libsodium `crypto_box_seal`), base64: Venafi `"{{ p.privateKeyPassphrase \| sealbox:pres.1.key }}"` |
+| `unique` / `unique:'path'` | list without repeats, first kept, order unchanged; elements compare by their JSON, or objects by their value at `path` (elements without it are kept). On a builder write `"$unique": true` (or a path) beside `$concat`/`$map`: SeaTable `{"$concat": ["{{ pres.2 \| get:p.col }}", {"$map": …}], "$unique": true}` |
+| `set:key,value` | the object (nil counts as `{}`) with `key` set to `value` (an empty key changes nothing): Excel upsert appends `{{ p.fieldsUi.values \| kv:'column,fieldValue' \| set:p.columnToMatchOn,p.valueToMatchOn }}` |
+| `not` | `true` when the value is unset (as for `then`), else nil: `"/{{ p.pit \| not \| then:p.indexId }}{{ p.pit \| not \| then:'/' }}_search"` |
+| `bind:params` | n8n query parameters: every string value or object key that is exactly `$1`, `$2`, … is replaced by that element of `params` (a list or its JSON text) — a parameter never adds structure. A key placeholder must give a plain name not starting with `$` that the object doesn't already have; a placeholder without a value or an unused parameter is an error; an empty list changes nothing: `{{ p.options.query \| fromjson \| bind:p.options.queryParameters }}` (Elasticsearch) |
+| `base64_chunks:n` | base64 data → list of its `n`-byte pieces, each base64 (chunked uploads: `"for_each": "{{ bin.files.0.base64 \| base64_chunks:5242880 }}"` with `idx` as the segment index) |
 | `urlencode` | object → `k=v&k2=v2` (keys sorted, each part percent-encoded like `encodeURIComponent`); any other value → its text percent-encoded: Azure `"x-ms-tags": "{{ p.options.tags \| kv:'tagName,tagValue' \| urlencode }}"` |
 
 **n8n `dataToSend` pattern.** `autoMapInputData` sends the input item, `defineBelow` sends the key/value rows:
@@ -325,6 +331,7 @@ argument are not, so an optional path suffix works:
    - `form` — object → `application/x-www-form-urlencoded` (encoded like query).
    - `multipart` — object fields as form fields plus the binary file part (§10).
    - `raw` — the binary upload, or the rendered body as text.
+   - `ndjson` — the body renders to a list; each element is one JSON line (an element that is itself a list gives one line per its elements, so a `$map` can emit an action line and a document line per item), with a final newline; `Content-Type: application/x-ndjson` (Elasticsearch `_bulk`).
    - `none` — no body (`body` must be unset).
 4. Package `headers`, then op `headers` (rendered; empty values not sent).
    `Accept: application/json` unless set (or a download).
@@ -357,6 +364,8 @@ same scope; empty → the body):
 operation's own `error_when`/`error_message` replace the package's (use
 `"error_when": "false"` to switch the check off for one op). Use `eq:'false'`
 for flags that are only an error when explicitly false (`{{ res.success | eq:'false' }}`).
+
+A step (`before`, `also`, `poll`, `pagination.next`) may carry its own `error_when`/`error_message`; they replace the op's (and package's) for that step's responses. Dropcontact's poll gets `{"success": false}` while the result is not ready: the op says `"{{ res.success | eq:'false' }}"`, the poll only `"{{ res.error | eq:'true' }}"`, so pending replies keep polling and real errors fail.
 
 `method` may be a template (`"{{ p.sendResume | then:'POST' | default:'GET' }}"`), upper-cased and checked at run time. A `path` that is a single expression yielding an absolute `http(s)://` URL is used unescaped.
 
@@ -503,6 +512,14 @@ With `"param_in": "body"`, the page param names may be dot paths, nested into th
 
 With `param_in: "body"`, a cursor that is an object or list goes back unchanged (DynamoDB `LastEvaluatedKey` → `ExclusiveStartKey`).
 
+**Continuation requests (`pagination.next`, cursor only).** Some APIs page through another endpoint with another body. `next` is a step (`method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`, `when`, `auth`, `error_when`) sent for every page after the first instead of the op's request, with `res` = the previous page and `page.cursor` = its cursor (the value at `cursor_path`, objects and lists unchanged); `cursor_param` is then not needed and neither the op's query nor `limit_param` is re-added. Paging stops as for `cursor`. Dropbox:
+```json
+"body": { "!path": "{{ p.path }}", "limit": "{{ p.returnAll | eq:'true' | then:2000 | default:p.limit }}" },
+"pagination": { "type": "cursor", "cursor_path": "cursor", "has_more_path": "has_more", "results_path": "entries",
+  "next": { "method": "POST", "path": "https://api.dropboxapi.com/2/files/list_folder/continue", "body": { "cursor": "{{ page.cursor }}" } } }
+```
+Elasticsearch point-in-time paging sends `"search_after": "{{ page.cursor }}"` with `cursor_path: "hits.hits.-1.sort"` and the PIT id of the previous page (`"pit": {"id": "{{ res.pit_id }}"}`); a `before` step opens the PIT and an `also` step closes it.
+
 ## 9. Output
 
 `"output": {"path": "data", "split": true}` — `path` (dot path, `-1` ok)
@@ -511,7 +528,7 @@ one item per element. Objects are one item; scalars become `{"data": v}`; a
 non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 `{"success": true}`; a path that resolves to nothing yields no items.
 
-**Follow-up requests (`also`).** Some n8n operations make several calls (update fields, then tags, then star). List them in order under `also`; each runs after the main request with `res` bound to the main response, auth injected the same way, and is skipped when its `when` template renders empty or false. The output is still the main response.
+**Follow-up requests (`also`).** Some n8n operations make several calls (update fields, then tags, then star). List them in order under `also`; each runs after the main request with `res` bound to the main response (on a paginated op: `res` = the last page, `main` = the first), auth injected the same way, and is skipped when its `when` template renders empty or false. The output is still the main response.
 ```json
 "also": [
   { "when": "{{ p.updateFields.tags }}", "method": "PUT", "path": "/contacts/{{ res.id }}/tags", "body": { "tags": "{{ p.updateFields.tags }}" } },
@@ -519,6 +536,15 @@ non-JSON body becomes `{"data": "<text>"}`; an empty body (e.g. 204) becomes
 ]
 ```
 `"for_each": "{{ p.tagIds }}"` on an `also` step sends it once per list element with `el` bound (`"path": "/contacts/{{ res.id }}/tags/{{ el }}"`). A step with `"upload": true` and `"body_type": "multipart"` sends its `body` fields plus the file part (S3-style presigned POST: request a slot with `{{ bin.file_name }}`/`{{ bin.mime_type }}` — `bin` is filled for every step when the op declares `binary.upload_field` — then upload, then create; set `binary.upload_when: "false"` so only the step uploads). A step with `"upload": true` sends the op's binary (`binary.upload_field`/`property`) as its raw body with the binary's Content-Type (LinkedIn: register an upload, PUT the bytes to `{{ pre.value.uploadUrl }}`, then create the post). A step with `"auth": false` is sent without the credential (presigned S3/GCS/Azure SAS URLs, e.g. a Transcribe transcript file). Step keys: `when`, `for_each`, `upload`, `auth`, `method`, `path`, `base_url`, `query`, `body`, `body_type`, `headers`. A step error fails the item like the main request.
+
+**Bulk variant (`bulk`).** n8n's per-item ops with a "bulk operation" option send every item in one request instead. `"bulk": {"when": "{{ p.options.bulkOperation }}", "size": 50, "method": "POST", "path": "/_bulk", "body_type": "ndjson", "body": …, "output": {…}, "error_when": …, "error_message": …}` — when `when` renders true for the first item, every item's params are resolved and checked as usual, and the op sends this request once per `size` items (default: all in one), with `batch` = the chunk's items as `{p, item, index}` (their params, JSON and position), `items` = their JSON, `p` = the chunk's first params. `output` and `error_when` shape the bulk response (the op's `output`, `before`, `also`, pagination and binary don't apply). Elasticsearch create:
+```json
+"body": { "$map": "{{ batch }}", "$to": { "$list": [
+  { "index": { "_index": "{{ el.p.indexId }}", "_id": "{{ el.p.additionalFields.documentId }}" } },
+  { "$merge": "{{ el.p.fieldsUi.fieldValues | kv:'fieldId,fieldValue' }}" } ] } },
+"output": { "path": "items", "to": { "$merge": ["{{ el.index }}", "{{ el.create }}", "{{ el.update }}", "{{ el.delete }}"] } },
+"error_when": "{{ res.errors }}"
+```
 
 **Batch operations (`batch: true`).** n8n's batchCreate/batchUpdate/batchDelete (with `autoMapInputData`) send ONE request for all input items. Mark the op `"batch": true`: it runs once, params come from the first item, and `items` is the list of every item's JSON:
 `"body": { "items": { "$map": "{{ items }}", "$to": { "fields": "{{ el | omit:p.inputsToIgnore }}" } } }`.
@@ -669,7 +695,7 @@ When a config has no `resource` and the default resource lacks the operation, an
 
 **Trigger-only apps** (n8n has only a `…Trigger` node, e.g. Eventbrite, Figma): write a package with `"operations": []` and the app's `n8n_trigger_types` (plus its credentials). It registers no action node; it records the triggers for the importer and the trigger work.
 
-`n8n_version_defaults` (package): `{"1": {"apiVersion": "v4"}}` — per n8n node `typeVersion`, defaults the importer fills in for params an exported node omits (n8n doesn't export defaults, and some changed between node versions).
+`n8n_version_defaults` (package): `{"1": {"apiVersion": "v4"}}` — per n8n node `typeVersion`, defaults the importer fills in for params an exported node omits (n8n doesn't export defaults, and some changed between node versions). A key may be a comparison (`<3`, `<=2.2`, `>=2`, `>1`) that applies to every matching version; an exact key wins over comparisons. A package can thus give an imported node a param n8n never had, to reproduce version-specific behaviour: Notion declares a `keyCase` field (`snake` default) used as `{{ el.key | snake:p.keyCase }}` and `{"<3": {"keyCase": "ascii"}}`.
 
 `n8n_resource_param` (package): the n8n param that selects the resource when it isn't `resource` (uProc: `group`).
 
@@ -858,3 +884,8 @@ Optional keys the engine added (the design's keys are unchanged):
 | output | `where` (keep elements by a template) | §9 |
 | templates | filter `sealbox` | §5 |
 | output | `walk` (tree walk over a growing id frontier, optional chunked `fetch`) | §9 |
+| templates | filters `unique`, `set`, `not`, `bind`, `base64_chunks`; builder key `$unique` | §5 |
+| operation, request | `bulk` (one request per chunk of items, root `batch`); body type `ndjson` | §6, §9 |
+| pagination | `next` (continuation request for pages 2+, `page.cursor`); `also` runs after paging | §8, §9 |
+| steps | `error_when` / `error_message` per step | §6 |
+| package | `n8n_version_defaults` comparison keys (`<3`) | §12 |

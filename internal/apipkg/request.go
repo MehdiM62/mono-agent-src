@@ -24,6 +24,10 @@ const (
 	BodyMultipart = "multipart"
 	BodyRaw       = "raw"
 	BodyNone      = "none"
+	// BodyNDJSON: the body renders to a list, one JSON line per element
+	// (an element that is a list gives one line per its elements), with a
+	// final newline; Content-Type application/x-ndjson (Elasticsearch _bulk).
+	BodyNDJSON = "ndjson"
 )
 
 // effectiveBodyType is body_type, defaulting to json when a body is set, raw
@@ -200,6 +204,16 @@ func (r *opRun) buildBody(pp pageParams) ([]byte, string, error) {
 	switch bt {
 	case BodyNone:
 		return nil, "", nil
+	case BodyNDJSON:
+		v, err := renderValue(r.op.Body, sc)
+		if err != nil {
+			return nil, "", r.errf("body: %w", err)
+		}
+		b, err := ndjsonLines(v)
+		if err != nil {
+			return nil, "", r.errf("body: %w", err)
+		}
+		return b, "application/x-ndjson", nil
 	case BodyForm:
 		q := url.Values{}
 		r.addValues(q, obj)
@@ -561,4 +575,33 @@ func (r *opRun) writeFilePart(w *multipart.Writer, b *Binary) error {
 		return r.errf("body: %w", err)
 	}
 	return nil
+}
+
+// ndjsonLines encodes a list as newline-delimited JSON: one line per
+// element, a nested list giving one line per its elements (a $map that
+// emits an action line and a document line per item).
+func ndjsonLines(v any) ([]byte, error) {
+	list, ok := v.([]any)
+	if !ok {
+		if v == nil {
+			return nil, fmt.Errorf("an ndjson body must render to a list")
+		}
+		list = []any{v}
+	}
+	var buf bytes.Buffer
+	for _, el := range list {
+		lines := []any{el}
+		if inner, ok := el.([]any); ok {
+			lines = inner
+		}
+		for _, l := range lines {
+			b, err := json.Marshal(l)
+			if err != nil {
+				return nil, err
+			}
+			buf.Write(b)
+			buf.WriteByte('\n')
+		}
+	}
+	return buf.Bytes(), nil
 }

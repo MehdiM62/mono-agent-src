@@ -1,4 +1,4 @@
-package main
+package workflowrun
 
 import (
 	"encoding/json"

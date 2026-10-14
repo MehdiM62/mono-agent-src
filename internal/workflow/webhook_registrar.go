@@ -1,0 +1,188 @@
+package workflow
+
+import (
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"sync"
+)
+
+// App webhook auto-registration. Some apps only send events to a URL that
+// was registered through their API (Typeform, Calendly, Tally, Facebook Lead
+// Ads, …). A WebhookRegistrar does that registration: the trigger manager
+// calls Register when the workflow is activated and Unregister when it is
+// deactivated, deleted or its trigger changes, and the hook's id is kept in
+// the app_webhooks table so any process can remove it later.
+//
+// A registrar is found by name, either
+//
+//   - a node type (e.g. "trigger.tally"): every node of that type is served
+//     like a trigger.webhook at /webhook/<path> (config "path", or one
+//     derived from the workflow and node ids) and registered on activation;
+//   - or a trigger.webhook's "register_with" config (e.g. "typeform"), an
+//     opt-in that leaves every other trigger.webhook as it is.
+//
+// The vendor must reach the URL, so its base comes from the node's
+// "public_url" or MONOAGENT_PUBLIC_URL (e.g. a tunnel); activation fails
+// with an explanation when neither is set.
+
+// AppWebhook is one trigger node's webhook as a registrar sees it.
+type AppWebhook struct {
+	WorkflowID string
+	NodeID     string
+	NodeType   string
+	// Config is the node config; for trigger.webhook the entries of
+	// "register_config" are merged on top. The node's credential
+	// (credential_id) is resolved into Config["credential"].
+	Config map[string]interface{}
+	// URL is the public URL the vendor must call; Path its /webhook/ path.
+	URL  string
+	Path string
+	// Secret is random and stable per node, for vendors that sign their
+	// deliveries with a secret given at registration.
+	Secret string
+}
+
+// AppWebhookHook is what the vendor returned for a registration.
+type AppWebhookHook struct {
+	ID    string
+	Extra map[string]interface{}
+}
+
+// WebhookRegistrar registers and removes a webhook with an app's API.
+// Unregister should treat a hook the vendor no longer has as removed.
+type WebhookRegistrar interface {
+	Register(ctx context.Context, hook AppWebhook) (AppWebhookHook, error)
+	Unregister(ctx context.Context, hook AppWebhook, stored AppWebhookHook) error
+}
+
+// WebhookChecker is optionally implemented by a registrar that can tell
+// whether a stored hook still exists; an activation that finds one gone
+// registers again instead of reusing it.
+type WebhookChecker interface {
+	Exists(ctx context.Context, hook AppWebhook, stored AppWebhookHook) (bool, error)
+}
+
+// WebhookVerifier is optionally implemented by a registrar whose vendor
+// signs deliveries; a delivery it refuses is answered 401 and starts no run.
+type WebhookVerifier interface {
+	VerifyDelivery(header http.Header, body []byte, hook AppWebhook, stored AppWebhookHook) error
+}
+
+var webhookRegistrars = struct {
+	sync.RWMutex
+	m map[string]WebhookRegistrar
+}{m: map[string]WebhookRegistrar{}}
+
+// RegisterWebhookRegistrar makes r the registrar for name: a node type, or
+// a value of trigger.webhook's "register_with". A later call replaces it.
+func RegisterWebhookRegistrar(name string, r WebhookRegistrar) {
+	webhookRegistrars.Lock()
+	defer webhookRegistrars.Unlock()
+	webhookRegistrars.m[name] = r
+}
+
+// WebhookRegistrarFor returns the registrar registered for name, or nil.
+func WebhookRegistrarFor(name string) WebhookRegistrar {
+	webhookRegistrars.RLock()
+	defer webhookRegistrars.RUnlock()
+	return webhookRegistrars.m[name]
+}
+
+// appWebhookRecord is one app_webhooks row.
+type appWebhookRecord struct {
+	WorkflowID string
+	NodeID     string
+	Registrar  string
+	HookID     string
+	URL        string
+	Secret     string
+	Config     map[string]interface{} // without credential data
+	ConfigHash string
+	Extra      map[string]interface{}
+}
+
+// appWebhookStore keeps the records; nil DB keeps them in memory.
+type appWebhookStore struct {
+	db  *sql.DB
+	mu  sync.Mutex
+	mem map[string]appWebhookRecord
+}
+
+func appWebhookKey(wf, node string) string { return wf + "\x00" + node }
+
+func (s *appWebhookStore) get(ctx context.Context, wf, node string) (*appWebhookRecord, error) {
+	if s.db == nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		rec, ok := s.mem[appWebhookKey(wf, node)]
+		if !ok {
+			return nil, nil
+		}
+		return &rec, nil
+	}
+	rec := appWebhookRecord{WorkflowID: wf, NodeID: node}
+	var cfg, extra string
+	err := s.db.QueryRowContext(ctx,
+		`SELECT registrar, hook_id, url, secret, config, config_hash, extra FROM app_webhooks WHERE workflow_id = ? AND node_id = ?`,
+		wf, node).Scan(&rec.Registrar, &rec.HookID, &rec.URL, &rec.Secret, &cfg, &rec.ConfigHash, &extra)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("app webhooks: get: %w", err)
+	}
+	_ = json.Unmarshal([]byte(cfg), &rec.Config)
+	_ = json.Unmarshal([]byte(extra), &rec.Extra)
+	return &rec, nil
+}
+
+func (s *appWebhookStore) put(ctx context.Context, rec appWebhookRecord) error {
+	if s.db == nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.mem == nil {
+			s.mem = make(map[string]appWebhookRecord)
+		}
+		s.mem[appWebhookKey(rec.WorkflowID, rec.NodeID)] = rec
+		return nil
+	}
+	cfg, _ := json.Marshal(rec.Config)
+	extra, _ := json.Marshal(rec.Extra)
+	if _, err := s.db.ExecContext(ctx,
+		`INSERT INTO app_webhooks (workflow_id, node_id, registrar, hook_id, url, secret, config, config_hash, extra)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (workflow_id, node_id) DO UPDATE SET registrar = excluded.registrar, hook_id = excluded.hook_id,
+		   url = excluded.url, secret = excluded.secret, config = excluded.config,
+		   config_hash = excluded.config_hash, extra = excluded.extra, created_at = CURRENT_TIMESTAMP`,
+		rec.WorkflowID, rec.NodeID, rec.Registrar, rec.HookID, rec.URL, rec.Secret, string(cfg), rec.ConfigHash, string(extra)); err != nil {
+		return fmt.Errorf("app webhooks: put: %w", err)
+	}
+	return nil
+}
+
+func (s *appWebhookStore) delete(ctx context.Context, wf, node string) error {
+	if s.db == nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		delete(s.mem, appWebhookKey(wf, node))
+		return nil
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM app_webhooks WHERE workflow_id = ? AND node_id = ?`, wf, node); err != nil {
+		return fmt.Errorf("app webhooks: delete: %w", err)
+	}
+	return nil
+}
+
+// hashAppConfig identifies a registration's inputs: the node config (keys
+// sorted by json.Marshal) and the URL.
+func hashAppConfig(cfg map[string]interface{}, url string) string {
+	raw, _ := json.Marshal(cfg)
+	sum := sha256.Sum256(append(raw, url...))
+	return hex.EncodeToString(sum[:])
+}

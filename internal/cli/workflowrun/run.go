@@ -1,4 +1,4 @@
-package main
+package workflowrun
 
 import (
 	"context"
@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/workflowtemplates"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/spf13/cobra"
 )
@@ -94,7 +96,7 @@ func waitForExecution(ctx context.Context, engine *workflow.WorkflowEngine, exec
 // workflow (fresh IDs), the same template can be run many times side by side —
 // e.g. several image generations at once — without the runs interfering, and
 // without leaving saved workflows behind.
-func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newTemplatesRunCmd() *cobra.Command {
 	var inputJSON string
 	var keep bool
 
@@ -116,7 +118,7 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 				return fmt.Errorf("unknown template %q. Run `monoagentcli workflow templates list` to see available IDs", args[0])
 			}
 
-			if err := checkTemplateNodeTypes(args[0], tmplFile, buildNodeRegistry(cfg.Verbose, nil).Has); err != nil {
+			if err := CheckTemplateNodeTypes(args[0], tmplFile, d.NodeTypes().Has); err != nil {
 				return err
 			}
 
@@ -130,7 +132,7 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 				return err
 			}
 
-			engine, closeBrowsers, err := buildEngine(cfg, false)
+			engine, closeBrowsers, err := d.BuildEngine()
 			if err != nil {
 				return fmt.Errorf("build engine: %w", err)
 			}
@@ -142,7 +144,7 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 			}
 			defer engine.Stop() //nolint:errcheck
 
-			wf := instantiateTemplate(tmplFile, cfg.ProfileID)
+			wf := workflowtemplates.InstantiateTemplate(tmplFile, d.ProfileID())
 			for i := range wf.Nodes {
 				if err := wf.Nodes[i].MarshalConfig(); err != nil {
 					return fmt.Errorf("marshal node config: %w", err)
@@ -166,14 +168,14 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("trigger workflow: %w", err)
 			}
-			if !cfg.JSONOutput {
+			if !d.JSONOutput() {
 				fmt.Fprintf(os.Stdout, "Running template %q (workflow %s, execution %s)\n", args[0], wf.ID, executionID)
 			}
 
-			runErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, 15*time.Minute, cfg.JSONOutput))
+			runErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, 15*time.Minute, d.JSONOutput()))
 
-			summary, serr := buildExecutionSummary(ctx, cfg, executionID)
-			if cfg.JSONOutput {
+			summary, serr := d.buildExecutionSummary(ctx, executionID)
+			if d.JSONOutput() {
 				// Same record `workflow run --json` prints after its wait:
 				// status, timestamps, and per-node output items — printed
 				// even when the run failed, since runErr (returned below)
@@ -189,15 +191,15 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 			}
 			if runErr == nil && serr == nil {
 				runErr = nothingSucceeded(summary)
-				if runErr == nil && !cfg.JSONOutput {
+				if runErr == nil && !d.JSONOutput() {
 					printRunOutput(os.Stdout, summary, &wf)
 				}
 			}
-			if keep && !cfg.JSONOutput {
+			if keep && !d.JSONOutput() {
 				fmt.Fprintf(os.Stdout, "Kept workflow %s\n", wf.ID)
 			}
-			if runErr != nil && cfg.JSONOutput {
-				return reportedError{Err: runErr} // the record above is the one JSON document
+			if runErr != nil && d.JSONOutput() {
+				return clicore.Reported{Err: runErr} // the record above is the one JSON document
 			}
 			return runErr
 		},
@@ -209,7 +211,7 @@ func newWorkflowTemplatesRunCmd(cfg *globalConfig) *cobra.Command {
 }
 
 // newWorkflowRunCmd manually triggers a workflow and polls for completion.
-func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
+func (d Deps) newRunCmd() *cobra.Command {
 	var inputJSON string
 	var noWait bool
 	var timeout time.Duration
@@ -234,17 +236,17 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 			workflowID := args[0]
 
 			if dryRun {
-				return runWorkflowDryRun(cfg, cmd, workflowID)
+				return d.DryRun(cmd, workflowID)
 			}
 
 			triggerData := map[string]interface{}{}
 			if inputJSON != "" {
 				if err := json.Unmarshal([]byte(inputJSON), &triggerData); err != nil {
-					return errInvalidInput("invalid --input JSON (expected a JSON object): %v", err)
+					return clicore.InvalidInput("invalid --input JSON (expected a JSON object): %v", err)
 				}
 			}
 
-			engine, closeBrowsers, err := buildEngine(cfg, false)
+			engine, closeBrowsers, err := d.BuildEngine()
 			if err != nil {
 				return fmt.Errorf("build engine: %w", err)
 			}
@@ -268,7 +270,7 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				// Keeps the engine's ErrWorkflowNotFound chain → exit 2.
 				if errors.Is(err, workflow.ErrWorkflowInactive) {
-					return errInvalidInput("trigger workflow: %v — activate it first: monoagentcli workflow activate %s", err, workflowID)
+					return clicore.InvalidInput("trigger workflow: %v — activate it first: monoagentcli workflow activate %s", err, workflowID)
 				}
 				if errors.Is(err, workflow.ErrWorkflowNotFound) {
 					return workflowNotFound(err, workflowID)
@@ -277,16 +279,16 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 			}
 
 			if noWait {
-				return printExecutionNoWait(cfg, workflowID, executionID, "QUEUED")
+				return d.printExecutionNoWait(workflowID, executionID, "QUEUED")
 			}
 
-			if !cfg.JSONOutput {
+			if !d.JSONOutput() {
 				fmt.Fprintf(os.Stdout, "Execution started: %s\n", executionID)
 			}
-			waitErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, timeout, cfg.JSONOutput))
+			waitErr := withNodeTypeHint(waitForExecution(ctx, engine, executionID, timeout, d.JSONOutput()))
 
-			summary, serr := buildExecutionSummary(ctx, cfg, executionID)
-			if cfg.JSONOutput {
+			summary, serr := d.buildExecutionSummary(ctx, executionID)
+			if d.JSONOutput() {
 				// Print the full record even when the run FAILED — the
 				// summary's error fields carry the reason, and waitErr
 				// (returned below) maps FAILED to exit code 1.
@@ -301,14 +303,14 @@ func newWorkflowRunCmd(cfg *globalConfig) *cobra.Command {
 			}
 			if waitErr == nil && serr == nil {
 				waitErr = nothingSucceeded(summary)
-				if waitErr == nil && !cfg.JSONOutput {
+				if waitErr == nil && !d.JSONOutput() {
 					if wf, gerr := engine.GetWorkflow(ctx, workflowID); gerr == nil {
 						printRunOutput(os.Stdout, summary, wf)
 					}
 				}
 			}
-			if waitErr != nil && cfg.JSONOutput {
-				return reportedError{Err: waitErr} // the record above is the one JSON document
+			if waitErr != nil && d.JSONOutput() {
+				return clicore.Reported{Err: waitErr} // the record above is the one JSON document
 			}
 			return waitErr
 		},
