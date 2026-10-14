@@ -266,6 +266,7 @@ func (p *Package) extendSchema(base []byte) ([]byte, bool) {
 			}
 		}
 	} else {
+		hideNativeOperation(fields)
 		for _, f := range p.selectorFields(true) {
 			fields = append(fields, f)
 		}
@@ -278,6 +279,20 @@ func (p *Package) extendSchema(base []byte) ([]byte, bool) {
 	exts, _ := doc["extended_by"].([]any)
 	doc["extended_by"] = append(exts, p.ID)
 	return marshalSchema(doc)
+}
+
+// hideNativeOperation shows the native "operation" select only while no
+// resource is picked: a resource brings its own operation select, and both
+// side by side read as two operation pickers. Native configs carry no
+// resource, so they still validate against the native options.
+func hideNativeOperation(fields []any) {
+	for _, f := range fields {
+		m, ok := f.(map[string]any)
+		if !ok || m["key"] != "operation" || m["depends_on"] != nil || m["visible_for"] != nil {
+			continue
+		}
+		m["depends_on"] = map[string]any{"key": "resource", "values": []string{""}}
+	}
 }
 
 func containsAny(xs []any, s string) bool {
