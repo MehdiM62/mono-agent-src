@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orgsign"
@@ -139,9 +140,9 @@ func newSigningFixture(t *testing.T, version string) (*orgCLIFixture, *recording
 	t.Setenv("MONOMIND_ORGRT_OPERATOR_DIR", filepath.Join(t.TempDir(), "operator"))
 	orgsigntest.AsOperator(t)
 	s := &recordingSigner{t: t}
-	prev := orgSigner
-	orgSigner = s
-	t.Cleanup(func() { orgSigner = prev })
+	prev := orgenv.Signer
+	orgenv.Signer = s
+	t.Cleanup(func() { orgenv.Signer = prev })
 	return f, s, logPath
 }
 
@@ -481,13 +482,13 @@ func TestNoAutomaticSigningUnderAgentContext(t *testing.T) {
 // org status asks monomind once for every org (2.22 --check --all).
 func TestOrgStatusChecksAllOrgsInOneRun(t *testing.T) {
 	f, _, logPath := newSigningFixture(t, "2.22.0")
-	prev := orgSignCheckAll
-	orgSignCheckAll = func(context.Context, string) (map[string]orgsign.Status, bool) {
+	prev := orgenv.SignCheckAll
+	orgenv.SignCheckAll = func(context.Context, string) (map[string]orgsign.Status, bool) {
 		b, _ := os.ReadFile(logPath)
 		_ = os.WriteFile(logPath, append(b, []byte("check-all\n")...), 0o644)
 		return map[string]orgsign.Status{"growth": {State: orgsign.StateChanged}}, true
 	}
-	t.Cleanup(func() { orgSignCheckAll = prev })
+	t.Cleanup(func() { orgenv.SignCheckAll = prev })
 	out := withOrgSignature(context.Background(), f.root, []byte(`{"v":1,"items":[{"name":"growth"},{"name":"other"}]}`))
 	var got struct {
 		Items []struct {

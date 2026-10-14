@@ -13,90 +13,36 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orgsign"
 )
 
-// Signed org definitions (#288, monomind#502). monomind 2.21 runs an org
-// only when the operator signed its definition. mono-agent keeps that
-// meaningful: a write it makes is re-signed only when the file verified
-// before the write and the document came from exactly those bytes
-// (orgsign.Before/After); everything else — an outside edit, an imported
-// org, a chat assistant's change — is left for the operator to review and
-// sign with `org sign`, which shows monomind's own review first.
+// Signed org definitions (#288, monomind#502): the save that keeps an
+// org's signature lives in internal/cli/orgenv; these are the CLI's names
+// for it. `org sign` itself is below.
 
-// orgSigningOn reports whether the monomind that runs in a project root
-// enforces signatures (its own handshake, run in that root).
-// A var so tests can switch it without a monomind.
-var orgSigningOn = monomind.OrgSigningEnforced
+type monomindOrgSigner = orgenv.MonomindSigner
 
-type monomindOrgSigner struct{}
+func orgSigningOn(ctx context.Context, root string) bool { return orgenv.SigningOn(ctx, root) }
 
-func (monomindOrgSigner) Sign(ctx context.Context, root, org, hash string) error {
-	_, err := monomind.OrgSign(ctx, root, org, hash)
-	return err
-}
-
-// EnforcesHash: monomind's own --expect-hash (2.22) refuses other content.
-func (monomindOrgSigner) EnforcesHash(ctx context.Context, root string) bool {
-	return monomind.OrgSignExpectsHash(ctx, root)
-}
-
-// Check is monomind's own verdict where it has one (2.22 --check).
-func (monomindOrgSigner) Check(ctx context.Context, root, org string) (orgsign.Status, bool) {
-	return monomind.OrgSignCheck(ctx, root, org)
-}
-
-// orgSignStatus is org's signature state: monomind's own check where it
-// has one, else the Go check.
 func orgSignStatus(ctx context.Context, root, org string, raw []byte) orgsign.Status {
-	if c, ok := orgSigner.(orgsign.Checker); ok {
-		if st, ok := c.Check(ctx, root, org); ok {
-			return st
-		}
-	}
-	return orgsign.Verify(root, org, raw)
+	return orgenv.SignStatus(ctx, root, org, raw)
 }
 
-// orgSignCheckAll is monomind.OrgSignCheckAll; a var so tests can stand
-// in for it.
-var orgSignCheckAll = monomind.OrgSignCheckAll
-
-// orgSigner signs through monomind; a var so tests can stand one in.
-var orgSigner orgsign.Signer = monomindOrgSigner{}
-
-// saveOrgSigned writes doc like orgdesign.Save and keeps its signature:
-// from is the org file the document replaces (a rename's old name). A new
-// org is never signed here — a whole document can come from anyone, the
-// chat assistant included — so the user reviews it with `org sign`.
-// The outcome is nil when monomind does not enforce signatures.
 func saveOrgSigned(ctx context.Context, root, from string, doc *orgdesign.Doc) (string, *orgsign.Outcome, error) {
-	if !orgSigningOn(ctx, root) {
-		sha, err := orgdesign.Save(root, doc)
-		return sha, nil, err
-	}
-	pre := orgsign.Before(ctx, orgSigner, root, from, doc.LoadedSHA(), false)
-	sha, err := orgdesign.Save(root, doc)
-	if err != nil {
-		return "", nil, err
-	}
-	out := pre.After(ctx, orgSigner, doc.Name, sha)
-	return sha, &out, nil
+	return orgenv.SaveSigned(ctx, root, from, doc)
 }
 
-// saveOrgDoc is saveOrgSigned for an edit of an existing org, reporting on
-// stderr when the org is left for the operator to review.
 func saveOrgDoc(ctx context.Context, root string, doc *orgdesign.Doc) (string, error) {
-	sha, out, err := saveOrgSigned(ctx, root, doc.Name, doc)
-	warnOrgSignature(out)
-	return sha, err
+	return orgenv.SaveDoc(ctx, root, doc)
 }
 
-func warnOrgSignature(out *orgsign.Outcome) {
-	if out != nil && out.Notice != "" {
-		fmt.Fprintln(os.Stderr, "warning: "+out.Notice)
-	}
+func warnOrgSignature(out *orgsign.Outcome) { orgenv.WarnSignature(out) }
+
+func withOrgSignature(ctx context.Context, root string, payload json.RawMessage) json.RawMessage {
+	return orgenv.WithSignature(ctx, root, payload)
 }
 
 // orgSignResult is `org sign`'s JSON.
@@ -212,7 +158,7 @@ func newOrgSignCmd(env *orgEnv) *cobra.Command {
 			if expect == "" {
 				expect, _ = orgsign.Hash(root, raw)
 			}
-			out := orgsign.SignExact(ctx, orgSigner, root, name, expect)
+			out := orgsign.SignExact(ctx, orgenv.Signer, root, name, expect)
 			res.State, res.Detail, res.Signed = out.State, "", out.Signed
 			if !out.Signed {
 				return &orgSignFailed{org: name, out: out}
@@ -353,44 +299,4 @@ func confirmOrgSign(w io.Writer, in io.Reader, name, review string) bool {
 	ans, _ := bufio.NewReader(in).ReadString('\n')
 	ans = strings.ToLower(strings.TrimSpace(ans))
 	return ans == "y" || ans == "yes"
-}
-
-// withOrgSignature adds each org's signature state to `org status` JSON (a
-// single {name,...} object or a {items:[...]} list) when monomind enforces
-// signatures. The payload is returned unchanged on any decode problem.
-func withOrgSignature(ctx context.Context, root string, payload json.RawMessage) json.RawMessage {
-	if !orgSigningOn(ctx, root) {
-		return payload
-	}
-	// One monomind run answers for every org (2.22 --check --all).
-	all, haveAll := orgSignCheckAll(ctx, root)
-	add := func(item map[string]interface{}) {
-		name, _ := item["name"].(string)
-		if !orgdesign.ValidOrgName(name) {
-			return
-		}
-		if st, ok := all[name]; haveAll && ok {
-			item["signature"] = st
-		} else if raw, _, err := orgsign.ReadFile(root, name); err == nil {
-			item["signature"] = orgsign.Verify(root, name, raw)
-		}
-	}
-	var obj map[string]interface{}
-	if json.Unmarshal(payload, &obj) != nil {
-		return payload
-	}
-	if items, ok := obj["items"].([]interface{}); ok {
-		for _, it := range items {
-			if m, ok := it.(map[string]interface{}); ok {
-				add(m)
-			}
-		}
-	} else {
-		add(obj)
-	}
-	b, err := json.Marshal(obj)
-	if err != nil {
-		return payload
-	}
-	return b
 }

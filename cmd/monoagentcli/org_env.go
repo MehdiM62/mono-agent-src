@@ -3,20 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
-	"time"
 
-	"github.com/monoes/mono-agent/internal/daemonhb"
-	"github.com/monoes/mono-agent/internal/orgdecide"
+	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/orggrant"
-	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
 )
+
+// The org environment and the org save helpers live in internal/cli/orgenv;
+// these are the CLI's names for them.
 
 // legacyOrgProjectRoot is where the CLI kept org state before the
 // unification plan (C-31): orgs now resolve under the active profile's root,
@@ -24,193 +20,57 @@ import (
 // here are listed by `org legacy list` and moved by `org legacy move`.
 const legacyOrgProjectRoot = "~/.monoagent"
 
-// orgEnv resolves the org project root and, for DB-backed org commands, the
-// profile and database. The DB opens lazily: plain monomind proxies with an
-// explicit --project never touch it.
+// orgEnv is orgenv.Env on the CLI's config: initDB opens the database and
+// resolves --profile.
 type orgEnv struct {
 	cfg         *globalConfig
 	projectFlag string
 
-	once    sync.Once
-	db      *storage.Database
-	dbErr   error
-	rootDir string
+	once sync.Once
+	e    *orgenv.Env
 }
 
-func (e *orgEnv) open() {
+func (e *orgEnv) env() *orgenv.Env {
 	e.once.Do(func() {
-		e.db, e.dbErr = initDB(e.cfg)
-		if e.dbErr != nil {
-			return
-		}
-		if err := profiledir.EnsureLayout(e.db.DB, e.cfg.ProfileID); err != nil {
-			e.dbErr = fmt.Errorf("preparing profile folder for %q: %w", e.cfg.ProfileID, err)
-			return
-		}
-		e.rootDir = profiledir.Root(e.db.DB, e.cfg.ProfileID)
+		e.e = orgenv.New(orgenv.Deps{
+			OpenDB:            func() (*storage.Database, error) { return initDB(e.cfg) },
+			ProfileID:         func() string { return e.cfg.ProfileID },
+			OpenWorkflowStore: openWorkflowStore,
+			Project:           func() string { return e.projectFlag },
+		})
 	})
+	return e.e
 }
 
-// Root is the project root org proxies run against: --project when given,
-// otherwise the active profile's root. When the database cannot be opened
-// it falls back to the default per-profile folder rather than failing a
-// read-only observe command.
-func (e *orgEnv) Root() string {
-	if e.projectFlag != "" {
-		return expandPath(e.projectFlag)
-	}
-	e.open()
-	if e.dbErr != nil {
-		pid := e.cfg.ProfileID
-		if pid == "" {
-			pid = "default"
-		}
-		return profiledir.Root(nil, pid)
-	}
-	return e.rootDir
-}
+func (e *orgEnv) Root() string { return e.env().Root() }
 
-// Profile returns the database, profile id, and profile root for commands
-// that read or write grants, endpoints, or autonomy rows. Those rows are
-// keyed by profile, so an explicit --project pointing anywhere else is
-// refused instead of silently editing one folder's org under another
-// profile's grants (C-31).
-func (e *orgEnv) Profile() (*storage.Database, string, string, error) {
-	e.open()
-	if e.dbErr != nil {
-		return nil, "", "", e.dbErr
-	}
-	if e.projectFlag != "" {
-		want, _ := filepath.Abs(e.rootDir)
-		got, _ := filepath.Abs(expandPath(e.projectFlag))
-		if filepath.Clean(want) != filepath.Clean(got) {
-			return nil, "", "", fmt.Errorf("--project %s is not the org root of profile %q (%s); grants and autonomy belong to a profile — drop --project or pass --profile", got, e.cfg.ProfileID, want)
-		}
-	}
-	return e.db, e.cfg.ProfileID, e.rootDir, nil
-}
+func (e *orgEnv) Profile() (*storage.Database, string, string, error) { return e.env().Profile() }
 
-func (e *orgEnv) Close() {
-	if e.db != nil {
-		e.db.Close()
-	}
-}
+func (e *orgEnv) Close() { e.env().Close() }
 
-// genOptions returns what reconcile needs to write generated org JSON
-// blocks for this process.
 func (e *orgEnv) genOptions(profileID string) orggrant.GenOptions {
-	return orggrant.GenOptions{
-		ProfileID: profileID,
-		CLIPath:   selfExecutable(),
-		APIAddr:   orgAPIAddr(e.db),
-		Workflow:  grantWorkflowLoader(e.db),
-	}
+	return e.env().GenOptions(profileID)
 }
 
-// selfExecutable is the absolute, symlink-resolved path of this binary —
-// the command monomind spawns for granted tool providers.
-func selfExecutable() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return "monoagentcli"
-	}
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
-	}
-	return exe
-}
+func selfExecutable() string { return orgenv.SelfExecutable() }
 
-// daemonAPIAddrSetting is the settings key `monoagentcli daemon` records
-// its --api-addr under, so endpoint URLs written while the daemon is down
-// still point where it will listen.
-const daemonAPIAddrSetting = "daemon_api_addr"
+const daemonAPIAddrSetting = orgenv.DaemonAPIAddrSetting
 
-// orgAPIAddr is the address endpoint URLs point at: MONOAGENT_API_ADDR,
-// else a live daemon's heartbeat, else the address the daemon last
-// recorded, else the default.
-func orgAPIAddr(db *storage.Database) string {
-	if v := os.Getenv("MONOAGENT_API_ADDR"); v != "" {
-		return v
-	}
-	if hb, ok := daemonhb.Read(); ok && hb.APIAddr != "" {
-		return hb.APIAddr
-	}
-	if db != nil {
-		var v string
-		if err := db.DB.QueryRow(`SELECT value FROM settings WHERE key = ?`, daemonAPIAddrSetting).Scan(&v); err == nil && v != "" {
-			return v
-		}
-	}
-	return orggrant.DefaultAPIAddr
-}
+func orgAPIAddr(db *storage.Database) string { return orgenv.APIAddr(db) }
 
-// saveOrgReconciled reconciles doc against the enforcement rows and saves
-// it. Every CLI path that writes an org JSON goes through here, so a doc
-// never reaches disk carrying grants or providers no row backs. The save
-// keeps the org's operator signature (saveOrgSigned).
 func saveOrgReconciled(ctx context.Context, db *storage.Database, profileID, root string, doc *orgdesign.Doc, opts orggrant.GenOptions) (*orggrant.Report, error) {
-	return saveOrgReconciledFrom(ctx, db, profileID, root, doc, opts, doc.Name)
+	return orgenv.SaveReconciled(ctx, db, profileID, root, doc, opts)
 }
 
-// saveOrgReconciledFrom is saveOrgReconciled with saveOrgSigned's from
-// (the org file doc replaces; a rename's old name).
 func saveOrgReconciledFrom(ctx context.Context, db *storage.Database, profileID, root string, doc *orgdesign.Doc, opts orggrant.GenOptions, from string) (*orggrant.Report, error) {
-	rep, err := reconcileOrgRows(ctx, db, profileID, doc, opts)
-	if err != nil {
-		return rep, err
-	}
-	_, out, err := saveOrgSigned(ctx, root, from, doc)
-	if err != nil {
-		return rep, err
-	}
-	warnOrgSignature(out)
-	return rep, nil
+	return orgenv.SaveReconciledFrom(ctx, db, profileID, root, doc, opts, from)
 }
 
-// reconcileOrgRows is saveOrgReconciled without the save: it rewrites
-// doc's generated blocks from the grant, endpoint, and autonomy rows (and
-// lowers the enforced autonomy to match the document), leaving the write to
-// the caller.
 func reconcileOrgRows(ctx context.Context, db *storage.Database, profileID string, doc *orgdesign.Doc, opts orggrant.GenOptions) (*orggrant.Report, error) {
-	rep, err := orggrant.Reconcile(ctx, orggrant.NewStore(db.DB), doc, opts)
-	if err != nil {
-		return nil, err
-	}
-	auto, err := orgdecide.ReconcileAutonomy(ctx, orgdecide.NewStore(db.DB), profileID, doc)
-	if err != nil {
-		return nil, err
-	}
-	if auto.Lowered {
-		rep.Findings = append(rep.Findings, orggrant.Finding{Kind: "autonomy_lowered", Detail: "lowered the enforced autonomy level to match the org file"})
-	}
-	if auto.Ignored != "" {
-		rep.Findings = append(rep.Findings, orggrant.Finding{Kind: "autonomy_raise_ignored", Detail: auto.Ignored})
-	}
-	return rep, nil
+	return orgenv.ReconcileRows(ctx, db, profileID, doc, opts)
 }
 
-// orgRowsLockWait bounds how long a writer waits for the org rows lock; a holder keeps it for one
-// load-write-save, so a longer wait means a stuck process, and failing beats hanging.
-const orgRowsLockWait = 15 * time.Second
-
-// lockOrgRows serialises the commands that write an enforcement row and then the org file with the
-// daemon's reconcile of that file (reconcileDoc). Without it the daemon can read the file between
-// the two writes, see a live row the file does not back yet, and revoke it (C-3): `org grant add`
-// then reports a grant that is already gone. Held until release is called.
-func lockOrgRows(root string) (release func(), err error) {
-	path := filepath.Join(root, ".monomind", "org-rows.lock")
-	deadline := time.Now().Add(orgRowsLockWait)
-	for {
-		release, err = daemonhb.LockFile(path)
-		if !errors.Is(err, daemonhb.ErrHeld) {
-			return release, err
-		}
-		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("another process is writing this profile's org files (lock %s); try again", path)
-		}
-		time.Sleep(25 * time.Millisecond)
-	}
-}
+func lockOrgRows(root string) (release func(), err error) { return orgenv.LockRows(root) }
 
 // printJSONValue marshals v and prints it as one line.
 func printJSONValue(v interface{}) error {
