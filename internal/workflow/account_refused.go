@@ -60,10 +60,14 @@ func (e *WorkflowEngine) onAccountRefused(st account.Status) {
 // refusal by monoes.me the run says so (spec section 12: the run records
 // login_required): the cancel came from the guard, not from a person. The cause
 // travels with the cancel, in the run's context or in its error, instead of
-// being read from the verdict afterwards.
+// being read from the verdict afterwards. A run the daemon's stop cut short
+// says so too.
 func cancelledMessage(ctx context.Context, runErr error) string {
 	if errors.Is(context.Cause(ctx), errAccountRefused) || errors.Is(runErr, errAccountRefused) {
 		return "login_required: monoes.me refused this account: " + runErr.Error()
+	}
+	if errors.Is(context.Cause(ctx), ErrEngineStopping) {
+		return "cancelled: " + ErrEngineStopping.Error()
 	}
 	return runErr.Error()
 }

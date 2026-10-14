@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -33,6 +34,11 @@ type WorkflowEngine struct {
 	allowAllProfiles bool
 	drops            dropNotes // triggers dropped while the account is locked
 	reconciler       triggerReconciler
+
+	// runCancel ends the executions in flight; with a stopGrace they
+	// outlive ctx (see Stop).
+	runCancel context.CancelCauseFunc
+	stopGrace time.Duration
 }
 
 // EngineConfig holds WorkflowEngine configuration.
@@ -137,6 +143,12 @@ func applyEngineDefaults(cfg *EngineConfig) error {
 // and starts the prune loop.
 func (e *WorkflowEngine) Start(ctx context.Context) error {
 	e.ctx, e.cancel = context.WithCancel(ctx)
+	runParent := e.ctx
+	if e.stopGrace > 0 {
+		runParent = context.WithoutCancel(ctx)
+	}
+	var runCtx context.Context
+	runCtx, e.runCancel = context.WithCancelCause(runParent)
 
 	// 1. Start webhook server. The webhook port is a single fixed port shared by
 	// every monoagent process, so a second engine (a CLI run started while the
@@ -161,7 +173,7 @@ func (e *WorkflowEngine) Start(ctx context.Context) error {
 	}
 
 	// 2. Start queue workers.
-	e.queue.Start(e.ctx)
+	e.queue.startWith(e.ctx, runCtx)
 
 	// 3. Recover stale executions left over from a prior crash or restart.
 	if err := e.store.RecoverStaleExecutions(e.ctx); err != nil {
@@ -217,17 +229,38 @@ func (e *WorkflowEngine) Start(ctx context.Context) error {
 	return nil
 }
 
+// ErrEngineStopping is why a run in flight when the daemon (an engine with a
+// stop grace) stops ends CANCELLED: context.Cause of its context.
+var ErrEngineStopping = errors.New("daemon stopping: the run was in flight when monoagent shut down")
+
+// SetStopGrace gives the executions in flight when Stop is called up to
+// grace to finish by themselves; the rest then end CANCELLED with
+// ErrEngineStopping. Without it (0, one-shot commands) Stop cancels them at
+// once. Call before Start.
+func (e *WorkflowEngine) SetStopGrace(grace time.Duration) { e.stopGrace = grace }
+
 // Stop gracefully shuts down all components.
 func (e *WorkflowEngine) Stop() error {
 	e.logger.Info().Msg("workflow engine stopping")
 
-	// Signal all goroutines driven by e.ctx.
+	// Signal all goroutines driven by e.ctx: the loops and the queue's
+	// dispatcher, and without a stop grace the executions too.
 	if e.cancel != nil {
 		e.cancel()
 	}
 
 	// Deactivate all triggers (stops cron jobs and deregisters webhooks).
 	e.triggerMgr.DeactivateAll()
+
+	// Runs in flight get the stop grace to finish; requests still queued
+	// stay QUEUED for the next engine to adopt.
+	if e.stopGrace > 0 && e.runCancel != nil && !e.queue.waitRuns(e.stopGrace) {
+		e.logger.Warn().Str("grace", e.stopGrace.String()).
+			Msg("engine: runs still in flight after the stop grace; cancelling them")
+	}
+	if e.runCancel != nil {
+		e.runCancel(ErrEngineStopping)
+	}
 
 	// Stop the queue — drains in-flight work with a bounded 15s grace period
 	// (handlers that ignore cancellation past the grace are abandoned).

@@ -219,6 +219,7 @@ func (e *WorkflowEngine) handleExecution(ctx context.Context, req ExecutionReque
 func (e *WorkflowEngine) persistExecutionFinished(log zerolog.Logger, executionID, status, errMsg string) {
 	defer e.onExecutionFinished(executionID) // wakes a parent waiting on this sub-workflow run
 	defer e.afterExecutionFinished(log, executionID, status, errMsg)
+	e.recordFinishedClass(executionID, status, errMsg)
 	persistCtx := context.WithoutCancel(context.Background())
 	err := e.store.SetExecutionFinished(persistCtx, executionID, status, errMsg)
 	if err == nil {
