@@ -31,9 +31,14 @@ func (r *runner) injectCredential(node WorkflowNode, config map[string]interface
 				Msg("connections lookup failed")
 			// conn is nil; injected stays false, miss handling below runs
 		} else if conn != nil {
-			// Merge all connection Data fields directly into config.
+			// Connection fields fill only the keys the node's own config
+			// leaves unset (absent, null or ""), so a connection's "url"
+			// cannot replace the node's url; config["credential"] keeps
+			// the full data.
 			for k, v := range conn.Data {
-				config[k] = v
+				if isUnsetConfigValue(config[k]) {
+					config[k] = v
+				}
 			}
 			config["credential"] = conn.Data
 			injected = true
@@ -64,4 +69,9 @@ func (r *runner) injectCredential(node WorkflowNode, config map[string]interface
 			Str("profile", vault.ProfileIDFromContext(ctx)).
 			Msg("credential not resolved for profile")
 	}
+}
+
+func isUnsetConfigValue(v interface{}) bool {
+	s, isStr := v.(string)
+	return v == nil || (isStr && s == "")
 }
