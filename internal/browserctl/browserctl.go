@@ -13,6 +13,7 @@ package browserctl
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,8 +72,14 @@ type Options struct {
 	Tab int
 	// NoTab opens a Session without a tab (listing, opening a new one).
 	NoTab bool
-	// Allowlist is the user's allowlist (LoadAllowlist).
+	// Permissions are the user's browser permissions (LoadPermissions);
+	// nil: every kind at its default level.
+	Permissions *Permissions
+	// Allowlist adds allow rules on top of the permissions' own.
 	Allowlist []string
+	// DB, when set, lets the session raise the HIL item a site needs at
+	// level ask (AskSite); without it that is a *SiteNeedsApprovalError.
+	DB *sql.DB
 	// Sender overrides finding the bridge (tests).
 	Sender Sender
 }
@@ -83,6 +90,7 @@ type Session struct {
 	target  extension.Target
 	info    extension.ConnInfo
 	policy  Policy
+	db      *sql.DB
 	key     string
 	state   State
 	profile string
@@ -102,9 +110,16 @@ func Open(o Options) (*Session, error) {
 			return nil, err
 		}
 	}
+	perms := DefaultPermissions()
+	if o.Permissions != nil {
+		perms = *o.Permissions
+	}
+	policy := perms.PolicyFor(AgentKind())
+	policy.Allowlist = append(policy.Allowlist, o.Allowlist...)
 	s := &Session{
 		sender:  sender,
-		policy:  Policy{Agent: IsAgentContext(), Allowlist: o.Allowlist},
+		policy:  policy,
+		db:      o.DB,
 		key:     ContextKey(),
 		profile: o.Profile,
 	}

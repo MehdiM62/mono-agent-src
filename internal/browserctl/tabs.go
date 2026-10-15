@@ -59,7 +59,7 @@ func (s *Session) VisibleTabs() ([]Tab, error) {
 // raised while it loads are kept. A human's tab is grouped only when group
 // is given.
 func (s *Session) OpenTab(url, group string) (int, error) {
-	if err := s.policy.Check(url); err != nil {
+	if err := s.check(url); err != nil {
 		return 0, err
 	}
 	var created struct {
@@ -113,7 +113,7 @@ func (s *Session) OpenTab(url, group string) (int, error) {
 // Navigate loads url in the session's tab and returns the URL it ended on.
 // An agent's tab is watched first, so the new page's errors are kept.
 func (s *Session) Navigate(url string) (string, error) {
-	if err := s.policy.Check(url); err != nil {
+	if err := s.check(url); err != nil {
 		return "", err
 	}
 	wasBlank := blank(s.url)
