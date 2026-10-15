@@ -17,6 +17,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// ErrProfileRequired is returned when no profile is in effect: secrets belong
+// to a profile and there is no implicit "default".
+var ErrProfileRequired = errors.New("secret: no profile selected; pass --profile <id|name>")
+
 // newSecretCmd returns the `secret` command group: an encrypted vault for
 // arbitrary API keys/passwords (kind "secret") and website logins (kind
 // "login"), each holding one or more named fields. Plaintext is only ever
@@ -202,7 +206,7 @@ func (d Deps) newSecretAddCmd() *cobra.Command {
 
 			profileID := d.ProfileID()
 			if profileID == "" {
-				profileID = "default"
+				return ErrProfileRequired
 			}
 
 			id, err := secrets.Add(cmd.Context(), db.DB, profileID, kind, name, fields, username, url, notes)
@@ -243,7 +247,7 @@ func (d Deps) newSecretListCmd() *cobra.Command {
 
 			profileID := d.ProfileID()
 			if profileID == "" {
-				profileID = "default"
+				return ErrProfileRequired
 			}
 			entries, err := secrets.List(cmd.Context(), db.DB, profileID)
 			if err != nil {
@@ -287,7 +291,7 @@ func (d Deps) newSecretGetCmd() *cobra.Command {
 
 			profileID := d.ProfileID()
 			if profileID == "" {
-				profileID = "default"
+				return ErrProfileRequired
 			}
 			entries, err := secrets.List(cmd.Context(), db.DB, profileID)
 			if err != nil {
@@ -340,7 +344,7 @@ func (d Deps) revealAndPrint(cmd *cobra.Command, name string) error {
 
 	profileID := d.ProfileID()
 	if profileID == "" {
-		profileID = "default"
+		return ErrProfileRequired
 	}
 	id, err := d.lookupSecretID(cmd.Context(), db.DB, profileID, name)
 	if err != nil {
