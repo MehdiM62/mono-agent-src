@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -90,9 +91,13 @@ func addServiceHooks(env *health.Env, d EnvDeps) {
 		}
 		return nil
 	}
-	env.AutostartStatus = autostart.New().Status
+	env.AutostartStatus = func(ctx context.Context) (bool, string) { return autostartStatus(ctx, autostart.New()) }
 	env.InstallAutostart = func(ctx context.Context, progress func(string)) error {
-		res, err := autostart.New().Install(ctx)
+		profile, err := daemonProfile(ctx, env)
+		if err != nil {
+			return err
+		}
+		res, err := autostart.New().Install(ctx, profile)
 		if err != nil {
 			return err
 		}
@@ -101,11 +106,19 @@ func addServiceHooks(env *health.Env, d EnvDeps) {
 	}
 	env.StartDaemon = func(ctx context.Context, progress func(string)) error {
 		// The profile as doctor resolved it: --profile may be a name.
-		return startDaemon(ctx, daemonArgs(d.DBPath(), d.ProfileID(), env.ProfileID), autostart.New(), progress)
+		args, err := daemonStartArgs(ctx, d, env)
+		if err != nil {
+			return err
+		}
+		return startDaemon(ctx, args, autostart.New(), progress)
 	}
 	env.StopDaemon = stopDaemon
 	env.CanStartDaemon = func(ctx context.Context) error {
-		return daemonStartBlocked(ctx, daemonArgs(d.DBPath(), d.ProfileID(), env.ProfileID), autostart.New())
+		args, err := daemonStartArgs(ctx, d, env)
+		if err != nil {
+			return err
+		}
+		return daemonStartBlocked(ctx, args, autostart.New())
 	}
 
 	env.ClaudeSkills = integrations.ClaudeSkillsState
@@ -115,6 +128,15 @@ func addServiceHooks(env *health.Env, d EnvDeps) {
 	env.MCPRegistration = integrations.AgentsMCPRegistration
 	env.MCPRuntimes = integrations.AgentsMCPRuntimes
 	env.RegisterMCP = integrations.RegisterAgentsMCP
+}
+
+// daemonStartArgs is the command line doctor starts the daemon with.
+func daemonStartArgs(ctx context.Context, d EnvDeps, env *health.Env) ([]string, error) {
+	profile, err := daemonProfile(ctx, env)
+	if err != nil {
+		return nil, err
+	}
+	return daemonArgs(d.DBPath(), profile)
 }
 
 // startDaemon starts `monoagentcli daemon` through its login service when
@@ -167,13 +189,22 @@ func startDaemon(ctx context.Context, args []string, as autostart.Installer, pro
 
 // serviceStartRefusal is why the registered login service, at where, cannot
 // start the daemon with args: nil when it can. The service runs the daemon
-// with the default database and profile, and one daemon runs per home (the
-// service's would take the lock), so it cannot start one with others.
+// with the default database and the profile it was registered with, and one
+// daemon runs per home (the service's would take the lock), so it cannot
+// start one with another database or profile. A registration that names no
+// profile (out of date) is still started: doctor reports it, and fixing it
+// rewrites it.
 func serviceStartRefusal(where string, args []string) error {
-	if len(args) <= 1 {
+	want := []string{"daemon"}
+	if i := slices.Index(args, "--profile"); i >= 0 && i+1 < len(args) {
+		if reg, found, err := registeredProfile(); err != nil || !found || reg == args[i+1] {
+			want = append(want, args[i:i+2]...)
+		}
+	}
+	if slices.Equal(args, want) {
 		return nil
 	}
-	return fmt.Errorf("the registered login service (%s) runs the daemon with the default database and profile, not %s — "+
+	return fmt.Errorf("the registered login service (%s) runs the daemon with the default database and the profile it was registered with, not %s — "+
 		"start it yourself: monoagentcli %s", where, strings.Join(args[1:], " "), strings.Join(args, " "))
 }
 
@@ -273,18 +304,52 @@ func heartbeatNames(pid int) bool {
 	return ok && hb.PID == pid
 }
 
-// daemonArgs is `daemon` plus the --db-path (dbPath) and --profile (profileFlag) doctor runs
-// with, when they were given: profileID is the profile as doctor resolved it (--profile may be
-// a name).
-func daemonArgs(dbPath, profileFlag, profileID string) []string {
+// daemonArgs is `daemon` plus the --db-path (dbPath) doctor runs with, when given, and always
+// --profile profileID: the daemon never starts on whatever profile happens to be active.
+// profileID is the profile as doctor resolved it (--profile may be a name).
+func daemonArgs(dbPath, profileID string) ([]string, error) {
+	if profileID == "" {
+		return nil, fmt.Errorf("no profile to start the daemon with: pass --profile <id>")
+	}
 	args := []string{"daemon"}
 	if dbPath != "" && clicore.ExpandPath(dbPath) != clicore.ExpandPath(capturecli.DefaultDBPath) {
 		args = append(args, "--db-path", clicore.ExpandPath(dbPath))
 	}
-	if profileFlag != "" && profileID != "" && profileID != "default" && strings.ToLower(profileFlag) != "default" {
-		args = append(args, "--profile", profileID)
+	return append(args, "--profile", profileID), nil
+}
+
+// daemonProfile is the profile doctor starts or registers the daemon with: the one it resolved,
+// which must exist in the database. It is never invented ("default" included).
+func daemonProfile(ctx context.Context, env *health.Env) (string, error) {
+	if env.DB == nil {
+		return "", fmt.Errorf("cannot name a profile for the daemon: the database is not open; pass --profile <id>")
 	}
-	return args
+	var id string
+	if err := env.DB.QueryRowContext(ctx, `SELECT id FROM profiles WHERE id = ?`, env.ProfileID).Scan(&id); err != nil {
+		return "", fmt.Errorf("profile %q does not exist; pass --profile <id> (see `monoagentcli profile list`)", env.ProfileID)
+	}
+	return id, nil
+}
+
+// registeredProfile is the profile the registered login service starts the daemon with; tests replace it.
+var registeredProfile = autostart.RegisteredProfile
+
+// autostartStatus is the service manager's status, except that a registration which starts the
+// daemon without --profile (installed before the profile was explicit) is reported as out of
+// date rather than as in place: fixing it rewrites the registration.
+func autostartStatus(ctx context.Context, as autostart.Installer) (bool, string) {
+	ok, where := as.Status(ctx)
+	if !ok {
+		return ok, where
+	}
+	_, found, err := registeredProfile()
+	if err != nil {
+		return false, where + ": could not read the registration (" + err.Error() + ")"
+	}
+	if !found {
+		return false, where + " is out of date: it starts the daemon without --profile; fix it to rewrite the registration"
+	}
+	return true, where
 }
 
 // bridgeOwner says what runs the bridge process pid: the daemon (pid

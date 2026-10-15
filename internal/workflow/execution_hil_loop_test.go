@@ -71,7 +71,7 @@ func TestLoop_HumanInLoopAsksEachIteration(t *testing.T) {
 	store := &recStore{}
 	run := func(resume string) error {
 		exec := &workflow.WorkflowExecution{ID: "e", WorkflowID: wf.ID, TriggerData: map[string]interface{}{}, ResumeState: resume}
-		ctx := vault.ContextWithDB(context.Background(), db)
+		ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
 		return workflow.RunExecution(ctx, exec, wf, dag, reg, store, nil, workflow.NewExpressionEngine(), zerolog.Nop())
 	}
 

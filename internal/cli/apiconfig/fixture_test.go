@@ -189,7 +189,7 @@ func decodeChange(t *testing.T, out string) apiconfig.ChangeResult {
 // fakeAutostart is the service manager: installed is whether the daemon is registered.
 type fakeAutostart struct{ installed bool }
 
-func (f *fakeAutostart) Install(context.Context) (autostart.Result, error) {
+func (f *fakeAutostart) Install(context.Context, string) (autostart.Result, error) {
 	return autostart.Result{}, nil
 }
 func (f *fakeAutostart) Uninstall(context.Context) error { return nil }

@@ -26,7 +26,7 @@ func (a *App) runMonoCLI(stdin string, result interface{}, args ...string) error
 	if err != nil {
 		return err
 	}
-	fullArgs := append([]string{"--profile", a.getActiveProfileID(), "--json"}, args...)
+	fullArgs := scopedCLIArgs(a.getActiveProfileID(), args...)
 	ctx := a.ctx
 	if ctx == nil { // before startup, and in tests (which keep ctx nil so emitLog skips the Wails runtime)
 		ctx = context.Background()

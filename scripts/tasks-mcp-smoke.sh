@@ -20,17 +20,22 @@ db="$home/.monoagent/monoagent.db"
 # Use the devaccount build above: this smoke exercises task tools, independently of the gate.
 # A clean environment, as in the operator's own terminal: the "straight to Ready" gate refuses when an
 # agent marker (CLAUDECODE, AI_AGENT, ...) is set, and this script may itself run inside an agent's shell.
-run() { env -i "PATH=$PATH" "MONOAGENT_DEV_ENFORCE_FROM=2999-01-01T00:00:00Z" "HOME=$home" "TMPDIR=$root/tmp" "$cli" --db-path "$db" "$@"; }
+run() { mono_guard env -i "PATH=$PATH" "MONOAGENT_DEV_ENFORCE_FROM=2999-01-01T00:00:00Z" "HOME=$home" "TMPDIR=$root/tmp" "$cli" --db-path "$db" "$@"; }
+# shellcheck source=lib/mono.sh
+. "$(dirname "$0")/lib/mono.sh"
+prof=smoke # the named profile every scoped call acts on
 fail() { echo "tasks mcp smoke: $*" >&2; exit 1; }
 
 # rpc <extra mcp flags> : reads request lines on stdin, prints responses
-rpc() { run mcp --tasks-only "$@"; }
+rpc() { run mcp --profile "$prof" --tasks-only "$@"; }
 init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","clientInfo":{"name":"smoke client","version":"1"}}}'
 call() { printf '{"jsonrpc":"2.0","id":%s,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2" "$3"; }
 resp() { jq -c "select(.id==$2)" <<<"$1"; } # one response by id
 
+run --json profile create "$prof" >/dev/null || fail "profile create"
+
 echo "== the operator adds a task straight to Ready"
-run task add "smoke test the task tools" --notes "from the smoke script" --ready >"$root/add.out" 2>&1 || fail "task add: $(cat "$root/add.out")"
+run --profile "$prof" task add "smoke test the task tools" --notes "from the smoke script" --ready >"$root/add.out" 2>&1 || fail "task add: $(cat "$root/add.out")"
 
 echo "== without --allow-mutations: only the read tools are listed, a verb refuses"
 out="$({ echo "$init"; echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; call 3 task_claim '{"next":true}'; } | rpc)"
@@ -70,38 +75,39 @@ resp "$out" 5 | jq -e '.result.isError!=true' >/dev/null || fail "task_finish: $
 resp "$out" 6 | jq -e '.result.isError==true and (.result.content[0].text|contains("not served"))' >/dev/null || fail "workflow_list not refused: $(resp "$out" 6)"
 
 echo "== the board as the command shows it: the agent's work waits in review"
-run --json task show 1 | jq -e '.task.status=="review" and ([.events[].kind]|index("claimed")!=null) and ([.events[].kind]|index("result")!=null)' >/dev/null || fail "task show 1: $(run --json task show 1)"
+run --profile "$prof" --json task show 1 | jq -e '.task.status=="review" and ([.events[].kind]|index("claimed")!=null) and ([.events[].kind]|index("result")!=null)' >/dev/null || fail "task show 1: $(run --profile "$prof" --json task show 1)"
 
 echo "== delegation: off by default, an agent cannot turn it on, task_approve exists only while the operator allows it"
-run --json task add "captured text" >"$root/inbox.out" 2>"$root/inbox.err" || fail "task add (inbox): $(cat "$root/inbox.out")"
+run --profile "$prof" --json task add "captured text" >"$root/inbox.out" 2>"$root/inbox.err" || fail "task add (inbox): $(cat "$root/inbox.out")"
 inbox_id="$(jq -r '.task.id' "$root/inbox.out")"
-if run task agents allow --approve --as bot >/dev/null 2>"$root/err"; then fail "an agent allowed itself to approve"; fi
+if run --profile "$prof" task agents allow --approve --as bot >/dev/null 2>"$root/err"; then fail "an agent allowed itself to approve"; fi
 grep -q "only the operator" "$root/err" || fail "agents allow by an agent: $(cat "$root/err")"
-run --json task agents show | jq -e '.view==false and .approve==false' >/dev/null || fail "delegation is not off by default"
+run --profile "$prof" --json task agents show | jq -e '.view==false and .approve==false' >/dev/null || fail "delegation is not off by default"
 out="$({ echo "$init"; echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; } | rpc --allow-mutations)"
 [ "$(resp "$out" 2 | jq -r '[.result.tools[].name]|sort|join(",")')" = "task_add,task_claim,task_comment,task_finish,task_get,task_list,task_next,task_release" ] || fail "tools/list changed while delegation is off"
 # allow needs a terminal on standard input: refused here (no terminal), done below through a pseudo-terminal.
-if run task agents allow --view --approve </dev/null >/dev/null 2>"$root/err"; then fail "task agents allow ran without a terminal"; fi
+if run --profile "$prof" task agents allow --view --approve </dev/null >/dev/null 2>"$root/err"; then fail "task agents allow ran without a terminal"; fi
 grep -q "your own terminal" "$root/err" || fail "allow without a terminal: $(cat "$root/err")"
-allow_tty() { env -i "PATH=$PATH" "HOME=$home" "TMPDIR=$root/tmp" python3 -c 'import pty,sys; sys.exit(pty.spawn(sys.argv[1:]) >> 8)' "$cli" --db-path "$db" task agents allow "$@" >/dev/null; }
+allow_tty() { env -i "PATH=$PATH" "MONOAGENT_DEV_ENFORCE_FROM=2999-01-01T00:00:00Z" "HOME=$home" "TMPDIR=$root/tmp" python3 -c 'import pty,sys; sys.exit(pty.spawn(sys.argv[1:]) >> 8)' "$cli" --db-path "$db" --profile "$prof" task agents allow "$@" >/dev/null; }
 if allow_tty --approve; then fail "allow --approve without --view was accepted"; fi
 allow_tty --view --approve || fail "operator: task agents allow --view --approve"
 out="$({ echo "$init"; echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; call 3 task_approve "{\"ids\":[$inbox_id]}"; } | rpc --allow-mutations)"
 resp "$out" 2 | jq -e '[.result.tools[].name]|index("task_approve")!=null' >/dev/null || fail "task_approve not listed while allowed"
 resp "$out" 3 | jq -e '.result.isError!=true' >/dev/null || fail "task_approve: $(resp "$out" 3)"
-run --json task show "$inbox_id" | jq -e '.task.status=="ready" and (.events[-1].actor|startswith("agent:smoke-client#")) and (.events[-1].note|contains("delegated"))' >/dev/null || fail "the approval is not recorded as delegated: $(run --json task show "$inbox_id")"
+run --profile "$prof" --json task show "$inbox_id" | jq -e '.task.status=="ready" and (.events[-1].actor|startswith("agent:smoke-client#")) and (.events[-1].note|contains("delegated"))' >/dev/null || fail "the approval is not recorded as delegated: $(run --profile "$prof" --json task show "$inbox_id")"
 # the loop is closed: a task an agent added over MCP cannot be approved by an agent
 out="$({ echo "$init"; call 2 task_add '{"title":"injected"}'; } | rpc --allow-mutations)"
 agent_id="$(resp "$out" 2 | jq -r '.result.content[0].text | fromjson | .task.id')"
 out="$({ echo "$init"; call 3 task_approve "{\"ids\":[$agent_id]}"; } | rpc --allow-mutations)"
 resp "$out" 3 | jq -e '.result.isError==true and (.result.content[0].text|contains("created by an agent"))' >/dev/null || fail "an agent approved a task an agent created: $(resp "$out" 3)"
-run task agents deny >/dev/null || fail "operator: task agents deny"
+run --profile "$prof" task agents deny >/dev/null || fail "operator: task agents deny"
 out="$({ echo "$init"; echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; call 3 task_approve '{"ids":[1]}'; } | rpc --allow-mutations)"
 resp "$out" 2 | jq -e '[.result.tools[].name]|index("task_approve")==null' >/dev/null || fail "task_approve still listed after deny"
 resp "$out" 3 | jq -e '.result.isError==true' >/dev/null || fail "task_approve worked after deny"
 
 echo "== --tasks-only with --api-only is refused"
-if run mcp --tasks-only --api-only </dev/null >/dev/null 2>"$root/err"; then fail "--tasks-only --api-only started"; fi
+if run mcp --profile "$prof" --tasks-only --api-only </dev/null >/dev/null 2>"$root/err"; then fail "--tasks-only --api-only started"; fi
 grep -q "cannot be combined" "$root/err" || fail "refusal text: $(cat "$root/err")"
 
+mono_check_clean
 echo "tasks mcp smoke: ok"

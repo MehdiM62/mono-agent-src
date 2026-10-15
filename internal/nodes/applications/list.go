@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/monoes/mono-agent/internal/applications"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -19,7 +20,10 @@ func (n *ListNode) Execute(ctx context.Context, input workflow.NodeInput, config
 	if globalStore == nil {
 		return nil, fmt.Errorf("applications.list: store not available (call SetGlobalStore at startup)")
 	}
-	profileID := configString(config, "profile_id", "default")
+	profileID, err := nodeprofile.Require(ctx, "applications.list", config)
+	if err != nil {
+		return nil, err
+	}
 	filter := applications.ListFilter{
 		Kind:   applications.Kind(configString(config, "kind", "")),
 		Status: applications.Status(configString(config, "status", "")),

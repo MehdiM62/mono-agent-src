@@ -35,7 +35,7 @@ func NewCommand(d Deps) *cobra.Command {
 	}
 	cmd.PersistentFlags().StringVar(&project, "project", "",
 		"Project root orgs resolve under (<root>/.monomind/orgs/); default: the active profile's folder")
-	root := env.Root
+	root := env.root
 
 	cmd.AddCommand(
 		newOrgListCmd(root),
@@ -87,7 +87,40 @@ func NewCommand(d Deps) *cobra.Command {
 		newOrgReconcileDocCmd(env),
 		newOrgTeardownProfileCmd(env),
 	)
+	requireRoot(cmd, env)
 	return cmd
+}
+
+// noRootGuard lists the commands requireRoot leaves alone, by command path
+// below the root command: ones that need no folder, or that deal with a
+// missing one themselves.
+var noRootGuard = map[string]bool{
+	"org sections-runtimes": true, // needs no folder
+	"org summary":           true, // reports local facts without a database (it errors itself when there is no folder)
+}
+
+// requireRoot makes every other org subcommand that acts on a folder fail up
+// front when there is none (the database cannot be opened and no --project
+// was given), so none of them can run with an empty root, which joins
+// relative to the current directory. env.root is only safe to call from
+// under it.
+func requireRoot(group *cobra.Command, env *orgEnv) { requireRootUnder(group, env, group.Name()) }
+
+func requireRootUnder(group *cobra.Command, env *orgEnv, path string) {
+	for _, c := range group.Commands() {
+		p := path + " " + c.Name()
+		requireRootUnder(c, env, p)
+		run := c.RunE
+		if run == nil || noRootGuard[p] {
+			continue
+		}
+		c.RunE = func(cmd *cobra.Command, args []string) error {
+			if _, err := env.RootErr(); err != nil {
+				return err
+			}
+			return run(cmd, args)
+		}
+	}
 }
 
 // printOrgJSON writes a raw JSON payload to stdout with a trailing newline.

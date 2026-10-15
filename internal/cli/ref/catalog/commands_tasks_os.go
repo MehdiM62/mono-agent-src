@@ -22,7 +22,6 @@ var taskOSCommandDocs = []cmdDoc{
 		Flags: `  --force     Replace a bundle of the same name that this command did not write
   --dest DIR  The Services folder (default ~/Library/Services)`,
 		Examples: []string{
-			"monoagentcli task os install                  # the active profile",
 			"monoagentcli --profile Work task os install   # once per profile",
 		},
 	},

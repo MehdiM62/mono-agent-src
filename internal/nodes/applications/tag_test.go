@@ -7,6 +7,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/applications"
 	applicationsnodes "github.com/monoes/mono-agent/internal/nodes/applications"
+	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -22,7 +23,7 @@ func TestTagNodeAddAndRemove(t *testing.T) {
 
 	node := &applicationsnodes.TagNode{}
 	addCfg := map[string]interface{}{"id": app.ID, "tag": "urgent", "action": "add"}
-	if _, err := node.Execute(context.Background(), workflow.NodeInput{}, addCfg); err != nil {
+	if _, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, addCfg); err != nil {
 		t.Fatalf("Execute (add): %v", err)
 	}
 	got, err := store.Get(context.Background(), "default", app.ID)
@@ -34,7 +35,7 @@ func TestTagNodeAddAndRemove(t *testing.T) {
 	}
 
 	removeCfg := map[string]interface{}{"id": app.ID, "tag": "urgent", "action": "remove"}
-	if _, err := node.Execute(context.Background(), workflow.NodeInput{}, removeCfg); err != nil {
+	if _, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, removeCfg); err != nil {
 		t.Fatalf("Execute (remove): %v", err)
 	}
 	got, err = store.Get(context.Background(), "default", app.ID)

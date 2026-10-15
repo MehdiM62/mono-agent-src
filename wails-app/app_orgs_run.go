@@ -31,14 +31,12 @@ func (a *App) StreamOrgEvents(orgName, streamID string) string {
 	if err != nil {
 		return aiError(err)
 	}
-	eventsArgs := []string{"org"}
 	projectRoot := a.orgProjectRoot()
+	eventsArgs := orgCLIRunArgs(a.getActiveProfileID(), projectRoot, "events", "--follow", "--", orgName)
 	logSuffix := ""
 	if projectRoot != "" {
-		eventsArgs = append(eventsArgs, "--project", projectRoot)
 		logSuffix = fmt.Sprintf(" (project: %s)", projectRoot)
 	}
-	eventsArgs = append(eventsArgs, "events", "--follow", "--", orgName)
 	a.emitLog("ORG", "INFO", fmt.Sprintf("$ %s %s%s", cliBin, strings.Join(eventsArgs, " "), logSuffix))
 	cmd := exec.Command(cliBin, eventsArgs...)
 	setChatProcessGroup(cmd)
@@ -185,14 +183,12 @@ func (a *App) RunOrg(orgName, task string) string {
 	if err != nil {
 		return aiError(err)
 	}
-	runArgs := []string{"org"}
 	projectRoot := a.orgProjectRoot()
+	runArgs := orgCLIRunArgs(a.getActiveProfileID(), projectRoot, "run", orgName)
 	logSuffix := ""
 	if projectRoot != "" {
-		runArgs = append(runArgs, "--project", projectRoot)
 		logSuffix = fmt.Sprintf(" (project: %s)", projectRoot)
 	}
-	runArgs = append(runArgs, "run", orgName)
 	if task != "" {
 		runArgs = append(runArgs, "--task", task)
 	}

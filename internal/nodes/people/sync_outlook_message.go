@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -29,9 +30,9 @@ func (n *SyncOutlookMessageNode) Execute(
 	}
 	db := &storage.Database{DB: globalPeopleDB}
 
-	profileID, _ := config["profile_id"].(string)
-	if profileID == "" {
-		profileID = "default"
+	profileID, err := nodeprofile.Require(ctx, "people.sync_outlook_message", config)
+	if err != nil {
+		return nil, err
 	}
 	source, _ := config["source"].(string)
 	if source == "" {
