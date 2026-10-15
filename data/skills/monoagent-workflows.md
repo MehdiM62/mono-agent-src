@@ -10,10 +10,16 @@ its state — workflows, credentials, generated images — lives in `~/.monoagen
 so **every command works from any project directory**. There is nothing to set
 up per-project and no "current workflow directory".
 
+Commands that act on a profile take an explicit `--profile <profile>` (an id or
+name; `monoagentcli profile list` shows them, and ask the user which one if
+more than one fits). The examples write it as `--profile <profile>`. There is no
+active profile. Today a scoped command without it still runs with a warning;
+the next release refuses it.
+
 ## Start here
 
 ```bash
-monoagentcli workflow search [query]      # everything runnable, with the command to run each
+monoagentcli --profile <profile> workflow search [query]      # everything runnable, with the command to run each
 monoagentcli workflow templates show <id> # a template's --input keys, nodes, run command
 monoagentcli ref templates                # guide to the bundled templates
 monoagentcli ref nodes                    # every node type, with config shapes
@@ -21,7 +27,7 @@ monoagentcli ref nodes                    # every node type, with config shapes
 
 `workflow search` covers both bundled templates and the user's saved workflows
 and prints the exact command for each hit — start there rather than guessing.
-Add `--json` (before the subcommand: `monoagentcli --json workflow search`) for
+Add `--json` (before the subcommand: `monoagentcli --profile <profile> --json workflow search`) for
 machine-readable output.
 
 `monoagentcli ref` is offline, always current, and more reliable than `--help`
@@ -30,10 +36,10 @@ guessing. Read it before hand-building anything.
 ## Check before you run (validate / dry-run / schemas)
 
 ```bash
-monoagentcli workflow validate <id>        # or --file <f>; exit 3 when invalid
-monoagentcli workflow run <id> --dry-run   # validate + print execution plan, no run
+monoagentcli --profile <profile> workflow validate <id>        # or --file <f>; exit 3 when invalid
+monoagentcli --profile <profile> workflow run <id> --dry-run   # validate + print execution plan, no run
 monoagentcli node schema <type>            # JSON schema for a node's config
-monoagentcli --json workflow run <id>      # execution record + per-node outputs
+monoagentcli --profile <profile> --json workflow run <id>      # execution record + per-node outputs
 ```
 
 Dry-run first when a workflow is new or hand-edited; `workflow run --no-wait`
@@ -48,7 +54,7 @@ MCP is not wired up.
 ## Running a bundled template (preferred)
 
 ```bash
-monoagentcli workflow templates run <template-id> --input '<json object>'
+monoagentcli --profile <profile> workflow templates run <template-id> --input '<json object>'
 ```
 
 This instantiates the template as a throwaway workflow, runs it, waits for it to
@@ -62,12 +68,12 @@ Add `--keep` to leave the instantiated workflow behind for editing instead.
 
 ```bash
 # one image
-monoagentcli workflow templates run gemimg \
+monoagentcli --profile <profile> workflow templates run gemimg \
   --input '{"prompt":"an editorial photo of a city skyline at sunset"}'
 
 # several images that must look like each other (same character/style/scene),
 # generated in ONE continued chat session, any number of prompts:
-monoagentcli workflow templates run gemimgmany \
+monoagentcli --profile <profile> workflow templates run gemimgmany \
   --input '{"prompts":[
       "a wizard in a blue robe casting a fire spell",
       "the same wizard riding a red dragon",
@@ -79,7 +85,7 @@ Use `gemimgmany` whenever the images belong together; use parallel `gemimg` runs
 when the images are unrelated. Generated images are saved to the image vault at
 `~/.monoagent/vault/img-NNN.png` (also under `~/.monoagent/downloads/`).
 
-Requires a one-time `monoagentcli login gemini`. If a run reports the Gemini
+Requires a one-time `monoagentcli --profile <profile> login gemini`. If a run reports the Gemini
 session is missing, tell the user to run that — do not try to work around it.
 
 ## Reading synced messages (and their attachments)
@@ -87,9 +93,9 @@ session is missing, tell the user to run that — do not try to work around it.
 Synced email lives in People, not in a mailbox you have to log into:
 
 ```bash
-monoagentcli people messages all --source outlook   # unified feed; Files = attachment count
-monoagentcli people messages show <message-id>      # full text, provenance, attachment paths
-monoagentcli --json people messages show <message-id>
+monoagentcli --profile <profile> people messages all --source outlook   # unified feed; Files = attachment count
+monoagentcli --profile <profile> people messages show <message-id>      # full text, provenance, attachment paths
+monoagentcli --profile <profile> --json people messages show <message-id>
 ```
 
 `show` prints a SOURCE block — which system, which account and folder, its id
@@ -106,16 +112,16 @@ before trying the path.
 ## Running a saved workflow
 
 ```bash
-monoagentcli workflow list
-monoagentcli workflow run <workflow-id> --input '{"key":"value"}'
+monoagentcli --profile <profile> workflow list
+monoagentcli --profile <profile> workflow run <workflow-id> --input '{"key":"value"}'
 ```
 
 `--input` becomes the manual trigger's data, readable downstream as
 `{{ $json.<field> }}`. A saved workflow must be active to run
-(`monoagentcli workflow activate <id>`).
+(`monoagentcli --profile <profile> workflow activate <id>`).
 
 Scheduled and webhook workflows only fire on their own while
-`monoagentcli daemon` is running.
+`monoagentcli --profile <profile> daemon` is running.
 
 ## Running one node ad hoc
 
@@ -123,7 +129,7 @@ For a single step with no workflow around it:
 
 ```bash
 monoagentcli node list
-monoagentcli node run gemini.chat_session --config '{"prompt":"...","mode":"image"}'
+monoagentcli --profile <profile> node run gemini.chat_session --config '{"prompt":"...","mode":"image"}'
 ```
 
 ## Things worth knowing before debugging
@@ -138,7 +144,7 @@ monoagentcli node run gemini.chat_session --config '{"prompt":"...","mode":"imag
   launches Chrome and waits for the extension.
 - **Everything is profile-scoped.** A workflow saved under one profile cannot be
   run under another ("workflow belongs to a different profile"); check
-  `monoagentcli profile list` rather than recreating it.
+  `monoagentcli profile list` (and pass the right `--profile`) rather than recreating it.
 - Prefer an existing template over hand-building workflow JSON. Only build nodes
   and connections by hand (`workflow create` / `workflow node add` /
   `workflow connect`) when no template covers the task.
