@@ -18,6 +18,7 @@ import (
 
 	"net/http"
 
+	"github.com/monoes/mono-agent/internal/cli/workflowio"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/logging"
@@ -199,6 +200,8 @@ func newRuntime(opts Options) (*runtime, error) {
 	fileStore, err := workflow.NewWorkflowFileStore(expandHome(wfDir))
 	if err != nil {
 		fileStore = nil
+	} else {
+		_ = workflowio.StampFileWorkflows(ctx, db.DB, expandHome(wfDir))
 	}
 
 	return &runtime{

@@ -1,6 +1,9 @@
 package mcp
 
 import (
+	"context"
+
+	"github.com/monoes/mono-agent/internal/cli/workflowio"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -15,6 +18,8 @@ func grantRuntime(db *storage.Database, opts Options) (*runtime, error) {
 	fileStore, err := workflow.NewWorkflowFileStore(expandHome(wfDir))
 	if err != nil {
 		fileStore = nil
+	} else {
+		_ = workflowio.StampFileWorkflows(context.Background(), db.DB, expandHome(wfDir))
 	}
 	return &runtime{
 		db:    db,

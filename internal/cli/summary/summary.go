@@ -1,6 +1,7 @@
 package summarycli
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/automation"
+	"github.com/monoes/mono-agent/internal/cli/workflowio"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -73,10 +75,13 @@ func (d Deps) newSummaryCmd() *cobra.Command {
 // summary is polled and must not write workflow rows.
 func readOnlyHybridStore(db *storage.Database) *workflow.HybridWorkflowStore {
 	sqlStore := workflow.NewSQLiteWorkflowStore(db.DB)
-	fileStore, err := workflow.NewWorkflowFileStore(expandPath("~/.monoagent/workflows"))
+	dir := expandPath("~/.monoagent/workflows")
+	fileStore, err := workflow.NewWorkflowFileStore(dir)
 	if err != nil {
 		return workflow.NewHybridWorkflowStore(nil, sqlStore)
 	}
+	// Stamping touches only ownerless files, never workflow rows.
+	_ = workflowio.StampFileWorkflows(context.Background(), db.DB, dir)
 	return workflow.NewHybridWorkflowStore(fileStore, sqlStore)
 }
 

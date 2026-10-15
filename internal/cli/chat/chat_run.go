@@ -15,6 +15,7 @@ import (
 	"github.com/monoes/mono-agent/internal/ai"
 	aichat "github.com/monoes/mono-agent/internal/ai/chat"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/cli/workflowio"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -197,8 +198,8 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 			// Workflows the editor or `workflow save` wrote live as files:
 			// activate and delete must reach those, not only the rows.
 			if home, err := os.UserHomeDir(); err == nil {
-				if fs, err := workflow.NewWorkflowFileStore(filepath.Join(home, ".monoagent", "workflows")); err == nil {
-					monoTools.SetWorkflowStore(workflow.NewHybridWorkflowStore(fs, workflow.NewSQLiteWorkflowStore(db.DB)))
+				if store := chatWorkflowStore(db, home); store != nil {
+					monoTools.SetWorkflowStore(store)
 				}
 			}
 			// Mechanical run gate: run_workflow executes
@@ -479,4 +480,18 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 		return res.Err
 	}
 	return nil
+}
+
+// chatWorkflowStore is the file-plus-SQLite workflow store the chat tools
+// activate and delete through. Ownerless workflow files are stamped first, so
+// a legacy file is owned by a profile before the tools look at it. It is nil
+// when the file directory cannot be opened.
+func chatWorkflowStore(db *storage.Database, home string) *workflow.HybridWorkflowStore {
+	dir := filepath.Join(home, ".monoagent", "workflows")
+	fs, err := workflow.NewWorkflowFileStore(dir)
+	if err != nil {
+		return nil
+	}
+	_ = workflowio.StampFileWorkflows(context.Background(), db.DB, dir)
+	return workflow.NewHybridWorkflowStore(fs, workflow.NewSQLiteWorkflowStore(db.DB))
 }
