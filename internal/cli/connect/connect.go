@@ -101,7 +101,10 @@ func (d Deps) newConnectSetOAuthClientCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			profileID := d.profileOrDefault()
+			profileID, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
 			if err := connections.NewStore(db.DB).SaveOAuthClient(cmd.Context(), args[0], profileID, clientID, clientSecret); err != nil {
 				return d.ScrubSecrets(fmt.Errorf("saving OAuth client credentials: %w", err), clientSecret)
 			}
@@ -248,7 +251,11 @@ func (d Deps) newConnectListCmd() *cobra.Command {
 // profile, and a not-found error (exit 2) otherwise: another profile's
 // connection is indistinguishable from a missing one.
 func (d Deps) getScopedConnection(cmd *cobra.Command, db *sql.DB, id string) (*connections.Connection, error) {
-	conn, err := connections.NewStore(db).Get(cmd.Context(), id, d.profileOrDefault())
+	pid, perr := d.requireProfile()
+	if perr != nil {
+		return nil, perr
+	}
+	conn, err := connections.NewStore(db).Get(cmd.Context(), id, pid)
 	if err != nil || conn == nil {
 		return nil, d.NotFound("connection %q not found", id)
 	}
@@ -316,7 +323,11 @@ func (d Deps) newConnectRemoveCmd() *cobra.Command {
 			if _, err := d.getScopedConnection(cmd, db.DB, args[0]); err != nil {
 				return err
 			}
-			if err := mgr.Remove(cmd.Context(), args[0], d.profileOrDefault()); err != nil {
+			pid, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
+			if err := mgr.Remove(cmd.Context(), args[0], pid); err != nil {
 				return err
 			}
 			if d.JSONOutput() {
