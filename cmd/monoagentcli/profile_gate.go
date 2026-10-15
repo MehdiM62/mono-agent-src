@@ -25,19 +25,30 @@ var profileGateMode = profilegate.ModeWarn
 // PersistentPreRun of its own (doctor, setup) replaces the root's, so each of
 // those is wrapped to run the gate first.
 func installProfileGate(root *cobra.Command, cfg *globalConfig) {
-	gate := func(cmd *cobra.Command) {
+	// gate returns the refusal in ModeEnforce (exit code 3, printed by the
+	// CLI's normal error path before the command's own work) and prints the
+	// warning in ModeWarn.
+	gate := func(cmd *cobra.Command) error {
 		list := func() ([]profilegate.ProfileRef, error) { return listProfilesReadOnly(cfg.DBPath) }
 		warning, err := profilegate.Check(cmd, cmd.Flags().Changed("profile"), profileGateMode, list)
-		if err == nil && warning != "" {
+		if err != nil {
+			return errInvalidInput("%s", err.Error())
+		}
+		if warning != "" {
 			fmt.Fprintln(cmd.ErrOrStderr(), warning)
 		}
+		return nil
 	}
 	var wrap func(c *cobra.Command)
 	wrap = func(c *cobra.Command) {
 		if run := c.PersistentPreRun; run != nil {
-			c.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-				gate(cmd)
+			c.PersistentPreRun = nil
+			c.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+				if err := gate(cmd); err != nil {
+					return err
+				}
 				run(cmd, args)
+				return nil
 			}
 		}
 		for _, sub := range c.Commands() {
