@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -128,6 +129,20 @@ func clean(s string, multiline bool) string {
 	}, s)
 }
 
+var (
+	emailRe = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+	phoneRe = regexp.MustCompile(`^[+()\d\s.\-/]+$`)
+)
+
+func digitsOf(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, s)
+}
+
 // check validates value for fd and returns it in the form to store.
 func check(fd *Field, value string) (string, error) {
 	v := clean(value, fd.Kind == Textarea)
@@ -152,6 +167,14 @@ func check(fd *Field, value string) (string, error) {
 	case Date:
 		if _, err := time.Parse("2006-01-02", v); err != nil {
 			return "", fmt.Errorf("%s must be a date like 2026-10-15", fd.Label)
+		}
+	case Email:
+		if !emailRe.MatchString(v) {
+			return "", fmt.Errorf("%s must be an email address like name@example.com", fd.Label)
+		}
+	case Phone:
+		if !phoneRe.MatchString(v) || len(digitsOf(v)) < 5 {
+			return "", fmt.Errorf("%s must be a phone number like +49 170 1234567", fd.Label)
 		}
 	}
 	return v, nil
