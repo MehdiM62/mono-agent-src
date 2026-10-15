@@ -21,7 +21,10 @@ import (
 type guardPage interface {
 	SubmitGuard(action string) (*extension.SubmitGuardState, error)
 	Screenshot(o extension.ScreenshotOptions) (*extension.Screenshot, error)
+	TabID() int
 }
+
+var _ guardPage = (*extension.ExtensionPage)(nil)
 
 // resubmitPage repeats an approved submit on the page
 // (browserctl.ResubmitPage, as `browser submit --hil` does); tests replace it.
@@ -148,12 +151,7 @@ func (g *extGuard) Submit(ctx context.Context, b blockedSubmit, hilID string) er
 }
 
 // TabID is the guarded tab, for the item and the run's output.
-func (g *extGuard) TabID() int {
-	if t, ok := g.page.(interface{ TabID() int }); ok {
-		return t.TabID()
-	}
-	return 0
-}
+func (g *extGuard) TabID() int { return g.page.TabID() }
 
 // cardScreenshot saves the tab's viewport for the approval card under
 // ~/.monoagent/browser/hil/, where `monoagentcli browser` keeps its own;
