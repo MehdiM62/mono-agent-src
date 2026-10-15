@@ -74,10 +74,10 @@ async function sentFrame(sent, method) {
 }
 
 /** installed brings up the whole recall group against a fake socket. */
-function installed(answers = {}) {
+function installed(answers = {}, extraScripts = []) {
   const chrome = chromeStub();
   const sandbox = loadExtensionScripts(
-    ["ask.js", "saved.js", "highlights.js", "recall_bridge.js"],
+    ["ask.js", "saved.js", "highlights.js", ...extraScripts, "recall_bridge.js"],
     { chrome }
   );
   const sent = [];
@@ -343,6 +343,13 @@ test("an ask that names nothing uses the stored choice", async () => {
   assert.equal(h.sent.find((f) => f.method === "doc.ask").params.profile, "work");
   await h.send({ type: "ask_related", url: PAGE_URL });
   assert.equal(h.sent.find((f) => f.method === "doc.related").params.profile, "work");
+});
+
+test("an ask with nothing stored names the default profile", async () => {
+  const profiles = [{ id: "a", name: "A" }, { id: "b", name: "B", default: true }];
+  const h = installed({ ping: { methods: ["profile.list", "doc.ask"] }, "doc.ask": { query: "q", answers: [] }, "profile.list": { profiles } }, ["capture_profile.js"]);
+  await h.send({ type: "ask_brain", q: "q" });
+  assert.equal(h.sent.find((f) => f.method === "doc.ask").params.profile, "b");
 });
 
 test("a hostile profile id is never sent", async () => {

@@ -101,6 +101,13 @@
 
   async function profile() {
     try {
+      // The choice, else the default profile from the cached list: a
+      // recording with no profile is refused by the backend.
+      const P = root.MonoCaptureProfile;
+      if (P && P.sticky) {
+        const id = await P.sticky(chrome.storage.local);
+        if (id) return id;
+      }
       const { captureProfile } = await chrome.storage.local.get("captureProfile");
       return typeof captureProfile === "string" ? captureProfile : "";
     } catch {

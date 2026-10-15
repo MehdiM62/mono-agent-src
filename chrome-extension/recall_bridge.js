@@ -48,10 +48,11 @@
 
   // Captures saved into a profile are searchable from that profile only, so
   // every recall question names the profile the side panel is "Saving
-  // into". capture_profile.js owns that choice; the key is read here
-  // directly because this group also runs without it (tests, and a worker
-  // that failed to load it), in which case no profile is sent and the
-  // backend answers from the shared brain, as before profiles existed.
+  // into", and the backend refuses a question that names none. With no
+  // choice stored that is the default profile (capture_profile.js decides).
+  // The key is read directly only as a fallback, because this group also
+  // runs without capture_profile.js (tests, and a worker that failed to
+  // load it), in which case no profile is sent.
   const PROFILE_KEY = "captureProfile";
 
   function validProfile(id) {
@@ -60,9 +61,15 @@
     return !!v && !v.includes("/") && !v.includes("\\") && !v.includes("..");
   }
 
-  /** stickyProfile is the remembered "Saving into" choice, or "". */
+  /** stickyProfile is the remembered "Saving into" choice, else the default
+   *  profile, or "" when there is neither. */
   async function stickyProfile() {
     try {
+      const P = root.MonoCaptureProfile;
+      if (P && P.stickyOrAsk) {
+        const chosen = await P.stickyOrAsk(root.MonoAsk, storage(), !!(deps && deps.isConnected && deps.isConnected()));
+        return validProfile(chosen) ? chosen.trim() : "";
+      }
       const got = (await storage().get(PROFILE_KEY)) || {};
       const id = got[PROFILE_KEY];
       return validProfile(id) ? id.trim() : "";

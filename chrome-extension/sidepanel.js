@@ -305,6 +305,11 @@ function ask(message) {
         resolve({ ok: false, error: chrome.runtime.lastError.message });
         return;
       }
+      // The backend names no profile on its own: it asks the person to pick
+      // one, so the picker opens (the error still reaches the caller).
+      if (response && !response.ok && String(response.error || "").includes("choose a profile in the extension")) {
+        openProfileMenu();
+      }
       resolve(response || { ok: false, error: "no answer from the extension" });
     });
   });
