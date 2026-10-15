@@ -89,7 +89,7 @@ func (e *env) callWhileAnotherProcessHoldsTheLock(during func()) (account.Status
 	}()
 	select {
 	case <-asked:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		e.t.Fatal("the guard never asked for the lock")
 	}
 	during()
@@ -97,7 +97,7 @@ func (e *env) callWhileAnotherProcessHoldsTheLock(during func()) (account.Status
 	select {
 	case r := <-done:
 		return r.st, r.err
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		e.t.Fatal("the guard did not come back after the lock was let go")
 	}
 	return account.Status{}, nil
@@ -308,7 +308,7 @@ func TestACallerBehindARunningRefreshGivesUpWithItsContext(t *testing.T) {
 		if !errors.Is(r.err, context.DeadlineExceeded) || r.st.State != account.StateGrace || e.ref.calls.Load() != 1 {
 			t.Fatalf("the caller that waited: %s/%q, %v with %d network refreshes, want grace, the deadline and the first call only", r.st.State, r.st.Reason, r.err, e.ref.calls.Load())
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("a caller behind a running refresh did not give up when its context ended")
 	}
 
@@ -324,7 +324,7 @@ func TestACallerBehindARunningRefreshGivesUpWithItsContext(t *testing.T) {
 		if r.err != nil || r.st.State != account.StateOK {
 			t.Fatalf("the refresh whose caller gave up: %s/%q, %v, want ok: the answer arrived and is stored", r.st.State, r.st.Reason, r.err)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("the refresh did not return once the server had answered")
 	}
 	if rt, _ := e.store.LoadRefresh(); rt != "rt-2" {

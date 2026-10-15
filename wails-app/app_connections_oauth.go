@@ -51,7 +51,14 @@ func (a *App) ConnectPlatformOAuthFields(platformID string, fieldPairs []string,
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
-	args := oauthConnectArgs(a.getActiveProfileID(), platformID, fieldPairs, secretFieldsJSON != "")
+	profile, err := a.profileID()
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
+	args, err := oauthConnectArgs(profile, platformID, fieldPairs, secretFieldsJSON != "")
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
 	ctx, finish := trackOAuthFlow(a.ctx, platformID)
 
 	go func() {
@@ -99,15 +106,18 @@ func (a *App) CancelPlatformOAuth(platformID string) string {
 
 // oauthConnectArgs is the argv of `connect oauth`: each key=value pair as
 // a --field, and --stdin-json when secret fields come on stdin.
-func oauthConnectArgs(profileID, platformID string, fieldPairs []string, secretsOnStdin bool) []string {
-	args := []string{"--profile", profileID, "--json", "connect", "oauth", platformID}
+func oauthConnectArgs(profileID, platformID string, fieldPairs []string, secretsOnStdin bool) ([]string, error) {
+	args, err := scopedCLIArgs(profileID, "connect", "oauth", platformID)
+	if err != nil {
+		return nil, err
+	}
 	for _, kv := range fieldPairs {
 		args = append(args, "--field", kv)
 	}
 	if secretsOnStdin {
 		args = append(args, "--stdin-json")
 	}
-	return args
+	return args, nil
 }
 
 // runOAuthConnect runs `connect oauth` with args (and stdin), forwarding
@@ -205,6 +215,10 @@ func (a *App) LoginSocial(platform string) string {
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
+	profile, err := a.profileID()
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
 
 	emit := func(msg, kind string) {
 		runtime.EventsEmit(a.ctx, "conn:progress", map[string]interface{}{
@@ -215,7 +229,7 @@ func (a *App) LoginSocial(platform string) string {
 	}
 
 	go func() {
-		cmd := exec.CommandContext(a.ctx, cliBin, "--profile", a.getActiveProfileID(), "login", pid)
+		cmd := exec.CommandContext(a.ctx, cliBin, "--profile", profile, "login", pid)
 		suppressConsole(cmd)
 		stderr, _ := cmd.StderrPipe()
 
@@ -255,6 +269,10 @@ func (a *App) ConfirmSocialLogin(platform string) string {
 	if err != nil {
 		return fmt.Sprintf("error: %v", err)
 	}
+	profile, err := a.profileID()
+	if err != nil {
+		return fmt.Sprintf("error: %v", err)
+	}
 
 	emit := func(msg, kind string) {
 		runtime.EventsEmit(a.ctx, "conn:progress", map[string]interface{}{
@@ -265,7 +283,7 @@ func (a *App) ConfirmSocialLogin(platform string) string {
 	}
 
 	go func() {
-		cmd := exec.CommandContext(a.ctx, cliBin, "--profile", a.getActiveProfileID(), "login", "confirm", pid)
+		cmd := exec.CommandContext(a.ctx, cliBin, "--profile", profile, "login", "confirm", pid)
 		suppressConsole(cmd)
 		stdout, _ := cmd.StdoutPipe()
 		stderr, _ := cmd.StderrPipe()

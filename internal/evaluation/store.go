@@ -15,6 +15,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // Run statuses.
@@ -101,11 +103,9 @@ type Store struct {
 	profile string
 }
 
-// NewStore returns the store of profile's runs in db.
+// NewStore returns the store of profile's runs in db. An empty profile is
+// kept as is: every method then returns profiledir.ErrNoProfile.
 func NewStore(db *sql.DB, profile string) *Store {
-	if profile == "" {
-		profile = "default"
-	}
 	return &Store{db: db, profile: profile}
 }
 
@@ -128,6 +128,9 @@ func encode(v interface{}) string {
 // CreateRun starts a run of workflowID over dataset (a description of where
 // the rows came from).
 func (s *Store) CreateRun(ctx context.Context, workflowID string, dataset map[string]interface{}) (*Run, error) {
+	if s.profile == "" {
+		return nil, profiledir.ErrNoProfile
+	}
 	r := &Run{ID: newID("evr_"), WorkflowID: workflowID, Status: RunRunning, Dataset: dataset,
 		Metrics: map[string]float64{}, CreatedAt: now()}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO evaluation_runs (id, profile_id, workflow_id, status, dataset, created_at)
@@ -140,6 +143,9 @@ func (s *Store) CreateRun(ctx context.Context, workflowID string, dataset map[st
 
 // FinishRun records a run's end: its status, error and metrics.
 func (s *Store) FinishRun(ctx context.Context, r *Run) error {
+	if s.profile == "" {
+		return profiledir.ErrNoProfile
+	}
 	r.FinishedAt = now()
 	_, err := s.db.ExecContext(ctx, `UPDATE evaluation_runs SET status = ?, error_code = ?, error_message = ?,
 		metrics = ?, finished_at = ? WHERE id = ? AND profile_id = ?`,
@@ -152,6 +158,9 @@ func (s *Store) FinishRun(ctx context.Context, r *Run) error {
 
 // AddCase adds the case of a dataset row to run r.
 func (s *Store) AddCase(ctx context.Context, runID string, c *Case) error {
+	if s.profile == "" {
+		return profiledir.ErrNoProfile
+	}
 	c.ID = newID("evc_")
 	c.Status = CaseNew
 	c.Inputs, c.Outputs, c.Metrics = map[string]interface{}{}, map[string]interface{}{}, map[string]interface{}{}
@@ -166,6 +175,9 @@ func (s *Store) AddCase(ctx context.Context, runID string, c *Case) error {
 // UpdateCase writes a case's execution, status and error; finished stamps
 // its end.
 func (s *Store) UpdateCase(ctx context.Context, c *Case, finished bool) error {
+	if s.profile == "" {
+		return profiledir.ErrNoProfile
+	}
 	var fin interface{}
 	if finished {
 		c.FinishedAt = now()
@@ -217,6 +229,9 @@ func Record(ctx context.Context, db *sql.DB, runID, caseID, kind string, data ma
 
 // LoadCase reads a case's recorded inputs, outputs and metrics into c.
 func (s *Store) LoadCase(ctx context.Context, c *Case) error {
+	if s.profile == "" {
+		return profiledir.ErrNoProfile
+	}
 	var in, out, met string
 	err := s.db.QueryRowContext(ctx, `SELECT inputs, outputs, metrics FROM evaluation_results WHERE id = ?`, c.ID).Scan(&in, &out, &met)
 	if err != nil {
@@ -234,6 +249,9 @@ func decode(raw string) map[string]interface{} {
 
 // ListRuns returns workflowID's runs, newest first, without their cases.
 func (s *Store) ListRuns(ctx context.Context, workflowID string) ([]Run, error) {
+	if s.profile == "" {
+		return nil, profiledir.ErrNoProfile
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT r.id, r.workflow_id, r.status, r.error_code, r.error_message, r.dataset,
 		r.metrics, r.created_at, COALESCE(r.finished_at, ''),
 		(SELECT COUNT(*) FROM evaluation_results c WHERE c.run_id = r.id),
@@ -271,6 +289,9 @@ func scanRun(sc interface{ Scan(...interface{}) error }) (Run, error) {
 // GetRun returns a run with its cases, or nil when the profile has none
 // with that id.
 func (s *Store) GetRun(ctx context.Context, id string) (*Run, error) {
+	if s.profile == "" {
+		return nil, profiledir.ErrNoProfile
+	}
 	r, err := scanRun(s.db.QueryRowContext(ctx, `SELECT r.id, r.workflow_id, r.status, r.error_code, r.error_message,
 		r.dataset, r.metrics, r.created_at, COALESCE(r.finished_at, ''),
 		(SELECT COUNT(*) FROM evaluation_results c WHERE c.run_id = r.id),

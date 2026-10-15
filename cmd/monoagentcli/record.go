@@ -29,7 +29,11 @@ func recordVerifyExec(ctx context.Context, automationID string, verbose, keepOpe
 	}
 	// Same connect path as `node run`: reuse or start the bridge, and when
 	// the extension is not attached launch the user's real Chrome and wait.
-	bridge := setupProfileBridge(vault.ProfileIDFromContext(ctx), logger, 3*time.Second)
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, perr
+	}
+	bridge := setupProfileBridge(profile, logger, 3*time.Second)
 	if !bridge.IsConnected() {
 		if err := ensureExtensionConnected(bridge, 30*time.Second); err != nil {
 			return nil, fmt.Errorf("browser bridge not connected: %w", err)
@@ -50,7 +54,11 @@ func recordReplayPage(ctx context.Context, verbose bool) (browserpkg.PageInterfa
 	if verbose {
 		logger = logger.Level(zerolog.TraceLevel)
 	}
-	bridge := setupProfileBridge(vault.ProfileIDFromContext(ctx), logger, 3*time.Second)
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, logger, perr
+	}
+	bridge := setupProfileBridge(profile, logger, 3*time.Second)
 	if !bridge.IsConnected() {
 		if err := ensureExtensionConnected(bridge, 30*time.Second); err != nil {
 			return nil, logger, fmt.Errorf("browser bridge not connected: %w", err)

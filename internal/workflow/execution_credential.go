@@ -45,7 +45,12 @@ func mergeCredential(ctx context.Context, connStore *connections.Store, logger z
 	injected := false
 
 	if connStore != nil {
-		conn, err := connStore.GetOrResolve(ctx, credID, vault.ProfileIDFromContext(ctx))
+		profile, perr := vault.ProfileIDFromContext(ctx)
+		var conn *connections.Connection
+		err := perr
+		if perr == nil {
+			conn, err = connStore.GetOrResolve(ctx, credID, profile)
+		}
 		if err != nil {
 			logger.Warn().Err(err).
 				Str("credential_id", credID).
@@ -90,9 +95,10 @@ func mergeCredential(ctx context.Context, connStore *connections.Store, logger z
 		// Miss on every path. Include the execution's profile in
 		// the log so cross-profile resolution failures are
 		// diagnosable.
+		profileLog, _ := vault.ProfileIDInContext(ctx)
 		logger.Warn().
 			Str("credential_id", credID).
-			Str("profile", vault.ProfileIDFromContext(ctx)).
+			Str("profile", profileLog).
 			Msg("credential not resolved for profile")
 	}
 }

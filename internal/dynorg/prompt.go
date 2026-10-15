@@ -16,8 +16,11 @@ const (
 // `monoagentcli browser`: the worker profiles that may and the coder lead
 // (internal/cli/chat/chat_coder_browser.go) all say the same.
 const BrowserRules = "The user's browser: `monoagentcli --profile <your profile id> browser …` (`monoagentcli ref browser` has every command); " +
-	"pass `--profile` on every monoagentcli command except the machine-wide `browser allow`, `browser browsers` and `browser diff`. " +
-	"You may open localhost and dev hosts and the sites the user allowlisted; anything else is refused. " +
+	"pass `--profile` on every monoagentcli command except the machine-wide `browser permissions`, `browser allow`, `browser browsers` and `browser diff`. " +
+	"Which sites you may open is the user's setting for your kind of agent: `browser permissions` shows your kind and level " +
+	"(by default localhost and dev hosts plus the sites the user allowed). Never try to change it. " +
+	"A refusal exits 3: `browser_off`, `site_blocked` or `origin_not_allowed` -> stop and tell the user; " +
+	"`site_needs_approval` with a hil_id -> wait until the user allows the site, then retry. " +
 	"Debug loop: `browser open <url>` (keep its tabId and pass `--tab`), then `browser screenshot`, " +
 	"`browser console --level error` and `browser network --failed`; fix, `browser reload`, repeat. " +
 	"Visual checks: `browser sweep` (several widths, light and dark), `browser screenshot --media dark`, `browser diff A B`. " +

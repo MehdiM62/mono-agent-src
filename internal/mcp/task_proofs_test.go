@@ -173,7 +173,7 @@ func TestTwoClaimantsNeverGetTheSameTask(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			text, err := callTool(context.Background(), s, "task_claim", json.RawMessage(`{"next": true}`))
+			text, err := callToolDefault(context.Background(), s, "task_claim", json.RawMessage(`{"next": true}`))
 			if err != nil {
 				outcomes <- outcome{err: err}
 				return

@@ -270,6 +270,12 @@ func (s *Server) SetAfterWrite(fn func(*capture.Result)) {
 // written runs the after-write hook, if any. A panicking hook is contained:
 // the capture it was told about is already safely on disk.
 func (s *Server) written(res *capture.Result) {
+	// A capture is never refused for want of a profile (a queued one made
+	// while the bridge was down must land), but it is not silent either.
+	if res != nil && res.Meta.Profile == "" {
+		s.logger.Warn().Str("path", res.Path).
+			Msg("capture has no profile: it landed in the shared inbox")
+	}
 	s.pendMu.Lock()
 	fn := s.afterWrite
 	s.pendMu.Unlock()

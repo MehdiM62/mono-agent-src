@@ -68,7 +68,7 @@ func (e *WorkflowEngine) reconcileTriggers(ctx context.Context) {
 		r.keys = make(map[string]string)
 	}
 
-	workflows, err := e.store.ListWorkflows(ctx, "")
+	workflows, err := e.store.ListAllProfilesWorkflows(ctx)
 	if err != nil {
 		e.logger.Warn().Err(err).Msg("engine: trigger reconcile: list workflows")
 		return

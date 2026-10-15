@@ -52,7 +52,7 @@ func TestConnectOAuthWithFieldsNeedsConnectFields(t *testing.T) {
 		OAuth: &OAuthConfig{AuthURL: "https://{{sub}}.test/auth", TokenURL: "https://x.test/t", ClientID: "cid",
 			ConnectFields: []CredentialField{{Key: "subdomain", Label: "Subdomain", Required: true}}}}
 	t.Cleanup(func() { delete(Registry, "tenant-connect") })
-	_, err := mgr.ConnectOAuthWithFields(context.Background(), "tenant-connect", nil, "", "", "", nil, nil)
+	_, err := mgr.ConnectOAuthWithFields(context.Background(), "tenant-connect", nil, "", "", "default", nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "subdomain") {
 		t.Errorf("err = %v", err)
 	}

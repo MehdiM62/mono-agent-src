@@ -483,6 +483,8 @@
     if (!ready()) load();
   });
   document.addEventListener("panel:profiles", () => {
+    // A refusal at load may have been for want of a profile: ask again now one is chosen.
+    if (ready() && refusedText) loadProjects();
     if (ready()) loadLists();
   });
 

@@ -80,7 +80,7 @@ func toolWorkflowSearch(ctx context.Context, s *Server, args json.RawMessage) (i
 	if err != nil {
 		return nil, err
 	}
-	saved, err := rt.store.ListWorkflows(ctx, rt.profileID)
+	saved, err := rt.listWorkflows(ctx, profileOf(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("list workflows: %w", err)
 	}
@@ -145,7 +145,7 @@ func toolWorkflowExecutions(ctx context.Context, s *Server, args json.RawMessage
 		if n <= 0 {
 			n = -1 // SQLite: no limit
 		}
-		rows, err := summary.RecentExecutions(ctx, rt.db.DB, rt.profileID, n)
+		rows, err := summary.RecentExecutions(ctx, rt.db.DB, profileOf(ctx), n)
 		if err != nil {
 			return nil, fmt.Errorf("list executions: %w", err)
 		}
@@ -219,7 +219,7 @@ func toolWorkflowTemplateInstantiate(ctx context.Context, s *Server, args json.R
 	if err != nil {
 		return nil, err
 	}
-	wf := instantiateTemplate(file, rt.profileID)
+	wf := instantiateTemplate(file, profileOf(ctx))
 	wf.Description = workflow.SavedTemplateDescription(meta.ID)
 	if err := workflow.ValidateConnectionsAgainstNodes(wf.Nodes, wf.Connections); err != nil {
 		return nil, err

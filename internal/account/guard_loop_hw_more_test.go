@@ -31,7 +31,7 @@ func hwOnDisk(e *env) time.Time {
 // waitForHW waits, in real time, until session.json holds the mark want.
 func waitForHW(t *testing.T, e *env, want time.Time, what string) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testWait)
 	for !hwOnDisk(e).Equal(want) {
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for %s: the mark is %v, want %v", what, hwOnDisk(e), want)

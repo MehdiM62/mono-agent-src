@@ -130,14 +130,14 @@ func TestTaskPulseReadsTheActiveBoard(t *testing.T) {
 	if _, err := a.db.Exec(`INSERT INTO profiles (id, name) VALUES ('work', 'Work')`); err != nil {
 		t.Fatal(err)
 	}
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	if got := a.TaskPulse(); got["profile_id"] != "work" || got["inbox"] != 0 {
 		t.Fatalf("for the active profile, which has no task: %+v", got)
 	}
 	// A profile that is not there has no board: {}, as for any failed read, not
 	// revision 0 with no cards, which the badge would take for a real, empty
 	// board (Rev and Counts do not check the profile; Profile does).
-	a.setActiveProfileID("nobody")
+	a.selectForTest("nobody")
 	if got := a.TaskPulse(); got == nil || len(got) != 0 {
 		t.Fatalf("for a profile that does not exist: %#v, want an empty map", got)
 	}
@@ -155,7 +155,7 @@ func TestRestartAndStopTaskWatcher(t *testing.T) {
 	if a.taskWatchStop == nil || a.taskWatchProfile != "default" {
 		t.Fatalf("after a restart: stop set %v, profile %q", a.taskWatchStop != nil, a.taskWatchProfile)
 	}
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	a.restartTaskWatcher()
 	if a.taskWatchStop == nil || a.taskWatchProfile != "work" {
 		t.Fatalf("after a switch: stop set %v, profile %q", a.taskWatchStop != nil, a.taskWatchProfile)

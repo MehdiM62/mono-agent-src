@@ -1,7 +1,6 @@
 package choose
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"runtime"
@@ -62,7 +61,7 @@ func handles(out []workflow.NodeOutput) map[string][]workflow.Item {
 
 func TestRoutesByHandle(t *testing.T) {
 	srv := jevtest.NewServer(t, routeByText)
-	out, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items("about billing", "a tech crash", "about other things")}, baseConfig())
+	out, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items("about billing", "a tech crash", "about other things")}, baseConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +104,7 @@ func TestLowConfidence(t *testing.T) {
 	jevtest.NewServer(t, routeByText) // top p is 0.94
 	cfg := baseConfig()
 	cfg["min_confidence"] = 0.95
-	out, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items("about billing")}, cfg)
+	out, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items("about billing")}, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +117,7 @@ func TestLowConfidence(t *testing.T) {
 		t.Errorf("result = %v", res)
 	}
 	// Default 0.6 passes the same answer through.
-	out, _ = (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items("about billing")}, baseConfig())
+	out, _ = (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items("about billing")}, baseConfig())
 	if len(handles(out)["billing"]) != 1 {
 		t.Error("default min_confidence should route 0.94 to billing")
 	}
@@ -147,7 +146,7 @@ func TestOrderAndConcurrencyBound(t *testing.T) {
 	}
 	cfg := baseConfig()
 	cfg["concurrency"] = float64(3)
-	out, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items(texts...)}, cfg)
+	out, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items(texts...)}, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +166,7 @@ func TestOrderAndConcurrencyBound(t *testing.T) {
 	// Configured concurrency above 8 is clamped.
 	atomic.StoreInt32(&peak, 0)
 	cfg["concurrency"] = float64(50)
-	if _, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items(texts...)}, cfg); err != nil {
+	if _, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items(texts...)}, cfg); err != nil {
 		t.Fatal(err)
 	}
 	if p := atomic.LoadInt32(&peak); p > maxConcurrency {
@@ -184,7 +183,7 @@ func TestExtraQuestions(t *testing.T) {
 		"tone":     {"type": "choice", "criteria": ["calm", "angry"]},
 		"severity": {"type": "score", "criteria": ["none", "minor", "major"]}
 	}`
-	out, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items("x")}, cfg)
+	out, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items("x")}, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +206,7 @@ func TestExtraQuestions(t *testing.T) {
 	}
 
 	cfg["extra_questions"] = map[string]interface{}{"choice": map[string]interface{}{"type": "noul", "criteria": "x"}}
-	if _, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{}, cfg); !errors.Is(err, workflow.ErrInvalidConfig) {
+	if _, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{}, cfg); !errors.Is(err, workflow.ErrInvalidConfig) {
 		t.Errorf("reserved extra name: err = %v", err)
 	}
 }
@@ -219,7 +218,7 @@ func TestInputProjection(t *testing.T) {
 	cfg := baseConfig()
 	delete(cfg, "input")
 	cfg["fields"] = []interface{}{"subject", "body"}
-	if _, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: []workflow.Item{item}}, cfg); err != nil {
+	if _, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: []workflow.Item{item}}, cfg); err != nil {
 		t.Fatal(err)
 	}
 	got := stateInput(srv.Requests()[0])
@@ -228,7 +227,7 @@ func TestInputProjection(t *testing.T) {
 	}
 
 	cfg["input"] = "Subject: {{$json.subject}} / {{$json.body}}"
-	if _, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: []workflow.Item{item}}, cfg); err != nil {
+	if _, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: []workflow.Item{item}}, cfg); err != nil {
 		t.Fatal(err)
 	}
 	if got := stateInput(srv.Requests()[1]); got != "Subject: Invoice / please pay" {
@@ -239,7 +238,7 @@ func TestInputProjection(t *testing.T) {
 	delete(cfg, "input")
 	delete(cfg, "fields")
 	big := workflow.NewItem(map[string]interface{}{"text": strings.Repeat("a", 10000)})
-	if _, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: []workflow.Item{big}}, cfg); err != nil {
+	if _, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: []workflow.Item{big}}, cfg); err != nil {
 		t.Fatal(err)
 	}
 	if got := []rune(stateInput(srv.Requests()[2])); len(got) != maxInputChars+1 {
@@ -253,14 +252,14 @@ func TestMissingKeyIsInvalidConfig(t *testing.T) {
 	for key, want := range map[string]string{"": "jev key set", "@secret:typesafe": `"typesafe"`} {
 		cfg := baseConfig()
 		cfg["api_key"] = key
-		_, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items("x")}, cfg)
+		_, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items("x")}, cfg)
 		if !errors.Is(err, workflow.ErrInvalidConfig) || !strings.Contains(err.Error(), want) {
 			t.Errorf("api_key %q: err = %v, want ErrInvalidConfig containing %s", key, err, want)
 		}
 	}
 	cfg := baseConfig()
 	cfg["api_key"] = "@secret:my_jev"
-	_, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items("x")}, cfg)
+	_, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items("x")}, cfg)
 	if err == nil || !strings.Contains(err.Error(), `"my_jev"`) {
 		t.Errorf("custom ref: err = %v", err)
 	}
@@ -278,7 +277,7 @@ func TestInvalidCases(t *testing.T) {
 	} {
 		cfg := baseConfig()
 		cfg["cases"] = cases
-		if _, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{}, cfg); !errors.Is(err, workflow.ErrInvalidConfig) {
+		if _, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{}, cfg); !errors.Is(err, workflow.ErrInvalidConfig) {
 			t.Errorf("%s: err = %v, want ErrInvalidConfig", name, err)
 		}
 	}
@@ -287,7 +286,7 @@ func TestInvalidCases(t *testing.T) {
 func TestAPIErrorFailsNode(t *testing.T) {
 	srv := jevtest.NewServer(t, nil)
 	srv.SetStatus(400)
-	_, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items("a", "b")}, baseConfig())
+	_, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items("a", "b")}, baseConfig())
 	if err == nil || !strings.Contains(err.Error(), "HTTP 400") {
 		t.Errorf("err = %v", err)
 	}
@@ -295,7 +294,7 @@ func TestAPIErrorFailsNode(t *testing.T) {
 
 func TestEmptyInputEmitsAllHandles(t *testing.T) {
 	jevtest.NewServer(t, nil)
-	out, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{}, baseConfig())
+	out, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{}, baseConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +319,7 @@ func TestCasesFromJSONText(t *testing.T) {
 	jevtest.NewServer(t, jevtest.Fixed(map[string]string{"choice": "tech"}))
 	cfg := baseConfig()
 	cfg["cases"] = []interface{}{"billing", `{"value": "tech", "handle": "support", "description": "bugs"}`}
-	out, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items("x")}, cfg)
+	out, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items("x")}, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,7 +327,7 @@ func TestCasesFromJSONText(t *testing.T) {
 		t.Errorf("routing = %v", handles(out))
 	}
 	cfg["cases"] = `["a", "b"]`
-	if _, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{}, cfg); err != nil {
+	if _, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{}, cfg); err != nil {
 		t.Errorf("JSON-array string cases: %v", err)
 	}
 }
@@ -349,7 +348,7 @@ func TestItemContentIsNeverEvaluated(t *testing.T) {
 	}
 	cfg := baseConfig()
 	cfg["input"] = `[{{ .node.Meta.json.source }}] {{$json.subject}} / {{$json.body}} / {{upper $json.subject}}`
-	if _, err := (&Node{}).Execute(context.Background(), in, cfg); err != nil {
+	if _, err := (&Node{}).Execute(testCtx(), in, cfg); err != nil {
 		t.Fatal(err)
 	}
 	if raw := srv.RequestJSON(); strings.Contains(raw, "sk-live-SECRET") {
@@ -386,7 +385,7 @@ func TestGoroutinesBoundedByConcurrency(t *testing.T) {
 	cfg := baseConfig()
 	cfg["concurrency"] = float64(2)
 	before := runtime.NumGoroutine()
-	out, err := (&Node{}).Execute(context.Background(), workflow.NodeInput{Items: items(texts...)}, cfg)
+	out, err := (&Node{}).Execute(testCtx(), workflow.NodeInput{Items: items(texts...)}, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

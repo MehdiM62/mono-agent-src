@@ -698,7 +698,7 @@ func TestWorkflowImportNodeIDCollision(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	dbPath := filepath.Join(t.TempDir(), "import.db")
-	cfg := &globalConfig{DBPath: dbPath}
+	cfg := &globalConfig{DBPath: dbPath, ProfileID: "default"}
 
 	importOne := func(name string) string {
 		t.Helper()

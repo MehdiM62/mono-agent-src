@@ -65,19 +65,20 @@ func TestTaskApproveAppearsOnlyWhileAllowedForTheProfile(t *testing.T) {
 	if got := strings.Join(f.listedTools(), ","); got != want {
 		t.Fatalf("tools with approve: %s", got)
 	}
-	// A server of another profile is not affected by the setting of this one.
-	other := f.server(taskSetup{tasksOnly: true, profile: workProfileID}, "cccc")
-	if names := toolsListNames(t, other); names["task_approve"] {
-		t.Fatal("the work profile's server lists task_approve")
+	// The setting is the profile's own: a call that names the work profile, which did not allow it,
+	// is refused even though this server lists the tool.
+	workTask := f.add(workProfileID, "captured on work", false)
+	if _, err := f.call("task_approve", map[string]any{"ids": []int64{workTask.ID}, "profile": workProfileID}); err == nil || !strings.HasPrefix(err.Error(), "operator_only: ") {
+		t.Fatalf("approving on a profile that did not allow it: %v, want operator_only", err)
 	}
 	// Taking it back removes it at once, for the same running server.
 	live := f.Server
-	f.add("default", "captured", false)
-	if _, err := f.call("task_approve", map[string]any{"ids": []int{1}}); err != nil {
+	captured := f.add("default", "captured", false)
+	if _, err := f.call("task_approve", map[string]any{"ids": []int64{captured.ID}}); err != nil {
 		t.Fatalf("approve while allowed: %v", err)
 	}
 	f.setAccess("default", tasks.AgentAccess{})
-	if _, err := callAPITool(t, live, "task_approve", map[string]any{"ids": []int{1}}); err == nil {
+	if _, err := callAPITool(t, live, "task_approve", map[string]any{"ids": []int64{captured.ID}}); err == nil {
 		t.Fatal("task_approve worked after deny")
 	}
 }
@@ -91,9 +92,9 @@ func TestTaskApproveMovesInboxToReadyAsTheAgentAndIsMarked(t *testing.T) {
 	if _, err := f.call("task_approve", map[string]any{"ids": []int64{ready.ID}}); err == nil || !strings.HasPrefix(err.Error(), "invalid_input: ") {
 		t.Fatalf("approving a Ready task: %v", err)
 	}
-	// Unknown arguments (a profile, a name) are refused, as for every task tool.
-	if _, err := f.call("task_approve", map[string]any{"ids": []int64{inbox.ID}, "profile": "work"}); err == nil || !strings.HasPrefix(err.Error(), "invalid_input: ") {
-		t.Fatalf("a profile argument: %v", err)
+	// Unknown arguments (a name) are refused, as for every task tool.
+	if _, err := f.call("task_approve", map[string]any{"ids": []int64{inbox.ID}, "name": "x"}); err == nil || !strings.HasPrefix(err.Error(), "invalid_input: ") {
+		t.Fatalf("a name argument: %v", err)
 	}
 	if _, err := f.call("task_approve", map[string]any{}); err == nil || !strings.HasPrefix(err.Error(), "invalid_input: ") {
 		t.Fatalf("no ids: %v", err)

@@ -3,6 +3,7 @@ package export
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -66,7 +67,7 @@ Files are written to the output directory, defaulting to the global --output-dir
 
 func exportPeopleData(db *storage.Database, outputDir, profileID string) (int, error) {
 	if profileID == "" {
-		profileID = "default"
+		return 0, errors.New("no profile selected; pass --profile <id|name>")
 	}
 	rows, err := db.DB.Query(
 		`SELECT id, platform_username, platform, COALESCE(full_name,''),

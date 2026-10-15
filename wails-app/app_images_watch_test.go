@@ -20,7 +20,7 @@ func TestImageWatcherSyncsThroughTheCLIOnlyOnChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := newTestApp(t)
-	a.setActiveProfileID("other") // the watcher's profile wins over the active one
+	a.selectForTest("other") // the watcher's profile wins over the active one
 	rec := &eventRecorder{}
 	w := a.startImageWatcher("work", root, 20*time.Millisecond, rec.emit)
 	defer w.Stop()

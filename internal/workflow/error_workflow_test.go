@@ -99,7 +99,7 @@ func (r *errorWorkflowRig) waitErrorRun(t *testing.T, workflowID string) Workflo
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("no error-trigger run of %s", workflowID)
-	return WorkflowExecution{}
+	return WorkflowExecution{ProfileID: "default"}
 }
 
 func TestErrorWorkflowRunsWithFailurePayload(t *testing.T) {
@@ -229,7 +229,7 @@ func wrapRejected() error { return errors.Join(errors.New("human_in_loop"), ErrR
 func TestWorkflowSettingsPersist(t *testing.T) {
 	store := newFullEngineStore(t)
 	ctx := context.Background()
-	w := &Workflow{ID: "w1", Name: "w", Settings: map[string]interface{}{ErrorWorkflowSetting: "x"}}
+	w := &Workflow{ProfileID: "default", ID: "w1", Name: "w", Settings: map[string]interface{}{ErrorWorkflowSetting: "x"}}
 	if err := store.CreateWorkflow(ctx, w); err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestWorkflowSettingsPersist(t *testing.T) {
 	if got.Settings[ErrorWorkflowSetting] != "y" {
 		t.Fatalf("settings after update = %#v", got.Settings)
 	}
-	list, err := store.ListWorkflows(ctx, "")
+	list, err := store.ListWorkflows(ctx, "default")
 	if err != nil || len(list) != 1 || list[0].Settings[ErrorWorkflowSetting] != "y" {
 		t.Fatalf("list = %+v, %v", list, err)
 	}
@@ -258,7 +258,7 @@ func TestWorkflowSettingsPersistInFileStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	w := &Workflow{ID: "w1", Name: "w", Settings: map[string]interface{}{ErrorWorkflowSetting: "x"}}
+	w := &Workflow{ProfileID: "default", ID: "w1", Name: "w", Settings: map[string]interface{}{ErrorWorkflowSetting: "x"}}
 	if err := fs.SaveWorkflow(ctx, w); err != nil {
 		t.Fatal(err)
 	}

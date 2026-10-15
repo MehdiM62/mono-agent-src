@@ -36,10 +36,27 @@ var classes = map[string]string{
 	"account": ClassGlobal, "agent": ClassGlobal, "config": ClassGlobal,
 	"message-template": ClassGlobal, "db": ClassGlobal,
 
+	// doctor and setup always run the machine checks; the per-profile ones
+	// (profile folder, vault, accounts, monomind folder, Jev) run when
+	// --profile names a profile and report "pass --profile" when it does not.
+	"doctor": ClassGlobal, "setup": ClassGlobal,
+
+	// mcp serves every profile and holds none: its tools take a profile argument
+	// per call. Only `mcp --grant` is bound to one profile, and it checks its own
+	// --profile (internal/cli/integrations/mcp.go).
+	"mcp": ClassGlobal,
+
 	// `extension bind <browser> <profile>` takes its profile positionally.
 	"extension": ClassGlobal,
 
 	"api config": ClassGlobal,
+
+	// The TypeSafe key is machine-wide: `jev key set` and `jev key remove` act
+	// on the machine vault only. `jev key adopt` is cross-profile by design: it
+	// copies from profile vaults and spells the source by its own
+	// --from-profile (or takes the newest readable one). `jev key test` stays
+	// scoped: it falls back to the caller's profile vault.
+	"jev key set": ClassGlobal, "jev key remove": ClassGlobal, "jev key adopt": ClassGlobal,
 
 	"automation":                      ClassGlobal,
 	"automation list":                 ClassScoped, // login state of the profile's sessions
@@ -50,7 +67,6 @@ var classes = map[string]string{
 
 	"profile list": ClassGlobal, "profile create": ClassGlobal, "profile get": ClassGlobal,
 	"profile folder": ClassGlobal, "profile move": ClassGlobal, "profile projects": ClassGlobal,
-	"profile switch": ClassGlobal, "profile current": ClassGlobal, // removed in a later phase
 
 	"node list": ClassGlobal, "node palette": ClassGlobal, "node schema": ClassGlobal, "node curl": ClassGlobal,
 
@@ -60,6 +76,10 @@ var classes = map[string]string{
 
 	"workflow templates list": ClassGlobal, "workflow templates show": ClassGlobal,
 	"workflow convert": ClassGlobal,
+	// workflow migrate copies the SQLite workflows of EVERY profile to the
+	// file store (ListWorkflows with no profile filter): deliberately
+	// cross-profile, so global.
+	"workflow migrate": ClassGlobal,
 
 	"secret keyring": ClassGlobal, "secret encrypt-connections": ClassGlobal,
 
@@ -67,6 +87,9 @@ var classes = map[string]string{
 	// active turns of EVERY profile (the desktop app runs it at startup with no
 	// profile). Its siblings (list, show, turns, ...) stay scoped.
 	"chat history reconcile": ClassGlobal,
+
+	// The sandbox fallback is one machine-wide setting (the sandbox.fallback config).
+	"sandbox": ClassGlobal,
 
 	"coder status": ClassGlobal, "coder enable": ClassGlobal, "coder disable": ClassGlobal, "coder set": ClassGlobal,
 	// The origin→folder map is the machine-wide coder_projects setting.
@@ -79,7 +102,9 @@ var classes = map[string]string{
 	// What each kind of agent may do in the browser: one machine-wide setting.
 	"browser permissions": ClassGlobal,
 
-	"daemon install": ClassGlobal, "daemon uninstall": ClassGlobal, "daemon restart": ClassGlobal,
+	// daemon and httpapi serve every profile: each workflow runs under its own
+	// profile and each HTTP request names its profile in the path.
+	"daemon": ClassGlobal, "httpapi": ClassGlobal,
 }
 
 // CommandKey is c's path below the root: "workflow templates list".

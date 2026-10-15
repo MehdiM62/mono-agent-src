@@ -30,7 +30,7 @@ esac
 
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("default")
+	a.selectForTest("default")
 
 	if s := a.GetGlobalSummary(); !strings.Contains(s, `"scope":"global"`) || !strings.Contains(s, `"profiles"`) {
 		t.Fatalf("GetGlobalSummary = %s", s)

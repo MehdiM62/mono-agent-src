@@ -52,7 +52,7 @@ GUI and no keyring are needed.
 ## 2. Start the server
 
 ```bash
-monoagentcli --profile work httpapi        # or: monoagentcli --profile work daemon
+monoagentcli httpapi        # or: monoagentcli daemon
 ```
 
 The API is served at `http://127.0.0.1:9322/v1` while the HTTP API listener
@@ -172,10 +172,10 @@ What to expect:
 With `"model": "auto"`, [TypeSafe Jev](https://docs.typesafe.ai/api) chooses the
 model of each request among the ones this listener serves: a cheaper, faster
 one for a simple prompt, a stronger one for a hard or long one. It is off until
-you switch it on for the key's profile, and it needs that profile's Jev key:
+you switch it on for the key's profile, and it needs the machine-wide Jev key (one key for all profiles):
 
 ```bash
-printf '%s' "$TYPESAFE_KEY" | monoagentcli --profile work jev key set   # or TYPESAFE_API_KEY in the server's environment
+printf '%s' "$TYPESAFE_KEY" | monoagentcli jev key set   # or TYPESAFE_API_KEY in the server's environment
 monoagentcli --profile work jev enable api_auto    # prints what is sent to TypeSafe, then asks (--yes in a script)
 monoagentcli --profile work api models             # its last line says whether auto works
 ```
@@ -215,10 +215,10 @@ be the holder of the key (see `SECURITY.md`). To let `auto` pick sandboxed or
 unconfined runtimes too, start the server with `--auto-confinement sandboxed`
 (or `any`, or `MONOAGENT_API_AUTO_CONFINEMENT`); it never goes above
 `--confinement`, nor above the cap of a `--context` key, and a model you name
-yourself is not affected. `monoagentcli api models` shows which models `auto`
+yourself is not affected. `monoagentcli --profile work api models` shows which models `auto`
 may pick. `GET /v1/models` lists `auto` after the other models, so a client that
 takes the first one is not moved to it, and leaves it out while it does not work;
-`monoagentcli api status` says what is missing.
+`monoagentcli --profile work api status` says what is missing.
 
 ### Make images
 
@@ -534,7 +534,7 @@ and, off loopback, is TLS only:
 ```bash
 export MONOAGENT_API_TLS_CERT=/etc/monoagent/fullchain.pem
 export MONOAGENT_API_TLS_KEY=/etc/monoagent/privkey.pem
-monoagentcli --profile work daemon --v1-addr 0.0.0.0:9443
+monoagentcli daemon --v1-addr 0.0.0.0:9443
 ```
 
 - Without a certificate in the environment, a self-signed one valid for
@@ -684,7 +684,7 @@ model that can use them can have a workflow run `--yes` as you. To give a model
 the API's tools and nothing else, start the server with `--api-only`:
 
 ```bash
-monoagentcli --profile work mcp --api-only --allow-mutations --allow-api-exposure
+monoagentcli mcp --api-only --allow-mutations --allow-api-exposure
 ```
 
 It serves the ten `api_*` tools and no workflow, vault, secret, person, org or
@@ -697,10 +697,10 @@ on, and `--allow-mutations` to leave it only the four read-only tools.
 ## 6. A headless Linux server
 
 1. Install monomind and the agent CLIs you want to serve, and sign them in as
-   the user that will run the service. `monoagentcli doctor` shows what is
+   the user that will run the service. `monoagentcli --profile work doctor` shows what is
    missing. Use a dedicated unprivileged OS user: a key is the runtime's
    capabilities, and a runtime with a shell runs it as that user.
-2. Create a key: `monoagentcli api key create --name app`. It needs no
+2. Create a key: `monoagentcli --profile work api key create --name app`. It needs no
    keyring and no GUI.
 3. Install the service: `monoagentcli daemon install` writes the systemd user
    unit `monoagent-daemon.service`. The unit has no environment or flags, so
@@ -728,7 +728,7 @@ on, and `--allow-mutations` to leave it only the four read-only tools.
    goes if monomind or an agent CLI is not found under systemd's minimal `PATH`.
    As root, `loginctl enable-linger <user>` so the service starts at boot. Logs:
    `journalctl --user -u monoagent-daemon -f`.
-4. Check that the listener came up: `monoagentcli api status`, run as the same
+4. Check that the listener came up: `monoagentcli --profile work api status`, run as the same
    user, lists it and says whether it answers `/v1`; `monoagentcli api config
    show` says whether the daemon runs what is saved. The daemon only logs a
    warning when it cannot start the listener (an unreadable certificate, a

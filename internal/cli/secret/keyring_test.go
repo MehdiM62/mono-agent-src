@@ -180,3 +180,13 @@ func TestSecretKeyringStatus_EnvFileWins(t *testing.T) {
 		t.Fatalf("passphrase_file = %+v", pf)
 	}
 }
+
+func TestSecretCommandsRefuseAMissingProfile(t *testing.T) {
+	dbPath := newSecretCLITestDB(t)
+	for _, args := range [][]string{{"list"}, {"add", "--name", "k", "--field", "value=v"}} {
+		_, _, err := runKeyringCmd(t, dbPath, "", "", args...)
+		if !errors.Is(err, ErrProfileRequired) {
+			t.Errorf("secret %v err = %v, want ErrProfileRequired", args, err)
+		}
+	}
+}

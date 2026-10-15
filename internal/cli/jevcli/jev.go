@@ -173,7 +173,7 @@ func newJevEnableCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "enable <surface>",
 		Short: "Let Jev decide or suggest on one surface for this profile",
-		Long: "Switch one surface on for the active profile. The data that surface sends\n" +
+		Long: "Switch one surface on for the profile named by --profile. The data that surface sends\n" +
 			"to TypeSafe is printed first; confirm at the prompt, or pass --yes (required\n" +
 			"when stdin is not a terminal).\n\nSurfaces: " + jevSurfaceNames(),
 		Args: cobra.ExactArgs(1),

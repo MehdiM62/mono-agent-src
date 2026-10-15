@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -174,7 +175,7 @@ func toolHilList(ctx context.Context, s *Server, args json.RawMessage) (interfac
 		 LEFT JOIN workflows w ON w.id = h.workflow_id
 		 WHERE h.status = 'pending' AND h.profile_id = ?
 		 ORDER BY h.created_at ASC`,
-		rt.profileID,
+		profileOf(ctx),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query HIL items: %w", err)
@@ -224,7 +225,7 @@ func toolHilApprove(ctx context.Context, s *Server, args json.RawMessage) (inter
 	res, err := rt.db.DB.ExecContext(ctx,
 		`UPDATE hil_pending SET status='approved', edited_data=?, updated_at=CURRENT_TIMESTAMP
 		 WHERE id=? AND status='pending' AND profile_id = ?`,
-		string(edited), a.ID, rt.profileID,
+		string(edited), a.ID, profileOf(ctx),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("approve HIL item: %w", err)
@@ -232,6 +233,7 @@ func toolHilApprove(ctx context.Context, s *Server, args json.RawMessage) (inter
 	if n, _ := res.RowsAffected(); n == 0 {
 		return nil, fmt.Errorf("HIL item %q not found or already resolved", a.ID)
 	}
+	_ = commsync.SetStatus(ctx, rt.db.DB, a.ID, commsync.Approved, commsync.Detail{Edited: a.Data})
 	return map[string]string{"id": a.ID, "status": "approved"}, nil
 }
 
@@ -252,7 +254,7 @@ func toolHilReject(ctx context.Context, s *Server, args json.RawMessage) (interf
 	res, err := rt.db.DB.ExecContext(ctx,
 		`UPDATE hil_pending SET status='rejected', updated_at=CURRENT_TIMESTAMP
 		 WHERE id=? AND status='pending' AND profile_id = ?`,
-		a.ID, rt.profileID,
+		a.ID, profileOf(ctx),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("reject HIL item: %w", err)
@@ -260,6 +262,7 @@ func toolHilReject(ctx context.Context, s *Server, args json.RawMessage) (interf
 	if n, _ := res.RowsAffected(); n == 0 {
 		return nil, fmt.Errorf("HIL item %q not found or already resolved", a.ID)
 	}
+	_ = commsync.SetStatus(ctx, rt.db.DB, a.ID, commsync.Rejected, commsync.Detail{})
 	return map[string]string{"id": a.ID, "status": "rejected"}, nil
 }
 

@@ -63,8 +63,12 @@ func (r *runner) resolveSubNodes(rootID string, exprCtx ExpressionContext, depth
 		}
 		restorePerItemFields(resolved, held)
 		if db := vault.DBFromContext(r.ctx); db != nil {
+			profile, perr := vault.ProfileIDFromContext(r.ctx)
+			if perr != nil {
+				return nil, fmt.Errorf("sub-node %s (%s) ran without a profile: %w", n.ID, n.Name, perr)
+			}
 			_ = vault.ResolveConfig(r.ctx, db, resolved)
-			_ = secrets.ResolveConfig(r.ctx, db, vault.ProfileIDFromContext(r.ctx), resolved)
+			_ = secrets.ResolveConfig(r.ctx, db, profile, resolved)
 		}
 		children, err := r.resolveSubNodes(n.ID, exprCtx, depth+1)
 		if err != nil {
@@ -106,8 +110,12 @@ func (r *runner) callTool(ctx context.Context, n WorkflowNode, base ExpressionCo
 	}
 	restorePerItemFields(resolved, held)
 	if db := vault.DBFromContext(ctx); db != nil {
+		profile, perr := vault.ProfileIDFromContext(ctx)
+		if perr != nil {
+			return nil, fmt.Errorf("tool %q ran without a profile: %w", n.Name, perr)
+		}
 		_ = vault.ResolveConfig(ctx, db, resolved)
-		_ = secrets.ResolveConfig(ctx, db, vault.ProfileIDFromContext(ctx), resolved)
+		_ = secrets.ResolveConfig(ctx, db, profile, resolved)
 	}
 	outs, err := executor.Execute(ctx, NodeInput{
 		Items: []Item{NewItem(args)}, NodeOutputs: r.nodeOutputs,

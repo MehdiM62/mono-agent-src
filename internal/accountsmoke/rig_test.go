@@ -341,7 +341,28 @@ type result struct {
 	stdout, stderr string
 }
 
+// onProfile is args acting on the Default profile, which every machine has. The smoke tests are about
+// the account gate; the profile gate refuses a scoped command that does not name its profile, and
+// a flag after the subcommand is read as well as one before it.
+func onProfile(args []string) []string {
+	for i, a := range args {
+		switch a {
+		case "--profile":
+			return args
+		case "--": // the words after it belong to the command: the flag goes before them
+			return append(append(append([]string{}, args[:i]...), "--profile", "default"), args[i:]...)
+		}
+	}
+	return append(append([]string{}, args...), "--profile", "default")
+}
+
 func (r *rig) run(args ...string) result {
+	r.t.Helper()
+	return r.runAsGiven(onProfile(args)...)
+}
+
+// runAsGiven runs args exactly as written, with no profile added.
+func (r *rig) runAsGiven(args ...string) result {
 	r.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -388,6 +409,7 @@ func (r *rig) startWith(extra []string, args ...string) *proc {
 	r.t.Helper()
 	log, err := os.Create(filepath.Join(r.dir, args[0]+".log"))
 	must(r.t, err)
+	args = onProfile(args)
 	cmd := exec.Command(r.bin, args...)
 	cmd.Env, cmd.Dir, cmd.Stdout, cmd.Stderr = r.env(extra...), r.dir, log, log
 	must(r.t, cmd.Start())

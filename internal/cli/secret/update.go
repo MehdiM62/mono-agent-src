@@ -45,7 +45,7 @@ func (d Deps) runSecretUpdate(newName, username, url, notes *string, fieldFlags 
 
 		profileID := d.ProfileID()
 		if profileID == "" {
-			profileID = "default"
+			return ErrProfileRequired
 		}
 		id, err := d.lookupSecretID(cmd.Context(), db.DB, profileID, args[0])
 		if err != nil {
@@ -115,7 +115,7 @@ func (d Deps) newSecretRmCmd() *cobra.Command {
 
 			profileID := d.ProfileID()
 			if profileID == "" {
-				profileID = "default"
+				return ErrProfileRequired
 			}
 			id, err := d.lookupSecretID(cmd.Context(), db.DB, profileID, args[0])
 			if err != nil {

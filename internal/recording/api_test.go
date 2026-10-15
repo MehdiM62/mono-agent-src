@@ -130,12 +130,22 @@ func TestProfileScope(t *testing.T) {
 	if err := SetProfile("work"); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = SetProfile("") })
+	t.Cleanup(func() { SetAllProfiles() })
 	if list, _ := List(); len(list) != 1 || list[0].Profile != "work" {
 		t.Fatalf("profile list = %+v", list)
 	}
 	if err := SetProfile("../x"); err == nil {
 		t.Fatal("bad profile accepted")
+	}
+	if err := SetProfile("  "); !errors.Is(err, ErrNoProfile) {
+		t.Fatalf("empty profile = %v, want ErrNoProfile (not \"every store\")", err)
+	}
+	if list, _ := List(); len(list) != 1 {
+		t.Fatalf("a refused SetProfile must keep the previous scope, got %d recordings", len(list))
+	}
+	SetAllProfiles()
+	if list, _ := List(); len(list) != 2 {
+		t.Fatalf("SetAllProfiles list = %d, want 2", len(list))
 	}
 }
 

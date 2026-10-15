@@ -7,6 +7,8 @@ import {
 import * as WailsApp from '../wailsjs/go/main/App'
 import { api, notify } from '../services/api.js'
 import { usePageVisibleRef, useVisibleCatchUp } from '../lib/usePageVisible.js'
+import { CommsLinks } from '../components/CommsLinks.jsx'
+import { emitCommsChanged } from '../lib/commsStatus.js'
 import { BrowserSubmitDetails, isBrowserSubmit } from '../components/hil/BrowserSubmitDetails.jsx'
 import { BrowserSiteDetails, isBrowserSite } from '../components/hil/BrowserSiteDetails.jsx'
 
@@ -161,7 +163,7 @@ export function SuggestionChip({ choice, p, detail }) {
   )
 }
 
-function HILCard({ item, onApprove, onReject }) {
+function HILCard({ item, onApprove, onReject, onProfile, onNavigate }) {
   const [expanded, setExpanded] = useState(true)
   const [editedValues, setEditedValues] = useState({ ...item.editable_data })
   const [loading, setLoading] = useState(null) // 'approve' | 'reject'
@@ -241,6 +243,11 @@ function HILCard({ item, onApprove, onReject }) {
         {expanded ? <ChevronDown size={14} color="var(--text-muted)" /> : <ChevronRight size={14} color="var(--text-muted)" />}
       </div>
 
+      {(item.person_id || item.hil_ref) && (
+        <div style={{ padding: '6px 16px' }}>
+          <CommsLinks personId={item.person_id} hilRef={item.hil_ref || ''} name={item.person_full_name || item.person_platform_username} onProfile={onProfile} onNavigate={onNavigate} />
+        </div>
+      )}
       {expanded && (
         <div style={{ padding: 16 }}>
           {isBrowserSubmit(item) ? <BrowserSubmitDetails item={item} /> : isBrowserSite(item) ? <BrowserSiteDetails item={item} /> : readonlyKeys.length > 0 && (
@@ -311,7 +318,7 @@ function HILCard({ item, onApprove, onReject }) {
 }
 
 // ── 2. Draft Outbound Message Card ────────────────────────────
-function DraftMessageCard({ item, onSend, onReject }) {
+function DraftMessageCard({ item, onSend, onReject, onProfile, onNavigate }) {
   const [expanded, setExpanded] = useState(true)
   const [loading, setLoading] = useState(null) // 'send' | 'reject'
 
@@ -362,6 +369,11 @@ function DraftMessageCard({ item, onSend, onReject }) {
         {expanded ? <ChevronDown size={14} color="var(--text-muted)" /> : <ChevronRight size={14} color="var(--text-muted)" />}
       </div>
 
+      {(item.person_id || item.hil_ref) && (
+        <div style={{ padding: '6px 16px' }}>
+          <CommsLinks personId={item.person_id} hilRef={item.hil_ref || ''} name={item.person_full_name || item.person_platform_username} onProfile={onProfile} onNavigate={onNavigate} />
+        </div>
+      )}
       {expanded && (
         <div style={{ padding: 16 }}>
           <div style={{
@@ -830,7 +842,7 @@ function OrgDecisionCard({ item, onAnswerQuestion, onApproveAction, onDenyAction
 }
 
 // ── Main HumanInLoop component ────────────────────────────────
-export default function HumanInLoop({ embedded = false, isOpen = true, onClose, onPendingCountChange, onProfile }) {
+export default function HumanInLoop({ embedded = false, isOpen = true, onClose, onPendingCountChange, onProfile, onNavigate }) {
   const [items, setItems] = useState([])
   const [drafts, setDrafts] = useState([])
   const [leads, setLeads] = useState([])
@@ -928,6 +940,7 @@ export default function HumanInLoop({ embedded = false, isOpen = true, onClose, 
   const handleApproveHIL = async (id, editedJSON) => {
     try {
       await ApproveHIL(id, editedJSON)
+      emitCommsChanged()
       setItems(prev => prev.filter(i => i.id !== id))
       notify('workflow', 'Workflow resumed')
     } catch (e) {
@@ -938,6 +951,7 @@ export default function HumanInLoop({ embedded = false, isOpen = true, onClose, 
   const handleRejectHIL = async (id) => {
     try {
       await RejectHIL(id)
+      emitCommsChanged()
       setItems(prev => prev.filter(i => i.id !== id))
       notify('workflow', 'Workflow branch rejected')
     } catch (e) {
@@ -949,6 +963,7 @@ export default function HumanInLoop({ embedded = false, isOpen = true, onClose, 
   const handleSendDraft = async (id) => {
     try {
       await SendDraftPersonMessage(id)
+      emitCommsChanged()
       setDrafts(prev => prev.filter(d => d.id !== id))
       notify('message', 'Draft message sent')
     } catch (e) {
@@ -959,6 +974,7 @@ export default function HumanInLoop({ embedded = false, isOpen = true, onClose, 
   const handleRejectDraft = async (id) => {
     try {
       await RejectDraftPersonMessage(id)
+      emitCommsChanged()
       setDrafts(prev => prev.filter(d => d.id !== id))
       notify('message', 'Draft message discarded')
     } catch (e) {
@@ -970,6 +986,7 @@ export default function HumanInLoop({ embedded = false, isOpen = true, onClose, 
   const handleApproveLead = async (id, editedIntro, sendNow) => {
     try {
       await api.approvePendingPerson(id, editedIntro, sendNow)
+      emitCommsChanged()
       setLeads(prev => prev.filter(l => l.id !== id))
       notify('outreach', sendNow ? 'Approved and queued for dispatch' : 'Approved candidate')
     } catch (e) {
@@ -980,6 +997,7 @@ export default function HumanInLoop({ embedded = false, isOpen = true, onClose, 
   const handleRejectLead = async (id) => {
     try {
       await api.rejectPendingPerson(id)
+      emitCommsChanged()
       setLeads(prev => prev.filter(l => l.id !== id))
       notify('outreach', 'Candidate rejected')
     } catch (e) {
@@ -1212,6 +1230,8 @@ export default function HumanInLoop({ embedded = false, isOpen = true, onClose, 
           item={item}
           onApprove={handleApproveHIL}
           onReject={handleRejectHIL}
+          onProfile={onProfile}
+          onNavigate={onNavigate}
         />
       ))}
 
@@ -1222,6 +1242,8 @@ export default function HumanInLoop({ embedded = false, isOpen = true, onClose, 
           item={item}
           onSend={handleSendDraft}
           onReject={handleRejectDraft}
+          onProfile={onProfile}
+          onNavigate={onNavigate}
         />
       ))}
 

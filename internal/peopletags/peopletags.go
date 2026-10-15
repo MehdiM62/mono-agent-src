@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // MaxPerPerson caps the tags on one person.
@@ -61,6 +63,9 @@ func personExists(ctx context.Context, q queryRower, profileID, personID string)
 // creating it when new. A colour given for an existing tag recolours it
 // everywhere, which is what the People page offers when re-adding a tag.
 func Add(ctx context.Context, db *sql.DB, profileID, personID, name, color string) (Tag, error) {
+	if profileID == "" {
+		return Tag{}, profiledir.ErrNoProfile
+	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Tag{}, fmt.Errorf("empty tag name: %w", ErrInvalid)
@@ -123,6 +128,9 @@ func Add(ctx context.Context, db *sql.DB, profileID, personID, name, color strin
 
 // Remove unlinks a tag (by id or name) from a person; the tag itself stays.
 func Remove(ctx context.Context, db *sql.DB, profileID, personID, tag string) error {
+	if profileID == "" {
+		return profiledir.ErrNoProfile
+	}
 	if err := personExists(ctx, db, profileID, personID); err != nil {
 		return err
 	}
@@ -136,6 +144,9 @@ func Remove(ctx context.Context, db *sql.DB, profileID, personID, tag string) er
 
 // SetColor recolours a profile's tag (by id or name).
 func SetColor(ctx context.Context, db *sql.DB, profileID, tag, color string) (Tag, error) {
+	if profileID == "" {
+		return Tag{}, profiledir.ErrNoProfile
+	}
 	if err := checkColor(color); err != nil {
 		return Tag{}, err
 	}

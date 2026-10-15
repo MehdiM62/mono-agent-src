@@ -40,7 +40,7 @@ func TestAccountBindingsShellOut(t *testing.T) {
 	log := filepath.Join(t.TempDir(), "args.log")
 	t.Setenv("MONOAGENTCLI_BIN", fakeCLI(t, `echo "$*" >> '`+log+"'\necho '{\"ok\":true}'\n"))
 	a := accountApp(t)
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	a.AccountStatus()
 	a.AccountLoginEmailSend("me@example.com")

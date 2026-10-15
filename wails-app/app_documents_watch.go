@@ -20,13 +20,17 @@ import (
 
 // documentRootForActiveProfile resolves the directory the document watcher
 // scans -- the active profile's whole folder. Returns
-// profiledir.Root(a.db, a.getActiveProfileID()) UNMODIFIED (no
+// profiledir.Root(a.db, <selected profile>) UNMODIFIED (no
 // Abs/EvalSymlinks) -- see internal/docscan.Scan's doc comment for why:
 // monomind.IngestDocument calls profiledir.Root independently at index
 // time and its path-traversal guard requires the two to agree
 // byte-for-byte.
 func (a *App) documentRootForActiveProfile() string {
-	return profiledir.Root(a.db, a.getActiveProfileID())
+	id, err := a.profileID()
+	if err != nil {
+		return ""
+	}
+	return profiledir.Root(a.db, id)
 }
 
 // restartDocumentWatcher stops any existing document watcher and starts a
@@ -53,7 +57,10 @@ func (a *App) restartDocumentWatcher() {
 		a.capWatcher = nil
 	}
 
-	profileID := a.getActiveProfileID()
+	profileID, err := a.profileID()
+	if err != nil {
+		return // no profile selected: nothing to watch
+	}
 	a.startCaptureWatcher(profileID)
 
 	root := a.documentRootForActiveProfile()
@@ -164,7 +171,11 @@ func (a *App) runProfileCLI(profileID string, timeout time.Duration, result inte
 	}
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, cliBin, scopedCLIArgs(profileID, args...)...)
+	full, err := scopedCLIArgs(profileID, args...)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, cliBin, full...)
 	suppressConsole(cmd)
 	stdout, runErr := cmd.Output()
 	out := cliResultJSON(cliBin, stdout, runErr)

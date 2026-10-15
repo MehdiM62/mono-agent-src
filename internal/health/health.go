@@ -136,7 +136,7 @@ type Env struct {
 	DBPath     string
 	Version    string // monoagentcli version
 	Executable string // path of the running binary
-	ProfileID  string // active profile ("" = resolve from the DB)
+	ProfileID  string // the profile to check ("" = none given: per-profile checks are skipped)
 
 	// DB is the opened (not migrated) database, nil when it doesn't exist
 	// yet or failed to open (DBErr).

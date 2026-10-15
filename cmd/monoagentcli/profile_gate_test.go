@@ -22,16 +22,17 @@ var mustBeGlobal = []string{
 	"profile list", "profile create", "node schema", "node list", "message-template list",
 	"api config show", "action template list", "automation install", "automation trust",
 	"automation test", "automation new", "extension status", "library status", "library login",
-	"workflow templates list", "secret keyring status", "coder status", "daemon install",
+	"workflow templates list", "secret keyring status", "coder status", "daemon", "daemon install", "httpapi",
 	"account status", "ref commands", "init", "nodejs status", "db migrate", "integration list", "chat history reconcile",
-	"secret encrypt-connections",
+	"secret encrypt-connections", "mcp", "workflow migrate", "doctor", "setup",
+	"jev key set", "jev key remove", "jev key adopt",
 }
 
 var mustBeScoped = []string{
 	"people list", "workflow run", "workflow list", "workflow validate", "secret get", "secret add",
 	"task add", "org list", "hil list", "connect list", "library logout", "library install",
-	"automation list", "automation rerecord", "api key list", "api status", "daemon", "doctor",
-	"status", "login status", "chat history list", "jev status", "node run", "mcp",
+	"automation list", "automation rerecord", "api key list", "api status",
+	"status", "login status", "chat history list", "jev status", "node run", "jev key test",
 }
 
 func findCommand(t *testing.T, root *cobra.Command, key string) *cobra.Command {
@@ -116,16 +117,6 @@ func runGateCLI(t *testing.T, args ...string) (string, error) {
 	return errb.String() + out.String(), err
 }
 
-func TestScopedCommandWithoutProfileWarnsAndRuns(t *testing.T) {
-	out, err := runGateCLI(t, "people", "list")
-	if err != nil {
-		t.Fatalf("people list must still run in warn mode: %v", err)
-	}
-	if !strings.Contains(out, "--profile") || !strings.Contains(out, "falling back to the active profile") {
-		t.Fatalf("want the profile warning on stderr, got %q", out)
-	}
-}
-
 func TestScopedCommandWithProfileIsSilent(t *testing.T) {
 	out, err := runGateCLI(t, "--profile", "default", "people", "list")
 	if err != nil || strings.Contains(out, "acts on a profile") {
@@ -160,19 +151,26 @@ func TestGroupsAreNotJudged(t *testing.T) {
 	}
 }
 
+// doctor and setup have a PersistentPreRun of their own, which the gate wraps
+// so it still runs first. Both are global: without --profile they are not
+// refused (the per-profile checks say "pass --profile" instead).
 func TestACommandWithItsOwnPreRunStillGetsTheGate(t *testing.T) {
 	root := newRootCmd()
-	doctor, _, err := root.Find([]string{"doctor"})
-	if err != nil || doctor == nil || doctor.PersistentPreRunE == nil {
-		t.Fatalf("doctor has no pre-run of its own: %v", err)
-	}
-	var errb bytes.Buffer
-	doctor.SetErr(&errb)
-	doctor.SetContext(context.Background())
-	_ = doctor.ParseFlags(nil)
-	_ = doctor.PersistentPreRunE(doctor, nil)
-	if !strings.Contains(errb.String(), "--profile") {
-		t.Fatalf("want the warning from doctor's own pre-run, got %q", errb.String())
+	for _, name := range []string{"doctor", "setup"} {
+		c, _, err := root.Find([]string{name})
+		if err != nil || c == nil || c.PersistentPreRunE == nil {
+			t.Fatalf("%s has no wrapped pre-run: %v", name, err)
+		}
+		var errb bytes.Buffer
+		c.SetErr(&errb)
+		c.SetContext(context.Background())
+		_ = c.ParseFlags(nil)
+		if err := c.PersistentPreRunE(c, nil); err != nil {
+			t.Errorf("%s without --profile was refused: %v", name, err)
+		}
+		if strings.Contains(errb.String(), "acts on a profile") {
+			t.Errorf("%s printed the profile warning: %q", name, errb.String())
+		}
 	}
 }
 

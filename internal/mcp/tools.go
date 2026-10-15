@@ -23,7 +23,12 @@ type tool struct {
 	// result holds the new key, which goes on the wire once, in the text.
 	textOnly bool
 	mutating bool // gated behind Options.AllowMutations — see callTool/toolDefinitions
-	handler  toolHandler
+	// global marks a tool that reads and writes no profile data (node types,
+	// docs, bundled workflow templates, machine-wide message templates and API
+	// settings). Every other tool is profile-scoped: scoped() adds the required
+	// `profile` argument to its schema and callToolResult resolves it per call.
+	global  bool
+	handler toolHandler
 }
 
 func strParam(desc string) map[string]interface{} {
@@ -96,6 +101,12 @@ func callToolResult(ctx context.Context, s *Server, name string, args json.RawMe
 		if t.mutating && !s.opts.AllowMutations {
 			return "", nil, fmt.Errorf("%s requires --allow-mutations (or MONOAGENT_MCP_ALLOW_MUTATIONS=1) on the mcp server", t.name)
 		}
+		if !t.global {
+			var perr error
+			if ctx, args, perr = s.scopeCall(ctx, args); perr != nil {
+				return "", nil, perr
+			}
+		}
 		result, err := t.handler(ctx, s, args)
 		if err != nil {
 			return "", nil, err
@@ -136,7 +147,7 @@ func allTools() []tool {
 	native := []tool{
 		{
 			name:        "workflow_list",
-			description: "List saved workflows for the active profile: [{id, name, active, node_count}]",
+			description: "List saved workflows for the call's profile: [{id, name, active, node_count}]",
 			schema:      objSchema(nil),
 			annotations: map[string]bool{"readOnlyHint": true, "idempotentHint": true},
 			handler:     toolWorkflowList,
@@ -190,6 +201,7 @@ func allTools() []tool {
 		},
 		{
 			name:        "node_list",
+			global:      true, // reads no profile data
 			description: "List available node types: [{type, category, title}]. Optionally filter by category — one of: trigger, control, http, system, communication, ai, browser/social, people, database, service, data, other. category is a derived grouping, not a type-string prefix (e.g. category=\"browser/social\" returns instagram.*/linkedin.*/gemini.*/etc together; a raw type name like \"gemini\" matches nothing).",
 			schema: objSchema(map[string]interface{}{
 				"category": strParam("Optional category filter — see the tool description for valid values"),
@@ -199,6 +211,7 @@ func allTools() []tool {
 		},
 		{
 			name:        "node_schema",
+			global:      true, // reads no profile data
 			description: "Get the embedded JSON schema (config fields) for one node type",
 			schema: objSchema(map[string]interface{}{
 				"type": strParam("Node type, e.g. http.request or trigger.schedule"),
@@ -208,7 +221,7 @@ func allTools() []tool {
 		},
 		{
 			name:        "hil_list",
-			description: "List pending Human-in-Loop approval items for the active profile",
+			description: "List pending Human-in-Loop approval items for the call's profile",
 			schema:      objSchema(nil),
 			annotations: map[string]bool{"readOnlyHint": true, "idempotentHint": true},
 			handler:     toolHilList,
@@ -239,6 +252,7 @@ func allTools() []tool {
 		},
 		{
 			name:        "docs",
+			global:      true, // reads no profile data
 			description: "Built-in reference docs (same facts as the `monoagentcli ref` command). Topics: commands, nodes, expressions, workflow, templates, connections, org, publication, api-tools. Omit topic for the index. Also served as resources monoagent://ref/<topic>.",
 			schema: objSchema(map[string]interface{}{
 				"topic": strParam("Topic name (optional)"),
@@ -254,7 +268,7 @@ func allTools() []tool {
 	native = append(native, apiTools()...)
 	native = append(native, publicationTools()...)
 	native = append(native, generateTools()...)
-	return append(native, apiConfigTools()...)
+	return scoped(append(native, apiConfigTools()...))
 }
 
 // The outputSchemas of the core workflow tools: what their structuredContent holds.

@@ -297,6 +297,9 @@ function hide(el) {
 const showCapture = (kind, text) => show(captureMsg, kind, text);
 const showBatch = (kind, text) => show(batchMsg, kind, text);
 
+/** Messages the panel sends on a timer or on load, not because the person acted. */
+const BACKGROUND_READS = new Set(["coder_list", "coder_queue_list", "coder_projects", "coder_events", "chat_events"]);
+
 /** ask sends one message to the worker and resolves with its answer. */
 function ask(message) {
   return new Promise((resolve) => {
@@ -304,6 +307,16 @@ function ask(message) {
       if (chrome.runtime.lastError) {
         resolve({ ok: false, error: chrome.runtime.lastError.message });
         return;
+      }
+      // The backend names no profile on its own: it asks the person to pick
+      // one, so the picker opens (the error still reaches the caller). The
+      // panel's own background reads are refused the same way, and those
+      // must not open UI or take focus on every poll.
+      if (
+        response && !response.ok && !BACKGROUND_READS.has(message && message.type) &&
+        String(response.error || "").includes("choose a profile in the extension")
+      ) {
+        openProfileMenu();
       }
       resolve(response || { ok: false, error: "no answer from the extension" });
     });

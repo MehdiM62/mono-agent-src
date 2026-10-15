@@ -21,7 +21,7 @@ func taskTools() []tool {
 	return append(taskReadTools(), taskWriteTools()...)
 }
 
-// taskBoard opens the board of the server's profile: the store, the profile (an
+// taskBoard opens the board of the call's profile: the store, the profile (an
 // invalid_input "unknown profile" when it was deleted since the server started)
 // and the agent the tools act as.
 func (s *Server) taskBoard(ctx context.Context) (*tasks.Store, tasks.Profile, tasks.Actor, error) {
@@ -30,7 +30,7 @@ func (s *Server) taskBoard(ctx context.Context) (*tasks.Store, tasks.Profile, ta
 		return nil, tasks.Profile{}, tasks.Actor{}, err
 	}
 	store := tasks.NewStore(rt.db.DB)
-	p, err := store.Profile(ctx, rt.profileID)
+	p, err := store.Profile(ctx, profileOf(ctx))
 	if err != nil {
 		return nil, tasks.Profile{}, tasks.Actor{}, taskToolErr(err)
 	}

@@ -72,7 +72,7 @@ monoagentcli --profile work workflow run <id>                   # run it now
 # Note: the summarize step runs on a local AI agent — it needs monomind and an installed runtime (see "How AI works in Mono Agent").
 
 # Run the scheduler daemon (keeps cron/webhook triggers alive)
-monoagentcli --profile work daemon
+monoagentcli daemon
 ```
 
 `install.sh` installs the latest release (macOS arm64/amd64, Linux amd64/arm64). It reads the release's `manifest.json` from the latest GitHub release of monoes/mono-agent (monoes.me second), verifies the manifest's Ed25519 signature against the release key pinned in the script (key id `3b3e972f459a3151`; this needs an `openssl` with Ed25519, otherwise it says the install is checksum-only), and checks each download's SHA256 against the manifest. Without `INSTALL_DIR` it installs into `/usr/local/bin` when you can write there without sudo, else into `~/.local/bin`, and prints the line to add to your shell if that folder is not on your `PATH`; it never asks for sudo unless you chose an `INSTALL_DIR` that needs it. `--app` also installs the desktop app. You can also grab a CLI / desktop build from [releases](https://github.com/monoes/mono-agent/releases/latest). There's also [Docker](Dockerfile). This repository publishes releases only; the source is not public, so there is nothing to clone.
@@ -162,7 +162,7 @@ More ready-to-run workflows (RSS→AI→email, Sheets→Gmail, Stripe→Sheets s
 ### 👤 Multi-Profile Workspaces
 - Named workspaces (`work`, `client-a`, …) with full tenant isolation
 - Workflows, connections, people, vault images, HIL items — all scoped per workspace
-- Name the workspace with `--profile <id|name>` on every CLI command that acts on one; the GUI sidebar picks it for you there. There is no active profile and no `profile switch`
+- Name the workspace with `--profile <id|name>` on every CLI command that acts on one; the GUI sidebar picks it for you there. There is no active profile and no default: `profile list` shows the names
 - Running workflows in one workspace are unaffected by work in another
 - Toggle **All profiles** in the dashboard header to see every workspace at once; rows are labelled with their profile, and **Switch** takes you to it
 
@@ -282,7 +282,7 @@ monoagentcli --profile work doctor --group monomind # Node.js, the monomind bina
 
 Agent turns (except coder mode) run in the agent CLI's own sandbox where monomind can do it: they can write only their working folder and the temp dir. Today that covers codex and grok (monomind 2.11.1 or newer). Other runtimes follow once monomind ships `agent exec --sandbox` (monomind#396), and claude keeps its scoped access. Each chat turn shows a badge saying which applies, and `doctor` has a matching row. Details: [AGENTS.md](AGENTS.md#how-ai-works-in-mono-agent).
 
-monomind is a separate Node.js tool: `npm install -g @monoes/monomindcli`, or let `monoagentcli doctor --fix` install it. If you have no Node.js >= 22.12, `monoagentcli nodejs install` downloads a private copy. Set `MONOMIND_BIN` to use a specific binary. Without monomind, AI steps fail with an install hint and everything else keeps working.
+monomind is a separate Node.js tool: `npm install -g @monoes/monomindcli`, or let `monoagentcli --profile <id> doctor --fix` install it. If you have no Node.js >= 22.12, `monoagentcli nodejs install` downloads a private copy. Set `MONOMIND_BIN` to use a specific binary. Without monomind, AI steps fail with an install hint and everything else keeps working.
 
 Some features are not agent turns. [TypeSafe Jev](AGENTS.md#typesafe-jev-decisions-only) makes fast typed decisions (classification, suggestions, the element picker) with its own key, and never writes text. For images there are two paths: `gemini.generate_image` drives Gemini in your own logged-in browser (no key), and `service.huggingface` calls the Hugging Face API with your Hugging Face key. The other `gemini.*` nodes also use the browser session.
 
@@ -441,9 +441,7 @@ Publish to and read **your own accounts** on these platforms via the Chrome exte
 
 ## CLI Reference
 
-The binary is `monoagentcli`. Most commands accept `--json` for machine-readable output. Every command that acts on a workspace takes an explicit `--profile <id|name>`; the examples below pass `--profile work`. Machine-wide commands (`version`, `update`, `config`, `message-template`, `agent`, `account`, `db`, `node list|schema`, `api config`, `profile list|create|get`, `ref`, …) need none.
-
-> **Warning release:** today a workspace command run without `--profile` still works, prints a warning and falls back to the legacy active profile. The next release refuses it. Pass `--profile` now.
+The binary is `monoagentcli`. Most commands accept `--json` for machine-readable output. Every command that acts on a workspace takes an explicit `--profile <id|name>`; the examples below pass `--profile work`. Run `monoagentcli profile list` to find the names; a command that acts on a workspace and gets no `--profile` exits 3 and lists them. Machine-wide commands (`version`, `update`, `config`, `message-template`, `agent`, `account`, `db`, `node list|schema`, `api config`, `profile list|create|get`, `ref`, …) need none.
 
 <details>
 <summary><strong>Workflow</strong></summary>
@@ -540,8 +538,8 @@ monoagentcli --profile work people status set <person-id> "text"   # status time
 <summary><strong>For AI agents</strong></summary>
 
 ```bash
-monoagentcli --profile work mcp                  # MCP server over stdio — read-only tools by default
-monoagentcli --profile work mcp --allow-mutations   # also expose workflow_run, hil_approve, …
+monoagentcli mcp                  # MCP server over stdio — read-only tools by default
+monoagentcli mcp --allow-mutations   # also expose workflow_run, hil_approve, …
 monoagentcli ref                  # built-in offline docs: commands, nodes, expressions, examples
 monoagentcli ref node core.if     # detailed docs for one node type
 ```
@@ -569,7 +567,7 @@ Full agent documentation: [AGENTS.md](AGENTS.md).
 
 ```bash
 monoagentcli --profile work workflow activate <id>   # enable the workflow's trigger.schedule / trigger.webhook
-monoagentcli --profile work daemon                   # keep all workflow triggers alive; blocks until Ctrl+C
+monoagentcli daemon                   # keep all workflow triggers alive; blocks until Ctrl+C
 monoagentcli daemon install           # start the daemon automatically at login
 ```
 

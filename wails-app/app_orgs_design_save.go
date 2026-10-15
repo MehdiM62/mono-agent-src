@@ -200,7 +200,14 @@ func (a *App) cliValidate(root, name string) error {
 		// authoritative for structure even without this second check.
 		return nil
 	}
-	args := orgCLIRunArgs(a.getActiveProfileID(), root, "validate", name)
+	pid, err := a.profileID()
+	if err != nil {
+		return err
+	}
+	args, err := orgCLIRunArgs(pid, root, "validate", name)
+	if err != nil {
+		return err
+	}
 	cmd := exec.Command(cliBin, args...)
 	suppressConsole(cmd)
 	var stdout, stderr bytes.Buffer
@@ -258,7 +265,7 @@ func (a *App) emitOrgDesignUpdated(orgName, origin string, deleted bool, d *orgd
 	payload := map[string]interface{}{
 		"v":         1,
 		"orgName":   orgName,
-		"profileID": a.getActiveProfileID(),
+		"profileID": a.selectedProfileOrEmpty(),
 		"origin":    origin, // "ui" | "external"
 		"deleted":   deleted,
 		"valid":     valid,

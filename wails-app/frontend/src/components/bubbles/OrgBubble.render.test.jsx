@@ -177,7 +177,8 @@ describe('an org bubble', () => {
   })
 
   it('disables answering while the org is stopped, but still lets you message it', async () => {
-    api.getOrgChatHistory.mockResolvedValue({ ...history, status: 'stopped' })
+    const items = history.items.map(it => (it.ref === 'q-2250-cd34' ? { ...it, blocking: true } : it))
+    api.getOrgChatHistory.mockResolvedValue({ ...history, items, status: 'stopped' })
     api.sendOrgChat.mockResolvedValue({ v: 1, org: 'acme', to: 'ceo', delivery: 'queued', messageId: 'msg-9' })
     render(<Harness />)
     expect(await screen.findByTestId('org-chat-stopped')).toBeInTheDocument()
@@ -185,6 +186,9 @@ describe('an org bubble', () => {
     expect(gate.querySelector('[data-testid="org-chat-approve"]')).toBeDisabled()
     expect(gate.querySelector('[data-testid="org-chat-deny"]')).toBeDisabled()
     expect(screen.queryByTestId('org-bubble-stop')).toBeNull()
+    // A question can still be dismissed: monomind queues the note.
+    const dismiss = screen.getAllByTestId('org-chat-question')[1].querySelector('[data-testid="org-chat-dismiss"]')
+    expect(dismiss).toBeEnabled()
     const box = screen.getByPlaceholderText('Type a message...')
     fireEvent.change(box, { target: { value: 'Pick this up when you start' } })
     fireEvent.keyDown(box, { key: 'Enter' })

@@ -186,7 +186,11 @@ dispatch:
 
 func newClient(ctx context.Context, raw map[string]interface{}) (*jev.Client, error) {
 	keyCfg := strings.TrimSpace(str(raw, "api_key"))
-	client, err := jevconf.NewClient(ctx, vault.DBFromContext(ctx), vault.ProfileIDFromContext(ctx),
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, fmt.Errorf("ai.choose: ran without a profile: %w", perr)
+	}
+	client, err := jevconf.NewClient(ctx, vault.DBFromContext(ctx), profile,
 		keyCfg, str(raw, "model"), jevconf.NodeSurface(NodeType))
 	if err == nil {
 		return client, nil

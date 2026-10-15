@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // Store reads and writes the api_keys table.
@@ -59,6 +61,9 @@ func isNameClash(err error) bool {
 // Create issues a key for the profile. The returned secret is the only time
 // the key exists in the clear: the store keeps its hash.
 func (s *Store) Create(ctx context.Context, profileID, name string, withContext bool) (Key, string, error) {
+	if profileID == "" {
+		return Key{}, "", profiledir.ErrNoProfile
+	}
 	if !validName(name) {
 		return Key{}, "", ErrInvalidName
 	}

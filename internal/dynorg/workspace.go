@@ -26,7 +26,7 @@ func ProfileRule(id string) string {
 		return ""
 	}
 	return fmt.Sprintf("Your mono-agent profile id is %s: pass `--profile %s` on every monoagentcli command "+
-		"(the machine-wide ones, such as `ref`, `browser allow`, `browser browsers` and `browser diff`, don't need it, and it does no harm there).", id, id)
+		"(the machine-wide ones, such as `ref`, `browser permissions`, `browser allow`, `browser browsers` and `browser diff`, don't need it, and it does no harm there).", id, id)
 }
 
 // profileBlock is the profile rule and context as a prompt section, or "".

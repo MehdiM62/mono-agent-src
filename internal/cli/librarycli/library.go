@@ -338,7 +338,8 @@ func newLibraryLoginCmd(e *libEnv) *cobra.Command {
 			if base := library.BaseURL(); base != account.Host() {
 				return clicore.InvalidInput("MONOES_BASE_URL is %s but this build logs in to %s; logging in to another monoes.me needs a build made with -tags devaccount", base, account.Host())
 			}
-			if _, err := e.open(); err != nil {
+			// Machine-wide, like `account login`: no database, no profile.
+			if _, err := e.openSession(); err != nil {
 				return err
 			}
 			st, sent, err := signIn(cmd)

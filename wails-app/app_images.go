@@ -89,7 +89,11 @@ func (a *App) AddVaultImage(srcPath, label string) (map[string]interface{}, erro
 // made through the app; the folder watcher emits the same event for
 // changes on disk.
 func (a *App) emitImagesChanged(data map[string]interface{}) {
-	data["profileID"] = a.getActiveProfileID()
+	id, err := a.profileID()
+	if err != nil {
+		return // no profile selected: no page to tell
+	}
+	data["profileID"] = id
 	emitImageEvent(a, "images:changed", data)
 }
 

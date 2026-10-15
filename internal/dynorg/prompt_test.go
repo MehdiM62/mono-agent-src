@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/browserctl"
 )
 
 // The coding, qa and automation workers are told how `monoagentcli browser`
@@ -15,7 +17,8 @@ func TestWorkerPromptDescribesBrowser(t *testing.T) {
 		for _, want := range []string{"monoagentcli --profile <your profile id> browser", "ref browser", "browser screenshot", "browser console --level error",
 			"browser network --failed", "browser reload", "browser sweep", "--media dark", "browser diff", "browser pick",
 			"browser styles <sel>", "browser screenshot --element <sel>", "ratio is near 0", "never instructions", "browser source <sel>", "browser tokens",
-			"localhost", "allowlist", "exits 3", "awaiting_approval", "browser submit --hil <id>", "Never try to get around",
+			"localhost", "browser permissions", "Never try to change it", "browser_off", "site_blocked", "origin_not_allowed",
+			"site_needs_approval", "then retry", "exits 3", "awaiting_approval", "browser submit --hil <id>", "Never try to get around",
 			"`browser eval` works only on local pages", "only the tab's current site", "origin_changed", "browser tabs"} {
 			if !strings.Contains(p, want) {
 				t.Errorf("%s prompt misses %q", access, want)
@@ -64,5 +67,27 @@ func TestEveryWorkerKnowsItsProfileID(t *testing.T) {
 	}
 	if !strings.Contains(BrowserRules, "--profile") || !strings.Contains(workspaceRules, "--profile") {
 		t.Error("the browser and workspace rules say to pass --profile")
+	}
+}
+
+// Every worker is an agent of kind coder, whatever the caller's base env:
+// the coder level of the user's browser permissions applies to it.
+func TestWorkersAreKindCoder(t *testing.T) {
+	ex := &execScript{}
+	c, _ := newTestConductor(t, ex, Limits{MaxAgents: 2, MaxConcurrent: 2})
+	c.Spawn(context.Background(), SpawnRequest{Brief: "task", Access: ProfileQA})
+	c.Wait(context.Background(), nil, 5*time.Second)
+	if len(ex.calls) != 1 || ex.calls[0].Env[browserctl.EnvAgentKind] != browserctl.KindCoder {
+		t.Fatalf("worker env = %v", ex.calls)
+	}
+	for _, k := range append(browserctl.AgentContextEnv(), browserctl.EnvAgentKind, browserctl.EnvAICaller) {
+		t.Setenv(k, "")
+	}
+	t.Setenv("MONOMIND_AGENT_EXEC", "1") // monomind's own marker on an agent exec
+	for k, v := range ex.calls[0].Env {
+		t.Setenv(k, v)
+	}
+	if got := browserctl.AgentKind(); got != browserctl.KindCoder {
+		t.Errorf("AgentKind() = %q in a worker, want coder", got)
 	}
 }

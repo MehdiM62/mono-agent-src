@@ -13,7 +13,7 @@ import (
 func TestOrgToolsCannotGrantFullAccess(t *testing.T) {
 	roleWriters := map[string]bool{"create_org": true, "add_org_role": true, "update_org_role": true, "set_role_reports_to": true, "remove_org_role": true}
 	seen := 0
-	mt := NewMonoagentTools(nil, "")
+	mt := NewMonoagentTools(nil, "", "default")
 	for _, d := range mt.ToolDefs() {
 		if !roleWriters[d.Function.Name] {
 			continue

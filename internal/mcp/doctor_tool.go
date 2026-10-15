@@ -33,7 +33,7 @@ func doctorTool() tool {
 }
 
 // toolDoctor runs `monoagentcli doctor --json` with this server's database
-// and profile, so the report is the command's, byte for byte. Its exit
+// and the call's profile, so the report is the command's, byte for byte. Its exit
 // status 1 (a required check failed) still has the report on stdout.
 func toolDoctor(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {
 	var a struct {
@@ -52,9 +52,7 @@ func toolDoctor(ctx context.Context, s *Server, args json.RawMessage) (interface
 	if s.opts.DBPath != "" {
 		argv = append(argv, "--db-path", s.opts.DBPath)
 	}
-	if s.opts.Profile != "" {
-		argv = append(argv, "--profile", s.opts.Profile)
-	}
+	argv = append(argv, "--profile", profileOf(ctx))
 	for _, f := range []struct {
 		flag   string
 		values []string

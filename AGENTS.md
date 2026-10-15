@@ -248,7 +248,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `people posts list <person>`, `people posts get <post>` and `people posts comments <post>`
   - `people tag list [--person]`, `people tag map -- <ids…>` and `people tag add|color|remove`
   - `people status set|get|history`
-  - `people messages list|all [--unread]|add|compose|drafts|send-draft|reject-draft|read|unread`
+  - `people messages list|all [--unread]|add|compose|drafts|send-draft|reject-draft|read|unread`. Every message JSON has `status` and, for an outbound message waiting behind an approval, `hil_ref` (the `hil` id); `list`/`all` take `--status`. An approval item (a `core.human_in_loop` in front of a send/post node, or an agent send) gets its Communications row (`direction` outbound, `external_id` `hil:<id>`) when it is queued, and the same row moves `pending_approval` → `approved` → `sending` → `sent`, or ends `rejected`/`failed`/`expired` (`internal/commsync`; the one writer is `commsync.SetStatus`, which refuses illegal moves). The recipient is saved in People first (`people.kind` `person`|`company`); a post with no recipient links to your own account on that platform (`profile_details.own_account`).
 - **Social lists:** `list ls`.
 - **Image vault:** `image list|search|get|data|add|label|delete|stats|export`, scoped to the profile named by `--profile`. `image data` returns a data URL. `image sync` scans the profile folder and reconciles discovered images. `image delete` keeps files that live in the profile folder and hides them from later syncs; `image unignore <path>` or `image add <path>` brings one back.
 - **Workflows:**
@@ -268,7 +268,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `connect for-node <node-type>` and `connect oauth <platform>` (progress is NDJSON on stderr).
   - `connect resources <credential-id> --platform P --type T [--query Q]` lists a connection's spreadsheets, folders, labels or channels for the node editor's picker.
 - **Profiles:**
-  - `profile list|get|current|switch|create [--root-dir] [--icon]`
+  - `profile list|get|create [--root-dir] [--icon]`
   - `profile folder <id>`, `profile move [--check] <id> <dir>` (moves images and documents) and `profile projects`
   - `profile documents list|get|capture|index|rm`, and `profile documents sync`, which scans the profile folder and reconciles documents
   - Browser captures saved into a profile are indexed automatically by the extension bridge (the daemon's or `extension serve`) within seconds, into that profile's own monomind store (scope `profile:<id>`), and the row records Indexed or the error. `profile documents index --all [--all-profiles]` is the backfill: every capture that is not indexed, has changed, or failed before. "Ask your brain" in the extension and chat knowledge search read the same store, so a capture is searchable only from its own profile.
@@ -285,7 +285,7 @@ The desktop app does everything through these commands; they are equally usable 
   - `org chat send <org> -- <text>` messages the boss as `human:operator` (live, or queued for the org's next start).
   - `org chat history <org> [--run R] [--limit N]` is the boss thread, built from the bus log and the org's questions, approvals and gates. It holds your messages, the boss's replies (its `chat` events), questions, approvals and gates (each `pending` or with its `resolution`), role-to-role messages as `team` rows, and the org starting and stopping. It also returns the roles (for the stage) and the org's status. A part that can't be read is listed in `warnings`.
   - `org chat answer <org> <questionId> -- <answer>` and `org chat approve|deny <org> <gate-id|request-id|role:action> [-- note]` are idempotent. An item already resolved returns `"already": true` with how it ended, and nothing is sent. While the org is not running they refuse with exit 3 and send nothing, so the item stays pending.
-  - `org chat dismiss <org> <questionId> [--reason <text>]` closes a question without answering it (monomind 2.21+; a blocking question stops holding the org back). Same idempotency and not-running refusal as `answer`. `org chat history` marks questions `blocking` and, for a `crashed` run (monomind 2.21+: a dead `running` record), returns the cause in `status_error`.
+  - `org chat dismiss <org> <questionId> [--reason <text>]` closes a question without answering it (monomind 2.22+; a blocking question stops holding the org back). Same idempotency as `answer`, but it also works on a stopped org: monomind records the dismissal and queues a note for the asking role, so a question left over from the last run can be cleared without starting the org. `org chat history` marks questions `blocking` and, for a `crashed` run (monomind 2.21+: a dead `running` record), returns the cause in `status_error`.
   - `org stop|pause|resume <org>` are the bubble's controls.
 - **OpenAI-compatible API:** `api status`, `api models [--for loopback|network] [--confinement C] [--context-confinement C] [--auto-confinement C]` and `api key list|create --name N [--context]|update <id> --context|--no-context|update <id> --name=N|revoke <id> --yes`, for Settings › "OpenAI-compatible API" (`wails-app/app_api.go`), and `api config show|set|unset` (with `--dry-run` and `--yes`) and `daemon restart` for its Server settings (`wails-app/app_api_config.go`). The app shows every listener `api status` lists that serves `/v1`, and asks `api models` for the policy that `api status` reports for the first one that answers `/v1` (the first listed when none does). `api key create --json` is the one call that returns a key (`"key"`): the app shows it once and drops it when the dialog closes. The settings calls pass the keys of the ten settings, a text for each attached to its flag, and the paths of the two TLS files, never their contents. A failed call keeps its exit class in the text the app receives (`not_found: …` for exit 2, `invalid_input: …` for exit 3).
 
@@ -505,14 +505,34 @@ monoagentcli --profile work library logout
 ## MCP server
 
 ```bash
-monoagentcli --profile work mcp                     # stdio JSON-RPC MCP server, read-only tools only
-monoagentcli --profile work mcp --allow-mutations   # also serve mutating tools
-monoagentcli --profile work mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
-monoagentcli --profile work mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
-monoagentcli --profile work mcp --tasks-only --allow-mutations   # the user's task board's tools (task_*) and no other, for one profile
-monoagentcli --profile work mcp --allow-mutations --workflow-tools   # also each saved workflow as a tool wf_<slug>
-monoagentcli --profile work mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
+monoagentcli mcp                     # stdio JSON-RPC MCP server, read-only tools only
+monoagentcli mcp --allow-mutations   # also serve mutating tools
+monoagentcli mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
+monoagentcli mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
+monoagentcli mcp --tasks-only --allow-mutations   # the user's task board's tools (task_*) and no other
+monoagentcli mcp --allow-mutations --workflow-tools   # also each active workflow, of every profile, as a tool wf_<slug>
+monoagentcli mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
+monoagentcli mcp --grant <id>   # grant mode: the one server that is bound to a profile
 ```
+
+**One server serves every profile, and holds none.** `mcp` is a machine-wide
+command: it takes no `--profile` (except with `--grant`, which needs
+one) and falls back to no `default`. Every tool that acts on a profile takes a **required** string
+argument `profile`, the profile's id or name, on each call, and resolves it
+per call as the CLI's `--profile` does (an id, else a name without regard to
+case). A call with no `profile`, an unknown one, or a name that two profiles
+share is an `invalid_input` error that names the argument and lists the
+profiles (`Work (a1), Home (b2)`); the server never picks one. What a call of
+profile A asks for in profile B (a workflow, execution, person, secret, task,
+HIL item, publication) is not found. Only the **global** tools take no profile,
+because they read and write no profile data: `node_list`, `node_schema`, `docs`,
+`workflow_template_list`, `workflow_template_show`, `template_list` (message
+templates are machine-wide), `api_config_get`, `api_config_set` and
+`api_config_apply`. `api_status`, `api_models_list`, `api_key_*` and
+`api_auto_set` are scoped: they read the profile's key count and auto-model
+state. The requirement is added to a tool's input schema by `scoped()` in
+`internal/mcp/profile_arg.go`, which every tool list passes through, so a new
+tool is scoped unless it sets `global: true`.
 
 Register it with any MCP client (stdio transport). Prefer MCP when the
 host supports it; the CLI covers the same surface. `doctor fix
@@ -574,7 +594,7 @@ dangerous calls.
   (the dedicated listener is not up), `not_running` or `unknown`). Both are built
   by `internal/apiconfig`, the code the commands
   run, with this MCP server's own environment (`api_config_get` says
-  `"environment":"mcp"` where the command says `"shell"`), the server's profile
+  `"environment":"mcp"` where the command says `"shell"`), the call's profile
   and the daemon's heartbeat. A saved row that cannot be read stops both, and
   `api_models_list`, with the command's message passed on as it is (it starts
   `the saved settings are damaged` and names `api config unset --all --yes`): a
@@ -641,7 +661,7 @@ existing MCP client config that relies on them.
   new key, once, in the `key` field of its result. Only its SHA-256 is stored,
   so no tool, `api_key_list` included, can show it again. It also makes the key
   part of the MCP host's transcript, which the host may keep and, for a hosted
-  model, send to its provider. `monoagentcli api key create` writes the key to
+  model, send to its provider. `monoagentcli --profile work api key create` writes the key to
   its stdout (also with `--json`): run in your own terminal it stays out of any
   transcript, but run by an agent through a shell tool it lands in that
   transcript too. The `api_*` tools are MCP only (the chat assistant has
@@ -701,7 +721,7 @@ existing MCP client config that relies on them.
   daemon that is not registered for auto-start is an error with the command's
   words: stop it and start `monoagentcli daemon` again, or `daemon install`.
 - `api_auto_set` — switches the Jev surface `api_auto` (the `auto` model) on or
-  off for the MCP server's profile, as `jev enable|disable api_auto` does, and
+  off for the call's profile, as `jev enable|disable api_auto` does, and
   answers that command's `--json` document plus `auto`, what `api_status` says of
   the auto model after the change (`available`, or what it is `missing`: the
   surface, a Jev key). Switching on needs two things, because the
@@ -740,19 +760,22 @@ existing MCP client config that relies on them.
   work the user's board and nothing else: `--allow-mutations`, which the five
   verbs need, also serves the workflow tools that can run a command as the OS
   user. A call by name of another tool is refused ("is not served ...
-  `--tasks-only`"). Today a server serves the one profile named by its `--profile` flag, so
-  register one per profile:
-  `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`.
-  A later release adds a required `profile` argument to the profile-scoped
-  tools, after which one server will serve every profile.
+  `--tasks-only`"). One server serves every profile; the agent passes `profile`
+  on each call:
+  `claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations`.
+  `task_approve` is listed while any profile has delegated approval; each call is
+  still checked against the profile it names.
   It cannot be combined with `--api-only` (refused at start, the environment
   variables included) or `--grant`. A host that has tools of its own, such as a
   shell tool, is not stopped by it. Nothing registers it for you.
 
 **Workflows as tools.** `monoagentcli mcp --allow-mutations --workflow-tools`
-(or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`) also serves every active workflow of the
-profile as a tool `wf_<slug>`; `--workflow-tools=<id|name>,...` serves only
-those. A tool's input schema comes from the workflow's trigger fields
+(or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`) also serves every active workflow, of
+every profile, as a tool `wf_<slug>`; `--workflow-tools=<id|name>,...` serves
+only those. A workflow tool is bound to its workflow's own profile: it takes the
+required `profile` argument too (not part of the trigger input), and a call that
+names another profile does not find the workflow. A second workflow with the
+same slug, in any profile, gets an id suffix. A tool's input schema comes from the workflow's trigger fields
 (`workflow inputs`), and a call runs it as `workflow_run` does (same wait,
 result and redaction; `_timeout_seconds` sets the wait). Workflows are re-read
 on every `tools/list`. It cannot be combined with `--api-only`, `--tasks-only`
@@ -769,7 +792,11 @@ or `--grant`.
 `workflow_validate` declare an `outputSchema`.
 
 **Grant mode.** `monoagentcli mcp --grant <id> --profile <id>` is the tool
-provider monomind spawns for an org role. It serves only that role's
+provider monomind spawns for an org role; `--profile` is required there and
+must name the grant's profile (the one server that is bound to a profile). Its
+tools accept the `profile` argument as optional: it must equal the grant's
+profile (id or name), else the call is `refused_grant`, and it is not passed on
+to the workflow as input. It serves only that role's
 granted automations (`automation_<alias>`, `automation_status`,
 `automation_output`, plus Initiator and decision tools when granted), runs
 calls in `monoagentcli daemon`, and refuses a grant used by another org or
@@ -785,27 +812,38 @@ here; MCP is just a second transport onto the same tool implementations.
 ## HTTP API
 
 ```bash
-monoagentcli --profile work httpapi    # REST/JSON server (default 127.0.0.1:9322)
+monoagentcli httpapi    # REST/JSON server for every profile (default 127.0.0.1:9322)
 ```
 
 For agents that can't speak stdio JSON-RPC. Same surface as the MCP tools
 (`internal/httpapi/` mirrors `internal/mcp/`'s conventions), plus
-`GET /workflows/{id}/executions` and `POST /workflows/{id}/activate` /
-`deactivate`. Read-only by default; mutating endpoints
+`GET /profiles/{profile}/workflows/{id}/executions` and
+`POST /profiles/{profile}/workflows/{id}/activate` / `deactivate`. The server
+picks no profile: workflows and HIL items live under `/profiles/{profile}/...`
+(`{profile}` is a profile's id or name; the old unprefixed `/workflows*` and
+`/hil*` routes are gone and answer 404 with a hint). Read-only by default; mutating endpoints
 (`run`/`activate`/`deactivate`/`hil approve`/`hil reject`) are only
 registered when started with `--allow-mutations` or
 `MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1` — otherwise those paths 404 rather
 than 403, so a probe can't distinguish "opted out" from "doesn't exist".
 Every request needs `Authorization: Bearer <token>` except `GET /health`;
-the token is generated on first start and stored in the serving profile's
-secrets vault (`secret list`, name `httpapi-token`). Output items go
+each profile has its own token, created when the server starts and stored in
+that profile's secrets vault (`--profile <p> secret list`, name
+`httpapi-token`). A token authorizes only the profile in the request path:
+another profile's token, an unknown profile and a missing token all get the
+same 401, so a caller cannot learn which profiles exist (`/nodes*` takes any
+profile's token). Output items go
 through the same redaction as `workflow run --json` — pass
 `X-Full-Outputs: 1` to opt out per request, mirroring
 `workflow run --full-outputs`. Workflow reads and mutations are scoped to
-the server's profile in both standalone and daemon-hosted mode: another
-profile's workflow ID returns 404. Legacy workflows with no profile ID
-belong to `default`. The daemon still serves every profile's triggers
-internally. Full endpoint list:
+the profile in the path in both standalone and daemon-hosted mode: another
+profile's workflow ID returns 404. A workflow with no profile ID belongs
+to nobody (404 for every profile); legacy rows and files are stamped by
+migration 099 and the file stamp. The daemon still serves every profile's triggers
+internally. A standalone `httpapi` starts one engine per profile on that
+profile's first mutating request, but the single webhook port is bound by only
+one of them: other profiles' webhook triggers are served only by `daemon`
+(the server prints a warning saying so at start). Full endpoint list:
 `internal/httpapi/openapi.yaml` (OpenAPI 3, validated in CI); curl
 walkthrough: `examples/httpapi-quickstart.md`; offline copy of this
 section: `monoagentcli ref api`.
@@ -852,7 +890,7 @@ a key. It lives in `internal/openaiapi/`; the spec is
   pick, per request, among the models the listener serves (a `--context` key:
   among those its own cap allows). It is the `api_auto` Jev surface: off until
   `monoagentcli --profile <id> jev enable api_auto` on the key's profile, which also needs
-  that profile's Jev key (`jev key set`, or `TYPESAFE_API_KEY` in the server's
+  the machine-wide Jev key (`jev key set`, or `TYPESAFE_API_KEY` in the server's
   environment, which the gateway blanks in its agent turns). Without them
   `auto` is not listed and answers 404 `model_not_found` naming what is
   missing (`api models` and `api status` say it too, and that a key from the
@@ -883,7 +921,7 @@ a key. It lives in `internal/openaiapi/`; the spec is
   `api_auto` in `jev usage`, and the server's log line has `auto=jev|rule` and
   never the prompt.
 - **Auth is a per-profile API key** (`sk-ma-…`), never the legacy token above.
-  `monoagentcli api key create --name <n> [--context]` prints the key once and
+  `monoagentcli --profile <id> api key create --name <n> [--context]` prints the key once and
   stores only its SHA-256, so it needs no vault and no keyring and works on a
   headless server. A key belongs to one profile: its requests run as that
   profile, in that profile's folder, and nothing of another profile's is
@@ -1560,11 +1598,11 @@ a row here):
 
 | Surface | Reaches the board through |
 |---|---|
-| CLI | `monoagentcli task ...` (this section) |
+| CLI | `monoagentcli --profile <id> task ...` (this section) |
 | Session-start hook | `monoagentcli --profile <id> task digest`; nothing installs the hook for you |
 | Chrome extension | *Add selection as task*, *Add page as task*, the side panel's box and the `add-task` key send `task.add` over the extension bridge: a capture, Inbox only, in the profile the extension is "Saving into" (README, Chrome Extension) |
-| MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, acting on the server's one profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
-| MCP, the board alone | `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server per profile today (a required `profile` tool argument is coming); nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
+| MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, acting on the call's profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
+| MCP, the board alone | `claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server for every profile (each call passes `profile`); nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
 | Claude Code skill | `~/.claude/skills/monoagent-tasks/SKILL.md`, written create-only by the next CLI run on a machine with `~/.claude` |
 | Dashboard summary | `monoagentcli --profile <id> --json summary --section tasks`: one profile's counts and its next task (not in `--all-profiles`) |
 | Desktop app | The Tasks tab after Documents: the selected profile's board, drag and keyboard moves, a "How to capture" note, a sidebar badge; it renders and runs `monoagentcli task ...`, and slides cards by FLIP unless `prefers-reduced-motion` is set |
@@ -1617,6 +1655,37 @@ event.
   mail synced from sources you do not trust.
 - Tool-call timeouts derive from the caller's context, so a cancelled
   session stops in-flight tool work.
+
+### Agent sandbox fallback
+
+Every agent turn except coder mode asks monomind for a `workspace-write`
+sandbox, but only passes it when the runtime's `agent scan` `sandbox_modes`
+lists it. What happens otherwise is the global `sandbox.fallback` setting
+(a `configs` row, so `config get sandbox.fallback` reads it too):
+
+```bash
+monoagentcli sandbox fallback --json                # value, source (env|saved|default), values, capable
+monoagentcli sandbox fallback --set strictest       # run | strictest | fail; anything else exits 3
+```
+
+- `run` (default, unset = `run`): pass no flag, run without a sandbox. The argv
+  and statuses are exactly what they were before the setting existed.
+- `strictest`: `--sandbox <mode> --sandbox-fallback strictest`; monomind runs the
+  closest mode at least as strict, and the turn's status is `restricted` (the
+  chat journal adds an `agent.sandbox.detail` notice naming the mode that ran).
+- `fail`: `--sandbox-fallback fail`; monomind refuses with `unsupported`, shown as
+  a message that names the setting.
+- `MONOAGENT_SANDBOX_FALLBACK` overrides the saved value. Long-running processes
+  re-read the setting per turn (cached one second).
+- It needs monomind with `agent-exec-sandbox-fallback`; without it the setting
+  is ignored (the turn behaves as `run`) and the turn's detail notice says so.
+  claude (scoped access) and coder mode are never affected.
+- `restricted` never satisfies a sandbox-required path (`RequireSandbox`: the
+  OpenAI endpoint's sandboxed class, dynamic-org writers): those refuse
+  unless the turn is `sandboxed`, whatever the setting.
+
+The desktop app has the choice under Settings → Agent sandbox and shells out
+to the command above.
 
 ### Coder mode (full access)
 
@@ -1734,7 +1803,7 @@ tools:
 | `org_stop` | Stops a worker. |
 | `org_rate` | Rates a worker's latest report `good` or `bad`, once per report. The rating feeds the roster's track record (below). |
 
-Outside the turn, `monoagentcli chat turn stop <conversation> <turn> --agent
+Outside the turn, `monoagentcli --profile <id> chat turn stop <conversation> <turn> --agent
 <id> [--wait 20s] --json` stops one worker and leaves the lead and the other
 workers running (#255); the app's stage drawer calls it through
 `App.StopChatAgent`. The control path is a mailbox folder next to the
@@ -1973,7 +2042,7 @@ tools gets `ask_user`.
 - **Waiting:** the worker lets go of its leases and its concurrency slot,
   and takes them back in the usual order (leases, then a slot). `org_wait`
   shows the open question.
-- **Answering:** `monoagentcli chat turn answer <conversation> <turn>
+- **Answering:** `monoagentcli --profile <id> chat turn answer <conversation> <turn>
   --agent w1 --question q1 --text "…"` records the answer; the app's worker
   row has an answer box that calls it. The running turn passes the answer
   to the worker within a second.
@@ -2203,7 +2272,7 @@ login (and its bill) is what the turn uses.
   - **Coder mode** asks for no sandbox; it has its own full-access contract.
   - Every monomind name (flag, modes, capability, env level, start-event
     fields) lives only in `internal/monomind/sandbox.go`.
-- **Checking it.** `monoagentcli doctor --group monomind` checks Node.js,
+- **Checking it.** `monoagentcli --profile <id> doctor --group monomind` checks Node.js,
   the binary, the protocol handshake (version floor
   `internal/monomind.MinMonomindVersion`, currently `2.10.0`), capabilities
   and the profile's `monomind init`; `--group runtimes` lists each runtime.
@@ -2383,7 +2452,7 @@ child with a full run of its own goal, so phrase child goals for messages
 
 ```bash
 monoagentcli --profile work org serve   # the org daemon (monomind) for the profile's folder
-monoagentcli --profile work daemon      # workflow engine, HTTP API, automation-role endpoint, decisions
+monoagentcli daemon      # workflow engine, HTTP API, automation-role endpoint, decisions
 monoagentcli --profile work --json status   # reports both
 monoagentcli --profile work org serve --stop   # stop the folder's running orgs and its org daemon
 ```
@@ -2410,9 +2479,10 @@ element's styles, design tokens and source file, pixel diffs, responsive
 sweeps, and `browser pick` to have the user point at an element.
 `monoagentcli ref browser` lists every command with its JSON. Pass
 `--profile <id>` on every one: they act on a profile, and the CLI refuses a
-profile-scoped command without it (the machine-wide `browser allow`,
-`browser browsers` and `browser diff` don't need it). A coder chat's lead
-and its workers are told their profile id in their instructions.
+profile-scoped command without it (the machine-wide `browser permissions`,
+`browser allow`, `browser browsers` and `browser diff` don't need it). A
+coder chat's lead and its workers are told their profile id in their
+instructions.
 
 ```bash
 monoagentcli --profile <id> --json browser open http://localhost:5173       # {"tabId":812,"url":…}
@@ -2421,21 +2491,36 @@ monoagentcli --profile <id> --json browser console --tab 812 --level error   # {
 monoagentcli --profile <id> --json browser network --tab 812 --failed
 ```
 
-- **Origin policy (agents only; your own terminal is unrestricted).** An
-  agent (any agent-context marker, as for `hil`) may open and act on
-  `localhost`, `*.localhost`, `127.0.0.0/8`, `::1`, `*.local`, `*.test`,
-  private-network (RFC 1918) hosts and the user's allowlist (`browser allow
-  list|add|remove`; add and remove refuse an agent). Anything else, and
-  `file:` and `chrome:` pages, is refused. Agents get no cookie commands and
-  no raw CDP, and `browser eval` only on local and dev pages
-  (`eval_not_allowed`); their console and network reads show only what the
-  tab's current site logged. Their tabs go into the tab group `Coder ·
-  <label>`.
+- **Permissions per kind of agent (your own terminal is unrestricted).** The
+  user sets a level for each kind of agent in Settings → *Agent browser
+  permissions* (`browser permissions set <kind> <level>`, refused in an
+  agent). The kinds are `coder` (coder chats and their workers, marked
+  `MONOAGENT_AGENT_KIND=coder`), `org` (org roles: `MONOMIND_ORG_ROLE`, and
+  the runs the org starts), `chat` (the in-app chat and the workflow runs it
+  starts) and `other` (any other agent shell). The levels are
+  `full-no-approvals` (any site, submits go through), `full` (any site,
+  submits on real sites wait for approval), `dev` (local and dev pages plus
+  sites with an allow rule), `ask` (like `dev`, but a new site raises an
+  "allow this site?" Human-in-Loop item) and `off`. Defaults: `coder` and
+  `other` `dev`, `chat` and `org` `full`. Site rules (`browser permissions
+  site <origin> allow|block|clear`; `browser allow add|remove|list` are
+  aliases) apply to every kind, and a block wins over every level. Local
+  and dev pages (`localhost`, `*.localhost`, `127.0.0.0/8`, `::1`,
+  `*.local`, `*.test`, RFC 1918 hosts) are allowed at every level but
+  `off`; `file:` and `chrome:` pages never. An agent reads its own kind and
+  level with `browser permissions` and never tries to change them. Refusals
+  exit 3 with `browser_off`, `site_blocked` or `origin_not_allowed`;
+  `site_needs_approval` carries a `hil_id`: wait for the user, then retry.
+  Agents get no cookie commands and no raw CDP, and `browser eval` only
+  where submits need no approval (`eval_not_allowed`); their console and
+  network reads show only what the tab's current site logged. Their tabs go
+  into the tab group `Coder · <label>`.
   A command whose tab left the checked page before it ran is refused with
   exit 3, code `origin_changed`: see where the tab is (`browser tabs`)
   before acting again.
-- **Form submits.** On an allowed page that is not local, the extension's
-  submit guard is armed before an agent acts. A click on a submit-like
+- **Form submits.** On an allowed page that is not local (at every level
+  but `full-no-approvals`), the extension's submit guard is armed before an
+  agent acts. A click on a submit-like
   control, or a submit the guard blocked (Enter, script), becomes a
   `browser.submit` Human-in-Loop item, and the command exits **3** with
   `{"status":"awaiting_approval","hil_id":…}`. Only the user's approval
@@ -2447,20 +2532,21 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
   another origin, before acting there) when an AI caller started its run: an
   agent's shell, a chat tool call (`run_workflow` starts `workflow run` with
   `MONOAGENT_AI_CALLER=chat`), a `workflow run` either of them started (its
-  trigger data carries `_ai_caller`, so a daemon that adopts a `--no-wait`
-  run or resumes a paused one sees it; workflows never see the field), or the
-  org side (granted calls, automation roles, `trigger.org`). A blocked submit
+  trigger data carries `_ai_caller` with its kind, so a daemon that adopts a
+  `--no-wait` run or resumes a paused one sees it; workflows never see the
+  field), or the org side (granted calls, automation roles, `trigger.org`). A blocked submit
   on a page that is not local becomes a `browser.submit` item and the run
   waits: approved, it is sent (if the page still shows the approved form,
   else status `blocked`) and the goal goes on; rejected, status
   `blocked`; still pending at the node's timeout, status `awaiting_approval`
   with `hil_id` and `tab_id`, and the tab stays open for `browser submit
   --hil`. A run that can't arm the guard fails. Runs the user starts behave
-  as before. A run an agent's shell started (`_ai_caller` `agent`) also
-  follows the origin policy, on its start URL and on every page it reaches;
-  anything else fails the run, naming `browser allow add <origin>`. The
-  chat's and the org side's runs keep real sites, behind the submit gate
-  only.
+  as before. The run also follows its kind's level, on its start URL and on
+  every page it reaches: an agent's shell is `coder`, `org` or `other` (a
+  daemon reads the kind from `_ai_caller`; an unknown mark is `other`), a
+  chat tool call `chat`, the org side `org`. `off` and a refused site fail the run with the
+  refusal's message; `ask` raises the "allow this site?" item and waits like
+  a submit; `full-no-approvals` runs without the submit guard.
 - **Not covered.** A workflow an agent activates on a schedule or a webhook
   runs later in the daemon as the user's own (no mark), and so do
   sub-workflows of org-side runs, `workflow templates run`, and a run the
@@ -2591,12 +2677,14 @@ probabilities, in one ~100–300 ms request. It **never generates text**.
   LinkedIn like with a named reaction that is missing from the menu fails
   instead of silently clicking plain Like (an unknown reaction name is an
   error).
-- **Key**: vault entry `typesafe` for the profile, else `TYPESAFE_API_KEY`
+- **Key**: the machine-wide vault entry `typesafe`, shared by every profile (a
+  key still held in a profile's vault works as a fallback; `jev key adopt`
+  copies it to the machine vault), else `TYPESAFE_API_KEY`
   (`TYPESAFE_DEFAULT_MODEL` / `TYPESAFE_BASE_URL` override the model and
   host). `doctor` reports it as `jev.key`.
 
 ```bash
-printf '%s' "$KEY" | monoagentcli --profile work jev key set          # or: Settings › TypeSafe Jev in the app
+printf '%s' "$KEY" | monoagentcli jev key set          # or: Settings › TypeSafe Jev in the app
 monoagentcli --profile work --json jev status               # key source (never the key), model, surfaces + thresholds
 monoagentcli --profile work jev enable hil [--threshold 0.9] [--yes]
 monoagentcli --profile work jev disable hil                 # today's behaviour returns immediately
@@ -2613,9 +2701,8 @@ server); real-API tests are opt-in via env like `browserjev/e2e_test.go`.
 
 Everything (workflows, connections, people, secrets, HIL queue) is scoped
 to a profile, and every command that acts on a profile takes an explicit
-`--profile <id|name>`. There is no active profile, no `profile switch` or
-`profile current`, no `MONOAGENT_PROFILE` environment variable and no
-`default` fallback: you name the profile on each call.
+`--profile <id|name>`. There is no active profile and no `default` fallback: you name the profile on
+each call. `profile list` shows the ids and names.
 
 ```bash
 monoagentcli profile list                      # find the id or name
@@ -2624,19 +2711,20 @@ monoagentcli --profile work workflow list      # a scoped command names its prof
 
 Machine-wide commands need no `--profile`: `version`, `update`, `config`,
 `message-template`, `agent`, `account`, `db`, `node list|schema`,
-`api config`, `profile list|create|get`, `ref` and a few more (the list is
+`api config`, `profile list|create|get`, `mcp`, `daemon`, `httpapi`, `ref` and a few more (the list is
 `internal/cli/profilegate/classes.go`). Any command not on that list is scoped.
 
-**Today's release is a warning release.** A scoped command run without
-`--profile` still works: it prints `warning: this command acts on a profile:
-pass --profile <id|name>` on stderr and falls back to the legacy active
-profile. The next release refuses it with that message as an error. Always
-pass `--profile`; the examples here do.
+A scoped command run without `--profile` exits 3 with `pass --profile
+<id|name>` and the list of profiles. Always pass `--profile`; the examples here
+do.
 
-The MCP server and the HTTP API are moving the same way: a later release adds
-a required `profile` argument to their profile-scoped tools and requests.
-Until then they serve the single profile fixed at start (`monoagentcli
---profile <id> mcp`, `httpapi`).
+The MCP server and the HTTP API work the same way. The MCP server holds no
+profile: each profile-scoped tool takes a required `profile` argument (see
+[MCP server](#mcp-server)). The HTTP API puts the profile in the path,
+`/profiles/{profile}/...` (see [HTTP API](#http-api)). `daemon` and `httpapi`
+serve every profile and need no `--profile`; `daemon --profile` is a deprecated
+no-op. The desktop app and the Chrome extension each keep their own profile
+selector as UI state and always send the profile explicitly.
 
 A workflow saved under one profile cannot run under another — if a run
 fails with "workflow belongs to a different profile", check
@@ -2721,7 +2809,6 @@ keys and the clock, and panic outside a test binary.
 | `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (2026-10-11 UTC). |
 | `MONOMIND_BIN` | Path to the `monomind` binary; checked before `PATH` and the other install locations (see [How AI works in mono-agent](#how-ai-works-in-mono-agent)). Default: unset — discovered. |
 | `MONOAGENT_AI_RUNTIME` | Agent runtime `ai.extract_page` uses to generate selectors. Default: unset — the first installed runtime, `claude` first. |
-| `MONOAGENT_PROFILE` | **Being removed.** Profile name the built-in MCP server and HTTP API fall back to when `--profile` is not given (the CLI never read it). Pass `--profile` instead. Default: unset. |
 | `MONOAGENT_ACTOR` | The agent's name for the task board's agent commands (`task next --claim`, `claim`, `comment`, `finish`, `release`) when `--as` is not given (`--as` wins). Setting it also makes the caller an agent, so the operator-only commands (`board` and `approve` unless delegated, `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`, `agents deny`) refuse it. Set but blank, a value of only spaces, it counts as an agent without a name, like a blank `--as` (an empty value counts as unset). Default: unset — a caller with no `--as`, no `MONOAGENT_ACTOR` and no agent-context variable such as `CLAUDECODE` is the operator. |
 | `MONOAGENT_DEBUG` | Set to any non-empty value to enable verbose browser-adapter logging. Default: unset. |
 | `MONOAGENTCLI_BIN` | Path override for the `monoagentcli` binary the desktop GUI (`wails-app/`) shells out to. Default: unset — resolved relative to the GUI binary. |

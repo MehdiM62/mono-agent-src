@@ -38,13 +38,13 @@ func (a *App) jsonCLI(args ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	full := []string{"--json"}
-	if p := a.getActiveProfileID(); p != "" {
-		full = []string{"--profile", p, "--json"}
+	full, err := a.scopedArgs(args...)
+	if err != nil {
+		return "", err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), chatCLITimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, bin, append(full, args...)...)
+	cmd := exec.CommandContext(ctx, bin, full...)
 	suppressConsole(cmd)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

@@ -26,7 +26,7 @@ func (s *SQLiteWorkflowStore) CreateWorkflow(ctx context.Context, w *Workflow) e
 		w.Version = 1
 	}
 	if w.ProfileID == "" {
-		w.ProfileID = "default"
+		return fmt.Errorf("creating workflow %s: %w", w.ID, ErrNoProfile)
 	}
 
 	_, err := s.db.ExecContext(ctx, `
@@ -78,26 +78,37 @@ func (s *SQLiteWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 	return w, nil
 }
 
-// ListWorkflows returns workflows ordered by created_at DESC.
-// If profileID is non-empty, only that profile's workflows are returned.
-// Nodes and Connections are not populated; call GetWorkflow for full detail.
+// ListWorkflows returns the profile's workflows ordered by created_at DESC.
+// An empty profileID is ErrNoProfile: "every profile" is spelled
+// ListAllProfilesWorkflows. Nodes and Connections are not populated; call
+// GetWorkflow for full detail.
 func (s *SQLiteWorkflowStore) ListWorkflows(ctx context.Context, profileID string) ([]Workflow, error) {
-	var (
-		rows *sql.Rows
-		err  error
-	)
-	if profileID != "" {
-		rows, err = s.db.QueryContext(ctx, `
-			SELECT id, name, description, is_active, version, COALESCE(profile_id,'default'), created_at, updated_at
-			FROM workflows WHERE COALESCE(profile_id,'default') = ? ORDER BY created_at DESC`, profileID)
-	} else {
-		rows, err = s.db.QueryContext(ctx, `
-			SELECT id, name, description, is_active, version, COALESCE(profile_id,'default'), created_at, updated_at
-			FROM workflows ORDER BY created_at DESC`)
+	if profileID == "" {
+		return nil, fmt.Errorf("listing workflows: %w", ErrNoProfile)
 	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, description, is_active, version, profile_id, created_at, updated_at
+		FROM workflows WHERE profile_id = ? ORDER BY created_at DESC`, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("listing workflows: %w", err)
 	}
+	return s.scanWorkflowList(ctx, rows)
+}
+
+// ListAllProfilesWorkflows returns every profile's workflows, created_at
+// DESC. It is only for code that deliberately spans profiles (the daemon
+// engine, `workflow migrate`, the all-profiles listings).
+func (s *SQLiteWorkflowStore) ListAllProfilesWorkflows(ctx context.Context) ([]Workflow, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, description, is_active, version, profile_id, created_at, updated_at
+		FROM workflows ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("listing workflows: %w", err)
+	}
+	return s.scanWorkflowList(ctx, rows)
+}
+
+func (s *SQLiteWorkflowStore) scanWorkflowList(ctx context.Context, rows *sql.Rows) ([]Workflow, error) {
 	defer rows.Close()
 
 	var out []Workflow
@@ -122,7 +133,7 @@ func (s *SQLiteWorkflowStore) ListWorkflows(ctx context.Context, profileID strin
 }
 
 // NodeCounts returns each workflow's node count, keyed by workflow id, for
-// profileID (or every workflow when profileID is empty).
+// profileID. An empty profileID is ErrNoProfile.
 //
 // ListWorkflows deliberately leaves Nodes unpopulated so listing stays cheap,
 // which left callers with no way to show a count — the GUI's workflow list
@@ -133,17 +144,12 @@ func (s *SQLiteWorkflowStore) NodeCounts(ctx context.Context, profileID string) 
 		SELECT w.id, COUNT(n.id)
 		FROM workflows w
 		LEFT JOIN workflow_nodes n ON n.workflow_id = w.id`
-	var (
-		rows *sql.Rows
-		err  error
-	)
-	if profileID != "" {
-		rows, err = s.db.QueryContext(ctx, base+`
-			WHERE COALESCE(w.profile_id,'default') = ?
-			GROUP BY w.id`, profileID)
-	} else {
-		rows, err = s.db.QueryContext(ctx, base+` GROUP BY w.id`)
+	if profileID == "" {
+		return nil, fmt.Errorf("counting workflow nodes: %w", ErrNoProfile)
 	}
+	rows, err := s.db.QueryContext(ctx, base+`
+		WHERE w.profile_id = ?
+		GROUP BY w.id`, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("counting workflow nodes: %w", err)
 	}

@@ -71,7 +71,7 @@ func (e *sessionsTestEnv) run(t *testing.T, stdin string, args ...string) (strin
 	root.SetOut(&out)
 	root.SetErr(&errOut)
 	root.SetIn(strings.NewReader(stdin))
-	root.SetArgs(append(args, "--db-path", e.dbPath))
+	root.SetArgs(append(withTestProfile(args), "--db-path", e.dbPath))
 	err := root.Execute()
 	if err != nil {
 		errOut.WriteString(err.Error())

@@ -255,12 +255,12 @@ func TestTaskOSRefreshesTheRealServicesFolderOnly(t *testing.T) {
 	var un struct {
 		Removed []string `json:"removed"`
 	}
-	mustTaskJSON(t, db, "", &un, "", "os", "uninstall")
+	mustTaskJSON(t, db, "default", &un, "", "os", "uninstall")
 	if len(un.Removed) != 1 || *refreshes != 2 {
 		t.Errorf("uninstall: %v, %d refreshes", un.Removed, *refreshes)
 	}
 	mustTaskJSON(t, db, "", &got, "", "os", "install", "--dest", dest)
-	mustTaskJSON(t, db, "", &un, "", "os", "uninstall", "--dest", dest)
+	mustTaskJSON(t, db, "default", &un, "", "os", "uninstall", "--dest", dest)
 	if *refreshes != 2 {
 		t.Errorf("a --dest install or uninstall refreshed the real Services menu: %d", *refreshes)
 	}
@@ -344,7 +344,7 @@ func TestTaskOSInstallNeverTakesAnotherDatabasesMenu(t *testing.T) {
 	var un struct {
 		Removed []string `json:"removed"`
 	}
-	mustTaskJSON(t, other, "", &un, "", "os", "uninstall", "--dest", dest)
+	mustTaskJSON(t, other, "default", &un, "", "os", "uninstall", "--dest", dest)
 	if un.Removed == nil || len(un.Removed) != 0 {
 		t.Errorf("an uninstall from another database removed %v", un.Removed)
 	}
@@ -441,4 +441,14 @@ func countTaskOSTasks(t *testing.T, db string) int {
 		t.Fatal(err)
 	}
 	return n
+}
+
+// There is no active profile to fall back to: `task os uninstall` reads its
+// profile from --profile alone and refuses without one.
+func TestTaskOSUninstallNeedsAProfile(t *testing.T) {
+	db, dest, _, _ := newTaskOSTest(t)
+	doc := failedTaskJSON(t, db, "", 3, "os", "uninstall", "--dest", dest)
+	if msg, _ := doc["error"].(string); doc["code"] != "invalid_input" || !strings.Contains(msg, "uninstall acts on a profile") {
+		t.Errorf("uninstall with no profile: %v", doc)
+	}
 }

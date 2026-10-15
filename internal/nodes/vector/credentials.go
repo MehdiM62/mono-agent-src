@@ -25,7 +25,11 @@ func resolveNestedCredential(ctx context.Context, cfg map[string]interface{}) er
 	if db == nil {
 		return nil
 	}
-	conn, err := connections.NewStore(db).GetOrResolve(ctx, credID, vault.ProfileIDFromContext(ctx))
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return fmt.Errorf("embedding.credential_id %q: ran without a profile: %w", credID, perr)
+	}
+	conn, err := connections.NewStore(db).GetOrResolve(ctx, credID, profile)
 	if err != nil {
 		return fmt.Errorf("embedding.credential_id %q: %w", credID, err)
 	}

@@ -163,6 +163,18 @@ test("a new tab from the recorded tab stops the recording", async () => {
   assert.equal(wire.at(-1).reason, "new_tab");
 });
 
+test("analyzing a recording this worker no longer knows still names the chosen profile", async () => {
+  const { g, chrome, wire, call, settle } = load();
+  chrome.data.captureProfile = "work";
+  const analyzing = call({ type: "record_analyze", recordingId: "rec-from-before-a-restart" });
+  await settle();
+  const req = wire.find((f) => f.kind === "request" && f.method === "record.analyze");
+  assert.ok(req, "record.analyze was asked");
+  assert.deepEqual(req.params, { recordingId: "rec-from-before-a-restart", profile: "work" });
+  g.MonoAsk.handleFrame({ kind: "reply", id: req.id, ok: true, data: { draftDir: "/d" } });
+  assert.equal((await analyzing).ok, true);
+});
+
 test("analyze, verify and save are record.* requests to Go", async () => {
   const { g, chrome, wire, call, settle } = load();
   chrome.data.captureProfile = "work";

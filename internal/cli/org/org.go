@@ -34,7 +34,7 @@ func NewCommand(d Deps) *cobra.Command {
 		PersistentPostRun: func(cmd *cobra.Command, args []string) { env.Close() },
 	}
 	cmd.PersistentFlags().StringVar(&project, "project", "",
-		"Project root orgs resolve under (<root>/.monomind/orgs/); default: the active profile's folder")
+		"Project root orgs resolve under (<root>/.monomind/orgs/); default: the folder of the profile named by --profile")
 	root := env.root
 
 	cmd.AddCommand(

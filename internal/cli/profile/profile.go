@@ -31,8 +31,6 @@ func (d Deps) newProfileCmd() *cobra.Command {
 		d.newProfileListCmd(),
 		d.newProfileGetCmd(),
 		d.newProfileCreateCmd(),
-		d.newProfileSwitchCmd(),
-		d.newProfileCurrentCmd(),
 		d.newProfileFolderCmd(),
 		d.newProfileMoveCmd(),
 		d.newProfileProjectsCmd(),
@@ -53,14 +51,6 @@ type profileJSON struct {
 	CreatedAt string `json:"created_at"`
 	RootDir   string `json:"root_dir"`
 	Icon      string `json:"icon"`
-	Active    bool   `json:"active"`
-}
-
-// activeProfileSetting reads the persisted active profile id ("" if unset).
-func activeProfileSetting(db *sql.DB) string {
-	var id string
-	_ = db.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
-	return id
 }
 
 // lookupProfile resolves nameOrID to a profile row. An exact id wins over a
@@ -78,7 +68,6 @@ func (d Deps) lookupProfile(db *sql.DB, nameOrID string) (*profileJSON, error) {
 		return nil, fmt.Errorf("look up profile: %w", err)
 	}
 	p.RootDir = profiledir.Root(db, p.ID)
-	p.Active = p.ID == activeProfileSetting(db)
 	return &p, nil
 }
 
@@ -93,12 +82,6 @@ func (d Deps) newProfileListCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			// Resolve the active profile before opening the profiles cursor
-			// below — running a second query while `rows` is still open (not
-			// yet closed/drained) can hold the connection pool's only
-			// connection when the pool is capped to one, deadlocking.
-			activeID := activeProfileSetting(db.DB)
-
 			rows, err := db.DB.Query(`SELECT id, name, created_at, icon FROM profiles ORDER BY created_at ASC`)
 			if err != nil {
 				return fmt.Errorf("list profiles: %w", err)
@@ -107,7 +90,6 @@ func (d Deps) newProfileListCmd() *cobra.Command {
 			for rows.Next() {
 				var p profileJSON
 				if rows.Scan(&p.ID, &p.Name, &p.CreatedAt, &p.Icon) == nil {
-					p.Active = p.ID == activeID
 					profiles = append(profiles, p)
 				}
 			}
@@ -126,11 +108,7 @@ func (d Deps) newProfileListCmd() *cobra.Command {
 
 			fmt.Printf("%-36s  %-20s  %s\n", "ID", "NAME", "CREATED")
 			for _, p := range profiles {
-				marker := ""
-				if p.Active {
-					marker = " *"
-				}
-				fmt.Printf("%-36s  %-20s  %s%s\n", p.ID, p.Name, p.CreatedAt, marker)
+				fmt.Printf("%-36s  %-20s  %s\n", p.ID, p.Name, p.CreatedAt)
 			}
 			return nil
 		},
@@ -140,7 +118,7 @@ func (d Deps) newProfileListCmd() *cobra.Command {
 func (d Deps) newProfileGetCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "get <name-or-id>",
-		Short: "Show one profile (its folder, icon, and whether it is active)",
+		Short: "Show one profile (its folder and icon)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := d.OpenDB()
@@ -219,64 +197,4 @@ func (d Deps) newProfileCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&rootDir, "root-dir", "", "Absolute folder for this profile's data (default ~/.monoagent/profiles/<id>/)")
 	cmd.Flags().StringVar(&icon, "icon", "", "Icon id from the agent-avatars manifest")
 	return cmd
-}
-
-func (d Deps) newProfileSwitchCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "switch <name-or-id>",
-		Short: "Switch the active profile",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := d.OpenDB()
-			if err != nil {
-				return err
-			}
-			defer db.Close()
-
-			p, err := d.lookupProfile(db.DB, args[0])
-			if err != nil {
-				return err
-			}
-			id := p.ID
-			_, err = db.DB.Exec(`INSERT OR REPLACE INTO settings (key, value) VALUES ('active_profile_id', ?)`, id)
-			if err != nil {
-				return fmt.Errorf("switch profile: %w", err)
-			}
-			if d.JSONOutput() {
-				return printJSON(map[string]string{"id": id})
-			}
-			fmt.Printf("Switched to profile: %s\n", id)
-			return nil
-		},
-	}
-}
-
-func (d Deps) newProfileCurrentCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "current",
-		Short: "Show the active profile",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := d.OpenDB()
-			if err != nil {
-				return err
-			}
-			defer db.Close()
-
-			var id, name string
-			err = db.DB.QueryRow(`SELECT p.id, p.name FROM profiles p
-			                      INNER JOIN settings s ON s.value = p.id AND s.key = 'active_profile_id'`).Scan(&id, &name)
-			if err != nil {
-				if d.JSONOutput() {
-					return printJSON(map[string]string{"id": "default", "name": "default"})
-				}
-				fmt.Println("default")
-				return nil
-			}
-			if d.JSONOutput() {
-				return printJSON(map[string]string{"id": id, "name": name})
-			}
-			fmt.Printf("%s (%s)\n", name, id)
-			return nil
-		},
-	}
 }

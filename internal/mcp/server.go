@@ -60,8 +60,10 @@ type Options struct {
 	// DBPath is the SQLite database path ("~/..." expanded).
 	// Empty defaults to ~/.monoagent/monoagent.db.
 	DBPath string
-	// Profile is the --profile flag value. When empty, MONOAGENT_PROFILE is
-	// consulted, then the active_profile_id setting, then "default".
+	// Profile is the profile a grant server (Grant set) serves: it must name the
+	// grant's profile. A server that is not in grant mode holds no profile and
+	// ignores it: every profile-scoped tool takes a required `profile` argument
+	// and resolves it per call (profile_arg.go).
 	Profile string
 	// WorkflowsDir overrides the JSON workflow file store directory
 	// (default ~/.monoagent/workflows; mainly for tests).

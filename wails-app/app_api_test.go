@@ -81,7 +81,7 @@ func TestAPIFuncsShellOutToCLI(t *testing.T) {
 	argsLog := fakeAPICLI(t)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	st, err := a.APIStatus()
 	if err != nil || st.Profile != "work" || st.Keys.Active != 2 || !st.Daemon.Running || st.Daemon.V1Addr != "0.0.0.0:9443" ||
@@ -171,7 +171,7 @@ func TestAPIModelsPassesOnlyWhatWasGiven(t *testing.T) {
 	argsLog := fakeAPICLI(t)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	if _, err := a.APIModels("loopback", "", "sandboxed", ""); err != nil {
 		t.Fatal(err)
@@ -201,7 +201,7 @@ func TestAPIKeyRenameShellsOutToCLI(t *testing.T) {
 	argsLog := fakeAPICLI(t)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	renamed, err := a.APIKeyRename("key_abcdefghijkl", "  my renamed app  ")
 	if err != nil || renamed.ID != "key_abcdefghijkl" || renamed.Prefix != "sk-ma-AbCdEf" {

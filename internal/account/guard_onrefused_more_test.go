@@ -19,7 +19,7 @@ func receive(t *testing.T, ch <-chan account.Status, what string) account.Status
 	select {
 	case st := <-ch:
 		return st
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatalf("timed out waiting for %s", what)
 		return account.Status{}
 	}
@@ -229,7 +229,7 @@ func TestASlowOnRefusedCallbackBlocksNothing(t *testing.T) {
 	}()
 	select {
 	case <-returned:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("Status did not return while OnRefused callbacks were running")
 	}
 	if st := receive(t, asked, "the callback behind a slow one"); st.State != account.StateLocked || st.Reason != account.ReasonRefused {
@@ -237,7 +237,7 @@ func TestASlowOnRefusedCallbackBlocksNothing(t *testing.T) {
 	}
 	select {
 	case <-started:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("the slow callback was never called")
 	}
 
@@ -250,12 +250,12 @@ func TestASlowOnRefusedCallbackBlocksNothing(t *testing.T) {
 	}()
 	select {
 	case <-registered:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("OnRefused waited for the callback it called")
 	}
 	select {
 	case <-started:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("a callback registered during a refusal was not called")
 	}
 	releaseAll()

@@ -139,7 +139,7 @@ func TestCaptureClassifierCachesDisabledSurface(t *testing.T) {
 	c.open = func(p string) (*storage.Database, error) { opens++; return openProfileDB(p) }
 	capture1 := func(name string) string {
 		dir := writeTestEnvelope(t, inbox, name, "")
-		c.Handle(&capture.Result{Path: dir})
+		c.Handle(&capture.Result{Path: dir, Meta: capture.Meta{Profile: "default"}})
 		c.wait()
 		return dir
 	}
@@ -187,7 +187,7 @@ func TestCaptureClassifierEnabledWritesClassification(t *testing.T) {
 	srv := jevtest.NewServer(t, jevtest.Fixed(map[string]string{"kind": "job_posting"}))
 	dir := writeTestEnvelope(t, t.TempDir(), "a", "")
 
-	runClassifierHook(t, dbPath, &capture.Result{Path: dir})
+	runClassifierHook(t, dbPath, &capture.Result{Path: dir, Meta: capture.Meta{Profile: "default"}})
 	if srv.Calls() != 1 {
 		t.Fatalf("want 1 Jev call, got %d", srv.Calls())
 	}
@@ -217,11 +217,11 @@ func TestCaptureClassifierUsesCaptureProfileAndThreshold(t *testing.T) {
 	srv := jevtest.NewServer(t, jevtest.Fixed(map[string]string{"kind": "job_posting"}))
 	inbox := t.TempDir()
 
-	// Active profile "default" is off: a capture without a profile is skipped.
+	// A capture that names no profile is never classified: there is no active profile to use.
 	plain := writeTestEnvelope(t, inbox, "plain", "")
 	runClassifierHook(t, dbPath, &capture.Result{Path: plain})
 	if srv.Calls() != 0 {
-		t.Fatal("profile default is not enabled")
+		t.Fatal("a capture without a profile must not be classified")
 	}
 
 	work := writeTestEnvelope(t, inbox, "work", "work")

@@ -109,7 +109,7 @@ func TestEngine_DuplicateDispatchRunsOnce(t *testing.T) {
 	defer cancel()
 	wfID := createActiveManualWorkflow(t, ctx, eng, "test.block")
 
-	exec := &WorkflowExecution{WorkflowID: wfID, Status: "QUEUED", TriggerType: "trigger.manual", PID: os.Getpid()}
+	exec := &WorkflowExecution{ProfileID: "default", WorkflowID: wfID, Status: "QUEUED", TriggerType: "trigger.manual", PID: os.Getpid()}
 	if err := store.CreateExecution(ctx, exec); err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +288,7 @@ func TestEngine_EnqueueClaimsUnownedRow(t *testing.T) {
 	other := newTestEngine(t, store, NewNodeTypeRegistry())
 	ctx := context.Background()
 	wfID := createActiveManualWorkflow(t, ctx, eng, "test.count.atomic")
-	row := &WorkflowExecution{WorkflowID: wfID, Status: "QUEUED", TriggerType: "trigger.manual"}
+	row := &WorkflowExecution{ProfileID: "default", WorkflowID: wfID, Status: "QUEUED", TriggerType: "trigger.manual"}
 	if err := store.CreateExecution(ctx, row); err != nil {
 		t.Fatal(err)
 	}

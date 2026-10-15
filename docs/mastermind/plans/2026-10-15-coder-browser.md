@@ -246,3 +246,37 @@ User decisions: both "full" variants are levels; default is Dev pages + allowlis
   one row per kind with a level picker (label + one-line description), the site-rules list (add origin, allow/block,
   remove), all via `monoagentcli browser permissions … --json`. HIL page: a card for `browser.site` items
   ("A coder chat wants to use https://x.com" — Allow / Not now).
+
+## C9 — review fixes for #820 (herder's security review of ebe7d332, 2026-10-16)
+
+1. **Operator-only really means the operator (HIGH).** `requireOperator` (cmd/monoagentcli/hil.go) refuses when any
+   of these hold: `hilsend.Detect()`, `browserctl.AgentKind() != ""`, `MONOAGENT_AI_CALLER` set, or
+   `MONOAGENT_WORKFLOW_RUN` set. Every process a workflow node starts (`system.execute_command` and any other node that
+   execs a program) gets `MONOAGENT_WORKFLOW_RUN=<execution id>` in its env, so nothing a workflow runs, daemon or
+   chat-started, can approve or reject. Audit all `requireOperator` callers.
+2. **Block rules fail closed.** Origins and tab URLs are canonicalised before matching: lowercase, IDNA
+   (`golang.org/x/net/idna` Lookup profile, so fullwidth dots and Unicode map to xn--), trailing dot trimmed, default
+   ports dropped. A **block** on `scheme://host[:port]` or `host` covers that host **and its subdomains, on every scheme
+   and port**. An **allow** stays exact: scheme + host + port, and `*.host` for subdomains. Stored rules are
+   canonicalised on write and on read.
+3. **The agent kind needs a second signal.** A declared kind (`MONOAGENT_AGENT_KIND`, `MONOMIND_ORG_ROLE`) counts
+   only with a valid `MONOAGENT_AGENT_KIND_TOKEN`:
+   - **Issuing:** the spawner (coder turn, dynorg worker, and the org launcher where mono-agent starts it) calls
+     `browserctl.IssueAgentKind(kind) (env []string, done func())`. That writes
+     `~/.monoagent/agent-kinds/<token>.json` `{kind, pid, created}` (dir 0700, file 0600) and removes it when the turn
+     ends.
+   - **Valid:** the file exists, its kind matches, and its pid is alive (or it is younger than 24 h).
+   - **Otherwise:** a shell is kind `other`.
+   - **Limit, stated in Settings:** an agent that reads another process's environment can still borrow its kind.
+4. **Org default is `dev`,** as shipped in v0.141.0. Chat stays `full` (submit approvals), as shipped.
+5. **`full-no-approvals` description** says it also allows running scripts on any page, which can read that site's
+   cookies and storage.
+6. **Small fixes:**
+   - **Blocked sites:** `DecideSiteItem` on a blocked origin returns an error and leaves the item pending.
+   - **Atomic saves:** permissions updates are atomic (transaction, or a compare-and-set on the config row).
+   - **AskSite limits:** at most 20 pending site items per profile; a rejected origin+kind is remembered for 10
+     minutes (it is refused without a new item).
+   - **pickTab:** returns `SiteApprovalPendingError` instead of swallowing it.
+7. **Look-alike hosts:**
+   - `browser.site` and `browser.submit` items carry `asciiHost` (the xn-- form) when the host is not ASCII.
+   - The GUI card shows it next to the Unicode form, with a "check the address" hint.

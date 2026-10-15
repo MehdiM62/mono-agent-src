@@ -23,7 +23,7 @@ func TestRestrictFileWriteForOrgs_FalseForCustomRootDirProfile(t *testing.T) {
 	); err != nil {
 		t.Fatalf("seed profile failed: %v", err)
 	}
-	a.setActiveProfileID("custom")
+	a.selectForTest("custom")
 
 	if a.restrictFileWriteForOrgs() {
 		t.Error("a profile with a root_dir override should NOT be restricted")

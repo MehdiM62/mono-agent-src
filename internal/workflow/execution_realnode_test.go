@@ -41,6 +41,9 @@ func (fakeStore) GetWorkflow(context.Context, string) (*workflow.Workflow, error
 func (fakeStore) ListWorkflows(context.Context, string) ([]workflow.Workflow, error) {
 	return nil, nil
 }
+func (fakeStore) ListAllProfilesWorkflows(context.Context) ([]workflow.Workflow, error) {
+	return nil, nil
+}
 func (fakeStore) UpdateWorkflow(context.Context, *workflow.Workflow) error { return nil }
 func (fakeStore) DeleteWorkflow(context.Context, string) error             { return nil }
 func (fakeStore) SetWorkflowActive(context.Context, string, bool) error    { return nil }

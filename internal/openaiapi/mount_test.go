@@ -19,7 +19,7 @@ func TestGatewayMountsNextToTheLegacyHTTPAPI(t *testing.T) {
 	key := h.key(t, "default", "app", false)
 
 	srv, err := httpapi.NewServer(httpapi.Options{
-		DB: h.db, Profile: "default", Version: "mount-test",
+		DB: h.db, Version: "mount-test",
 		ExtraRoutes: func(mux *http.ServeMux) { h.g.Mount(mux, anyPolicy) },
 	})
 	if err != nil {
@@ -58,7 +58,7 @@ func TestAKeyDoesNotOpenALegacyRoute(t *testing.T) {
 	key := h.key(t, "default", "app", false)
 
 	srv, err := httpapi.NewServer(httpapi.Options{
-		DB: h.db, Profile: "default", Version: "mount-test",
+		DB: h.db, Version: "mount-test",
 		ExtraRoutes: func(mux *http.ServeMux) { h.g.Mount(mux, anyPolicy) },
 	})
 	if err != nil {
@@ -66,7 +66,7 @@ func TestAKeyDoesNotOpenALegacyRoute(t *testing.T) {
 	}
 	defer srv.Close()
 
-	for _, path := range []string{"/workflows", "/nodes", "/hil"} {
+	for _, path := range []string{"/profiles/default/workflows", "/nodes", "/profiles/default/hil"} {
 		r := httptest.NewRequest(http.MethodGet, path, nil)
 		r.Header.Set("Authorization", "Bearer "+key)
 		rec := httptest.NewRecorder()

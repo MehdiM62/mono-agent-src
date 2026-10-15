@@ -23,7 +23,7 @@ func newResourcesTestApp(t *testing.T) *App {
 	t.Helper()
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	return a
 }
 

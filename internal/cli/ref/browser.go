@@ -25,9 +25,9 @@ The commands drive a live browser through the MonoAgent extension (any profile
 with the extension attached). Put --json before them for JSON on stdout.
 
 Pass --profile <id> on every command: they act on a profile (its browser, its
-approvals, its allowlist checks); without it a profile-scoped command warns now
-and is refused from the next release. The machine-wide ` + "`browser allow`" + `, ` + "`browser browsers`" + ` and
-` + "`browser diff`" + ` don't need it; it does no harm there. An agent finds its
+approvals, its allowlist checks); without it a profile-scoped command is refused
+(exit 3). The machine-wide ` + "`browser allow`" + `, ` + "`browser browsers`" + `, ` + "`browser diff`" + ` and
+` + "`browser permissions`" + ` don't need it; it does no harm there. An agent finds its
 profile id in its instructions.
 
 CHOOSING THE BROWSER AND TAB
@@ -103,16 +103,31 @@ ASKING THE USER
       the user clicks the element they mean: {selector,tag,text,rect,screenshot}
 
 WHERE AN AGENT MAY GO
-  Only inside an agent (a coder chat, an org role, a coding agent's shell); your
-  own terminal is unrestricted.
-  Allowed: localhost, *.localhost, 127.0.0.0/8, ::1, *.local, *.test, private
-  network (RFC 1918) hosts, and the user's allowlist. file: and chrome: pages never.
-  Refused: opening or navigating anywhere else, and acting on a tab whose page is
-  not allowed. Tabs an agent opens go into the tab group "Coder · <label>".
-  No cookie commands and no raw CDP for agents.
-  browser allow list
-  browser allow add <origin>                origin: scheme://host[:port] or *.host
-  browser allow remove <origin>             add and remove are the user's (refused in an agent)
+  The user sets it per kind of agent (Settings -> Agent browser permissions);
+  your own terminal is unrestricted. Kinds: coder (coder chats and their
+  workers), org (org roles and the runs the org starts), chat (the in-app chat
+  and the workflow runs it starts), other (any other agent shell, such as a
+  Claude Code or Codex session in a terminal). Levels:
+    full-no-approvals  any site; form submits go through
+    full               any site; a submit on a page that is not local waits for approval
+    dev                local and dev pages plus sites with an allow rule; a submit
+                       on an allowed real site waits for approval
+    ask                like dev, but a new site asks the user (site_needs_approval)
+    off                no browser at all (browser_off)
+  Defaults: coder and other dev, chat and org full. Site rules (allow or block,
+  for every kind): a block wins over every level; an allow matters for dev and
+  ask. Local and dev pages (localhost, *.localhost, 127.0.0.0/8, ::1, *.local,
+  *.test, private network RFC 1918 hosts) are allowed at every level but off;
+  file: and chrome: pages never. Tabs an agent opens go into the tab group
+  "Coder · <label>". No cookie commands and no raw CDP for agents.
+  browser permissions [--json]              {levels,sites,kinds,catalog,you:{kind,level}};
+                                            an agent may read it, never change it
+  browser permissions set <kind> <level>    the user's (refused in an agent)
+  browser permissions site <origin> <allow|block|clear>
+                                            the user's; origin scheme://host[:port] or *.host
+  browser allow list                        the allow rules
+  browser allow add <origin>                the same as site <origin> allow
+  browser allow remove <origin>             the same as site <origin> clear
 
 FORM SUBMITS ON A REAL SITE (EXIT 3)
   On an allowed page that is not localhost or a dev host, the submit guard is armed
@@ -142,14 +157,19 @@ FORM SUBMITS ON A REAL SITE (EXIT 3)
   rejected, the run ends blocked; still waiting when its timeout ends, the run
   ends with status awaiting_approval, hil_id and tab_id, and the tab stays open
   for ` + "`browser submit --hil <id>`" + `. Runs the user starts behave as before.
-  A run an agent's shell started (directly, or a ` + "`workflow run`" + ` a daemon picks
-  up) also follows WHERE AN AGENT MAY GO: its start URL and every page it
-  reaches; anything else fails the run. A chat tool call's or the org's run
-  keeps real sites, behind the submit gate only.
+  An AI-started run also follows WHERE AN AGENT MAY GO for its kind (an agent's
+  shell: coder, org or other; a chat tool call: chat; the org side: org), on its
+  start URL and every page it reaches: off and a refused site fail the run, ask
+  raises the "allow this site?" item and waits like a submit, full-no-approvals
+  runs without the submit gate.
 
 ERRORS AN AGENT ACTS ON (exit 3; --json prints {"error","code"})
   awaiting_approval    a submit waits for the user (above)
-  origin_not_allowed   not local and not on the allowlist
+  browser_off          the user turned the browser off for your kind of agent
+  site_blocked         the user blocked this site
+  origin_not_allowed   not local and no allow rule (dev)
+  site_needs_approval  {hil_id}: the user is asked to allow this site (ask);
+                       wait for the decision, then retry
   eval_not_allowed     browser eval on a page that is not local
   origin_changed       the tab left the page the command was checked for (a
                        redirect, a script, the user); nothing ran. See where it

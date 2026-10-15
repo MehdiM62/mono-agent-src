@@ -51,8 +51,8 @@ func newLibraryInstallCmd(e *libEnv) *cobra.Command {
 		Long: "Downloads the item's artifact, checks it against the sha256 the library reports, and hands " +
 			"it to the matching local install:\n" +
 			"  automation  the automation package installer (official items get built-in trust; others install as imported)\n" +
-			"  workflow    workflow import into the active profile, installing automations bundled in it\n" +
-			"  org         the active profile's org folder; an org of the same name needs --rename <new> or --yes (replace)\n" +
+			"  workflow    workflow import into the profile named by --profile, installing automations bundled in it\n" +
+			"  org         the org folder of the profile named by --profile; an org of the same name needs --rename <new> or --yes (replace)\n" +
 			"  api         an API package, validated, then written to ~/.monoagent/apipkgs/<id>/package.json; its\n" +
 			"              app.<id> node (or the native node it extends) is available to the next command. It may\n" +
 			"              replace a built-in package; replacing an installed one from elsewhere needs --yes\n\n" +

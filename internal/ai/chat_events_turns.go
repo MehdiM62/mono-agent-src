@@ -17,7 +17,7 @@ import (
 // either way.
 func (s *AIStore) CreateTurn(conversationID, profileID, turnID, ownerInstanceID, prompt string) (turn Turn, alreadyExisted bool, err error) {
 	if profileID == "" {
-		profileID = "default"
+		return Turn{}, false, ErrProfileRequired
 	}
 	if existing, getErr := s.GetTurn(turnID, profileID); getErr == nil {
 		return existing, true, nil
@@ -85,7 +85,7 @@ func (s *AIStore) CreateTurn(conversationID, profileID, turnID, ownerInstanceID,
 // GetTurn returns a turn scoped to profileID.
 func (s *AIStore) GetTurn(turnID, profileID string) (Turn, error) {
 	if profileID == "" {
-		profileID = "default"
+		return Turn{}, ErrProfileRequired
 	}
 	const q = `SELECT id, conversation_id, profile_id, owner_instance_id, prompt, status, reason, last_committed_seq, created_at, updated_at
 		FROM ai_chat_turns WHERE id = ? AND profile_id = ?`
@@ -114,7 +114,7 @@ func (s *AIStore) GetTurn(turnID, profileID string) (Turn, error) {
 // row deterministically picks one rather than erroring.
 func (s *AIStore) activeTurnForConversation(conversationID, profileID string) (Turn, error) {
 	if profileID == "" {
-		profileID = "default"
+		return Turn{}, ErrProfileRequired
 	}
 	const q = `SELECT id, conversation_id, profile_id, owner_instance_id, prompt, status, reason, last_committed_seq, created_at, updated_at
 		FROM ai_chat_turns WHERE conversation_id = ? AND profile_id = ? AND status = ? ORDER BY created_at DESC, id DESC LIMIT 1`
@@ -160,7 +160,7 @@ func (s *AIStore) QueryActiveTurns() ([]Turn, error) {
 // profileID.
 func (s *AIStore) ListTurns(conversationID, profileID, cursor string, limit int) ([]Turn, string, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, "", ErrProfileRequired
 	}
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -221,7 +221,7 @@ func (s *AIStore) ListTurns(conversationID, profileID, cursor string, limit int)
 // active writer per turn), matching this store's transactional guarantees.
 func (s *AIStore) AppendEvent(profileID, conversationID, turnID string, typ chatevents.EventType, payload any) (chatevents.Event, error) {
 	if profileID == "" {
-		profileID = "default"
+		return chatevents.Event{}, ErrProfileRequired
 	}
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -277,7 +277,7 @@ func appendEventTx(tx *sql.Tx, profileID, conversationID, turnID string, typ cha
 // known) use.
 func (s *AIStore) GetEvents(conversationID, turnID, profileID string, afterSeq int64, limit int) ([]chatevents.Event, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, ErrProfileRequired
 	}
 	if limit <= 0 || limit > 1000 {
 		limit = 500
@@ -325,7 +325,7 @@ func (s *AIStore) FinalizeTurn(profileID, conversationID, turnID string, status 
 // Code and Sandbox).
 func (s *AIStore) FinalizeTurnCode(profileID, conversationID, turnID string, status chatevents.TurnStatus, reason, code string, exitCode *int, historySaved bool, sandbox string) (ev chatevents.Event, alreadyFinalized bool, err error) {
 	if profileID == "" {
-		profileID = "default"
+		return chatevents.Event{}, false, ErrProfileRequired
 	}
 	tx, err := s.db.Begin()
 	if err != nil {

@@ -13,13 +13,10 @@ import (
 // Deps is what the command takes from the CLI around it.
 type Deps struct {
 	// OpenGatewayDB opens (and migrates) the database the OpenAI-compatible API reads its keys
-	// and roster from. It must leave ProfileID as the user gave it: the HTTP API server
-	// resolves an empty profile itself (MONOAGENT_PROFILE, being removed, then the active one).
+	// and roster from.
 	OpenGatewayDB func() (*storage.Database, error)
 	// DBPath is the global --db-path flag.
 	DBPath func() string
-	// ProfileID is the global --profile flag; it is read when the command runs.
-	ProfileID func() string
 	// Version is the CLI's version, as the server reports it.
 	Version func() string
 	// API is what the OpenAI-compatible API's runtime takes from the CLI.

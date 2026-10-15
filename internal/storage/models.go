@@ -39,6 +39,9 @@ type Person struct {
 	IsVerified       bool   `json:"is_verified"`
 	Category         string `json:"category,omitempty"`
 	JobTitle         string `json:"job_title,omitempty"`
+	// Kind is what the row is: "person" (default) or "company" (people.kind,
+	// migration 066). Unrelated to Category, the review state.
+	Kind string `json:"kind,omitempty"`
 	// Profile details a profile read fills (LinkedIn): the tagline, where
 	// they are, the About text, and JSON arrays of positions and schools
 	// (see data/migrations/053_people_profile_details.sql for their shape).
@@ -60,18 +63,25 @@ type Person struct {
 // or interaction ingested from an external source (Outlook, social platforms,
 // manual notes, ...) and attached to a person's history.
 type PersonMessage struct {
-	ID         string    `json:"id"`
-	PersonID   string    `json:"person_id"`
-	Source     string    `json:"source"`
-	ExternalID string    `json:"external_id,omitempty"`
-	Direction  string    `json:"direction"`
-	Sender     string    `json:"sender,omitempty"`
-	Subject    string    `json:"subject,omitempty"`
-	Body       string    `json:"body,omitempty"`
-	Metadata   string    `json:"metadata,omitempty"`
-	Status     string    `json:"status,omitempty"` // draft | sent | failed; meaningful for outbound compose messages
-	SentAt     time.Time `json:"sent_at,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         string `json:"id"`
+	PersonID   string `json:"person_id"`
+	Source     string `json:"source"`
+	ExternalID string `json:"external_id,omitempty"`
+	Direction  string `json:"direction"`
+	Sender     string `json:"sender,omitempty"`
+	Subject    string `json:"subject,omitempty"`
+	Body       string `json:"body,omitempty"`
+	Metadata   string `json:"metadata,omitempty"`
+	// Status: sent (default; every synced message) | draft | failed for outbound
+	// compose messages, and the approval lifecycle of a queued send:
+	// pending_approval -> approved -> sending -> sent, or rejected / failed /
+	// expired (see internal/commsync).
+	Status string `json:"status,omitempty"`
+	// HilRef is the Human-in-Loop item (hil_pending.id) gating this outbound
+	// message; empty for every other message.
+	HilRef    string    `json:"hil_ref,omitempty"`
+	SentAt    time.Time `json:"sent_at,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 	// ReadAt is when an inbound message was read; nil = unread. Outbound
 	// messages are never unread.
 	ReadAt *time.Time `json:"read_at,omitempty"`

@@ -146,7 +146,11 @@ func (d Deps) newLogoutCmd() *cobra.Command {
 			defer db.Close()
 
 			if all {
-				count, err := deleteSessions(cmd.Context(), db.DB, d.profileOrDefault(), "1 = 1")
+				pid, perr := d.requireProfile()
+				if perr != nil {
+					return perr
+				}
+				count, err := deleteSessions(cmd.Context(), db.DB, pid, "1 = 1")
 				if err != nil {
 					return fmt.Errorf("deleting all sessions: %w", err)
 				}
@@ -159,7 +163,11 @@ func (d Deps) newLogoutCmd() *cobra.Command {
 			}
 
 			platform := strings.ToLower(args[0])
-			count, err := deleteSessions(cmd.Context(), db.DB, d.profileOrDefault(), "platform = ?", platform)
+			pid, perr := d.requireProfile()
+			if perr != nil {
+				return perr
+			}
+			count, err := deleteSessions(cmd.Context(), db.DB, pid, "platform = ?", platform)
 			if err != nil {
 				return fmt.Errorf("deleting session for %s: %w", platform, err)
 			}

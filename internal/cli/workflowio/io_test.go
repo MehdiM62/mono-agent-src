@@ -175,7 +175,7 @@ func TestMigrate(t *testing.T) {
 	if err := db.ApplyMigrations(); err != nil {
 		t.Fatal(err)
 	}
-	if err := workflow.NewSQLiteWorkflowStore(db.DB).CreateWorkflow(context.Background(), &workflow.Workflow{ID: "m1", Name: "M", Version: 1}); err != nil {
+	if err := workflow.NewSQLiteWorkflowStore(db.DB).CreateWorkflow(context.Background(), &workflow.Workflow{ProfileID: "default", ID: "m1", Name: "M", Version: 1}); err != nil {
 		t.Fatal(err)
 	}
 	db.Close()
@@ -205,11 +205,11 @@ func TestOwnedWorkflowAndFile(t *testing.T) {
 	if err := d.CreateWorkflow(ctx, store, wf, false); err != nil {
 		t.Fatal(err)
 	}
-	if OwnedWorkflow(ctx, store, db.DB, "p1", "o1") == nil || OwnedWorkflow(ctx, store, db.DB, "", "o1") == nil {
-		t.Error("the owner (or any profile) does not see its workflow")
+	if OwnedWorkflow(ctx, store, db.DB, "p1", "o1") == nil {
+		t.Error("the owner does not see its workflow")
 	}
-	if OwnedWorkflow(ctx, store, db.DB, "p2", "o1") != nil || OwnedWorkflow(ctx, store, db.DB, "p1", "") != nil {
-		t.Error("another profile (or an empty id) sees the workflow")
+	if OwnedWorkflow(ctx, store, db.DB, "p2", "o1") != nil || OwnedWorkflow(ctx, store, db.DB, "p1", "") != nil || OwnedWorkflow(ctx, store, db.DB, "", "o1") != nil {
+		t.Error("another profile (or an empty id, or no profile) sees the workflow")
 	}
 	file := WorkflowFileFromWorkflow(wf)
 	if file.ID != "o1" || file.Nodes[0].Type != "trigger.manual" || file.Nodes[0].Position.X != 5 {

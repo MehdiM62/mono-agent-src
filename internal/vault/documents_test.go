@@ -47,7 +47,7 @@ func writeTestFile(t *testing.T, content string) string {
 
 func TestRegisterDocumentRoundTrip(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	src := writeTestFile(t, "Experienced backend engineer.")
 
 	id, err := vault.RegisterDocument(ctx, db.DB, src, "upload")
@@ -72,7 +72,7 @@ func TestRegisterDocumentRoundTrip(t *testing.T) {
 
 func TestRegisterDocumentIncrementingSeq(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 
 	id1, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "one"), "upload")
 	if err != nil {
@@ -89,7 +89,7 @@ func TestRegisterDocumentIncrementingSeq(t *testing.T) {
 
 func TestDeleteDocument(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	id, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "content"), "upload")
 	if err != nil {
 		t.Fatalf("RegisterDocument: %v", err)
@@ -109,7 +109,7 @@ func TestDeleteDocument(t *testing.T) {
 
 func TestListDocumentsScopedToProfile(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	if _, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "content"), "upload"); err != nil {
 		t.Fatalf("RegisterDocument: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestListDocumentsScopedToProfile(t *testing.T) {
 
 func TestGetDocument(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	id, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "content"), "upload")
 	if err != nil {
 		t.Fatalf("RegisterDocument: %v", err)
@@ -141,7 +141,7 @@ func TestGetDocument(t *testing.T) {
 
 func TestGetDocumentNotFound(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 
 	doc, err := vault.GetDocument(ctx, db.DB, "default", "doc-999")
 	if err != nil {
@@ -154,7 +154,7 @@ func TestGetDocumentNotFound(t *testing.T) {
 
 func TestGetDocumentScopedToProfile(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	id, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "content"), "upload")
 	if err != nil {
 		t.Fatalf("RegisterDocument: %v", err)
@@ -171,7 +171,7 @@ func TestGetDocumentScopedToProfile(t *testing.T) {
 
 func TestRegisterDocumentWithApplicationID(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 
 	id, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "cv content"), "generated", "app-123")
 	if err != nil {
@@ -188,7 +188,7 @@ func TestRegisterDocumentWithApplicationID(t *testing.T) {
 
 func TestRegisterDocumentWithoutApplicationIDStaysEmpty(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 
 	if _, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "content"), "upload"); err != nil {
 		t.Fatalf("RegisterDocument: %v", err)
@@ -212,7 +212,7 @@ func TestRegisterDocumentWithoutApplicationIDStaysEmpty(t *testing.T) {
 // baselines on success) to reproduce exactly a pre-migration row's shape.
 func TestComputeStaleFalseWhenBaselineIsNull(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	id, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "content"), "upload")
 	if err != nil {
 		t.Fatalf("RegisterDocument: %v", err)
@@ -235,7 +235,7 @@ func TestComputeStaleFalseWhenBaselineIsNull(t *testing.T) {
 
 func TestComputeStaleFalseWhenUnchangedSinceIndex(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	src := writeTestFile(t, "content")
 	id, err := vault.RegisterDocument(ctx, db.DB, src, "upload")
 	if err != nil {
@@ -264,7 +264,7 @@ func TestComputeStaleFalseWhenUnchangedSinceIndex(t *testing.T) {
 
 func TestComputeStaleTrueAfterContentChange(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	src := writeTestFile(t, "content")
 	id, err := vault.RegisterDocument(ctx, db.DB, src, "upload")
 	if err != nil {
@@ -299,7 +299,7 @@ func TestComputeStaleTrueAfterContentChange(t *testing.T) {
 
 func TestSetDocumentIndexedFailureDoesNotClearPriorSuccessBaseline(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	src := writeTestFile(t, "content")
 	id, err := vault.RegisterDocument(ctx, db.DB, src, "upload")
 	if err != nil {
@@ -343,7 +343,7 @@ func TestSetDocumentIndexedFailureDoesNotClearPriorSuccessBaseline(t *testing.T)
 // delete the file.
 func TestDeleteDocumentDoesNotRemoveFileForDiscoveredSource(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	path := writeTestFile(t, "a file the app never copied")
 
 	id, _, err := vault.RegisterDiscoveredDocument(ctx, db.DB, "default", path, filepath.Base(path), 123)
@@ -368,7 +368,7 @@ func TestDeleteDocumentDoesNotRemoveFileForDiscoveredSource(t *testing.T) {
 
 func TestDeleteDocumentStillRemovesFileForUploadedSource(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	id, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "content"), "upload")
 	if err != nil {
 		t.Fatalf("RegisterDocument: %v", err)
@@ -389,7 +389,7 @@ func TestDeleteDocumentStillRemovesFileForUploadedSource(t *testing.T) {
 
 func TestRegisterDiscoveredDocumentCreatesRowWithoutCopying(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	path := writeTestFile(t, "original content")
 
 	id, created, err := vault.RegisterDiscoveredDocument(ctx, db.DB, "default", path, filepath.Base(path), 17)
@@ -424,7 +424,7 @@ func TestRegisterDiscoveredDocumentCreatesRowWithoutCopying(t *testing.T) {
 
 func TestRegisterDiscoveredDocumentIdempotentByPath(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	path := writeTestFile(t, "content")
 
 	id1, created1, err := vault.RegisterDiscoveredDocument(ctx, db.DB, "default", path, filepath.Base(path), 7)
@@ -457,7 +457,7 @@ func TestRegisterDiscoveredDocumentIdempotentByPath(t *testing.T) {
 
 func TestRegisterDiscoveredDocumentPathHasProfileRootPrefix(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	root := vault.VaultDir(db.DB, "default") // under the profile root
 	path := filepath.Join(filepath.Dir(root), "resume.md")
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
@@ -482,7 +482,7 @@ func TestRegisterDiscoveredDocumentPathHasProfileRootPrefix(t *testing.T) {
 
 func TestReconcileDiscoveredDocumentsSkipsAlreadyTrackedPaths(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	id, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "content"), "upload")
 	if err != nil {
 		t.Fatalf("RegisterDocument: %v", err)
@@ -517,7 +517,7 @@ func TestReconcileDiscoveredDocumentsSkipsAlreadyTrackedPaths(t *testing.T) {
 
 func TestReconcileDiscoveredDocumentsAddsNewFiles(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	path := writeTestFile(t, "brand new")
 
 	added, removed, errs := vault.ReconcileDiscoveredDocuments(ctx, db.DB, "default", []vault.DiscoveredFile{
@@ -544,7 +544,7 @@ func TestReconcileDiscoveredDocumentsAddsNewFiles(t *testing.T) {
 
 func TestReconcileDiscoveredDocumentsRefreshesSize(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	path := writeTestFile(t, "content")
 
 	if _, _, errs := vault.ReconcileDiscoveredDocuments(ctx, db.DB, "default", []vault.DiscoveredFile{
@@ -572,7 +572,7 @@ func TestReconcileDiscoveredDocumentsRefreshesSize(t *testing.T) {
 // unchanged snapshot writes nothing.
 func TestSyncDiscoveredDocumentsCountsEachChange(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	a, b := writeTestFile(t, "a"), writeTestFile(t, "b")
 	snap := func(sizeA int64, withB bool) []vault.DiscoveredFile {
 		out := []vault.DiscoveredFile{{Path: a, Filename: filepath.Base(a), SizeBytes: sizeA}}
@@ -609,7 +609,7 @@ func TestSyncDiscoveredDocumentsCountsEachChange(t *testing.T) {
 // docscan.isDotDir now excludes) -- must be purged, not left forever.
 func TestReconcileDiscoveredDocumentsRemovesVanishedDiscoveredFile(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	path := writeTestFile(t, "will vanish")
 
 	if _, _, errs := vault.ReconcileDiscoveredDocuments(ctx, db.DB, "default", []vault.DiscoveredFile{
@@ -652,7 +652,7 @@ func TestReconcileDiscoveredDocumentsRemovesVanishedDiscoveredFile(t *testing.T)
 // just because it doesn't happen to appear in a docscan snapshot.
 func TestReconcileDiscoveredDocumentsNeverRemovesNonDiscoveredSource(t *testing.T) {
 	db := newTestDB(t)
-	ctx := vault.ContextWithDB(context.Background(), db.DB)
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db.DB), "default")
 	id, err := vault.RegisterDocument(ctx, db.DB, writeTestFile(t, "uploaded"), "upload")
 	if err != nil {
 		t.Fatalf("RegisterDocument: %v", err)

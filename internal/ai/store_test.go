@@ -2,6 +2,7 @@ package ai
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -63,6 +64,7 @@ func TestChatMessageCRUD(t *testing.T) {
 	m1 := ChatMessage{
 		ID:         "m1",
 		WorkflowID: wfID,
+		ProfileID:  "p-crud",
 		Role:       "user",
 		Content:    "Hello",
 		CreatedAt:  "2025-01-01T00:00:01Z",
@@ -70,6 +72,7 @@ func TestChatMessageCRUD(t *testing.T) {
 	m2 := ChatMessage{
 		ID:         "m2",
 		WorkflowID: wfID,
+		ProfileID:  "p-crud",
 		Role:       "assistant",
 		Content:    "Hi there!",
 		ProviderID: "p1",
@@ -86,7 +89,7 @@ func TestChatMessageCRUD(t *testing.T) {
 	}
 
 	// Get history
-	history, err := store.GetChatHistory(wfID, "")
+	history, err := store.GetChatHistory(wfID, "p-crud")
 	if err != nil {
 		t.Fatalf("GetChatHistory: %v", err)
 	}
@@ -99,15 +102,15 @@ func TestChatMessageCRUD(t *testing.T) {
 	if history[1].TokenCount != 42 {
 		t.Errorf("TokenCount = %d, want 42", history[1].TokenCount)
 	}
-	if history[0].ProfileID != "default" {
-		t.Errorf("ProfileID = %q, want %q (empty normalizes to default)", history[0].ProfileID, "default")
+	if history[0].ProfileID != "p-crud" {
+		t.Errorf("ProfileID = %q, want %q", history[0].ProfileID, "p-crud")
 	}
 
 	// Clear history
-	if err := store.ClearChatHistory(wfID, ""); err != nil {
+	if err := store.ClearChatHistory(wfID, "p-crud"); err != nil {
 		t.Fatalf("ClearChatHistory: %v", err)
 	}
-	history, err = store.GetChatHistory(wfID, "")
+	history, err = store.GetChatHistory(wfID, "p-crud")
 	if err != nil {
 		t.Fatalf("GetChatHistory after clear: %v", err)
 	}
@@ -203,7 +206,7 @@ func TestChatMessageLegacyAmbiguousRowsAreExcluded(t *testing.T) {
 
 	const wf = "general"
 	// Simulate a pre-migration row: profile_id left at the column's '' default,
-	// never touched by SaveChatMessage's normalization.
+	// never written through SaveChatMessage.
 	if _, err := db.Exec(
 		`INSERT INTO ai_chat_messages (id, workflow_id, role, content, session_id, profile_id, created_at)
 		 VALUES ('legacy1', ?, 'user', 'ambiguous old message', 'sess-legacy', '', '2025-01-01T00:00:00Z')`,
@@ -212,7 +215,7 @@ func TestChatMessageLegacyAmbiguousRowsAreExcluded(t *testing.T) {
 		t.Fatalf("seed legacy row: %v", err)
 	}
 
-	for _, profileID := range []string{"default", "profile-a", ""} {
+	for _, profileID := range []string{"default", "profile-a"} {
 		history, err := store.GetChatHistory(wf, profileID)
 		if err != nil {
 			t.Fatalf("GetChatHistory(%q): %v", profileID, err)
@@ -268,6 +271,7 @@ func TestChatHistorySameTimestampKeepsInsertOrder(t *testing.T) {
 		m := ChatMessage{
 			ID:         fmt.Sprintf("m%d", i),
 			WorkflowID: wfID,
+			ProfileID:  "p-order",
 			Role:       "user",
 			Content:    fmt.Sprintf("message %d", i),
 			CreatedAt:  sameSecond,
@@ -277,7 +281,7 @@ func TestChatHistorySameTimestampKeepsInsertOrder(t *testing.T) {
 		}
 	}
 
-	history, err := store.GetChatHistory(wfID, "")
+	history, err := store.GetChatHistory(wfID, "p-order")
 	if err != nil {
 		t.Fatalf("GetChatHistory: %v", err)
 	}
@@ -307,7 +311,7 @@ func TestChatSessions(t *testing.T) {
 	save := func(id, role, content, sessionID, createdAt string) {
 		t.Helper()
 		if err := store.SaveChatMessage(ChatMessage{
-			ID: id, WorkflowID: wf, Role: role, Content: content,
+			ID: id, WorkflowID: wf, ProfileID: "p-sess", Role: role, Content: content,
 			ProviderID: "codex", Model: "gpt-5", SessionID: sessionID, CreatedAt: createdAt,
 		}); err != nil {
 			t.Fatalf("SaveChatMessage(%s): %v", id, err)
@@ -325,7 +329,7 @@ func TestChatSessions(t *testing.T) {
 	// A message with no session_id (legacy row) must be excluded entirely.
 	save("m7", "user", "legacy row", "", "2026-01-03T00:00:00Z")
 
-	sessions, err := store.ListChatSessions(wf, "")
+	sessions, err := store.ListChatSessions(wf, "p-sess")
 	if err != nil {
 		t.Fatalf("ListChatSessions: %v", err)
 	}
@@ -348,7 +352,7 @@ func TestChatSessions(t *testing.T) {
 		t.Errorf("sessions[0].Preview not truncated: %d runes", len(got))
 	}
 
-	msgs, err := store.GetSessionMessages(wf, "s1", "")
+	msgs, err := store.GetSessionMessages(wf, "s1", "p-sess")
 	if err != nil {
 		t.Fatalf("GetSessionMessages: %v", err)
 	}
@@ -362,5 +366,49 @@ func TestChatSessions(t *testing.T) {
 	}
 	if msgs[3].Content != "42" {
 		t.Errorf("GetSessionMessages(s1)[3].Content = %q, want %q (ascending order)", msgs[3].Content, "42")
+	}
+}
+
+// There is no implicit "default" profile: a store call that names none is an
+// error, and nothing is written.
+func TestChatStoreRefusesAnEmptyProfile(t *testing.T) {
+	db := openTestDB(t)
+	store, err := NewAIStore(db)
+	if err != nil {
+		t.Fatalf("NewAIStore: %v", err)
+	}
+	if err := store.SaveChatMessage(ChatMessage{ID: "x", WorkflowID: "w", Role: "user", Content: "c"}); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("SaveChatMessage err = %v, want ErrProfileRequired", err)
+	}
+	if _, err := store.GetChatHistory("w", ""); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("GetChatHistory err = %v, want ErrProfileRequired", err)
+	}
+	if _, err := store.GetSessionMessages("w", "s", ""); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("GetSessionMessages err = %v, want ErrProfileRequired", err)
+	}
+	if err := store.ClearChatHistory("w", ""); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("ClearChatHistory err = %v, want ErrProfileRequired", err)
+	}
+	if _, _, err := store.ListConversations("", "", 10); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("ListConversations err = %v, want ErrProfileRequired", err)
+	}
+	if _, err := store.GetConversation("c", ""); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("GetConversation err = %v, want ErrProfileRequired", err)
+	}
+	if _, _, err := store.CreateTurn("c", "", "t", "i", "p"); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("CreateTurn err = %v, want ErrProfileRequired", err)
+	}
+	if err := store.AddAnswer("", "c", "t", "a", "q", "x"); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("AddAnswer err = %v, want ErrProfileRequired", err)
+	}
+	if err := store.SaveOrgWorker("", "c", OrgWorker{AgentID: "a"}); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("SaveOrgWorker err = %v, want ErrProfileRequired", err)
+	}
+	if _, err := store.ListCoderWorkspaces("", 5); !errors.Is(err, ErrProfileRequired) {
+		t.Errorf("ListCoderWorkspaces err = %v, want ErrProfileRequired", err)
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM ai_chat_messages`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("rows stored = %d (%v), want 0", n, err)
 	}
 }

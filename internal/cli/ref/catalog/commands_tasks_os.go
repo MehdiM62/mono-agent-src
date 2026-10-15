@@ -12,7 +12,7 @@ var taskOSCommandDocs = []cmdDoc{
   --dest DIR  The Services folder (default ~/Library/Services)`,
 		Examples: []string{
 			"monoagentcli --profile Work task os install",
-			"monoagentcli task os status",
+			"monoagentcli --profile work task os status",
 		},
 	},
 	{
@@ -29,7 +29,7 @@ var taskOSCommandDocs = []cmdDoc{
 		Name:     "task os status",
 		Short:    "The installed Add to MonoAgent Tasks menus: their profile and whether each is current",
 		Usage:    "monoagentcli task os status [--dest DIR]",
-		Examples: []string{"monoagentcli --json task os status"},
+		Examples: []string{"monoagentcli --profile work --json task os status"},
 	},
 	{
 		Name:     "task os uninstall",

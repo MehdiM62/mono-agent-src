@@ -42,7 +42,7 @@ type Deps struct {
 func NewCommand(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "key",
-		Short: "Create, list, update and revoke the active profile's API keys",
+		Short: "Create, list, update and revoke the API keys of the profile named by --profile",
 		Long: "API keys authenticate the OpenAI-compatible HTTP API (/v1) served by `monoagentcli httpapi` " +
 			"and `monoagentcli daemon`. A key belongs to exactly one profile (select it with --profile): its " +
 			"requests run as that profile and add only that profile's knowledge, and what a runtime can read " +
@@ -87,7 +87,7 @@ func (d Deps) newCreateCmd() *cobra.Command {
 	var withContext bool
 	cmd := &cobra.Command{
 		Use:   "create --name <name> [--context]",
-		Short: "Create an API key for the active profile (shown once)",
+		Short: "Create an API key for the profile named by --profile (shown once)",
 		Long: "Creates a key and prints it once; only its hash is kept. With --context, requests made with " +
 			"this key get excerpts of the profile's own knowledge (documents and captures) added to the " +
 			"prompt; without it the key reaches a plain model. Without --json, stdout is the key alone and " +
@@ -149,7 +149,7 @@ func (d Deps) newListCmd() *cobra.Command {
 			})
 		},
 	}
-	cmd.Flags().BoolVar(&allProfiles, "all-profiles", false, "List the keys of every profile, not just the active one")
+	cmd.Flags().BoolVar(&allProfiles, "all-profiles", false, "List the keys of every profile, not just the profile named by --profile")
 	cmd.Flags().BoolVar(&includeRevoked, "include-revoked", false, "Include revoked keys")
 	return cmd
 }

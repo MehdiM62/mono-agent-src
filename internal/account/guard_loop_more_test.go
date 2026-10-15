@@ -73,7 +73,7 @@ func TestCloseDoesNotWaitForTheNextTick(t *testing.T) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("Close waited for the refresher's next tick")
 	}
 }
@@ -104,7 +104,7 @@ func TestCancellingTheContextWaitsForAGrantInFlightAndStoresItsAnswer(t *testing
 	close(release)
 	select {
 	case <-done:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("the refresher did not end once the grant was answered")
 	}
 	if rt, err := e.store.LoadRefresh(); err != nil || rt != "rt-2" {
@@ -144,7 +144,7 @@ func TestARefresherWithoutARefresherOnlyFollowsTheFile(t *testing.T) {
 	e.f.Clock.Advance(loopPoll)
 	select {
 	case <-got:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("a refresher with nothing to refresh with did not notice another process's refusal")
 	}
 }
@@ -204,7 +204,7 @@ func TestAnOnRefusedCallbackMayCloseTheGuard(t *testing.T) {
 	e.f.Clock.Advance(loopPoll)
 	select {
 	case <-closed:
-	case <-time.After(3 * time.Second):
+	case <-time.After(testWait):
 		t.Fatal("a callback that closes the guard did not return: the refresher and the callback wait for each other")
 	}
 }

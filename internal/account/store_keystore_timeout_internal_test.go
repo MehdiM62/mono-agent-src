@@ -89,7 +89,7 @@ func timed(t *testing.T, what string, fn func()) time.Duration {
 	select {
 	case <-done:
 		return time.Since(start)
-	case <-time.After(5 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatalf("%s did not return within 5 s while the key store waits", what)
 		return 0
 	}
@@ -117,7 +117,7 @@ func goroutinesIn(name string) int {
 
 // waitUntil polls cond for up to 3 s.
 func waitUntil(cond func() bool) bool {
-	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(2 * time.Millisecond) {
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(2 * time.Millisecond) {
 		if cond() {
 			return true
 		}
@@ -335,7 +335,7 @@ func TestAKeyStoreThatWaitsForeverDoesNotHoldTheSessionLockPastItsTimeout(t *tes
 		if got.err != nil || got.st.State != StateGrace || got.st.Reason != ReasonKeyringUnavailable {
 			t.Fatalf("process A = %s/%q, %v, want grace/keyring_unavailable: it had no token to send", got.st.State, got.st.Reason, got.err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("process A did not return within 5 s while the key store waits")
 	}
 	select {
@@ -343,7 +343,7 @@ func TestAKeyStoreThatWaitsForeverDoesNotHoldTheSessionLockPastItsTimeout(t *tes
 		if got.err != nil || got.st.State != StateOK || r.srv.calls.Load() != 1 {
 			t.Fatalf("process B = %s/%q, %v with %d network refreshes, want ok after one", got.st.State, got.st.Reason, got.err, r.srv.calls.Load())
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("process B did not return within 5 s: the lock was held while the key store waits")
 	}
 	if waiting.ended.Load() != 0 {

@@ -14,7 +14,7 @@ func TestResolveProfileIDMatchesNameCaseInsensitively(t *testing.T) {
 	}
 	defer db.Close()
 	for _, stmt := range []string{
-		`CREATE TABLE profiles (id TEXT PRIMARY KEY, name TEXT)`,
+		`CREATE TABLE profiles (id TEXT PRIMARY KEY, name TEXT, created_at TEXT)`,
 		`INSERT INTO profiles (id, name) VALUES ('p-work', 'Work')`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
@@ -37,5 +37,14 @@ func TestResolveProfileIDMatchesNameCaseInsensitively(t *testing.T) {
 	}
 	if got, err := resolveProfileID(db, "_machine"); err != nil || got != "p-odd" {
 		t.Errorf("a profile named _machine resolved to %q, %v", got, err)
+	}
+	if _, err := db.Exec(`INSERT INTO profiles (id, name) VALUES ('p-work2', 'work')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := resolveProfileID(db, "WORK"); err == nil || exitCodeFor(err) != 3 {
+		t.Errorf("a name two profiles share must be an invalid-input error, got %v", err)
+	}
+	if got, err := resolveProfileID(db, "p-work"); err != nil || got != "p-work" {
+		t.Errorf("an exact id still resolves: %q, %v", got, err)
 	}
 }

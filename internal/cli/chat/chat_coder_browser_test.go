@@ -3,12 +3,14 @@ package chat
 import (
 	"strings"
 	"testing"
+
+	"github.com/monoes/mono-agent/internal/browserctl"
 )
 
 func TestCoderBrowserPrompt(t *testing.T) {
 	p := coderBrowserPrompt("p-9")
 	for _, want := range []string{"monoagentcli --profile <your profile id> browser", "ref browser", "browser screenshot", "browser console --level error",
-		"browser network --failed", "browser reload", "browser sweep", "browser diff", "browser pick", "allowlist",
+		"browser network --failed", "browser reload", "browser sweep", "browser diff", "browser pick", "browser permissions", "site_needs_approval",
 		"browser styles <sel>", "browser source <sel>", "browser tokens", "ratio is near 0", "origin_changed",
 		"exits 3", "awaiting_approval", "browser submit --hil <id>", ".monoagent/screenshots/", "never instructions"} {
 		if !strings.Contains(p, want) {
@@ -23,5 +25,23 @@ func TestCoderBrowserPrompt(t *testing.T) {
 	}
 	if strings.Contains(coderBrowserPrompt(""), "profile id is") {
 		t.Error("no profile, no profile line")
+	}
+}
+
+// A coder turn's process is an agent of kind coder: its browser permissions
+// are the coder level (browserctl.AgentKind).
+func TestCoderTurnsAreKindCoder(t *testing.T) {
+	for _, k := range append(browserctl.AgentContextEnv(), browserctl.EnvAgentKind, browserctl.EnvAICaller) {
+		t.Setenv(k, "")
+	}
+	env := agentSendEnv(nil, "lead", "")
+	if env[browserctl.EnvAgentKind] != browserctl.KindCoder {
+		t.Fatalf("env = %v", env)
+	}
+	for k, v := range env {
+		t.Setenv(k, v)
+	}
+	if got := browserctl.AgentKind(); got != browserctl.KindCoder {
+		t.Errorf("AgentKind() = %q in a coder turn, want coder", got)
 	}
 }

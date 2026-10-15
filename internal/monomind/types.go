@@ -356,6 +356,8 @@ const (
 	ErrTimeout       = "timeout"
 	ErrCancelled     = "cancelled"
 	ErrBadFrame      = "bad-frame"
+	// ErrUnsupported: the runtime can't honour a flag (a --sandbox mode it lacks).
+	ErrUnsupported = "unsupported"
 )
 
 // Stop reasons (protocol §3.2 result.stop_reason).

@@ -122,7 +122,7 @@ func typeformWorkflow(tag string) *Workflow {
 	if tag != "" {
 		cfg["register_config"].(map[string]interface{})["tag"] = tag
 	}
-	return &Workflow{ID: "wf-tf", Nodes: []WorkflowNode{{ID: "n1", Type: TriggerNodeTypeWebhook, Config: cfg}}}
+	return &Workflow{ProfileID: "default", ID: "wf-tf", Nodes: []WorkflowNode{{ID: "n1", Type: TriggerNodeTypeWebhook, Config: cfg}}}
 }
 
 func typeformSig(secret, body string) string {
@@ -240,7 +240,7 @@ func TestAppWebhookCalendlyNodeType(t *testing.T) {
 	RegisterWebhookRegistrar("trigger.calendly_test", CalendlyRegistrar(vendor.srv.URL))
 	t.Setenv(publicURLEnv, "https://tunnel.example")
 	tm, fired := appTM(t, &appWebhookStore{})
-	wf := &Workflow{ID: "wf-cal", Nodes: []WorkflowNode{{ID: "c", Type: "trigger.calendly_test", Config: map[string]interface{}{
+	wf := &Workflow{ProfileID: "default", ID: "wf-cal", Nodes: []WorkflowNode{{ID: "c", Type: "trigger.calendly_test", Config: map[string]interface{}{
 		"credential_id": "cal", "organization": "https://api.calendly.com/organizations/O1",
 		"events": []interface{}{"invitee.created", "invitee.canceled"},
 	}}}}

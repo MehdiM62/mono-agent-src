@@ -45,7 +45,7 @@ func TestHILFuncsShellOutToCLI(t *testing.T) {
 		"suggestion":{"choice":"approve","p":0.97,"risk":"low"}}]`)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	items, err := a.GetHILItems()
 	if err != nil || len(items) != 1 || items[0].ID != "h1" || items[0].WorkflowName != "WF" || items[0].EditableData["caption"] != "x" {

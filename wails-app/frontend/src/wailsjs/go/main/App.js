@@ -1182,6 +1182,14 @@ export function RunWorkflowWithInput(arg1, arg2) {
   return window['go']['main']['App']['RunWorkflowWithInput'](arg1, arg2);
 }
 
+export function SandboxFallbackGet() {
+  return window['go']['main']['App']['SandboxFallbackGet']();
+}
+
+export function SandboxFallbackSet(arg1) {
+  return window['go']['main']['App']['SandboxFallbackSet'](arg1);
+}
+
 export function SaveChatAttachment(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveChatAttachment'](arg1, arg2, arg3);
 }

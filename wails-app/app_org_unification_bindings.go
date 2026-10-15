@@ -43,7 +43,15 @@ func (a *App) runOrgSub(label string, sub []string, buildErr error) string {
 	if buildErr != nil {
 		return aiError(buildErr)
 	}
-	return a.runUnifiedCLI("org "+label, orgCLIArgs(a.getActiveProfileID(), a.orgProjectRoot(), sub))
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	args, err := orgCLIArgs(pid, a.orgProjectRoot(), sub)
+	if err != nil {
+		return aiError(err)
+	}
+	return a.runUnifiedCLI("org "+label, args)
 }
 
 // ── Bindings (contracts §5) ────────────────────────────────────────────────
@@ -214,5 +222,13 @@ func (a *App) GetDaemonStatus() string {
 	if err := a.signedOut(); err != nil {
 		return loginRequiredJSON(err)
 	}
-	return a.runUnifiedCLI("status", statusCLIArgs(a.getActiveProfileID()))
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	args, err := statusCLIArgs(pid)
+	if err != nil {
+		return aiError(err)
+	}
+	return a.runUnifiedCLI("status", args)
 }

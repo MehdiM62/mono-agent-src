@@ -72,7 +72,7 @@ func TestDynamicPlatformConnectAndResolve(t *testing.T) {
 	t.Cleanup(func() { UnregisterPlatform("acme_dyn2") })
 	mgr, db := newManagerDB(t)
 	ctx := context.Background()
-	conn, err := mgr.SaveFields(ctx, "acme_dyn2", MethodAPIKey, map[string]interface{}{"access_token": "sekret"}, "")
+	conn, err := mgr.SaveFields(ctx, "acme_dyn2", MethodAPIKey, map[string]interface{}{"access_token": "sekret"}, "default")
 	if err != nil {
 		t.Fatalf("SaveFields: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestDynamicPlatformConnectAndResolve(t *testing.T) {
 	if err != nil || got.Data["access_token"] != "sekret" {
 		t.Fatalf("GetOrResolve: %+v %v", got, err)
 	}
-	list, err := mgr.List(ctx, "acme_dyn2", "")
+	list, err := mgr.List(ctx, "acme_dyn2", "default")
 	if err != nil || len(list) != 1 {
 		t.Errorf("List: %v %v", list, err)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/monoes/mono-agent/internal/logging"
 
 	aichat "github.com/monoes/mono-agent/internal/ai/chat"
+	"github.com/monoes/mono-agent/internal/cli/workflowio"
 	cfgpkg "github.com/monoes/mono-agent/internal/config"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/noderegistry"
@@ -25,17 +26,32 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
-// runtime holds the lazily-bootstrapped database, profile, store, and
-// (on first workflow_run) a running WorkflowEngine. It mirrors the builder
-// logic in cmd/monoagentcli (initDB + buildEngine) without importing cmd.
+// runtime holds the lazily-bootstrapped database, store, and (on first
+// workflow_run of a profile) a running WorkflowEngine for that profile. It
+// mirrors the builder logic in cmd/monoagentcli (initDB + buildEngine)
+// without importing cmd. It holds no profile: every call names its own (see
+// profile_arg.go), and what is per profile (an engine, the chat tools) is
+// keyed by it.
 type runtime struct {
-	db        *storage.Database
-	profileID string
-	store     *workflow.HybridWorkflowStore
-	registry  *workflow.NodeTypeRegistry
-	engine    *workflow.WorkflowEngine
-	sched     *scheduler.Scheduler
-	chat      *aichat.MonoagentTools
+	db       *storage.Database
+	store    *workflow.HybridWorkflowStore
+	registry *workflow.NodeTypeRegistry
+
+	// engines and scheds are one engine and its scheduler per profile: an
+	// engine refuses a workflow of any other profile than its own, which is
+	// what keeps a run of profile A from touching profile B.
+	engines map[string]*workflow.WorkflowEngine
+	scheds  map[string]*scheduler.Scheduler
+	// runCtx is the long-lived context the engines run under, made on the
+	// first engine start (under mu) and cancelled by Close.
+	runCtx  context.Context
+	runStop context.CancelFunc
+	chat    map[string]*aichat.MonoagentTools
+	// untrusted names the untrusted content (synced messages) any profile's
+	// chat tools returned. Their injection gate is per session, and a server
+	// is one session: once content nobody vouches for entered it, every
+	// profile's tools are marked.
+	untrusted string
 
 	// catalog is the one catalog of models behind api_models_list, made on first
 	// use (see modelCatalog). It has its own Once and not mu, which ensureEngine
@@ -49,27 +65,52 @@ type runtime struct {
 	mu sync.Mutex
 }
 
-// chatTools lazily builds the shared MonoagentTools instance backing every
-// chat-tool-adapted MCP tool (monoagent_tools.go). selfBin is left empty:
+// chatTools lazily builds the MonoagentTools instance of one profile backing
+// every chat-tool-adapted MCP tool (monoagent_tools.go). selfBin is left empty:
 // chat's own run_workflow tool is never adapted here (the native,
 // engine-aware workflow_run supersedes it — see internal/mcp/tools.go), so
-// MonoagentTools never needs to shell back into this binary. rt.profileID
-// is set once in newRuntime and never reassigned, so setting it here at
-// first use is equivalent to setting it at construction. MonoagentTools's
-// own mutable state is behind its own sync.RWMutex and its *sql.DB handle
-// is safe for concurrent use, so sharing one instance across concurrent
+// MonoagentTools never needs to shell back into this binary. The instance is
+// bound to its profile when it is built and keeps it. MonoagentTools's own
+// mutable state is behind its own sync.RWMutex and its *sql.DB handle is safe
+// for concurrent use, so sharing one instance per profile across concurrent
 // tools/call goroutines is safe, same as rt.store/rt.registry.
-func (rt *runtime) chatTools() *aichat.MonoagentTools {
+func (rt *runtime) chatTools(profileID string) *aichat.MonoagentTools {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
 	if rt.chat == nil {
-		rt.chat = aichat.NewMonoagentTools(rt.db.DB, "")
-		rt.chat.SetProfileID(rt.profileID)
-		if rt.store != nil {
-			rt.chat.SetWorkflowStore(rt.store)
-		}
+		rt.chat = map[string]*aichat.MonoagentTools{}
 	}
-	return rt.chat
+	mt := rt.chat[profileID]
+	if mt == nil {
+		mt = aichat.NewMonoagentTools(rt.db.DB, "", profileID)
+		if rt.store != nil {
+			mt.SetWorkflowStore(rt.store)
+		}
+		if rt.untrusted != "" {
+			mt.MarkUntrusted(rt.untrusted)
+		}
+		rt.chat[profileID] = mt
+	}
+	return mt
+}
+
+// shareUntrusted carries the injection gate of one profile's chat tools to
+// the others: when mt has seen untrusted content, all of the server's tools
+// have.
+func (rt *runtime) shareUntrusted(mt *aichat.MonoagentTools) {
+	source, seen := mt.UntrustedContentSeen()
+	if !seen {
+		return
+	}
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if rt.untrusted != "" {
+		return
+	}
+	rt.untrusted = source
+	for _, other := range rt.chat {
+		other.MarkUntrusted(source)
+	}
 }
 
 func expandHome(path string) string {
@@ -155,13 +196,16 @@ func (rt *runtime) Close() {
 	}
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
-	if rt.engine != nil {
-		_ = rt.engine.Stop()
-		rt.engine = nil
+	if rt.runStop != nil {
+		rt.runStop()
 	}
-	if rt.sched != nil {
-		_ = rt.sched.Stop()
-		rt.sched = nil
+	for id, e := range rt.engines {
+		_ = e.Stop()
+		delete(rt.engines, id)
+	}
+	for id, sc := range rt.scheds {
+		_ = sc.Stop()
+		delete(rt.scheds, id)
 	}
 	if rt.db != nil {
 		_ = rt.db.Close()
@@ -169,8 +213,8 @@ func (rt *runtime) Close() {
 	}
 }
 
-// newRuntime opens the database (applying migrations), resolves the active
-// profile, and builds the hybrid workflow store.
+// newRuntime opens the database (applying migrations) and builds the hybrid
+// workflow store. It resolves no profile: each call does.
 func newRuntime(opts Options) (*runtime, error) {
 	dbPath := opts.DBPath
 	if dbPath == "" {
@@ -209,26 +253,6 @@ func newRuntime(opts Options) (*runtime, error) {
 	}
 	migrateProfilesToPerProfileKeys(ctx, db.DB)
 
-	profile := opts.Profile
-	if profile == "" {
-		profile = os.Getenv("MONOAGENT_PROFILE")
-	}
-	if profile != "" {
-		resolved, err := resolveProfileID(db.DB, profile)
-		if err != nil {
-			db.Close()
-			return nil, fmt.Errorf("mcp: %w", err)
-		}
-		profile = resolved
-	} else {
-		var id string
-		_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
-		if id == "" {
-			id = "default"
-		}
-		profile = id
-	}
-
 	sqlStore := workflow.NewSQLiteWorkflowStore(db.DB)
 	wfDir := opts.WorkflowsDir
 	if wfDir == "" {
@@ -237,14 +261,15 @@ func newRuntime(opts Options) (*runtime, error) {
 	fileStore, err := workflow.NewWorkflowFileStore(expandHome(wfDir))
 	if err != nil {
 		fileStore = nil
+	} else {
+		_ = workflowio.StampFileWorkflows(ctx, db.DB, expandHome(wfDir))
 	}
 
 	store := workflow.NewHybridWorkflowStore(fileStore, sqlStore)
 	store.SetOnSaved(func(ctx context.Context, id string) { raiseGrantTiers(ctx, db.DB, store.GetWorkflow, id) })
 	return &runtime{
-		db:        db,
-		profileID: profile,
-		store:     store,
+		db:    db,
+		store: store,
 	}, nil
 }
 
@@ -267,27 +292,15 @@ func raiseGrantTiers(ctx context.Context, db *sql.DB, load orggrant.WorkflowLoad
 	}
 }
 
-// resolveProfileID accepts a profile's ID or display name and returns the
-// canonical ID (same semantics as the CLI's --profile resolution).
-func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
-	var id string
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-		return id, nil
-	}
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE name = ?`, idOrName).Scan(&id); err == nil {
-		return id, nil
-	}
-	return "", fmt.Errorf("profile %q not found (checked both id and name)", idOrName)
-}
-
-// ensureEngine starts the WorkflowEngine (queue workers, scheduler, resume
-// loop) on first use. Browser-session nodes are not wired here: an MCP
-// server never launches Chrome; run those workflows via the CLI or daemon.
-func (rt *runtime) ensureEngine(ctx context.Context) error {
+// ensureEngine starts the profile's WorkflowEngine (queue workers, scheduler,
+// resume loop) on first use of that profile. Browser-session nodes are not
+// wired here: an MCP server never launches Chrome; run those workflows via the
+// CLI or daemon.
+func (rt *runtime) ensureEngine(ctx context.Context, profileID string) (*workflow.WorkflowEngine, error) {
 	rt.mu.Lock()
 	defer rt.mu.Unlock()
-	if rt.engine != nil {
-		return nil
+	if e := rt.engines[profileID]; e != nil {
+		return e, nil
 	}
 	logger := logging.Zerolog() // the process's level (default warn) and format, on stderr
 
@@ -306,17 +319,28 @@ func (rt *runtime) ensureEngine(ctx context.Context) error {
 		QueueCapacity:  1000,
 		PruneInterval:  time.Hour,
 		MaxExecHistory: 500,
-		ProfileID:      rt.profileID,
+		ProfileID:      profileID,
 	}, logger)
-	if err := engine.Start(ctx); err != nil {
+	// The engine serves every later call of the profile, so it runs under the
+	// runtime's own context, never the context of the call that started it.
+	if rt.runCtx == nil {
+		rt.runCtx, rt.runStop = context.WithCancel(context.Background())
+	}
+	if err := engine.Start(rt.runCtx); err != nil {
 		sched.Stop()
-		return fmt.Errorf("mcp: start engine: %w", err)
+		return nil, fmt.Errorf("mcp: start engine: %w", err)
 	}
 
-	rt.registry = registry
-	rt.sched = sched
-	rt.engine = engine
-	return nil
+	if rt.engines == nil {
+		rt.engines = map[string]*workflow.WorkflowEngine{}
+		rt.scheds = map[string]*scheduler.Scheduler{}
+	}
+	if rt.registry == nil {
+		rt.registry = registry
+	}
+	rt.scheds[profileID] = sched
+	rt.engines[profileID] = engine
+	return engine, nil
 }
 
 // registryOrDefault returns the node registry, building a DB-less one if

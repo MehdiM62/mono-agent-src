@@ -26,9 +26,9 @@ func (e *WorkflowEngine) StartSubWorkflow(ctx context.Context, req SubWorkflowSt
 	if depth > MaxSubWorkflowDepth {
 		return "", fmt.Errorf("sub-workflow call depth exceeds %d (a workflow calling itself without end?)", MaxSubWorkflowDepth)
 	}
-	profileID := vault.ProfileIDFromContext(ctx)
-	if profileID == "" {
-		profileID = "default"
+	profileID, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return "", fmt.Errorf("sub-workflow ran without a profile: %w", perr)
 	}
 	wf, err := e.resolveSubWorkflow(ctx, req.Workflow, profileID)
 	if err != nil {
@@ -101,7 +101,11 @@ func (e *WorkflowEngine) resolveSubWorkflow(ctx context.Context, ref, profileID 
 		return nil, fmt.Errorf("sub-workflow: load workflow: %w", err)
 	}
 	if wf != nil {
-		if executionProfileID(wf, "default") != profileID {
+		ok, err := OwnedBy(wf, profileID)
+		if err != nil {
+			return nil, fmt.Errorf("sub-workflow %q: %w", ref, err)
+		}
+		if !ok {
 			return nil, fmt.Errorf("sub-workflow %q: %w", ref, ErrWorkflowProfileMismatch)
 		}
 		return wf, nil

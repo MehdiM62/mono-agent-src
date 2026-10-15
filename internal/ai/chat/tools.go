@@ -24,19 +24,11 @@ type CanvasTools struct {
 	profileID string
 }
 
-// NewCanvasTools creates a CanvasTools backed by the given database.
-func NewCanvasTools(db *sql.DB) *CanvasTools {
-	return &CanvasTools{db: db, profileID: "default"}
-}
-
-// SetProfileID sets the active profile for new workflow creation.
-func (ct *CanvasTools) SetProfileID(id string) {
-	if id == "" {
-		id = "default"
-	}
-	ct.mu.Lock()
-	ct.profileID = id
-	ct.mu.Unlock()
+// NewCanvasTools creates a CanvasTools backed by the given database and bound
+// to profileID, the profile every call is scoped to. It is required: there is
+// no default and no setter.
+func NewCanvasTools(db *sql.DB, profileID string) *CanvasTools {
+	return &CanvasTools{db: db, profileID: profileID}
 }
 
 // ProfileID returns the active profile id under the read lock. Callers that make
@@ -63,7 +55,7 @@ func (ct *CanvasTools) checkWorkflowOwnership(workflowID string) error {
 	}
 	var exists int
 	err := ct.db.QueryRow(
-		`SELECT 1 FROM workflows WHERE id = ? AND COALESCE(profile_id,'default') = ?`,
+		`SELECT 1 FROM workflows WHERE id = ? AND profile_id = ?`,
 		workflowID, ct.ProfileID(),
 	).Scan(&exists)
 	if err == sql.ErrNoRows {
@@ -242,6 +234,9 @@ func (ct *CanvasTools) ToolDefs() []ToolDef {
 // Execute dispatches a tool call by name. args is the raw JSON arguments string.
 // Returns a JSON result string.
 func (ct *CanvasTools) Execute(name string, args string) (string, error) {
+	if ct.ProfileID() == "" {
+		return "", fmt.Errorf("%s: this tool set was built without a profile; every call must name the profile it acts on", name)
+	}
 	switch name {
 	case "get_workflow_state":
 		return ct.getWorkflowState(args)

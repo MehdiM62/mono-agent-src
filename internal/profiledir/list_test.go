@@ -26,10 +26,11 @@ func listTestDB(t *testing.T) *sql.DB {
 	return db
 }
 
-func TestList_MarksTheActiveProfile(t *testing.T) {
+func TestList_MarksTheOldestProfileDefault(t *testing.T) {
 	db := listTestDB(t)
 	db.Exec(`INSERT INTO profiles (id, name, created_at) VALUES ('p1', 'Personal', '2026-01-01')`)
 	db.Exec(`INSERT INTO profiles (id, name, created_at) VALUES ('p2', 'Work', '2026-02-01')`)
+	// A stale active setting must be ignored.
 	db.Exec(`INSERT INTO settings (key, value) VALUES ('active_profile_id', 'p2')`)
 
 	got, err := List(context.Background(), db)
@@ -39,14 +40,11 @@ func TestList_MarksTheActiveProfile(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("List = %+v, want 2 profiles", got)
 	}
-	if got[0].ID != "p1" || got[0].Name != "Personal" || got[0].Default {
+	if got[0].ID != "p1" || got[0].Name != "Personal" || !got[0].Default {
 		t.Errorf("first profile = %+v", got[0])
 	}
-	if got[1].ID != "p2" || !got[1].Default {
+	if got[1].ID != "p2" || got[1].Default {
 		t.Errorf("second profile = %+v", got[1])
-	}
-	if id := Default(context.Background(), db); id != "p2" {
-		t.Errorf("Default = %q, want p2", id)
 	}
 }
 

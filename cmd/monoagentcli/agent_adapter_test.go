@@ -27,7 +27,7 @@ func TestAgentAdapterWiring(t *testing.T) {
 		root := newRootCmd()
 		var errOut bytes.Buffer
 		root.SetErr(&errOut)
-		root.SetArgs(append([]string{"--db-path", dbPath}, args...))
+		root.SetArgs(withTestProfile(append([]string{"--db-path", dbPath}, args...)))
 		var runErr error
 		out := captureStdout(t, func() { runErr = root.Execute() })
 		if runErr != nil {

@@ -44,23 +44,38 @@ func TestDocAskScopesToProfile(t *testing.T) {
 	}
 }
 
-func TestDocAskWithoutProfileKeepsSharedBrain(t *testing.T) {
+func TestDocAskWithoutProfileIsRefusedWithoutSearching(t *testing.T) {
 	runner := newFakeRunner()
-	runner.replies["doc search"] = "[]"
 	srv := serverWithRunner(t, runner)
-	srv.SetBrainStatusSource(func(context.Context, string) (*BrainStatus, error) {
-		t.Fatal("no profile, no brain status")
-		return nil, nil
-	})
-	res, _ := ask(t, srv, "anything")
-	argv := runner.argv("doc search")
-	for _, a := range argv {
-		if a == "--scope" || a == "--store" {
-			t.Fatalf("an unscoped ask must not narrow the store: %v", argv)
-		}
+	req := &Request{Method: MethodDocAsk, Params: map[string]any{"q": "anything"}}
+	_, err := srv.handleDocAsk(context.Background(), req, func(string, string) {})
+	var re *RequestError
+	if !asRequestError(err, &re) || re.Code != CodeInvalidInput || err.Error() != chooseProfileMessage {
+		t.Fatalf("err = %v, want invalid input %q", err, chooseProfileMessage)
 	}
-	if res.Brain != nil || res.Profile != "" {
-		t.Fatalf("unexpected profile fields: %+v", res)
+	if runner.callCount() != 0 {
+		t.Fatalf("the shared brain was searched %d times", runner.callCount())
+	}
+}
+
+// doc.lookup and doc.related run per tab for the saved badge: without a
+// profile they answer "nothing known" (the panel stays hidden) and run nothing.
+func TestDocLookupAndRelatedWithoutProfileAnswerEmpty(t *testing.T) {
+	runner := newFakeRunner()
+	srv := serverWithRunner(t, runner)
+	params := map[string]any{"url": "https://example.com/post"}
+
+	got, err := srv.handleDocLookup(context.Background(), &Request{Params: params}, func(string, string) {})
+	doc, ok := got.(*SavedDocument)
+	if err != nil || !ok || doc.Saved || doc.URL != "https://example.com/post" {
+		t.Fatalf("doc.lookup = %+v, %v", got, err)
+	}
+	rel, err := srv.handleDocRelated(context.Background(), &Request{Params: params}, func(string, string) {})
+	if list, ok := rel.([]map[string]any); err != nil || !ok || len(list) != 0 {
+		t.Fatalf("doc.related = %#v, %v", rel, err)
+	}
+	if runner.callCount() != 0 {
+		t.Fatalf("monomind ran %d times without a profile", runner.callCount())
 	}
 }
 

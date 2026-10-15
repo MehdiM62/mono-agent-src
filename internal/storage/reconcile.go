@@ -43,7 +43,10 @@ func (d *Database) ReconcileSchema(ctx context.Context) error {
 	if err := d.reconcileAddedColumns(ctx); err != nil {
 		return err
 	}
-	return d.reconcileExecutionProfiles(ctx)
+	if err := d.reconcileExecutionProfiles(ctx); err != nil {
+		return err
+	}
+	return d.reconcileLegacyOwners(ctx)
 }
 
 // reconcileVaultKeys moves an old singleton-shape vault_keys (no profile_id
@@ -244,6 +247,43 @@ func (d *Database) reconcileProfilesIcon(ctx context.Context) error {
 	return nil
 }
 
+// legacyOwnerTables are the tables migration 099 cannot stamp in SQL because
+// their profile_id column may not exist yet when it runs: vault_keys (the
+// per-profile shape is created by reconcile). ai_chat_messages is deliberately
+// absent: its profile_id ” is a sentinel for ambiguous legacy global-assistant
+// chats that must never be returned to any profile (see ai.AIStore).
+var legacyOwnerTables = []string{"vault_keys"}
+
+// reconcileLegacyOwners gives a legacyOwnerTables row with a NULL or empty
+// profile_id the same owner migration 099 gives every other legacy row: the
+// profile 'default' if it exists, else the oldest. Idempotent; a no-op
+// without profiles. A row that would collide with the stamp profile's own row
+// stays as it was.
+func (d *Database) reconcileLegacyOwners(ctx context.Context) error {
+	profiles, err := d.tableExists(ctx, "profiles")
+	if err != nil {
+		return fmt.Errorf("storage: reconcile: checking profiles: %w", err)
+	}
+	if !profiles {
+		return nil
+	}
+	for _, table := range legacyOwnerTables {
+		has, err := d.columnExists(ctx, table, "profile_id")
+		if err != nil {
+			return fmt.Errorf("storage: reconcile: inspecting %s: %w", table, err)
+		}
+		if !has {
+			continue
+		}
+		if _, err := d.DB.ExecContext(ctx, `UPDATE OR IGNORE `+table+`
+			SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1)
+			WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles)`); err != nil {
+			return fmt.Errorf("storage: reconcile: stamping %s owner: %w", table, err)
+		}
+	}
+	return nil
+}
+
 // reconcileExecutionProfiles backfills workflow_executions.profile_id from
 // the workflow each execution belongs to. Executions created before per-
 // profile execution stamping all recorded 'default' even when their workflow
@@ -280,11 +320,11 @@ func (d *Database) reconcileExecutionProfiles(ctx context.Context) error {
 
 	res, err := d.DB.ExecContext(ctx, `
 		UPDATE workflow_executions
-		SET profile_id = (SELECT COALESCE(w.profile_id, 'default') FROM workflows w WHERE w.id = workflow_executions.workflow_id)
+		SET profile_id = (SELECT w.profile_id FROM workflows w WHERE w.id = workflow_executions.workflow_id)
 		WHERE profile_id = 'default'
 		  AND EXISTS (SELECT 1 FROM workflows w
 		              WHERE w.id = workflow_executions.workflow_id
-		                AND COALESCE(w.profile_id, 'default') <> 'default')`)
+		                AND w.profile_id <> 'default' AND w.profile_id <> '')`)
 	if err != nil {
 		return fmt.Errorf("storage: reconcile: backfilling execution profiles: %w", err)
 	}

@@ -203,10 +203,10 @@ func validateMicrosoftAccount(ctx context.Context, c *Connection) (string, error
 // created time, label) of the profile's existing connection on the same
 // platform and account, so saving it updates that row in place.
 func (m *Manager) adoptSameAccountConnection(ctx context.Context, conn *Connection, accountID string) {
-	if accountID == "" {
+	if accountID == "" || conn.ProfileID == "" {
 		return
 	}
-	existing, err := m.store.ListByPlatform(ctx, conn.Platform, profileOrDefault(conn.ProfileID))
+	existing, err := m.store.ListByPlatform(ctx, conn.Platform, conn.ProfileID)
 	if err != nil {
 		return
 	}
@@ -220,13 +220,6 @@ func (m *Manager) adoptSameAccountConnection(ctx context.Context, conn *Connecti
 	}
 }
 
-func profileOrDefault(p string) string {
-	if p == "" {
-		return "default"
-	}
-	return p
-}
-
 // ListUsable returns the profile's connections usable by a node whose
 // credential_platform is platform, including its umbrella's connections;
 // an empty platform lists every connection.
@@ -234,7 +227,7 @@ func (m *Manager) ListUsable(ctx context.Context, platform, profileID string) ([
 	if platform == "" {
 		return m.List(ctx, "", profileID)
 	}
-	conns, err := m.store.ListUsableByPlatform(ctx, platform, profileOrDefault(profileID))
+	conns, err := m.store.ListUsableByPlatform(ctx, platform, profileID)
 	if err != nil {
 		return nil, err
 	}

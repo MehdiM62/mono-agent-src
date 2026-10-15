@@ -3,6 +3,7 @@
 // resolves to data or {error}; none throws.
 import { api } from './api.js'
 import { normalizeAsks, safeUrl } from '../lib/askModel.js'
+import { emitCommsChanged } from '../lib/commsStatus.js'
 
 // listAsks returns the profile's pending asks (workflow HIL and send items),
 // normalized (lib/askModel.js). A failed read is an empty list, not an
@@ -27,6 +28,7 @@ export async function resolve(id, { approve, editText, data, kind } = {}) {
       ? await api.hilSendResolve(id, !!approve, { editText: editText || '' })
       : await api.hilResolve(id, { approve: !!approve, editText, data })
     if (res?.error) return { error: res.error }
+    emitCommsChanged() // the Communications row for this item changed state
     return { ok: true, state: res?.state || (approve ? 'approved' : 'rejected') }
   } catch (err) {
     return { error: String(err?.message || err) }

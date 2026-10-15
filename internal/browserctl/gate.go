@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/extension"
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // The submit gate (C2): an agent's form submit on an allowed origin that is
@@ -225,7 +226,7 @@ func (s *Session) cardScreenshot(id string) string {
 
 func setSubmitScreenshot(ctx context.Context, db *sql.DB, profile, id, path string) error {
 	if profile == "" {
-		profile = "default"
+		return profiledir.ErrNoProfile
 	}
 	var raw string
 	if err := db.QueryRowContext(ctx, `SELECT readonly_data FROM hil_pending WHERE id = ? AND profile_id = ?`, id, profile).Scan(&raw); err != nil {

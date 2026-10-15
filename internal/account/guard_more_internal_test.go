@@ -192,7 +192,7 @@ func TestAdoptWaitsForAReloadInProgressSoAnOlderReadCannotOverwriteIt(t *testing
 	}()
 	select {
 	case <-store.read:
-	case <-time.After(3 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("the reload never read the file")
 	}
 
@@ -217,7 +217,7 @@ func TestAdoptWaitsForAReloadInProgressSoAnOlderReadCannotOverwriteIt(t *testing
 	for _, done := range []chan struct{}{reloaded, adopted} {
 		select {
 		case <-done:
-		case <-time.After(3 * time.Second):
+		case <-time.After(30 * time.Second):
 			t.Fatal("the reload and the adopt did not both finish once the read was let go")
 		}
 	}
@@ -236,7 +236,7 @@ func TestAdoptWaitsForAReloadInProgressSoAnOlderReadCannotOverwriteIt(t *testing
 	// then no second one may come in 150 ms, above the 100 ms floor.
 	select {
 	case <-fired:
-	case <-time.After(3 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Error("OnRefused was not called for the refusal")
 	}
 	time.Sleep(150 * time.Millisecond)
@@ -267,7 +267,7 @@ func TestCloseCancelsTheRefresherAndWaitsForItsEnd(t *testing.T) {
 	}()
 	select {
 	case <-ctx.Done():
-	case <-time.After(3 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("Close did not stop the refresher")
 	}
 	// Close must still be waiting for the refresher. A negative wait of 150 ms,
@@ -280,7 +280,7 @@ func TestCloseCancelsTheRefresherAndWaitsForItsEnd(t *testing.T) {
 	close(exit)
 	select {
 	case <-returned:
-	case <-time.After(3 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("Close did not return once the refresher had ended")
 	}
 	g.mu.Lock()

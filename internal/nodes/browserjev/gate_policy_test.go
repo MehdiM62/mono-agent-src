@@ -30,35 +30,62 @@ func (d *urlDriver) Observe(ctx context.Context) (*jevpick.PageState, error) {
 // the URL every observed page reports. opened says whether a tab was opened.
 func policyRun(t *testing.T, ctx context.Context, start, pageURL string) (res map[string]interface{}, opened bool, err error) {
 	t.Helper()
+	res, _, opened, err = levelRun(t, ctx, start, pageURL, 30)
+	return res, opened, err
+}
+
+// levelRun is policyRun that also hands back the driver (was the guard
+// armed?) and takes the run's timeout in seconds.
+func levelRun(t *testing.T, ctx context.Context, start, pageURL string, timeout float64) (map[string]interface{}, *guardedDriver, bool, error) {
+	t.Helper()
 	policyServer(t, nil)
 	g := &guardedDriver{fakeDriver: &fakeDriver{}}
 	g.g = &fakeGuard{url: "http://localhost/", decisions: []string{"approved"}, drv: g.fakeDriver}
 	drv := &urlDriver{guardedDriver: g, url: pageURL}
+	opened := false
 	n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) {
 		opened = true
 		return drv, func() {}, nil
 	}}
-	out, err := n.Execute(ctx, workflow.NodeInput{}, map[string]interface{}{"url": start, "goal": "Search for zurich", "api_key": "k"})
+	out, err := n.Execute(ctx, workflow.NodeInput{}, map[string]interface{}{"url": start, "goal": "Search for zurich", "api_key": "k", "timeout": timeout})
 	if err != nil {
-		return nil, opened, err
+		return nil, g, opened, err
 	}
-	return out[0].Items[0].JSON, opened, nil
+	return out[0].Items[0].JSON, g, opened, nil
 }
 
-// An agent's shell drives with browser.jev only what `monoagentcli browser`
-// lets it: local and dev pages and the user's allowlist.
+// permissionsDB is a database whose browser permissions put kind at level,
+// with these site rules ("origin=allow|block").
+func permissionsDB(t *testing.T, kind, level string, sites ...string) context.Context {
+	t.Helper()
+	db := testdb.Open(t).DB
+	p := browserctl.DefaultPermissions()
+	if err := p.SetLevel(kind, level); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range sites {
+		origin, rule, _ := strings.Cut(s, "=")
+		if _, _, err := p.SetSite(origin, rule); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := browserctl.SavePermissions(db, p); err != nil {
+		t.Fatal(err)
+	}
+	return vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "p1")
+}
+
+// An agent's shell (kind other, level dev by default) drives with browser.jev
+// only what `monoagentcli browser` lets it: local and dev pages and the
+// sites the user allowed.
 func TestAgentShellRunFollowsTheOriginPolicy(t *testing.T) {
 	t.Setenv("CLAUDECODE", "1")
-	_, opened, err := policyRun(t, context.Background(), "https://shop.example.com/", "")
-	if err == nil || opened || !strings.Contains(err.Error(), "monoagentcli browser allow add https://shop.example.com") {
+	_, opened, err := policyRun(t, vault.ContextWithProfileID(context.Background(), "p1"), "https://shop.example.com/", "")
+	if err == nil || opened || !strings.Contains(err.Error(), "https://shop.example.com is not allowed") || !strings.Contains(err.Error(), "Agent browser permissions") {
 		t.Fatalf("a site off the allowlist: opened=%v err=%v", opened, err)
 	}
 
-	db := testdb.Open(t).DB
-	if err := browserctl.SaveAllowlist(db, []string{"https://shop.example.com"}); err != nil {
-		t.Fatal(err)
-	}
-	ctx := vault.ContextWithDB(context.Background(), db)
+	ctx := permissionsDB(t, browserctl.KindOther, browserctl.LevelDev, "https://shop.example.com=allow")
 	if res, _, err := policyRun(t, ctx, "https://shop.example.com/", ""); err != nil || res["status"] != "done" {
 		t.Fatalf("an allowlisted site: %v %v", res, err)
 	}
@@ -71,8 +98,8 @@ func TestAgentShellRunFollowsTheOriginPolicy(t *testing.T) {
 
 	// A daemon running a shell's `workflow run` holds it to the same rules.
 	t.Setenv("CLAUDECODE", "")
-	marked := workflow.WithTrigger(context.Background(), "trigger.manual", map[string]interface{}{workflow.AICallerKey: "agent"})
-	if _, _, err := policyRun(t, marked, "https://shop.example.com/", ""); err == nil || !strings.Contains(err.Error(), "browser allow add") {
+	marked := workflow.WithTrigger(vault.ContextWithProfileID(context.Background(), "p1"), "trigger.manual", map[string]interface{}{workflow.AICallerKey: "agent"})
+	if _, _, err := policyRun(t, marked, "https://shop.example.com/", ""); err == nil || !strings.Contains(err.Error(), "is not allowed") {
 		t.Fatalf("a run a shell marked: %v", err)
 	}
 }
@@ -80,15 +107,15 @@ func TestAgentShellRunFollowsTheOriginPolicy(t *testing.T) {
 // The chat and the user keep real sites: the chat behind the submit gate,
 // the user as before.
 func TestChatAndUserRunsKeepRealSites(t *testing.T) {
-	marked := workflow.WithTrigger(context.Background(), "trigger.manual", map[string]interface{}{workflow.AICallerKey: "chat"})
+	marked := workflow.WithTrigger(vault.ContextWithProfileID(context.Background(), "p1"), "trigger.manual", map[string]interface{}{workflow.AICallerKey: "chat"})
 	if res, _, err := policyRun(t, marked, "https://shop.example.com/", "https://shop.example.com/results"); err != nil || res["status"] != "done" {
 		t.Fatalf("a run the chat marked: %v %v", res, err)
 	}
-	if res, _, err := policyRun(t, context.Background(), "https://shop.example.com/", "https://shop.example.com/results"); err != nil || res["status"] != "done" {
+	if res, _, err := policyRun(t, vault.ContextWithProfileID(context.Background(), "p1"), "https://shop.example.com/", "https://shop.example.com/results"); err != nil || res["status"] != "done" {
 		t.Fatalf("the user's run: %v %v", res, err)
 	}
 	t.Setenv(EnvAICaller, "chat")
-	if res, _, err := policyRun(t, context.Background(), "https://shop.example.com/", ""); err != nil || res["status"] != "done" {
+	if res, _, err := policyRun(t, vault.ContextWithProfileID(context.Background(), "p1"), "https://shop.example.com/", ""); err != nil || res["status"] != "done" {
 		t.Fatalf("a chat tool call's run: %v %v", res, err)
 	}
 }
@@ -112,7 +139,7 @@ func TestAgentShellPolicyTrustsTheTabNotThePage(t *testing.T) {
 	run := func(tab string) (map[string]interface{}, error) {
 		drv := &tabURLDriver{urlDriver: &urlDriver{guardedDriver: g, url: "http://localhost:5173/"}, tab: tab}
 		n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) { return drv, func() {}, nil }}
-		out, err := n.Execute(context.Background(), workflow.NodeInput{}, map[string]interface{}{"url": "http://localhost:5173/", "goal": "Search for zurich", "api_key": "k"})
+		out, err := n.Execute(vault.ContextWithProfileID(context.Background(), "p1"), workflow.NodeInput{}, map[string]interface{}{"url": "http://localhost:5173/", "goal": "Search for zurich", "api_key": "k"})
 		if err != nil {
 			return nil, err
 		}

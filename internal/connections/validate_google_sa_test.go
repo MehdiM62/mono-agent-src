@@ -17,7 +17,7 @@ func TestValidateGoogleServiceAccount(t *testing.T) {
 	}
 	der, _ := x509.MarshalPKCS8PrivateKey(key)
 	escaped := strings.ReplaceAll(string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})), "\n", `\n`)
-	c := &Connection{Platform: "google_service_account", Data: map[string]interface{}{
+	c := &Connection{ProfileID: "default", Platform: "google_service_account", Data: map[string]interface{}{
 		"client_email": "sa@p.iam.gserviceaccount.com", "private_key": escaped}}
 	id, err := ValidateConnection(context.Background(), c)
 	if err != nil || id != "sa@p.iam.gserviceaccount.com" {
@@ -27,7 +27,7 @@ func TestValidateGoogleServiceAccount(t *testing.T) {
 		{"client_email": "nope", "private_key": escaped},
 		{"client_email": "sa@p", "private_key": "garbage"},
 	} {
-		if _, err := ValidateConnection(context.Background(), &Connection{Platform: "google_service_account", Data: data}); err == nil {
+		if _, err := ValidateConnection(context.Background(), &Connection{ProfileID: "default", Platform: "google_service_account", Data: data}); err == nil {
 			t.Errorf("%v accepted", data["client_email"])
 		}
 	}

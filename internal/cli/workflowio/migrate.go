@@ -14,8 +14,10 @@ import (
 func (d Deps) newMigrateCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "migrate",
-		Short: "Migrate workflows from SQLite to JSON files",
-		RunE:  d.runWorkflowMigrate(),
+		Short: "Migrate workflows from SQLite to JSON files (acts on every profile)",
+		Long: "Copies the SQLite workflows of every profile to the JSON file store. " +
+			"It acts on all profiles at once, so it takes no --profile.",
+		RunE: d.runWorkflowMigrate(),
 	}
 }
 
@@ -41,7 +43,7 @@ func (d Deps) runWorkflowMigrate() func(cmd *cobra.Command, args []string) error
 			return fmt.Errorf("open file store: %w", err)
 		}
 
-		workflows, err := sqliteStore.ListWorkflows(ctx, "")
+		workflows, err := sqliteStore.ListAllProfilesWorkflows(ctx)
 		if err != nil {
 			return fmt.Errorf("list workflows from sqlite: %w", err)
 		}

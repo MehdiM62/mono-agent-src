@@ -114,7 +114,7 @@ func (e *sessionsTestEnv) runFlagsFirst(t *testing.T, args ...string) (string, s
 	var out, errOut bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&errOut)
-	root.SetArgs(append([]string{"--db-path", e.dbPath}, args...))
+	root.SetArgs(withTestProfile(append([]string{"--db-path", e.dbPath}, args...)))
 	err := root.Execute()
 	if err != nil {
 		errOut.WriteString(err.Error())

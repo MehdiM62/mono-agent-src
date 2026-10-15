@@ -60,7 +60,7 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	// The engine's setup is what makes a node runnable here: the registry
 	// with the DB (AI nodes, the send guard) and the global credential and
 	// config stores.
-	if err := rt.ensureEngine(ctx); err != nil {
+	if _, err := rt.ensureEngine(ctx, profileOf(ctx)); err != nil {
 		return nil, err
 	}
 	factory, ok := rt.registryOrDefault().Get(a.Type)
@@ -79,7 +79,7 @@ func toolNodeRun(ctx context.Context, s *Server, args json.RawMessage) (interfac
 		return nil, err
 	}
 
-	ctx = vault.ContextWithProfileID(vault.ContextWithDB(ctx, rt.db.DB), rt.profileID)
+	ctx = vault.ContextWithProfileID(vault.ContextWithDB(ctx, rt.db.DB), profileOf(ctx))
 	if queued, handled, gerr := workflow.RunExecGuard(ctx, a.Type, workflow.NodeInput{Items: items}, config); handled {
 		if gerr != nil {
 			return nil, fmt.Errorf("node %s failed: %w", a.Type, gerr)
@@ -161,8 +161,8 @@ func recordPublications(ctx context.Context, rt *runtime, nodeType string, confi
 	}
 	entries := publication.Normalize(publication.CaptureInput{NodeType: nodeType, Config: config, Outputs: pub,
 		Source: workflow.PublicationSource(ctx, input)})
-	hilsend.Attribute(ctx, rt.db.DB, rt.profileID, entries)
-	publication.Record(ctx, publication.NewStore(rt.db.DB, rt.profileID), entries, func(msg string) { fmt.Fprintln(os.Stderr, "mcp: warning:", msg) })
+	hilsend.Attribute(ctx, rt.db.DB, profileOf(ctx), entries)
+	publication.Record(ctx, publication.NewStore(rt.db.DB, profileOf(ctx)), entries, func(msg string) { fmt.Fprintln(os.Stderr, "mcp: warning:", msg) })
 }
 
 // platformOverrides maps the node types whose platform is not their suffix.
@@ -197,7 +197,7 @@ func resolveNodeCredential(ctx context.Context, rt *runtime, nodeType, explicit 
 	if key == "" {
 		key = nodeTypePlatform(nodeType)
 	}
-	data, err := credentialData(ctx, connections.NewStore(rt.db.DB), key, rt.profileID)
+	data, err := credentialData(ctx, connections.NewStore(rt.db.DB), key, profileOf(ctx))
 	if err != nil || data == nil {
 		if explicit != "" {
 			return fmt.Errorf("credential resolution failed: %w", err)

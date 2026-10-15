@@ -102,7 +102,7 @@ func request(id int, method string, params interface{}) string {
 }
 
 func callToolReq(id int, name string, args interface{}) string {
-	return request(id, "tools/call", map[string]interface{}{"name": name, "arguments": args})
+	return request(id, "tools/call", map[string]interface{}{"name": name, "arguments": withTestProfile(testProfile, args)})
 }
 
 func toolText(t *testing.T, resp map[string]json.RawMessage) (string, bool) {

@@ -143,11 +143,11 @@ esac
 
 func TestCLIBackendCreateConversation(t *testing.T) {
 	bin, log := fakeCLI(t, `echo '{"id":"conv-9"}'`)
-	id, err := (&cliChatBackend{bin: bin}).CreateConversation(context.Background(), "", "claude", "haiku")
+	id, err := (&cliChatBackend{bin: bin}).CreateConversation(context.Background(), "p-x", "claude", "haiku")
 	if err != nil || id != "conv-9" {
 		t.Fatalf("id=%q err=%v", id, err)
 	}
-	if got := readLog(t, log)[0]; got != "--json chat history create --runtime=claude --workflow=general --model=haiku" {
+	if got := readLog(t, log)[0]; got != "--profile=p-x --json chat history create --runtime=claude --workflow=general --model=haiku" {
 		t.Fatalf("argv = %q", got)
 	}
 }
