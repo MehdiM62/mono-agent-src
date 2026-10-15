@@ -93,7 +93,7 @@ func addServiceHooks(env *health.Env, d EnvDeps) {
 	}
 	env.AutostartStatus = func(ctx context.Context) (bool, string) { return autostart.New().Status(ctx) }
 	env.InstallAutostart = func(ctx context.Context, progress func(string)) error {
-		res, err := autostart.New().Install(ctx, "")
+		res, err := autostart.New().Install(ctx)
 		if err != nil {
 			return err
 		}

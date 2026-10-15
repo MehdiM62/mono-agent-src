@@ -90,7 +90,7 @@ var systemctl = func(ctx context.Context, args ...string) ([]byte, error) {
 	return exec.CommandContext(ctx, "systemctl", args...).Output()
 }
 
-func (linuxInstaller) Install(ctx context.Context, _ string) (Result, error) {
+func (linuxInstaller) Install(ctx context.Context) (Result, error) {
 	if !systemdAvailable() {
 		return Result{}, fmt.Errorf(
 			"no systemd user session detected (/run/systemd/system missing) — `daemon install` needs " +

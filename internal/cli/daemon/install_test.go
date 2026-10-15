@@ -17,7 +17,7 @@ type recordingInstaller struct {
 	uninstalls int
 }
 
-func (r *recordingInstaller) Install(context.Context, string) (autostart.Result, error) {
+func (r *recordingInstaller) Install(context.Context) (autostart.Result, error) {
 	r.installs++
 	return autostart.Result{Description: "installed"}, nil
 }

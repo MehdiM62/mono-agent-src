@@ -32,7 +32,7 @@ func newDaemonInstallCmd(d Deps) *cobra.Command {
 			noteDeprecatedProfile(cmd)
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			result, err := d.NewInstaller().Install(ctx, "")
+			result, err := d.NewInstaller().Install(ctx)
 			if err != nil {
 				return fmt.Errorf("install: %w", err)
 			}
