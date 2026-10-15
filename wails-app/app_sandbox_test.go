@@ -14,7 +14,7 @@ func TestApp_SandboxFallback_ShellsOutAndReturnsTheCLIJSON(t *testing.T) {
 		fakeChatReply{match: "sandbox fallback", stdout: sandboxFallbackJSON + "\n"},
 	)
 	a, _ := newCLIChatApp(t, bin)
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	if got := a.SandboxFallbackGet(); got != sandboxFallbackJSON {
 		t.Errorf("SandboxFallbackGet = %s", got)

@@ -149,7 +149,7 @@ func TestApp_StartChatTurn_PassesAttachments(t *testing.T) {
 		eventLine("coder-1", "turn-1", 1, chatevents.EventTurnFinished, chatevents.TurnFinishedPayload{Status: chatevents.StatusCompleted, HistorySaved: true}),
 	)})
 	a, emitter := newCLIChatApp(t, bin)
-	a.setActiveProfileID("default")
+	a.selectForTest("default")
 	r := decodeStart(t, a.StartChatTurn("coder-1", "turn-1", "look", false, false, []string{"/s/a b.png", "/s/-x.txt"}))
 	if !r.OK {
 		t.Fatalf("Start = %+v", r)
