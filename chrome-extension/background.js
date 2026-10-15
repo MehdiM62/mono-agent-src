@@ -45,6 +45,8 @@ importScripts("chat_core.js", "chat_bridge.js");
 // right-click items. Over ask.js too; the menu items hang under the capture
 // group's parent, so this follows it.
 importScripts("coder_bridge.js", "coder_menu.js");
+// Filling the page's form from the profile (form.fill); same channel as chat.
+importScripts("form_bridge.js");
 // The raw CDP proxy (GLU-01/RIG-07): the generalisation of eval_cdp/type_cdp
 // that lets monobrowse drive the user's own Chrome. Events flow back through
 // it unasked-for, which is why it needs its own module rather than another
@@ -1500,6 +1502,7 @@ MonoChat.install({
   isConnected: openAndSignedIn,
   storage: chrome.storage.local,
 });
+MonoForm.install();
 
 // The side panel hears of a change at once. Signed out the bridge is asked
 // again every few seconds, signed in every minute: its answer to ping (read in
