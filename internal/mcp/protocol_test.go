@@ -21,7 +21,7 @@ func TestWorkflowConnectOnAFileOnlyWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wf := &workflow.Workflow{ID: "wf-file-only", Name: "editor", Nodes: []workflow.WorkflowNode{
+	wf := &workflow.Workflow{ProfileID: "default", ID: "wf-file-only", Name: "editor", Nodes: []workflow.WorkflowNode{
 		{ID: "a", Type: "core.set", Name: "A", Config: map[string]interface{}{}},
 		{ID: "b", Type: "core.filter", Name: "B", Config: map[string]interface{}{}},
 	}}

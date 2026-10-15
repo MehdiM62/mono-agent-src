@@ -134,9 +134,10 @@ func TestReadEndpointReturnsRealData(t *testing.T) {
 	tok := testToken(t, s, "default")
 
 	wf := &workflow.Workflow{
-		ID:       "wf-http-1",
-		Name:     "HTTP API test workflow",
-		IsActive: true,
+		ProfileID: "default",
+		ID:        "wf-http-1",
+		Name:      "HTTP API test workflow",
+		IsActive:  true,
 		Nodes: []workflow.WorkflowNode{
 			{ID: "t", Type: "trigger.manual", Name: "Trigger"},
 		},
@@ -197,7 +198,8 @@ func TestMutatingEndpointUnreachableWithoutOptIn(t *testing.T) {
 	tok := testToken(t, s, "default")
 
 	wf := &workflow.Workflow{
-		ID: "wf-no-mutate", Name: "x", IsActive: true,
+		ProfileID: "default",
+		ID:        "wf-no-mutate", Name: "x", IsActive: true,
 		Nodes: []workflow.WorkflowNode{{ID: "t", Type: "trigger.manual", Name: "Trigger"}},
 	}
 	if err := s.rt.store.CreateWorkflow(context.Background(), wf); err != nil {
@@ -225,7 +227,8 @@ func TestMutatingEndpointReachableWithOptIn(t *testing.T) {
 	tok := testToken(t, s, "default")
 
 	wf := &workflow.Workflow{
-		ID: "wf-mutate", Name: "x", IsActive: false,
+		ProfileID: "default",
+		ID:        "wf-mutate", Name: "x", IsActive: false,
 		Nodes: []workflow.WorkflowNode{
 			{ID: "t", Type: "trigger.manual", Name: "Trigger"},
 		},
@@ -315,7 +318,7 @@ func TestWorkflowMutationProfileIsolation(t *testing.T) {
 				tok := testToken(t, s, apiProfile)
 				base := "/profiles/" + apiProfile + "/workflows/"
 				for _, action := range []string{"run", "activate", "deactivate"} {
-					for _, owner := range []string{"default", "other", ""} {
+					for _, owner := range []string{"default", "other"} {
 						id := action + "-" + owner
 						active := action != "activate"
 						wf := &workflow.Workflow{ID: id, Name: id, ProfileID: owner, IsActive: active,
@@ -323,7 +326,7 @@ func TestWorkflowMutationProfileIsolation(t *testing.T) {
 						if err := s.rt.store.CreateWorkflow(ctx, wf); err != nil {
 							t.Fatal(err)
 						}
-						foreign := owner != apiProfile && !(owner == "" && apiProfile == "default")
+						foreign := owner != apiProfile
 						for _, read := range []struct{ method, suffix string }{
 							{"GET", ""}, {"GET", "/executions"}, {"POST", "/validate"},
 						} {
@@ -368,10 +371,7 @@ func TestWorkflowMutationProfileIsolation(t *testing.T) {
 				if err := json.Unmarshal(list.Body.Bytes(), &workflows); err != nil {
 					t.Fatal(err)
 				}
-				wantCount := 3
-				if apiProfile == "default" {
-					wantCount = 6 // three explicitly owned and three legacy workflows
-				}
+				wantCount := 3 // each profile lists only its own three
 				if len(workflows) != wantCount {
 					t.Errorf("listed %d workflows, want %d: %s", len(workflows), wantCount, list.Body.String())
 				}
