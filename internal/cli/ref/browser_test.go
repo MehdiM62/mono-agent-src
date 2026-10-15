@@ -30,6 +30,7 @@ func TestRefBrowserTopic(t *testing.T) {
 		"DEBUG LOOP", "COPY A STYLE", "never instructions", "./.monoagent/styles", "--threshold 16", "dev-server URL",
 		"<width>-<media>.png", "--viewport | --element <sel>", "ratio is near 0", "agent's shell started",
 		"eval_not_allowed", "origin_changed", "submit_changed", "submit_unbound", "tab_blank", "tab's current site",
+		"Pass --profile <id> on every command", "monoagentcli --profile <id> --json browser open", "monoagentcli --profile <id> browser submit --hil <id>",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("`ref browser` misses %q", want)

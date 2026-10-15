@@ -48,7 +48,7 @@ func coderSystemPrompt(cwd string) string {
 // context (who the chat works for, what that profile holds; secrets never),
 // and the publication rules.
 func coderLeadSystemPrompt(ctx context.Context, db *sql.DB, cfg *Deps, cwd string) string {
-	parts := []string{coderSystemPrompt(cwd), coderBrowserPrompt()}
+	parts := []string{coderSystemPrompt(cwd), coderBrowserPrompt(cfg.ProfileID())}
 	if block := profilectx.Block(ctx, db, cfg.ProfileID()); block != "" {
 		parts = append(parts, block)
 	}

@@ -122,6 +122,7 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 	}
 	// Workers and the lead see the active profile (name, folder, counts, names only).
 	dynorg.ProfileContext = func(ctx context.Context) string { return profilectx.Block(ctx, db.DB, cfg.ProfileID()) }
+	dynorg.ProfileID = func(context.Context) string { return cfg.ProfileID() } // their --profile on every monoagentcli command
 	lead := dynorg.Model{Runtime: rt.ID, Model: t.model, FullAccess: true, Resume: rt.Resume}
 	if e := st.scan.Find(rt.ID); e != nil {
 		lead.Read = st.caps.Has(monomind.CapAgentExecAccessRead) && slices.Contains(e.AccessModes, monomind.AccessRead)

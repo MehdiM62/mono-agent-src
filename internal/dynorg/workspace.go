@@ -2,6 +2,7 @@ package dynorg
 
 import (
 	"context"
+	"fmt"
 	"strings"
 )
 
@@ -12,16 +13,39 @@ import (
 // every worker's system prompt and must never contain secret values.
 var ProfileContext func(ctx context.Context) string
 
-// profileBlock is the profile context as a prompt section, or "".
+// ProfileID is the chat's mono-agent profile id. The caller wires it with
+// ProfileContext; nil or "" leaves the profile rule out. Every profile-scoped
+// monoagentcli command needs it as --profile (internal/cli/profilegate), and
+// there is deliberately no environment variable for it.
+var ProfileID func(ctx context.Context) string
+
+// ProfileRule tells an agent the profile it works in and to name it on every
+// monoagentcli command; "" for no id.
+func ProfileRule(id string) string {
+	if id = strings.TrimSpace(id); id == "" {
+		return ""
+	}
+	return fmt.Sprintf("Your mono-agent profile id is %s: pass `--profile %s` on every monoagentcli command "+
+		"(the machine-wide ones, such as `ref`, `browser allow`, `browser browsers` and `browser diff`, don't need it, and it does no harm there).", id, id)
+}
+
+// profileBlock is the profile rule and context as a prompt section, or "".
 func profileBlock(ctx context.Context) string {
-	if ProfileContext == nil {
+	var parts []string
+	if ProfileID != nil {
+		if r := ProfileRule(ProfileID(ctx)); r != "" {
+			parts = append(parts, r)
+		}
+	}
+	if ProfileContext != nil {
+		if t := strings.TrimSpace(ProfileContext(ctx)); t != "" {
+			parts = append(parts, clipText(t, maxProfileContext))
+		}
+	}
+	if len(parts) == 0 {
 		return ""
 	}
-	t := strings.TrimSpace(ProfileContext(ctx))
-	if t == "" {
-		return ""
-	}
-	return "\n\n## Profile context\n\n" + clipText(t, maxProfileContext) + "\n"
+	return "\n\n## Profile context\n\n" + strings.Join(parts, "\n\n") + "\n"
 }
 
 const maxProfileContext = 6000
@@ -29,7 +53,7 @@ const maxProfileContext = 6000
 // workspaceRules are the surface rules of the workspace access profile,
 // shared by the worker prompt and the lead's.
 const workspaceRules = "You have full access to this folder and the web, and to every part of the user's mono-agent through " +
-	"`monoagentcli` on your PATH (`monoagentcli ref commands` lists what it can do). Use the surface that owns the work: " +
+	"`monoagentcli --profile <your profile id>` on your PATH (`monoagentcli ref commands` lists what it can do). Use the surface that owns the work: " +
 	"an app being run (job applications, social, browser) -> work on that app's tab with `browser` (or `node run` for its nodes); " +
 	"to-dos -> `task`; files and documents -> `profile documents`; contacts -> `people`; " +
 	"credentials -> the vault (use item names and paths, never print or write a value); " +

@@ -168,7 +168,7 @@ func (n *Node) run(ctx context.Context, cfg runConfig, client *jev.Client, write
 		if err != nil {
 			return nil, err
 		}
-		if err := gate.allowed(p.URL); err != nil {
+		if err := gate.checkPage(drv, p.URL); err != nil {
 			return nil, err // none of a page the caller may not read reaches the output
 		}
 		return p, nil

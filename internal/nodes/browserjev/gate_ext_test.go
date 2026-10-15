@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/extension"
@@ -294,4 +295,91 @@ func TestRunRearmsTheGuardAfterACrossOriginNavigation(t *testing.T) {
 	if got != "guard:arm,act:e1,guard:status,guard:arm,act:e3,guard:status" {
 		t.Errorf("timeline = %s: the guard must be armed again on b.example.com before acting there", got)
 	}
+}
+
+// bridgeStub answers an ExtensionPage's commands the way the extension
+// would: submit_guard with its state, everything else unsupported.
+type bridgeStub struct {
+	state   extension.SubmitGuardState
+	actions []string
+}
+
+func (b *bridgeStub) SendCommand(cmd *extension.Command, _ time.Duration) (*extension.Response, error) {
+	if cmd.Type != extension.CmdSubmitGuard {
+		return nil, fmt.Errorf("extension error: %s is not stubbed", cmd.Type)
+	}
+	action, _ := cmd.Params["action"].(string)
+	b.actions = append(b.actions, action)
+	if action == extension.SubmitGuardArm {
+		b.state.Armed, b.state.Origin = true, "https://shop.example.com"
+	}
+	return &extension.Response{Success: true, Data: b.state}, nil
+}
+
+// A submit held in a frame of the page is recorded with that frame, stored
+// unbound (browserctl repeats only top-frame submits), and its approval is
+// refused and handed back instead of being retried in the top frame.
+func TestExtGuardRefusesASubmitHeldInAFrame(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	db := testdb.Open(t).DB
+	ctx := vault.ContextWithDB(context.Background(), db)
+	stub := &bridgeStub{}
+	g, err := armGuard(ctx, extension.NewExtensionPage(stub, 41))
+	if err != nil {
+		t.Fatal(err)
+	}
+	framed := blockedAt(1, "https://shop.example.com/cart")
+	framed.FrameID = 3
+	stub.state.Blocked = []extension.BlockedSubmit{framed}
+	got, err := g.Blocked(ctx)
+	if err != nil || len(got) != 1 || got[0].FrameID != 3 {
+		t.Fatalf("blocked = %+v, %v", got, err)
+	}
+	id, err := g.Ask(ctx, got[0], hilsend.PreparedBy{AgentID: "chat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, err := browserctl.GetSubmitItem(ctx, db, "default", id)
+	if err != nil || it.FrameID != 3 || it.TabID != 41 || it.FormDigest != "" {
+		t.Fatalf("item = %+v, %v: want frame 3, unbound", it, err)
+	}
+	if _, err := browserctl.DecideSubmitItem(ctx, db, "default", id, true); err != nil {
+		t.Fatal(err)
+	}
+	stub.actions = nil
+	if err := g.Submit(ctx, got[0], id); !errors.Is(err, browserctl.ErrSubmitUnbound) {
+		t.Fatalf("submit = %v, want it refused as unbound", err)
+	}
+	for _, a := range stub.actions {
+		if a == extension.SubmitGuardAllowOnce {
+			t.Errorf("nothing may be let through: %v", stub.actions)
+		}
+	}
+	if it, _ := browserctl.GetSubmitItem(ctx, db, "default", id); it.Status != "approved" {
+		t.Errorf("the approval is handed back: %s", it.Status)
+	}
+
+	// On a local page no approval is asked, and a framed submit is not
+	// repeated in the top frame either.
+	stub.actions = nil
+	local := blockedSubmit{Seq: 2, URL: "http://localhost:5173/", FrameID: 3, Form: browserctl.FormSummary{Submitter: "#go"}}
+	end, err := settleSubmits(ctx, &onceGuard{extGuard: g, b: local}, caller{name: "chat"})
+	if err != nil || end == nil || end.status != "blocked" || !strings.Contains(end.reason, "frame") {
+		t.Fatalf("a framed local submit: %+v %v", end, err)
+	}
+	for _, a := range stub.actions {
+		if a == extension.SubmitGuardAllowOnce {
+			t.Errorf("nothing may be let through: %v", stub.actions)
+		}
+	}
+}
+
+// onceGuard is g reporting b as blocked.
+type onceGuard struct {
+	*extGuard
+	b blockedSubmit
+}
+
+func (o *onceGuard) Blocked(context.Context) ([]blockedSubmit, error) {
+	return []blockedSubmit{o.b}, nil
 }

@@ -2408,13 +2408,17 @@ extension, in any profile that has it attached: tabs, clicks and typing,
 screenshots, console and network reads, the accessibility tree, an
 element's styles, design tokens and source file, pixel diffs, responsive
 sweeps, and `browser pick` to have the user point at an element.
-`monoagentcli ref browser` lists every command with its JSON.
+`monoagentcli ref browser` lists every command with its JSON. Pass
+`--profile <id>` on every one: they act on a profile, and the CLI refuses a
+profile-scoped command without it (the machine-wide `browser allow`,
+`browser browsers` and `browser diff` don't need it). A coder chat's lead
+and its workers are told their profile id in their instructions.
 
 ```bash
-monoagentcli --json browser open http://localhost:5173       # {"tabId":812,"url":…}
-monoagentcli --json browser screenshot --tab 812              # {"path":"…/.monoagent/screenshots/…png",…}
-monoagentcli --json browser console --tab 812 --level error   # {"entries":[…],"next":N}
-monoagentcli --json browser network --tab 812 --failed
+monoagentcli --profile <id> --json browser open http://localhost:5173       # {"tabId":812,"url":…}
+monoagentcli --profile <id> --json browser screenshot --tab 812              # {"path":"…/.monoagent/screenshots/…png",…}
+monoagentcli --profile <id> --json browser console --tab 812 --level error   # {"entries":[…],"next":N}
+monoagentcli --profile <id> --json browser network --tab 812 --failed
 ```
 
 - **Origin policy (agents only; your own terminal is unrestricted).** An
@@ -2436,8 +2440,9 @@ monoagentcli --json browser network --tab 812 --failed
   `browser.submit` Human-in-Loop item, and the command exits **3** with
   `{"status":"awaiting_approval","hil_id":…}`. Only the user's approval
   counts (`hil approve` or the Human in Loop page, which refuse an agent).
-  Then `browser submit --hil <id>` sends exactly that submit, once, from the
-  same tab, only while it still shows the same page and form contents.
+  Then `monoagentcli --profile <id> browser submit --hil <hil_id>` sends
+  exactly that submit, once, from the same tab, only while it still shows
+  the same page and form contents.
 - **browser.jev** arms the same guard (again whenever the page moves to
   another origin, before acting there) when an AI caller started its run: an
   agent's shell, a chat tool call (`run_workflow` starts `workflow run` with
