@@ -41,7 +41,7 @@ const orgWorkerTime = "2006-01-02T15:04:05.000000000Z"
 // reported still leaves the worker something to continue from.
 func (s *AIStore) SaveOrgWorker(profileID, conversationID string, w OrgWorker) error {
 	if profileID == "" {
-		profileID = "default"
+		return ErrProfileRequired
 	}
 	skills, _ := json.Marshal(orEmptyList(w.Skills))
 	allow := 0
@@ -73,7 +73,7 @@ func (s *AIStore) SaveOrgWorker(profileID, conversationID string, w OrgWorker) e
 // oldest first.
 func (s *AIStore) ListOrgWorkers(profileID, conversationID string, limit int) ([]OrgWorker, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, ErrProfileRequired
 	}
 	if limit <= 0 {
 		limit = -1
