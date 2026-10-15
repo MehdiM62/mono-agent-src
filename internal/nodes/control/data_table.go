@@ -57,7 +57,11 @@ func (n *DataTableNode) Execute(ctx context.Context, input workflow.NodeInput, c
 	if db == nil {
 		return nil, fmt.Errorf("core.data_table: data tables need the profile database")
 	}
-	store := datatable.New(db, vault.ProfileIDFromContext(ctx))
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, fmt.Errorf("core.data_table: ran without a profile: %w", perr)
+	}
+	store := datatable.New(db, profile)
 	resource := configStr(config, "resource", "row")
 	op := configStr(config, "operation", "")
 	if op == "" {

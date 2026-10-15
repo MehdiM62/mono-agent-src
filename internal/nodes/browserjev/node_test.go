@@ -106,7 +106,7 @@ func testNode(drv driver, writer textWriter) *Node {
 
 func runNode(t *testing.T, n *Node) map[string]interface{} {
 	t.Helper()
-	out, err := n.Execute(context.Background(), workflow.NodeInput{}, map[string]interface{}{
+	out, err := n.Execute(testCtx(), workflow.NodeInput{}, map[string]interface{}{
 		"url": "https://example.test/", "goal": "Search for zurich", "api_key": "k",
 	})
 	if err != nil {
@@ -228,7 +228,7 @@ func TestInvalidJevAnswerExecutesNothing(t *testing.T) {
 	t.Cleanup(srv.Close)
 	t.Setenv("TYPESAFE_BASE_URL", srv.URL)
 	drv := &fakeDriver{}
-	_, err := testNode(drv, zurich).Execute(context.Background(), workflow.NodeInput{},
+	_, err := testNode(drv, zurich).Execute(testCtx(), workflow.NodeInput{},
 		map[string]interface{}{"url": "u", "goal": "g", "api_key": "k"})
 	if !errors.Is(err, jev.ErrInvalidAnswer) || len(drv.executed) != 0 {
 		t.Fatalf("err=%v executed=%v", err, drv.executed)
@@ -239,7 +239,7 @@ func TestFailOnBlocked(t *testing.T) {
 	blocked := func(map[string]jev.Question) map[string]string { return map[string]string{"operation": "BLOCKED"} }
 	policyServer(t, blocked)
 	n := testNode(&fakeDriver{}, zurich)
-	_, err := n.Execute(context.Background(), workflow.NodeInput{},
+	_, err := n.Execute(testCtx(), workflow.NodeInput{},
 		map[string]interface{}{"url": "u", "goal": "g", "api_key": "k", "fail_on_blocked": true})
 	if err == nil || !strings.Contains(err.Error(), "blocked") {
 		t.Fatalf("err = %v", err)
@@ -256,7 +256,7 @@ func TestConfigValidation(t *testing.T) {
 		"budget":  {"url": "u", "goal": "g", "api_key": "k", "max_actions": float64(0)},
 		"secret":  {"url": "u", "goal": "g", "api_key": "@secret:typesafe"},
 	} {
-		if _, err := n.Execute(context.Background(), workflow.NodeInput{}, cfg); !errors.Is(err, workflow.ErrInvalidConfig) {
+		if _, err := n.Execute(testCtx(), workflow.NodeInput{}, cfg); !errors.Is(err, workflow.ErrInvalidConfig) {
 			t.Errorf("%s: err = %v, want ErrInvalidConfig", name, err)
 		}
 	}
@@ -297,7 +297,7 @@ func TestUnresolvedSecretFallsBackToEnv(t *testing.T) {
 	t.Setenv("TYPESAFE_BASE_URL", srv.URL)
 	n := testNode(&fakeDriver{}, zurich)
 	t.Setenv("TYPESAFE_API_KEY", "env-key")
-	_, _ = n.Execute(context.Background(), workflow.NodeInput{},
+	_, _ = n.Execute(testCtx(), workflow.NodeInput{},
 		map[string]interface{}{"url": "u", "goal": "g", "api_key": "@secret:typesafe"})
 	if calls.Load() != 1 {
 		t.Fatalf("calls = %d", calls.Load())
@@ -311,7 +311,7 @@ func TestClientSeamGetsConfig(t *testing.T) {
 		gotKey = str(config, "api_key")
 		return nil, jev.ErrNoAPIKey
 	}
-	_, err := n.Execute(context.Background(), workflow.NodeInput{},
+	_, err := n.Execute(testCtx(), workflow.NodeInput{},
 		map[string]interface{}{"url": "u", "goal": "g", "api_key": "@secret:other"})
 	if !errors.Is(err, workflow.ErrInvalidConfig) || gotKey != "@secret:other" {
 		t.Fatalf("err = %v key = %q", err, gotKey)

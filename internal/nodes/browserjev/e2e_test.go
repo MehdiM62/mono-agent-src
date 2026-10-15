@@ -126,7 +126,7 @@ func runE2E(t *testing.T, page *devtoolsPage, writer textWriter, config map[stri
 		b := jevpick.NewBrowser(page)
 		return extDriver{b}, func() {}, b.Setup(1120, 780)
 	}}
-	out, err := n.Execute(context.Background(), nodeInputNone, config)
+	out, err := n.Execute(testCtx(), nodeInputNone, config)
 	if err != nil {
 		t.Fatal(err)
 	}

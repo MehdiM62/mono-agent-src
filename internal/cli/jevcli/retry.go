@@ -56,7 +56,10 @@ func jevRetryClassifier(ctx context.Context, nodeType string, err error, attempt
 	if db == nil || err == nil {
 		return true, 0
 	}
-	pid := vault.ProfileIDFromContext(ctx)
+	pid, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return true, 0 // no profile: no Jev opinion, retry as today
+	}
 	// Checked per call: one daemon serves many profiles.
 	if !jevconf.Enabled(db, pid, jevconf.Retry) {
 		return true, 0

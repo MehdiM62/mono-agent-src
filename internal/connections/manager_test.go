@@ -23,7 +23,7 @@ func TestManagerListEmpty(t *testing.T) {
 	mgr, _ := newManagerDB(t)
 	ctx := context.Background()
 
-	conns, err := mgr.List(ctx, "", "")
+	conns, err := mgr.List(ctx, "", "default")
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

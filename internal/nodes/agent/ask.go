@@ -413,8 +413,12 @@ func (t *asker) record(ctx context.Context, model string, res *monomind.TurnResu
 	if wfID == "" && execID == "" {
 		wfID, execID = vault.ExecIDsFromContext(ctx)
 	}
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return // no profile: nothing to attribute the usage to
+	}
 	_ = agentusage.RecordTurn(context.WithoutCancel(ctx), t.db, agentusage.Turn{
-		ProfileID:   vault.ProfileIDFromContext(ctx),
+		ProfileID:   profile,
 		Source:      agentusage.SourceAgentAsk,
 		WorkflowID:  wfID,
 		ExecutionID: execID,

@@ -55,17 +55,17 @@ func TestSplitSecretFields_BrowserMethodHasNoSecretFields(t *testing.T) {
 }
 
 func TestConnectionVaultName(t *testing.T) {
-	c := &Connection{Platform: "github", Label: "Personal"}
+	c := &Connection{ProfileID: "default", Platform: "github", Label: "Personal"}
 	if got := connectionVaultName(c); got != "GitHub API — Personal" {
 		t.Fatalf("got %q, want %q", got, "GitHub API — Personal")
 	}
 
-	c2 := &Connection{Platform: "github", AccountID: "octocat"}
+	c2 := &Connection{ProfileID: "default", Platform: "github", AccountID: "octocat"}
 	if got := connectionVaultName(c2); got != "GitHub API — octocat" {
 		t.Fatalf("got %q, want %q", got, "GitHub API — octocat")
 	}
 
-	c3 := &Connection{Platform: "unknown_platform"}
+	c3 := &Connection{ProfileID: "default", Platform: "unknown_platform"}
 	if got := connectionVaultName(c3); got != "unknown_platform" {
 		t.Fatalf("got %q, want %q", got, "unknown_platform")
 	}

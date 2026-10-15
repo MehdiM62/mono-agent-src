@@ -27,7 +27,7 @@ func TestConnectOAuth1GenericPlatformUsesFieldEndpoints(t *testing.T) {
 		OAuth1AccessTokenURL: prov.URL + "/access", OAuth1ConsumerKey: "ck", OAuth1ConsumerSecret: "cs",
 		OAuth1SignatureMethod: "HMAC-SHA256", "base_url": "https://api.example.com",
 	}
-	conn, err := mgr.ConnectOAuth1(context.Background(), "generic_oauth1", fields, nil, "")
+	conn, err := mgr.ConnectOAuth1(context.Background(), "generic_oauth1", fields, nil, "default")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestConnectOAuth1GenericPlatformUsesFieldEndpoints(t *testing.T) {
 	}
 
 	delete(fields, OAuth1AccessTokenURL)
-	if _, err := mgr.ConnectOAuth1(context.Background(), "generic_oauth1", fields, nil, ""); err == nil || !strings.Contains(err.Error(), OAuth1AccessTokenURL) {
+	if _, err := mgr.ConnectOAuth1(context.Background(), "generic_oauth1", fields, nil, "default"); err == nil || !strings.Contains(err.Error(), OAuth1AccessTokenURL) {
 		t.Errorf("missing access token URL: err = %v", err)
 	}
 }

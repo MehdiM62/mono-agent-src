@@ -108,8 +108,12 @@ func (r *runner) resolveFor(t *nodeTask, item Item) (map[string]interface{}, err
 	}
 	restorePerItemFields(resolved, state)
 	if vaultDB := vault.DBFromContext(t.ctx); vaultDB != nil {
+		profile, perr := vault.ProfileIDFromContext(t.ctx)
+		if perr != nil {
+			return nil, fmt.Errorf("resolve config: ran without a profile: %w", perr)
+		}
 		_ = vault.ResolveConfig(t.ctx, vaultDB, resolved)
-		_ = secrets.ResolveConfig(t.ctx, vaultDB, vault.ProfileIDFromContext(t.ctx), resolved)
+		_ = secrets.ResolveConfig(t.ctx, vaultDB, profile, resolved)
 	}
 	return resolved, nil
 }
@@ -134,7 +138,11 @@ func (r *runner) runTask(t *nodeTask) {
 			}
 			entries := publication.Normalize(publication.CaptureInput{NodeType: t.node.Type, Config: t.config, Outputs: pubOutputs,
 				Source: withNodeRun(PublicationSource(ctx, t.input), t.execNode.ID)})
-			publication.Record(ctx, publication.NewStore(db, vault.ProfileIDFromContext(ctx)), entries, func(msg string) { logger.Warn().Msg(msg) })
+			if profile, perr := vault.ProfileIDFromContext(ctx); perr != nil {
+				logger.Warn().Err(perr).Msg("publication not recorded: ran without a profile")
+			} else {
+				publication.Record(ctx, publication.NewStore(db, profile), entries, func(msg string) { logger.Warn().Msg(msg) })
+			}
 		}
 	}
 	if t.perItem != nil {

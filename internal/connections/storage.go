@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/secrets"
 
 	"github.com/google/uuid"
@@ -99,7 +100,7 @@ func (s *Store) Save(ctx context.Context, c *Connection) error {
 		c.Status = "active"
 	}
 	if c.ProfileID == "" {
-		c.ProfileID = "default"
+		return fmt.Errorf("connections.Save: %w", profiledir.ErrNoProfile)
 	}
 
 	secretFields, nonSecret := splitSecretFields(c.Platform, c.Method, c.Data)
@@ -141,22 +142,22 @@ ON CONFLICT(id) DO UPDATE SET
 // Get returns the connection with the given ID, or nil if not found.
 //
 // An optional profileID scopes the lookup to a single profile with the same
-// COALESCE(profile_id,'default') = ? predicate Delete/List use (an empty
-// profileID argument is normalized to "default"). Without it the lookup
+// profile_id = ? predicate Delete/List use (an empty profileID argument is
+// profiledir.ErrNoProfile). Without it the lookup
 // stays unscoped for legacy callers: cmd/monoagentcli/node.go's
 // resolveCredentialData post-checks conn.ProfileID itself, and
 // secret_export.go's rematerializer must re-read rows matched by
 // ListByPlatform(profileID) whatever profile that is.
 func (s *Store) Get(ctx context.Context, id string, profileID ...string) (*Connection, error) {
-	q := `SELECT id, platform, method, label, account_id, data, status, last_tested, COALESCE(profile_id,'default'), COALESCE(vault_ref,''), created_at, updated_at
+	q := `SELECT id, platform, method, label, account_id, data, status, last_tested, COALESCE(profile_id,''), COALESCE(vault_ref,''), created_at, updated_at
           FROM connections WHERE id = ?`
 	args := []interface{}{id}
 	if len(profileID) > 0 {
 		p := profileID[0]
 		if p == "" {
-			p = "default"
+			return nil, profiledir.ErrNoProfile
 		}
-		q += ` AND COALESCE(profile_id,'default') = ?`
+		q += ` AND profile_id = ?`
 		args = append(args, p)
 	}
 	row := s.db.QueryRowContext(ctx, q, args...)
@@ -167,12 +168,12 @@ func (s *Store) Get(ctx context.Context, id string, profileID ...string) (*Conne
 // lookup if the ID isn't found. Both lookups are scoped to profileID: a
 // workflow running under profile B must never resolve — and silently inject
 // — a credential that only exists under profile A. An empty profileID is
-// normalized to "default". When several same-profile connections exist for
+// profiledir.ErrNoProfile. When several same-profile connections exist for
 // a platform, active ones are preferred. OAuth tokens are refreshed if
 // expired.
 func (s *Store) GetOrResolve(ctx context.Context, idOrPlatform, profileID string) (*Connection, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, profiledir.ErrNoProfile
 	}
 
 	// Try by ID first, scoped to the profile like Delete/List.
@@ -206,8 +207,11 @@ func (s *Store) GetOrResolve(ctx context.Context, idOrPlatform, profileID string
 
 // ListAll returns all connections ordered by platform then created_at.
 func (s *Store) ListAll(ctx context.Context, profileID string) ([]Connection, error) {
-	const q = `SELECT id, platform, method, label, account_id, data, status, last_tested, COALESCE(profile_id,'default'), COALESCE(vault_ref,''), created_at, updated_at
-	           FROM connections WHERE COALESCE(profile_id,'default') = ? ORDER BY platform, created_at`
+	if profileID == "" {
+		return nil, profiledir.ErrNoProfile
+	}
+	const q = `SELECT id, platform, method, label, account_id, data, status, last_tested, COALESCE(profile_id,''), COALESCE(vault_ref,''), created_at, updated_at
+	           FROM connections WHERE profile_id = ? ORDER BY platform, created_at`
 	rows, err := s.db.QueryContext(ctx, q, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("connections.ListAll: %w", err)
@@ -223,23 +227,16 @@ func (s *Store) ListAll(ctx context.Context, profileID string) ([]Connection, er
 	return out, nil
 }
 
-// ListByPlatform returns connections for a given platform. If profileID is non-empty,
-// only that profile's connections are returned; empty profileID returns all profiles.
+// ListByPlatform returns a profile's connections for a given platform. An empty
+// profileID is profiledir.ErrNoProfile; it never means "every profile".
 func (s *Store) ListByPlatform(ctx context.Context, platform, profileID string) ([]Connection, error) {
-	var (
-		rows *sql.Rows
-		err  error
-	)
 	if profileID == "" {
-		rows, err = s.db.QueryContext(ctx,
-			`SELECT id, platform, method, label, account_id, data, status, last_tested, COALESCE(profile_id,'default'), COALESCE(vault_ref,''), created_at, updated_at
-			 FROM connections WHERE platform = ? ORDER BY created_at`, platform)
-	} else {
-		rows, err = s.db.QueryContext(ctx,
-			`SELECT id, platform, method, label, account_id, data, status, last_tested, COALESCE(profile_id,'default'), COALESCE(vault_ref,''), created_at, updated_at
-			 FROM connections WHERE platform = ? AND COALESCE(profile_id,'default') = ? ORDER BY created_at`,
-			platform, profileID)
+		return nil, profiledir.ErrNoProfile
 	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, platform, method, label, account_id, data, status, last_tested, COALESCE(profile_id,''), COALESCE(vault_ref,''), created_at, updated_at
+		 FROM connections WHERE platform = ? AND profile_id = ? ORDER BY created_at`,
+		platform, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("connections.ListByPlatform: %w", err)
 	}
@@ -252,14 +249,14 @@ func (s *Store) ListByPlatform(ctx context.Context, platform, profileID string) 
 // Returns an error if the row does not exist.
 func (s *Store) Delete(ctx context.Context, id, profileID string) error {
 	if profileID == "" {
-		profileID = "default"
+		return profiledir.ErrNoProfile
 	}
 	if conn, getErr := s.Get(ctx, id, profileID); getErr == nil && conn != nil && conn.VaultRef != "" {
 		if delErr := secrets.Delete(ctx, s.db, profileID, conn.VaultRef); delErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: connection %s deleted but its vault entry %s could not be removed: %v\n", id, conn.VaultRef, delErr)
 		}
 	}
-	const q = `DELETE FROM connections WHERE id = ? AND COALESCE(profile_id,'default') = ?`
+	const q = `DELETE FROM connections WHERE id = ? AND profile_id = ?`
 	res, err := s.db.ExecContext(ctx, q, id, profileID)
 	if err != nil {
 		return fmt.Errorf("connections.Delete: %w", err)
@@ -276,8 +273,8 @@ func (s *Store) Delete(ctx context.Context, id, profileID string) error {
 
 // MarkTested updates the status, last_tested, and updated_at fields for the
 // given connection ID. An optional profileID scopes the update to a single
-// profile with the same COALESCE(profile_id,'default') = ? predicate
-// Delete/List use (an empty profileID argument is normalized to "default");
+// profile with the same profile_id = ? predicate Delete/List use (an empty
+// profileID argument is profiledir.ErrNoProfile);
 // without it the update is unscoped for legacy callers whose call-site has
 // no profile context available.
 func (s *Store) MarkTested(ctx context.Context, id, status string, profileID ...string) error {
@@ -287,9 +284,9 @@ func (s *Store) MarkTested(ctx context.Context, id, status string, profileID ...
 	if len(profileID) > 0 {
 		p := profileID[0]
 		if p == "" {
-			p = "default"
+			return profiledir.ErrNoProfile
 		}
-		q += ` AND COALESCE(profile_id,'default') = ?`
+		q += ` AND profile_id = ?`
 		args = append(args, p)
 	}
 	res, err := s.db.ExecContext(ctx, q, args...)

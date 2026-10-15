@@ -8,12 +8,14 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // ConnectOAuthWithProgress runs the full OAuth connect flow, calling progress(msg, kind) at each step.
 // kind is "info", "success", or "error". Returns the saved Connection on success.
 // If clientID/clientSecret are non-empty they override env-var lookup.
-// profileID scopes the connection; empty string defaults to "default".
+// profileID scopes the connection; an empty one is profiledir.ErrNoProfile.
 func (m *Manager) ConnectOAuthWithProgress(ctx context.Context, platformID string, progress func(msg, kind string), clientID, clientSecret, profileID string) (*Connection, error) {
 	return m.ConnectOAuthWithScopes(ctx, platformID, progress, clientID, clientSecret, profileID, nil)
 }
@@ -39,7 +41,7 @@ func (m *Manager) ConnectOAuthWithFields(ctx context.Context, platformID string,
 	}
 
 	if profileID == "" {
-		profileID = "default"
+		return nil, profiledir.ErrNoProfile
 	}
 	// Reuse existing connection for this platform+profile if one exists (reconnect flow).
 	conn := &Connection{
