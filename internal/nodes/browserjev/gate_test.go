@@ -70,7 +70,8 @@ type fakeGuard struct {
 	decisions []string // in order; the last one repeats
 	asked     []hilsend.PreparedBy
 	submitted []string
-	changed   bool // the page no longer shows what was approved
+	changed   bool     // the page no longer shows what was approved
+	follows   []string // the page URLs Follow saw, one per action
 	drv       *fakeDriver
 }
 
@@ -102,6 +103,11 @@ func (g *fakeGuard) Submit(_ context.Context, b blockedSubmit, id string) error 
 	}
 	g.submitted = append(g.submitted, id)
 	g.drv.results = g.drv.query != ""
+	return nil
+}
+
+func (g *fakeGuard) Follow(_ context.Context, pageURL string) error {
+	g.follows = append(g.follows, pageURL)
 	return nil
 }
 

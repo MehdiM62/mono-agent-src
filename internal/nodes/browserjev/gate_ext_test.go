@@ -12,8 +12,10 @@ import (
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/jevpick"
 	"github.com/monoes/mono-agent/internal/testdb"
 	"github.com/monoes/mono-agent/internal/vault"
+	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 // fakeGuardPage records submit_guard calls and answers with state.
@@ -21,13 +23,18 @@ type fakeGuardPage struct {
 	state     extension.SubmitGuardState
 	actions   []string
 	resubmits []browserctl.FormSummary
-	failWith  error // what the next resubmit returns
+	failWith  error     // what the next resubmit returns
+	origin    string    // the origin an arm reports
+	log       *[]string // a timeline shared with a driver, when set
 }
 
 func (p *fakeGuardPage) SubmitGuard(action string) (*extension.SubmitGuardState, error) {
 	p.actions = append(p.actions, action)
+	if p.log != nil {
+		*p.log = append(*p.log, "guard:"+action)
+	}
 	if action == extension.SubmitGuardArm {
-		p.state.Armed = true
+		p.state.Armed, p.state.Origin = true, p.origin
 	}
 	st := p.state
 	return &st, nil
@@ -204,5 +211,77 @@ func TestExtGuardHandsBackAnUnsentApproval(t *testing.T) {
 		if it, _ := browserctl.GetSubmitItem(ctx, db, "default", id); it.Status != tc.want {
 			t.Errorf("after %v: status %s, want %s", tc.fail, it.Status, tc.want)
 		}
+	}
+}
+
+// A page that moved to another origin is guarded again before anything acts
+// on it: the extension disarms a tab whose top page changes origin.
+func TestExtGuardFollowsTheTabToANewOrigin(t *testing.T) {
+	db := testdb.Open(t).DB
+	ctx := vault.ContextWithDB(context.Background(), db)
+	page := &fakeGuardPage{origin: "https://a.example.com"}
+	g, err := armGuard(ctx, page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page.actions = nil
+	for _, u := range []string{"https://a.example.com/cart", "", "about:blank"} {
+		if err := g.Follow(ctx, u); err != nil || len(page.actions) != 0 {
+			t.Fatalf("%q: the guard holds this page already: %v %v", u, err, page.actions)
+		}
+	}
+	if err := g.Follow(ctx, "https://b.example.com/checkout"); err != nil || strings.Join(page.actions, ",") != "arm" {
+		t.Fatalf("another origin: %v %v", err, page.actions)
+	}
+	if err := g.Follow(ctx, "https://b.example.com/pay"); err != nil || len(page.actions) != 1 {
+		t.Errorf("armed there once: %v", page.actions)
+	}
+}
+
+// navDriver moves to another origin after its first action. Its guard is a
+// real extGuard over a fakeGuardPage, both writing one timeline.
+type navDriver struct {
+	*fakeDriver
+	page *fakeGuardPage
+	log  *[]string
+}
+
+func (d *navDriver) ArmSubmitGuard(ctx context.Context) (submitGuard, error) {
+	return armGuard(ctx, d.page)
+}
+
+func (d *navDriver) Observe(ctx context.Context) (*jevpick.PageState, error) {
+	p, err := d.fakeDriver.Observe(ctx)
+	if err == nil {
+		p.URL = "https://a.example.com/"
+		if len(d.executed) > 0 {
+			p.URL = "https://b.example.com/"
+		}
+		if d.results {
+			p.URL += "results"
+		}
+	}
+	return p, err
+}
+
+func (d *navDriver) Act(ctx context.Context, p *jevpick.PageState, a *jevpick.Action, text string) error {
+	*d.log = append(*d.log, "act:"+a.ID)
+	return d.fakeDriver.Act(ctx, p, a, text)
+}
+
+func TestRunRearmsTheGuardAfterACrossOriginNavigation(t *testing.T) {
+	t.Setenv(EnvAICaller, "chat")
+	policyServer(t, nil)
+	var log []string
+	drv := &navDriver{fakeDriver: &fakeDriver{}, page: &fakeGuardPage{origin: "https://a.example.com", log: &log}, log: &log}
+	n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) { return drv, func() {}, nil }}
+	ctx := vault.ContextWithDB(context.Background(), testdb.Open(t).DB)
+	out, err := n.Execute(ctx, workflow.NodeInput{}, map[string]interface{}{"url": "https://a.example.com/", "goal": "Search for zurich", "api_key": "k"})
+	if err != nil || out[0].Items[0].JSON["status"] != "done" {
+		t.Fatalf("run: %v %v", out, err)
+	}
+	got := strings.Join(log, ",")
+	if got != "guard:arm,act:e1,guard:status,guard:arm,act:e3,guard:status" {
+		t.Errorf("timeline = %s: the guard must be armed again on b.example.com before acting there", got)
 	}
 }

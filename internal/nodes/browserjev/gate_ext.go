@@ -63,7 +63,8 @@ type extGuard struct {
 	page    guardPage
 	db      *sql.DB
 	profile string
-	seen    int64 // the newest guard record handled
+	seen    int64  // the newest guard record handled
+	origin  string // the origin it was armed on, as the extension reports it
 }
 
 func armGuard(ctx context.Context, p guardPage) (*extGuard, error) {
@@ -75,7 +76,7 @@ func armGuard(ctx context.Context, p guardPage) (*extGuard, error) {
 	if err != nil {
 		return nil, err
 	}
-	g := &extGuard{page: p, db: db, profile: vault.ProfileIDFromContext(ctx)}
+	g := &extGuard{page: p, db: db, profile: vault.ProfileIDFromContext(ctx), origin: browserctl.Origin(st.Origin)}
 	for _, b := range st.Blocked {
 		g.seen = max(g.seen, b.Seq)
 	}
@@ -87,10 +88,12 @@ func (g *extGuard) Blocked(ctx context.Context) ([]blockedSubmit, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read the submit guard: %w", err)
 	}
-	if !st.Armed { // the extension restarted: guard the tab again
-		if _, err := g.page.SubmitGuard(extension.SubmitGuardArm); err != nil {
+	if !st.Armed { // the extension restarted, the page left its origin, or the tab sat idle: guard it again
+		re, err := g.page.SubmitGuard(extension.SubmitGuardArm)
+		if err != nil {
 			return nil, fmt.Errorf("re-arm the submit guard: %w", err)
 		}
+		g.origin = browserctl.Origin(re.Origin)
 	}
 	var newest int64
 	for _, b := range st.Blocked {
@@ -107,6 +110,21 @@ func (g *extGuard) Blocked(ctx context.Context) ([]blockedSubmit, error) {
 	}
 	g.seen = max(g.seen, newest)
 	return out, nil
+}
+
+func (g *extGuard) Follow(ctx context.Context, pageURL string) error {
+	if pageURL == "" || pageURL == "about:blank" {
+		return nil
+	}
+	origin := browserctl.Origin(pageURL)
+	if origin == g.origin {
+		return nil
+	}
+	if _, err := g.page.SubmitGuard(extension.SubmitGuardArm); err != nil {
+		return fmt.Errorf("re-arm the submit guard on %s: %w", origin, err)
+	}
+	g.origin = origin
+	return nil
 }
 
 func formSummary(f extension.SubmitForm) browserctl.FormSummary {

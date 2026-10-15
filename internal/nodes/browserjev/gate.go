@@ -131,6 +131,11 @@ type submitGuard interface {
 	// Submit lets b through, exactly once, then the guard holds again; with
 	// hilID, the approved item is used up by it.
 	Submit(ctx context.Context, b blockedSubmit, hilID string) error
+	// Follow re-arms the guard when pageURL is on another origin than the
+	// one it was armed on: the extension disarms a tab whose top page moves
+	// to another origin, so a submit there would go unguarded until the next
+	// Blocked.
+	Follow(ctx context.Context, pageURL string) error
 	// TabID is the tab it guards (0 when the page can't say).
 	TabID() int
 }
