@@ -51,6 +51,10 @@
   cursor: default;
 }
 
+.coder-reload {
+  color: var(--ink-2);
+}
+
 .coder-target {
   display: flex;
   align-items: center;
