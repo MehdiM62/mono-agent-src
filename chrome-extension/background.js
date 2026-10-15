@@ -41,6 +41,10 @@ importScripts("task_outbox.js", "task_bridge.js", "task_menu.js");
 // The side panel's chat (issue #451): it asks over ask.js, so it also follows
 // the recall group. summary_ai.js (loaded above) supplies its runtime/model.
 importScripts("chat_core.js", "chat_bridge.js");
+// Handing work to the coder (C6): the side panel's Coder section and the
+// right-click items. Over ask.js too; the menu items hang under the capture
+// group's parent, so this follows it.
+importScripts("coder_bridge.js", "coder_menu.js");
 // The raw CDP proxy (GLU-01/RIG-07): the generalisation of eval_cdp/type_cdp
 // that lets monobrowse drive the user's own Chrome. Events flow back through
 // it unasked-for, which is why it needs its own module rather than another
@@ -1494,6 +1498,9 @@ MonoTaskBridge.install({
 });
 // Its menu items and the add-task shortcut (task_menu.js).
 MonoTaskMenu.install();
+// The coder's requests, its picker (the one pick_element shows) and its menu items.
+MonoCoderBridge.install({ isConnected: openAndSignedIn, pickElement });
+MonoCoderMenu.install();
 
 // The activity recorder rides the same socket: kind:"recording" frames out,
 // buffered through its own outbox while the bridge is down.
