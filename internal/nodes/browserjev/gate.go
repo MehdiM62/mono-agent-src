@@ -27,10 +27,30 @@ type caller struct {
 // aiCaller reports who started this run when it was not the user: a chat
 // tool call (EnvAICaller), an agent's process (a coder chat, an org role's
 // shell, a coding agent's shell or MCP server: browserctl.IsAgentContext,
-// the test `monoagentcli browser` holds agents to), or the org side (a granted call, a message to an
+// the test `monoagentcli browser` holds agents to), a run either of them
+// started with `workflow run` (workflow.AICallerKey), or the org side (a granted call, a message to an
 // automation role, a trigger.org event). A run the user started from the
 // app, a terminal, a schedule or a webhook is none of these.
 func aiCaller(ctx context.Context) (caller, bool) {
+	if c, ok := envCaller(); ok {
+		return c, true
+	}
+	// A run this process didn't start: the AI caller's `workflow run` marked
+	// it (MarkAICaller).
+	if v, _ := workflow.TriggerDataFrom(ctx)[workflow.AICallerKey].(string); strings.TrimSpace(v) != "" {
+		return caller{name: v, by: hilsend.PreparedBy{AgentID: v}}, true
+	}
+	switch workflow.TriggerTypeFrom(ctx) {
+	case workflow.TriggerTypeOrgTool, workflow.TriggerTypeOrgMessage, workflow.TriggerNodeTypeOrg:
+		src := workflow.PublicationSource(ctx, workflow.NodeInput{})
+		return caller{name: strings.TrimSpace("org " + src.OrgID),
+			by: hilsend.PreparedBy{Org: src.OrgID, Role: src.RoleID, AgentID: src.AgentID}}, true
+	}
+	return caller{}, false
+}
+
+// envCaller is an AI caller this process's environment names.
+func envCaller() (caller, bool) {
 	if v := strings.TrimSpace(os.Getenv(EnvAICaller)); v != "" {
 		return caller{name: v, by: hilsend.PreparedBy{AgentID: v}}, true
 	}
@@ -41,13 +61,16 @@ func aiCaller(ctx context.Context) (caller, bool) {
 		}
 		return caller{name: name, by: browserctl.RequestedBy()}, true
 	}
-	switch workflow.TriggerTypeFrom(ctx) {
-	case workflow.TriggerTypeOrgTool, workflow.TriggerTypeOrgMessage, workflow.TriggerNodeTypeOrg:
-		src := workflow.PublicationSource(ctx, workflow.NodeInput{})
-		return caller{name: strings.TrimSpace("org " + src.OrgID),
-			by: hilsend.PreparedBy{Org: src.OrgID, Role: src.RoleID, AgentID: src.AgentID}}, true
-	}
 	return caller{}, false
+}
+
+// MarkAICaller marks a run's trigger data when an AI caller starts it from
+// this process (`workflow run`), so the engine that runs it — this one, or a
+// daemon that adopts a --no-wait run or resumes a paused one — gates it too.
+func MarkAICaller(data map[string]interface{}) {
+	if c, ok := envCaller(); ok && data != nil {
+		data[workflow.AICallerKey] = c.name
+	}
 }
 
 // blockedSubmit is one submit the guard stopped (C1 submit_guard's blocked[]).

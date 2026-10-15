@@ -29,7 +29,7 @@ const BrowserRules = "The user's browser: `monoagentcli browser` (`monoagentcli 
 
 // profileRules is what each access profile tells the worker it may do.
 var profileRules = map[string]string{
-	ProfileWorkspace: workspaceRules,
+	ProfileWorkspace: workspaceRules + " " + BrowserRules,
 	ProfileCoding:    "You have full access to this folder: run commands, edit and create files, and use the web. " + BrowserRules,
 	ProfileQA: "You have full access to this folder and the web, and `monoagentcli` is on your PATH. " + BrowserRules +
 		" `monoagentcli ref commands` lists the rest (`node run` for browser.* nodes). Test like a user would and report evidence.",

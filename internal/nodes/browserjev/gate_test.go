@@ -30,8 +30,20 @@ func TestAICaller(t *testing.T) {
 		}
 	}
 
+	marked := workflow.WithTrigger(ctx, "trigger.manual", map[string]interface{}{workflow.AICallerKey: "an agent (CLAUDECODE)"})
+	if c, ok := aiCaller(marked); !ok || c.name != "an agent (CLAUDECODE)" {
+		t.Errorf("a run an agent's `workflow run` marked (a daemon runs it): %+v %v", c, ok)
+	}
+	data := map[string]interface{}{"who": "zed"}
+	if MarkAICaller(data); len(data) != 1 {
+		t.Errorf("the user's own run is not marked: %v", data)
+	}
+
 	t.Setenv("CLAUDECODE", "1")
 	t.Setenv(hilsend.EnvAgentRole, "qa")
+	if MarkAICaller(data); data[workflow.AICallerKey] != "an agent (CLAUDECODE)" {
+		t.Errorf("an agent's run is marked: %v", data)
+	}
 	if c, ok := aiCaller(ctx); !ok || c.name != "an agent (CLAUDECODE)" || c.by.Role != "qa" {
 		t.Errorf("an agent's shell: %+v %v", c, ok)
 	}

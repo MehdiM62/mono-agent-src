@@ -236,8 +236,9 @@ shaky run matters.
 Skips file inputs too; frames, shadow DOM, canvas and uploads can block.
 Get a key at console.typesafe.ai and store it: "monoagentcli jev key set".
 Form submits need approval when an AI started the run (a coder or org role's
-shell, a coding agent, a chat tool call, a granted call, an automation role
-or trigger.org): the extension's submit guard holds a submit on any page but
+shell, a coding agent, a chat tool call, a workflow run one of them started,
+also when a daemon runs it, a granted call, an automation role or
+trigger.org): the extension's submit guard holds a submit on any page but
 localhost/dev, it becomes a browser.submit Human-in-Loop item, and the run
 waits. Approved, it is sent and the goal goes on; rejected, status blocked;
 still waiting at the timeout, status awaiting_approval with hil_id and
