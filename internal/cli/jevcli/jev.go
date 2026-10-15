@@ -31,8 +31,7 @@ func NewCommand(d Deps) *cobra.Command {
 			"from a closed set of options, and every implicit surface is off until\n" +
 			"`jev enable <surface>` for the profile.\n" +
 			"\n" +
-			"Key: the profile's vault (`jev key set`, key on stdin; an entry named\n" +
-			"\"typesafe\" or e.g. \"Jev Api key\" is found), else TYPESAFE_API_KEY. TYPESAFE_DEFAULT_MODEL and\n" +
+			"Key: the machine-wide vault, shared by all profiles (`jev key set`, key on stdin; a key in a profile's vault still works as a fallback; `jev key adopt` copies it), else TYPESAFE_API_KEY. TYPESAFE_DEFAULT_MODEL and\n" +
 			"TYPESAFE_BASE_URL override the model and API host.",
 	}
 	cmd.AddCommand(
@@ -89,6 +88,9 @@ func jevKeyErr(err error) error {
 	if errors.Is(err, jev.ErrNoAPIKey) {
 		return clicore.AuthConnection("%v — store one with `monoagentcli jev key set` (key on stdin) or set TYPESAFE_API_KEY", err)
 	}
+	if errors.Is(err, jevconf.ErrKeyUnreadable) {
+		return clicore.AuthConnection("%v — check that the OS keyring or vault passphrase is available; the key itself is stored", err)
+	}
 	return err
 }
 
@@ -104,7 +106,7 @@ type jevSurfaceStatus struct {
 
 type jevStatus struct {
 	ProfileID string             `json:"profile_id"`
-	KeySource string             `json:"key_source"` // config | vault | env | none
+	KeySource string             `json:"key_source"` // config | vault | profile-vault | env | none
 	KeyEntry  string             `json:"key_entry"`  // vault entry name when key_source is vault
 	Model     string             `json:"model"`
 	BaseURL   string             `json:"base_url"`
@@ -127,7 +129,7 @@ func newJevStatusCmd(d Deps) *cobra.Command {
 			if source, err := jevconf.KeySource(cmd.Context(), db.DB, d.ProfileID()); err == nil {
 				st.KeySource = source
 			}
-			if name, ok := jevconf.VaultKeyName(cmd.Context(), db.DB, d.ProfileID()); ok {
+			if name, ok := jevconf.VaultKeyName(cmd.Context(), db.DB); ok {
 				st.KeyEntry = name
 			}
 			for _, s := range jevconf.Surfaces {
@@ -218,7 +220,7 @@ func newJevEnableCmd(d Deps) *cobra.Command {
 				return err
 			}
 			eff := jevconf.Threshold(db.DB, d.ProfileID(), s, jevconf.DefaultThreshold[s])
-			if _, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, d.ProfileID(), ""); err != nil {
+			if _, _, err := jevconf.ResolveKey(cmd.Context(), db.DB, d.ProfileID(), ""); errors.Is(err, jev.ErrNoAPIKey) {
 				fmt.Fprintln(cmd.ErrOrStderr(), "note: no TypeSafe key yet, so the surface stays inactive — store one with `monoagentcli jev key set` or set TYPESAFE_API_KEY")
 			}
 			if d.JSONOutput() {

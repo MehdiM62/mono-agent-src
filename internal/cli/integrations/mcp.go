@@ -107,8 +107,8 @@ on a server started with --allow-api-exposure too (what leaves the machine is th
 operator's decision: prompts then go to TypeSafe) and with acknowledge_egress:
 true; switching it off needs neither. It never creates or reads the Jev key.
 
-Honors the global --profile flag (or the MONOAGENT_PROFILE environment
-variable) and --db-path, exactly like every other command.`,
+Serves the profile named by the global --profile flag (the server also reads
+MONOAGENT_PROFILE today, which is being removed) and honors --db-path.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// A process monomind spawned for an org role may only serve a
 			// grant: a hand-added provider running plain `mcp` would give

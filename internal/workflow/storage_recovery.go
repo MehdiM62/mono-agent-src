@@ -301,9 +301,15 @@ func (s *SQLiteWorkflowStore) PruneExecutions(ctx context.Context, workflowID st
 		return fmt.Errorf("pruning executions for workflow %s: %w", workflowID, err)
 	}
 
-	// hil_pending rows referencing no existing execution (orphans).
+	// hil_pending rows referencing no existing execution (orphans). A send
+	// item ("send:<id>", internal/hilsend) and a browser submit item
+	// ("browser:<id>", internal/browserctl) have no execution behind them:
+	// one is kept while it is still to be used (pending, approved, or a send
+	// being sent), and for 7 days after it was last decided or used.
 	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM hil_pending WHERE execution_id NOT IN (SELECT id FROM workflow_executions)`); err != nil {
+		`DELETE FROM hil_pending WHERE execution_id NOT IN (SELECT id FROM workflow_executions)
+		   AND NOT ((execution_id LIKE 'send:%' OR execution_id LIKE 'browser:%')
+		        AND (status IN ('pending', 'approved', 'sending') OR updated_at >= datetime('now', '-7 days')))`); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("pruning executions for workflow %s: %w", workflowID, err)
 	}

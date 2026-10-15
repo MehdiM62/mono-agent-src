@@ -26,7 +26,7 @@ type JevSurface struct {
 // (never the key itself), the model, and each surface's state.
 type JevStatusInfo struct {
 	ProfileID string       `json:"profile_id"`
-	KeySource string       `json:"key_source"` // config | vault | env | none
+	KeySource string       `json:"key_source"` // config | vault | profile-vault | env | none
 	KeyEntry  string       `json:"key_entry"`  // vault entry name when key_source is vault
 	Model     string       `json:"model"`
 	BaseURL   string       `json:"base_url"`
@@ -107,7 +107,7 @@ func (a *App) JevStatus() (JevStatusInfo, error) {
 	return st, nil
 }
 
-// JevSetKey stores the TypeSafe key in the profile's vault. The key is
+// JevSetKey stores the TypeSafe key in the machine-wide vault. The key is
 // passed only on stdin.
 func (a *App) JevSetKey(key string) (JevKeySetResult, error) {
 	if err := a.signedOut(); err != nil {

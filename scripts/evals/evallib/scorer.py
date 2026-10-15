@@ -25,7 +25,7 @@ RUN_CHECKS = {"run_status", "output", "file"}
 
 
 def find_workflow(sb, name):
-    res = sb.cli(["--json", "workflow", "list"])
+    res = sb.cli(sb.p + ["--json", "workflow", "list"])
     wfs = res.json()
     if isinstance(wfs, dict):
         wfs = wfs.get("workflows") or []
@@ -134,7 +134,7 @@ class Scorer:
             for chk in self.task["checks"]:
                 results.append(self._r(chk, False, "no workflow named %r was saved" % name))
             return results
-        got = self.sb.cli(["--json", "workflow", "get", self.wf["id"]])
+        got = self.sb.cli(self.sb.p + ["--json", "workflow", "get", self.wf["id"]])
         self.full = got.json() or {}
         if any(c["type"] in RUN_CHECKS for c in self.task["checks"]):
             self._run()
@@ -158,11 +158,11 @@ class Scorer:
     def _run(self):
         wid = self.wf["id"]
         if not self.full.get("is_active"):
-            act = self.sb.cli(["workflow", "activate", wid])
+            act = self.sb.cli(self.sb.p + ["workflow", "activate", wid])
             if act.code != 0:
                 self.run_error = "activate exit %d: %s" % (act.code, act.stderr.strip()[-300:])
                 return
-        res = self.sb.cli(["--json", "workflow", "run", wid, "--timeout", "90s"] + self._input_args(),
+        res = self.sb.cli(self.sb.p + ["--json", "workflow", "run", wid, "--timeout", "90s"] + self._input_args(),
                           timeout=150)
         self.run = res.json()
         if self.run is None:
@@ -176,11 +176,11 @@ class Scorer:
         return n.get("node_type") or n.get("type")
 
     def c_validate_ok(self, chk):
-        r = self.sb.cli(["workflow", "validate", self.wf["id"]])
+        r = self.sb.cli(self.sb.p + ["workflow", "validate", self.wf["id"]])
         return r.code == 0, "exit %d: %s" % (r.code, (r.stdout + r.stderr).strip()[-300:])
 
     def c_dry_run_ok(self, chk):
-        r = self.sb.cli(["workflow", "run", self.wf["id"], "--dry-run"])
+        r = self.sb.cli(self.sb.p + ["workflow", "run", self.wf["id"], "--dry-run"])
         return r.code == 0, "exit %d: %s" % (r.code, (r.stdout + r.stderr).strip()[-300:])
 
     def c_run_status(self, chk):
@@ -263,7 +263,7 @@ class Scorer:
         if self.task.get("input") is not None:
             args["input"] = json.loads(self.sb.subst(json.dumps(self.task["input"])))
         if not self.full.get("is_active"):
-            self.sb.cli(["workflow", "activate", self.wf["id"]])
+            self.sb.cli(self.sb.p + ["workflow", "activate", self.wf["id"]])
         is_err, text = self._mcp_call("workflow_run", args)
         try:
             st = json.loads(text).get("status")

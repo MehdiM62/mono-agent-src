@@ -201,8 +201,12 @@ type inputTyper interface {
 }
 
 // extDriver adds InputType to a jevpick.Browser through the snapshot's live
-// node table (window.__jevFast.nodes), so the snapshot itself is unchanged.
-type extDriver struct{ *jevpick.Browser }
+// node table (window.__jevFast.nodes), so the snapshot itself is unchanged,
+// and the submit guard of its tab (gate_ext.go) when page has one.
+type extDriver struct {
+	*jevpick.Browser
+	page guardPage
+}
 
 func (d extDriver) InputType(a *jevpick.Action) string {
 	var t string

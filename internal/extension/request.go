@@ -253,6 +253,7 @@ func (s *Server) registerBuiltinHandlers() {
 	})
 	registerKnowledgeHandlers(s)
 	registerRecordHandlers(s)
+	registerCoderHandlers(s)
 }
 
 // ---------------------------------------------------------------------------

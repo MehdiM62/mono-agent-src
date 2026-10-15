@@ -78,7 +78,7 @@ func jevRuntime(runtime string) (model string, ok bool) {
 func newJevClient(ctx context.Context, db *sql.DB, profileID, model string) (*jev.Client, error) {
 	c, err := jevconf.NewClient(ctx, db, profileID, "", model, jevSurface)
 	if err != nil {
-		return nil, fmt.Errorf("runtime jev needs a TypeSafe API key (add one with `monoagentcli secret add --kind secret --name %s`, or set TYPESAFE_API_KEY): %w", jevconf.SecretName, err)
+		return nil, fmt.Errorf("runtime jev needs a TypeSafe API key (store the machine-wide key with `monoagentcli jev key set`, or set TYPESAFE_API_KEY): %w", err)
 	}
 	return c, nil
 }

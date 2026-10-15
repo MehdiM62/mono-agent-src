@@ -24,12 +24,15 @@ export MONOAGENT_DEV_ENFORCE_FROM=2099-01-01T00:00:00Z
 export HOME="$home" USERPROFILE="$home" TMPDIR="$root/tmp" \
   XDG_CONFIG_HOME="$home/.config" XDG_CACHE_HOME="$home/.cache" XDG_DATA_HOME="$home/.local/share" XDG_STATE_HOME="$home/.local/state"
 mkdir -p "$TMPDIR"
-run() { "$cli" --db-path "$home/.monoagent/monoagent.db" "$@"; }
+# shellcheck source=lib/mono.sh
+. "$(dirname "$0")/lib/mono.sh"
+run() { mono_guard "$cli" --db-path "$home/.monoagent/monoagent.db" "$@"; }
+prof=default # the profile doctor creates in an empty HOME; every scoped call names it
 fail() { echo "::error::doctor smoke: $*"; exit 1; }
 
 echo "== fresh HOME: plain doctor writes nothing; a required check fails, exit 1, valid v1 report"
 set +e
-run --json doctor --group core > "$out/fresh.json"
+run --profile "$prof" --json doctor --group core > "$out/fresh.json"
 code=$?
 set -e
 [ "$code" -eq 1 ] || fail "fresh HOME: exit $code, want 1"
@@ -45,7 +48,7 @@ jq -e 'all(.results[]; (.id | length > 0) and (.group | length > 0) and (.title 
   || fail "every result needs id, group, title, summary, a known status, and a fix with a known safety"
 
 echo "== doctor --fix: applies the fixes over several passes, exit 0"
-run --json doctor --group core --fix > "$out/fixed.json" || fail "doctor --fix exited $?"
+run --profile "$prof" --json doctor --group core --fix > "$out/fixed.json" || fail "doctor --fix exited $?"
 for id in core.home core.db core.profile; do
   jq -e --arg id "$id" '.results[] | select(.id == $id) | .status == "ok"' "$out/fixed.json" >/dev/null || fail "$id not ok after --fix"
 done
@@ -53,13 +56,13 @@ jq -e '[.fixes[] | select(.outcome == "applied") | .id] | (index("core.home.crea
   || fail "--fix should report core.home.create, core.db.migrate and core.profile.layout as applied"
 
 echo "== doctor fix <id> --json: NDJSON, ends with done, idempotent"
-run --json doctor fix core.db.migrate > "$out/fix.ndjson" || fail "doctor fix exited $?"
+run --profile "$prof" --json doctor fix core.db.migrate > "$out/fix.ndjson" || fail "doctor fix exited $?"
 jq -se 'all(.[]; .kind | IN("line","done","error")) and (last.kind == "done")' "$out/fix.ndjson" >/dev/null \
   || fail "doctor fix output is not NDJSON ending in done"
 
 echo "== unknown fix: exit 2"
 set +e
-run doctor fix no.such.fix >/dev/null 2>&1
+run --profile "$prof" doctor fix no.such.fix >/dev/null 2>&1
 code=$?
 set -e
 [ "$code" -eq 2 ] || fail "unknown fix: exit $code, want 2"
@@ -68,7 +71,7 @@ echo "== setup with no terminal: exit 0, NDJSON progress, nothing that needs a y
 setup_home="$root/setup-home"
 mkdir -p "$setup_home"
 set +e
-HOME="$setup_home" USERPROFILE="$setup_home" timeout 120 "$cli" --db-path "$setup_home/.monoagent/monoagent.db" --json setup \
+HOME="$setup_home" USERPROFILE="$setup_home" mono_guard timeout 120 "$cli" --db-path "$setup_home/.monoagent/monoagent.db" --profile "$prof" --json setup \
   < /dev/null > "$out/setup.json" 2> "$out/setup.ndjson"
 code=$?
 set -e
@@ -86,7 +89,7 @@ echo "== setup --yes --json --group core in a clean HOME: healthy core, stage an
 core_home="$root/core-home"
 mkdir -p "$core_home"
 set +e
-HOME="$core_home" USERPROFILE="$core_home" timeout 120 "$cli" --db-path "$core_home/.monoagent/monoagent.db" --json setup --group core --yes --mcp \
+HOME="$core_home" USERPROFILE="$core_home" mono_guard timeout 120 "$cli" --db-path "$core_home/.monoagent/monoagent.db" --profile "$prof" --json setup --group core --yes --mcp \
   < /dev/null > "$out/setup-core.json" 2> "$out/setup-core.ndjson"
 code=$?
 set -e
@@ -109,7 +112,7 @@ jq -se '([.[] | select(.kind == "fix_start") | .fix_id] == ["core.home.create","
 
 echo "== full report: every group renders as valid v1 JSON, and nothing required fails after --fix"
 set +e
-run --json doctor > "$out/full.json"
+run --profile "$prof" --json doctor > "$out/full.json"
 code=$?
 set -e
 [ "$code" -eq 0 ] || fail "full report after --fix: exit $code; required failures: $(jq -c '[.results[] | select(.required and .status == "fail") | .id]' "$out/full.json")"
@@ -121,18 +124,18 @@ locked_home="$root/locked-home"
 mkdir -p "$locked_home"
 login_line="Log in to monoes.me first: monoagentcli account login"
 locked() { HOME="$locked_home" USERPROFILE="$locked_home" MONOAGENT_DEV_ENFORCE_FROM=2020-01-01T00:00:00Z \
-  "$cli" --db-path "$locked_home/.monoagent/monoagent.db" "$@" < /dev/null; }
+  mono_guard "$cli" --db-path "$locked_home/.monoagent/monoagent.db" "$@" < /dev/null; }
 for args in "doctor" "doctor fix core.db.migrate" "setup"; do
   set +e
   # shellcheck disable=SC2086 # the words are the command line
-  locked $args > "$out/locked.out" 2> "$out/locked.err"
+  locked --profile "$prof" $args > "$out/locked.out" 2> "$out/locked.err"
   code=$?
   set -e
   [ "$code" -eq 4 ] || fail "signed out, $args: exit $code, want 4"
   [ "$(head -n 1 "$out/locked.err")" = "$login_line" ] || fail "signed out, $args: stderr $(head -c 200 "$out/locked.err")"
 done
 set +e
-locked --json doctor > "$out/locked.json" 2>/dev/null
+locked --profile "$prof" --json doctor > "$out/locked.json" 2>/dev/null
 set -e
 jq -e '.login_required == true' "$out/locked.json" >/dev/null || fail "signed out, doctor --json: no login_required document"
 locked version > /dev/null || fail "signed out, version should run"
@@ -144,4 +147,5 @@ set -e
 [ "$code" -eq 4 ] && grep -q "Not logged in" "$out/status.out" || fail "signed out, account status: exit $code, $(head -c 200 "$out/status.out")"
 [ ! -e "$locked_home/.monoagent/monoagent.db" ] || fail "a refused command created the database"
 
+mono_check_clean
 echo "doctor smoke: ok"

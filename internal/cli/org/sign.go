@@ -63,9 +63,13 @@ func newOrgSignCmd(env *orgEnv) *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			name, root := args[0], env.Root()
+			name := args[0]
 			if !orgdesign.ValidOrgName(name) {
 				return env.d.InvalidInput("invalid org name %q", name)
+			}
+			root, err := env.RootErr()
+			if err != nil {
+				return err
 			}
 			raw, sha, err := orgsign.ReadFile(root, name)
 			if errors.Is(err, os.ErrNotExist) {

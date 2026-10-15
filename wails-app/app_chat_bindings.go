@@ -68,8 +68,10 @@ func (a *App) CreateChatConversation(workflowID, runtimeID, model, effort string
 // StartChatTurn admits and starts one turn. Duplicate calls with the same
 // turnID against an already-admitted turn return the existing admission
 // (idempotent Start); a different turnID while one is active returns busy.
-// Every response carries turnId (plan §189).
-func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allowRuns bool) string {
+// Every response carries turnId (plan §189). attachments are files for a
+// coder turn (SaveChatAttachment's paths, or any file the user picked),
+// passed to the CLI as --attach.
+func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allowRuns bool, attachments []string) string {
 	if err := a.signedOut(); err != nil {
 		return loginRequiredJSON(err)
 	}
@@ -84,7 +86,7 @@ func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allow
 		return fmt.Sprintf(`{"ok":true,"turnId":%q,"status":"active"}`, turnID)
 	}
 	h.profileID = a.getActiveProfileID()
-	resp, err := a.chatSup.startTurn(h, message, tools, allowRuns)
+	resp, err := a.chatSup.startTurn(h, message, tools, allowRuns, attachments)
 	if err != nil {
 		a.chatSup.release(conversationID, turnID)
 		return a.chatBindingError(err)

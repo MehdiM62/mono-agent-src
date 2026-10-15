@@ -34,7 +34,10 @@ func newOrgServeCmd(env *orgEnv) *cobra.Command {
 			"the folder's daemon (SIGTERM, then SIGKILL after 10 s).",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			root := env.Root()
+			root, err := env.RootErr()
+			if err != nil {
+				return err
+			}
 			if stop {
 				if foreground {
 					return env.d.InvalidInput("--stop and --foreground cannot be combined")
@@ -80,7 +83,11 @@ func newOrgLifecycleCmd(env *orgEnv, verb, short string, fn func(ctx context.Con
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			out, err := fn(cmd.Context(), env.Root(), args[0])
+			root, err := env.RootErr()
+			if err != nil {
+				return err
+			}
+			out, err := fn(cmd.Context(), root, args[0])
 			if err != nil {
 				return err
 			}

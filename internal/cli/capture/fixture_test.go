@@ -109,6 +109,6 @@ func testDeps(cfg *testConfig) Deps {
 			},
 		},
 		// --project is the root as given; the CLI resolves an empty one to the active profile's.
-		OrgRoot: func(project string) (string, func()) { return project, func() {} },
+		OrgRoot: func(project string) (string, func(), error) { return project, func() {}, nil },
 	}
 }

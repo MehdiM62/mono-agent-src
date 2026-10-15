@@ -9,6 +9,7 @@ import (
 	"github.com/monoes/mono-agent/internal/applications"
 	applicationsnodes "github.com/monoes/mono-agent/internal/nodes/applications"
 	"github.com/monoes/mono-agent/internal/storage"
+	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -41,7 +42,7 @@ func TestCreateNodeCreatesJob(t *testing.T) {
 		"company": "Acme Corp",
 		"url":     "https://acme.example/jobs/1",
 	}
-	outputs, err := node.Execute(context.Background(), workflow.NodeInput{}, config)
+	outputs, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, config)
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
@@ -69,7 +70,7 @@ func TestCreateNodeRejectsMissingFields(t *testing.T) {
 
 	node := &applicationsnodes.CreateNode{}
 	config := map[string]interface{}{"kind": "job", "company": "Acme"} // missing url
-	if _, err := node.Execute(context.Background(), workflow.NodeInput{}, config); err == nil {
+	if _, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, config); err == nil {
 		t.Fatal("expected error for missing url, got nil")
 	}
 }

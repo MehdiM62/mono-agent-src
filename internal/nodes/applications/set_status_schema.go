@@ -8,5 +8,5 @@ type SetStatusNodeSchema struct {
 	Status    string `json:"status" schema:"label=New Status,type=select,required,options=rejected|cancelled,help=Must be a valid transition from the application's current status. \"applied\" is not offered here — use the application send CLI command， which requires an explicit human action."`
 	Actor     string `json:"actor" schema:"label=Actor,type=select,default=system,options=user|system,help=Who performed this transition."`
 	Note      string `json:"note" schema:"label=Note,type=textarea,help=Optional note recorded in the transition ledger."`
-	ProfileID string `json:"profile_id" schema:"label=Profile ID,type=text,default=default,help=Which profile owns this application."`
+	ProfileID string `json:"profile_id" schema:"label=Profile ID,type=text,help=Optional. Must match the workflow's profile (leave blank to use it)."`
 }

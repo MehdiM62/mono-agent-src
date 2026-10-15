@@ -13,7 +13,7 @@ them again.
 
 ![Org list](01-org-list.png)
 
-The Org page lists every org in the active profile. The red number next to an
+The Org page lists every org in the profile the app is showing. The red number next to an
 org is how many items are waiting for you in it (Needs you). The list polls it
 on every tab, so you can see waiting work without opening the org.
 

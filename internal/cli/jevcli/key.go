@@ -2,6 +2,7 @@ package jevcli
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,24 +16,24 @@ import (
 )
 
 // newJevKeyCmd groups the TypeSafe key's lifecycle: store it in the
-// profile's vault, check it works, remove it. The settings UI calls these.
+// machine-wide vault, check it works, remove it. The settings UI calls these.
 func newJevKeyCmd(d Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "key",
-		Short: "Store, test or remove the TypeSafe API key in the profile's vault",
+		Short: "Store, adopt, test or remove the machine-wide TypeSafe API key",
 	}
-	cmd.AddCommand(newJevKeySetCmd(d), newJevKeyTestCmd(d), newJevKeyRemoveCmd(d))
+	cmd.AddCommand(newJevKeySetCmd(d), newJevKeyAdoptCmd(d), newJevKeyTestCmd(d), newJevKeyRemoveCmd(d))
 	return cmd
 }
 
 func newJevKeySetCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set",
-		Short: "Store the TypeSafe API key (read from stdin) in the profile's vault",
+		Short: "Store the TypeSafe API key (read from stdin) in the machine-wide vault",
 		Long: "Reads the key from stdin — never pass it as an argument — and stores it in\n" +
-			"the profile's vault. If the key already lives in a vault entry (\"typesafe\"\n" +
-			"or a naturally named one such as \"Jev Api key\"), that entry is updated;\n" +
-			"otherwise a new entry named \"typesafe\" is created.",
+			"the machine-wide vault, shared by every profile. If the machine vault already\n" +
+			"holds the key, that entry is updated; otherwise a new entry named \"typesafe\"\n" +
+			"is created. A key in a profile's vault is left alone (see `jev key adopt`).",
 		Example: "  printf '%s' \"$KEY\" | monoagentcli jev key set",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -51,19 +52,19 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 			defer db.Close()
 			ctx := cmd.Context()
 			fields := map[string]string{"secret": key}
-			entry, replaced := jevconf.VaultKeyName(ctx, db.DB, d.ProfileID())
+			entry, replaced := jevconf.VaultKeyName(ctx, db.DB)
 			if replaced {
-				id, err := jevVaultEntryID(cmd, db.DB, d.ProfileID(), entry)
+				id, err := jevVaultEntryID(cmd, db.DB, entry)
 				if err != nil {
 					return err
 				}
-				if err := secrets.Update(ctx, db.DB, d.ProfileID(), id, nil, nil, nil, nil, fields); err != nil {
+				if err := secrets.Update(ctx, db.DB, jevconf.VaultScope, id, nil, nil, nil, nil, fields); err != nil {
 					return fmt.Errorf("updating vault entry %q: %w", entry, err)
 				}
 			} else {
 				entry = jevconf.SecretName
-				if _, err := secrets.Add(ctx, db.DB, d.ProfileID(), "secret", entry, fields, "", "", "TypeSafe Jev API key"); err != nil {
-					return fmt.Errorf("storing key in the vault: %w", err)
+				if _, err := secrets.Add(ctx, db.DB, jevconf.VaultScope, "secret", entry, fields, "", "", "TypeSafe Jev API key"); err != nil {
+					return fmt.Errorf("storing key in the machine vault: %w", err)
 				}
 			}
 			out := cmd.OutOrStdout()
@@ -80,11 +81,53 @@ func newJevKeySetCmd(d Deps) *cobra.Command {
 	}
 }
 
+func newJevKeyAdoptCmd(d Deps) *cobra.Command {
+	var from string
+	cmd := &cobra.Command{
+		Use:   "adopt",
+		Short: "Copy a profile vault's TypeSafe key to the machine-wide vault",
+		Long: "Copies (never deletes) the TypeSafe key a profile's vault holds to the machine-wide\n" +
+			"vault. Without --from-profile the most recently updated readable key of any profile\n" +
+			"is used. Fails if the machine vault already has a key: `jev key set` replaces it.",
+		Example: "  monoagentcli jev key adopt --from-profile work",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			db, err := d.OpenDB()
+			if err != nil {
+				return fmt.Errorf("initializing database: %w", err)
+			}
+			defer db.Close()
+			fromID := ""
+			if from != "" {
+				if fromID, err = d.ResolveProfile(db.DB, from); err != nil {
+					return err
+				}
+			}
+			res, err := jevconf.Adopt(cmd.Context(), db.DB, fromID)
+			switch {
+			case errors.Is(err, jev.ErrNoAPIKey):
+				return clicore.NotFound("no TypeSafe key in any profile's vault")
+			case errors.Is(err, jevconf.ErrMachineKeyExists):
+				return clicore.InvalidInput("%v; `jev key set` replaces it", err)
+			case err != nil:
+				return err
+			}
+			if d.JSONOutput() {
+				return writeJevJSON(cmd.OutOrStdout(), res)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Copied the TypeSafe key of profile %q to the machine vault (entry %q). The profile's entry is unchanged.\n", res.FromProfile, res.Entry)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&from, "from-profile", "", "Profile id or name whose key to copy (default: the most recently updated)")
+	return cmd
+}
+
 func newJevKeyTestCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "test",
 		Short: "Check the key works by listing the models it can use",
-		Long:  "Resolves the key (config, vault, TYPESAFE_API_KEY) and lists models with it.\nWith --json the result is always printed with exit 0: {ok, key_source, models, error}.",
+		Long:  "Resolves the key (machine vault, the profile's vault, TYPESAFE_API_KEY) and lists models with it.\nWith --json the result is always printed with exit 0: {ok, key_source, models, error}.",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := d.OpenDB()
@@ -130,7 +173,7 @@ func newJevKeyTestCmd(d Deps) *cobra.Command {
 func newJevKeyRemoveCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove",
-		Short: "Delete the vault entry holding the TypeSafe key",
+		Short: "Delete the machine-wide vault entry holding the TypeSafe key",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := d.OpenDB()
@@ -138,15 +181,15 @@ func newJevKeyRemoveCmd(d Deps) *cobra.Command {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			entry, ok := jevconf.VaultKeyName(cmd.Context(), db.DB, d.ProfileID())
+			entry, ok := jevconf.VaultKeyName(cmd.Context(), db.DB)
 			if !ok {
-				return clicore.NotFound("no TypeSafe key in this profile's vault")
+				return clicore.NotFound("no TypeSafe key in the machine vault")
 			}
-			id, err := jevVaultEntryID(cmd, db.DB, d.ProfileID(), entry)
+			id, err := jevVaultEntryID(cmd, db.DB, entry)
 			if err != nil {
 				return err
 			}
-			if err := secrets.Delete(cmd.Context(), db.DB, d.ProfileID(), id); err != nil {
+			if err := secrets.Delete(cmd.Context(), db.DB, jevconf.VaultScope, id); err != nil {
 				return err
 			}
 			if d.JSONOutput() {
@@ -158,8 +201,8 @@ func newJevKeyRemoveCmd(d Deps) *cobra.Command {
 	}
 }
 
-func jevVaultEntryID(cmd *cobra.Command, db *sql.DB, profileID, name string) (string, error) {
-	entries, err := secrets.List(cmd.Context(), db, profileID)
+func jevVaultEntryID(cmd *cobra.Command, db *sql.DB, name string) (string, error) {
+	entries, err := secrets.List(cmd.Context(), db, jevconf.VaultScope)
 	if err != nil {
 		return "", err
 	}

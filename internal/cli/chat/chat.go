@@ -94,6 +94,7 @@ func newChatCmd(cfg *Deps) *cobra.Command {
 	cmd.Flags().BoolVar(&f.profileFold, "profile-folder", false, "Coder mode: work in the active profile's own folder")
 	cmd.Flags().BoolVar(&f.coderRoot, "coder-root", false, "Coder mode: work in the coder root folder itself")
 	cmd.Flags().BoolVar(&f.newWorkspace, "new-workspace", false, "Coder mode: work in a fresh, randomly named test folder")
+	cmd.Flags().StringArrayVar(&f.attach, "attach", nil, "Coder turns: attach a file (repeatable; at most 10, 20 MB each). It is copied into the folder's .monoagent/attachments/<turn>/ and the prompt lists the copy")
 	cmd.AddCommand(newChatHistoryCmd(cfg))
 	cmd.AddCommand(newChatTurnCmd(cfg))
 	cmd.Flags().BoolVar(&f.noHistory, "no-history", false, "Suppress this legacy chat-history table write (profile/tool init and runtime session events are unaffected; a --conversation turn never writes it)")

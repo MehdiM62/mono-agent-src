@@ -657,6 +657,19 @@
           "done": "The saved settings were reset. Every setting is back to its environment variable or its default."
         }
       }
+    },
+    "scope": {
+      "globalTitle": "All profiles",
+      "globalLine": "Applies to this whole machine, every profile.",
+      "profileTitle": "This profile",
+      "profileLine": "Applies only to the profile {{name}}. Other profiles keep their own.",
+      "profileLineNoName": "Applies only to the active profile. Other profiles keep their own."
+    },
+    "jev": {
+      "keyProfileVault": "Set (this profile, will be shared)",
+      "featuresTitle": "TypeSafe Jev features",
+      "consent": "Turning a feature on is a choice for this profile only: it lets this profile send data to TypeSafe. Other profiles stay off until they turn it on themselves.",
+      "adoptHint": "This key is still only in this profile's vault. To share it with every profile, run:"
     }
   },
   "orgs": {
@@ -1573,5 +1586,27 @@
     "previewLoading": "Loading preview…",
     "open": "Open",
     "openNamed": "Open {{name}}"
+  },
+  "coderQueue": {
+    "kind": {
+      "copy-style": "Copy style",
+      "tokens": "Design tokens",
+      "fix-element": "Fix element",
+      "bug-report": "Bug report",
+      "integration": "Integration",
+      "ask": "Question"
+    },
+    "label": "Queued coder chat: {{kind}}",
+    "fromBrowser": "from the browser",
+    "dismiss": "Dismiss",
+    "dismissNamed": "Dismiss {{kind}}",
+    "screenshot": "Screenshot of the page",
+    "coderRoot": "coder root",
+    "changeFolder": "Change",
+    "start": "Start",
+    "stackLabel": "Queued coder chats",
+    "showFewer": "Show fewer",
+    "more_one": "+{{count}} more queued",
+    "more_other": "+{{count}} more queued"
   }
 }

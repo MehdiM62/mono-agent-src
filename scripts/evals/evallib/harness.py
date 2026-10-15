@@ -23,6 +23,10 @@ import threading
 # sign-in. Release builds ignore it (and then refuse with exit 4).
 DEV_ENFORCE_FROM = "2999-01-01T00:00:00Z"
 
+# internal/cli/profilegate prints this when a profile-scoped command was not told
+# which profile to act on; the harness records every call that did.
+PROFILE_WARNING = "this command acts on a profile"
+
 FIXTURE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "fixtures")
 
 
@@ -91,6 +95,21 @@ class Sandbox:
             os.makedirs(d, exist_ok=True)
         self.fixture_url = fixture_url
         self.webhook_port = free_port()
+        # The named profile every scoped call acts on. Calls the harness makes
+        # that omit it are recorded in unprofiled (the agent's own calls in
+        # agent_unprofiled, which a model is allowed to get wrong).
+        self.profile = "eval"
+        self.unprofiled = []
+        self.mcp_logs = []
+        self.agent_unprofiled = []
+        made = self.cli(["profile", "create", self.profile])
+        if made.code != 0:
+            raise RuntimeError("profile create %s: exit %d: %s" % (self.profile, made.code, made.stderr[-300:]))
+
+    @property
+    def p(self):
+        """The --profile argument pair for a scoped call."""
+        return ["--profile", self.profile]
 
     def env(self):
         h = self.home
@@ -115,16 +134,32 @@ class Sandbox:
                 .replace("{{OUT_DIR}}", self.out)
                 .replace("{{WORK_DIR}}", self.work))
 
-    def cli(self, args, stdin=None, timeout=120):
+    def cli(self, args, stdin=None, timeout=120, agent=False):
         try:
             p = subprocess.run([self.binary] + list(args), input=stdin, capture_output=True,
                                text=True, env=self.env(), cwd=self.work, timeout=timeout)
+            if PROFILE_WARNING in p.stderr:
+                (self.agent_unprofiled if agent else self.unprofiled).append(list(args))
             return CLIResult(args, p.returncode, p.stdout, p.stderr)
         except subprocess.TimeoutExpired as e:
             return CLIResult(args, 124, e.stdout or "", (e.stderr or "") + "\n[timed out]")
 
     def mcp(self):
-        return MCPClient([self.binary, "mcp", "--allow-mutations"], self.env(), self.work)
+        err = os.path.join(self.dir, "mcp-%d.err" % len(self.mcp_logs))
+        self.mcp_logs.append(err)
+        return MCPClient([self.binary, "mcp", "--allow-mutations"] + self.p, self.env(), self.work, err)
+
+    def profile_problems(self):
+        """Calls the harness made without naming a profile (not the agent's)."""
+        bad = ["cli %s" % " ".join(a) for a in self.unprofiled]
+        for path in self.mcp_logs:
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    if PROFILE_WARNING in f.read():
+                        bad.append("mcp server (%s)" % os.path.basename(path))
+            except OSError:
+                pass
+        return bad
 
     def cleanup(self):
         shutil.rmtree(self.dir, ignore_errors=True)
@@ -133,9 +168,9 @@ class Sandbox:
 class MCPClient:
     """Minimal newline-delimited JSON-RPC 2.0 client for `monoagentcli mcp`."""
 
-    def __init__(self, argv, env, cwd):
+    def __init__(self, argv, env, cwd, stderr_path=os.devnull):
         self.proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                     stderr=subprocess.DEVNULL, text=True, env=env, cwd=cwd)
+                                     stderr=open(stderr_path, "w"), text=True, env=env, cwd=cwd)
         self.next_id = 0
         self.request("initialize", {"protocolVersion": "2024-11-05",
                                     "clientInfo": {"name": "monoagent-evals", "version": "1"}})

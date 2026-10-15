@@ -45,7 +45,7 @@ def modes_for(task, wanted):
 def probe_gate(binary, root, fixture_url):
     sb = harness.Sandbox(binary, root, "probe", fixture_url)
     try:
-        r = sb.cli(["--json", "workflow", "list"])
+        r = sb.cli(sb.p + ["--json", "workflow", "list"])
         if r.code == 4:
             sys.exit("the binary refuses with the account gate (exit 4): build it with -tags devaccount, "
                      "e.g. go build -tags devaccount -o <path> ./cmd/monoagentcli")
@@ -61,6 +61,16 @@ MUTANTS = [("sort-limit", "aggregate-sum"), ("if-routing", "switch-routing"),
            ("schedule-daily", "schedule-only"), ("dedupe", "http-filter-csv")]
 
 
+def profile_check(sb):
+    """A failing check when the harness made a scoped call without --profile.
+    The agent's own calls are not judged here: a model may forget the flag."""
+    bad = sb.profile_problems()
+    if not bad:
+        return []
+    return [{"check": "profile guard", "type": "profile_guard", "pass": False,
+             "detail": "call(s) named no profile: " + "; ".join(bad)[:300]}]
+
+
 def run_reference(task, args, root, fixture_url, ref_id=None):
     ref_id = ref_id or task["id"]
     sb = harness.Sandbox(args.bin, root, task["id"] + ("" if ref_id == task["id"] else "-mutant"), fixture_url)
@@ -74,8 +84,8 @@ def run_reference(task, args, root, fixture_url, ref_id=None):
         path = os.path.join(sb.work, "reference.json")
         with open(path, "w", encoding="utf-8") as f:
             f.write(doc)
-        imp = sb.cli(["--json", "workflow", "import", "--file", path])
-        checks = scorer.Scorer(sb, task).score()
+        imp = sb.cli(sb.p + ["--json", "workflow", "import", "--file", path])
+        checks = scorer.Scorer(sb, task).score() + profile_check(sb)
         if imp.code != 0:
             checks.insert(0, {"check": "import", "type": "import", "pass": False,
                               "detail": "exit %d: %s" % (imp.code, imp.stderr.strip()[-300:])})
@@ -91,7 +101,7 @@ def run_live(task, mode, args, root, fixture_url, agent, transcripts):
     sb = harness.Sandbox(args.bin, root, "%s-%s" % (task["id"], mode), fixture_url)
     try:
         run = agent.run(sb, mode, sb.subst(task["prompt"]))
-        checks = scorer.Scorer(sb, task).score()
+        checks = scorer.Scorer(sb, task).score() + profile_check(sb)
         tpath = os.path.join(transcripts, "%s-%s.json" % (task["id"], mode))
         with open(tpath, "w", encoding="utf-8") as f:
             json.dump(run["transcript"], f, indent=1)

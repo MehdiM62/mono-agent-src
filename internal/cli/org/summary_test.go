@@ -78,7 +78,7 @@ func TestOrgSummaryNeedsYouTimeoutHolds(t *testing.T) {
 	t.Cleanup(func() { perOrgNeedsYouTimeout = old })
 
 	env := testEnv(&testConfig{DBPath: filepath.Join(t.TempDir(), "o.db"), ProfileID: "default"})
-	root := env.Root()
+	root := env.root()
 	writeOrgFile(t, root, "acme.json", `{"name":"acme"}`)
 	cmd := newOrgSummaryCmd(env)
 	var runErr error

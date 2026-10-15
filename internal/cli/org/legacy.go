@@ -38,9 +38,13 @@ func newOrgLegacyListCmd(env *orgEnv) *cobra.Command {
 		Short: "List orgs in the legacy folder",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			root, err := env.RootErr()
+			if err != nil {
+				return err
+			}
 			legacy := legacyRoot()
 			names := []string{}
-			if filepath.Clean(legacy) != filepath.Clean(env.Root()) {
+			if filepath.Clean(legacy) != filepath.Clean(root) {
 				found, err := orgdesign.ListOrgNames(legacy)
 				if err != nil {
 					return err
