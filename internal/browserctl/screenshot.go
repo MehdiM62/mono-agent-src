@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/extension"
 )
 
 // screenshotTimeout bounds one capture; a full page can take a while.
@@ -75,7 +77,7 @@ func (s *Session) Screenshot(o ScreenshotOptions) (*Shot, error) {
 		Width  int    `json:"width"`
 		Height int    `json:"height"`
 	}
-	if err := s.Call(CmdScreenshot, params, screenshotTimeout, &out); err != nil {
+	if err := s.Call(extension.CmdScreenshot, params, screenshotTimeout, &out); err != nil {
 		return nil, err
 	}
 	data, err := base64.StdEncoding.DecodeString(out.Data)
@@ -131,7 +133,7 @@ func (s *Session) Emulate(e Emulation) error {
 	if len(media) > 0 {
 		params["media"] = media
 	}
-	_, err := s.Send(CmdEmulate, params, DefaultTimeout)
+	_, err := s.Send(extension.CmdEmulate, params, DefaultTimeout)
 	return err
 }
 

@@ -286,6 +286,9 @@ func (d Deps) newHILApproveCmd() *cobra.Command {
 			if done, err := d.approveIfSend(cmd, args[0], true, editedData); done {
 				return err
 			}
+			if done, err := d.decideIfBrowserSubmit(cmd, args[0], true); done {
+				return err
+			}
 			var check map[string]interface{}
 			if err := json.Unmarshal([]byte(editedData), &check); err != nil {
 				return fmt.Errorf("--data is not valid JSON: %w", err)
@@ -323,6 +326,9 @@ func (d Deps) newHILRejectCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			args[0] = d.fullHILID(args[0])
 			if done, err := d.approveIfSend(cmd, args[0], false, ""); done {
+				return err
+			}
+			if done, err := d.decideIfBrowserSubmit(cmd, args[0], false); done {
 				return err
 			}
 			db, err := d.OpenDB()

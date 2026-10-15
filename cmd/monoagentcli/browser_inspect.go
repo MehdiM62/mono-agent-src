@@ -199,7 +199,7 @@ func newBrowserA11yCmd(cfg *globalConfig) *cobra.Command {
 			var tree struct {
 				Nodes []interface{} `json:"nodes"`
 			}
-			if err := r.act(func() error { return r.s.Call(browserctl.CmdA11yTree, params, browserctl.DefaultTimeout, &tree) }); err != nil {
+			if err := r.act(func() error { return r.s.Call(extension.CmdA11yTree, params, browserctl.DefaultTimeout, &tree) }); err != nil {
 				return err
 			}
 			if tree.Nodes == nil {

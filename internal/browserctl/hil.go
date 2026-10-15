@@ -35,6 +35,9 @@ const SubmitKind = "browser.submit"
 var (
 	ErrSubmitNotFound = errors.New("submit approval not found")
 	ErrNotSubmitItem  = errors.New("that Human-in-Loop item is not a browser submit")
+	// ErrApprovedElsewhere is an approval set by a path an agent can reach
+	// (the MCP server's or the HTTP API's hil tools), not by the operator.
+	ErrApprovedElsewhere = errors.New("this submit was approved outside `monoagentcli hil approve` and the Human in Loop page, so it cannot be used: ask for the submit again and have the user approve it there")
 )
 
 // SubmitStateError is a submit item that cannot be used in its state.
@@ -76,10 +79,13 @@ type FormSummary struct {
 
 // SubmitRequest is a held submit to record.
 type SubmitRequest struct {
-	Profile    string
-	URL        string
-	Form       FormSummary
-	Screenshot string
+	// RequestedBy names who asked for the card; nil reads it from this
+	// process's env (RequestedBy()).
+	RequestedBy *hilsend.PreparedBy
+	Profile     string
+	URL         string
+	Form        FormSummary
+	Screenshot  string
 	// Via is "click" (the agent clicked a submit control) or "guard" (the
 	// page's submit_guard blocked it); Seq is the guard's record.
 	Via      string
@@ -87,6 +93,11 @@ type SubmitRequest struct {
 	Instance string
 	Seq      int
 }
+
+// ApprovedByOperator is SubmitItem.ApprovedBy for an approval made through
+// DecideSubmitItem, i.e. `hil approve` or the Human in Loop page, which
+// refuse an agent.
+const ApprovedByOperator = "operator"
 
 // SubmitItem is one stored submit item.
 type SubmitItem struct {
@@ -101,6 +112,7 @@ type SubmitItem struct {
 	TabID       int                `json:"tabId"`
 	Instance    string             `json:"instance,omitempty"`
 	Seq         int                `json:"seq,omitempty"`
+	ApprovedBy  string             `json:"approvedBy,omitempty"`
 	ConsumedAt  string             `json:"consumedAt,omitempty"`
 	SubmittedAt string             `json:"submittedAt,omitempty"`
 	Error       string             `json:"error,omitempty"`
@@ -120,6 +132,8 @@ type submitRecord struct {
 	TabID       int    `json:"tabId"`
 	Instance    string `json:"instance,omitempty"`
 	Seq         int    `json:"seq,omitempty"`
+	ApprovedBy  string `json:"approvedBy,omitempty"`
+	DecidedAt   string `json:"decidedAt,omitempty"`
 	ConsumedAt  string `json:"consumedAt,omitempty"`
 	SubmittedAt string `json:"submittedAt,omitempty"`
 	Error       string `json:"error,omitempty"`
@@ -141,9 +155,13 @@ func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (Submi
 	if req.Form.Fields == nil {
 		req.Form.Fields = []FormField{}
 	}
+	who := RequestedBy()
+	if req.RequestedBy != nil {
+		who = *req.RequestedBy
+	}
 	it := SubmitItem{
 		ID: uuid.NewString(), Status: "pending", Origin: Origin(req.URL), URL: req.URL, Form: req.Form,
-		Screenshot: req.Screenshot, RequestedBy: RequestedBy(), Via: req.Via, TabID: req.TabID,
+		Screenshot: req.Screenshot, RequestedBy: who, Via: req.Via, TabID: req.TabID,
 		Instance: req.Instance, Seq: req.Seq,
 	}
 	ro, err := json.Marshal(submitCard{Origin: it.Origin, URL: it.URL, Form: it.Form, Screenshot: it.Screenshot, RequestedBy: it.RequestedBy})
@@ -223,12 +241,41 @@ func findSubmit(ctx context.Context, db *sql.DB, profile, id string) (SubmitItem
 	return SubmitItem{
 		ID: r.id, Status: r.status, Origin: card.Origin, URL: card.URL, Form: card.Form, Screenshot: card.Screenshot,
 		RequestedBy: card.RequestedBy, Via: rec.Via, TabID: rec.TabID, Instance: rec.Instance, Seq: rec.Seq,
-		ConsumedAt: rec.ConsumedAt, SubmittedAt: rec.SubmittedAt, Error: rec.Error,
+		ApprovedBy: rec.ApprovedBy, ConsumedAt: rec.ConsumedAt, SubmittedAt: rec.SubmittedAt, Error: rec.Error,
 	}, rec, nil
 }
 
+// DecideSubmitItem approves or rejects a pending item for the operator:
+// `hil approve|reject` call it after refusing an agent, and an approval is
+// stamped ApprovedByOperator. Other ways to set the row's status (the MCP
+// server's and the HTTP API's hil tools) leave no stamp, so their approval
+// cannot be used.
+func DecideSubmitItem(ctx context.Context, db *sql.DB, profile, id string, approve bool) (SubmitItem, error) {
+	it, rec, err := findSubmit(ctx, db, profile, id)
+	if err != nil {
+		return it, err
+	}
+	if it.Status != "pending" {
+		return it, &SubmitStateError{ID: it.ID, Status: it.Status}
+	}
+	to := "rejected"
+	if approve {
+		to, rec.ApprovedBy = "approved", ApprovedByOperator
+	}
+	rec.DecidedAt = time.Now().UTC().Format(time.RFC3339)
+	if err := updateSubmit(ctx, db, profile, it.ID, "pending", to, rec); err != nil {
+		if errors.Is(err, errRaced) {
+			return GetSubmitItem(ctx, db, profile, it.ID)
+		}
+		return it, err
+	}
+	it.Status, it.ApprovedBy = to, rec.ApprovedBy
+	return it, nil
+}
+
 // ClaimSubmitItem uses an approved item once: approved → consumed. Any
-// other state is a *SubmitStateError; of two concurrent claims one wins.
+// other state is a *SubmitStateError, an approval without the operator's
+// stamp ErrApprovedElsewhere; of two concurrent claims one wins.
 func ClaimSubmitItem(ctx context.Context, db *sql.DB, profile, id string) (SubmitItem, error) {
 	it, rec, err := findSubmit(ctx, db, profile, id)
 	if err != nil {
@@ -236,6 +283,9 @@ func ClaimSubmitItem(ctx context.Context, db *sql.DB, profile, id string) (Submi
 	}
 	if it.Status != "approved" {
 		return it, &SubmitStateError{ID: it.ID, Status: it.Status}
+	}
+	if rec.ApprovedBy != ApprovedByOperator {
+		return it, ErrApprovedElsewhere
 	}
 	rec.ConsumedAt = time.Now().UTC().Format(time.RFC3339)
 	if err := updateSubmit(ctx, db, profile, it.ID, "approved", "consumed", rec); err != nil {

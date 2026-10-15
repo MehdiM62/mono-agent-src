@@ -186,6 +186,8 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 		return errNotFound("%v", err)
 	case errors.Is(err, browserctl.ErrNotSubmitItem):
 		return errInvalidInput("%v", err)
+	case errors.Is(err, browserctl.ErrApprovedElsewhere):
+		return browserCLIError{error: errInvalidInput("%v", err), code: "submit_not_operator_approved"}
 	}
 	msg := err.Error()
 	if strings.Contains(msg, "Element not found") || strings.Contains(msg, "Timed out waiting for element") {
