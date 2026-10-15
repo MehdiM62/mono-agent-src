@@ -41,6 +41,8 @@ importScripts("task_outbox.js", "task_bridge.js", "task_menu.js");
 // The side panel's chat (issue #451): it asks over ask.js, so it also follows
 // the recall group. summary_ai.js (loaded above) supplies its runtime/model.
 importScripts("chat_core.js", "chat_bridge.js");
+// Filling the page's form from the profile (form.fill); same channel as chat.
+importScripts("form_bridge.js");
 // The raw CDP proxy (GLU-01/RIG-07): the generalisation of eval_cdp/type_cdp
 // that lets monobrowse drive the user's own Chrome. Events flow back through
 // it unasked-for, which is why it needs its own module rather than another
@@ -1464,6 +1466,7 @@ MonoChat.install({
   isConnected: openAndSignedIn,
   storage: chrome.storage.local,
 });
+MonoForm.install();
 
 // The side panel hears of a change at once. Signed out the bridge is asked
 // again every few seconds, signed in every minute: its answer to ping (read in
