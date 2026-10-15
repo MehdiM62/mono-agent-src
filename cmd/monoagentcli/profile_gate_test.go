@@ -24,7 +24,7 @@ var mustBeGlobal = []string{
 	"automation test", "automation new", "extension status", "library status", "library login",
 	"workflow templates list", "secret keyring status", "coder status", "daemon install",
 	"account status", "ref commands", "init", "nodejs status", "db migrate", "integration list", "chat history reconcile",
-	"secret encrypt-connections",
+	"secret encrypt-connections", "workflow migrate",
 }
 
 var mustBeScoped = []string{

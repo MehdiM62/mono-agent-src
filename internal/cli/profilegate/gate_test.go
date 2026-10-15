@@ -94,3 +94,28 @@ func TestHelpCompletionAndTheRootNeverNeedAProfile(t *testing.T) {
 		t.Fatalf("completion bash: got %q / %v", w, err)
 	}
 }
+
+func TestGlobalWhenFlagIsGivenSkipsTheGate(t *testing.T) {
+	root := tree()
+	wf := leaf("workflow")
+	validate := leaf("validate")
+	validate.Flags().String("file", "", "")
+	wf.AddCommand(validate)
+	root.AddCommand(wf)
+
+	if err := validate.Flags().Set("file", "w.json"); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []Mode{ModeWarn, ModeEnforce} {
+		if w, err := Check(validate, false, mode, nil); err != nil || w != "" {
+			t.Fatalf("with --file, mode %d: got %q / %v", mode, w, err)
+		}
+	}
+	validate.Flags().Lookup("file").Changed = false
+	if w, err := Check(validate, false, ModeWarn, nil); err != nil || !strings.Contains(w, "--profile") {
+		t.Fatalf("with an id, warn: got %q / %v", w, err)
+	}
+	if _, err := Check(validate, false, ModeEnforce, nil); err == nil {
+		t.Fatal("with an id, enforce: want an error")
+	}
+}
