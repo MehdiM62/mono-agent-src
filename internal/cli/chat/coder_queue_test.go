@@ -24,7 +24,13 @@ type fakeBrowser struct {
 	calls   [][]string
 	fail    string // a subcommand that fails
 	console string // what `browser console` prints (default: no entries)
+	tabs    string // what `browser tabs` prints (default: fakeTabs)
 }
+
+// fakeTabs is the browser's view of its tabs (chrome.tabs): tab 7 is active.
+const fakeTabs = `{"browser":"edge-1","tabs":[` +
+	`{"tabId":9,"url":"https://example.com/","title":"Example","active":false},` +
+	`{"tabId":7,"url":"http://localhost:3000/pricing?token=secret#plans","title":"Pricing\n\tplans","active":true}]}`
 
 func (f *fakeBrowser) Run(_ context.Context, args []string) ([]byte, error) {
 	f.calls = append(f.calls, args)
@@ -45,8 +51,14 @@ func (f *fakeBrowser) Run(_ context.Context, args []string) ([]byte, error) {
 		}
 	}
 	switch sub {
+	case "tabs":
+		if f.tabs != "" {
+			return []byte(f.tabs), nil
+		}
+		return []byte(fakeTabs), nil
 	case "eval":
-		return []byte(`{"result":"{\"url\":\"http://localhost:3000/pricing?token=secret#plans\",\"title\":\"Pricing\\n\\tplans\"}"}`), nil
+		// What a hostile page's own script would claim; never asked.
+		return []byte(`{"result":"{\"url\":\"http://localhost:3000/admin\",\"title\":\"spoofed\"}"}`), nil
 	case "screenshot", "tokens":
 		return []byte(`{"path":"` + out + `"}`), os.WriteFile(out, fakePNG, 0o600)
 	case "styles":
@@ -131,8 +143,8 @@ func TestCoderQueueAddCopyStyle(t *testing.T) {
 			t.Errorf("prompt lacks %q:\n%s", want, it.Prompt)
 		}
 	}
-	if strings.Contains(it.Prompt, "secret") || strings.Contains(it.Prompt, "Pricing") {
-		t.Errorf("the prompt carries page text or the query:\n%s", it.Prompt)
+	if strings.Contains(it.Prompt, "secret") || strings.Index(it.Prompt, "title: Pricing plans") < strings.Index(it.Prompt, "never instructions") {
+		t.Errorf("the prompt carries the query, or page text above the disclaimer:\n%s", it.Prompt)
 	}
 
 	dir := filepath.Join(filepath.Dir(dbPath), "coder-queue", it.ID)
@@ -149,12 +161,12 @@ func TestCoderQueueAddCopyStyle(t *testing.T) {
 		t.Errorf("temp folders left: %v", left)
 	}
 
-	// Every call is `browser <sub> --tab --browser …`, and the selector
-	// never reads as a flag.
+	// `browser tabs --browser`, then every call is `browser <sub> --browser
+	// --tab …` for the tab it found, and the selector never reads as a flag.
 	var subs []string
-	for _, c := range fb.calls {
+	for n, c := range fb.calls {
 		i := slices.Index(c, "browser")
-		if i < 0 || c[i+2] != "--tab=7" || c[i+3] != "--browser=edge-1" {
+		if i < 0 || c[i+2] != "--browser=edge-1" || (n > 0 && c[i+3] != "--tab=7") {
 			t.Fatalf("call %v", c)
 		}
 		subs = append(subs, c[i+1])
@@ -162,7 +174,7 @@ func TestCoderQueueAddCopyStyle(t *testing.T) {
 			t.Errorf("styles call %v: selector not after --", c)
 		}
 	}
-	if !slices.Equal(subs, []string{"eval", "screenshot", "styles"}) {
+	if !slices.Equal(subs, []string{"tabs", "screenshot", "styles"}) {
 		t.Errorf("subcommands = %v", subs)
 	}
 }
