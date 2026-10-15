@@ -58,7 +58,9 @@ func TestEveryDoorRefusesWhenLockedAndOpensWhenSignedIn(t *testing.T) {
 	// Signed in: no restart, each door sees the session within its poll interval.
 	r.signIn()
 	open := func(what string, ok func() bool) { r.waitFor(what+" to open", 60*time.Second, ok) }
-	open("the HTTP API", func() bool { return probe(t, "GET", api+"/profiles/default/workflows", "").header.Get("WWW-Authenticate") != "" })
+	open("the HTTP API", func() bool {
+		return probe(t, "GET", api+"/profiles/default/workflows", "").header.Get("WWW-Authenticate") != ""
+	})
 	if a := probe(t, "GET", api+"/profiles/default/workflows", ""); a.code != 401 || !strings.Contains(a.body, "missing or invalid bearer credential") {
 		t.Errorf("the HTTP API door, signed in: %d %s", a.code, a.body)
 	}
