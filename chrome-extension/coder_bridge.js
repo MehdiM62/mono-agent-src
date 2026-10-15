@@ -31,6 +31,11 @@
  *   coder_pick        {tabId} -> {selector}   the element picker, then a selector
  *   coder_from_page   the highlight panel's coder button (a content script)
  *
+ * Who may send them is checked as task_bridge.js checks its own: only this
+ * extension, its own pages (the side panel) for every message, and a tab's
+ * content script for coder_from_page alone, which names nothing: the worker
+ * reads the element back from the page itself.
+ *
  * The right-click items (coder_menu.js) and the highlight panel's button
  * both end in handoff(): the side panel opens on its Coder section, filled
  * in with the kind, the tab and the element's selector (PREFILL_KEY).
@@ -67,12 +72,24 @@
   const query = (method, params, ms) =>
     root.MonoAsk.request(method, params, { timeoutMs: ms || QUERY_TIMEOUT_MS, idleTimeoutMs: ms || QUERY_TIMEOUT_MS });
 
+  /** isExtensionPage: one of this extension's own pages, wherever it is open (task_bridge.js). */
+  function isExtensionPage(sender) {
+    const base = chrome.runtime.getURL ? chrome.runtime.getURL("") : "";
+    return !!base && String(sender.url || "").startsWith(base);
+  }
+
+  /** allowed: this extension's pages may send every coder_* message, a tab's content script only coder_from_page. */
+  function allowed(type, sender) {
+    if (!sender || sender.id !== chrome.runtime.id) return false;
+    return isExtensionPage(sender) || (type === "coder_from_page" && !!sender.tab);
+  }
+
   function install(d) {
     deps = d || {};
     chrome.runtime.onMessage.addListener((msg, sender, respond) => {
       if (!msg || typeof msg.type !== "string") return false;
       const handler = handlers[msg.type];
-      if (!handler) return false;
+      if (!handler || !allowed(msg.type, sender)) return false;
       // Called now, not on a later tick: coder_from_page opens the side
       // panel, which Chrome allows only inside the click's own handler.
       let out;
