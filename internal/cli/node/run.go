@@ -367,7 +367,7 @@ platform name to override. Token refresh is handled automatically for OAuth conn
 					allItems = append(allItems, o.Items...)
 				}
 				if len(allItems) > 0 {
-					autoSaveComments(ctx, rawDB, nodeType, config, allItems, os.Stderr)
+					autoSaveComments(ctx, rawDB, nodeType, config, allItems, d.ProfileID(), os.Stderr)
 				}
 			}
 

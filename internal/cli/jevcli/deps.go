@@ -4,7 +4,11 @@
 // CLI around them comes in through Deps, so they can be tested in isolation.
 package jevcli
 
-import "github.com/monoes/mono-agent/internal/storage"
+import (
+	"database/sql"
+
+	"github.com/monoes/mono-agent/internal/storage"
+)
 
 // Deps is what the commands take from the CLI around them.
 type Deps struct {
@@ -14,6 +18,8 @@ type Deps struct {
 	ProfileID func() string
 	// OpenDB opens (and migrates) the database and resolves the profile (the CLI's initDB).
 	OpenDB func() (*storage.Database, error)
+	// ResolveProfile turns a profile id or name into the id (the CLI's --profile resolution).
+	ResolveProfile func(db *sql.DB, idOrName string) (string, error)
 	// StdinIsTerminal decides whether `jev enable` may ask instead of requiring --yes.
 	StdinIsTerminal func() bool
 }

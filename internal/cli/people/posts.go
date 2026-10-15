@@ -155,15 +155,15 @@ func (d Deps) newPeoplePostsListCmd() *cobra.Command {
 				         JOIN workflow_nodes wn ON wnt.node_id = wn.id
 				         JOIN workflows w ON wn.workflow_id = w.id
 				         WHERE rtrim(wnt.link, '/') = rtrim(p.url, '/') AND wnt.status = 'COMPLETED'
-				           AND wn.node_type LIKE '%.like_posts' AND w.profile_id = pe.profile_id),
+				           AND wn.node_type LIKE '%.like_posts' AND w.profile_id = p.profile_id),
 				       EXISTS(SELECT 1 FROM workflow_node_targets wnt
 				         JOIN workflow_nodes wn ON wnt.node_id = wn.id
 				         JOIN workflows w ON wn.workflow_id = w.id
 				         WHERE rtrim(wnt.link, '/') = rtrim(p.url, '/') AND wnt.status = 'COMPLETED'
-				           AND wn.node_type LIKE '%.comment_on_posts' AND w.profile_id = pe.profile_id)
+				           AND wn.node_type LIKE '%.comment_on_posts' AND w.profile_id = p.profile_id)
 				FROM posts p
 				JOIN people pe ON p.person_id = pe.id
-				WHERE p.person_id = ? AND pe.profile_id = ?
+				WHERE p.person_id = ? AND p.profile_id = ?
 				ORDER BY p.scraped_at DESC`, args[0], d.ProfileID())
 			if err != nil {
 				return fmt.Errorf("querying posts: %w", err)
@@ -221,7 +221,7 @@ func (d Deps) newPeoplePostsGetCmd() *cobra.Command {
 				       COALESCE(caption, ''), COALESCE(posted_at, ''), scraped_at
 				FROM posts
 				JOIN people ON posts.person_id = people.id
-				WHERE posts.id = ? AND people.profile_id = ?`, args[0], d.ProfileID(),
+				WHERE posts.id = ? AND posts.profile_id = ?`, args[0], d.ProfileID(),
 			).Scan(&p.ID, &p.Shortcode, &p.URL,
 				&p.ThumbnailURL, &p.LikeCount, &p.CommentCount,
 				&p.Caption, &p.PostedAt, &p.ScrapedAt)
@@ -273,7 +273,7 @@ func (d Deps) newPeoplePostsCommentsCmd() *cobra.Command {
 				FROM post_comments
 				JOIN posts ON post_comments.post_id = posts.id
 				JOIN people ON posts.person_id = people.id
-				WHERE post_id = ? AND people.profile_id = ?
+				WHERE post_id = ? AND posts.profile_id = ?
 				ORDER BY timestamp ASC`, args[0], d.ProfileID())
 			if err != nil {
 				return fmt.Errorf("querying comments: %w", err)

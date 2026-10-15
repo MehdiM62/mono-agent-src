@@ -14,6 +14,7 @@ import (
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/monoes/mono-agent/internal/i18n"
 	"github.com/monoes/mono-agent/internal/nodemgr"
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/spf13/cobra"
@@ -315,8 +316,11 @@ func migrateProfilesToPerProfileKeys(db *storage.Database) {
 // row in `profiles`.
 func resolveProfileID(db *sql.DB, idOrName string) (string, error) {
 	var id string
-	if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
-		return id, nil
+	// The reserved machine scope is never a profile id; as a name it is fine.
+	if idOrName != profiledir.MachineProfileID {
+		if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ?`, idOrName).Scan(&id); err == nil {
+			return id, nil
+		}
 	}
 	if err := db.QueryRow(`SELECT id FROM profiles WHERE LOWER(name) = LOWER(?)`, idOrName).Scan(&id); err == nil {
 		return id, nil

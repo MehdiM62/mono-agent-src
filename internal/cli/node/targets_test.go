@@ -56,7 +56,7 @@ func TestAutoSaveCommentsBothKeys(t *testing.T) {
 	}
 	defer db.Close()
 	ctx := context.Background()
-	if _, err := db.DB.Exec(`INSERT INTO posts (id, platform, shortcode, url, scraped_at) VALUES ('p1', 'INSTAGRAM', 'ABC123', 'https://www.instagram.com/p/ABC123/', '2026-01-01T00:00:00Z')`); err != nil {
+	if _, err := db.DB.Exec(`INSERT INTO posts (id, platform, shortcode, url, scraped_at, profile_id) VALUES ('p1', 'INSTAGRAM', 'ABC123', 'https://www.instagram.com/p/ABC123/', '2026-01-01T00:00:00Z', 'prof-1')`); err != nil {
 		t.Fatal(err)
 	}
 	const post = "https://www.instagram.com/p/ABC123/"
@@ -67,7 +67,7 @@ func TestAutoSaveCommentsBothKeys(t *testing.T) {
 	} {
 		items := []workflow.Item{{JSON: map[string]interface{}{"author": fmt.Sprintf("user%d", i), "text": "nice", "timestamp": "t"}}}
 		var out bytes.Buffer
-		autoSaveComments(ctx, db.DB, "instagram.list_post_comments", config, items, &out)
+		autoSaveComments(ctx, db.DB, "instagram.list_post_comments", config, items, "prof-1", &out)
 		if !strings.Contains(out.String(), "Saved 1 comment(s)") {
 			t.Fatalf("config %v: %s", config, out.String())
 		}
@@ -80,7 +80,7 @@ func TestAutoSaveCommentsBothKeys(t *testing.T) {
 
 	var out bytes.Buffer
 	autoSaveComments(ctx, db.DB, "instagram.list_post_comments", map[string]interface{}{"targets": []interface{}{"https://www.instagram.com/p/NOPE/"}},
-		[]workflow.Item{{JSON: map[string]interface{}{"author": "x"}}}, &out)
+		[]workflow.Item{{JSON: map[string]interface{}{"author": "x"}}}, "prof-1", &out)
 	if !strings.Contains(out.String(), "post not found in DB") {
 		t.Fatalf("unknown post: %s", out.String())
 	}

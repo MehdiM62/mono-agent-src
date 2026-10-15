@@ -14,12 +14,19 @@ import (
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
+// postsProfile is the profile posts are stored under: an empty id (a run with
+// no resolved profile) means "default". Writers and readers of posts share it.
+func postsProfile(profileID string) string {
+	if profileID == "" {
+		return "default"
+	}
+	return profileID
+}
+
 // savePostsToDB upserts scraped post items into the posts table.
 // Returns (saved, skipped, failed) counts.
 func savePostsToDB(ctx context.Context, db *sql.DB, items []workflow.Item, nodeType string, config map[string]interface{}, profileID string) (int, int, int) {
-	if profileID == "" {
-		profileID = "default"
-	}
+	profileID = postsProfile(profileID)
 	// Derive platform from nodeType prefix e.g. "instagram.list_user_posts" → "INSTAGRAM"
 	platform := strings.ToUpper(strings.SplitN(nodeType, ".", 2)[0])
 
@@ -79,16 +86,16 @@ func savePostsToDB(ctx context.Context, db *sql.DB, items []workflow.Item, nodeT
 		}
 
 		_, err := db.ExecContext(ctx,
-			`INSERT INTO posts (id, person_id, platform, shortcode, url, thumbnail_url, like_count, comment_count, caption, scraped_at)
-             VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)
-             ON CONFLICT(platform, shortcode)
+			`INSERT INTO posts (id, person_id, platform, shortcode, url, thumbnail_url, like_count, comment_count, caption, scraped_at, profile_id)
+             VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
+             ON CONFLICT(profile_id, platform, shortcode)
              DO UPDATE SET
                thumbnail_url = COALESCE(excluded.thumbnail_url, posts.thumbnail_url),
                caption       = COALESCE(excluded.caption,       posts.caption),
                person_id     = COALESCE(excluded.person_id,     posts.person_id),
                scraped_at    = excluded.scraped_at`,
 			uuid.New().String(), personIDArg, platform, shortcode, postURL,
-			nullableStrCLI(thumbnail), nullableStrCLI(caption), now,
+			nullableStrCLI(thumbnail), nullableStrCLI(caption), now, profileID,
 		)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  Warning: failed to save post %s: %v\n", shortcode, err)

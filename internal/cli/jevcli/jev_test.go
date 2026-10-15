@@ -52,6 +52,13 @@ func (c *testConfig) deps() Deps {
 			}
 			return db, nil
 		},
+		ResolveProfile: func(db *sql.DB, idOrName string) (string, error) {
+			var id string
+			if err := db.QueryRow(`SELECT id FROM profiles WHERE id = ? OR LOWER(name) = LOWER(?)`, idOrName, idOrName).Scan(&id); err != nil {
+				return "", clicore.InvalidInput("profile %q not found", idOrName)
+			}
+			return id, nil
+		},
 		StdinIsTerminal: func() bool { return stdinTTY },
 	}
 }

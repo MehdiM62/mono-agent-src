@@ -25,12 +25,12 @@ func seedCRM(t *testing.T, db *storage.Database) {
 			VALUES ('t1', 'e1', 'n1', 'p1', 'LINKEDIN', 'https://li/p1', 'COMPLETED', 'hi', '2026-09-03 10:00:00')`,
 		`INSERT INTO workflow_node_targets (id, execution_id, node_id, person_id, platform, status)
 			VALUES ('t2', 'e2', 'n1', 'p1', 'LINKEDIN', 'COMPLETED')`,
-		`INSERT INTO posts (id, person_id, platform, shortcode, url, like_count, caption, scraped_at)
-			VALUES ('po1', 'p1', 'instagram', 'abc', 'https://ig/p/abc/', 5, 'first', '2026-09-04')`,
-		`INSERT INTO posts (id, person_id, platform, shortcode, url, scraped_at)
-			VALUES ('po2', 'p1', 'instagram', 'def', 'https://ig/p/def', '2026-09-05')`,
-		`INSERT INTO posts (id, person_id, platform, shortcode, url, scraped_at)
-			VALUES ('pox', 'x1', 'instagram', 'xyz', 'https://ig/p/xyz', '2026-09-05')`,
+		`INSERT INTO posts (id, person_id, platform, shortcode, url, like_count, caption, scraped_at, profile_id)
+			VALUES ('po1', 'p1', 'instagram', 'abc', 'https://ig/p/abc/', 5, 'first', '2026-09-04', 'default')`,
+		`INSERT INTO posts (id, person_id, platform, shortcode, url, scraped_at, profile_id)
+			VALUES ('po2', 'p1', 'instagram', 'def', 'https://ig/p/def', '2026-09-05', 'default')`,
+		`INSERT INTO posts (id, person_id, platform, shortcode, url, scraped_at, profile_id)
+			VALUES ('pox', 'x1', 'instagram', 'xyz', 'https://ig/p/xyz', '2026-09-05', 'other')`,
 		`INSERT INTO workflow_nodes (id, workflow_id, node_type, name) VALUES ('n1', 'w1', 'instagram.like_posts', 'Like')`,
 		`INSERT INTO workflow_nodes (id, workflow_id, node_type, name) VALUES ('n2', 'w2', 'instagram.comment_on_posts', 'Comment')`,
 		`INSERT INTO workflow_node_targets (id, execution_id, node_id, platform, link, status)
