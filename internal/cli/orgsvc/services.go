@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -42,9 +41,6 @@ func ProfileRoots(db *sql.DB) ([]orgdecide.ProfileRoot, error) {
 		}
 	}
 	rows.Close()
-	if !slices.Contains(ids, "default") {
-		ids = append(ids, "default")
-	}
 	sort.Strings(ids)
 	var out []orgdecide.ProfileRoot
 	for _, id := range ids {
@@ -204,10 +200,14 @@ func (s *Services) workflowFacts(ctx context.Context, db *storage.Database, work
 // for a chain no org started (a webhook run's own). The repeat limit is
 // orgbridge.TriggerRepeats whatever the org says.
 func (s *Services) admitWebhookTrace(ctx context.Context, workflowID, chain string, hop int) (int, string, error) {
-	profile := "default"
-	if wf, err := s.openWorkflowStore(s.db).GetWorkflow(ctx, workflowID); err == nil && wf != nil && wf.ProfileID != "" {
-		profile = wf.ProfileID
+	wf, err := s.openWorkflowStore(s.db).GetWorkflow(ctx, workflowID)
+	if err != nil {
+		return 0, "", fmt.Errorf("workflow %s: %w", workflowID, err)
 	}
+	if wf == nil || wf.ProfileID == "" {
+		return 0, "", fmt.Errorf("workflow %s has no profile, so its trace cannot be attributed", workflowID)
+	}
+	profile := wf.ProfileID
 	ledger := orgbridge.NewLedger(s.db.DB)
 	origin, err := ledger.ChainOrigin(ctx, profile, chain)
 	if err != nil {

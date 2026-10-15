@@ -17,7 +17,7 @@ import (
 // service to survive logout/reboot" line the daemon's own docs used to just
 // leave to the reader. See internal/autostart for the three per-OS
 // backends.
-func newDaemonInstallCmd() *cobra.Command {
+func newDaemonInstallCmd(d Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
 		Short: "Register the daemon to start automatically at login, and start it now",
@@ -25,13 +25,27 @@ func newDaemonInstallCmd() *cobra.Command {
 			"systemd --user unit on Linux, a Scheduled Task on Windows — and starts it immediately, so " +
 			"the workflow engine and the Chrome extension bridge are both up from login onward without " +
 			"anyone running a command by hand. Safe to run again: re-installing replaces the previous " +
-			"registration rather than duplicating it.",
-		Example: "  monoagentcli daemon install",
+			"registration rather than duplicating it.\n\n" +
+			"--profile is required: the service runs `monoagentcli daemon --profile <id>`, so it never " +
+			"depends on which profile happens to be active.",
+		Example: "  monoagentcli daemon install --profile <id>",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if f := cmd.Flag("profile"); f == nil || !f.Changed {
+				return fmt.Errorf("daemon install needs --profile <id>: the service starts the daemon on that profile")
+			}
+			db, err := d.OpenDB() // resolves a name to the profile's id and refuses one that does not exist
+			if err != nil {
+				return err
+			}
+			db.Close()
+			profile := d.ProfileID()
+			if profile == "" {
+				return fmt.Errorf("daemon install needs --profile <id>")
+			}
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-			result, err := autostart.New().Install(ctx)
+			result, err := d.NewInstaller().Install(ctx, profile)
 			if err != nil {
 				return fmt.Errorf("install: %w", err)
 			}

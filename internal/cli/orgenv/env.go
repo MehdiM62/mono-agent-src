@@ -68,22 +68,23 @@ func (e *Env) open() {
 }
 
 // Root is the project root org proxies run against: --project when given,
-// otherwise the active profile's root. When the database cannot be opened
-// it falls back to the default per-profile folder rather than failing a
-// read-only observe command.
+// otherwise the profile's root. When the database cannot be opened there is
+// no root ("", never the default profile's folder); RootErr says why.
 func (e *Env) Root() string {
+	root, _ := e.RootErr()
+	return root
+}
+
+// RootErr is Root with the reason there is none.
+func (e *Env) RootErr() (string, error) {
 	if p := e.Project(); p != "" {
-		return expandPath(p)
+		return expandPath(p), nil
 	}
 	e.open()
 	if e.dbErr != nil {
-		pid := e.ProfileID()
-		if pid == "" {
-			pid = "default"
-		}
-		return profiledir.Root(nil, pid)
+		return "", e.dbErr
 	}
-	return e.rootDir
+	return e.rootDir, nil
 }
 
 // Profile returns the database, profile id, and profile root for commands
