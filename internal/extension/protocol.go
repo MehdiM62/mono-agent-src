@@ -78,6 +78,19 @@ const (
 	// monoagent profile (params: profile, optional label). Sent by
 	// `monoagentcli extension bind` and the app's Settings → Browsers.
 	CmdSetBinding = "set_binding"
+
+	// The coder's browser commands (plan C1; chrome-extension/agent_*.js,
+	// typed helpers in page_agent.go).
+	CmdListTabs     = "list_tabs"
+	CmdTabGroup     = "tab_group"
+	CmdScreenshot   = "screenshot"
+	CmdEmulate      = "emulate"
+	CmdWatchTab     = "watch_tab"
+	CmdReadConsole  = "read_console"
+	CmdReadNetwork  = "read_network"
+	CmdA11yTree     = "a11y_tree"
+	CmdSubmitGuard  = "submit_guard"
+	CmdSubmitPrompt = "submit_prompt"
 )
 
 // HighlightsArtifact is the envelope member carrying a page's saved
