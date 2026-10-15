@@ -105,7 +105,7 @@ func (g *extGuard) Blocked(ctx context.Context) ([]blockedSubmit, error) {
 	var out []blockedSubmit
 	for _, b := range st.Blocked {
 		if b.Seq > g.seen {
-			out = append(out, blockedSubmit{Seq: int(b.Seq), URL: b.URL, Form: formSummary(b.Form)})
+			out = append(out, blockedSubmit{Seq: int(b.Seq), URL: b.URL, FrameID: b.FrameID, Form: formSummary(b.Form)})
 		}
 	}
 	g.seen = max(g.seen, newest)
@@ -142,6 +142,7 @@ func (g *extGuard) Ask(ctx context.Context, b blockedSubmit, by hilsend.Prepared
 	ep, _ := g.page.(*extension.ExtensionPage)
 	it, err := browserctl.CreateSubmitItem(ctx, g.db, browserctl.SubmitRequest{RequestedBy: &by, Page: ep,
 		Profile: g.profile, URL: b.URL, Form: b.Form, Screenshot: g.cardScreenshot(), Via: "guard", TabID: g.TabID(), Seq: b.Seq,
+		FrameID: b.FrameID,
 	})
 	return it.ID, err
 }

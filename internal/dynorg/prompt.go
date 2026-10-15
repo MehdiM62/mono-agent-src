@@ -26,7 +26,8 @@ const BrowserRules = "The user's browser: `monoagentcli browser` (`monoagentcli 
 	"To have the user point at an element: `browser pick`. " +
 	"A form submit on a real site exits 3 with `awaiting_approval` and a hil_id: wait until the user approves it, " +
 	"then run `browser submit --hil <id>`. Never try to get around that. " +
-	"`browser eval` works only on local pages. Exit 3 with code `origin_changed` means the tab moved: " +
+	"`browser eval` works only on local pages, and console and network reads show only the tab's current site. " +
+	"Exit 3 with code `origin_changed` means the tab moved: " +
 	"check where it is (`browser tabs`) before acting again."
 
 // profileRules is what each access profile tells the worker it may do.

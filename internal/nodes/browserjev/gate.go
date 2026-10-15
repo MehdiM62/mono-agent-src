@@ -112,9 +112,10 @@ func shellPolicy(ctx context.Context) (browserctl.Policy, error) {
 
 // blockedSubmit is one submit the guard stopped (C1 submit_guard's blocked[]).
 type blockedSubmit struct {
-	Seq  int
-	URL  string
-	Form browserctl.FormSummary // sensitive values masked
+	Seq     int
+	URL     string
+	FrameID int                    // 0: the top frame
+	Form    browserctl.FormSummary // sensitive values masked
 }
 
 // submitGuard is the submit guard armed on the run's tab and the approval
