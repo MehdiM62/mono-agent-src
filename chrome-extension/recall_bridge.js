@@ -61,9 +61,31 @@
     return !!v && !v.includes("/") && !v.includes("\\") && !v.includes("..");
   }
 
+  // Every lookup asks for the profile, and a bridge that cannot list profiles
+  // would be asked again for each one: concurrent callers share one question,
+  // and an answer of "none" is kept for a few seconds.
+  const NO_PROFILE_MEMORY_MS = 10000;
+  let resolving = null;
+  let noProfileUntil = 0;
+
   /** stickyProfile is the remembered "Saving into" choice, else the default
    *  profile, or "" when there is neither. */
   async function stickyProfile() {
+    if (Date.now() < noProfileUntil) return "";
+    if (!resolving) {
+      resolving = resolveStickyProfile()
+        .then((id) => {
+          if (!id) noProfileUntil = Date.now() + NO_PROFILE_MEMORY_MS;
+          return id;
+        })
+        .finally(() => {
+          resolving = null;
+        });
+    }
+    return resolving;
+  }
+
+  async function resolveStickyProfile() {
     try {
       const P = root.MonoCaptureProfile;
       if (P && P.stickyOrAsk) {
@@ -101,6 +123,7 @@
     if (!chrome.storage || !chrome.storage.onChanged) return;
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area !== "local" || !changes[PROFILE_KEY]) return;
+      noProfileUntil = 0;
       root.MonoSaved.reset();
       checkActiveTab();
     });

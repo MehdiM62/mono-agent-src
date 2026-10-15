@@ -352,6 +352,14 @@ test("an ask with nothing stored names the default profile", async () => {
   assert.equal(h.sent.find((f) => f.method === "doc.ask").params.profile, "b");
 });
 
+test("lookups share one profile.list question, and a bridge with no profiles is not asked again at once", async () => {
+  const h = installed({ ping: { methods: ["profile.list", "doc.ask", "doc.related"] }, "doc.related": [], "profile.list": { profiles: [] } }, ["capture_profile.js"]);
+  await Promise.all([h.send({ type: "ask_related", url: PAGE_URL }), h.send({ type: "ask_related", url: PAGE_URL })]);
+  assert.equal(h.sent.filter((f) => f.method === "profile.list").length, 1, "concurrent lookups share a question");
+  await h.send({ type: "ask_related", url: PAGE_URL });
+  assert.equal(h.sent.filter((f) => f.method === "profile.list").length, 1, "an answer of none is remembered briefly");
+});
+
 test("a hostile profile id is never sent", async () => {
   const h = installed({ "doc.ask": { query: "q", answers: [] } });
   await h.send({ type: "ask_brain", q: "q", profile: "../other" });

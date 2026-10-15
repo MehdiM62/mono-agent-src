@@ -204,6 +204,31 @@ func TestCoderRequestWithoutAProfileIsRefused(t *testing.T) {
 	}
 }
 
+func TestCoderStopOnlyReachesTheCallersProfile(t *testing.T) {
+	cb := &coderBridge{active: map[string]context.CancelFunc{}, cwds: map[string]string{}}
+	stopped := false
+	if !cb.claim("p1", "conv-1", func() { stopped = true }) {
+		t.Fatal("claim refused")
+	}
+	if cb.claim("p1", "conv-1", func() {}) {
+		t.Error("a second turn on the same conversation was admitted")
+	}
+	stop := func(profile string) any {
+		res, err := cb.handleStop(context.Background(),
+			&Request{Method: MethodCoderStop, Params: map[string]any{"profile": profile, "conversationId": "conv-1"}}, nil)
+		if err != nil {
+			t.Fatalf("stop as %s: %v", profile, err)
+		}
+		return res.(map[string]any)["stopped"]
+	}
+	if got := stop("p2"); got != false || stopped {
+		t.Errorf("another profile stopped p1's turn: %v stopped=%v", got, stopped)
+	}
+	if got := stop("p1"); got != true || !stopped {
+		t.Errorf("the owner could not stop its turn: %v stopped=%v", got, stopped)
+	}
+}
+
 func listReply(desktop, running bool, cwd string) func([]string) (string, error) {
 	return func(args []string) (string, error) {
 		if slices.Contains(args, "list") {

@@ -80,8 +80,8 @@ type coderBridge struct {
 	instance string
 
 	mu     sync.Mutex
-	active map[string]context.CancelFunc // conversation -> stop, for turns this bridge started
-	cwds   map[string]string             // conversation -> its folder (fixed for its life)
+	active map[string]context.CancelFunc // profile+conversation -> stop, for turns this bridge started
+	cwds   map[string]string             // profile+conversation -> its folder (fixed for its life)
 }
 
 // registerCoderHandlers installs coder.* on every server, run through this
@@ -200,7 +200,7 @@ func (cb *coderBridge) chatRow(ctx context.Context, profile, conv string) (coder
 	}
 	row := res.Conversations[0]
 	cb.mu.Lock()
-	cb.cwds[conv] = row.Cwd
+	cb.cwds[convKey(profile, conv)] = row.Cwd
 	cb.mu.Unlock()
 	return row, nil
 }
@@ -230,7 +230,7 @@ func (cb *coderBridge) handleSend(ctx context.Context, req *Request, _ ProgressF
 		return nil, errBusy()
 	}
 	turnCtx, stop := context.WithCancel(context.Background())
-	if !cb.claim(conv, stop) {
+	if !cb.claim(profile, conv, stop) {
 		stop()
 		return nil, errBusy()
 	}
@@ -238,7 +238,7 @@ func (cb *coderBridge) handleSend(ctx context.Context, req *Request, _ ProgressF
 	proc, err := cb.cli.Start(turnCtx, text, append(chatBase(profile), "chat", "--conversation="+conv, "--turn="+turn,
 		"--instance="+cb.instance, "--prompt-stdin")...)
 	if err != nil {
-		cb.release(conv)
+		cb.release(profile, conv)
 		stop()
 		return nil, err
 	}
@@ -279,7 +279,7 @@ func (cb *coderBridge) handleSend(ctx context.Context, req *Request, _ ProgressF
 	// its own.
 	waitErr := proc.Wait()
 	stop()
-	cb.release(conv)
+	cb.release(profile, conv)
 	if ctx.Err() != nil {
 		return nil, &RequestError{Code: CodeTimeout, Err: ctx.Err()}
 	}
@@ -290,7 +290,7 @@ func (cb *coderBridge) handleSend(ctx context.Context, req *Request, _ ProgressF
 // itself when the process died without writing turn.finished.
 func (cb *coderBridge) follow(ctx context.Context, stop context.CancelFunc, sc *bufio.Scanner, proc coderProc, profile, conv, turn string) {
 	defer stop()
-	defer cb.release(conv)
+	defer cb.release(profile, conv)
 	finished := false
 	for sc.Scan() {
 		var rec chatevents.Record
@@ -314,29 +314,38 @@ func (cb *coderBridge) follow(ctx context.Context, stop context.CancelFunc, sc *
 		"--status="+string(st), "--reason="+reason, "--", conv, turn)...)
 }
 
-func (cb *coderBridge) claim(conv string, stop context.CancelFunc) bool {
+// convKey scopes a conversation id to its profile: ids are only unique
+// within one, and neither a stop nor a cached folder may cross profiles.
+func convKey(profile, conv string) string { return profile + "\x00" + conv }
+
+func (cb *coderBridge) claim(profile, conv string, stop context.CancelFunc) bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	if _, busy := cb.active[conv]; busy {
+	k := convKey(profile, conv)
+	if _, busy := cb.active[k]; busy {
 		return false
 	}
-	cb.active[conv] = stop
+	cb.active[k] = stop
 	return true
 }
 
-func (cb *coderBridge) release(conv string) {
+func (cb *coderBridge) release(profile, conv string) {
 	cb.mu.Lock()
-	delete(cb.active, conv)
+	delete(cb.active, convKey(profile, conv))
 	cb.mu.Unlock()
 }
 
 func (cb *coderBridge) handleStop(_ context.Context, req *Request, _ ProgressFunc) (any, error) {
+	profile, err := coderProfile(req)
+	if err != nil {
+		return nil, err
+	}
 	conv, err := coderConversationParam(req)
 	if err != nil {
 		return nil, err
 	}
 	cb.mu.Lock()
-	stop := cb.active[conv]
+	stop := cb.active[convKey(profile, conv)]
 	cb.mu.Unlock()
 	if stop != nil {
 		stop()
@@ -362,7 +371,7 @@ func (cb *coderBridge) handleEvents(ctx context.Context, req *Request, _ Progres
 		return nil, invalidParam("since must not be negative")
 	}
 	cb.mu.Lock()
-	cwd, known := cb.cwds[conv]
+	cwd, known := cb.cwds[convKey(profile, conv)]
 	cb.mu.Unlock()
 	if !known {
 		// Also refuses a conversation that is not a coder one.
