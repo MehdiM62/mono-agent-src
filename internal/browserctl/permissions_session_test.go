@@ -119,12 +119,11 @@ func TestOffRefusesTheKindButNotAHuman(t *testing.T) {
 	if _, err := browserctl.Open(browserctl.Options{Sender: f, Permissions: perms(t, browserctl.LevelOff)}); !errors.As(err, &off) {
 		t.Fatalf("acting on a local tab at off: %v", err)
 	}
-	s, err := browserctl.Open(browserctl.Options{NoTab: true, Sender: f, Permissions: perms(t, browserctl.LevelOff)})
-	if err != nil {
-		t.Fatal(err)
+	if _, err := browserctl.Open(browserctl.Options{NoTab: true, Sender: f, Permissions: perms(t, browserctl.LevelOff)}); !errors.As(err, &off) {
+		t.Fatalf("a session with no tab (open, tabs) at off: %v", err)
 	}
-	if _, err := s.OpenTab("http://localhost:3000/", ""); !errors.As(err, &off) {
-		t.Fatalf("opening a local page at off: %v", err)
+	if len(f.Calls()) != 0 {
+		t.Fatalf("commands reached the browser at off: %v", f.Types())
 	}
 	setEnv(t, false)
 	h, err := browserctl.Open(browserctl.Options{Sender: f, Tab: tab, Permissions: perms(t, browserctl.LevelOff)})

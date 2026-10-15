@@ -78,8 +78,10 @@ func TestBrowserPermissionRefusals(t *testing.T) {
 		}
 	}
 	set(browserctl.LevelOff)
-	if _, err := bt.run("open", "http://localhost:3000/"); jsonCode(err) != "browser_off" || exitCodeFor(err) != 3 {
-		t.Fatalf("off: %v (%s)", err, jsonCode(err))
+	for _, args := range [][]string{{"open", "http://localhost:3000/"}, {"tabs"}, {"browsers"}, {"screenshot"}} {
+		if _, err := bt.run(args...); jsonCode(err) != "browser_off" || exitCodeFor(err) != 3 {
+			t.Fatalf("off, %v: %v (%s)", args, err, jsonCode(err))
+		}
 	}
 	set(browserctl.LevelFull, browserctl.SiteRule{Origin: "https://bank.example", Rule: browserctl.RuleBlock})
 	if _, err := bt.run("open", "https://bank.example/"); jsonCode(err) != "site_blocked" {
