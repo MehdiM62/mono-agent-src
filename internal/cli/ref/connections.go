@@ -40,12 +40,11 @@ profile errors out; it does not silently fall back to "default".
 Every read/write in this CLI that is not machine-wide (version, update,
 config, message-template, agent, account, db, node list/schema, api config,
 profile list/create/get, ...) is scoped to the profile you name with
---profile. When writing a NEW workflow
-node by hand (not via 'workflow templates use', which already does this),
-double-check any node that takes its own "profile_id" config field (e.g.
-people.sync_outlook_message) — it does NOT inherit the workflow's profile
-automatically and defaults to "default" if you leave it unset. See
-'monoagentcli ref node people.sync_outlook_message' for the specific gotcha.
+--profile. A workflow node acts on the profile the workflow runs under;
+a node's own "profile_id" config field (e.g. people.sync_outlook_message)
+is optional and, when set, must match that profile or the node fails. A
+legacy "default" saved by older workflows is ignored with a warning. See
+'monoagentcli ref node people.sync_outlook_message'.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONNECTIONS — one external account, one row
