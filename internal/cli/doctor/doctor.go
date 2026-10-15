@@ -320,7 +320,11 @@ var statusMark = map[health.Status]string{
 }
 
 func printDoctorReport(w io.Writer, rep *health.Report, fixed bool) {
-	fmt.Fprintf(w, "monoagent doctor — %s · profile %s\n", rep.MonoagentVersion, rep.ProfileID)
+	profile := rep.ProfileID
+	if profile == "" {
+		profile = "none (pass --profile to check one)"
+	}
+	fmt.Fprintf(w, "monoagent doctor — %s · profile %s\n", rep.MonoagentVersion, profile)
 	group := ""
 	// Distinct fixes, as --fix applies each once however many rows offer it.
 	fixable, optional := map[string]bool{}, map[string]bool{}

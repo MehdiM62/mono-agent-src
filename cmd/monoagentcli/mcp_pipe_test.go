@@ -37,12 +37,13 @@ func mcpOptions(t *testing.T, dbPath, profile string, allowExposure bool) mcp.Op
 
 // mcpSession is a server of its own, served over a pipe.
 type mcpSession struct {
-	t      *testing.T
-	in     *io.PipeWriter
-	lines  chan []byte
-	served chan error
-	next   int
-	closed bool
+	t       *testing.T
+	profile string // the profile its calls act on (the server holds none)
+	in      *io.PipeWriter
+	lines   chan []byte
+	served  chan error
+	next    int
+	closed  bool
 }
 
 func newMCPSession(t *testing.T, o mcp.Options) *mcpSession {
@@ -50,7 +51,7 @@ func newMCPSession(t *testing.T, o mcp.Options) *mcpSession {
 	srv := mcp.NewServer(o)
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
-	m := &mcpSession{t: t, in: inW, lines: make(chan []byte, 64), served: make(chan error, 1), next: 1}
+	m := &mcpSession{t: t, profile: o.Profile, in: inW, lines: make(chan []byte, 64), served: make(chan error, 1), next: 1}
 	go func() {
 		m.served <- srv.Serve(context.Background(), inR, outW)
 		outW.Close()
@@ -80,7 +81,7 @@ func (m *mcpSession) call(name string, args any) (string, bool) {
 	m.next++
 	request, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0", "id": id, "method": "tools/call",
-		"params": map[string]any{"name": name, "arguments": args},
+		"params": map[string]any{"name": name, "arguments": withProfileArg(m.t, args, m.profile)},
 	})
 	if err != nil {
 		m.t.Fatal(err)
@@ -193,4 +194,31 @@ func mcpOnce(t *testing.T, o mcp.Options, name string, args any) (string, bool) 
 // without its last newline, and with the environment it names its own.
 func asMCPDoc(cli string) string {
 	return strings.Replace(strings.TrimSuffix(cli, "\n"), `"environment": "shell"`, `"environment": "mcp"`, 1)
+}
+
+// withProfileArg adds the profile a test acts on to the arguments of a call (the MCP server holds no
+// profile: every scoped call names its own; a global tool ignores the extra argument). An empty profile
+// is the default one.
+func withProfileArg(t *testing.T, args any, profile string) map[string]any {
+	t.Helper()
+	if profile == "" {
+		profile = "default"
+	}
+	out := map[string]any{}
+	if args != nil {
+		b, err := json.Marshal(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(b, &out); err != nil {
+			t.Fatal(err)
+		}
+		if out == nil {
+			out = map[string]any{}
+		}
+	}
+	if _, ok := out["profile"]; !ok {
+		out["profile"] = profile
+	}
+	return out
 }

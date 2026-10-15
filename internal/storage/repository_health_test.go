@@ -29,9 +29,9 @@ func addPerson(t *testing.T, db *storage.Database, username, platform, profile s
 
 func TestHealthGetListDeletePeople(t *testing.T) {
 	db := testdb.Open(t)
-	alice := addPerson(t, db, "alice", "x", "")
-	addPerson(t, db, "bob", "x", "")
-	addPerson(t, db, "alina", "instagram", "")
+	alice := addPerson(t, db, "alice", "x", "default")
+	addPerson(t, db, "bob", "x", "default")
+	addPerson(t, db, "alina", "instagram", "default")
 
 	p, err := db.GetPerson(alice)
 	if err != nil || p == nil {
@@ -43,7 +43,7 @@ func TestHealthGetListDeletePeople(t *testing.T) {
 	if missing, err := db.GetPerson("nope"); err != nil || missing != nil {
 		t.Errorf("GetPerson(missing) = %v, %v", missing, err)
 	}
-	if missing, err := db.GetPersonByUsername("alice", "instagram", ""); err != nil || missing != nil {
+	if missing, err := db.GetPersonByUsername("alice", "instagram", "default"); err != nil || missing != nil {
 		t.Errorf("GetPersonByUsername on wrong platform = %v, %v", missing, err)
 	}
 
@@ -95,20 +95,23 @@ func TestHealthPeopleProfileIsolation(t *testing.T) {
 	if p, _ := db.GetPersonByUsername("same", "x", "work"); p == nil || p.ID != b || p.ProfileID != "work" {
 		t.Errorf("work lookup = %+v", p)
 	}
-	// An empty profile means "default".
-	if p, _ := db.GetPersonByUsername("same", "x", ""); p == nil || p.ID != a {
+	if p, _ := db.GetPersonByUsername("same", "x", "default"); p == nil || p.ID != a {
 		t.Errorf("default lookup = %+v", p)
+	}
+	// An empty profile is an error, never "default".
+	if p, err := db.GetPersonByUsername("same", "x", ""); !errors.Is(err, storage.ErrNoProfile) || p != nil {
+		t.Errorf("empty-profile lookup = %+v, %v; want ErrNoProfile", p, err)
 	}
 }
 
 func TestHealthDeletePersonCascadesHistory(t *testing.T) {
 	db := testdb.Open(t)
-	id := addPerson(t, db, "carol", "email", "")
+	id := addPerson(t, db, "carol", "email", "default")
 	msg := &storage.PersonMessage{PersonID: id, Source: "outlook", Body: "hi"}
-	if err := db.UpsertPersonMessage(msg, ""); err != nil {
+	if err := db.UpsertPersonMessage(msg, "default"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.AddPersonStatusUpdate(id, "", "met at conf"); err != nil {
+	if _, err := db.AddPersonStatusUpdate(id, "default", "met at conf"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.DeletePerson(id); err != nil {
@@ -117,7 +120,7 @@ func TestHealthDeletePersonCascadesHistory(t *testing.T) {
 	if m, _ := db.GetPersonMessage(msg.ID); m != nil {
 		t.Error("message survived its person's delete")
 	}
-	if u, _ := db.GetLatestPersonStatusUpdate(id, ""); u != nil {
+	if u, _ := db.GetLatestPersonStatusUpdate(id, "default"); u != nil {
 		t.Error("status update survived its person's delete")
 	}
 }
@@ -128,7 +131,7 @@ func TestHealthBatchUpsertPeople(t *testing.T) {
 		t.Fatalf("empty batch: %v", err)
 	}
 	batch := []*storage.Person{
-		{PlatformUsername: "p1", Platform: "x", FullName: "One", FollowingCount: 3},
+		{PlatformUsername: "p1", Platform: "x", ProfileID: "default", FullName: "One", FollowingCount: 3},
 		{PlatformUsername: "p2", Platform: "x", ProfileID: "work", IsVerified: true},
 	}
 	if err := db.BatchUpsertPeople(batch); err != nil {
@@ -137,7 +140,7 @@ func TestHealthBatchUpsertPeople(t *testing.T) {
 	if batch[0].ID == "" || batch[0].ProfileID != "default" {
 		t.Errorf("batch did not fill id/profile: %+v", batch[0])
 	}
-	p1, _ := db.GetPersonByUsername("p1", "x", "")
+	p1, _ := db.GetPersonByUsername("p1", "x", "default")
 	if p1 == nil || p1.FullName != "One" || p1.FollowingCount != 3 {
 		t.Errorf("p1 = %+v", p1)
 	}
@@ -147,14 +150,14 @@ func TestHealthBatchUpsertPeople(t *testing.T) {
 	}
 
 	// Re-upserting the same key updates in place instead of adding a row.
-	if err := db.BatchUpsertPeople([]*storage.Person{{PlatformUsername: "p1", Platform: "x", FullName: "Uno"}}); err != nil {
+	if err := db.BatchUpsertPeople([]*storage.Person{{PlatformUsername: "p1", Platform: "x", ProfileID: "default", FullName: "Uno"}}); err != nil {
 		t.Fatal(err)
 	}
 	all, _ := db.ListPeople("x", "", 0, 0)
 	if len(all) != 2 {
 		t.Errorf("rows after re-upsert = %d, want 2", len(all))
 	}
-	p1, _ = db.GetPersonByUsername("p1", "x", "")
+	p1, _ = db.GetPersonByUsername("p1", "x", "default")
 	if p1.FullName != "Uno" {
 		t.Errorf("re-upsert did not update full_name: %q", p1.FullName)
 	}
@@ -165,14 +168,14 @@ func TestHealthBatchUpsertPeople(t *testing.T) {
 // overwrites every column with whatever the batch carries.
 func TestHealthBatchUpsertPeoplePreservesEnrichment(t *testing.T) {
 	db := testdb.Open(t)
-	full := &storage.Person{PlatformUsername: "e", Platform: "x", FullName: "Enriched", JobTitle: "CTO", FollowingCount: 9}
+	full := &storage.Person{PlatformUsername: "e", Platform: "x", ProfileID: "default", FullName: "Enriched", JobTitle: "CTO", FollowingCount: 9}
 	if err := db.UpsertPerson(full); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.BatchUpsertPeople([]*storage.Person{{PlatformUsername: "e", Platform: "x"}}); err != nil {
+	if err := db.BatchUpsertPeople([]*storage.Person{{PlatformUsername: "e", Platform: "x", ProfileID: "default"}}); err != nil {
 		t.Fatal(err)
 	}
-	p, _ := db.GetPersonByUsername("e", "x", "")
+	p, _ := db.GetPersonByUsername("e", "x", "default")
 	if p.FullName != "Enriched" || p.JobTitle != "CTO" || p.FollowingCount != 9 {
 		t.Errorf("partial batch upsert wiped enrichment: %+v", p)
 	}
@@ -182,44 +185,44 @@ func TestHealthBatchUpsertPeoplePreservesEnrichment(t *testing.T) {
 
 func TestHealthPersonMessagesUpsertIdempotentByExternalID(t *testing.T) {
 	db := testdb.Open(t)
-	id := addPerson(t, db, "dave", "email", "")
+	id := addPerson(t, db, "dave", "email", "default")
 
 	m := &storage.PersonMessage{PersonID: id, Source: "outlook", ExternalID: "ext-1", Subject: "v1"}
-	if err := db.UpsertPersonMessage(m, ""); err != nil {
+	if err := db.UpsertPersonMessage(m, "default"); err != nil {
 		t.Fatal(err)
 	}
 	if m.Direction != "inbound" || m.Status != "sent" {
 		t.Errorf("defaults = %q/%q, want inbound/sent", m.Direction, m.Status)
 	}
 	// Same (person, source, external_id): an update, not a second row.
-	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: id, Source: "outlook", ExternalID: "ext-1", Subject: "v2"}, ""); err != nil {
+	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: id, Source: "outlook", ExternalID: "ext-1", Subject: "v2"}, "default"); err != nil {
 		t.Fatal(err)
 	}
 	// Same external id from another source is a different message.
-	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: id, Source: "gmail", ExternalID: "ext-1", Subject: "other"}, ""); err != nil {
+	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: id, Source: "gmail", ExternalID: "ext-1", Subject: "other"}, "default"); err != nil {
 		t.Fatal(err)
 	}
 	// No external id: defaults to the message id, so notes never collide.
 	n1 := &storage.PersonMessage{PersonID: id, Source: "note", Body: "a"}
 	n2 := &storage.PersonMessage{PersonID: id, Source: "note", Body: "b"}
-	if err := db.UpsertPersonMessage(n1, ""); err != nil {
+	if err := db.UpsertPersonMessage(n1, "default"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertPersonMessage(n2, ""); err != nil {
+	if err := db.UpsertPersonMessage(n2, "default"); err != nil {
 		t.Fatal(err)
 	}
 	if n1.ExternalID != n1.ID || n2.ExternalID != n2.ID {
 		t.Errorf("external ids default to own id: %q/%q", n1.ExternalID, n1.ID)
 	}
 
-	all, err := db.ListPersonMessages(id, "", "", 0, -1)
+	all, err := db.ListPersonMessages(id, "", "default", 0, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(all) != 4 {
 		t.Fatalf("messages = %d, want 4", len(all))
 	}
-	outlook, _ := db.ListPersonMessages(id, "outlook", "", 10, 0)
+	outlook, _ := db.ListPersonMessages(id, "outlook", "default", 10, 0)
 	if len(outlook) != 1 || outlook[0].Subject != "v2" || outlook[0].ID != m.ID {
 		t.Errorf("outlook messages after re-upsert = %+v", outlook)
 	}
@@ -234,13 +237,13 @@ func TestHealthPersonMessagesProfileIsolation(t *testing.T) {
 	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: work, Source: "x"}, "default"); err == nil {
 		t.Error("writing a message for another profile's person should fail")
 	}
-	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: "ghost", Source: "x"}, ""); err == nil {
+	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: "ghost", Source: "x"}, "default"); err == nil {
 		t.Error("writing a message for an unknown person should fail")
 	}
 	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: work, Source: "x", Body: "w"}, "work"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: home, Source: "x", Body: "h"}, ""); err != nil {
+	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: home, Source: "x", Body: "h"}, "default"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -250,7 +253,7 @@ func TestHealthPersonMessagesProfileIsolation(t *testing.T) {
 	if got, _ := db.ListPersonMessages(work, "", "work", 10, 0); len(got) != 1 || got[0].Body != "w" {
 		t.Errorf("work messages = %+v", got)
 	}
-	homeAll, _ := db.ListAllPersonMessages("", "", 10, 0)
+	homeAll, _ := db.ListAllPersonMessages("default", "", 10, 0)
 	if len(homeAll) != 1 || homeAll[0].Body != "h" || homeAll[0].PersonPlatformUsername != "erin" || homeAll[0].PersonFullName != "ERIN" {
 		t.Errorf("ListAllPersonMessages(default) = %+v", homeAll)
 	}
@@ -262,11 +265,11 @@ func TestHealthPersonMessagesProfileIsolation(t *testing.T) {
 
 func TestHealthListAllPersonMessagesOrderSourceAndPaging(t *testing.T) {
 	db := testdb.Open(t)
-	id := addPerson(t, db, "fay", "email", "")
+	id := addPerson(t, db, "fay", "email", "default")
 	base := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	for i, src := range []string{"outlook", "gmail", "outlook", "outlook"} {
 		m := &storage.PersonMessage{PersonID: id, Source: src, Subject: fmt.Sprintf("m%d", i), SentAt: base.Add(time.Duration(i) * time.Hour)}
-		if err := db.UpsertPersonMessage(m, ""); err != nil {
+		if err := db.UpsertPersonMessage(m, "default"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -277,7 +280,7 @@ func TestHealthListAllPersonMessagesOrderSourceAndPaging(t *testing.T) {
 		}
 		return strings.Join(s, ",")
 	}
-	all, err := db.ListAllPersonMessages("", "", 0, 0)
+	all, err := db.ListAllPersonMessages("default", "", 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,11 +290,11 @@ func TestHealthListAllPersonMessagesOrderSourceAndPaging(t *testing.T) {
 	if !all[0].SentAt.Equal(base.Add(3 * time.Hour)) {
 		t.Errorf("sent_at round trip = %v", all[0].SentAt)
 	}
-	outlook, _ := db.ListAllPersonMessages("", "outlook", 2, 1)
+	outlook, _ := db.ListAllPersonMessages("default", "outlook", 2, 1)
 	if subjects(outlook) != "m2,m0" {
 		t.Errorf("outlook page 2 = %s, want m2,m0", subjects(outlook))
 	}
-	perPerson, _ := db.ListPersonMessages(id, "", "", 1, 1)
+	perPerson, _ := db.ListPersonMessages(id, "", "default", 1, 1)
 	if len(perPerson) != 1 || perPerson[0].Subject != "m2" {
 		t.Errorf("ListPersonMessages limit 1 offset 1 = %+v", perPerson)
 	}
@@ -299,17 +302,17 @@ func TestHealthListAllPersonMessagesOrderSourceAndPaging(t *testing.T) {
 
 func TestHealthPersonMessageStatusAndDrafts(t *testing.T) {
 	db := testdb.Open(t)
-	gus := addPerson(t, db, "gus", "email", "")
+	gus := addPerson(t, db, "gus", "email", "default")
 	other := addPerson(t, db, "gus", "email", "work")
 
 	draft := &storage.PersonMessage{PersonID: gus, Source: "outlook", Direction: "outbound", Status: "draft", Subject: "hello"}
-	if err := db.UpsertPersonMessage(draft, ""); err != nil {
+	if err := db.UpsertPersonMessage(draft, "default"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.UpsertPersonMessage(&storage.PersonMessage{PersonID: other, Source: "outlook", Status: "draft"}, "work"); err != nil {
 		t.Fatal(err)
 	}
-	drafts, err := db.ListPersonMessagesByStatus("", "draft")
+	drafts, err := db.ListPersonMessagesByStatus("default", "draft")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +330,7 @@ func TestHealthPersonMessageStatusAndDrafts(t *testing.T) {
 	if got.Status != "sent" || got.ExternalID != "graph-123" || got.Direction != "outbound" {
 		t.Errorf("after status/external id update: %+v", got)
 	}
-	if drafts, _ := db.ListPersonMessagesByStatus("", "draft"); len(drafts) != 0 {
+	if drafts, _ := db.ListPersonMessagesByStatus("default", "draft"); len(drafts) != 0 {
 		t.Errorf("draft list after send = %d", len(drafts))
 	}
 
@@ -350,28 +353,28 @@ func TestHealthPersonMessageStatusAndDrafts(t *testing.T) {
 
 func TestHealthUnreadFilterOnlyInbound(t *testing.T) {
 	db := testdb.Open(t)
-	id := addPerson(t, db, "hal", "email", "")
+	id := addPerson(t, db, "hal", "email", "default")
 	in := &storage.PersonMessage{PersonID: id, Source: "outlook", Subject: "in"}
 	out := &storage.PersonMessage{PersonID: id, Source: "outlook", Subject: "out", Direction: "outbound"}
 	for _, m := range []*storage.PersonMessage{in, out} {
-		if err := db.UpsertPersonMessage(m, ""); err != nil {
+		if err := db.UpsertPersonMessage(m, "default"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	unread, err := db.ListAllPersonMessagesFiltered("", "", true, 10, 0)
+	unread, err := db.ListAllPersonMessagesFiltered("default", "", true, 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(unread) != 1 || unread[0].Subject != "in" || unread[0].ReadAt != nil {
 		t.Fatalf("unread = %+v", unread)
 	}
-	if _, err := db.MarkPersonMessagesRead("", id, []string{in.ID}); err != nil {
+	if _, err := db.MarkPersonMessagesRead("default", id, []string{in.ID}); err != nil {
 		t.Fatal(err)
 	}
-	if unread, _ := db.ListAllPersonMessagesFiltered("", "", true, 10, 0); len(unread) != 0 {
+	if unread, _ := db.ListAllPersonMessagesFiltered("default", "", true, 10, 0); len(unread) != 0 {
 		t.Errorf("unread after mark read = %d", len(unread))
 	}
-	all, _ := db.ListAllPersonMessagesFiltered("", "", false, 10, 0)
+	all, _ := db.ListAllPersonMessagesFiltered("default", "", false, 10, 0)
 	if len(all) != 2 {
 		t.Errorf("all = %d, want 2", len(all))
 	}
@@ -381,20 +384,20 @@ func TestHealthUnreadFilterOnlyInbound(t *testing.T) {
 
 func TestHealthPersonStatusUpdates(t *testing.T) {
 	db := testdb.Open(t)
-	id := addPerson(t, db, "ivy", "x", "")
+	id := addPerson(t, db, "ivy", "x", "default")
 	workID := addPerson(t, db, "ivy", "x", "work")
 
-	if _, err := db.AddPersonStatusUpdate(id, "", "   "); err == nil {
+	if _, err := db.AddPersonStatusUpdate(id, "default", "   "); err == nil {
 		t.Error("blank status text should be rejected")
 	}
 	if _, err := db.AddPersonStatusUpdate(workID, "default", "x"); err == nil {
 		t.Error("status for another profile's person should be rejected")
 	}
-	if u, err := db.GetLatestPersonStatusUpdate(id, ""); err != nil || u != nil {
+	if u, err := db.GetLatestPersonStatusUpdate(id, "default"); err != nil || u != nil {
 		t.Errorf("latest with none = %v, %v", u, err)
 	}
 	for i := 0; i < 3; i++ {
-		u, err := db.AddPersonStatusUpdate(id, "", fmt.Sprintf("  note %d ", i))
+		u, err := db.AddPersonStatusUpdate(id, "default", fmt.Sprintf("  note %d ", i))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -403,15 +406,15 @@ func TestHealthPersonStatusUpdates(t *testing.T) {
 		}
 		time.Sleep(2 * time.Millisecond) // distinct created_at for ordering
 	}
-	latest, _ := db.GetLatestPersonStatusUpdate(id, "")
+	latest, _ := db.GetLatestPersonStatusUpdate(id, "default")
 	if latest == nil || latest.Text != "note 2" {
 		t.Errorf("latest = %+v", latest)
 	}
-	all, _ := db.ListPersonStatusUpdates(id, "", 0)
+	all, _ := db.ListPersonStatusUpdates(id, "default", 0)
 	if len(all) != 3 || all[0].Text != "note 2" || all[2].Text != "note 0" {
 		t.Errorf("all newest first = %+v", all)
 	}
-	two, _ := db.ListPersonStatusUpdates(id, "", 2)
+	two, _ := db.ListPersonStatusUpdates(id, "default", 2)
 	if len(two) != 2 {
 		t.Errorf("limit 2 = %d", len(two))
 	}
@@ -604,21 +607,21 @@ func TestHealthConfigsAndSettings(t *testing.T) {
 
 func TestHealthPersonLinksLifecycle(t *testing.T) {
 	db := testdb.Open(t)
-	a := addPerson(t, db, "pa", "x", "")
-	b := addPerson(t, db, "pb", "instagram", "")
-	c := addPerson(t, db, "pc", "linkedin", "")
+	a := addPerson(t, db, "pa", "x", "default")
+	b := addPerson(t, db, "pb", "instagram", "default")
+	c := addPerson(t, db, "pc", "linkedin", "default")
 
-	if _, err := db.InsertPersonLink(&storage.PersonLink{PersonA: a, PersonB: a, Relation: storage.PersonLinkSame, Status: storage.PersonLinkSuggested}); err == nil {
+	if _, err := db.InsertPersonLink(&storage.PersonLink{ProfileID: "default", PersonA: a, PersonB: a, Relation: storage.PersonLinkSame, Status: storage.PersonLinkSuggested}); err == nil {
 		t.Error("self link should be rejected")
 	}
-	if _, err := db.InsertPersonLink(&storage.PersonLink{PersonA: a, PersonB: b, Relation: "maybe", Status: storage.PersonLinkSuggested}); err == nil {
+	if _, err := db.InsertPersonLink(&storage.PersonLink{ProfileID: "default", PersonA: a, PersonB: b, Relation: "maybe", Status: storage.PersonLinkSuggested}); err == nil {
 		t.Error("bad relation should be rejected")
 	}
-	if _, err := db.InsertPersonLink(&storage.PersonLink{PersonA: a, PersonB: b, Relation: storage.PersonLinkSame, Status: "new"}); err == nil {
+	if _, err := db.InsertPersonLink(&storage.PersonLink{ProfileID: "default", PersonA: a, PersonB: b, Relation: storage.PersonLinkSame, Status: "new"}); err == nil {
 		t.Error("bad status should be rejected")
 	}
 
-	l := &storage.PersonLink{PersonA: b, PersonB: a, Relation: storage.PersonLinkSame, Status: storage.PersonLinkSuggested, Confidence: 0.8, Source: "jev"}
+	l := &storage.PersonLink{ProfileID: "default", PersonA: b, PersonB: a, Relation: storage.PersonLinkSame, Status: storage.PersonLinkSuggested, Confidence: 0.8, Source: "jev"}
 	ins, err := db.InsertPersonLink(l)
 	if err != nil || !ins {
 		t.Fatalf("InsertPersonLink = %v, %v", ins, err)
@@ -627,10 +630,10 @@ func TestHealthPersonLinksLifecycle(t *testing.T) {
 		t.Errorf("pair not ordered / profile not defaulted: %+v", l)
 	}
 	// The reversed pair is the same link and is left alone.
-	if ins, err := db.InsertPersonLink(&storage.PersonLink{PersonA: a, PersonB: b, Relation: storage.PersonLinkNotSame, Status: storage.PersonLinkDismissed}); err != nil || ins {
+	if ins, err := db.InsertPersonLink(&storage.PersonLink{ProfileID: "default", PersonA: a, PersonB: b, Relation: storage.PersonLinkNotSame, Status: storage.PersonLinkDismissed}); err != nil || ins {
 		t.Errorf("duplicate pair insert = %v, %v; want false, nil", ins, err)
 	}
-	if _, err := db.InsertPersonLink(&storage.PersonLink{PersonA: a, PersonB: c, Relation: storage.PersonLinkSame, Status: storage.PersonLinkSuggested}); err != nil {
+	if _, err := db.InsertPersonLink(&storage.PersonLink{ProfileID: "default", PersonA: a, PersonB: c, Relation: storage.PersonLinkSame, Status: storage.PersonLinkSuggested}); err != nil {
 		t.Fatal(err)
 	}
 

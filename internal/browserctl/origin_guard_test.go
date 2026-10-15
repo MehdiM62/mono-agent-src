@@ -26,7 +26,7 @@ func TestAgentCommandsCarryTheCheckedOrigin(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	tab := f.AddTab("http://localhost:3000/app", "Coder · Agent", true)
-	s, err := browserctl.Open(browserctl.Options{Profile: "default", Sender: f})
+	s, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestAgentCommandsCarryTheCheckedOrigin(t *testing.T) {
 	}
 
 	setEnv(t, false)
-	h, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Tab: tab})
+	h, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Tab: tab})
 	before := len(expectOrigins(f, extension.CmdClick))
 	h.Send(extension.CmdClick, map[string]interface{}{"selector": "#go"}, 0)
 	if got := expectOrigins(f, extension.CmdClick); got[before] != nil {
@@ -63,7 +63,7 @@ func TestOpenTabThatLandsOnARefusedPageIsClosedUntouched(t *testing.T) {
 		created = f.AddTab("https://login.example/sso", "", true) // the dev page redirected away
 		return map[string]any{"tabId": created, "url": "https://login.example/sso"}, nil
 	})
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", NoTab: true, Sender: f})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", NoTab: true, Sender: f})
 	_, err := s.OpenTab("http://localhost:3000/", "")
 	var na *browserctl.NotAllowedError
 	if !errors.As(err, &na) || na.Origin != "https://login.example" {
@@ -87,7 +87,7 @@ func TestNavigateThatLandsOnARefusedPage(t *testing.T) {
 		return map[string]any{"tabId": c.TabID, "url": "https://elsewhere.example/"}, nil
 	})
 	own := f.AddTab("http://localhost:3000/", "Coder · Agent", true)
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Tab: own})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Tab: own})
 	if _, err := s.Navigate("http://localhost:3000/next"); !errors.As(err, new(*browserctl.NotAllowedError)) {
 		t.Fatalf("navigate: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestNavigateThatLandsOnARefusedPage(t *testing.T) {
 	}
 
 	users := f.AddTab("http://localhost:5173/", "", false)
-	s, _ = browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Tab: users})
+	s, _ = browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Tab: users})
 	if _, err := s.Navigate("http://localhost:5173/x"); !errors.As(err, new(*browserctl.NotAllowedError)) {
 		t.Fatalf("navigate: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestABlankTabIsOnlyNavigated(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	tab := f.AddTab("about:blank", "Coder · Agent", true)
-	s, err := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Tab: tab})
+	s, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Tab: tab})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestAnApprovedSubmitIsBoundToItsFormAndPage(t *testing.T) {
 	fp := &browserctltest.FormPage{Action: "https://shop.example/pay", Method: "post", Selector: "#pay-form", Submit: true,
 		Fields: []browserctl.FormField{{Name: "amount", Type: "text", Label: "Amount", Value: "10"}}}
 	f.On("eval_cdp", fp.Handler())
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://shop.example"}})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://shop.example"}})
 	probe, err := s.ProbeSubmit("#pay")
 	if err != nil || !probe.Submit {
 		t.Fatalf("probe: %+v %v", probe, err)
@@ -167,7 +167,7 @@ func TestAnApprovedSubmitIsBoundToItsFormAndPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	it, _ := browserctl.GetSubmitItem(ctx, db, "default", aw.HILID)
+	it, _ := browserctl.GetSubmitItem(ctx, db, "p1", aw.HILID)
 	if it.FormDigest == "" || it.Form.Fields[0].Value != "10" || it.Form.Submitter != "#pay" {
 		t.Fatalf("held item = %+v", it)
 	}
@@ -182,17 +182,17 @@ func TestAnApprovedSubmitIsBoundToItsFormAndPage(t *testing.T) {
 	}
 	fp.Set("amount", "10")
 	f.SetURL(tab, "https://shop.example/checkout/other")
-	s2, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://shop.example"}})
+	s2, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://shop.example"}})
 	if err := s2.Resubmit(it); !errors.As(err, &changed) {
 		t.Fatalf("resubmit on another page of the origin: %v", err)
 	}
 	f.SetURL(tab, "https://shop.example/checkout?step=3") // the query is not part of the binding
-	s3, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://shop.example"}})
+	s3, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://shop.example"}})
 	if err := s3.Resubmit(it); err != nil || fp.Triggered != 1 {
 		t.Fatalf("resubmit of the unchanged form: %v (%d submits)", err, fp.Triggered)
 	}
 
-	unbound, _ := browserctl.CreateSubmitItem(ctx, db, browserctl.SubmitRequest{Profile: "default", URL: "https://shop.example/checkout",
+	unbound, _ := browserctl.CreateSubmitItem(ctx, db, browserctl.SubmitRequest{Profile: "p1", URL: "https://shop.example/checkout",
 		Form: browserctl.FormSummary{Selector: "#pay-form", Submitter: "#pay"}})
 	if err := s3.Resubmit(unbound); !errors.Is(err, browserctl.ErrSubmitUnbound) {
 		t.Fatalf("resubmit of an unbound item: %v", err)
@@ -220,8 +220,8 @@ func TestASubmitHeldInAFrameIsNotRepeated(t *testing.T) {
 	db := testdb.Open(t).DB
 	f := browserctltest.New()
 	f.AddTab("https://shop.example/", "Coder · Agent", true)
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://shop.example"}})
-	it, err := browserctl.CreateSubmitItem(ctx, db, browserctl.SubmitRequest{Profile: "default", URL: "https://shop.example/", Via: "guard",
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://shop.example"}})
+	it, err := browserctl.CreateSubmitItem(ctx, db, browserctl.SubmitRequest{Profile: "p1", URL: "https://shop.example/", Via: "guard",
 		FrameID: 2, Page: s.Page(), Form: browserctl.FormSummary{Selector: "#f", Submitter: "#go"}})
 	if err != nil || it.FormDigest != "" || it.FrameID != 2 {
 		t.Fatalf("item = %+v, %v", it, err)
@@ -245,7 +245,7 @@ func TestAFailedResubmitClosesTheGuardAgain(t *testing.T) {
 	f.On("eval_cdp", func(*extension.Command) (any, error) {
 		return map[string]any{"result": map[string]any{"missing": "the submit control"}}, nil
 	})
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://shop.example"}})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://shop.example"}})
 	it := browserctl.SubmitItem{URL: "https://shop.example/", Form: browserctl.FormSummary{Submitter: "#go"}, FormDigest: "d"}
 	if err := s.Resubmit(it); !errors.Is(err, browserctl.ErrNotSent) {
 		t.Fatalf("a missing control: %v", err)
@@ -260,11 +260,11 @@ func TestAgentReadsKeepToTheTabsOrigin(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	tab := f.AddTab("http://localhost:3000/app", "Coder · Agent", true)
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f})
 	s.Console(-1, nil, 0)
 	s.Network(-1, false, 0)
 	setEnv(t, false)
-	h, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Tab: tab})
+	h, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Tab: tab})
 	h.Console(-1, nil, 0)
 	var got []any
 	for _, c := range f.Calls() {
@@ -294,7 +294,7 @@ func TestArmingWaitsForANavigatingTab(t *testing.T) {
 		}
 		return map[string]any{"armed": true, "origin": "https://shop.example", "blocked": []any{}}, nil
 	})
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://shop.example"}})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://shop.example"}})
 	if err := s.BeforeAct(context.Background(), db); err != nil || arms != 2 || indexOfType(f, extension.CmdWaitLoad) < 0 {
 		t.Fatalf("before act: %v, %d arms, calls %v", err, arms, f.Types())
 	}
@@ -323,7 +323,7 @@ func TestBlockedSubmitsAreTrackedPerOrigin(t *testing.T) {
 			"frameId": 0, "form": map[string]any{"action": origin + "/post", "method": "post", "fields": []any{}}}}}, nil
 	})
 	allow := []string{"https://a.example", "https://b.example"}
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: allow})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: allow})
 	if err := s.BeforeAct(ctx, db); !errors.As(err, new(*browserctl.AwaitingApproval)) {
 		t.Fatalf("first block on a: %v", err)
 	}
@@ -332,7 +332,7 @@ func TestBlockedSubmitsAreTrackedPerOrigin(t *testing.T) {
 	}
 	origin = "https://b.example"
 	f.SetURL(s.TabID(), "https://b.example/")
-	s2, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: allow})
+	s2, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: allow})
 	if err := s2.BeforeAct(ctx, db); !errors.As(err, new(*browserctl.AwaitingApproval)) {
 		t.Fatalf("seq 1 on b was taken for a's: %v", err)
 	}

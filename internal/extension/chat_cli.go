@@ -53,11 +53,7 @@ const chatToolsMode = "monoagent:read"
 
 // chatBase is the global flags every call carries.
 func chatBase(profile string) []string {
-	args := []string{"--json"}
-	if profile != "" {
-		args = append([]string{"--profile=" + profile}, args...)
-	}
-	return args
+	return []string{"--profile=" + profile, "--json"}
 }
 
 func chatTurnArgv(s ChatTurnSpec) []string {
@@ -94,6 +90,9 @@ func cliFailure(stdout []byte, stderr string, err error) error {
 	if msg == "" {
 		msg = strings.TrimSpace(stderr)
 	}
+	if isProfileGateRefusal(msg) {
+		return invalidParam("%s", chooseProfileMessage)
+	}
 	if len(msg) > stderrTail {
 		msg = "…" + msg[len(msg)-stderrTail:]
 	}
@@ -108,6 +107,13 @@ func cliFailure(stdout []byte, stderr string, err error) error {
 		return errors.New(msg)
 	}
 	return &RequestError{Code: code, Err: errors.New(msg)}
+}
+
+// isProfileGateRefusal recognises the CLI's refusal of a profile-scoped
+// command run without --profile. Matched on the text: exit code 3 is the
+// generic invalid-input code and says nothing about which input.
+func isProfileGateRefusal(msg string) bool {
+	return strings.Contains(msg, "acts on a profile")
 }
 
 func lastJSONLine(b []byte) []byte {

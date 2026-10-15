@@ -25,9 +25,9 @@ The commands drive a live browser through the MonoAgent extension (any profile
 with the extension attached). Put --json before them for JSON on stdout.
 
 Pass --profile <id> on every command: they act on a profile (its browser, its
-approvals, its allowlist checks); without it a profile-scoped command warns now
-and is refused from the next release. The machine-wide ` + "`browser allow`" + `, ` + "`browser browsers`" + ` and
-` + "`browser diff`" + ` don't need it; it does no harm there. An agent finds its
+approvals, its allowlist checks); without it a profile-scoped command is refused
+(exit 3). The machine-wide ` + "`browser allow`" + `, ` + "`browser browsers`" + `, ` + "`browser diff`" + ` and
+` + "`browser permissions`" + ` don't need it; it does no harm there. An agent finds its
 profile id in its instructions.
 
 CHOOSING THE BROWSER AND TAB

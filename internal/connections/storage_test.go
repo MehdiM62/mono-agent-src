@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/zalando/go-keyring"
 
+	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/testdb"
 )
 
@@ -34,10 +36,11 @@ func TestStoreSaveAndGet(t *testing.T) {
 	ctx := context.Background()
 
 	conn := &Connection{
-		Platform: "github",
-		Method:   MethodAPIKey,
-		Label:    "my github token",
-		Data:     map[string]interface{}{"token": "ghp_test123"},
+		ProfileID: "default",
+		Platform:  "github",
+		Method:    MethodAPIKey,
+		Label:     "my github token",
+		Data:      map[string]interface{}{"token": "ghp_test123"},
 	}
 
 	if err := store.Save(ctx, conn); err != nil {
@@ -69,17 +72,18 @@ func TestStoreDelete(t *testing.T) {
 	ctx := context.Background()
 
 	conn := &Connection{
-		Platform: "stripe",
-		Method:   MethodAPIKey,
-		Label:    "stripe test key",
-		Data:     map[string]interface{}{"secret_key": "sk_test_abc"},
+		ProfileID: "default",
+		Platform:  "stripe",
+		Method:    MethodAPIKey,
+		Label:     "stripe test key",
+		Data:      map[string]interface{}{"secret_key": "sk_test_abc"},
 	}
 
 	if err := store.Save(ctx, conn); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	if err := store.Delete(ctx, conn.ID, ""); err != nil {
+	if err := store.Delete(ctx, conn.ID, "default"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 
@@ -99,9 +103,9 @@ func TestStoreListByPlatform(t *testing.T) {
 	ctx := context.Background()
 
 	conns := []*Connection{
-		{Platform: "github", Method: MethodAPIKey, Label: "github work", Data: map[string]interface{}{}},
-		{Platform: "github", Method: MethodOAuth, Label: "github personal", Data: map[string]interface{}{}},
-		{Platform: "stripe", Method: MethodAPIKey, Label: "stripe prod", Data: map[string]interface{}{}},
+		{ProfileID: "default", Platform: "github", Method: MethodAPIKey, Label: "github work", Data: map[string]interface{}{}},
+		{ProfileID: "default", Platform: "github", Method: MethodOAuth, Label: "github personal", Data: map[string]interface{}{}},
+		{ProfileID: "default", Platform: "stripe", Method: MethodAPIKey, Label: "stripe prod", Data: map[string]interface{}{}},
 	}
 	for _, c := range conns {
 		if err := store.Save(ctx, c); err != nil {
@@ -109,7 +113,7 @@ func TestStoreListByPlatform(t *testing.T) {
 		}
 	}
 
-	results, err := store.ListByPlatform(ctx, "github", "")
+	results, err := store.ListByPlatform(ctx, "github", "default")
 	if err != nil {
 		t.Fatalf("ListByPlatform: %v", err)
 	}
@@ -130,7 +134,7 @@ func TestStoreMarkTested(t *testing.T) {
 	s := NewStore(db)
 	ctx := context.Background()
 
-	conn := &Connection{Platform: "github", Method: MethodAPIKey, Label: "G", Data: map[string]interface{}{}}
+	conn := &Connection{ProfileID: "default", Platform: "github", Method: MethodAPIKey, Label: "G", Data: map[string]interface{}{}}
 	_ = s.Save(ctx, conn)
 
 	if err := s.MarkTested(ctx, conn.ID, "error"); err != nil {
@@ -217,15 +221,21 @@ func TestOAuthClientPersistRoundTrip(t *testing.T) {
 		t.Fatalf("GetOAuthClient on empty store: got %q, want empty", id)
 	}
 
-	if err := store.SaveOAuthClient(ctx, "outlook", "", "client-default", "sec1"); err != nil {
+	if err := store.SaveOAuthClient(ctx, "outlook", "default", "client-default", "sec1"); err != nil {
 		t.Fatalf("SaveOAuthClient: %v", err)
 	}
 	if err := store.SaveOAuthClient(ctx, "outlook", "work", "client-work", ""); err != nil {
 		t.Fatalf("SaveOAuthClient(work): %v", err)
 	}
 
-	// Empty profileID normalizes to "default" on both read and write.
-	if id, sec := store.GetOAuthClient(ctx, "outlook", ""); id != "client-default" || sec != "sec1" {
+	// An empty profileID is refused on write and reads nothing.
+	if err := store.SaveOAuthClient(ctx, "outlook", "", "x", "y"); !errors.Is(err, profiledir.ErrNoProfile) {
+		t.Fatalf("SaveOAuthClient(empty profile) = %v, want ErrNoProfile", err)
+	}
+	if id, sec := store.GetOAuthClient(ctx, "outlook", ""); id != "" || sec != "" {
+		t.Fatalf("GetOAuthClient(empty profile): got %q/%q, want nothing", id, sec)
+	}
+	if id, sec := store.GetOAuthClient(ctx, "outlook", "default"); id != "client-default" || sec != "sec1" {
 		t.Fatalf("GetOAuthClient(default): got %q/%q", id, sec)
 	}
 	if id, _ := store.GetOAuthClient(ctx, "outlook", "work"); id != "client-work" {
@@ -289,9 +299,10 @@ func TestRefreshTokenSerializesAcrossStores(t *testing.T) {
 	storeB := NewStore(db) // stands in for process B (e.g. a daemon)
 
 	conn := &Connection{
-		Platform: platformID,
-		Method:   MethodOAuth,
-		Data:     map[string]interface{}{"refresh_token": "old-refresh", "access_token": "old-access"},
+		ProfileID: "default",
+		Platform:  platformID,
+		Method:    MethodOAuth,
+		Data:      map[string]interface{}{"refresh_token": "old-refresh", "access_token": "old-access"},
 	}
 	if err := storeA.Save(context.Background(), conn); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -364,9 +375,10 @@ func TestStoreSaveAndGet_OAuthTokensGoThroughVault(t *testing.T) {
 	accessToken := "PLACEHOLDER-one"
 	refreshToken := "PLACEHOLDER-ref-one"
 	conn := &Connection{
-		Platform: "github",
-		Method:   MethodOAuth,
-		Label:    "Personal",
+		ProfileID: "default",
+		Platform:  "github",
+		Method:    MethodOAuth,
+		Label:     "Personal",
 		Data: map[string]interface{}{
 			"access_token":  accessToken,
 			"refresh_token": refreshToken,
@@ -410,7 +422,7 @@ func TestStoreSave_UpdatingConnectionReusesSameVaultEntry(t *testing.T) {
 
 	firstToken := "PLACEHOLDER-one"
 	refreshToken := "PLACEHOLDER-ref-one"
-	conn := &Connection{Platform: "github", Method: MethodOAuth, Label: "Personal",
+	conn := &Connection{ProfileID: "default", Platform: "github", Method: MethodOAuth, Label: "Personal",
 		Data: map[string]interface{}{"access_token": firstToken, "refresh_token": refreshToken}}
 	if err := store.Save(ctx, conn); err != nil {
 		t.Fatalf("first Save: %v", err)
@@ -440,7 +452,7 @@ func TestStoreSave_BrowserPlatformNeverGetsAVaultRef(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 
-	conn := &Connection{Platform: "instagram", Method: MethodBrowser, Label: "me", Data: map[string]interface{}{}}
+	conn := &Connection{ProfileID: "default", Platform: "instagram", Method: MethodBrowser, Label: "me", Data: map[string]interface{}{}}
 	if err := store.Save(ctx, conn); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -458,12 +470,12 @@ func TestListAll_SkipsConnectionWithDanglingVaultRef(t *testing.T) {
 	ctx := context.Background()
 	store := NewStore(db)
 
-	healthy := &Connection{Platform: "x", Method: "oauth", Label: "Healthy", Data: map[string]interface{}{"access_token": "good-token"}}
+	healthy := &Connection{ProfileID: "default", Platform: "x", Method: "oauth", Label: "Healthy", Data: map[string]interface{}{"access_token": "good-token"}}
 	if err := store.Save(ctx, healthy); err != nil {
 		t.Fatalf("saving healthy connection: %v", err)
 	}
 
-	broken := &Connection{Platform: "x", Method: "oauth", Label: "Broken", Data: map[string]interface{}{"access_token": "broken-token"}}
+	broken := &Connection{ProfileID: "default", Platform: "x", Method: "oauth", Label: "Broken", Data: map[string]interface{}{"access_token": "broken-token"}}
 	if err := store.Save(ctx, broken); err != nil {
 		t.Fatalf("saving broken connection: %v", err)
 	}
@@ -554,14 +566,16 @@ func TestStoreGetOrResolve_ProfileScoping(t *testing.T) {
 		t.Fatalf("resolved the wrong profile's connection: token=%v, want token-a", resolvedA.Data["token"])
 	}
 
-	// Empty profileID is normalized to "default" (the profile
-	// ProfileIDFromContext returns when no profile is in context).
-	connDefault := &Connection{Platform: "linear", Method: MethodAPIKey, Data: map[string]interface{}{"api_key": "k"}}
+	// An empty profileID is refused, never normalized to "default".
+	connDefault := &Connection{ProfileID: "default", Platform: "linear", Method: MethodAPIKey, Data: map[string]interface{}{"api_key": "k"}}
 	if err := store.Save(ctx, connDefault); err != nil {
 		t.Fatalf("Save default: %v", err)
 	}
-	if conn, err := store.GetOrResolve(ctx, "linear", ""); err != nil || conn == nil {
-		t.Fatalf("GetOrResolve with empty profileID should resolve the default profile, got conn=%v err=%v", conn, err)
+	if conn, err := store.GetOrResolve(ctx, "linear", ""); !errors.Is(err, profiledir.ErrNoProfile) || conn != nil {
+		t.Fatalf("GetOrResolve with empty profileID must be ErrNoProfile, got conn=%v err=%v", conn, err)
+	}
+	if conn, err := store.GetOrResolve(ctx, "linear", "default"); err != nil || conn == nil {
+		t.Fatalf("GetOrResolve under the explicit default profile: conn=%v err=%v", conn, err)
 	}
 }
 
@@ -588,14 +602,14 @@ func TestStoreGet_ProfileScoped(t *testing.T) {
 	if got, err := store.Get(ctx, conn.ID); err != nil || got == nil {
 		t.Fatalf("Get without profile must stay unscoped, got conn=%v err=%v", got, err)
 	}
-	if got, err := store.Get(ctx, conn.ID, ""); err != nil || got != nil {
-		t.Fatalf("Get scoped with empty profile (normalized to default) should return nil for a work-profile row, got conn=%v err=%v", got, err)
+	if got, err := store.Get(ctx, conn.ID, ""); !errors.Is(err, profiledir.ErrNoProfile) || got != nil {
+		t.Fatalf("Get scoped with an empty profile must be ErrNoProfile, got conn=%v err=%v", got, err)
 	}
 }
 
 // TestStoreMarkTested_ProfileScoped verifies the optional profile predicate
 // on MarkTested: it refuses to touch another profile's row and an empty
-// profile argument is normalized to "default".
+// profile argument is an error.
 func TestStoreMarkTested_ProfileScoped(t *testing.T) {
 	db := newTestDB(t)
 	store := NewStore(db)
@@ -605,7 +619,7 @@ func TestStoreMarkTested_ProfileScoped(t *testing.T) {
 	if err := store.Save(ctx, workConn); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	defConn := &Connection{Platform: "github", Method: MethodAPIKey, Data: map[string]interface{}{}}
+	defConn := &Connection{ProfileID: "default", Platform: "github", Method: MethodAPIKey, Data: map[string]interface{}{}}
 	if err := store.Save(ctx, defConn); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -628,12 +642,44 @@ func TestStoreMarkTested_ProfileScoped(t *testing.T) {
 		t.Fatalf("status=%q, want error", got.Status)
 	}
 
-	// Empty profile argument normalizes to "default".
-	if err := store.MarkTested(ctx, defConn.ID, "error", ""); err != nil {
-		t.Fatalf("MarkTested with empty profileID (default): %v", err)
+	// An empty profile argument is refused.
+	if err := store.MarkTested(ctx, defConn.ID, "error", ""); !errors.Is(err, profiledir.ErrNoProfile) {
+		t.Fatalf("MarkTested with empty profileID must be ErrNoProfile, got %v", err)
+	}
+	if err := store.MarkTested(ctx, defConn.ID, "error", "default"); err != nil {
+		t.Fatalf("MarkTested under the default profile: %v", err)
 	}
 	got, _ = store.Get(ctx, defConn.ID)
 	if got.Status != "error" {
 		t.Fatalf("status=%q, want error", got.Status)
+	}
+}
+
+// TestStoreRefusesAnEmptyProfile pins that no Store operation treats "" as
+// "default" or as "every profile".
+func TestStoreRefusesAnEmptyProfile(t *testing.T) {
+	store := NewStore(newTestDB(t))
+	ctx := context.Background()
+
+	if err := store.Save(ctx, &Connection{Platform: "github", Method: MethodAPIKey, Data: map[string]interface{}{}}); !errors.Is(err, profiledir.ErrNoProfile) {
+		t.Fatalf("Save without a profile = %v, want ErrNoProfile", err)
+	}
+	for _, p := range []string{"a", "b"} {
+		c := &Connection{ProfileID: p, Platform: "github", Method: MethodAPIKey, Data: map[string]interface{}{}}
+		if err := store.Save(ctx, c); err != nil {
+			t.Fatalf("Save %s: %v", p, err)
+		}
+	}
+	if _, err := store.ListByPlatform(ctx, "github", ""); !errors.Is(err, profiledir.ErrNoProfile) {
+		t.Fatalf("ListByPlatform(\"\") = %v, want ErrNoProfile (not every profile)", err)
+	}
+	if _, err := store.ListAll(ctx, ""); !errors.Is(err, profiledir.ErrNoProfile) {
+		t.Fatalf("ListAll(\"\") = %v, want ErrNoProfile", err)
+	}
+	if err := store.Delete(ctx, "x", ""); !errors.Is(err, profiledir.ErrNoProfile) {
+		t.Fatalf("Delete(\"\") = %v, want ErrNoProfile", err)
+	}
+	if got, _ := store.ListByPlatform(ctx, "github", "a"); len(got) != 1 {
+		t.Fatalf("profile a sees %d github connections, want 1", len(got))
 	}
 }

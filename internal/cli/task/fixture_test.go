@@ -170,12 +170,9 @@ func testDeps(t testing.TB, dbPath, profile string, jsonOut bool) Deps {
 			mu.Lock()
 			defer mu.Unlock()
 			if profile == "" {
-				var id string
-				_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
-				if id == "" {
-					id = "default"
-				}
-				profile = id
+				// Test helper: a bare config acts on the seeded 'default' profile; the
+				// real CLI has no such fallback (the profile gate refuses first).
+				profile = "default"
 				return db, nil
 			}
 			var id string
@@ -203,17 +200,8 @@ func testDeps(t testing.TB, dbPath, profile string, jsonOut bool) Deps {
 			return terminals[root]
 		},
 		DBPath: func() string { return dbPath },
-		OpenDBActive: func() (*storage.Database, string, error) {
-			db, err := storage.NewDatabase(dbPath)
-			if err != nil {
-				return nil, "", err
-			}
-			var id string
-			_ = db.DB.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
-			if id == "" {
-				id = "default"
-			}
-			return db, id, nil
+		OpenDBUnresolved: func() (*storage.Database, error) {
+			return storage.NewDatabase(dbPath)
 		},
 	}
 }

@@ -59,13 +59,14 @@ func withRecordJSONErrors(d Deps, cmd *cobra.Command) {
 }
 
 // applyRecordScope points internal/recording at the inboxes this command
-// should read: one profile's with --profile, otherwise every inbox a
-// recording can land in. Every record subcommand calls it before touching
-// recordings (analyze/verify/save included).
+// should read: one profile's with --profile, otherwise every store
+// (recording.SetAllProfiles). Every record subcommand calls it before touching
+// (analyze/verify/save included).
 func applyRecordScope(d Deps) error {
 	id := strings.TrimSpace(d.ProfileID())
 	if id == "" {
-		return recording.SetProfile("")
+		recording.SetAllProfiles() // no --profile: every store, spelled out
+		return nil
 	}
 	// --profile takes an id or a name; the name needs the database.
 	return recording.SetProfile(d.ResolveProfile(id))

@@ -179,6 +179,8 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cli-binaries-linux-windows
+          # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
+          retention-days: 1
           path: dist/
 
   # ─── 2a2. Build CLI for macOS (native — cross-compiled darwin binaries built
@@ -232,6 +234,8 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cli-binaries-macos
+          # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
+          retention-days: 1
           path: dist/
 
   # ─── 2b. Build macOS app (Apple Silicon / arm64) ──────────────────────────
@@ -307,6 +311,8 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: macos-arm64-app
+          # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
+          retention-days: 1
           path: dist/MonoAgent-darwin-arm64.zip
 
   # ─── 2d. Build Windows app ────────────────────────────────────────────────
@@ -366,6 +372,8 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: windows-app
+          # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
+          retention-days: 1
           path: dist/
 
   # ─── 2e. Build Linux app ──────────────────────────────────────────────────
@@ -438,6 +446,8 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux-app
+          # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
+          retention-days: 1
           path: |
             dist/MonoAgent-linux-amd64.tar.gz
 
@@ -457,6 +467,8 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: chrome-extension
+          # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
+          retention-days: 1
           path: dist/monoagent-chrome-extension.zip
 
   # ─── 2g. Release guard: no shipped Go binary carries the devaccount tag ────
@@ -529,6 +541,8 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unsigned-manifest
+          # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
+          retention-days: 1
           path: out/
 
   # ─── 3. Publish GitHub Release with all artifacts ─────────────────────────
@@ -839,6 +853,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: signed-manifest
+          # Release builds are published by the release job; keeping them longer only fills the free artifact quota.
+          retention-days: 1
           path: |
             signed/manifest.json
             signed/manifest.json.sig

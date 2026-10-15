@@ -39,7 +39,7 @@ func (mt *MonoagentTools) listPeople(args string) (string, error) {
 		limit = 50
 	}
 	query := `SELECT id, platform_username, platform, COALESCE(full_name,''), COALESCE(category,''), COALESCE(job_title,'')
-	          FROM people WHERE COALESCE(profile_id,'default') = ?`
+	          FROM people WHERE profile_id = ?`
 	params := []interface{}{mt.ProfileID()}
 	if a.Platform != "" {
 		query += " AND platform = ?"
@@ -91,7 +91,7 @@ func (mt *MonoagentTools) getPerson(args string) (string, error) {
 		        COALESCE(following_count,0), COALESCE(introduction,''), COALESCE(is_verified,0), COALESCE(category,''), COALESCE(job_title,''),
 		        COALESCE(headline,''), COALESCE(location,''), COALESCE(about,''), COALESCE(experience,''), COALESCE(education,''),
 		        COALESCE(profile_details,'')
-		 FROM people WHERE id = ?`, a.PersonID,
+		 FROM people WHERE id = ? AND profile_id = ?`, a.PersonID, mt.ProfileID(),
 	).Scan(&id, &username, &platform, &fullName, &imageURL, &contact, &website, &contentCount, &followerCount,
 		&followingCount, &intro, &isVerified, &category, &jobTitle,
 		&headline, &location, &about, &experience, &education, &details); err != nil {
@@ -135,7 +135,7 @@ func (mt *MonoagentTools) upsertPerson(args string) (string, error) {
 	}
 	var id string
 	err := mt.db.QueryRow(
-		`SELECT id FROM people WHERE platform_username = ? AND platform = ? AND COALESCE(profile_id,'default') = ?`,
+		`SELECT id FROM people WHERE platform_username = ? AND platform = ? AND profile_id = ?`,
 		a.PlatformUsername, a.Platform, mt.ProfileID(),
 	).Scan(&id)
 	switch {
@@ -151,8 +151,8 @@ func (mt *MonoagentTools) upsertPerson(args string) (string, error) {
 		return "", fmt.Errorf("lookup person: %w", err)
 	default:
 		if _, err := mt.db.Exec(
-			`UPDATE people SET full_name = ?, category = ?, job_title = ?, introduction = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-			a.FullName, a.Category, a.JobTitle, a.Introduction, id); err != nil {
+			`UPDATE people SET full_name = ?, category = ?, job_title = ?, introduction = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND profile_id = ?`,
+			a.FullName, a.Category, a.JobTitle, a.Introduction, id, mt.ProfileID()); err != nil {
 			return "", fmt.Errorf("update person: %w", err)
 		}
 	}
@@ -168,7 +168,7 @@ func (mt *MonoagentTools) deletePerson(args string) (string, error) {
 		return "", err
 	}
 	rows, err := snapshotRows(mt.db,
-		`SELECT * FROM people WHERE id = ? AND COALESCE(profile_id,'default') = ?`, a.PersonID, mt.ProfileID())
+		`SELECT * FROM people WHERE id = ? AND profile_id = ?`, a.PersonID, mt.ProfileID())
 	if err != nil {
 		return "", fmt.Errorf("snapshot person: %w", err)
 	}
@@ -179,7 +179,7 @@ func (mt *MonoagentTools) deletePerson(args string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("snapshot before delete: %w", err)
 	}
-	if _, err := mt.db.Exec(`DELETE FROM people WHERE id = ?`, a.PersonID); err != nil {
+	if _, err := mt.db.Exec(`DELETE FROM people WHERE id = ? AND profile_id = ?`, a.PersonID, mt.ProfileID()); err != nil {
 		return "", fmt.Errorf("delete person: %w", err)
 	}
 	return marshalJSON(map[string]interface{}{"deleted_person_id": a.PersonID, "backup_path": backupPath})
@@ -230,6 +230,8 @@ type messageSummary struct {
 	Source    string `json:"source"`
 	Direction string `json:"direction"`
 	Subject   string `json:"subject,omitempty"`
+	Status    string `json:"status"`
+	HilRef    string `json:"hil_ref,omitempty"`
 	CreatedAt string `json:"created_at"`
 }
 
@@ -249,8 +251,8 @@ func (mt *MonoagentTools) listMessages(args string) (string, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	query := `SELECT id, person_id, source, direction, COALESCE(subject,''), created_at
-	          FROM person_messages WHERE COALESCE(profile_id,'default') = ?`
+	query := `SELECT id, person_id, source, direction, COALESCE(subject,''), status, COALESCE(hil_ref,''), created_at
+	          FROM person_messages WHERE profile_id = ?`
 	params := []interface{}{mt.ProfileID()}
 	if a.PersonID != "" {
 		if err := mt.checkPersonOwnership(a.PersonID); err != nil {
@@ -270,7 +272,7 @@ func (mt *MonoagentTools) listMessages(args string) (string, error) {
 	out := make([]messageSummary, 0)
 	for rows.Next() {
 		var m messageSummary
-		if err := rows.Scan(&m.ID, &m.PersonID, &m.Source, &m.Direction, &m.Subject, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.PersonID, &m.Source, &m.Direction, &m.Subject, &m.Status, &m.HilRef, &m.CreatedAt); err != nil {
 			return "", fmt.Errorf("scan message: %w", err)
 		}
 		out = append(out, m)
@@ -290,11 +292,11 @@ func (mt *MonoagentTools) getMessage(args string) (string, error) {
 	if err := json.Unmarshal([]byte(args), &a); err != nil {
 		return "", fmt.Errorf("invalid args: %w", err)
 	}
-	var id, personID, source, direction, subject, body, createdAt string
+	var id, personID, source, direction, subject, body, status, hilRef, createdAt string
 	if err := mt.db.QueryRow(
-		`SELECT id, person_id, source, direction, COALESCE(subject,''), COALESCE(body,''), created_at
-		 FROM person_messages WHERE id = ? AND COALESCE(profile_id,'default') = ?`, a.MessageID, mt.ProfileID(),
-	).Scan(&id, &personID, &source, &direction, &subject, &body, &createdAt); err != nil {
+		`SELECT id, person_id, source, direction, COALESCE(subject,''), COALESCE(body,''), status, COALESCE(hil_ref,''), created_at
+		 FROM person_messages WHERE id = ? AND profile_id = ?`, a.MessageID, mt.ProfileID(),
+	).Scan(&id, &personID, &source, &direction, &subject, &body, &status, &hilRef, &createdAt); err != nil {
 		if err == sql.ErrNoRows {
 			return "", fmt.Errorf("message %s not found", a.MessageID)
 		}
@@ -303,7 +305,7 @@ func (mt *MonoagentTools) getMessage(args string) (string, error) {
 	mt.markSyncedCommsSeen()
 	return marshalFenced(map[string]interface{}{
 		"id": id, "person_id": personID, "source": source, "direction": direction,
-		"subject": subject, "body": body, "created_at": createdAt,
+		"subject": subject, "body": body, "status": status, "hil_ref": hilRef, "created_at": createdAt,
 	})
 }
 
@@ -321,7 +323,7 @@ type socialListSummary struct {
 func (mt *MonoagentTools) listSocialLists(string) (string, error) {
 	rows, err := mt.db.Query(
 		`SELECT id, name, COALESCE(list_type,''), item_count FROM social_lists
-		 WHERE COALESCE(profile_id,'default') = ? ORDER BY updated_at DESC`, mt.ProfileID())
+		 WHERE profile_id = ? ORDER BY updated_at DESC`, mt.ProfileID())
 	if err != nil {
 		return "", fmt.Errorf("query social lists: %w", err)
 	}

@@ -48,7 +48,7 @@ export default function Sidebar({ activePage, onNavigate, stats, dbConnected }) 
   const { t } = useTranslation()
   const [ver, setVer] = useState(null)
   const [profiles, setProfiles] = useState([])
-  const [activeProfileID, setActiveProfileID] = useState('default')
+  const [activeProfileID, setActiveProfileID] = useState('')
   const [profileOpen, setProfileOpen] = useState(false)
   const [showNewProfileModal, setShowNewProfileModal] = useState(false)
   const [profileError, setProfileError] = useState('')
@@ -157,7 +157,7 @@ export default function Sidebar({ activePage, onNavigate, stats, dbConnected }) 
     }
   }
 
-  const activeProfileName = profiles.find(p => p.id === activeProfileID)?.name ?? 'Default'
+  const activeProfileName = profiles.find(p => p.id === activeProfileID)?.name ?? 'New profile'
 
   // Tasks: what waits for a person (Inbox plus Review), from the board pulse.
   const [taskWaiting, setTaskWaiting] = useState(0)
@@ -176,7 +176,7 @@ export default function Sidebar({ activePage, onNavigate, stats, dbConnected }) 
     }
     const off = onTasksChanged(read)
     ;(async () => {
-      // Until startup has chosen the profile the app answers for "default".
+      // Until startup has chosen the profile, profile-scoped reads answer with an error.
       for (let i = 0; i < 30 && !cancelled; i++) {
         if (await appReady()) break
         await new Promise(r => setTimeout(r, 200))

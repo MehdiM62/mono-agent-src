@@ -25,7 +25,7 @@ esac
 	t.Setenv("MONOAGENTCLI_BIN", bin)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	if got := strings.TrimSpace(a.GetSummary()); got != `{"v":1}` {
 		t.Fatalf("GetSummary = %q", got)
@@ -82,7 +82,7 @@ echo '{"v":1,"hil":{"total":1}}'
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	if got := strings.TrimSpace(a.GetSummarySections("hil")); got != `{"v":1,"hil":{"total":1}}` {
 		t.Fatalf("GetSummarySections = %q", got)
 	}

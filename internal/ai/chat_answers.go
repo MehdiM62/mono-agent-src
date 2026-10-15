@@ -18,7 +18,7 @@ var ErrAlreadyAnswered = errors.New("that question already has an answer")
 // AddAnswer records the user's answer to a worker's question.
 func (s *AIStore) AddAnswer(profileID, conversationID, turnID, agentID, questionID, text string) error {
 	if profileID == "" {
-		profileID = "default"
+		return ErrProfileRequired
 	}
 	_, err := s.db.Exec(`INSERT INTO ai_chat_answers (profile_id, conversation_id, turn_id, agent_id, question_id, text, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`, profileID, conversationID, turnID, agentID, questionID, text, nowRFC3339())
@@ -34,7 +34,7 @@ func (s *AIStore) AddAnswer(profileID, conversationID, turnID, agentID, question
 // TakeAnswer returns the answer to a question once, marking it consumed.
 func (s *AIStore) TakeAnswer(profileID, turnID, agentID, questionID string) (string, bool, error) {
 	if profileID == "" {
-		profileID = "default"
+		return "", false, ErrProfileRequired
 	}
 	var id int64
 	var text string

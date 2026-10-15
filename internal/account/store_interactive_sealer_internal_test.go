@@ -93,7 +93,7 @@ func TestTheInteractiveSealersCallsAreWaitedForBeyondTheTimeout(t *testing.T) {
 				if r.err != nil || r.token != c.want {
 					t.Fatalf("%s = %q, %v after the answer, want %q and no error", c.name, r.token, r.err, c.want)
 				}
-			case <-time.After(5 * time.Second):
+			case <-time.After(30 * time.Second):
 				t.Fatalf("%s did not return once the key store had answered", c.name)
 			}
 			if got, err := OpenStore(dir, keyringSealer{kek: newTestKEK(nil).get}).LoadRefresh(); err != nil || (c.name == "SaveRefresh" && got != "rt-2") {

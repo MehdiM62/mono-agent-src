@@ -53,7 +53,7 @@ func adoptFirstRun(cmd *cobra.Command, cfg *globalConfig) {
 // throwaway tree of this CLI.
 func adoptBeforeGate(ctx context.Context, args []string) {
 	accountcli.AdoptBeforeGate(ctx, args, func() *cobra.Command {
-		probe := newRootCmd()
+		probe := newProbeRootCmd()
 		applyClassification(probe)
 		return probe
 	}, func(cmd *cobra.Command, dbPath string) { adoptFirstRun(cmd, &globalConfig{DBPath: dbPath}) })

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/hilsend"
 	"github.com/monoes/mono-agent/internal/hilsuggest"
@@ -46,6 +47,11 @@ type hilItem struct {
 	EditableData map[string]interface{} `json:"editable_data"`
 	NodeConfig   map[string]interface{} `json:"node_config"`
 	CreatedAt    string                 `json:"created_at"`
+	// PersonID, PersonName and HilRef are set when the item has a row in
+	// Communications (hil_ref is this item's id), so the GUI can link to both.
+	PersonID   string `json:"person_id,omitempty"`
+	PersonName string `json:"person_full_name,omitempty"`
+	HilRef     string `json:"hil_ref,omitempty"`
 	// Kind is "send" for an outbound send an agent prepared; Send is then its
 	// approval card (hilsend.Payload). Ordinary workflow items have neither.
 	Kind string           `json:"kind,omitempty"`
@@ -100,6 +106,9 @@ func (d Deps) newHILListCmd() *cobra.Command {
 				_ = json.Unmarshal([]byte(roRaw), &it.ReadonlyData)
 				_ = json.Unmarshal([]byte(edRaw), &it.EditableData)
 				_ = json.Unmarshal([]byte(cfgRaw), &it.NodeConfig)
+				if pid, name, ok := commsync.LinkFor(cmd.Context(), db.DB, it.ID); ok {
+					it.PersonID, it.PersonName, it.HilRef = pid, name, it.ID
+				}
 				if send := hilsend.FromRow(it.ID, it.Status, roRaw, edRaw, cfgRaw); send != nil {
 					it.Kind, it.Send = "send", send
 				}
@@ -310,6 +319,7 @@ func (d Deps) newHILApproveCmd() *cobra.Command {
 			if n, _ := res.RowsAffected(); n == 0 {
 				return d.NotFound("HIL item %q not found or already resolved", args[0])
 			}
+			_ = commsync.SetStatus(cmd.Context(), db.DB, args[0], commsync.Approved, commsync.Detail{Edited: check})
 			return printDecision(d.JSONOutput(), args[0], "approved")
 		},
 	}
@@ -348,6 +358,7 @@ func (d Deps) newHILRejectCmd() *cobra.Command {
 			if n, _ := res.RowsAffected(); n == 0 {
 				return d.NotFound("HIL item %q not found or already resolved", args[0])
 			}
+			_ = commsync.SetStatus(cmd.Context(), db.DB, args[0], commsync.Rejected, commsync.Detail{})
 			return printDecision(d.JSONOutput(), args[0], "rejected")
 		},
 	}

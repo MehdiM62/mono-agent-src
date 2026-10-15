@@ -46,7 +46,7 @@ func runDocumentsCmd(t *testing.T, dbPath string, args ...string) (string, error
 	t.Helper()
 	cmd := NewCommand(Deps{
 		JSONOutput: func() bool { return true },
-		ProfileID:  func() string { return "" },
+		ProfileID:  func() string { return "default" },
 		OpenDB:     func() (*storage.Database, error) { return storage.NewDatabase(dbPath) },
 	})
 	cmd.SetArgs(args)

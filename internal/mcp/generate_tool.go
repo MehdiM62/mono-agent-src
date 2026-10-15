@@ -124,7 +124,7 @@ func toolWorkflowGenerate(ctx context.Context, s *Server, args json.RawMessage) 
 		"workflow":   res.Document,
 	}
 	if save {
-		saved, err := generate.SaveDraft(ctx, rt.store, rt.db.DB, rt.profileID, res.Workflow)
+		saved, err := generate.SaveDraft(ctx, rt.store, rt.db.DB, profileOf(ctx), res.Workflow)
 		if err != nil {
 			return nil, err
 		}

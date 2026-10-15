@@ -162,14 +162,14 @@ func TestRunAdoptsBeforeTheGateJudges(t *testing.T) {
 	if code, _, _ := runMain(t, "--db-path", dbPath, "version"); code != 0 || calls.Load() != 0 {
 		t.Fatalf("an open command: code %d, %d tries, want 0 and 0", code, calls.Load())
 	}
-	code, _, errb := runMain(t, "--db-path", dbPath, "workflow", "list")
+	code, _, errb := runMain(t, "--db-path", dbPath, "--profile", "default", "workflow", "list")
 	if calls.Load() != 1 {
 		t.Fatalf("the adoption was called %d times, want 1", calls.Load())
 	}
 	if code != 0 {
 		t.Fatalf("the gated command was refused after the adoption (code %d): %s", code, errb)
 	}
-	runMain(t, "--db-path", dbPath, "workflow", "list")
+	runMain(t, "--db-path", dbPath, "--profile", "default", "workflow", "list")
 	if calls.Load() != 1 {
 		t.Fatalf("a second command tried again: %d calls", calls.Load())
 	}

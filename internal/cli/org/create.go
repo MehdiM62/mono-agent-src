@@ -104,7 +104,7 @@ func newOrgCreateJSONCmd(env *orgEnv) *cobra.Command {
 				}
 				findings = rep.Findings
 			} else if docCarriesEnforcedKeys(&d) {
-				return fmt.Errorf("this document carries grants, tool providers, or automation roles, which need the active profile's org folder: %w", perr)
+				return fmt.Errorf("this document carries grants, tool providers, or automation roles, which need the org folder of the profile named by --profile: %w", perr)
 			} else if _, out, err := orgenv.SaveSigned(cmd.Context(), root(), name, &d); err != nil {
 				return err
 			} else {

@@ -104,35 +104,6 @@ func TestTaskAddRefusalsComeBeforeTheDatabaseIsOpened(t *testing.T) {
 	}
 }
 
-func TestTaskCommandsFallBackToTheActiveProfile(t *testing.T) {
-	t.Parallel()
-	db := newTaskTestDB(t)
-	setActive := func(id string) {
-		t.Helper()
-		raw, err := storage.NewDatabase(db)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer raw.Close()
-		if _, err := raw.DB.Exec(`INSERT OR IGNORE INTO profiles (id, name) VALUES ('work-id', 'Work')`); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := raw.DB.Exec(`INSERT OR REPLACE INTO settings (key, value) VALUES ('active_profile_id', ?)`, id); err != nil {
-			t.Fatal(err)
-		}
-	}
-	setActive("work-id")
-	var added addedJSON
-	mustTaskJSON(t, db, "", &added, "", "add", "to the active profile")
-	if added.Profile.ID != "work-id" {
-		t.Errorf("no --profile: the task went to %+v, want the active profile work-id", added.Profile)
-	}
-	setActive("a-profile-that-is-gone")
-	if doc := failedTaskJSON(t, db, "", 3, "add", "x"); doc["code"] != "invalid_input" {
-		t.Errorf("an active profile that does not exist: %v", doc)
-	}
-}
-
 func TestTaskAddReplayIsReportedAsAlreadyAdded(t *testing.T) {
 	t.Parallel()
 	db := newTaskTestDB(t)

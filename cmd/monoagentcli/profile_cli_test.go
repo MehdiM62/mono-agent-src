@@ -39,8 +39,7 @@ func seedProfiles(t *testing.T, dbPath string, ids ...string) {
 	}
 }
 
-// TestProfileAdapterWiring pins what the adapter hands internal/cli/profile: initDB (the
-// active profile, --profile), --json through printJSON on stdout, and the CLI's exit codes.
+// TestProfileAdapterWiring pins what the adapter hands internal/cli/profile: initDB (--profile), --json through printJSON on stdout, and the CLI's exit codes.
 func TestProfileAdapterWiring(t *testing.T) {
 	dbPath := newProfileDocsCLITestDB(t)
 	seedProfiles(t, dbPath, "work")
@@ -57,16 +56,14 @@ func TestProfileAdapterWiring(t *testing.T) {
 		return out, runErr
 	}
 
-	out, err := run(&globalConfig{DBPath: dbPath, JSONOutput: true}, "current")
-	if err != nil || !bytes.Contains([]byte(out), []byte(`"id": "default"`)) {
-		t.Fatalf("current = %q, %v", out, err)
-	}
-	if _, err := run(&globalConfig{DBPath: dbPath, JSONOutput: true}, "switch", "work"); err != nil {
-		t.Fatal(err)
-	}
-	out, err = run(&globalConfig{DBPath: dbPath, JSONOutput: true}, "get", "work")
-	if err != nil || !bytes.Contains([]byte(out), []byte(`"active": true`)) {
+	out, err := run(&globalConfig{DBPath: dbPath, JSONOutput: true}, "get", "work")
+	if err != nil || !bytes.Contains([]byte(out), []byte(`"id": "work"`)) || bytes.Contains([]byte(out), []byte(`"active"`)) {
 		t.Fatalf("get work = %q, %v", out, err)
+	}
+	for _, sub := range []string{"current", "switch"} {
+		if _, err := run(&globalConfig{DBPath: dbPath, JSONOutput: true}, sub, "work"); err == nil {
+			t.Fatalf("profile %s still exists: there is no active profile", sub)
+		}
 	}
 	if _, err := run(&globalConfig{DBPath: dbPath}, "get", "nope"); exitCodeOf(t, err) != 2 {
 		t.Fatalf("get nope: %v, want exit 2", err)

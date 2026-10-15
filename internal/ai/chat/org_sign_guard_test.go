@@ -13,7 +13,7 @@ import (
 // dir: reload_org and the org writers leave a changed org unsigned for the
 // operator to review.
 func TestChatToolsHaveNoSigningOrOperatorDirSurface(t *testing.T) {
-	mt := NewMonoagentTools(nil, "")
+	mt := NewMonoagentTools(nil, "", "default")
 	for _, d := range mt.ToolDefs() {
 		b, _ := json.Marshal(d)
 		all := strings.ToLower(string(b))

@@ -49,6 +49,7 @@ func saveWorkflow(t *testing.T, s *Server, id, name string, fields map[string]in
 		t.Fatalf("runtime: %v", err)
 	}
 	wf := &workflow.Workflow{
+		ProfileID:   "default",
 		ID:          id,
 		Name:        name,
 		Description: "Says hello.",

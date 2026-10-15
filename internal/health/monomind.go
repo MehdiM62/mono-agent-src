@@ -325,7 +325,10 @@ func checkMonomindProfileInit(_ context.Context, env *Env) Result {
 	if env.ProfileRoot == nil {
 		return Result{Status: StatusSkip, Summary: "not available"}
 	}
-	root := env.ProfileRoot(env.profileID())
+	if env.ProfileID == "" {
+		return noProfile()
+	}
+	root := env.profileRoot()
 	if monomind.IsInitializedAt(root) {
 		return Result{Status: StatusOK, Summary: root}
 	}
@@ -343,9 +346,9 @@ func fixMonomindProfileInit(ctx context.Context, env *Env, progress func(string)
 	if env.InitMonomindProfile == nil || env.ProfileRoot == nil {
 		return fmt.Errorf("monomind init is not available here")
 	}
-	root := env.ProfileRoot(env.profileID())
+	root := env.profileRoot()
 	if root == "" {
-		return fmt.Errorf("profile %q has no usable folder", env.profileID())
+		return fmt.Errorf("profile %q has no usable folder", env.ProfileID)
 	}
 	return env.InitMonomindProfile(ctx, root, progress)
 }

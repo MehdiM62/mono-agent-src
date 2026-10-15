@@ -9,29 +9,39 @@ import (
 	"github.com/monoes/mono-agent/internal/testdb"
 )
 
-// The command opens the database for the gateway, and initDB resolves the
-// profile to the active one when none was given: the HTTP API server must keep
-// seeing what it always saw, or its own fallback (MONOAGENT_PROFILE) is lost.
+// The command opens the database for the gateway on a copy of the config:
+// resolving a profile name to its id must leave the server's own config alone.
 func TestOpenGatewayDBLeavesTheServersProfileAlone(t *testing.T) {
 	dbPath := newAPITestDB(t)
-	probe := &globalConfig{DBPath: dbPath}
+	probe := &globalConfig{DBPath: dbPath, ProfileID: "Default"}
 	pdb, err := initDB(probe)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pdb.Close()
-	if probe.ProfileID == "" {
-		t.Fatal("precondition: initDB resolves the profile, which is why the command must not hand it its own config")
+	if probe.ProfileID != "default" {
+		t.Fatalf("precondition: initDB resolves a profile name to its id, got %q", probe.ProfileID)
 	}
 
-	cfg := &globalConfig{DBPath: dbPath}
+	cfg := &globalConfig{DBPath: dbPath, ProfileID: "Default"}
 	db, err := openGatewayDB(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if cfg.ProfileID != "" {
+	if cfg.ProfileID != "Default" {
 		t.Errorf("opening the database for the gateway changed the profile the server will serve: %q", cfg.ProfileID)
+	}
+
+	// No profile named: nothing is chosen for the server (it serves every profile).
+	none := &globalConfig{DBPath: dbPath}
+	ndb, err := openGatewayDB(none)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ndb.Close()
+	if none.ProfileID != "" {
+		t.Errorf("no --profile: initDB must not pick one, got %q", none.ProfileID)
 	}
 }
 

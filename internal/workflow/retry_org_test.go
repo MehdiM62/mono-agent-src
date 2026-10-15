@@ -23,7 +23,7 @@ func TestRetryExecutionRefusesOrgStartedRuns(t *testing.T) {
 		logger:           zerolog.Nop(),
 	}
 	for _, tt := range []string{TriggerTypeOrgTool, TriggerTypeOrgMessage} {
-		orig := &WorkflowExecution{WorkflowID: "wf-x", Status: "FAILED", TriggerType: tt, TriggerData: map[string]interface{}{}}
+		orig := &WorkflowExecution{ProfileID: "default", WorkflowID: "wf-x", Status: "FAILED", TriggerType: tt, TriggerData: map[string]interface{}{}}
 		if err := store.CreateExecution(ctx, orig); err != nil {
 			t.Fatal(err)
 		}
@@ -31,7 +31,7 @@ func TestRetryExecutionRefusesOrgStartedRuns(t *testing.T) {
 			t.Errorf("%s: RetryExecution error = %v, want ErrRetryOrgStarted", tt, err)
 		}
 	}
-	manual := &WorkflowExecution{WorkflowID: "wf-missing", Status: "FAILED", TriggerType: "trigger.manual", TriggerData: map[string]interface{}{}}
+	manual := &WorkflowExecution{ProfileID: "default", WorkflowID: "wf-missing", Status: "FAILED", TriggerType: "trigger.manual", TriggerData: map[string]interface{}{}}
 	if err := store.CreateExecution(ctx, manual); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestRetryExecutionDropsAWebhookRunsChain(t *testing.T) {
 		queue:            NewExecutionQueue(1, 1, func(context.Context, ExecutionRequest) {}, zerolog.Nop()),
 		logger:           zerolog.Nop(),
 	}
-	orig := &WorkflowExecution{WorkflowID: wf.ID, Status: "FAILED", TriggerType: TriggerNodeTypeWebhook, TriggerData: map[string]interface{}{
+	orig := &WorkflowExecution{ProfileID: "default", WorkflowID: wf.ID, Status: "FAILED", TriggerType: TriggerNodeTypeWebhook, TriggerData: map[string]interface{}{
 		"x": "kept", WebhookTraceKey: map[string]interface{}{"chain_id": "chn_loop", "hop": 4},
 	}}
 	if err := store.CreateExecution(ctx, orig); err != nil {

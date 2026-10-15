@@ -188,8 +188,8 @@ func TestTaskToolsRefuseTheProfileOfAServerThatWasDeleted(t *testing.T) {
 	}
 	for name, args := range map[string]map[string]any{"task_list": nil, "task_get": {"id": held.ID}, "task_next": nil} {
 		_, err := f.call(name, args)
-		if err == nil || !strings.HasPrefix(err.Error(), "invalid_input: ") || !strings.Contains(err.Error(), "unknown profile") || strings.Contains(err.Error(), title) {
-			t.Errorf("%s after its profile was deleted: %v, want invalid_input: unknown profile, and no task text", name, err)
+		if err == nil || !strings.HasPrefix(err.Error(), "invalid_input: ") || !strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), title) {
+			t.Errorf("%s after its profile was deleted: %v, want invalid_input: profile not found, and no task text", name, err)
 		}
 	}
 }

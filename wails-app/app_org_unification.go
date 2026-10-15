@@ -292,24 +292,19 @@ func sendArgs(org, specJSON string) ([]string, error) {
 
 // orgCLIArgs builds the full argv for an org subcommand: global flags first
 // (profile, JSON mode), then `org`, the project root, and the subcommand.
-func orgCLIArgs(profileID, projectRoot string, sub []string) []string {
-	full := []string{}
-	if profileID != "" {
-		full = append(full, "--profile", profileID)
+func orgCLIArgs(profileID, projectRoot string, sub []string) ([]string, error) {
+	full, err := scopedCLIArgs(profileID, "org")
+	if err != nil {
+		return nil, err
 	}
-	full = append(full, "--json", "org")
 	if projectRoot != "" {
 		full = append(full, "--project", projectRoot)
 	}
-	return append(full, sub...)
+	return append(full, sub...), nil
 }
 
-func statusCLIArgs(profileID string) []string {
-	full := []string{}
-	if profileID != "" {
-		full = append(full, "--profile", profileID)
-	}
-	return append(full, "--json", "status")
+func statusCLIArgs(profileID string) ([]string, error) {
+	return scopedCLIArgs(profileID, "status")
 }
 
 // looksLikeJSON reports whether the CLI's stdout is the JSON document every

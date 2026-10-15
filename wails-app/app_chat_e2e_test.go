@@ -53,6 +53,7 @@ exit 2
 	sup := newChatSupervisor(defaultChatProcessLauncher, emitter.emit, func() (string, error) { return cli, nil })
 	t.Cleanup(sup.stopAll)
 	a := &App{chatSup: sup}
+	a.selectForTest("default")
 
 	var conv struct {
 		ID        string `json:"id"`

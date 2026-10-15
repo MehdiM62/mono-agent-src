@@ -53,8 +53,13 @@ type MonoagentTools struct {
 // used only by run_workflow to shell back into the full,
 // already-wired execution path (engine/scheduler/browser session DI lives
 // in cmd/monoagentcli, not duplicated here) — pass "" to disable it.
-func NewMonoagentTools(db *sql.DB, selfBin string) *MonoagentTools {
-	return &MonoagentTools{db: db, selfBin: selfBin, profileID: "default"}
+//
+// profileID is the profile every tool call is scoped to. It is required and
+// fixed for the life of the value: there is no default and no setter, so a
+// caller cannot forget it or change it under a running session. An empty
+// profileID makes every tool call fail (ExecuteContext).
+func NewMonoagentTools(db *sql.DB, selfBin, profileID string) *MonoagentTools {
+	return &MonoagentTools{db: db, selfBin: selfBin, profileID: profileID}
 }
 
 // WorkflowStore is the part of the workflow store the tools need when
@@ -77,16 +82,6 @@ func (mt *MonoagentTools) workflowStore() WorkflowStore {
 	mt.mu.RLock()
 	defer mt.mu.RUnlock()
 	return mt.store
-}
-
-// SetProfileID sets the active profile every tool call is scoped to.
-func (mt *MonoagentTools) SetProfileID(id string) {
-	if id == "" {
-		id = "default"
-	}
-	mt.mu.Lock()
-	mt.profileID = id
-	mt.mu.Unlock()
 }
 
 // SetAllowRuns opts this session in to run_workflow execution.
@@ -113,6 +108,20 @@ func (mt *MonoagentTools) markSyncedCommsSeen() {
 // It trips the same injection gate synced messages do.
 func (mt *MonoagentTools) MarkPageContextSeen() {
 	mt.markUntrusted("web page")
+}
+
+// MarkUntrusted records that content nobody vouches for (source names it)
+// entered this session, as synced messages do. A host that runs several tool
+// sets in one session (the MCP server, one per profile) uses it to carry the
+// injection gate from one set to the others.
+func (mt *MonoagentTools) MarkUntrusted(source string) {
+	mt.markUntrusted(source)
+}
+
+// UntrustedContentSeen reports whether untrusted content entered this
+// session, and what it was.
+func (mt *MonoagentTools) UntrustedContentSeen() (string, bool) {
+	return mt.untrustedContentSeen()
 }
 
 func (mt *MonoagentTools) markUntrusted(source string) {
@@ -237,9 +246,6 @@ func (mt *MonoagentTools) profileRoot() string {
 	if override != "" {
 		return override
 	}
-	if pid == "" {
-		pid = "default"
-	}
 	return profiledir.Root(mt.db, pid)
 }
 
@@ -260,9 +266,6 @@ func (mt *MonoagentTools) documentRoot() string {
 	if override != "" {
 		return override
 	}
-	if pid == "" {
-		pid = "default"
-	}
 	return profiledir.Root(mt.db, pid)
 }
 
@@ -280,9 +283,6 @@ func (mt *MonoagentTools) restrictFileWriteForOrgs() bool {
 	if override != "" {
 		return false
 	}
-	if pid == "" {
-		pid = "default"
-	}
 	return profiledir.IsDefaultManaged(mt.db, pid)
 }
 
@@ -291,7 +291,7 @@ func (mt *MonoagentTools) restrictFileWriteForOrgs() bool {
 func (mt *MonoagentTools) checkWorkflowOwnership(workflowID string) error {
 	var exists int
 	err := mt.db.QueryRow(
-		`SELECT 1 FROM workflows WHERE id = ? AND COALESCE(profile_id,'default') = ?`,
+		`SELECT 1 FROM workflows WHERE id = ? AND profile_id = ?`,
 		workflowID, mt.ProfileID(),
 	).Scan(&exists)
 	if err == sql.ErrNoRows {
@@ -306,7 +306,7 @@ func (mt *MonoagentTools) checkWorkflowOwnership(workflowID string) error {
 func (mt *MonoagentTools) checkPersonOwnership(personID string) error {
 	var exists int
 	err := mt.db.QueryRow(
-		`SELECT 1 FROM people WHERE id = ? AND COALESCE(profile_id,'default') = ?`,
+		`SELECT 1 FROM people WHERE id = ? AND profile_id = ?`,
 		personID, mt.ProfileID(),
 	).Scan(&exists)
 	if err == sql.ErrNoRows {
@@ -328,6 +328,9 @@ func (mt *MonoagentTools) Execute(name string, args string) (string, error) {
 // ExecuteContext dispatches a monoagent-domain tool call by name, deriving
 // run-tool subprocess lifetimes from ctx (no Background-derived orphans).
 func (mt *MonoagentTools) ExecuteContext(ctx context.Context, name string, args string) (string, error) {
+	if mt.ProfileID() == "" {
+		return "", fmt.Errorf("%s: this tool set was built without a profile; every call must name the profile it acts on", name)
+	}
 	if mt.pageRead() && !pageReadAllows(name) {
 		return "", fmt.Errorf("%s is not available in this session", name)
 	}

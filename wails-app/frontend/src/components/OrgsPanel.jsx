@@ -242,12 +242,11 @@ export default function OrgsPanel({ embedded = false, isOpen = true, onClose, pa
     }
     firstLoadRef.current = false
     // The very first load of the app's session can race Go's own startup
-    // (getActiveProfileID() defaults to "default" until App.startup()
-    // finishes resolving the real active profile — Wails doesn't guarantee
-    // the frontend waits for that) — landing on Orgs before it resolves
-    // silently queries the wrong, empty profile, so the panel shows either
-    // an empty org list or the "not set up" prompt until the user
-    // navigates away and back. Poll App.IsReady() (cheap, in-memory,
+    // (the selected profile is only known once App.startup() has resolved
+    // it — Wails doesn't guarantee the frontend waits for that) — landing on
+    // Orgs before it resolves queries no profile, so the panel shows an
+    // error or the "not set up" prompt until the user navigates away and
+    // back. Poll App.IsReady() (cheap, in-memory,
     // set as the very last line of startup()) instead of guessing with a
     // fixed delay — a cold start with the social build's node-registry
     // scan can take longer than a one-shot timer accounts for.

@@ -45,7 +45,11 @@ func parseServeStop(res string) (*orgServeStopResult, bool, error) {
 // and that folder's org daemon. An error means something may still be
 // running there, and the folder must not be moved.
 func (a *App) stopProfileOrgs(profileID string) (wasServing bool, err error) {
-	res := a.runUnifiedCLI("org serve --stop", orgCLIArgs(profileID, "", []string{"serve", "--stop"}))
+	stopArgs, err := orgCLIArgs(profileID, "", []string{"serve", "--stop"})
+	if err != nil {
+		return false, err
+	}
+	res := a.runUnifiedCLI("org serve --stop", stopArgs)
 	out, wasServing, err := parseServeStop(res)
 	if err != nil {
 		return false, err
@@ -65,14 +69,23 @@ func (a *App) stopProfileOrgs(profileID string) (wasServing bool, err error) {
 // logged, not returned — the files have already moved, and both steps can be
 // re-run by hand (`org reconcile`, `org serve`).
 func (a *App) resumeProfileOrgs(profileID string, wasServing bool) {
-	res := a.runUnifiedCLI("org reconcile", orgCLIArgs(profileID, "", []string{"reconcile"}))
+	reconcileArgs, err := orgCLIArgs(profileID, "", []string{"reconcile"})
+	if err != nil {
+		a.emitLog("ORG", "WARN", fmt.Sprintf("profile %s: %v", profileID, err))
+		return
+	}
+	res := a.runUnifiedCLI("org reconcile", reconcileArgs)
 	if msg, failed := cliFailure(res); failed {
 		a.emitLog("ORG", "WARN", fmt.Sprintf("profile %s: reconciling org files after the move failed: %s (run `monoagentcli org reconcile`)", profileID, msg))
 	}
 	if !wasServing {
 		return
 	}
-	res = a.runUnifiedCLI("org serve", orgCLIArgs(profileID, "", []string{"serve"}))
+	serveArgs, err := orgCLIArgs(profileID, "", []string{"serve"})
+	if err != nil {
+		return
+	}
+	res = a.runUnifiedCLI("org serve", serveArgs)
 	if msg, failed := cliFailure(res); failed {
 		a.emitLog("ORG", "WARN", fmt.Sprintf("profile %s: restarting the org daemon at the new folder failed: %s (run `monoagentcli org serve`)", profileID, msg))
 	}

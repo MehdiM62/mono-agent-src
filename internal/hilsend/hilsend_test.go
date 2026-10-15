@@ -454,3 +454,15 @@ func TestAttachmentsDescribedFromDiskAndPathConfined(t *testing.T) {
 		t.Errorf("relative inside root: %+v %v", f, err)
 	}
 }
+
+// A run with no profile has no queue to wait in: an agent send fails closed
+// rather than being filed under a default profile.
+func TestAgentSendWithoutAProfileFailsClosed(t *testing.T) {
+	asAgent(t)
+	db := testDB(t)
+	ctx := vault.ContextWithDB(context.Background(), db)
+	_, handled, err := Guard(ctx, "comm.email_send", workflow.NodeInput{}, emailConfig())
+	if err == nil || !handled {
+		t.Fatalf("handled=%v err=%v, want a handled error", handled, err)
+	}
+}

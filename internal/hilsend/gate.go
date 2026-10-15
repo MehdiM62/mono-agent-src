@@ -86,13 +86,6 @@ func Enabled(db *sql.DB) bool {
 	return on
 }
 
-func profileOf(ctx context.Context) string {
-	if p := vault.ProfileIDFromContext(ctx); p != "" {
-		return p
-	}
-	return "default"
-}
-
 // Guard is the workflow.ExecGuard that queues agent sends. It is installed by
 // noderegistry.Build, so the engine and `node run` both pass through it.
 func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, bool, error) {
@@ -109,7 +102,12 @@ func Guard(ctx context.Context, nodeType string, in workflow.NodeInput, config m
 		// Fail closed: an agent's send never runs unchecked.
 		return nil, true, fmt.Errorf("%s sends outward, and from an agent it must wait for approval, but there is no database to queue it in", nodeType)
 	}
-	st := Store{DB: db, Profile: profileOf(ctx)}
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		// Fail closed: an agent's send never runs under an unknown profile.
+		return nil, true, fmt.Errorf("%s sends outward and ran without a profile: %w", nodeType, perr)
+	}
+	st := Store{DB: db, Profile: profile}
 	if st.VerifyApproval(ctx, env(EnvApprovalID), env(EnvApprovalProof), nodeType) {
 		return nil, false, nil
 	}

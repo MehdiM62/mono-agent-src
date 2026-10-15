@@ -47,7 +47,7 @@ func TestPrepareNodeGeneratesDocuments(t *testing.T) {
 	db := newTestDB(t)
 	applynodes.SetGlobalDB(db.DB)
 	store := applications.NewStore(db.DB)
-	app := &applications.Application{Kind: applications.KindJob, Job: &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"}}
+	app := &applications.Application{ProfileID: "default", Kind: applications.KindJob, Job: &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"}}
 	if err := store.Create(context.Background(), app); err != nil {
 		t.Fatalf("Create: %v", err)
 	}

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/connections"
 	"github.com/rs/zerolog"
 )
@@ -69,10 +70,9 @@ func NewWorkflowEngineWithStore(store WorkflowStore, db *sql.DB, scheduler Sched
 	}
 	connStore := connections.NewStore(db)
 	webhookServer := NewWebhookServer(cfg.WebhookAddr, logger)
+	// No default profile: an engine built without one (the daemon) must set
+	// AllowAllProfiles; any other use fails with ErrNoProfile.
 	profileID := cfg.ProfileID
-	if profileID == "" {
-		profileID = "default"
-	}
 	e := &WorkflowEngine{
 		store:            store,
 		connStore:        connStore,
@@ -191,6 +191,7 @@ func (e *WorkflowEngine) Start(ctx context.Context) error {
 		); err != nil {
 			e.logger.Warn().Err(err).Msg("engine: failed to clean up orphaned HIL items")
 		}
+		_ = commsync.SetStatusForRejected(e.ctx, db)
 	}
 
 	// 4. Re-register triggers for all active workflows in this engine's

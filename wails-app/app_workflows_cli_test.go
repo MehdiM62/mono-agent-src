@@ -46,7 +46,7 @@ esac
 func workflowTestApp(t *testing.T) *App {
 	t.Helper()
 	a := newTestApp(t)
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	return a
 }
 

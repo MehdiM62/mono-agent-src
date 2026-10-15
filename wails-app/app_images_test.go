@@ -28,7 +28,7 @@ esac
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 	orig := saveImageDialog
 	saveImageDialog = func(*App, string) (string, error) { return "/out/logo.png", nil }
 	t.Cleanup(func() { saveImageDialog = orig })

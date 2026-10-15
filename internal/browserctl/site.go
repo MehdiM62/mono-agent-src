@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/monoes/mono-agent/internal/hilsend"
+	"github.com/monoes/mono-agent/internal/profiledir"
 )
 
 // Site items (plan C8): at level ask, an agent's first visit to a site with
@@ -68,7 +69,7 @@ func IsSiteItem(nodeConfig string) bool {
 // by nil reads who asked from this process's env.
 func AskSite(ctx context.Context, db *sql.DB, profile, kind, rawURL string, by *hilsend.PreparedBy) (id string, err error) {
 	if profile == "" {
-		return "", errNoProfile
+		return "", profiledir.ErrNoProfile
 	}
 	origin := Origin(rawURL)
 	rows, err := db.QueryContext(ctx, `SELECT id, node_config FROM hil_pending
@@ -114,8 +115,6 @@ type SiteItem struct {
 	Kind   string `json:"kind"`
 }
 
-var errNoProfile = errors.New("a browser approval belongs to a profile, and none was given")
-
 // GetSiteItem reads one site item: its decision is Status.
 func GetSiteItem(ctx context.Context, db *sql.DB, profile, id string) (SiteItem, error) {
 	it, _, err := findSite(ctx, db, profile, id)
@@ -124,7 +123,7 @@ func GetSiteItem(ctx context.Context, db *sql.DB, profile, id string) (SiteItem,
 
 func findSite(ctx context.Context, db *sql.DB, profile, id string) (SiteItem, siteRecord, error) {
 	if profile == "" {
-		return SiteItem{}, siteRecord{}, errNoProfile
+		return SiteItem{}, siteRecord{}, profiledir.ErrNoProfile
 	}
 	var status, nc string
 	err := db.QueryRowContext(ctx, `SELECT status, node_config FROM hil_pending WHERE id = ? AND profile_id = ?`, id, profile).Scan(&status, &nc)

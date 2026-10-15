@@ -14,7 +14,7 @@ import (
 // `templates run find_jobs` with no --input stops before building anything.
 func TestTemplatesRunWithoutInputFailsFast(t *testing.T) {
 	root := newRootCmd()
-	root.SetArgs([]string{"workflow", "templates", "run", "find_jobs", "--db-path", filepath.Join(t.TempDir(), "m.db")})
+	root.SetArgs([]string{"--profile", "default", "workflow", "templates", "run", "find_jobs", "--db-path", filepath.Join(t.TempDir(), "m.db")})
 	err := root.Execute()
 	if err == nil || !strings.HasPrefix(err.Error(), "missing input: keywords") || exitCodeFor(err) != 3 {
 		t.Fatalf("err = %v (exit %d)", err, exitCodeFor(err))
@@ -23,7 +23,7 @@ func TestTemplatesRunWithoutInputFailsFast(t *testing.T) {
 
 func TestWorkflowRunUnknownIDSaysNotFound(t *testing.T) {
 	root := newRootCmd()
-	root.SetArgs([]string{"workflow", "run", "nope", "--db-path", filepath.Join(t.TempDir(), "m.db")})
+	root.SetArgs([]string{"--profile", "default", "workflow", "run", "nope", "--db-path", filepath.Join(t.TempDir(), "m.db")})
 	err := root.Execute()
 	want := `workflow "nope" not found — list them with: monoagentcli workflow list`
 	if err == nil || err.Error() != want || exitCodeFor(err) != 2 {

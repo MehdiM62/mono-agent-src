@@ -26,8 +26,7 @@ func deps(path string, jsonOut bool) Deps {
 			}
 			return db, nil
 		},
-		DBPath:    func() string { return path },
-		ProfileID: func() string { return "p1" },
+		DBPath: func() string { return path },
 	}
 }
 
@@ -52,11 +51,11 @@ func TestMigrateFromNothingThenNoOp(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &first); err != nil {
 		t.Fatalf("not a result: %v\n%s", err, out)
 	}
-	if first.Applied == 0 || first.SchemaVersion == 0 || first.ActiveProfile != "p1" || first.Profiles == nil || first.Errors == nil {
+	if first.Applied == 0 || first.SchemaVersion == 0 || first.Profiles == nil || first.Errors == nil {
 		t.Fatalf("first run: %+v", first)
 	}
 	// The JSON the desktop app reads: every field, arrays never null.
-	for _, key := range []string{`"schema_version"`, `"applied"`, `"active_profile"`, `"profiles": [`, `"vault_moved"`, `"errors": [`} {
+	for _, key := range []string{`"schema_version"`, `"applied"`, `"profiles": [`, `"vault_moved"`, `"errors": [`} {
 		if !strings.Contains(out, key) {
 			t.Errorf("--json lacks %s:\n%s", key, out)
 		}

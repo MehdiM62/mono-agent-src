@@ -17,9 +17,9 @@ var taskCommandDocs = []cmdDoc{
   --app string           The application the text was selected in
   --client-id string     Idempotency key: adding the same key twice adds one task`,
 		Examples: []string{
-			"monoagentcli task add Fix the flaky test",
-			`monoagentcli task add "Review the invoice" --notes "From Sam, due Friday"`,
-			"pbpaste | monoagentcli task add --stdin",
+			"monoagentcli --profile work task add Fix the flaky test",
+			`monoagentcli --profile work task add "Review the invoice" --notes "From Sam, due Friday"`,
+			"pbpaste | monoagentcli --profile work task add --stdin",
 			`monoagentcli --profile work task add "Timeout in the deploy log" --as claude-7f3a`,
 		},
 	},
@@ -33,7 +33,7 @@ var taskCommandDocs = []cmdDoc{
   --stale              Only claims whose lease has run out
   --limit int          At most this many tasks (default 500, at most 2,000); in text, a list that is cut says how many more there are`,
 		Examples: []string{
-			"monoagentcli --json task list --status ready",
+			"monoagentcli --profile work --json task list --status ready",
 			"monoagentcli --profile work task list --stale --as claude-7f3a",
 		},
 	},
@@ -42,13 +42,13 @@ var taskCommandDocs = []cmdDoc{
 		Short:    "The whole board: the five columns, the counts and the revision (the operator; an AI agent uses task list, unless the operator allowed viewing with task agents allow)",
 		Usage:    "monoagentcli [--profile P] task board [--done-limit N]",
 		Flags:    `  --done-limit int  Show at most this many Done cards (default 50; 0 shows them all)`,
-		Examples: []string{"monoagentcli task board", "monoagentcli --json task board --done-limit 10"},
+		Examples: []string{"monoagentcli --profile work task board", "monoagentcli --profile work --json task board --done-limit 10"},
 	},
 	{
 		Name:     "task show",
 		Short:    "One task with its history, whatever its column",
 		Usage:    "monoagentcli [--profile P] task show ID [--as NAME]",
-		Examples: []string{"monoagentcli task show 12", "monoagentcli --json task show 12"},
+		Examples: []string{"monoagentcli --profile work task show 12", "monoagentcli --profile work --json task show 12"},
 	},
 	{
 		Name:  "task edit",
@@ -56,7 +56,7 @@ var taskCommandDocs = []cmdDoc{
 		Usage: "monoagentcli [--profile P] task edit ID [--title T] [--notes TEXT]",
 		Flags: `  --title string  New title (not empty)
   --notes string  New notes (an empty value clears them)`,
-		Examples: []string{`monoagentcli task edit 12 --title "Fix the flaky login test"`},
+		Examples: []string{`monoagentcli --profile work task edit 12 --title "Fix the flaky login test"`},
 	},
 	{
 		Name:  "task move",
@@ -68,8 +68,8 @@ var taskCommandDocs = []cmdDoc{
   --top            Put it at the top of the column
   --bottom         Put it at the bottom of the column`,
 		Examples: []string{
-			"monoagentcli task move 12 in_progress",
-			"monoagentcli task move 12 ready --top",
+			"monoagentcli --profile work task move 12 in_progress",
+			"monoagentcli --profile work task move 12 ready --top",
 		},
 	},
 	{
@@ -77,7 +77,7 @@ var taskCommandDocs = []cmdDoc{
 		Short:    "Move Inbox tasks to Ready, where an AI agent may take them (the operator; a named AI agent only if the operator allowed approving with task agents allow; all or none)",
 		Usage:    "monoagentcli [--profile P] task approve ID... [--top] [--as NAME]",
 		Flags:    `  --top  Put the tasks at the top of Ready, the first id on top, instead of at the bottom`,
-		Examples: []string{"monoagentcli task approve 12 13", "monoagentcli task approve 12 13 --top"},
+		Examples: []string{"monoagentcli --profile work task approve 12 13", "monoagentcli --profile work task approve 12 13 --top"},
 	},
 	{
 		Name:  "task agents",
@@ -95,7 +95,7 @@ var taskCommandDocs = []cmdDoc{
 		Name:     "task agents show",
 		Short:    "Show whether AI agents may see the board and the Inbox, and approve Inbox tasks, on this profile (an agent may run it)",
 		Usage:    "monoagentcli [--profile P] task agents show",
-		Examples: []string{"monoagentcli --json task agents show"},
+		Examples: []string{"monoagentcli --profile work --json task agents show"},
 	},
 	{
 		Name:  "task agents allow",
@@ -119,15 +119,15 @@ var taskCommandDocs = []cmdDoc{
 		Usage: "monoagentcli [--profile P] task archive ID... | --status STATUS",
 		Flags: `  --status string  Archive every task of this column (inbox, ready, in_progress, review or done) instead of naming ids`,
 		Examples: []string{
-			"monoagentcli task archive 12",
-			"monoagentcli task archive --status done",
+			"monoagentcli --profile work task archive 12",
+			"monoagentcli --profile work task archive --status done",
 		},
 	},
 	{
 		Name:     "task unarchive",
 		Short:    "Bring archived tasks back to the column they came from (the operator only)",
 		Usage:    "monoagentcli [--profile P] task unarchive ID...",
-		Examples: []string{"monoagentcli task unarchive 12"},
+		Examples: []string{"monoagentcli --profile work task unarchive 12"},
 	},
 	{
 		Name:  "task next",

@@ -131,17 +131,18 @@ func (g *runGate) askSite(ctx context.Context, pageURL, origin string) error {
 
 // errNoRunProfile: the run's context names no profile, so the approvals the
 // gate would raise have nowhere to go.
-var errNoRunProfile = errors.New("this run names no profile, so the approvals it may need have nowhere to go: run it with --profile <id>")
+var errNoRunProfile = fmt.Errorf("this run names no profile, so the approvals it may need have nowhere to go: %w", vault.ErrNoProfile)
 
 // runProfile is the profile the run belongs to, as the engine (the
 // execution's profile) and `node run` (--profile) put it in the run's
 // context. The gate's approvals are that profile's; a run that names none
 // is refused rather than given a guessed one.
 func runProfile(ctx context.Context) (string, error) {
-	if id, ok := vault.ExplicitProfileID(ctx); ok {
-		return id, nil
+	id, err := vault.ProfileIDFromContext(ctx)
+	if err != nil {
+		return "", errNoRunProfile
 	}
-	return "", errNoRunProfile
+	return id, nil
 }
 
 // siteAsker raises and reads browser.site items; tests replace it.

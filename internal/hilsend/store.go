@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/monoes/mono-agent/internal/commsync"
 )
 
 // Store keeps send items in hil_pending (so `hil list` and the HIL badge see
@@ -89,6 +91,7 @@ func (s Store) create(ctx context.Context, p Payload, rp replay) (Payload, error
 	if err != nil {
 		return p, fmt.Errorf("storing send item: %w", err)
 	}
+	s.commsQueue(ctx, p, rp)
 	return p, nil
 }
 
@@ -235,6 +238,7 @@ func (s Store) Edit(ctx context.Context, id string, text, subject *string) (Payl
 	if n, _ := res.RowsAffected(); n == 0 {
 		return s.Get(ctx, p.ID)
 	}
+	warn(commsync.SetText(ctx, s.DB, p.ID, &p.Text, &p.Subject), "edit")
 	return p, nil
 }
 
@@ -274,6 +278,8 @@ func (s Store) claim(ctx context.Context, id string) (p Payload, rp replay, proo
 		return cur, rp, "", false, gerr
 	}
 	p.State, p.ResolvedAt = StateApproved, rp.ResolvedAt
+	s.commsStatus(ctx, p.ID, commsync.Approved, commsync.Detail{Text: &p.Text, Subject: &p.Subject})
+	s.commsStatus(ctx, p.ID, commsync.Sending, commsync.Detail{})
 	return p, rp, proof, true, nil
 }
 
@@ -303,6 +309,7 @@ func (s Store) reject(ctx context.Context, id string) (Payload, bool, error) {
 		return cur, false, gerr
 	}
 	p.State, p.ResolvedAt = StateRejected, rp.ResolvedAt
+	s.commsStatus(ctx, p.ID, commsync.Rejected, commsync.Detail{})
 	return p, true, nil
 }
 
@@ -328,6 +335,11 @@ func (s Store) finish(ctx context.Context, id string, result json.RawMessage, ru
 		`UPDATE hil_pending SET status = ?, node_config = ?, updated_at = CURRENT_TIMESTAMP
 		 WHERE id = ? AND status = 'sending' AND profile_id = ?`, status, string(raw), r.id, s.Profile); err != nil {
 		return Payload{}, err
+	}
+	if runErr != nil {
+		s.commsStatus(ctx, r.id, commsync.Failed, commsync.Detail{Error: runErr.Error()})
+	} else {
+		s.commsStatus(ctx, r.id, commsync.Sent, commsync.Detail{})
 	}
 	return s.Get(ctx, r.id)
 }

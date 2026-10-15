@@ -17,8 +17,6 @@ import (
 
 // Deps are the CLI's pieces the daemon runs on.
 type Deps struct {
-	// ProfileID is --profile (or the active profile), read after OpenDB resolved it.
-	ProfileID  func() string
 	JSONOutput func() bool
 	OpenDB     func() (*storage.Database, error)
 	// BuildEngine builds the workflow engine for every profile (buildEngine(cfg, true)).

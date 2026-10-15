@@ -110,6 +110,12 @@ func (c *captureClassifier) run(dir, profile string) {
 			c.log("capture classification for %s panicked: %v", dir, r)
 		}
 	}()
+	// A capture names its own profile; there is no active one to fall back to,
+	// so a capture without a profile is not classified.
+	profile = strings.TrimSpace(profile)
+	if profile == "" {
+		return
+	}
 	key := profile
 	if c.knownOff(key) {
 		return
@@ -125,7 +131,6 @@ func (c *captureClassifier) run(dir, profile string) {
 		return
 	}
 	defer db.Close()
-	profile = captureClassifyProfile(db.DB, profile)
 	if !jevconf.Enabled(db.DB, profile, jevconf.Capture) {
 		c.rememberOff(key)
 		return
@@ -152,20 +157,6 @@ func (c *captureClassifier) log(format string, args ...any) {
 	if c.logf != nil {
 		c.logf(format, args...)
 	}
-}
-
-// captureClassifyProfile is the capture's own profile, else the active one
-// (settings active_profile_id, else "default") — how the CLI resolves it.
-func captureClassifyProfile(db *sql.DB, profile string) string {
-	if p := strings.TrimSpace(profile); p != "" {
-		return p
-	}
-	var id string
-	_ = db.QueryRow(`SELECT value FROM settings WHERE key = 'active_profile_id'`).Scan(&id)
-	if id == "" {
-		id = "default"
-	}
-	return id
 }
 
 // classifyCaptureDir classifies one envelope and writes classification.json.

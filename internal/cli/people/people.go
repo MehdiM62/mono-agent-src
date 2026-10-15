@@ -97,7 +97,8 @@ func (d Deps) newPeopleListCmd() *cobra.Command {
 			query := `SELECT id, platform_username, platform, COALESCE(full_name,''),
 			                 COALESCE(image_url,''), COALESCE(profile_url,''),
 			                 COALESCE(follower_count,''), COALESCE(following_count,0), COALESCE(is_verified,0),
-			                 COALESCE(category,''), COALESCE(job_title,''), COALESCE(created_at,'')
+			                 COALESCE(category,''), COALESCE(job_title,''), COALESCE(created_at,''),
+			                 COALESCE(kind,'person'), COALESCE(json_extract(profile_details,'$.own_account'),0)
 			          FROM people` + where + " ORDER BY created_at DESC"
 			switch {
 			case limit > 0:
@@ -125,21 +126,24 @@ func (d Deps) newPeopleListCmd() *cobra.Command {
 				Category         string `json:"category,omitempty"`
 				JobTitle         string `json:"job_title,omitempty"`
 				CreatedAt        string `json:"created_at"`
+				Kind             string `json:"kind"`
+				OwnAccount       bool   `json:"own_account,omitempty"`
 			}
 
 			people := []personSummary{}
 			for rows.Next() {
 				var p personSummary
-				var verified sql.NullInt64
+				var verified, own sql.NullInt64
 				if err := rows.Scan(
 					&p.ID, &p.PlatformUsername, &p.Platform, &p.FullName,
 					&p.ImageURL, &p.ProfileURL,
 					&p.FollowerCount, &p.FollowingCount,
-					&verified, &p.Category, &p.JobTitle, &p.CreatedAt,
+					&verified, &p.Category, &p.JobTitle, &p.CreatedAt, &p.Kind, &own,
 				); err != nil {
 					return fmt.Errorf("scanning person: %w", err)
 				}
 				p.IsVerified = verified.Valid && verified.Int64 != 0
+				p.OwnAccount = own.Valid && own.Int64 != 0
 				people = append(people, p)
 			}
 			if err := rows.Err(); err != nil {
@@ -282,14 +286,15 @@ func (d Deps) newPeopleGetCmd() *cobra.Command {
 				        COALESCE(following_count, 0), introduction, COALESCE(is_verified, 0),
 				        category, job_title,
 				        created_at, updated_at, profile_url,
-				        headline, location, about, experience, education, profile_details
+				        headline, location, about, experience, education, profile_details,
+				        COALESCE(kind, 'person')
 				 FROM people WHERE id = ? AND profile_id = ?`, personID, d.ProfileID(),
 			).Scan(
 				&p.ID, &p.PlatformUsername, &p.Platform, &fullName,
 				&imageURL, &contactDetails, &website, &contentCount,
 				&followerCount, &followingCount, &introduction,
 				&verified, &category, &jobTitle, &p.CreatedAt, &p.UpdatedAt, &profileURL,
-				&headline, &location, &about, &experience, &education, &details,
+				&headline, &location, &about, &experience, &education, &details, &p.Kind,
 			)
 			if err == sql.ErrNoRows {
 				return d.NotFound("person %q not found", personID)

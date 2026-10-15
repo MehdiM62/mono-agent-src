@@ -69,9 +69,12 @@ func (s *stubStore) GetWorkflow(context.Context, string) (*Workflow, error) {
 	return s.workflowToReturn, nil
 }
 func (s *stubStore) ListWorkflows(context.Context, string) ([]Workflow, error) { return nil, nil }
-func (s *stubStore) UpdateWorkflow(context.Context, *Workflow) error           { return nil }
-func (s *stubStore) DeleteWorkflow(context.Context, string) error              { return nil }
-func (s *stubStore) SetWorkflowActive(context.Context, string, bool) error     { return nil }
+func (s *stubStore) ListAllProfilesWorkflows(context.Context) ([]Workflow, error) {
+	return nil, nil
+}
+func (s *stubStore) UpdateWorkflow(context.Context, *Workflow) error       { return nil }
+func (s *stubStore) DeleteWorkflow(context.Context, string) error          { return nil }
+func (s *stubStore) SetWorkflowActive(context.Context, string, bool) error { return nil }
 func (s *stubStore) SaveWorkflowNodes(context.Context, string, []WorkflowNode) error {
 	return nil
 }

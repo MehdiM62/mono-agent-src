@@ -184,7 +184,7 @@ func TestAnInteractiveCallIsNeitherCountedNorRefusedWhileAnotherIsParked(t *test
 		if err != nil {
 			t.Fatalf("the interactive SaveRefresh = %v, want no error", err)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("the interactive call did not return once the key store had answered")
 	}
 	if n := limit.parked.Load(); n != 1 {

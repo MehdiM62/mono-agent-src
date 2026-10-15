@@ -41,8 +41,8 @@ Key tips:
 ──────────────────────────────────────────────────────────────
 2. BULK INSTAGRAM DM CAMPAIGN
 ──────────────────────────────────────────────────────────────
-  monoagentcli login instagram
-  monoagentcli people import leads.csv
+  monoagentcli --profile work login instagram
+  monoagentcli --profile work people import leads.csv
   monoagentcli message instagram --list leads --text "Hi {{name}}! ..."
 
 Or as a workflow:
@@ -51,7 +51,7 @@ Or as a workflow:
 ──────────────────────────────────────────────────────────────
 3. INSTAGRAM ENGAGEMENT LOOP
 ──────────────────────────────────────────────────────────────
-  monoagentcli login instagram
+  monoagentcli --profile work login instagram
   monoagentcli run ENGAGE_WITH_POSTS --platform instagram --list target-posts
 
 Or workflow:
@@ -74,21 +74,21 @@ Or workflow:
 ──────────────────────────────────────────────────────────────
 6. TEST A SINGLE NODE QUICKLY
 ──────────────────────────────────────────────────────────────
-  monoagentcli node run system.rss_read \
+  monoagentcli --profile work node run system.rss_read \
     --config '{"url":"https://rss.dw.com/rdf/rss-en-all","limit":3}'
 
   # Gemini nodes use BROWSER AUTOMATION — no API key required.
   # Run 'monoagentcli login gemini' once to authenticate, then:
-  monoagentcli node run gemini.generate_text \
+  monoagentcli --profile work node run gemini.generate_text \
     --config '{"prompt":"Say hello in Persian"}'
 
   # Standard text-to-image generation:
-  monoagentcli node run gemini.generate_image \
+  monoagentcli --profile work node run gemini.generate_image \
     --config '{"prompt":"sunset over a mountain lake","downloadDir":"~/.monoagent/downloads"}'
 
   # Style transfer — upload a reference image and ask Gemini to recreate it
   # in a different style. referenceImagePath is uploaded BEFORE the prompt is sent.
-  monoagentcli node run gemini.generate_image \
+  monoagentcli --profile work node run gemini.generate_image \
     --config '{
       "prompt": "recreate this in a watercolor painting style with soft pastel colors",
       "referenceImagePath": "/path/to/my-photo.jpg",
@@ -150,7 +150,7 @@ Full guide:  monoagentcli ref crawling
     → monoagent uploads the image to Gemini BEFORE sending the prompt
     → write your prompt to describe the style: "recreate this in oil painting style"
     → example:
-        monoagentcli node run gemini.generate_image \
+        monoagentcli --profile work node run gemini.generate_image \
           --config '{"prompt":"recreate this as a vintage poster","referenceImagePath":"/Users/me/photo.jpg"}'
     → referenceImagePath is OPTIONAL — omit it for standard text-to-image generation
 

@@ -10,7 +10,7 @@ import (
 
 func saveTestConn(t *testing.T, s *Store, platform, account string, data map[string]interface{}) *Connection {
 	t.Helper()
-	c := &Connection{Platform: platform, Method: MethodOAuth, AccountID: account, Data: data, Status: "active"}
+	c := &Connection{ProfileID: "default", Platform: platform, Method: MethodOAuth, AccountID: account, Data: data, Status: "active"}
 	if err := s.Save(context.Background(), c); err != nil {
 		t.Fatalf("save %s: %v", platform, err)
 	}
@@ -32,12 +32,12 @@ func TestGetOrResolveLegacyAndUmbrellaCompatibility(t *testing.T) {
 		t.Run(product, func(t *testing.T) {
 			s := NewStore(newTestDB(t))
 
-			if _, err := s.GetOrResolve(ctx, product, ""); err == nil {
+			if _, err := s.GetOrResolve(ctx, product, "default"); err == nil {
 				t.Fatal("empty store must not resolve")
 			}
 
 			umb := saveTestConn(t, s, umbrella, "me@example.com", map[string]interface{}{"access_token": "umbrella-token", "oauth_platform": umbrella})
-			got, err := s.GetOrResolve(ctx, product, "")
+			got, err := s.GetOrResolve(ctx, product, "default")
 			if err != nil || got == nil || got.ID != umb.ID {
 				t.Fatalf("umbrella-only resolve = %+v, %v", got, err)
 			}
@@ -46,13 +46,13 @@ func TestGetOrResolveLegacyAndUmbrellaCompatibility(t *testing.T) {
 			}
 
 			old := saveTestConn(t, s, product, "me@example.com", map[string]interface{}{"access_token": "legacy-token"})
-			got, err = s.GetOrResolve(ctx, product, "")
+			got, err = s.GetOrResolve(ctx, product, "default")
 			if err != nil || got.ID != old.ID {
 				t.Fatalf("legacy connection must win: got %+v, %v", got, err)
 			}
 			// Resolving by ID works for both kinds.
 			for _, id := range []string{old.ID, umb.ID} {
-				if c, err := s.GetOrResolve(ctx, id, ""); err != nil || c.ID != id {
+				if c, err := s.GetOrResolve(ctx, id, "default"); err != nil || c.ID != id {
 					t.Errorf("resolve by id %s: %+v, %v", id, c, err)
 				}
 			}
@@ -73,7 +73,7 @@ func TestGetOrResolvePrefersUmbrellaWithNeededScopes(t *testing.T) {
 	s := NewStore(newTestDB(t))
 	saveTestConn(t, s, "google", "a@example.com", googleData("sheets-only", "sheets"))
 	withGmail := saveTestConn(t, s, "google", "b@example.com", googleData("has-gmail", "gmail"))
-	got, err := s.GetOrResolve(ctx, "gmail", "")
+	got, err := s.GetOrResolve(ctx, "gmail", "default")
 	if err != nil || got.ID != withGmail.ID {
 		t.Fatalf("want the connection granted gmail, got %+v, %v", got, err)
 	}
@@ -199,7 +199,7 @@ func TestRefreshTokenUmbrella(t *testing.T) {
 			})
 
 			// Resolving a stale umbrella connection refreshes it.
-			got, err := s.GetOrResolve(ctx, conn.ID, "")
+			got, err := s.GetOrResolve(ctx, conn.ID, "default")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -241,7 +241,7 @@ func TestAdoptSameAccountConnection(t *testing.T) {
 	existing := saveTestConn(t, m.store, "google", "Me@Example.com", googleData("old", "sheets"))
 	saveTestConn(t, m.store, "google", "other@example.com", googleData("x", "gmail"))
 
-	fresh := &Connection{Platform: "google", Method: MethodOAuth, Data: googleData("new", "sheets", "calendar")}
+	fresh := &Connection{ProfileID: "default", Platform: "google", Method: MethodOAuth, Data: googleData("new", "sheets", "calendar")}
 	m.adoptSameAccountConnection(ctx, fresh, "me@example.com")
 	if fresh.ID != existing.ID {
 		t.Fatalf("re-consent must update the existing connection in place: id %q, want %q", fresh.ID, existing.ID)
@@ -259,7 +259,7 @@ func TestAdoptSameAccountConnection(t *testing.T) {
 		t.Error("updated connection should now carry calendar")
 	}
 
-	newAcct := &Connection{Platform: "google", Method: MethodOAuth}
+	newAcct := &Connection{ProfileID: "default", Platform: "google", Method: MethodOAuth}
 	m.adoptSameAccountConnection(ctx, newAcct, "third@example.com")
 	if newAcct.ID != "" {
 		t.Error("a new account must get a new connection")
@@ -303,7 +303,7 @@ func TestReusePlatformResolvesUmbrellaConnection(t *testing.T) {
 			}
 			s := NewStore(newTestDB(t))
 			want := saveTestConn(t, s, umbrella, "me@example.com", map[string]interface{}{"access_token": "u", "oauth_platform": umbrella})
-			got, err := s.GetOrResolve(ctx, umbrella, "")
+			got, err := s.GetOrResolve(ctx, umbrella, "default")
 			if err != nil || got.ID != want.ID || got.Data["access_token"] != "u" {
 				t.Fatalf("GetOrResolve(%s) = %+v, %v", umbrella, got, err)
 			}

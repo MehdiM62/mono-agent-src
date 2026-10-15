@@ -116,17 +116,14 @@ func CreateUnownedExecution(ctx context.Context, store WorkflowStore, opts Unown
 	if wf == nil {
 		return nil, ErrWorkflowNotFound
 	}
-	owner := wf.ProfileID
-	if owner == "" {
-		owner = "default"
+	owned, err := OwnedBy(wf, opts.ProfileID)
+	if err != nil {
+		return nil, err
 	}
-	want := opts.ProfileID
-	if want == "" {
-		want = "default"
-	}
-	if owner != want {
+	if !owned {
 		return nil, ErrWorkflowProfileMismatch
 	}
+	owner := wf.ProfileID
 	if !wf.IsActive && !opts.AllowInactive {
 		return nil, ErrWorkflowInactive
 	}

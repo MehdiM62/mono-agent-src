@@ -3,6 +3,7 @@ package vault
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -15,17 +16,16 @@ func TestDBFromContext_Absent(t *testing.T) {
 }
 
 func TestProfileIDFromContext(t *testing.T) {
-	if got := ProfileIDFromContext(context.Background()); got != "default" {
-		t.Fatalf("ProfileIDFromContext(empty) = %q, want \"default\"", got)
+	if _, err := ProfileIDFromContext(context.Background()); !errors.Is(err, ErrNoProfile) {
+		t.Fatalf("ProfileIDFromContext(empty) err = %v, want ErrNoProfile", err)
 	}
 	ctx := ContextWithProfileID(context.Background(), "team-a")
-	if got := ProfileIDFromContext(ctx); got != "team-a" {
-		t.Fatalf("ProfileIDFromContext = %q, want \"team-a\"", got)
+	if got, err := ProfileIDFromContext(ctx); err != nil || got != "team-a" {
+		t.Fatalf("ProfileIDFromContext = %q, %v, want team-a", got, err)
 	}
-	// Empty value falls back to default.
 	ctx = ContextWithProfileID(context.Background(), "")
-	if got := ProfileIDFromContext(ctx); got != "default" {
-		t.Fatalf("ProfileIDFromContext(empty string) = %q, want \"default\"", got)
+	if _, err := ProfileIDFromContext(ctx); !errors.Is(err, ErrNoProfile) {
+		t.Fatalf("ProfileIDFromContext(empty string) err = %v, want ErrNoProfile", err)
 	}
 }
 
@@ -83,7 +83,7 @@ func TestResolveConfig_ResolvesExistingRef(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 	cfg := map[string]interface{}{"image": "@img-001"}
-	if err := ResolveConfig(context.Background(), db, cfg); err != nil {
+	if err := ResolveConfig(ContextWithProfileID(context.Background(), "default"), db, cfg); err != nil {
 		t.Fatalf("ResolveConfig error: %v", err)
 	}
 	if cfg["image"] != "/tmp/pic.png" {
@@ -95,7 +95,7 @@ func TestResolveConfig_MissingRefIsNonFatal(t *testing.T) {
 	db := newVaultTestDB(t)
 	cfg := map[string]interface{}{"image": "@img-999"}
 	// A missing image must not fail the whole config resolution; the ref is left as-is.
-	if err := ResolveConfig(context.Background(), db, cfg); err != nil {
+	if err := ResolveConfig(ContextWithProfileID(context.Background(), "default"), db, cfg); err != nil {
 		t.Fatalf("ResolveConfig(missing) error: %v", err)
 	}
 	if cfg["image"] != "@img-999" {
@@ -110,7 +110,7 @@ func TestResolveConfig_ProfileScoped(t *testing.T) {
 	}
 	// Default profile must NOT resolve another profile's image.
 	cfg := map[string]interface{}{"image": "@img-005"}
-	if err := ResolveConfig(context.Background(), db, cfg); err != nil {
+	if err := ResolveConfig(ContextWithProfileID(context.Background(), "default"), db, cfg); err != nil {
 		t.Fatalf("ResolveConfig error: %v", err)
 	}
 	if cfg["image"] != "@img-005" {
@@ -124,5 +124,16 @@ func TestResolveConfig_ProfileScoped(t *testing.T) {
 	}
 	if cfg["image"] != "/tmp/a.png" {
 		t.Fatalf("owning profile did not resolve image: %v", cfg["image"])
+	}
+}
+
+func TestResolveConfig_NoProfileIsAnError(t *testing.T) {
+	db := newVaultTestDB(t)
+	cfg := map[string]interface{}{"image": "@img-001"}
+	if err := ResolveConfig(context.Background(), db, cfg); !errors.Is(err, ErrNoProfile) {
+		t.Fatalf("ResolveConfig without a profile err = %v, want ErrNoProfile", err)
+	}
+	if err := ResolveConfig(context.Background(), db, map[string]interface{}{"x": "plain"}); err != nil {
+		t.Fatalf("no refs needs no profile, got %v", err)
 	}
 }

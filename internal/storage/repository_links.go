@@ -79,8 +79,8 @@ func (d *Database) InsertPersonLink(l *PersonLink) (inserted bool, err error) {
 	if !validPersonLinkStatus(l.Status) {
 		return false, fmt.Errorf("invalid person link status %q", l.Status)
 	}
-	if l.ProfileID == "" {
-		l.ProfileID = "default"
+	if err := requireProfile(l.ProfileID); err != nil {
+		return false, err
 	}
 	if l.PersonA > l.PersonB {
 		l.PersonA, l.PersonB = l.PersonB, l.PersonA
@@ -103,6 +103,9 @@ func (d *Database) InsertPersonLink(l *PersonLink) (inserted bool, err error) {
 // ListPersonLinks returns the profile's links, newest first; an empty status
 // returns every status.
 func (d *Database) ListPersonLinks(profileID, status string) ([]*PersonLink, error) {
+	if err := requireProfile(profileID); err != nil {
+		return nil, err
+	}
 	q := `SELECT ` + personLinkColumns + ` FROM person_links WHERE profile_id = ?`
 	args := []interface{}{profileID}
 	if status != "" {
@@ -123,6 +126,9 @@ func (d *Database) ListPersonLinks(profileID, status string) ([]*PersonLink, err
 // to "same", dismissing to "not_same". Unknown ids (or ids of another
 // profile) return ErrPersonLinkNotFound.
 func (d *Database) SetPersonLinkStatus(profileID, id, status string) error {
+	if err := requireProfile(profileID); err != nil {
+		return err
+	}
 	if !validPersonLinkStatus(status) {
 		return fmt.Errorf("invalid person link status %q", status)
 	}
@@ -148,6 +154,9 @@ func (d *Database) SetPersonLinkStatus(profileID, id, status string) error {
 
 // PersonLinksFor returns every link (any status) that involves personID.
 func (d *Database) PersonLinksFor(profileID, personID string) ([]*PersonLink, error) {
+	if err := requireProfile(profileID); err != nil {
+		return nil, err
+	}
 	rows, err := d.DB.Query(`SELECT `+personLinkColumns+` FROM person_links
 		WHERE profile_id = ? AND (person_a = ? OR person_b = ?)
 		ORDER BY created_at DESC, id`, profileID, personID, personID)

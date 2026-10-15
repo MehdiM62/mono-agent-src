@@ -12,26 +12,26 @@ It stores posts, comments, replies, articles, videos and shared channel posts wi
 their content, destination, live URL/remote ID when returned, timestamp and source.
 
 Read history (all local-only):
-  monoagentcli --json publication list --platform reddit --kind comment --limit 50
-  monoagentcli --json publication list --search "release" --workflow <id> --agent <id>
-  monoagentcli --json publication list --since 2026-10-01 --until 2026-10-06
-  monoagentcli --json publication get <id>
-  monoagentcli --json publication stats
+  monoagentcli --profile work --json publication list --platform reddit --kind comment --limit 50
+  monoagentcli --profile work --json publication list --search "release" --workflow <id> --agent <id>
+  monoagentcli --profile work --json publication list --since 2026-10-01 --until 2026-10-06
+  monoagentcli --profile work --json publication get <id>
+  monoagentcli --profile work --json publication stats
 
 Page with a keyset cursor (stable while new records arrive; --offset still works):
-  monoagentcli --json publication list --limit 100 --cursor ""      # {"publications":[...],"next_cursor":"..."}
-  monoagentcli --json publication list --limit 100 --cursor <next_cursor>
+  monoagentcli --profile work --json publication list --limit 100 --cursor ""      # {"publications":[...],"next_cursor":"..."}
+  monoagentcli --profile work --json publication list --limit 100 --cursor <next_cursor>
 An empty next_cursor is the last page. --cursor and --offset cannot be combined.
 
 Remove a record from history (operator only; refused inside an agent session; it
 does not touch the remote post):
-  monoagentcli publication delete <id>
+  monoagentcli --profile work publication delete <id>
 
 Blank out the content but keep the record (operator only; refused inside an agent
 session; the entry, URL, kind, platform and timestamps stay, the body becomes
 "[redacted]", nothing of the old text is kept; --title redacts the title too;
 it does not touch the remote post):
-  monoagentcli publication redact <id> [--title]
+  monoagentcli --profile work publication redact <id> [--title]
 
 The MCP tools publication_delete and publication_redact (with --allow-mutations)
 and the chat tools delete_publication and redact_publication do the same for the
@@ -44,7 +44,7 @@ do not create records. History starts when this feature is installed.
 
 Custom HTTP/code/shell publishers and agents using external tools must register
 each successful publication explicitly. Register only after publishing succeeds:
-  monoagentcli --json publication register --stdin-json < publication.json
+  monoagentcli --profile work --json publication register --stdin-json < publication.json
 
 Example publication.json:
   {"platform":"my-blog","kind":"article","title":"Release notes",

@@ -4,6 +4,8 @@ import { Users, Search, RefreshCw, CheckCircle, ExternalLink, Plus, X, Tag, Chec
 import { api, subscribeEvent } from '../services/api.js'
 import { useReloadOnActivate } from '../lib/useReloadOnActivate'
 import { confirm } from '../components/ConfirmDialog.jsx'
+import { useTranslation } from 'react-i18next'
+import { commsByPerson, isCompany, isOwnAccount, onCommsChanged } from '../lib/commsStatus.js'
 
 // ── Tag colour palette ────────────────────────────────────────
 export const TAG_COLORS = [
@@ -98,6 +100,12 @@ function Avatar({ username, imageUrl }) {
     </div>
   )
 }
+
+// kindBadge: a small outlined tag; the text always says what it is.
+const kindBadge = (color) => ({
+  padding: '1px 6px', borderRadius: 4, fontSize: 9, fontFamily: 'var(--font-mono)',
+  color, border: `1px solid ${color}`, flexShrink: 0,
+})
 
 function PlatformBadge({ platform }) {
   return <span className={`badge badge-platform-${(platform || '').toLowerCase()}`}>{platform}</span>
@@ -816,7 +824,9 @@ function TagsCell({ personId, username, fullName, initialTags }) {
 }
 
 // ── Main People page ──────────────────────────────────────────
-export default function People({ onProfile, isActive = true }) {
+export default function People({ onProfile, isActive = true, onNavigate }) {
+  const { t } = useTranslation()
+  const [comms, setComms] = useState({})
   const [people, setPeople]   = useState([])
   const [tagsMap, setTagsMap] = useState({})
   const [count, setCount]     = useState(0)
@@ -850,6 +860,7 @@ export default function People({ onProfile, isActive = true }) {
       const rows = data || []
       setPeople(rows)
       setCount(total || 0)
+      Promise.resolve().then(() => api.getAllPersonMessages(500)).then(m => setComms(commsByPerson(m))).catch(() => {})
 
       // Bulk-load tags for all visible people
       if (rows.length > 0) {
@@ -874,6 +885,8 @@ export default function People({ onProfile, isActive = true }) {
     const off = subscribeEvent('workflow:complete', load)
     return off
   }, [load])
+
+  useEffect(() => onCommsChanged(() => load({ silent: true })), [load])
 
   // A selection only makes sense for the page it was made on.
   useEffect(() => { setSelected(new Set()) }, [platform, debouncedSearch, offset])
@@ -1010,6 +1023,19 @@ export default function People({ onProfile, isActive = true }) {
                             >
                               @{p.username}
                             </button>
+                            {isCompany(p) && <span data-testid="badge-company" style={kindBadge('#a78bfa')}>{t('comms.company')}</span>}
+                            {isOwnAccount(p) && <span data-testid="badge-own" style={kindBadge('#22c55e')}>{t('comms.ownAccount')}</span>}
+                            {comms[p.id]?.total > 0 && onNavigate && (
+                              <button
+                                type="button"
+                                data-testid="people-comms-link"
+                                onClick={() => onNavigate('communications', { person: p.id })}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', fontSize: 10, color: 'var(--cyan)', textDecoration: 'underline', whiteSpace: 'nowrap' }}
+                              >
+                                {t('comms.commsCount', { count: comms[p.id].total })}
+                                {comms[p.id].pending > 0 && ` \u00B7 ${t('comms.commsPending', { count: comms[p.id].pending })}`}
+                              </button>
+                            )}
                             {profileUrl && (
                               <button
                                 className="btn btn-ghost btn-icon"

@@ -30,7 +30,7 @@ func TestHybridWorkflowStore_DeleteWorkflow_SurfacesFileCleanupError(t *testing.
 	store := NewHybridWorkflowStore(files, sqlStore)
 	ctx := context.Background()
 
-	wf := &Workflow{ID: "wf-cleanup", Name: "wf-cleanup"}
+	wf := &Workflow{ProfileID: "default", ID: "wf-cleanup", Name: "wf-cleanup"}
 	if err := store.CreateWorkflow(ctx, wf); err != nil {
 		t.Fatalf("CreateWorkflow: %v", err)
 	}

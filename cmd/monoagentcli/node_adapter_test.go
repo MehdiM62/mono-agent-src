@@ -47,7 +47,7 @@ func TestNodeAdapterWiring(t *testing.T) {
 		var errOut bytes.Buffer
 		root.SetErr(&errOut)
 		root.SetIn(strings.NewReader(stdin))
-		root.SetArgs(append([]string{"--db-path", dbPath}, args...))
+		root.SetArgs(withTestProfile(append([]string{"--db-path", dbPath}, args...)))
 		var runErr error
 		out := captureStdout(t, func() { runErr = root.Execute() })
 		if runErr != nil {

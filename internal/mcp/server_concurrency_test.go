@@ -172,9 +172,10 @@ func TestServeConcurrentDispatchPingDuringSlowRun(t *testing.T) {
 		t.Fatalf("runtime: %v", err)
 	}
 	wf := &workflow.Workflow{
-		ID:       "wf-slow-run",
-		Name:     "slow-run",
-		IsActive: true,
+		ProfileID: "default",
+		ID:        "wf-slow-run",
+		Name:      "slow-run",
+		IsActive:  true,
 		Nodes: []workflow.WorkflowNode{
 			{ID: "t", Type: "trigger.manual", Name: "Trigger"},
 			{ID: "w", Type: "core.wait", Name: "Wait", Config: map[string]interface{}{"duration": 2}},

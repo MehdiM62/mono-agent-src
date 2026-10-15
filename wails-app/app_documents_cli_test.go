@@ -23,7 +23,7 @@ esac
 `))
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	doc, err := a.GetProfileDocument("doc-1")
 	if err != nil || doc.ID != "doc-1" || doc.Path != "/v/doc-1.pdf" || doc.SizeBytes != 7 || !doc.Indexed {

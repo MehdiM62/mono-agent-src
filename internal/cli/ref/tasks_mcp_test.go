@@ -13,7 +13,7 @@ func TestRefTasksDescribesTheTaskToolsAndTheHook(t *testing.T) {
 	for _, want := range []string{
 		"FROM MCP", "task_list", "task_next", "task_claim", "task_add", "--allow-mutations", "_untrusted",
 		"agent:<client>#<4 hex digits>", "No tool approves, edits, moves or archives a task", "MONOAGENT_MCP_TASKS_ONLY",
-		"claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations",
+		"claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations",
 		"SESSION START", `"SessionStart"`, `"command": "monoagentcli --profile <id> task digest"`, "Nothing installs it",
 	} {
 		if !strings.Contains(text, want) {

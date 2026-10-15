@@ -95,7 +95,7 @@ func (e *WorkflowEngine) handleWebhookTrigger(workflowID, nodeID string, items [
 	}
 	exec := &WorkflowExecution{
 		WorkflowID:  workflowID,
-		ProfileID:   executionProfileID(wf, e.profileID),
+		ProfileID:   executionProfileID(wf),
 		Status:      "QUEUED",
 		TriggerType: triggerType,
 		// Persisted so an adopted, resumed or retried run fires only this

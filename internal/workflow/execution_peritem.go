@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/commsync"
 	"github.com/monoes/mono-agent/internal/publication"
 	"github.com/monoes/mono-agent/internal/secrets"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -108,8 +109,12 @@ func (r *runner) resolveFor(t *nodeTask, item Item) (map[string]interface{}, err
 	}
 	restorePerItemFields(resolved, state)
 	if vaultDB := vault.DBFromContext(t.ctx); vaultDB != nil {
+		profile, perr := vault.ProfileIDFromContext(t.ctx)
+		if perr != nil {
+			return nil, fmt.Errorf("resolve config: ran without a profile: %w", perr)
+		}
 		_ = vault.ResolveConfig(t.ctx, vaultDB, resolved)
-		_ = secrets.ResolveConfig(t.ctx, vaultDB, vault.ProfileIDFromContext(t.ctx), resolved)
+		_ = secrets.ResolveConfig(t.ctx, vaultDB, profile, resolved)
 	}
 	return resolved, nil
 }
@@ -118,6 +123,22 @@ func (r *runner) resolveFor(t *nodeTask, item Item) (map[string]interface{}, err
 // for independent tasks: it touches only the task and the store.
 func (r *runner) runTask(t *nodeTask) {
 	ctx := t.ctx
+	// Communications: tell a Human-in-Loop node what it is approving, and
+	// mark the approved messages that wait for any other node as sending
+	// while it runs and as sent or failed once it ends.
+	if r.hasHIL {
+		db := vault.DBFromContext(ctx)
+		if t.node.Type == humanInLoopType {
+			t.ctx = commsync.WithDownstream(ctx, r.wf.Name, downstreamOf(r.dag, t.node.ID))
+		} else {
+			commsync.NodeStarted(ctx, db, r.exec.ID, t.node.ID)
+			defer func() {
+				if !errors.Is(t.execErr, ErrNodePaused) {
+					commsync.NodeFinished(ctx, db, r.exec.ID, t.node.ID, t.execErr)
+				}
+			}()
+		}
+	}
 	logger := r.logger
 	observe := func(outputs []NodeOutput) {
 		t.attempts++
@@ -134,7 +155,11 @@ func (r *runner) runTask(t *nodeTask) {
 			}
 			entries := publication.Normalize(publication.CaptureInput{NodeType: t.node.Type, Config: t.config, Outputs: pubOutputs,
 				Source: withNodeRun(PublicationSource(ctx, t.input), t.execNode.ID)})
-			publication.Record(ctx, publication.NewStore(db, vault.ProfileIDFromContext(ctx)), entries, func(msg string) { logger.Warn().Msg(msg) })
+			if profile, perr := vault.ProfileIDFromContext(ctx); perr != nil {
+				logger.Warn().Err(perr).Msg("publication not recorded: ran without a profile")
+			} else {
+				publication.Record(ctx, publication.NewStore(db, profile), entries, func(msg string) { logger.Warn().Msg(msg) })
+			}
 		}
 	}
 	if t.perItem != nil {
@@ -142,7 +167,7 @@ func (r *runner) runTask(t *nodeTask) {
 		return
 	}
 	t.runs = 1
-	t.outputs, t.execErr = executeWithRetry(ctx, t.executor, t.input, t.config, t.retryPolicy, observe)
+	t.outputs, t.execErr = executeWithRetry(t.ctx, t.executor, t.input, t.config, t.retryPolicy, observe)
 }
 
 // runPerItem executes t once per input item and concatenates the outputs

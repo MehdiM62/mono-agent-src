@@ -220,11 +220,17 @@ func envelopeDir(filePath string) string {
 	return filePath[:sep]
 }
 
+// requestHasProfile is whether the request names a profile at all.
+func requestHasProfile(req *Request) bool {
+	return strings.TrimSpace(req.String("profile")) != ""
+}
+
 // captureScopeOf is the monomind scope of the profile a request names
 // (`profile`, the one the side panel is "Saving into"): that profile's own
 // capture store, so a question asked while saving into work is answered
-// from work's captures only. No profile keeps the shared brain, exactly as
-// before profiles existed. An id profiledir would not accept is refused
+// from work's captures only. The callers refuse or answer empty before a
+// request with no profile gets here (requestHasProfile), so the shared brain
+// is never searched on its behalf. An id profiledir would not accept is refused
 // rather than dropped: answering from the shared brain instead would show
 // pages from outside the profile the person asked about.
 func captureScopeOf(req *Request) (string, error) {

@@ -46,15 +46,14 @@ type WorkflowImportOptions struct {
 	RemoveCopy string `json:"removeCopy"`
 }
 
-// workflowImportArgs builds `[--profile P] --json workflow import [flags]`.
+// workflowImportArgs builds `--profile P --json workflow import [flags]`.
 // A file path goes to --file (so a re-import of the same file is found by
 // its source); pasted JSON goes on stdin (file "").
-func workflowImportArgs(profileID, file string, o WorkflowImportOptions) []string {
-	args := []string{}
-	if profileID != "" {
-		args = append(args, "--profile", profileID)
+func workflowImportArgs(profileID, file string, o WorkflowImportOptions) ([]string, error) {
+	args, err := scopedCLIArgs(profileID, "workflow", "import")
+	if err != nil {
+		return nil, err
 	}
-	args = append(args, "--json", "workflow", "import")
 	if file != "" {
 		args = append(args, "--file", file)
 	}
@@ -70,16 +69,15 @@ func workflowImportArgs(profileID, file string, o WorkflowImportOptions) []strin
 	if o.Replace != "" {
 		args = append(args, "--replace", o.Replace)
 	}
-	return args
+	return args, nil
 }
 
-// workflowDeleteArgs builds `[--profile P] workflow delete --force -- <id>`.
-func workflowDeleteArgs(profileID, id string) []string {
-	args := []string{}
-	if profileID != "" {
-		args = append(args, "--profile", profileID)
+// workflowDeleteArgs builds `--profile P workflow delete --force -- <id>`.
+func workflowDeleteArgs(profileID, id string) ([]string, error) {
+	if profileID == "" {
+		return nil, errNoProfile
 	}
-	return append(args, "workflow", "delete", "--force", "--", id)
+	return []string{"--profile", profileID, "workflow", "delete", "--force", "--", id}, nil
 }
 
 // validWorkflowID rejects ids that could be read as flags or are empty.
@@ -183,7 +181,14 @@ func (a *App) ImportWorkflowFull(input, optsJSON string) string {
 	}
 	ctx, cancel := context.WithTimeout(parent, workflowImportTimeout)
 	defer cancel()
-	args := workflowImportArgs(a.getActiveProfileID(), file, opts)
+	pid, err := a.profileID()
+	if err != nil {
+		return aiError(err)
+	}
+	args, err := workflowImportArgs(pid, file, opts)
+	if err != nil {
+		return aiError(err)
+	}
 	a.emitLog("WORKFLOW", "INFO", fmt.Sprintf("$ %s %s", cliBin, strings.Join(args, " ")))
 	cmd := exec.CommandContext(ctx, cliBin, args...)
 	suppressConsole(cmd)
@@ -214,7 +219,14 @@ func (a *App) ImportWorkflowFull(input, optsJSON string) string {
 // removeImportCopy deletes the copy an earlier import made, after the
 // replace went through, and records the outcome on the result.
 func (a *App) removeImportCopy(ctx context.Context, cliBin, res, copyID string) string {
-	args := workflowDeleteArgs(a.getActiveProfileID(), copyID)
+	pid, err := a.profileID()
+	if err != nil {
+		return withField(res, "removeCopyError", err.Error())
+	}
+	args, err := workflowDeleteArgs(pid, copyID)
+	if err != nil {
+		return withField(res, "removeCopyError", err.Error())
+	}
 	a.emitLog("WORKFLOW", "INFO", fmt.Sprintf("$ %s %s", cliBin, strings.Join(args, " ")))
 	cmd := exec.CommandContext(ctx, cliBin, args...)
 	suppressConsole(cmd)

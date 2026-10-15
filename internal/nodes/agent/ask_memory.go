@@ -110,7 +110,11 @@ func (t *asker) memoryStart(ctx context.Context, item workflow.Item) (*memoryTur
 		}
 		return nil, fmt.Errorf("agent.ask: memory.session_key %q resolved to nothing for this item (the default reads the item's sessionId field)", opt.sessionKey)
 	}
-	mt := &memoryTurn{profile: vault.ProfileIDFromContext(ctx), session: session}
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, fmt.Errorf("agent.ask: memory ran without a profile: %w", perr)
+	}
+	mt := &memoryTurn{profile: profile, session: session}
 	mt.unlock = aimemory.LockSession(mt.profile, session)
 	if mt.history, err = aimemory.Recent(ctx, t.db, mt.profile, session, opt.window); err != nil {
 		mt.unlock()

@@ -223,12 +223,9 @@ func buildFormPrompt(fields []FormField, facts []FormFact) string {
 }
 
 func handleFormFill(ctx context.Context, f FormFiller, req *Request) (any, error) {
-	profile, err := chatProfile(req)
+	profile, err := requireProfile(req)
 	if err != nil {
 		return nil, err
-	}
-	if profile == "" {
-		return nil, invalidParam("form.fill needs a profile")
 	}
 	runtime, model := req.String("runtime"), req.String("model")
 	if runtime != "" && !capturesummary.ValidRuntimeID(runtime) {

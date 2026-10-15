@@ -83,15 +83,18 @@ func (s *Server) grantScope(ctx context.Context) (*orggrant.Bundle, *runtime, er
 	if err != nil {
 		return nil, nil, err
 	}
-	if s.opts.Profile != "" {
-		// --profile is an id or a name; compare ids.
-		want, err := resolveProfileID(rt.db.DB, s.opts.Profile)
-		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %v", codeRefusedGrant, err)
-		}
-		if want != b.ProfileID {
-			return nil, nil, fmt.Errorf("%s: grant %s belongs to profile %q, not %q", codeRefusedGrant, s.opts.Grant, b.ProfileID, s.opts.Profile)
-		}
+	// The grant fixes the profile, and --profile must name it: a grant server
+	// without one is refused, so a copied grant id cannot be served unchecked.
+	if s.opts.Profile == "" {
+		return nil, nil, fmt.Errorf("%s: grant mode needs --profile <id|name>: the profile the grant %s belongs to", codeRefusedGrant, s.opts.Grant)
+	}
+	// --profile is an id or a name; compare ids.
+	want, err := resolveProfileID(rt.db.DB, s.opts.Profile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s: %v", codeRefusedGrant, err)
+	}
+	if want != b.ProfileID {
+		return nil, nil, fmt.Errorf("%s: grant %s belongs to profile %q, not %q", codeRefusedGrant, s.opts.Grant, b.ProfileID, s.opts.Profile)
 	}
 	org, role := os.Getenv("MONOMIND_ORG_NAME"), os.Getenv("MONOMIND_ORG_ROLE")
 	if org == "" {
@@ -193,6 +196,11 @@ func (s *Server) grantToolDefinitions(ctx context.Context) []map[string]interfac
 	}
 	out = append(out, orgToolDefinitions(b)...)
 	out = append(out, decisionToolDefinitions(b)...)
+	for _, def := range out {
+		if schema, ok := def["inputSchema"].(map[string]interface{}); ok {
+			def["inputSchema"] = withProfileProperty(schema, false)
+		}
+	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i]["name"].(string) < out[j]["name"].(string) })
 	if out == nil {
 		out = []map[string]interface{}{}
@@ -203,6 +211,12 @@ func (s *Server) grantToolDefinitions(ctx context.Context) []map[string]interfac
 // callGrantTool serves one tools/call in grant mode.
 func (s *Server) callGrantTool(ctx context.Context, name string, args json.RawMessage) (string, error) {
 	b, rt, err := s.grantScope(ctx)
+	if err != nil {
+		return "", err
+	}
+	// The grant fixes the profile; a call may still name one, and then it must be
+	// the grant's. The argument is not part of the tool's own input.
+	args, err = s.checkGrantProfileArg(rt, b, args)
 	if err != nil {
 		return "", err
 	}
@@ -320,4 +334,25 @@ func (s *Server) grantRun(ctx context.Context, rt *runtime, b *orggrant.Bundle, 
 		return map[string]interface{}{"execution_id": exec.ID, "status": "queued"}, nil
 	}
 	return waitForGrantRun(ctx, rt, exec.ID, tool)
+}
+
+// checkGrantProfileArg accepts the optional `profile` argument of a grant-mode
+// call and returns the arguments without it. The grant fixes the profile, so an
+// argument that names another profile (or none that exists) is refused_grant.
+func (s *Server) checkGrantProfileArg(rt *runtime, b *orggrant.Bundle, args json.RawMessage) (json.RawMessage, error) {
+	name, rest, present, err := splitProfileArg(args)
+	if err != nil {
+		return nil, err
+	}
+	if !present {
+		return rest, nil
+	}
+	id, err := resolveProfileID(rt.db.DB, name)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", codeRefusedGrant, err)
+	}
+	if id != b.ProfileID {
+		return nil, fmt.Errorf("%s: this server's grant belongs to profile %q, not %q", codeRefusedGrant, b.ProfileID, name)
+	}
+	return rest, nil
 }

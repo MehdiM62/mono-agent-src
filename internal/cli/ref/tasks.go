@@ -207,9 +207,9 @@ JSON
   parse, is the command parser's exit 1 with no JSON at all.
 
 FROM MCP
-  monoagentcli mcp serves task_list, task_get and task_next in every server (they only
+  The MCP server (monoagentcli mcp) serves task_list, task_get and task_next in every server (they only
   read), and with --allow-mutations task_claim (id, or next: true), task_comment,
-  task_finish, task_release and task_add. They act on the server's one profile as the
+  task_finish, task_release and task_add. Each takes a required "profile" argument and acts on that profile as the
   agent agent:<client>#<4 hex digits>, named after the MCP client and the session: two
   sessions are two claimants, and no argument names you. Text written by people, agents
   or captures comes back in fields ending in _untrusted. task_list sets truncated when
@@ -218,8 +218,9 @@ FROM MCP
   or archives a task; when the operator allowed approving (task agents allow --approve)
   a --tasks-only server also serves task_approve (ids, top), and task_list lists the Inbox
   by default while the operator allows viewing. To give an agent the board and no workflow tool, register one
-  server per profile (or set MONOAGENT_MCP_TASKS_ONLY=1 for it):
-    claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations
+  server for all profiles (or set MONOAGENT_MCP_TASKS_ONLY=1 for it); every call passes its
+  "profile" (id or name), and a call without it is refused with the list of profiles:
+    claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations
 
 SESSION START
   task digest prints two short lines when the profile has ready work (the counts and the

@@ -32,7 +32,6 @@ func testDeps(t *testing.T, served *bool) Deps {
 	return Deps{
 		OpenGatewayDB: func() (*storage.Database, error) { return storage.NewDatabase(dbPath) },
 		DBPath:        func() string { return dbPath },
-		ProfileID:     func() string { return "" },
 		Version:       func() string { return "test" },
 		API: apiruntime.Deps{
 			Version:      func() string { return "test" },
@@ -81,5 +80,33 @@ func TestMutationsLabel(t *testing.T) {
 	t.Parallel()
 	if mutationsLabel(true) != "enabled" || mutationsLabel(false) != "disabled — read-only" {
 		t.Error(mutationsLabel(true), mutationsLabel(false))
+	}
+}
+
+// The server serves every profile, so --profile means nothing to it: it is
+// accepted (scripts that carry it keep working) and the command says so once.
+func TestHTTPAPIIgnoresProfileAndSaysSo(t *testing.T) {
+	t.Parallel()
+	// run executes httpapi with a bad flag, so it is refused before anything listens.
+	run := func(args ...string) string {
+		var served bool
+		root := &cobra.Command{Use: "monoagentcli"}
+		root.PersistentFlags().String("profile", "", "")
+		root.AddCommand(NewCommand(testDeps(t, &served)))
+		root.SetArgs(append(args, "httpapi", "--max-concurrent", "999", "--addr", "127.0.0.1:1"))
+		var errOut bytes.Buffer
+		root.SetOut(&bytes.Buffer{})
+		root.SetErr(&errOut)
+		root.SilenceErrors, root.SilenceUsage = true, true
+		if err := root.Execute(); err == nil {
+			t.Fatal("the bad flag was accepted")
+		}
+		return errOut.String()
+	}
+	if got := run("--profile", "work"); strings.Count(got, "--profile is ignored") != 1 {
+		t.Errorf("stderr %q should carry the note once", got)
+	}
+	if got := run(); strings.Contains(got, "--profile") {
+		t.Errorf("without --profile stderr says %q", got)
 	}
 }

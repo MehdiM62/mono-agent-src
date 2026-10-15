@@ -318,6 +318,10 @@ func TestGrantModeAdvertisesTheWorkflowsInputFields(t *testing.T) {
 			continue
 		}
 		props, _ := tl.InputSchema["properties"].(map[string]interface{})
+		if props[profileArg] == nil {
+			t.Fatalf("a grant tool must accept the optional profile argument: %v", props)
+		}
+		delete(props, profileArg) // the grant's own, not a workflow input field
 		if props["path"] == nil || props["text"] == nil || len(props) != 2 {
 			t.Fatalf("automation_publish properties = %v, want path and text", props)
 		}
@@ -356,6 +360,7 @@ func TestGrantRunExposesArgumentsAtTheTopLevel(t *testing.T) {
 			props, _ = schema["properties"].(map[string]interface{})
 		}
 	}
+	delete(props, profileArg) // the grant's own, not a workflow input field
 	if props["keywords"] == nil || len(props) != 1 {
 		t.Fatalf("automation_publish properties = %v, want keywords only", props)
 	}

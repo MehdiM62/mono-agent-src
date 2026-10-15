@@ -44,7 +44,7 @@ func newBrowserTest(t *testing.T, agent bool) *browserTest {
 	old := browserBridge
 	browserBridge = func() (browserctl.Sender, error) { return fake, nil }
 	t.Cleanup(func() { browserBridge = old })
-	return &browserTest{t: t, cfg: &globalConfig{DBPath: testdb.Path(t), JSONOutput: true}, fake: fake}
+	return &browserTest{t: t, cfg: &globalConfig{DBPath: testdb.Path(t), ProfileID: "default", JSONOutput: true}, fake: fake}
 }
 
 // run executes `browser args…` and returns stdout and the error.
@@ -184,8 +184,8 @@ func TestBrowserSubmitHandsTheApprovalBackWhenTheTabMoved(t *testing.T) {
 	bt := newBrowserTest(t, true)
 	db := bt.db().DB
 	tab := bt.fake.AddTab("https://example.com/compose", "Coder · Agent", true)
-	it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{Profile: "default",
-		URL: "https://example.com/compose", Via: "click", TabID: tab, Instance: bt.fake.Instance,
+	it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{
+		Profile: bt.cfg.ProfileID, URL: "https://example.com/compose", Via: "click", TabID: tab, Instance: bt.fake.Instance,
 		Form: browserctl.FormSummary{Submitter: "#send"},
 	})
 	if err != nil {
@@ -314,8 +314,8 @@ func TestBrowserSubmitApprovalIsTheOperators(t *testing.T) {
 	}
 	bt.fake.On("eval_cdp", (&browserctltest.FormPage{Fields: []browserctl.FormField{{Name: "total", Value: "9.99"}}}).Handler())
 	held := func() string {
-		it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{Profile: "default",
-			URL: "https://shop.example/checkout", Via: "guard", TabID: tab, Instance: bt.fake.Instance,
+		it, err := browserctl.CreateSubmitItem(t.Context(), db, browserctl.SubmitRequest{
+			Profile: bt.cfg.ProfileID, URL: "https://shop.example/checkout", Via: "guard", TabID: tab, Instance: bt.fake.Instance,
 			Form: browserctl.FormSummary{Submitter: "#pay"}, Page: page.Page(),
 		})
 		if err != nil {

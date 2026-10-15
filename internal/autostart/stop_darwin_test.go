@@ -12,7 +12,7 @@ import (
 
 // launchd kills a job 20 s after its SIGTERM unless ExitTimeOut says otherwise.
 func TestThePlistGivesTheDaemonTimeToFinishARefresh(t *testing.T) {
-	plist, err := renderPlist("/usr/local/bin/monoagentcli", "/Users/ada/.monoagent/logs", "p-1")
+	plist, err := renderPlist("/usr/local/bin/monoagentcli", "/Users/ada/.monoagent/logs")
 	if err != nil {
 		t.Fatal(err)
 	}

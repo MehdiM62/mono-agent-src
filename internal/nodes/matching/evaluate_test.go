@@ -49,8 +49,9 @@ func TestEvaluateNodeScoresApplication(t *testing.T) {
 	matchingnodes.SetGlobalDB(db.DB)
 	store := applications.NewStore(db.DB)
 	app := &applications.Application{
-		Kind: applications.KindJob,
-		Job:  &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"},
+		ProfileID: "default",
+		Kind:      applications.KindJob,
+		Job:       &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"},
 	}
 	if err := store.Create(context.Background(), app); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -93,8 +94,9 @@ func TestEvaluateNodeRuntimeJev(t *testing.T) {
 	db := newTestDB(t)
 	matchingnodes.SetGlobalDB(db.DB)
 	app := &applications.Application{
-		Kind: applications.KindJob,
-		Job:  &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"},
+		ProfileID: "default",
+		Kind:      applications.KindJob,
+		Job:       &applications.JobDetails{Title: "Backend Engineer", Company: "Acme", URL: "https://a.example"},
 	}
 	if err := applications.NewStore(db.DB).Create(context.Background(), app); err != nil {
 		t.Fatalf("Create: %v", err)

@@ -28,13 +28,13 @@ A template is a ready-made, pre-wired workflow shipped inside this binary.
 Running one needs no setup, no saved workflow, and no activation step.
 
 DISCOVERY (start here — works from any directory)
-  monoagentcli workflow search [query]        templates + saved workflows
+  monoagentcli --profile <profile> workflow search [query]        templates + saved workflows
   monoagentcli workflow templates list        just the bundled templates
   monoagentcli workflow templates show <id>   inputs, nodes, exact run command
   Add --json to any of these for machine-readable output.
 
 RUN ONE
-  monoagentcli workflow templates run <id> --input '<json object>'
+  monoagentcli --profile <profile> workflow templates run <id> --input '<json object>'
 
   The run is a throwaway: the template is instantiated with fresh IDs, executed,
   and deleted. Nothing is saved. --keep leaves the copy behind for editing.
@@ -46,7 +46,7 @@ RUN ONE
   {{ $json.<key> }}; 'templates show' lists them under INPUT KEYS.
 
 SAVE AN EDITABLE COPY INSTEAD
-  monoagentcli workflow templates use <id>    then: workflow node set / activate
+  monoagentcli --profile <profile> workflow templates use <id>    then: workflow node set / activate
 
 WHAT IS BUNDLED IN THIS BINARY
 `)
@@ -60,11 +60,11 @@ WHAT IS BUNDLED IN THIS BINARY
 			fmt.Print(`
 IMAGE GENERATION (no API key — drives the user's logged-in Gemini session)
   One image:
-    monoagentcli workflow templates run gemimg --input '{"prompt":"a red bicycle"}'
+    monoagentcli --profile work workflow templates run gemimg --input '{"prompt":"a red bicycle"}'
 
   Several images that must match each other (same character/style/scene), any
   number of prompts, generated in ONE continued chat so context carries over:
-    monoagentcli workflow templates run gemimgmany --input '{"prompts":[
+    monoagentcli --profile work workflow templates run gemimgmany --input '{"prompts":[
       "a wizard in a blue robe casting a fire spell",
       "the same wizard riding a red dragon"]}'
 

@@ -29,7 +29,7 @@ func TestNodeRunHonoursGlobalJSON(t *testing.T) {
 	run := func(args ...string) string {
 		t.Helper()
 		root := newRootCmd()
-		root.SetArgs(append([]string{"--db-path", dbPath}, args...))
+		root.SetArgs(withTestProfile(append([]string{"--db-path", dbPath}, args...)))
 		var runErr error
 		out := captureStdout(t, func() { runErr = root.Execute() })
 		if runErr != nil {

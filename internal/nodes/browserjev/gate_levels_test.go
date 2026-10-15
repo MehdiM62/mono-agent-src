@@ -93,10 +93,10 @@ func TestAskLevelWaitsForTheUser(t *testing.T) {
 		status string
 	}{
 		{func(ctx context.Context, db *sql.DB, id string) {
-			_, _ = browserctl.DecideSiteItem(ctx, db, "default", id, true)
+			_, _ = browserctl.DecideSiteItem(ctx, db, "p1", id, true)
 		}, "done"},
 		{func(ctx context.Context, db *sql.DB, id string) {
-			_, _ = browserctl.DecideSiteItem(ctx, db, "default", id, false)
+			_, _ = browserctl.DecideSiteItem(ctx, db, "p1", id, false)
 		}, "blocked"},
 		{func(ctx context.Context, db *sql.DB, id string) {
 			// An approval set outside `hil approve` adds no allow rule.
@@ -164,7 +164,7 @@ func TestApprovalsBelongToTheRunsProfile(t *testing.T) {
 	}
 
 	noProfile := vault.ContextWithDB(context.Background(), db)
-	if _, _, opened, err := levelRun(t, noProfile, "https://shop.example.com/", "", 1); err == nil || opened || !strings.Contains(err.Error(), "names no profile") {
+	if _, _, opened, err := levelRun(t, noProfile, "https://shop.example.com/", "", 1); err == nil || opened || !strings.Contains(err.Error(), "no profile") {
 		t.Fatalf("no profile at ask: opened=%v err=%v", opened, err)
 	}
 	page := &fakeGuardPage{}

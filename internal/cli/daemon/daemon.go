@@ -44,7 +44,8 @@ func NewCommand(d Deps) *cobra.Command {
 			"profiles), then blocks until interrupted (Ctrl+C). This is what actually makes " +
 			"`workflow activate` schedules fire over time — without a daemon running, an activated " +
 			"workflow's cron/webhook triggers only live for the instant the activating command runs.\n\n" +
-			"The daemon also serves the HTTP API (--api, on by default, same token and routes as " +
+			"It takes no profile: each workflow runs under its own profile. The daemon also serves the HTTP API " +
+			"(--api, on by default, same per-profile tokens and /profiles/{profile}/ routes as " +
 			"`monoagentcli httpapi`), runs org automations that roles call and trigger.org workflows, " +
 			"resumes org.run/org.ask pauses when their org event arrives, reconciles org files with their " +
 			"grants, and makes autonomy decisions. Without it every org behaves as autonomy level manual. " +
@@ -62,6 +63,7 @@ func NewCommand(d Deps) *cobra.Command {
 		Example: "  monoagentcli daemon\n  monoagentcli daemon --api=false\n  monoagentcli daemon --api-addr 127.0.0.1:9400 --allow-mutations\n" +
 			"  monoagentcli daemon --bridge=false\n  monoagentcli daemon install",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			noteDeprecatedProfile(cmd)
 			// One daemon per home, taken before anything starts: two would
 			// both fire the same schedules and run every workflow twice.
 			// The OS drops the lock if this process dies.
@@ -123,10 +125,6 @@ func NewCommand(d Deps) *cobra.Command {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
-			profile, err := daemonProfile(cmd, d)
-			if err != nil {
-				return err
-			}
 			orgs := orgsvc.New(db, engine, d.OpenWorkflowStore)
 			registerQueueTriggers(engine, orgs.Logf)
 			engine.RegisterTriggerSource(workflow.TriggerNodeTypeSSE, workflow.NewSSETriggerSource(db.DB, orgs.Logf))
@@ -151,7 +149,7 @@ func NewCommand(d Deps) *cobra.Command {
 
 			servingAddr := ""
 			if apiOn {
-				addr, err := startDaemonAPI(ctx, d, profile, db, engine, orgs, apiRT, apiAddr, allowMutations)
+				addr, err := startDaemonAPI(ctx, d, db, engine, orgs, apiRT, apiAddr, allowMutations)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warning: HTTP API not served: %v\n", err)
 				} else {
@@ -209,6 +207,11 @@ func NewCommand(d Deps) *cobra.Command {
 	api.Bind(c)
 	c.Flags().DurationVar(&stopGrace, "stop-grace", 10*time.Second, "On shutdown, how long runs in flight may take to finish before they are cancelled (a service manager kills the daemon about 35s after asking it to stop)")
 	c.Flags().BoolVar(&bridgeOn, "bridge", true, "Hold the Chrome extension bridge open in this process (same bridge 'extension serve' runs standalone)")
+	// Services written before the daemon served every profile run `daemon --profile <id>`.
+	// The flag stays so they keep starting; it selects nothing (a local flag, so the
+	// root's --profile is never set by it).
+	c.Flags().String("profile", "", "Deprecated and ignored: the daemon runs every profile's workflows, each under its own profile")
+	_ = c.Flags().MarkHidden("profile")
 	c.AddCommand(newDaemonInstallCmd(d), newDaemonUninstallCmd(d), NewRestartCommand(d))
 	return c
 }
@@ -253,9 +256,9 @@ func startDaemonBridge(ctx context.Context, d Deps) (addr string, closeFn func()
 
 // startDaemonAPI binds the HTTP API over the daemon's own database and
 // engine, records the address for endpoint URLs, and serves until ctx ends.
-func startDaemonAPI(ctx context.Context, d Deps, profile string, db *storage.Database, engine *workflow.WorkflowEngine, orgs *orgsvc.Services, api *apiruntime.Runtime, addr string, allowMutations bool) (string, error) {
+func startDaemonAPI(ctx context.Context, d Deps, db *storage.Database, engine *workflow.WorkflowEngine, orgs *orgsvc.Services, api *apiruntime.Runtime, addr string, allowMutations bool) (string, error) {
 	srv, err := httpapi.NewServer(httpapi.Options{
-		DB: db, Store: d.OpenWorkflowStore(db), Engine: engine, Profile: profile,
+		DB: db, Store: d.OpenWorkflowStore(db), Engine: engine,
 		Addr: addr, AllowMutations: allowMutations, Version: d.API.Version(),
 		// The server has one ExtraRoutes slot: the org receiver and the
 		// OpenAI-compatible API both ride it.
@@ -290,18 +293,11 @@ func heartbeatSchedules(runs []workflow.ScheduledRun) []daemonhb.Schedule {
 	return out
 }
 
-// daemonProfile is the profile the daemon serves its HTTP API and defaults the engine to. It is
-// the --profile the daemon was started with (`daemon install` writes it into the service); the
-// daemon still runs every workflow under that workflow's own profile. Without an explicit
-// --profile it still runs on the fallback this release resolves, and says so on stderr: a service
-// registered before the profile was explicit is reported by `doctor` as out of date.
-func daemonProfile(cmd *cobra.Command, d Deps) (string, error) {
-	profile := d.ProfileID()
-	if profile == "" {
-		return "", fmt.Errorf("the daemon has no profile: start it with --profile <id>")
+// noteDeprecatedProfile says, once, that a --profile given to the daemon (or to
+// install, uninstall, restart) is ignored: a service written before the daemon
+// served every profile still carries it.
+func noteDeprecatedProfile(cmd *cobra.Command) {
+	if cmd.Flags().Changed("profile") {
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning: --profile is deprecated and ignored: the daemon runs every profile's workflows, each under its own profile (re-run `monoagentcli daemon install` to rewrite the service without it)")
 	}
-	if f := cmd.Flag("profile"); f == nil || !f.Changed {
-		fmt.Fprintf(cmd.ErrOrStderr(), "warning: the daemon was started without --profile and is using profile %q; start it with --profile %s (re-run `daemon install --profile %s` for the service)\n", profile, profile, profile)
-	}
-	return profile, nil
 }

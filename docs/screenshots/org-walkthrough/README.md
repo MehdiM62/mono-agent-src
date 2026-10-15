@@ -44,7 +44,7 @@ Dropping **Fetch post analytics** on the Writer card opens this dialog. You
 choose the mode, whether the role waits for the result, whether each call
 needs a decision, and the per-run cap. The role has Bash, which could bypass
 its grants, so the dialog offers to deny Bash for it. **Grant** saves it
-through `monoagentcli org grant add`.
+through `monoagentcli --profile work org grant add`.
 
 ### 5. Grants matrix
 
@@ -60,7 +60,7 @@ grant or revoke, or click the pencil to edit a grant. Editor's grant of
 
 Select a role and its inspector lists the tools its model will see: the org
 tools, the automations granted to it (`grant`), and the runtime's own tools
-(`builtin`). This is the output of `monoagentcli org effective-tools`.
+(`builtin`). This is the output of `monoagentcli --profile work org effective-tools`.
 
 ### 7. Needs you
 
@@ -119,7 +119,7 @@ GUI read them back through its normal Go bindings. That covers the orgs,
 workflows, automations, the automation role, the grants, the autonomy level,
 the decider and the pause. The grant in screen 4, the decider change and Full
 auto in screen 8, and the pause in screen 11 were done by clicking in the GUI.
-The queued messages in screen 12 were sent with `monoagentcli org send` while
+The queued messages in screen 12 were sent with `monoagentcli --profile work org send` while
 the org was stopped.
 
 No org was run and no model was called, so some data that only a live run
@@ -155,22 +155,22 @@ folder, so your own `~/.monoagent` is never touched.
 2. Import the workflows: `examples/orgs/content-team/publish-post.json`, plus
    three small ones named "Fetch post analytics" (`http.request`), "Summarize
    reader feedback" (`core.set`) and "Weekly newsletter digest"
-   (`comm.email_send`), each with `monoagentcli workflow import --file`.
+   (`comm.email_send`), each with `monoagentcli --profile work workflow import --file`.
 
 3. Create the orgs and wire them up:
 
    ```bash
-   monoagentcli org create-json content-team --json "$(cat content-team.json)"  # editor, writer, analyst
-   monoagentcli org create-json support-desk --json "$(cat support-desk.json)"  # lead, agent
-   monoagentcli org automation add content-team --workflow <publish id> --alias publish_post --owned
-   monoagentcli org automation add content-team --workflow <analytics id> --alias fetch_analytics
-   monoagentcli org automation add content-team --workflow <feedback id> --alias summarize_feedback
-   monoagentcli org automation-role add content-team --alias publish_post --reports-to editor
-   monoagentcli org grant add content-team --role analyst --automation fetch_analytics
-   monoagentcli org grant add content-team --role analyst --automation summarize_feedback
-   monoagentcli org grant add content-team --role editor --automation summarize_feedback
-   monoagentcli org grant add content-team --role editor --automation publish_post --approval required
-   monoagentcli org autonomy set content-team --level mid --decider model
+   monoagentcli --profile work org create-json content-team --json "$(cat content-team.json)"  # editor, writer, analyst
+   monoagentcli --profile work org create-json support-desk --json "$(cat support-desk.json)"  # lead, agent
+   monoagentcli --profile work org automation add content-team --workflow <publish id> --alias publish_post --owned
+   monoagentcli --profile work org automation add content-team --workflow <analytics id> --alias fetch_analytics
+   monoagentcli --profile work org automation add content-team --workflow <feedback id> --alias summarize_feedback
+   monoagentcli --profile work org automation-role add content-team --alias publish_post --reports-to editor
+   monoagentcli --profile work org grant add content-team --role analyst --automation fetch_analytics
+   monoagentcli --profile work org grant add content-team --role analyst --automation summarize_feedback
+   monoagentcli --profile work org grant add content-team --role editor --automation summarize_feedback
+   monoagentcli --profile work org grant add content-team --role editor --automation publish_post --approval required
+   monoagentcli --profile work org autonomy set content-team --level mid --decider model
    ```
 
    `content-team.json` is `examples/orgs/content-team/content-team.json` with
@@ -180,7 +180,7 @@ folder, so your own `~/.monoagent` is never touched.
    (`$HOME/.monoagent/profiles/default`). This is what the GUI's "Initiate
    monomind on this profile" button runs.
 
-5. Queue two messages with `monoagentcli org send content-team --to editor
+5. Queue two messages with `monoagentcli --profile work org send content-team --to editor
    ...` and `--to analyst --from support-desk:lead ...`. Write the pending
    items to `.monomind/orgs/content-team/{questions,gates,approvals}.json`
    and `.monomind/orgs/support-desk/questions.json` in the profile folder.

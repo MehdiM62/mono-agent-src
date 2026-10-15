@@ -142,7 +142,7 @@ func TestExtGuardHoldsSubmitsAsBrowserSubmitItems(t *testing.T) {
 func TestExtGuardIgnoresApprovalsMadeElsewhere(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "p1")
 	g, err := armGuard(ctx, &fakeGuardPage{})
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +162,7 @@ func TestExtGuardIgnoresApprovalsMadeElsewhere(t *testing.T) {
 func TestExtGuardRearmsAndRecoversRecords(t *testing.T) {
 	fakeResubmit(t)
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "p1")
 	page := &fakeGuardPage{}
 	g, err := armGuard(ctx, page)
 	if err != nil {
@@ -193,7 +193,7 @@ func TestExtGuardHandsBackAnUnsentApproval(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	fakeResubmit(t)
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "p1")
 	page := &fakeGuardPage{}
 	g, err := armGuard(ctx, page)
 	if err != nil {
@@ -212,14 +212,14 @@ func TestExtGuardHandsBackAnUnsentApproval(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := browserctl.DecideSubmitItem(ctx, db, "default", id, true); err != nil {
+		if _, err := browserctl.DecideSubmitItem(ctx, db, "p1", id, true); err != nil {
 			t.Fatal(err)
 		}
 		page.failWith = tc.fail
 		if err := g.Submit(ctx, b, id); err == nil {
 			t.Fatal("a failed resubmit is an error")
 		}
-		if it, _ := browserctl.GetSubmitItem(ctx, db, "default", id); it.Status != tc.want {
+		if it, _ := browserctl.GetSubmitItem(ctx, db, "p1", id); it.Status != tc.want {
 			t.Errorf("after %v: status %s, want %s", tc.fail, it.Status, tc.want)
 		}
 	}
@@ -229,7 +229,7 @@ func TestExtGuardHandsBackAnUnsentApproval(t *testing.T) {
 // on it: the extension disarms a tab whose top page changes origin.
 func TestExtGuardFollowsTheTabToANewOrigin(t *testing.T) {
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "p1")
 	page := &fakeGuardPage{origin: "https://a.example.com"}
 	g, err := armGuard(ctx, page)
 	if err != nil {
@@ -286,7 +286,7 @@ func TestRunRearmsTheGuardAfterACrossOriginNavigation(t *testing.T) {
 	var log []string
 	drv := &navDriver{fakeDriver: &fakeDriver{}, page: &fakeGuardPage{origin: "https://a.example.com", log: &log}, log: &log}
 	n := &Node{writer: zurich, open: func(context.Context, string) (driver, func(), error) { return drv, func() {}, nil }}
-	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), testdb.Open(t).DB), "default")
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), testdb.Open(t).DB), "p1")
 	out, err := n.Execute(ctx, workflow.NodeInput{}, map[string]interface{}{"url": "https://a.example.com/", "goal": "Search for zurich", "api_key": "k"})
 	if err != nil || out[0].Items[0].JSON["status"] != "done" {
 		t.Fatalf("run: %v %v", out, err)
@@ -322,7 +322,7 @@ func (b *bridgeStub) SendCommand(cmd *extension.Command, _ time.Duration) (*exte
 func TestExtGuardRefusesASubmitHeldInAFrame(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	db := testdb.Open(t).DB
-	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "default")
+	ctx := vault.ContextWithProfileID(vault.ContextWithDB(context.Background(), db), "p1")
 	stub := &bridgeStub{}
 	g, err := armGuard(ctx, extension.NewExtensionPage(stub, 41))
 	if err != nil {
@@ -339,11 +339,11 @@ func TestExtGuardRefusesASubmitHeldInAFrame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	it, err := browserctl.GetSubmitItem(ctx, db, "default", id)
+	it, err := browserctl.GetSubmitItem(ctx, db, "p1", id)
 	if err != nil || it.FrameID != 3 || it.TabID != 41 || it.FormDigest != "" {
 		t.Fatalf("item = %+v, %v: want frame 3, unbound", it, err)
 	}
-	if _, err := browserctl.DecideSubmitItem(ctx, db, "default", id, true); err != nil {
+	if _, err := browserctl.DecideSubmitItem(ctx, db, "p1", id, true); err != nil {
 		t.Fatal(err)
 	}
 	stub.actions = nil
@@ -355,7 +355,7 @@ func TestExtGuardRefusesASubmitHeldInAFrame(t *testing.T) {
 			t.Errorf("nothing may be let through: %v", stub.actions)
 		}
 	}
-	if it, _ := browserctl.GetSubmitItem(ctx, db, "default", id); it.Status != "approved" {
+	if it, _ := browserctl.GetSubmitItem(ctx, db, "p1", id); it.Status != "approved" {
 		t.Errorf("the approval is handed back: %s", it.Status)
 	}
 

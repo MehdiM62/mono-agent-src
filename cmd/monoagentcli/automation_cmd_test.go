@@ -28,7 +28,7 @@ func runAutomationCLI(t *testing.T, home string, args ...string) (string, string
 	root.SetOut(&out)
 	root.SetErr(&errOut)
 	root.SetIn(strings.NewReader(""))
-	root.SetArgs(append(args, "--db-path", filepath.Join(home, ".monoagent", "monoagent.db")))
+	root.SetArgs(append(withTestProfile(args), "--db-path", filepath.Join(home, ".monoagent", "monoagent.db")))
 	err := root.Execute()
 	return out.String(), errOut.String(), err
 }

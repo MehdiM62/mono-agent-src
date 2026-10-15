@@ -41,7 +41,7 @@ func withScreenshot(f *browserctltest.Fake) {
 func TestAgentOpenTabGoesIntoItsGroupAndIsWatched(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
-	s, err := browserctl.Open(browserctl.Options{Profile: "default", NoTab: true, Sender: f})
+	s, err := browserctl.Open(browserctl.Options{Profile: "p1", NoTab: true, Sender: f})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestAgentOpenTabGoesIntoItsGroupAndIsWatched(t *testing.T) {
 	}
 
 	// The next command in this context acts on that tab.
-	s2, err := browserctl.Open(browserctl.Options{Profile: "default", Sender: f})
+	s2, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,12 +86,12 @@ func TestConsoleStartsAtTheLastLoad(t *testing.T) {
 		}
 		return map[string]any{"entries": entries, "next": newest}, nil
 	})
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", NoTab: true, Sender: f})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", NoTab: true, Sender: f})
 	if _, err := s.OpenTab("http://localhost:3000/", ""); err != nil {
 		t.Fatal(err)
 	}
 	newest = 6 // the reload logs two
-	s2, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f})
+	s2, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f})
 	got, next, err := s2.Console(-1, nil, 0)
 	if err != nil || len(got) != 2 || got[0].Seq != 5 || next != 6 {
 		t.Fatalf("console since the load = %+v next %d, %v", got, next, err)
@@ -105,10 +105,10 @@ func TestAgentIsRefusedOnTabsItMayNotDrive(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	bank := f.AddTab("https://bank.example/account", "", true)
-	if _, err := browserctl.Open(browserctl.Options{Profile: "default", Sender: f}); !errors.Is(err, browserctl.ErrNoTab) {
+	if _, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f}); !errors.Is(err, browserctl.ErrNoTab) {
 		t.Fatalf("no group tab: %v", err)
 	}
-	_, err := browserctl.Open(browserctl.Options{Profile: "default", Tab: bank, Sender: f})
+	_, err := browserctl.Open(browserctl.Options{Profile: "p1", Tab: bank, Sender: f})
 	var na *browserctl.NotAllowedError
 	if !errors.As(err, &na) || na.Origin != "https://bank.example" {
 		t.Fatalf("bank tab: %v", err)
@@ -117,16 +117,16 @@ func TestAgentIsRefusedOnTabsItMayNotDrive(t *testing.T) {
 		t.Fatalf("the refusal leaks the path: %v", err)
 	}
 	// Allowed once on the allowlist.
-	if _, err := browserctl.Open(browserctl.Options{Profile: "default", Tab: bank, Sender: f, Allowlist: []string{"https://bank.example"}}); err != nil {
+	if _, err := browserctl.Open(browserctl.Options{Profile: "p1", Tab: bank, Sender: f, Allowlist: []string{"https://bank.example"}}); err != nil {
 		t.Fatal(err)
 	}
 	// A tab the agent used that navigated away is refused, not swapped.
 	local := f.AddTab("http://localhost:5173/", "Coder · Agent", false)
-	if _, err := browserctl.Open(browserctl.Options{Profile: "default", Tab: local, Sender: f}); err != nil {
+	if _, err := browserctl.Open(browserctl.Options{Profile: "p1", Tab: local, Sender: f}); err != nil {
 		t.Fatal(err)
 	}
 	f.SetURL(local, "https://accounts.example/login")
-	if _, err := browserctl.Open(browserctl.Options{Profile: "default", Sender: f}); !errors.As(err, &na) {
+	if _, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f}); !errors.As(err, &na) {
 		t.Fatalf("navigated-away last tab: %v", err)
 	}
 }
@@ -137,7 +137,7 @@ func TestVisibleTabsForAnAgent(t *testing.T) {
 	f.AddTab("https://mail.example/", "", true)
 	own := f.AddTab("https://somewhere.example/", "Coder · Agent", false)
 	dev := f.AddTab("http://localhost:8080/", "", false)
-	s, err := browserctl.Open(browserctl.Options{Profile: "default", NoTab: true, Sender: f})
+	s, err := browserctl.Open(browserctl.Options{Profile: "p1", NoTab: true, Sender: f})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestVisibleTabsForAnAgent(t *testing.T) {
 		t.Fatalf("visible = %+v", tabs)
 	}
 	setEnv(t, false)
-	s, _ = browserctl.Open(browserctl.Options{Profile: "default", NoTab: true, Sender: f})
+	s, _ = browserctl.Open(browserctl.Options{Profile: "p1", NoTab: true, Sender: f})
 	if tabs, _ := s.VisibleTabs(); len(tabs) != 3 {
 		t.Fatalf("a human sees %d tabs", len(tabs))
 	}
@@ -160,7 +160,7 @@ func TestHumanDefaultsToTheActiveTab(t *testing.T) {
 	f := browserctltest.New()
 	f.AddTab("chrome://settings", "", false)
 	active := f.AddTab("file:///home/me/a.html", "", true)
-	s, err := browserctl.Open(browserctl.Options{Profile: "default", Sender: f})
+	s, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestSubmitGateHoldsBlockedSubmitsOnce(t *testing.T) {
 	f.On(extension.CmdSubmitGuard, func(c *extension.Command) (any, error) {
 		return map[string]any{"armed": true, "blocked": blocked}, nil
 	})
-	s, err := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://example.com"}})
+	s, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestSubmitGateHoldsBlockedSubmitsOnce(t *testing.T) {
 	if !errors.As(err, &aw) || aw.Via != "guard" || aw.Origin != "https://example.com" {
 		t.Fatalf("after: %v", err)
 	}
-	it, err := browserctl.GetSubmitItem(ctx, db, "default", aw.HILID)
+	it, err := browserctl.GetSubmitItem(ctx, db, "p1", aw.HILID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestSubmitGateHoldsBlockedSubmitsOnce(t *testing.T) {
 		t.Fatalf("card screenshot: %v", err)
 	}
 	// Reported once: the next command does not raise it again.
-	s2, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://example.com"}})
+	s2, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://example.com"}})
 	if err := s2.BeforeAct(ctx, db); err != nil {
 		t.Fatalf("second before: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestGateFailsClosedWhenTheGuardCannotArm(t *testing.T) {
 	f := browserctltest.New()
 	f.AddTab("https://example.com/", "Coder · Agent", true)
 	f.On(extension.CmdSubmitGuard, func(*extension.Command) (any, error) { return nil, errors.New("Unknown command: submit_guard") })
-	s, err := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://example.com"}})
+	s, err := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,7 @@ func TestLocalPagesAreNotGated(t *testing.T) {
 	setEnv(t, true)
 	f := browserctltest.New()
 	f.AddTab("http://localhost:3000/", "Coder · Agent", true)
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f})
 	if s.Gated() {
 		t.Fatal("localhost is gated")
 	}
@@ -258,9 +258,9 @@ func TestResubmitChecksAndSubmitsInOneIsolatedEvaluation(t *testing.T) {
 	f.AddTab("https://example.com/", "Coder · Agent", true)
 	fp := &browserctltest.FormPage{Selector: "#f", Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
 	f.On("eval_cdp", fp.Handler())
-	s, _ := browserctl.Open(browserctl.Options{Profile: "default", Sender: f, Allowlist: []string{"https://example.com"}})
-	it, err := browserctl.CreateSubmitItem(context.Background(), testdb.Open(t).DB, browserctl.SubmitRequest{Profile: "default",
-		URL: "https://example.com/", Via: "click", Page: s.Page(), Form: browserctl.FormSummary{Selector: "#f", Submitter: "#send"}})
+	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://example.com"}})
+	it, err := browserctl.CreateSubmitItem(context.Background(), testdb.Open(t).DB, browserctl.SubmitRequest{
+		Profile: "p1", URL: "https://example.com/", Via: "click", Page: s.Page(), Form: browserctl.FormSummary{Selector: "#f", Submitter: "#send"}})
 	if err != nil || it.FormDigest == "" {
 		t.Fatalf("held item %+v, %v", it, err)
 	}

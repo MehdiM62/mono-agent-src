@@ -204,3 +204,19 @@ func TestWithSignature(t *testing.T) {
 		t.Fatalf("bad payload: %s", got)
 	}
 }
+
+func TestNoProfileIsAnErrorNotTheDefaultRoot(t *testing.T) {
+	t.Parallel()
+	db := testdb.Open(t)
+	e := New(Deps{
+		OpenDB:    func() (*storage.Database, error) { return db, nil },
+		ProfileID: func() string { return "" },
+		Project:   func() string { return "" },
+	})
+	if _, err := e.RootErr(); !errors.Is(err, ErrProfileRequired) {
+		t.Fatalf("RootErr() err = %v, want ErrProfileRequired", err)
+	}
+	if _, _, _, err := e.Profile(); !errors.Is(err, ErrProfileRequired) {
+		t.Fatalf("Profile() err = %v, want ErrProfileRequired", err)
+	}
+}

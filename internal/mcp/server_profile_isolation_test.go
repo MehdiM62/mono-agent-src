@@ -30,10 +30,6 @@ func TestCrossProfileToolsReturnNotFound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runtime: %v", err)
 	}
-	if rt.profileID != "default" {
-		t.Fatalf("test assumes the server is scoped to the default profile, got %q", rt.profileID)
-	}
-
 	ctx := context.Background()
 	const otherProfile = "other-profile"
 

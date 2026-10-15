@@ -118,6 +118,13 @@ def node_items(run, node_type=None):
     return [it.get("json") for it in (cands[-1].get("output_items") or [])]
 
 
+# MCP tools that take no profile argument (internal/mcp/profile_required_test.go).
+MCP_GLOBAL_TOOLS = frozenset([
+    "api_config_apply", "api_config_get", "api_config_set", "docs", "node_list", "node_schema",
+    "template_list", "workflow_template_list", "workflow_template_show",
+])
+
+
 class Scorer:
     def __init__(self, sb, task):
         self.sb, self.task = sb, task
@@ -246,6 +253,10 @@ class Scorer:
     def _mcp_call(self, name, args):
         client = self.sb.mcp()
         try:
+            # Every MCP tool but the machine-wide ones (internal/mcp
+            # globalToolsExpected) names the profile it acts on.
+            if name not in MCP_GLOBAL_TOOLS:
+                args = dict(args, profile=self.sb.profile)
             return client.call(name, args)
         finally:
             client.close()

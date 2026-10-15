@@ -28,7 +28,11 @@ func (*RegisterNode) Execute(ctx context.Context, in workflow.NodeInput, config 
 	if db == nil {
 		return nil, fmt.Errorf("publication.register: no database in context")
 	}
-	store := publication.NewStore(db, vault.ProfileIDFromContext(ctx))
+	profile, perr := vault.ProfileIDFromContext(ctx)
+	if perr != nil {
+		return nil, fmt.Errorf("publication.register: ran without a profile: %w", perr)
+	}
+	store := publication.NewStore(db, profile)
 	items := in.Items
 	if len(items) == 0 {
 		items = []workflow.Item{workflow.NewItem(nil)}

@@ -2,8 +2,13 @@ package ai
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 )
+
+// ErrProfileRequired is returned when a chat store call names no profile.
+// There is no implicit "default" profile.
+var ErrProfileRequired = errors.New("ai: a profile is required")
 
 // ChatMessage represents a single message in an AI chat conversation.
 type ChatMessage struct {
@@ -14,7 +19,7 @@ type ChatMessage struct {
 	// which are literal, non-unique strings shared by every profile — without
 	// this column, one profile's global assistant chat would read, and
 	// ClearChatHistory would delete, another profile's messages under the
-	// same workflow_id. Empty normalizes to "default".
+	// same workflow_id. An empty profile is ErrProfileRequired.
 	ProfileID  string `json:"profile_id,omitempty"`
 	Role       string `json:"role"` // "user" | "assistant" | "tool"
 	Content    string `json:"content"`
@@ -60,13 +65,13 @@ func NewAIStore(db *sql.DB) (*AIStore, error) {
 }
 
 // SaveChatMessage inserts a chat message. If CreatedAt is empty it is set to
-// now. If ProfileID is empty it defaults to "default".
+// now. An empty ProfileID is ErrProfileRequired.
 func (s *AIStore) SaveChatMessage(m ChatMessage) error {
 	if m.CreatedAt == "" {
 		m.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 	}
 	if m.ProfileID == "" {
-		m.ProfileID = "default"
+		return ErrProfileRequired
 	}
 	const q = `INSERT INTO ai_chat_messages (id, workflow_id, role, content, tool_calls, tool_call_id, provider_id, model, token_count, session_id, profile_id, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -79,7 +84,7 @@ func (s *AIStore) SaveChatMessage(m ChatMessage) error {
 }
 
 // GetChatHistory returns all messages for a workflow, scoped to profileID
-// (empty normalizes to "default"), ordered by created_at ascending. Exact
+// (empty is ErrProfileRequired), ordered by created_at ascending. Exact
 // match (not COALESCE) against profile_id: ambiguous legacy rows predating
 // this column carry an empty-string sentinel and are never returned, for
 // any profileID including "default" — see messagesSQL's comment. rowid is
@@ -88,7 +93,7 @@ func (s *AIStore) SaveChatMessage(m ChatMessage) error {
 // come back in insert order — no seq column needed.
 func (s *AIStore) GetChatHistory(workflowID, profileID string) ([]ChatMessage, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, ErrProfileRequired
 	}
 	const q = `SELECT id, workflow_id, role, content, tool_calls, tool_call_id, provider_id, model, token_count, session_id, profile_id, created_at
 		FROM ai_chat_messages WHERE workflow_id = ? AND profile_id = ? ORDER BY created_at ASC, rowid ASC`
@@ -114,11 +119,11 @@ func (s *AIStore) GetChatHistory(workflowID, profileID string) ([]ChatMessage, e
 }
 
 // GetSessionMessages returns messages for one resumable session within a
-// workflow, scoped to profileID (empty normalizes to "default"), ordered by
+// workflow, scoped to profileID (empty is ErrProfileRequired), ordered by
 // created_at ascending.
 func (s *AIStore) GetSessionMessages(workflowID, sessionID, profileID string) ([]ChatMessage, error) {
 	if profileID == "" {
-		profileID = "default"
+		return nil, ErrProfileRequired
 	}
 	const q = `SELECT id, workflow_id, role, content, tool_calls, tool_call_id, provider_id, model, token_count, session_id, profile_id, created_at
 		FROM ai_chat_messages WHERE workflow_id = ? AND session_id = ? AND profile_id = ? ORDER BY created_at ASC`
@@ -198,12 +203,12 @@ func truncateChatPreview(s string) string {
 }
 
 // ClearChatHistory deletes all messages for a given workflow, scoped to
-// profileID (empty normalizes to "default") so clearing one profile's
+// profileID (empty is ErrProfileRequired) so clearing one profile's
 // "general" chat can never delete another profile's messages under the same
 // placeholder workflow_id.
 func (s *AIStore) ClearChatHistory(workflowID, profileID string) error {
 	if profileID == "" {
-		profileID = "default"
+		return ErrProfileRequired
 	}
 	_, err := s.db.Exec(`DELETE FROM ai_chat_messages WHERE workflow_id = ? AND profile_id = ?`, workflowID, profileID)
 	return err

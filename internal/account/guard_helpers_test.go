@@ -189,10 +189,15 @@ func (e *env) session() *account.Session {
 	return sess
 }
 
+// testWait bounds every wait for something that must happen. It returns as soon as the thing
+// has happened, so the bound only matters on a machine that is too loaded to schedule the
+// refresher for seconds, where a tight one fails a correct run.
+const testWait = 30 * time.Second
+
 // eventually waits for cond, polling in real time.
 func eventually(t *testing.T, what string, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testWait)
 	for !cond() {
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for %s", what)

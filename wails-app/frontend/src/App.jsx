@@ -110,6 +110,8 @@ export default function App({ banners = null }) {
     if (page !== 'postDetail') setPostId(null)
     if (page !== 'profile' && page !== 'postDetail') setProfileId(null)
     setNavData(data || null)
+    // A link to a person (an ask's recipient) opens their profile.
+    if (page === 'people' && data?.person) { setProfileId(data.person); setActivePage('profile'); return }
     if (page === 'orgs' && data?.org) setPendingOrgSelect({ name: data.org, tab: data.tab || 'overview' })
     setActivePage(page)
   }, [])
@@ -273,8 +275,8 @@ export default function App({ banners = null }) {
   const persistentPages = {
     dashboard: <Dashboard isActive={activePage === 'dashboard'} onRefresh={refreshStats} onNavigate={navigate} onOpenHil={() => setGlobalHilOpen(true)} />,
     noderunner: <NodeRunner onNavigate={navigate} navData={navData} onWorkflowsChanged={refreshStats} />,
-    people:    <People key={peopleRefreshKey} isActive={activePage === 'people'} onProfile={openProfile} />,
-    communications: <Communications isActive={activePage === 'communications'} onProfile={openProfile} />,
+    people:    <People key={peopleRefreshKey} isActive={activePage === 'people'} onProfile={openProfile} onNavigate={navigate} />,
+    communications: <Communications isActive={activePage === 'communications'} onProfile={openProfile} navData={activePage === 'communications' ? navData : null} onOpenHil={() => setGlobalHilOpen(true)} />,
     publication: <Publication isActive={activePage === 'publication'} onNavigate={navigate} />,
     connections: <Connections onRefresh={refreshStats} navData={activePage === 'connections' ? navData : null} />,
     vault: <ImageVault isActive={activePage === 'vault'} />,
@@ -339,6 +341,7 @@ export default function App({ banners = null }) {
           onClose={() => setGlobalHilOpen(false)}
           onPendingCountChange={setGlobalHilCount}
           onProfile={openProfile}
+          onNavigate={navigate}
         />
 
         {/* Global AI Assistant — always available, opened/closed via the

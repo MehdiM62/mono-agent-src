@@ -68,7 +68,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestGetWorkflowState(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	wfID := "wf-1"
 
@@ -124,7 +124,7 @@ func TestGetWorkflowState(t *testing.T) {
 
 func TestCreateNodes(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	args := `{
 		"workflow_id": "wf-1",
@@ -175,7 +175,7 @@ func TestCreateNodes(t *testing.T) {
 
 func TestUpdateNodeConfig(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	// Create a node first
 	_, err := db.Exec(
@@ -221,7 +221,7 @@ func TestUpdateNodeConfig(t *testing.T) {
 
 func TestConnectNodes(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	// Create two nodes
 	for _, q := range []string{
@@ -267,7 +267,7 @@ func TestConnectNodes(t *testing.T) {
 
 func TestDisconnectNodes(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	// Insert a connection
 	_, err := db.Exec(
@@ -309,7 +309,7 @@ func TestDeleteNodes(t *testing.T) {
 	t.Cleanup(func() { aiBackupDir = old })
 
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	// Create a node and a connection involving it
 	_, err := db.Exec(
@@ -374,7 +374,7 @@ func TestDeleteNodes(t *testing.T) {
 
 func TestListAvailableNodes(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 	ct.SetNodeTypes([]NodeTypeInfo{
 		{Type: "trigger.manual", Label: "Manual Trigger", Category: "trigger", Description: "Start manually"},
 		{Type: "trigger.schedule", Label: "Schedule", Category: "trigger", Description: "Cron trigger"},
@@ -420,7 +420,7 @@ func TestListAvailableNodes(t *testing.T) {
 }
 
 func TestToolDefs(t *testing.T) {
-	ct := NewCanvasTools(nil)
+	ct := NewCanvasTools(nil, "default")
 	defs := ct.ToolDefs()
 	if len(defs) != 8 {
 		t.Fatalf("got %d tool defs, want 8", len(defs))
@@ -446,7 +446,7 @@ func TestToolDefs(t *testing.T) {
 }
 
 func TestExecuteUnknownTool(t *testing.T) {
-	ct := NewCanvasTools(nil)
+	ct := NewCanvasTools(nil, "default")
 	_, err := ct.Execute("nonexistent", `{}`)
 	if err == nil {
 		t.Fatal("expected error for unknown tool")
@@ -458,7 +458,7 @@ func TestExecuteUnknownTool(t *testing.T) {
 // boundary in get_workflow_state output.
 func TestGetWorkflowStateRedactsSecrets(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	_, err := db.Exec(
 		`INSERT INTO workflow_nodes (id, workflow_id, node_type, name, config) VALUES ('n1', 'wf-1', 'ai.chat', 'Chat', '{"model":"gpt-4o","api_key":"sk-live-SUPERSECRET","password":"hunter2","nested":{"token":"tok-123"}}')`)
@@ -491,7 +491,7 @@ func TestDeleteNodesSnapshotsToSidecar(t *testing.T) {
 	t.Cleanup(func() { aiBackupDir = old })
 
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	if _, err := db.Exec(
 		`INSERT INTO workflow_nodes (id, workflow_id, node_type, name, config) VALUES ('n1', 'wf-1', 'ai.chat', 'Chat', '{"model":"gpt-4o"}')`); err != nil {
@@ -567,7 +567,7 @@ func TestDeleteNodesBackupFailureAbortsDelete(t *testing.T) {
 	t.Cleanup(func() { aiBackupDir = old })
 
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 	if _, err := db.Exec(
 		`INSERT INTO workflow_nodes (id, workflow_id, node_type, name, config) VALUES ('n1', 'wf-1', 'core.set', 'X', '{}')`); err != nil {
 		t.Fatalf("insert: %v", err)
@@ -613,7 +613,7 @@ func TestMarshalJSONTruncatesOversizedResults(t *testing.T) {
 // node_type against the provided node-type registry.
 func TestCreateNodesRejectsUnknownNodeType(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 	ct.SetNodeTypes([]NodeTypeInfo{
 		{Type: "trigger.manual", Label: "Manual", Category: "trigger", Description: ""},
 		{Type: "core.set", Label: "Set", Category: "control", Description: ""},
@@ -633,7 +633,7 @@ func TestCreateNodesRejectsUnknownNodeType(t *testing.T) {
 	}
 
 	// No registry provided (e.g. CLI without node types): validation skips.
-	ct2 := NewCanvasTools(db)
+	ct2 := NewCanvasTools(db, "default")
 	if _, err := ct2.Execute("create_nodes", `{"workflow_id":"wf-1","nodes":[{"node_type":"anything","name":"X"}]}`); err != nil {
 		t.Fatalf("validation should skip when registry is empty: %v", err)
 	}
@@ -643,7 +643,7 @@ func TestCreateNodesRejectsUnknownNodeType(t *testing.T) {
 // to wire connections to node ids that don't exist in the workflow.
 func TestConnectNodesRequiresExistingEndpoints(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 	if _, err := db.Exec(
 		`INSERT INTO workflow_nodes (id, workflow_id, node_type, name, config) VALUES ('n1', 'wf-1', 'trigger.manual', 'Start', '{}')`); err != nil {
 		t.Fatalf("insert: %v", err)
@@ -677,7 +677,7 @@ func TestConnectNodesRequiresExistingEndpoints(t *testing.T) {
 // so the model is forced through create_workflow first.
 func TestMutatingToolsRejectPlaceholderWorkflowIDs(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	mutations := []struct {
 		tool, args string
@@ -730,7 +730,7 @@ func TestCanvasToolsRejectCrossProfileWorkflow(t *testing.T) {
 		t.Fatalf("insert node: %v", err)
 	}
 
-	ct := NewCanvasTools(db) // defaults to profileID "default"
+	ct := NewCanvasTools(db, "default") // defaults to profileID "default"
 
 	if _, err := ct.Execute("get_workflow_state", `{"workflow_id":"wf-other"}`); err == nil {
 		t.Error("get_workflow_state: expected error for cross-profile workflow, got nil")
@@ -771,7 +771,7 @@ func TestCanvasToolsRejectCrossProfileWorkflow(t *testing.T) {
 // instead of silently persisting.
 func TestCreateNodesTypeAlias(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 
 	// "type" alias resolves exactly like "node_type" would.
 	result, err := ct.Execute("create_nodes", `{
@@ -839,7 +839,7 @@ func TestCreateNodesTypeAlias(t *testing.T) {
 // in cmd/monoagentcli/chat.go).
 func TestCreateNodesRejectsUnknownType(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 	ct.SetNodeTypes([]NodeTypeInfo{
 		{Type: "http.request", Label: "HTTP Request", Category: "http"},
 		{Type: "core.set", Label: "Set", Category: "core"},
@@ -871,7 +871,7 @@ func TestCreateNodesRejectsUnknownType(t *testing.T) {
 // — the registry check must not apply to the trigger namespace.
 func TestCreateNodesAllowsTriggerTypes(t *testing.T) {
 	db := setupTestDB(t)
-	ct := NewCanvasTools(db)
+	ct := NewCanvasTools(db, "default")
 	ct.SetNodeTypes([]NodeTypeInfo{
 		{Type: "http.request", Label: "HTTP Request", Category: "http"},
 	})

@@ -23,7 +23,7 @@ func newOrgDesignApp(t *testing.T) (*App, string) {
 	if _, err := a.db.Exec("INSERT INTO profiles (id, name, root_dir) VALUES ('gui', 'GUI', ?)", root); err != nil {
 		t.Fatalf("seed profile: %v", err)
 	}
-	a.setActiveProfileID("gui")
+	a.selectForTest("gui")
 	a.ctx = context.Background()
 	return a, root
 }

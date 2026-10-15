@@ -13,8 +13,7 @@ up per-project and no "current workflow directory".
 Commands that act on a profile take an explicit `--profile <profile>` (an id or
 name; `monoagentcli profile list` shows them, and ask the user which one if
 more than one fits). The examples write it as `--profile <profile>`. There is no
-active profile. Today a scoped command without it still runs with a warning;
-the next release refuses it.
+active profile, and a command without it exits 3 and lists the profiles.
 
 ## Start here
 
@@ -121,7 +120,7 @@ monoagentcli --profile <profile> workflow run <workflow-id> --input '{"key":"val
 (`monoagentcli --profile <profile> workflow activate <id>`).
 
 Scheduled and webhook workflows only fire on their own while
-`monoagentcli --profile <profile> daemon` is running.
+`monoagentcli daemon` is running.
 
 ## Running one node ad hoc
 

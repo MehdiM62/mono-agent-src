@@ -48,7 +48,11 @@ func (a *App) IsMonomindInitialized() bool {
 	if a.signedOut() != nil {
 		return false
 	}
-	return isMonomindInitializedAt(profiledir.Root(a.db, a.getActiveProfileID()))
+	id, err := a.profileID()
+	if err != nil {
+		return false
+	}
+	return isMonomindInitializedAt(profiledir.Root(a.db, id))
 }
 
 // emitMonomindInitEvent reports init progress to the frontend. kind is
@@ -89,7 +93,16 @@ func (a *App) InitializeMonomindProfile() string {
 	if !ok {
 		return fail(fmt.Errorf("this profile's folder is already being set up"))
 	}
-	args := healthFixArgs(a.getActiveProfileID(), fixMonomindProfileInit)
+	pid, err := a.profileID()
+	if err != nil {
+		endHealthRun(key, run)
+		return fail(err)
+	}
+	args, err := healthFixArgs(pid, fixMonomindProfileInit)
+	if err != nil {
+		endHealthRun(key, run)
+		return fail(err)
+	}
 	go func() {
 		defer endHealthRun(key, run)
 		a.runMonomindInit(ctx, cliBin, args)

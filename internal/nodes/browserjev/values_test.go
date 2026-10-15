@@ -149,7 +149,7 @@ func valueQuestions(reqs []jev.Request) int {
 func TestValueChosenSkipsWriter(t *testing.T) {
 	srv := formPolicy(t, func(label string) string { return label })
 	drv := &formDriver{fields: []formField{{10, "From", "textbox", "text"}, {11, "To", "textbox", "text"}}}
-	res := runForm(t, context.Background(), formNode(drv, nil), "Book a train from Zurich to Basel",
+	res := runForm(t, testCtx(), formNode(drv, nil), "Book a train from Zurich to Basel",
 		map[string]interface{}{"From": "Zurich", "To": "Basel"})
 	if res["status"] != "done" {
 		t.Fatalf("status = %v (%v)", res["status"], res["reason"])
@@ -177,7 +177,7 @@ func TestValueNoneCallsWriter(t *testing.T) {
 	formPolicy(t, func(string) string { return "NONE" })
 	drv := &formDriver{fields: []formField{{10, "Search", "searchbox", "search"}}}
 	var writes int
-	res := runForm(t, context.Background(), formNode(drv, func(context.Context, map[string]any) (string, error) {
+	res := runForm(t, testCtx(), formNode(drv, func(context.Context, map[string]any) (string, error) {
 		writes++
 		return "trains", nil
 	}), "Search for trains", `{"City": "Zurich"}`) // JSON text, as the GUI's code editor stores it
@@ -288,7 +288,7 @@ func TestSecretValueNeverReachesJev(t *testing.T) {
 func TestShortPlainValueScrubbedInFieldValue(t *testing.T) {
 	srv := formPolicy(t, func(label string) string { return "qty" })
 	drv := &formDriver{fields: []formField{{10, "Quantity", "spinbutton", "number"}}}
-	res := runForm(t, context.Background(), formNode(drv, nil), "Order 12 boxes", map[string]interface{}{"qty": "12"})
+	res := runForm(t, testCtx(), formNode(drv, nil), "Order 12 boxes", map[string]interface{}{"qty": "12"})
 	if res["status"] != "done" || strings.Join(drv.executed, ",") != "f0:12,go:" {
 		t.Fatalf("status=%v executed=%v", res["status"], drv.executed)
 	}

@@ -22,13 +22,22 @@ const (
 // rawCLI runs `monoagentcli --profile <active> --json <args…>` and returns
 // stdout verbatim, or {"error": …}.
 func (a *App) rawCLI(timeout time.Duration, args ...string) string {
+	full, err := a.scopedArgs(args...)
+	if err != nil {
+		return aiError(err)
+	}
+	return a.runRawCLI(timeout, full)
+}
+
+// runRawCLI runs the finished argv full and returns stdout verbatim, or
+// {"error": …}.
+func (a *App) runRawCLI(timeout time.Duration, full []string) string {
 	cliBin, err := findMonoAgentCLI()
 	if err != nil {
 		return aiError(err)
 	}
-	ctx, cancel := context.WithTimeout(a.ctx, timeout)
+	ctx, cancel := context.WithTimeout(a.parentCtx(), timeout)
 	defer cancel()
-	full := scopedCLIArgs(a.getActiveProfileID(), args...)
 	cmd := exec.CommandContext(ctx, cliBin, full...)
 	suppressConsole(cmd)
 	out, err := cmd.Output()
@@ -39,7 +48,15 @@ func (a *App) rawCLI(timeout time.Duration, args ...string) string {
 // {"error": …} shape into an error. Bounded by timeout, unlike runMonoCLI:
 // these bindings are polled, and a stalled CLI must not pile up processes.
 func (a *App) cliJSON(timeout time.Duration, result interface{}, args ...string) error {
-	out := a.rawCLI(timeout, args...)
+	return decodeCLIJSON(a.rawCLI(timeout, args...), result)
+}
+
+// globalJSON is cliJSON for a machine-wide command, which names no profile.
+func (a *App) globalJSON(timeout time.Duration, result interface{}, args ...string) error {
+	return decodeCLIJSON(a.runRawCLI(timeout, unscopedCLIArgs(args...)), result)
+}
+
+func decodeCLIJSON(out string, result interface{}) error {
 	var e struct {
 		Error *string `json:"error"`
 	}

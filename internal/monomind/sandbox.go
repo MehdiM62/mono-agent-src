@@ -72,6 +72,11 @@ type SandboxFields struct {
 	Sandbox            string `json:"sandbox,omitempty"`
 	SandboxUnsupported bool   `json:"sandbox_unsupported,omitempty"`
 	SandboxStatus      string `json:"sandbox_status,omitempty"`
+	// SandboxApplied is the mode monomind really ran (--sandbox-fallback may
+	// change it); SandboxNote says why the sandbox-fallback setting did not
+	// apply. Exec adds the note, never monomind.
+	SandboxApplied string `json:"sandbox_applied,omitempty"`
+	SandboxNote    string `json:"sandbox_note,omitempty"`
 	// NativeSandbox is who confines the turn's native tools, as ScanEntry
 	// reports it per runtime: "monomind", a vendor sandbox mode or "none".
 	NativeSandbox string `json:"native_sandbox,omitempty"`

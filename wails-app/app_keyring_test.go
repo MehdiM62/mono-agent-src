@@ -38,7 +38,7 @@ func TestKeyringFuncsShellOutToCLI(t *testing.T) {
 	argsLog, stdinLog := fakeKeyringCLI(t)
 	a := newTestApp(t)
 	a.ctx = context.Background()
-	a.setActiveProfileID("work")
+	a.selectForTest("work")
 
 	st, err := a.KeyringStatus()
 	if err != nil || st.Backend != "file" || !st.FileKeyringAllowed || st.FileKeyrings == nil ||

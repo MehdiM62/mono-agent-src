@@ -106,11 +106,7 @@ func newOrgAutomationUnassignedCmd(env *orgEnv) *cobra.Command {
 			}
 			out := []item{}
 			for _, wf := range wfs {
-				owner := wf.ProfileID
-				if owner == "" {
-					owner = "default"
-				}
-				if owner != profileID || member[wf.ID] {
+				if wf.ProfileID != profileID || member[wf.ID] {
 					continue
 				}
 				out = append(out, item{ID: wf.ID, Name: wf.Name, IsActive: wf.IsActive})

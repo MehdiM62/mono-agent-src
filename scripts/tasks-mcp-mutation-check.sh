@@ -48,13 +48,15 @@ mutate "mutating tools callable without --allow-mutations" internal/mcp/tools.go
 mutate "mutating tools listed without --allow-mutations" internal/mcp/tools.go 't.mutating && !allowMutations {' 'false {'
 mutate "--tasks-only no longer narrows the server" internal/mcp/apionly.go 'case s.opts.TasksOnly:' 'case false:'
 mutate "--tasks-only serves every tool" internal/mcp/apionly.go 'keep = taskToolNames()' 'return all'
-mutate "server follows another profile" internal/mcp/task_tools.go 'store.Profile(ctx, rt.profileID)' 'store.Profile(ctx, "p-7f3a9c")'
-mutate "task_approve served although the operator did not allow it" internal/mcp/task_approve.go 'return err == nil && a.Approve' 'return true'
-mutate "task_approve served without view" internal/mcp/task_approve.go 'a.Approve && a.View' 'a.Approve'
+mutate "a call follows another profile" internal/mcp/task_tools.go 'store.Profile(ctx, profileOf(ctx))' 'store.Profile(ctx, "p-7f3a9c")'
+mutate "task_approve served although no operator allowed it" internal/mcp/task_approve.go 'err == nil && a.Approve && a.View {' 'true {'
+mutate "task_approve served without view" internal/mcp/task_approve.go 'a.Approve && a.View {' 'a.Approve {'
 mutate "a delegate approves a task an agent created" internal/tasks/ops.go 'return s.refuseAgentCreated(ctx, cur)' 'return nil'
 mutate "a delegate approves without a cap" internal/tasks/ops.go 'if len(ids) > MaxDelegatedApprove {' 'if false {'
 mutate "task_approve served without asking the setting" internal/mcp/apionly.go 'if s.approveDelegated() {' 'if true {'
-mutate "task_approve follows another profile's setting" internal/mcp/task_approve.go 'AgentAccess(context.Background(), rt.profileID)' 'AgentAccess(context.Background(), "p-7f3a9c")'
+mutate "a scoped tool is called without resolving its profile" internal/mcp/tools.go 'if !t.global {' 'if false {'
+mutate "a missing profile argument is let through" internal/mcp/profile_arg.go 'if !present {' 'if false {'
+mutate "a grant server accepts another profile" internal/mcp/grant.go 'if id != b.ProfileID {' 'if false {'
 # Every tool must scope to the profile: the profile id is replaced by "" in each store call.
 scope() { # tool file call-prefix
   mutate "$1 ignores the profile" "internal/mcp/$2" "$3(ctx, p.ID," "$3(ctx, \"\","

@@ -109,7 +109,7 @@ func (e *env) guardOnClock(ref account.Refresher, poll time.Duration, now func()
 		}()
 		select {
 		case <-done:
-		case <-time.After(5 * time.Second):
+		case <-time.After(testWait):
 			t.Error("Close did not return")
 		}
 	})
@@ -128,7 +128,7 @@ func refusedSession() *account.Session {
 // of it; 150 ms of quiet is not a barrier against a loop that is slow to write.
 func (e *env) underLock(fn func()) {
 	e.t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testWait)
 	defer cancel()
 	unlock, err := e.store.Lock(ctx)
 	if err != nil {
@@ -145,9 +145,16 @@ func (e *env) storeRefusal() {
 }
 
 // waitForCalls waits, in real time, until the server has been called at least n times.
+//
+// It then waits for the pass that made the n-th call to end. The server counts a call inside the
+// refresh, which the refresher makes holding the session lock and stores its answer under, so
+// the lock is a barrier for that write. Without it, a test that moves the clock as soon as it
+// sees the count may move it before the answer is stored, and the refresh is then recorded
+// at a later time than the one the test means (a loaded machine shows it).
 func waitForCalls(t *testing.T, srv *loopServer, n int32, what string) {
 	t.Helper()
 	eventually(t, what, func() bool { return srv.calls.Load() >= n })
+	srv.e.underLock(func() {})
 }
 
 // expectCalls waits quietFor (thirty ticks of the refresher at loopPoll) and then
@@ -168,7 +175,7 @@ func expectCalls(t *testing.T, srv *loopServer, n int32, what string) {
 // attempt waits for this, never for a while.
 func waitForAttempt(t *testing.T, store account.Store, at time.Time, what string) {
 	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
+	deadline := time.Now().Add(testWait)
 	for {
 		sess, err := store.Load()
 		if err == nil && sess != nil && sess.LastAttempt.Equal(at) {
@@ -179,7 +186,7 @@ func waitForAttempt(t *testing.T, store account.Store, at time.Time, what string
 		}
 		time.Sleep(2 * time.Millisecond)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testWait)
 	defer cancel()
 	unlock, err := store.Lock(ctx)
 	if err != nil {

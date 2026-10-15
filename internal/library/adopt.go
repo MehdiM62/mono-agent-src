@@ -104,7 +104,8 @@ func AdoptIntoAccount(ctx context.Context, db *sql.DB, g *account.Guard) (adopte
 	return false, nil
 }
 
-// activeFirst puts the active profile in front, the rest in their order.
+// activeFirst puts the deterministic default (the oldest profile) in front, the
+// rest in their order. There is no active profile.
 func activeFirst(ps []profiledir.Profile) []profiledir.Profile {
 	out := make([]profiledir.Profile, 0, len(ps))
 	for _, p := range ps {

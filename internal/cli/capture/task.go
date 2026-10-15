@@ -92,7 +92,7 @@ func (d Deps) newCaptureTaskCmd() *cobra.Command {
 	cmd.Flags().StringVar(&assignee, "assignee", "", "Assign the task to this member or agent")
 	cmd.Flags().StringVar(&workspace, "workspace", "", "Workspace id to file the task under")
 	cmd.Flags().StringVar(&parent, "parent", "", "Existing issue id to file this task under")
-	cmd.Flags().StringVar(&project, "project", "", "Project root holding .monomind/orgs (default: the active profile's root)")
+	cmd.Flags().StringVar(&project, "project", "", "Project root holding .monomind/orgs (default: the root of the profile named by --profile)")
 	return cmd
 }
 
