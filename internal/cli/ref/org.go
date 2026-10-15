@@ -26,7 +26,7 @@ PROCESSES
 
   monoagentcli --profile <profile> org serve            start monomind's org daemon for the folder
   monoagentcli --profile <profile> org serve --stop     stop the folder's running orgs and daemon
-  monoagentcli --profile <profile> daemon               engine + HTTP API + automation-role endpoint
+  monoagentcli daemon               engine + HTTP API + automation-role endpoint
                                     + autonomy decisions (writes a heartbeat)
   monoagentcli --profile <profile> --json status        both daemons' state
 

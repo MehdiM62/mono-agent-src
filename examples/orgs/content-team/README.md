@@ -8,7 +8,7 @@ reply.
 
 Needs monomind with capabilities `org-tool-providers` and
 `org-endpoint-roles`, and a Slack connection
-(`monoagentcli connect slack`).
+(`monoagentcli --profile work connect slack`).
 
 ```bash
 # 1. The workflow. Set the Slack channel first (REPLACE_WITH_CHANNEL_ID).
@@ -26,7 +26,7 @@ monoagentcli --profile work org automation-role add content-team --alias publish
 monoagentcli --profile work org autonomy show content-team
 
 # 5. Run it. Both daemons must be up.
-monoagentcli --profile work daemon &
+monoagentcli daemon &
 monoagentcli --profile work org serve
 monoagentcli --profile work org run content-team --task "Write about offline-first workflows"
 monoagentcli --profile work org autonomy needs-you content-team   # approve the review here or in the GUI

@@ -16,8 +16,8 @@ info:
     failure, including a token of another profile, a profile that does not
     exist and no token at all, gets the same `401`, so the response never
     says which profiles exist. Within a profile, another profile's workflow
-    returns 404, also when the API is hosted by the daemon. Legacy workflows
-    without a profile ID belong to default. `GET /health` and `/nodes*` are
+    returns 404, also when the API is hosted by the daemon. A workflow file
+    with no owner is stamped with a profile when the data is migrated. `GET /health` and `/nodes*` are
     global (`/nodes*` takes the token of any profile). The unprefixed
     `/workflows*` and `/hil*` routes of earlier releases are gone and answer
     `404` with a `hint` naming the new path. Start the server with

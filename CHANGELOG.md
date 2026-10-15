@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### BREAKING
+
+Every command, tool and request that acts on a profile now names that profile. There is no active profile, no `default` fallback and no environment variable that picks one, so an agent can no longer write to the wrong profile by accident. Run `monoagentcli profile list` to find the ids and names.
+
+- **CLI.**
+  - Every command that acts on a profile requires `--profile <id|name>`. Without it the command exits 3 with `pass --profile` and the list of profiles. Machine-wide commands (`version`, `update`, `config`, `message-template`, `agent`, `account`, `db`, `node list|schema`, `api config`, `profile list|create|get`, `mcp`, `daemon`, `httpapi`, `ref` and more) need none; the list is `internal/cli/profilegate/classes.go`.
+  - Removed: `profile switch`, `profile current`, the `MONOAGENT_PROFILE` environment variable and the active-profile setting.
+- **MCP.**
+  - One server serves every profile. Each tool call carries a required `profile` argument (an id or name), except the nine global tools (`node_list`, `node_schema`, `docs`, `workflow_template_list`, `workflow_template_show`, `template_list`, `api_config_get`, `api_config_set`, `api_config_apply`). A call without it is an `invalid_input` error that lists the profiles.
+  - `api_status` and `api_models_list` are now profile-scoped, and so are the `wf_<slug>` workflow tools.
+  - `mcp --grant <id>` requires `--profile`.
+- **HTTP API.**
+  - Workflows and HIL items moved to `/profiles/{profile}/workflows...` and `/profiles/{profile}/hil...`. The old unprefixed `/workflows*` and `/hil*` routes are removed and answer 404 with a hint. `/health` and `/nodes*` stay global.
+  - A bearer token authorizes only its own profile.
+  - `daemon` and `httpapi` serve every profile and need no `--profile`; `daemon --profile` is a deprecated no-op.
+- **Data.** Migrations run on first start:
+  - `098`: `posts` belong to a profile.
+  - `099`: legacy rows with no profile are stamped with the profile whose id is `default`, or the oldest profile if there is none. Workflow files with no owner are stamped the same way.
+  - `100`: tag names are unique per profile, not across the machine.
+  - `101`: the active-profile setting is removed.
+- **TypeSafe Jev.** The API key is machine-wide, shared by every profile. Per-surface enable, thresholds and usage stay per profile. A key in a profile's vault keeps working as a fallback; `jev key adopt` copies it to the machine vault.
+- **Desktop app and Chrome extension.** Each keeps its own profile selector as UI state and sends the profile explicitly on every call. Settings shows the machine-wide settings first and the profile's settings below.
+
+**How to migrate**
+
+- **Scripts and cron jobs:** add `--profile <id|name>` to every scoped command, and delete uses of `profile switch`, `profile current` and `MONOAGENT_PROFILE`.
+- **MCP clients:** pass `profile` in each tool call and remove per-profile server registrations; one `monoagentcli mcp` registration serves all profiles. Add `--profile` to any `mcp --grant`.
+- **HTTP clients:** call `/profiles/{profile}/...` and use that profile's token (`secret reveal httpapi-token` under `--profile <id>`).
+- **Jev:** run `monoagentcli jev key adopt` once if the key lives in a profile's vault.
+
 ### Added
 - **n8n parity and import.** `workflow import --from n8n` (and `workflow convert`) brings in n8n workflows with an unmapped-node report that runs `workflow validate`. About 458 n8n node types and 3,650 operations are covered, mostly through declarative API packages (`apipkg.v1`, also generated from OpenAPI with `integration import-openapi`). All 115 n8n trigger types import, and 63 of 71 vendor webhooks register themselves when a workflow is activated. A short list of n8n-internal or discontinued nodes stays unsupported, each with a reason.
 - **Engine building blocks:**

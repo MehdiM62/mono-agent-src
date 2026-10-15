@@ -29,9 +29,8 @@ from every other profile. Create one with 'monoagentcli profile create
   monoagentcli --profile <name-or-id> ...   name the profile a command acts on
 
 Every command that acts on a profile takes --profile. There is no active
-profile, no 'profile switch' and no MONOAGENT_PROFILE variable. (Today a
-scoped command without --profile still runs, prints a warning and uses the
-legacy active profile; the next release refuses it.)
+profile and no default: a command without --profile exits 3 and lists the
+profiles. Machine-wide commands (version, update, config, ...) need none.
 
 --profile accepts EITHER a profile's display name OR its ID — resolved to
 the canonical ID before anything runs. Passing a name that matches no real

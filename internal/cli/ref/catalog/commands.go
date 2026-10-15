@@ -286,7 +286,7 @@ generations at once) without the runs interfering.`,
   --api=false      Don't serve the HTTP API in this process
   --bridge=false   Don't hold the Chrome extension bridge open in this process`,
 		Examples: []string{
-			"monoagentcli --profile work daemon",
+			"monoagentcli daemon",
 			"monoagentcli daemon install     # auto-start at login on this machine or a fresh one — see \"daemon install\" below",
 			"monoagentcli daemon restart     # after \"api config set\"; interrupts what the daemon is running",
 			"monoagentcli daemon uninstall",

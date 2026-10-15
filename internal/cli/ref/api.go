@@ -16,7 +16,7 @@ func refAPICmd() *cobra.Command {
 ║          monoagentcli — HTTP API (monoagentcli httpapi)            ║
 ╚══════════════════════════════════════════════════════════════╝
 
-  monoagentcli --profile work httpapi    # REST/JSON server (default 127.0.0.1:9322)
+  monoagentcli httpapi    # REST/JSON server (default 127.0.0.1:9322)
 
 For agents that can't speak stdio JSON-RPC. Same surface as the MCP
 tools (internal/httpapi/ mirrors internal/mcp/'s conventions), plus
@@ -219,7 +219,7 @@ OPENAI-COMPATIBLE API (/v1)
 
   The "auto" model lets Jev pick, per request, among the models the listener
   serves (a --context key: among those its own cap allows). It is opt-in per
-  profile: monoagentcli jev enable api_auto, with a Jev key (jev key set, or
+  profile: monoagentcli jev enable api_auto, with the machine-wide Jev key (jev key set, or
   TYPESAFE_API_KEY in the server's environment). What leaves the machine: the
   first 4,000 characters of the last user message (of an image request, its
   prompt), and each candidate's name,
