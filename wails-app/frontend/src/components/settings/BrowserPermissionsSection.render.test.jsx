@@ -38,7 +38,13 @@ describe('BrowserPermissionsSection', () => {
       ['Off', "This kind of agent can't use the browser."],
     ])
     expect(within(kindRow('coder')).getByText('Localhost and dev pages, plus sites you allow; submits on real sites wait for your approval.')).toBeInTheDocument()
-    expect(screen.getByText(/Allow opens a site to agents at Dev pages \+ allowed sites or Ask for new sites/)).toBeInTheDocument()
+    // Block covers subdomains on any scheme and port; allow is exact (plan C9).
+    const rulesNote = screen.getByTestId('site-rules-note')
+    expect(rulesNote).toHaveTextContent('Block keeps every agent off a site and all its subdomains, on any scheme and port, whatever its level.')
+    expect(rulesNote).toHaveTextContent('Allow is exact (that scheme, host and port; write *.host for its subdomains) and opens the site to agents at Dev pages + allowed sites or Ask for new sites.')
+    // The kinds' limit, said plainly.
+    expect(screen.getByTestId('kind-token-note')).toHaveTextContent(
+      "MonoAgent tells coder chats and org roles apart by a token it gives the agents it starts. An agent that reads another process's environment could borrow that kind.")
     expect(within(kindRow('coder')).getByText('default')).toBeInTheDocument()
     expect(within(kindRow('other')).queryByText('default')).toBeNull()
     expect(screen.queryByTestId('permission-risk')).toBeNull()
@@ -55,6 +61,7 @@ describe('BrowserPermissionsSection', () => {
     const warning = await screen.findByTestId('permission-risk')
     expect(kindRow('coder')).toContainElement(warning)
     expect(warning).toHaveTextContent('riskiest level')
+    expect(warning).toHaveTextContent("run scripts on any site, signed in as you, without asking. A script can read that site's cookies and storage")
   })
 
   it('lists site rules, adds one and removes one', async () => {

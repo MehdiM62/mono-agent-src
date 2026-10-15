@@ -73,6 +73,10 @@ export default function BrowserPermissionsSection() {
         What AI agents may do in your browsers through the MonoAgent Bridge, for this whole computer. Local and dev
         pages (localhost, *.test, …) are always allowed unless a kind is Off. You, in a terminal, are never restricted.
       </div>
+      <div style={hint} data-testid="kind-token-note">
+        MonoAgent tells coder chats and org roles apart by a token it gives the agents it starts. An agent that reads
+        another process&apos;s environment could borrow that kind.
+      </div>
       {err && <div style={errText} role="alert">{err}</div>}
 
       {kinds.map(k => {
@@ -88,7 +92,7 @@ export default function BrowserPermissionsSection() {
               {k.level === RISKIEST_LEVEL && (
                 <div style={riskText} data-testid="permission-risk">
                   <ShieldAlert size={12} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>The riskiest level: these agents can act and submit forms on any site, signed in as you, without asking. A page can steer them.</span>
+                  <span>The riskiest level: these agents can act, submit forms and run scripts on any site, signed in as you, without asking. A script can read that site&apos;s cookies and storage, and a page can steer them.</span>
                 </div>
               )}
             </div>
@@ -109,9 +113,10 @@ export default function BrowserPermissionsSection() {
       })}
 
       <div style={{ ...label, marginTop: 6 }}>Site rules</div>
-      <div style={hint}>
-        Allow opens a site to agents at {levelOf('dev')?.label || 'dev'} or {levelOf('ask')?.label || 'ask'}. Block
-        keeps every agent off a site, whatever its level.
+      <div style={hint} data-testid="site-rules-note">
+        Block keeps every agent off a site and all its subdomains, on any scheme and port, whatever its level. Allow
+        is exact (that scheme, host and port; write *.host for its subdomains) and opens the site to agents at{' '}
+        {levelOf('dev')?.label || 'dev'} or {levelOf('ask')?.label || 'ask'}.
       </div>
       {sites.length === 0 && <div style={hint}>No site rules yet.</div>}
       {sites.map(s => (
