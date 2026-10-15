@@ -1,0 +1,14 @@
+{
+  "kind": "send",
+  "id": "hil-send-2",
+  "state": "pending",
+  "preparedBy": { "role": "qa", "agentId": "agent-qa-1" },
+  "action": "dm.send",
+  "channel": "dm",
+  "account": { "platform": "instagram", "handle": "acme_official" },
+  "recipient": { "name": "Jo Park" },
+  "text": "Hey Jo, thanks for the follow!",
+  "attachments": [
+    { "kind": "image", "name": "hello.jpg", "url": "https://img.example.test/hello.jpg" }
+  ]
+}

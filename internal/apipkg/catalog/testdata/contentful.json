@@ -1,0 +1,165 @@
+{
+  "entry.get": {
+    "credential": {
+      "space_id": "sp1",
+      "access_token": "dt",
+      "preview_token": "pt"
+    },
+    "params": {
+      "entryId": "e1"
+    },
+    "response": {
+      "sys": {},
+      "fields": {
+        "title": "x"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/spaces/sp1/environments/master/entries/e1",
+      "query": {},
+      "items": 1
+    }
+  },
+  "entry.getAll": {
+    "credential": {
+      "space_id": "sp1",
+      "access_token": "dt",
+      "preview_token": "pt"
+    },
+    "params": {
+      "limit": 5,
+      "source": "previewApi",
+      "additionalFields": {
+        "content_type": "post",
+        "equal": "fields.title=Hi",
+        "include": "fields.tags[in]=a,b",
+        "order": "sys.createdAt"
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "fields": {
+            "title": "Hi"
+          }
+        }
+      ],
+      "total": 1
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/spaces/sp1/environments/master/entries",
+      "query": {
+        "content_type": "post",
+        "fields.title": "Hi",
+        "fields.tags[in]": "a,b",
+        "order": "sys.createdAt",
+        "skip": "0",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "asset.get": {
+    "credential": {
+      "space_id": "sp1",
+      "access_token": "dt",
+      "preview_token": "pt"
+    },
+    "params": {
+      "assetId": "a1",
+      "environmentId": "staging",
+      "additionalFields": {
+        "rawData": true
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/spaces/sp1/environments/staging/assets/a1",
+      "query": {}
+    }
+  },
+  "asset.getAll": {
+    "credential": {
+      "space_id": "sp1",
+      "access_token": "dt",
+      "preview_token": "pt"
+    },
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "items": [
+        {
+          "fields": {
+            "file": {}
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/spaces/sp1/environments/master/assets",
+      "query": {
+        "skip": "0",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "contentType.get": {
+    "credential": {
+      "space_id": "sp1",
+      "access_token": "dt",
+      "preview_token": "pt"
+    },
+    "params": {
+      "contentTypeId": "post"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/spaces/sp1/environments/master/content_types/post",
+      "query": {}
+    }
+  },
+  "locale.getAll": {
+    "credential": {
+      "space_id": "sp1",
+      "access_token": "dt",
+      "preview_token": "pt"
+    },
+    "params": {
+      "limit": 5
+    },
+    "response": {
+      "items": [
+        {
+          "code": "en-US"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/spaces/sp1/environments/master/locales",
+      "query": {
+        "skip": "0",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "space.get": {
+    "credential": {
+      "space_id": "sp1",
+      "access_token": "dt",
+      "preview_token": "pt"
+    },
+    "params": {},
+    "expect": {
+      "method": "GET",
+      "path": "/spaces/sp1",
+      "query": {}
+    }
+  }
+}

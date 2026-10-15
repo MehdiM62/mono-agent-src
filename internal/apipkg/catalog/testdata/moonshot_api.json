@@ -1,0 +1,68 @@
+{
+  "image.analyze": {
+    "credential": {
+      "api_key": "sk-moon",
+      "region": "china"
+    },
+    "params": {
+      "modelId": {
+        "__rl": true,
+        "mode": "list",
+        "value": "kimi-k2.5"
+      },
+      "options": {
+        "maxTokens": 200
+      }
+    },
+    "input": {
+      "binary": {
+        "data": {
+          "data": "UE5H",
+          "mimeType": "image/png"
+        }
+      }
+    },
+    "response": {
+      "id": "c1",
+      "choices": [
+        {
+          "index": 0,
+          "finish_reason": "stop",
+          "message": {
+            "role": "assistant",
+            "content": "hi"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/chat/completions",
+      "body": {
+        "model": "kimi-k2.5",
+        "max_tokens": 200,
+        "thinking": {
+          "type": "disabled"
+        },
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "data:image/png;base64,UE5H"
+                }
+              },
+              {
+                "type": "text",
+                "text": "What's in this image?"
+              }
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  }
+}

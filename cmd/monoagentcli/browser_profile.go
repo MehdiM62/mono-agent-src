@@ -1,28 +1,22 @@
 package main
 
 import (
-	"errors"
 	"time"
 
 	"github.com/rs/zerolog"
 
 	browserpkg "github.com/monoes/mono-agent/internal/browser"
-	"github.com/monoes/mono-agent/internal/extension"
+	"github.com/monoes/mono-agent/internal/cli/bridge"
 )
 
 // Per-profile browsers: each monoagent profile's browser actions run in the
-// browser profile bound to it (see internal/extension/conns.go for the
-// routing rule). Everything here is the CLI's half: choosing the profile a
-// command runs as and narrowing the bridge to its browser.
+// browser profile bound to it. Narrowing a bridge and the route hint live in
+// internal/cli/bridge (profile.go); here are the CLI's names for them and the
+// halves that need the CLI: its bridge and its database.
 
-// bridgeForProfile narrows bridge to the browser bound to profileID. A
-// bridge that cannot route (a test double), or no profile at all, is
-// returned unchanged, which reaches the default browser.
-func bridgeForProfile(bridge browserpkg.ExtensionBridge, profileID string) browserpkg.ExtensionBridge {
-	if r, ok := bridge.(browserpkg.ProfileRouter); ok && profileID != "" {
-		return r.ForProfile(profileID)
-	}
-	return bridge
+// bridgeForProfile narrows bridge to the browser bound to profileID (bridge.ForProfile).
+func bridgeForProfile(b browserpkg.ExtensionBridge, profileID string) browserpkg.ExtensionBridge {
+	return bridge.ForProfile(b, profileID)
 }
 
 // setupProfileBridge is setupExtensionBridge narrowed to profileID's browser.
@@ -47,20 +41,5 @@ func browserProfile(cfg *globalConfig) string {
 // waits for a profile's browser; a var so tests can shorten it.
 var routeWaitPoll = 500 * time.Millisecond
 
-// routeHint explains, for a bridge narrowed to a profile, why no browser
-// may run it. It is appended to ensureExtensionConnected's timeout errors,
-// which otherwise only say "did not connect".
-func routeHint(bridge connChecker) string {
-	r, ok := bridge.(interface {
-		Route() (extension.ConnInfo, error)
-	})
-	if !ok {
-		return ""
-	}
-	_, err := r.Route()
-	var nb *extension.NoBrowserError
-	if errors.As(err, &nb) {
-		return "\n" + nb.Error()
-	}
-	return ""
-}
+// routeHint is bridge.RouteHint: why no browser may run a bridge narrowed to a profile.
+func routeHint(b connChecker) string { return bridge.RouteHint(b) }

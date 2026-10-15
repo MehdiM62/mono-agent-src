@@ -1,0 +1,13 @@
+{
+  "id": "hil-wf-1",
+  "execution_id": "ex-9",
+  "workflow_id": "wf-3",
+  "workflow_name": "Weekly outreach",
+  "node_id": "n4",
+  "node_name": "Review caption",
+  "status": "pending",
+  "readonly_data": { "to": "@someone", "platform": "instagram" },
+  "editable_data": { "caption": "New drop is live" },
+  "node_config": { "org": "acme" },
+  "created_at": "2026-10-13 09:00:00"
+}

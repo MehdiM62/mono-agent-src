@@ -1,0 +1,15 @@
+{
+  "name": "Alert every channel",
+  "nodes": [
+    {"parameters": {}, "name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0]},
+    {"parameters": {"chatId": "-100123", "text": "=Alert: {{ $json.message || 'test' }}", "additionalFields": {"parse_mode": "HTML"}}, "name": "Telegram", "type": "n8n-nodes-base.telegram", "typeVersion": 1.2, "position": [220, -200], "credentials": {"telegramApi": {"id": "1", "name": "Bot"}}},
+    {"parameters": {"resource": "message", "guildId": {"__rl": true, "value": "g1", "mode": "id"}, "channelId": {"__rl": true, "value": "c1", "mode": "id"}, "content": "Alert raised", "options": {}}, "name": "Discord", "type": "n8n-nodes-base.discord", "typeVersion": 2, "position": [220, -100], "credentials": {"discordBotApi": {"id": "2", "name": "Discord bot"}}},
+    {"parameters": {"webhookUri": "https://discord.com/api/webhooks/1/abc", "text": "=Alert {{ $json.message }}", "options": {"username": "n8n"}}, "name": "Discord Webhook", "type": "n8n-nodes-base.discord", "typeVersion": 1, "position": [220, 0]},
+    {"parameters": {"from": "+15550001", "to": "+15550002", "message": "Alert raised"}, "name": "Twilio", "type": "n8n-nodes-base.twilio", "typeVersion": 1, "position": [220, 100], "credentials": {"twilioApi": {"id": "3", "name": "Twilio"}}},
+    {"parameters": {"operation": "send", "phoneNumberId": "999", "recipientPhoneNumber": "+15550003", "textBody": "Alert raised"}, "name": "WhatsApp", "type": "n8n-nodes-base.whatsApp", "typeVersion": 1, "position": [220, 200], "credentials": {"whatsAppApi": {"id": "4", "name": "WhatsApp"}}},
+    {"parameters": {"subreddit": "status", "title": "Incident", "text": "We are investigating."}, "name": "Reddit", "type": "n8n-nodes-base.reddit", "typeVersion": 1, "position": [220, 300], "credentials": {"redditOAuth2Api": {"id": "5", "name": "Reddit"}}}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "Telegram", "type": "main", "index": 0}, {"node": "Discord", "type": "main", "index": 0}, {"node": "Discord Webhook", "type": "main", "index": 0}, {"node": "Twilio", "type": "main", "index": 0}, {"node": "WhatsApp", "type": "main", "index": 0}, {"node": "Reddit", "type": "main", "index": 0}]]}
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "summary.getSleep": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "start": "2024-01-01T10:00:00Z",
+        "end": "2024-01-07"
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        },
+        {
+          "id": "c"
+        }
+      ],
+      "next_token": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/usercollection/daily_sleep",
+      "query": {
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-07"
+      },
+      "items": 2
+    }
+  },
+  "summary.getActivity": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "start": "2024-01-01T10:00:00Z",
+        "end": "2024-01-07"
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        },
+        {
+          "id": "c"
+        }
+      ],
+      "next_token": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/usercollection/daily_activity",
+      "query": {
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-07"
+      },
+      "items": 2
+    }
+  },
+  "summary.getReadiness": {
+    "params": {
+      "limit": 2,
+      "filters": {
+        "start": "2024-01-01T10:00:00Z",
+        "end": "2024-01-07"
+      }
+    },
+    "response": {
+      "data": [
+        {
+          "id": "a"
+        },
+        {
+          "id": "b"
+        },
+        {
+          "id": "c"
+        }
+      ],
+      "next_token": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/usercollection/daily_readiness",
+      "query": {
+        "start_date": "2024-01-01",
+        "end_date": "2024-01-07"
+      },
+      "items": 2
+    }
+  },
+  "profile.get": {
+    "params": {},
+    "response": {
+      "id": "u1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/v2/usercollection/personal_info",
+      "items": 1
+    }
+  }
+}

@@ -1,10 +1,11 @@
+import { useTranslation } from 'react-i18next'
 import { Bot, Code2, FolderRoot, FolderOpen, History } from 'lucide-react'
-import { folderName, missingText, coderReady, coderRuntimes, runtimeReadiness } from './useCoderMode.js'
+import { folderName, missingText, coderReady, coderRuntimes, runtimeReadiness, useActiveProfile } from './useCoderMode.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
 
 // CoderModePicker is the new-chat choice between the Assistant and Coder
-// modes (#203), plus Coder's workspace: the coder root (default), a
-// folder picked with the native dialog, or a recent one. Shown only before
+// modes (#203), plus Coder's workspace: the active profile's folder
+// (default), a folder picked with the native dialog, or a recent one. Shown only before
 // a conversation exists, since its mode can't change once it starts. Renders
 // nothing while coder mode is off in Settings. runtimeId is the coding
 // runtime the chat will run on (picked in the runtime selector); the list
@@ -42,6 +43,8 @@ const optTitle = { fontFamily: mono, fontSize: 10.5, color: '#e2e8f0' }
 const optHint = { fontFamily: mono, fontSize: 9, color: 'var(--text-muted)', wordBreak: 'break-all', marginTop: 1 }
 
 export function CoderModePicker({ status, mode, onModeChange, workspace, onWorkspaceChange, recent = [], onPickFolder, runtimeId = '', disabled = false, workspaceOnly = false }) {
+  const { t } = useTranslation()
+  const profile = useActiveProfile(!!status?.enabled)
   if (!status?.enabled) return null
   const ready = coderReady(status)
   const agent = runtimeId ? runtimeLabel(runtimeId) : 'The agent'
@@ -73,16 +76,18 @@ export function CoderModePicker({ status, mode, onModeChange, workspace, onWorks
             onClick={() => onWorkspaceChange({ kind: 'root' })} style={optionStyle(workspace?.kind !== 'folder')}>
             <FolderRoot size={12} color={CYAN} style={{ marginTop: 1, flexShrink: 0 }} />
             <span style={{ minWidth: 0 }}>
-              <div style={optTitle}>Coder root</div>
-              <div style={optHint}>{status.workspaceRoot || 'The coder root folder'}</div>
+              <div style={optTitle}>
+                {profile ? t('coderFolder.profileDefault', { name: profile.name }) : t('coderFolder.profileDefaultUnnamed')}
+              </div>
+              <div style={optHint}>{profile?.root_dir || t('coderFolder.profileHint')}</div>
             </span>
           </button>
           <button type="button" role="radio" aria-checked={!!pickedPath && !pickedIsRecent} disabled={disabled}
             onClick={onPickFolder} style={optionStyle(!!pickedPath && !pickedIsRecent)}>
             <FolderOpen size={12} color={CYAN} style={{ marginTop: 1, flexShrink: 0 }} />
             <span style={{ minWidth: 0 }}>
-              <div style={optTitle}>Choose folder…</div>
-              <div style={optHint}>{pickedPath && !pickedIsRecent ? pickedPath : 'Any folder you trust'}</div>
+              <div style={optTitle}>{t('coderFolder.chooseAnother')}</div>
+              <div style={optHint}>{pickedPath && !pickedIsRecent ? pickedPath : t('coderFolder.chooseHint')}</div>
             </span>
           </button>
           {recent.length > 0 && (

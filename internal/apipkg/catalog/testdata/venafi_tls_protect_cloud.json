@@ -1,0 +1,182 @@
+{
+  "certificateRequest.create": {
+    "params": {
+      "applicationId": "a1",
+      "certificateIssuingTemplateId": "t1",
+      "generateCsr": true,
+      "commonName": "x.example.com",
+      "additionalFields": {
+        "keyType": "RSA",
+        "keyLength": 2048,
+        "SubjectAltNamesUi": {
+          "SubjectAltNamesValues": [
+            {
+              "Typename": "dnsNames",
+              "name": "y.example.com"
+            }
+          ]
+        }
+      },
+      "options": {
+        "validityPeriod": "P1Y"
+      }
+    },
+    "response": {
+      "certificateRequests": [
+        {
+          "id": "r1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/outagedetection/v1/certificaterequests",
+      "body": {
+        "applicationId": "a1",
+        "certificateIssuingTemplateId": "t1",
+        "isVaaSGenerated": true,
+        "csrAttributes": {
+          "commonName": "x.example.com",
+          "keyTypeParameters": {
+            "keyType": "RSA",
+            "keyLength": 2048
+          },
+          "subjectAlternativeNamesByType": {
+            "dnsNames": [
+              "y.example.com"
+            ]
+          }
+        },
+        "validityPeriod": "P1Y"
+      },
+      "items": 1
+    }
+  },
+  "certificateRequest.get": {
+    "params": {
+      "certificateRequestId": "r1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/outagedetection/v1/certificaterequests/r1"
+    }
+  },
+  "certificateRequest.getMany": {
+    "params": {
+      "limit": 1
+    },
+    "response": {
+      "certificateRequests": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/outagedetection/v1/certificaterequests",
+      "items": 1
+    }
+  },
+  "certificate.delete": {
+    "params": {
+      "certificateId": "c1"
+    },
+    "response": {
+      "certificates": [
+        {
+          "id": "c1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/outagedetection/v1/certificates/deletion",
+      "body": {
+        "certificateIds": [
+          "c1"
+        ]
+      },
+      "items": 1
+    }
+  },
+  "certificate.download": {
+    "params": {
+      "certificateId": "c1",
+      "binaryProperty": "data",
+      "options": {
+        "format": "PEM",
+        "chainOrder": "EE_ONLY"
+      }
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/outagedetection/v1/certificates/c1/contents",
+      "query": {
+        "format": "PEM",
+        "chainOrder": "EE_ONLY"
+      }
+    }
+  },
+  "certificate.get": {
+    "params": {
+      "certificateId": "c1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/outagedetection/v1/certificates/c1"
+    }
+  },
+  "certificate.getMany": {
+    "params": {
+      "limit": 5,
+      "filters": {
+        "subject": "x"
+      }
+    },
+    "response": {
+      "certificates": [
+        {
+          "id": 1
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/outagedetection/v1/certificates",
+      "query": {
+        "subject": "x",
+        "limit": "5"
+      },
+      "items": 1
+    }
+  },
+  "certificate.renew": {
+    "params": {
+      "applicationId": "a1",
+      "certificateIssuingTemplateId": "t1",
+      "existingCertificateId": "c1",
+      "certificateSigningRequest": "CSR"
+    },
+    "response": {
+      "certificateRequests": [
+        {
+          "id": "r2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/outagedetection/v1/certificaterequests",
+      "body": {
+        "certificateSigningRequest": "CSR",
+        "certificateIssuingTemplateId": "t1",
+        "applicationId": "a1",
+        "existingCertificateId": "c1"
+      }
+    }
+  }
+}

@@ -22,6 +22,9 @@ package service
 // never exposed a way to set it from the UI. Generating from the struct
 // surfaces that gap; it is added below.
 //
+// "filter" is a Linear IssueFilter object passed through to the issues
+// query by list_issues (team_id, when set, is merged into it).
+//
 // credential_platform: linear
 type LinearNodeSchema struct {
 	CredentialID string `json:"credential_id" schema:"label=Linear Connection,type=credential_picker,required"`
@@ -29,6 +32,8 @@ type LinearNodeSchema struct {
 	TeamID string `json:"team_id" schema:"label=Team,type=text"`
 
 	Operation string `json:"operation" schema:"label=Operation,type=select,required,options=list_issues|get_issue|create_issue|update_issue|list_teams|list_projects,default=list_issues"`
+
+	Filter string `json:"filter" schema:"label=Issue Filter (JSON object),type=code,language=json,rows=4,help=A Linear IssueFilter object such as {\"state\": {\"type\": {\"eq\": \"started\"}}}. Give an object in the workflow file or an expression that yields one. Team is merged in when set.,depends_on_key=operation,depends_on_values=list_issues"`
 
 	IssueID string `json:"issue_id" schema:"label=Issue ID,type=text,depends_on_key=operation,depends_on_values=get_issue|update_issue"`
 

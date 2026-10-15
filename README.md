@@ -6,8 +6,7 @@
 
 <div align="center">
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)](LICENSE)
-[![CI](https://github.com/monoes/mono-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/monoes/mono-agent/actions/workflows/ci.yml)
+[![License: Monoes Proprietary Software License](https://img.shields.io/badge/License-Proprietary-purple?style=for-the-badge)](LICENSE)
 [![Go Version](https://img.shields.io/badge/Go-1.26-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://golang.org)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-333?style=for-the-badge)](#getting-started)
 
@@ -17,17 +16,17 @@
 
 ## What is Mono Agent?
 
-**Mono Agent** is an automation platform that runs on your machine for humans **and** AI agents:
+**Mono Agent** is an automation platform that runs on your machine for humans **and** AI agents. **No AI credits:** AI steps run on the agent CLI you already pay for (Claude Code, Codex, OpenCode, Copilot and others), with that CLI's own login and plan.
 
 > **Project status:** pre-1.0, single maintainer. Core workflow engine and node set are exercised by CI (`go test ./...`), but expect breaking changes between minor versions until 1.0.
 
-- 🔁 **DAG workflow engine** — 167 built-in node types, social platform actions included: services (GitHub, Google Sheets / Gmail / Drive, Stripe, Salesforce, HubSpot, Jira, Linear, Notion, Airtable), databases, HTTP, data transforms, and comms (Gmail, Outlook, Slack, Telegram, Discord, and more)
+- 🔁 **DAG workflow engine** — 104 built-in node types (default build, 2026-10-13), plus the web automations you add from the monoes.me library: services (GitHub, Google Sheets / Gmail / Drive, Stripe, Salesforce, HubSpot, Jira, Linear, Notion, Airtable), databases, HTTP, data transforms, and comms (Gmail, Outlook, Slack, Telegram, Discord, and more)
 - 📦 **Single static Go binary** — zero CGO, SQLite embedded, no Docker, no Node.js runtime, no analytics or usage counters (AI steps hand off to the separate monomind runner — see [How AI works](#how-ai-works-in-mono-agent)). Workflow state stays on your machine (crash reports default to local files — see [SECURITY.md](SECURITY.md))
 - 🖥️ **Three ways to drive it** — a visual canvas editor (Wails desktop GUI), a 180+-command CLI with JSON output everywhere, and a built-in MCP server so AI agents can operate it safely
 - 🤝 **Human-in-the-loop as a platform primitive** — pause any workflow for review, edit the payload, then approve or reject; the queue is durable and survives restarts
 - 🌐 **Browser automation where no practical API exists** — drive *your own logged-in Chrome* via the bundled extension bridge, publishing to and reading your own accounts (same model as consumer RPA tools)
-- 📣 **Social platform nodes** (Instagram, LinkedIn, X, TikTok, Hacker News, Product Hunt) for managing your own accounts: their web automations are official packages on [monoes.me](https://monoes.me), added with `monoagentcli library login` and `monoagentcli library install automation <id>` (a `-tags nosocial` build leaves the nodes out) — see [Usage Policy](docs/USAGE_POLICY.md)
-- 📚 **monoes.me library** — log in with `monoagentcli library login` (browsing needs a login, official items included), then browse, install and publish workflows, orgs and web automations (`library list | install | publish | update`); the desktop app has the same in its Templates, Browser Automations and Orgs pages
+- 📣 **Social platform nodes** (Instagram, LinkedIn, X, TikTok, Hacker News, Product Hunt) for managing your own accounts: their web automations are official packages on [monoes.me](https://monoes.me), added with `monoagentcli account login` (`library login` is the same sign-in) and `monoagentcli library install automation <id>` (a `-tags nosocial` build leaves the nodes out) — see [Usage Policy](https://github.com/monoes/mono-agent/blob/HEAD/docs/USAGE_POLICY.md)
+- 📚 **monoes.me library** — browsing needs your monoes.me sign-in (`monoagentcli account login`; `library login` is the same sign-in), official items included; then browse, install and publish workflows, orgs and web automations (`library list | install | publish | update`); the desktop app has the same in its Templates, Browser Automations and Orgs pages
 
 Think of it as an honest, self-hosted n8n you can carry in a single file — with human approval gates and first-class agent access built in.
 
@@ -38,55 +37,45 @@ Think of it as an honest, self-hosted n8n you can carry in a single file — wit
 > - **Own accounts only** — actions run against sessions and credentials you personally control
 > - **Approval gates** — drop a `core.human_in_loop` node before any sensitive step so a human reviews (and can edit) what goes out
 > - **Platform terms apply** — automating your own account may still be subject to the platform's Terms of Service; that's between you and the platform
-> - **Read the full policy** — [docs/USAGE_POLICY.md](docs/USAGE_POLICY.md)
+> - **Read the full policy** — [docs/USAGE_POLICY.md](https://github.com/monoes/mono-agent/blob/HEAD/docs/USAGE_POLICY.md)
 >
-> Mono Agent is an independent, unofficial, MIT-licensed project. It is not affiliated with, endorsed by, or connected to any of the platforms it can talk to.
+> Mono Agent is an independent, unofficial project, licensed under the Monoes Proprietary Software License. It is not affiliated with, endorsed by, or connected to any of the platforms it can talk to.
 
 ---
 
-### monoes.me sign-in and the dormant account gate
-
-The account gate is **dormant**: no enforcement date is set, no command warns or
-requires an account for local work, and no account refresh or adoption happens
-implicitly. The monoes.me library already needs a sign-in for its online reads.
-`monoagentcli account login` (browser) or `account login --email you@example.com`
-manages the same machine session as `library login`; `account status --offline
---json` inspects it locally. Default builds have no production signing keys yet,
-so a working production machine sign-in requires the future server/key rollout.
-
-If a future release enables the gate, it will warn before its enforcement date
-(`enforce_from` in `account status`) and require a valid sign-in from that date.
-A signed token supports at most 24 hours offline from its issue time; locked work
-exits 4 with `login_required`. The offline `ref` manual, recovery commands and
-sign-in commands remain open. Serving commands stay up and refuse work while
-locked. See `monoagentcli ref account` and [SECURITY.md](SECURITY.md) for details.
-No enforcement date is announced by this build.
+> ### A monoes.me sign-in is required
+>
+> Sign in with `monoagentcli account login` (it opens your browser; on a machine without one, `account login --email you@example.com` mails you a code, and `--code-stdin` reads it from standard input). A monoes.me sign-in has been required since 2026-10-11 (UTC); `monoagentcli account status` shows the date as `enforce_from`. Nothing works before sign-in: every command but `account` (and its `library login`/`logout`/`status` aliases), `help`, `version` and `update` exits with code 4 and `login_required` and does nothing else; `ref`, `doctor`, `setup` and shell completion included. A daemon or server (`daemon`, `httpapi`, `mcp`, `extension serve`) started without a sign-in stays up and runs nothing (no schedules, webhooks or other triggers) until you sign in.
+>
+> Your workflows, run history, people, credentials and files stay on your machine. The app contacts monoes.me to sign you in and keep the sign-in fresh (about every half hour while a long-running process such as the daemon runs) and to check for updates; [SECURITY.md](SECURITY.md#network-use-telemetry-and-crash-reporting) lists exactly what is sent. A sign-in keeps working for 24 hours after it last reached monoes.me, and not longer. The production signing key is pinned in this build, so a sign-in is verified on your machine with no network call per command; `account status` has the current state.
 
 ## Quick Start
 
 ```bash
-# Build the CLI (Go 1.26+, no CGO)
-git clone https://github.com/monoes/mono-agent.git
-cd mono-agent
-go build -o monoagentcli ./cmd/monoagentcli
+# Install the CLI (macOS, Linux; Windows: download the .exe from the releases page)
+curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/HEAD/install.sh | bash
+# ...and the desktop app too (Linux amd64, macOS arm64):
+curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/HEAD/install.sh | bash -s -- --app
 
 # Orientation
-./monoagentcli version
-./monoagentcli ref                       # built-in offline docs: commands, nodes, expressions
-./monoagentcli node list                 # all 167 node types
+monoagentcli version
+monoagentcli account login             # sign in to monoes.me (required, see above)
+monoagentcli ref                       # built-in offline docs: commands, nodes, expressions
+monoagentcli node list                 # every node type this binary has
+monoagentcli profile list              # your profiles; the commands below act on one, so they say --profile <name>
 
 # Try the flagship example workflow (prints the new workflow id)
-./monoagentcli workflow templates list
-./monoagentcli workflow import --file examples/morning-briefing.json
-./monoagentcli workflow activate <id>              # enable its triggers
-./monoagentcli workflow run <id>                   # run it now
+monoagentcli workflow templates list
+monoagentcli --profile work workflow import --file examples/morning-briefing.json   # ships in the source tree; `workflow templates list` shows the bundled ones
+monoagentcli --profile work workflow activate <id>              # enable its triggers
+monoagentcli --profile work workflow run <id>                   # run it now
 # Note: the summarize step runs on a local AI agent — it needs monomind and an installed runtime (see "How AI works in Mono Agent").
 
 # Run the scheduler daemon (keeps cron/webhook triggers alive)
-./monoagentcli daemon
+monoagentcli --profile work daemon
 ```
 
-Prefer a prebuilt binary? `curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/master/install.sh | bash` installs the latest release from its release manifest (macOS arm64/amd64, Linux amd64/arm64; SHA256-verified, and signature-verified once a release signing key is published), or grab a CLI / desktop build from [releases](https://github.com/monoes/mono-agent/releases/latest). There's also [Docker](Dockerfile).
+`install.sh` installs the latest release (macOS arm64/amd64, Linux amd64/arm64). It reads the release's `manifest.json` from the latest GitHub release of monoes/mono-agent (monoes.me second), verifies the manifest's Ed25519 signature against the release key pinned in the script (key id `3b3e972f459a3151`; this needs an `openssl` with Ed25519, otherwise it says the install is checksum-only), and checks each download's SHA256 against the manifest. Without `INSTALL_DIR` it installs into `/usr/local/bin` when you can write there without sudo, else into `~/.local/bin`, and prints the line to add to your shell if that folder is not on your `PATH`; it never asks for sudo unless you chose an `INSTALL_DIR` that needs it. `--app` also installs the desktop app. You can also grab a CLI / desktop build from [releases](https://github.com/monoes/mono-agent/releases/latest). There's also [Docker](Dockerfile). This repository publishes releases only; the source is not public, so there is nothing to clone.
 
 ### Flagship example — "Morning Briefing"
 
@@ -171,10 +160,10 @@ More ready-to-run workflows (RSS→AI→email, Sheets→Gmail, Stripe→Sheets s
 <td width="50%">
 
 ### 👤 Multi-Profile Workspaces
-- Named workspaces (`default`, `work`, `client-a`, …) with full tenant isolation
+- Named workspaces (`work`, `client-a`, …) with full tenant isolation
 - Workflows, connections, people, vault images, HIL items — all scoped per workspace
-- Switch with `--profile <name>` on any CLI command or via the GUI sidebar
-- Running workflows in one workspace are unaffected when you switch to another
+- Name the workspace with `--profile <id|name>` on every CLI command that acts on one; the GUI sidebar picks it for you there. There is no active profile and no `profile switch`
+- Running workflows in one workspace are unaffected by work in another
 - Toggle **All profiles** in the dashboard header to see every workspace at once; rows are labelled with their profile, and **Switch** takes you to it
 
 </td>
@@ -273,9 +262,9 @@ The pattern Mono Agent recommends for *any* outbound communication — the AI dr
 Approve from the terminal while the workflow waits:
 
 ```bash
-monoagentcli hil list               # show pending items
-monoagentcli hil approve <id>       # resume the workflow
-monoagentcli hil reject <id>        # drop the item
+monoagentcli --profile work hil list               # show pending items
+monoagentcli --profile work hil approve <id>       # resume the workflow
+monoagentcli --profile work hil reject <id>        # drop the item
 ```
 
 ---
@@ -288,7 +277,7 @@ Mono Agent has no built-in AI provider and stores no API keys for text AI. Every
 monoagentcli agent scan              # runtimes monomind knows, and which are installed
 monoagentcli agent install claude    # install one
 monoagentcli agent test claude       # smoke turn; also proves the login works
-monoagentcli doctor --group monomind # Node.js, the monomind binary, version and features
+monoagentcli --profile work doctor --group monomind # Node.js, the monomind binary, version and features
 ```
 
 Agent turns (except coder mode) run in the agent CLI's own sandbox where monomind can do it: they can write only their working folder and the temp dir. Today that covers codex and grok (monomind 2.11.1 or newer). Other runtimes follow once monomind ships `agent exec --sandbox` (monomind#396), and claude keeps its scoped access. Each chat turn shows a badge saying which applies, and `doctor` has a matching row. Details: [AGENTS.md](AGENTS.md#how-ai-works-in-mono-agent).
@@ -301,7 +290,7 @@ Some features are not agent turns. [TypeSafe Jev](AGENTS.md#typesafe-jev-decisio
 
 ## Node Library
 
-> 167 built-in node types in the default build, social platform actions (below) included — 107 in a `-tags nosocial` build. `monoagentcli node list` prints the exact set your binary has.
+> 104 built-in node types in the default build (counted with `node list --json` on 2026-10-13). The social platform actions (below) come from web automation packages on the monoes.me library and add their node types once installed. `monoagentcli node list` prints the exact set your binary has.
 
 <details>
 <summary><strong>⚙️ Core Control (15 nodes)</strong></summary>
@@ -435,7 +424,7 @@ Some features are not agent turns. [TypeSafe Jev](AGENTS.md#typesafe-jev-decisio
 <details>
 <summary><strong>📱 Social platform actions</strong></summary>
 
-Publish to and read **your own accounts** on these platforms via the Chrome extension bridge. They are part of the default binary and every release (a `go build -tags nosocial` build leaves them out). They exist for managing your own presence; platform terms apply — see the [Usage Policy](docs/USAGE_POLICY.md).
+Publish to and read **your own accounts** on these platforms via the Chrome extension bridge. Their node types arrive with the platform's web automation package from the monoes.me library (`monoagentcli library install automation <id>`); a `go build -tags nosocial` build leaves them out. They exist for managing your own presence; platform terms apply — see the [Usage Policy](https://github.com/monoes/mono-agent/blob/HEAD/docs/USAGE_POLICY.md).
 
 | Platform | Available actions |
 |----------|-------------------|
@@ -452,7 +441,9 @@ Publish to and read **your own accounts** on these platforms via the Chrome exte
 
 ## CLI Reference
 
-The binary is `monoagentcli`. Most commands accept `--json` for machine-readable output and `--profile <name>` to scope to a workspace.
+The binary is `monoagentcli`. Most commands accept `--json` for machine-readable output. Every command that acts on a workspace takes an explicit `--profile <id|name>`; the examples below pass `--profile work`. Machine-wide commands (`version`, `update`, `config`, `message-template`, `agent`, `account`, `db`, `node list|schema`, `api config`, `profile list|create|get`, `ref`, …) need none.
+
+> **Warning release:** today a workspace command run without `--profile` still works, prints a warning and falls back to the legacy active profile. The next release refuses it. Pass `--profile` now.
 
 <details>
 <summary><strong>Workflow</strong></summary>
@@ -463,26 +454,26 @@ The binary is `monoagentcli`. Most commands accept `--json` for machine-readable
 > unreviewed shell script — read it (or `workflow validate`/`get --json` it) before importing.
 
 ```bash
-monoagentcli workflow list                          # list workflows (--json)
-monoagentcli workflow get <id>                      # print a workflow as JSON
-monoagentcli workflow create <name>                 # new blank workflow
-monoagentcli workflow import --file flow.json       # import (also accepts stdin)
-monoagentcli workflow export <id>                   # export as JSON
-monoagentcli workflow validate <id>                 # validate against node schemas (exit 3 on invalid)
-monoagentcli workflow run <id>                      # run and wait
-monoagentcli workflow run <id> --dry-run            # validate + print execution plan, no run
-monoagentcli workflow run <id> --no-wait            # print execution id, exit immediately
-monoagentcli workflow run <id> --json               # execution record + per-node outputs
-monoagentcli workflow run <id> --input '{"key":1}'  # inject trigger data
-monoagentcli workflow activate <id>                 # enable triggers
-monoagentcli workflow deactivate <id>               # disable triggers
-monoagentcli workflow executions <id>               # run history
-monoagentcli workflow search [query]                # search workflows & templates
+monoagentcli --profile work workflow list                          # list workflows (--json)
+monoagentcli --profile work workflow get <id>                      # print a workflow as JSON
+monoagentcli --profile work workflow create <name>                 # new blank workflow
+monoagentcli --profile work workflow import --file flow.json       # import (also accepts stdin)
+monoagentcli --profile work workflow export <id>                   # export as JSON
+monoagentcli --profile work workflow validate <id>                 # validate against node schemas (exit 3 on invalid)
+monoagentcli --profile work workflow run <id>                      # run and wait
+monoagentcli --profile work workflow run <id> --dry-run            # validate + print execution plan, no run
+monoagentcli --profile work workflow run <id> --no-wait            # print execution id, exit immediately
+monoagentcli --profile work workflow run <id> --json               # execution record + per-node outputs
+monoagentcli --profile work workflow run <id> --input '{"key":1}'  # inject trigger data
+monoagentcli --profile work workflow activate <id>                 # enable triggers
+monoagentcli --profile work workflow deactivate <id>               # disable triggers
+monoagentcli --profile work workflow executions <id>               # run history
+monoagentcli --profile work workflow search [query]                # search workflows & templates
 monoagentcli workflow templates list                # bundled ready-to-use templates
-monoagentcli workflow node add <id> --type core.filter --name Filter
-monoagentcli workflow node set <id> <node-id> --config '{"max":5}'
-monoagentcli workflow node remove <id> <node-id>
-monoagentcli workflow connect <id> --from n1:main --to n2:main
+monoagentcli --profile work workflow node add <id> --type core.filter --name Filter
+monoagentcli --profile work workflow node set <id> <node-id> --config '{"max":5}'
+monoagentcli --profile work workflow node remove <id> <node-id>
+monoagentcli --profile work workflow connect <id> --from n1:main --to n2:main
 ```
 
 </details>
@@ -493,7 +484,7 @@ monoagentcli workflow connect <id> --from n1:main --to n2:main
 ```bash
 monoagentcli node list                              # all node types (--json)
 monoagentcli node schema core.if                    # JSON schema for a node type
-monoagentcli node run http.request \
+monoagentcli --profile work node run http.request \
   --config '{"method":"GET","url":"https://httpbin.org/get"}'
 ```
 
@@ -503,19 +494,19 @@ monoagentcli node run http.request \
 <summary><strong>Secrets & Connections</strong></summary>
 
 ```bash
-monoagentcli secret add --kind secret --name aws \
+monoagentcli --profile work secret add --kind secret --name aws \
   --field access_key_id=... --field secret_access_key=...   # values via flags or stdin
-monoagentcli secret list                            # metadata only — never values
-monoagentcli secret get <name>                      # resolve a vault reference (no plaintext)
-monoagentcli secret update <name> / secret rm <name>
-monoagentcli secret export                          # encrypted, passphrase-protected bundle
-monoagentcli secret import <file>                   # restore on another machine
+monoagentcli --profile work secret list                            # metadata only — never values
+monoagentcli --profile work secret get <name>                      # resolve a vault reference (no plaintext)
+monoagentcli --profile work secret update <name> / secret rm <name>
+monoagentcli --profile work secret export                          # encrypted, passphrase-protected bundle
+monoagentcli --profile work secret import <file>                   # restore on another machine
 monoagentcli secret encrypt-connections             # one-time seal of legacy plaintext creds
 
-monoagentcli login <platform>                       # browser session login (saved locally)
-monoagentcli login status
-monoagentcli connect <platform>                     # add an API credential
-monoagentcli connect list / connect test <id> / connect remove <id>
+monoagentcli --profile work login <platform>                       # browser session login (saved locally)
+monoagentcli --profile work login status
+monoagentcli --profile work connect <platform>                     # add an API credential
+monoagentcli --profile work connect list / connect test <id> / connect remove <id>
 ```
 
 </details>
@@ -524,9 +515,9 @@ monoagentcli connect list / connect test <id> / connect remove <id>
 <summary><strong>Human-in-the-Loop</strong></summary>
 
 ```bash
-monoagentcli hil list                               # pending review items
-monoagentcli hil approve <id>                       # resume the workflow
-monoagentcli hil reject <id>                        # drop the item (workflow errors out)
+monoagentcli --profile work hil list                               # pending review items
+monoagentcli --profile work hil approve <id>                       # resume the workflow
+monoagentcli --profile work hil reject <id>                        # drop the item (workflow errors out)
 ```
 
 </details>
@@ -535,12 +526,12 @@ monoagentcli hil reject <id>                        # drop the item (workflow er
 <summary><strong>People (CRM)</strong></summary>
 
 ```bash
-monoagentcli people list                            # contacts (--json)
-monoagentcli people import --file people.json --platform linkedin   # JSON array format
-monoagentcli people messages list <person-id>       # message history
-monoagentcli people messages compose <person-id>    # AI-assisted draft
-monoagentcli people messages send-draft <message-id>   # send an approved draft
-monoagentcli people status set <person-id> "text"   # status timeline
+monoagentcli --profile work people list                            # contacts (--json)
+monoagentcli --profile work people import --file people.json --platform linkedin   # JSON array format
+monoagentcli --profile work people messages list <person-id>       # message history
+monoagentcli --profile work people messages compose <person-id>    # AI-assisted draft
+monoagentcli --profile work people messages send-draft <message-id>   # send an approved draft
+monoagentcli --profile work people status set <person-id> "text"   # status timeline
 ```
 
 </details>
@@ -549,8 +540,8 @@ monoagentcli people status set <person-id> "text"   # status timeline
 <summary><strong>For AI agents</strong></summary>
 
 ```bash
-monoagentcli mcp                  # MCP server over stdio — read-only tools by default
-monoagentcli mcp --allow-mutations   # also expose workflow_run, hil_approve, …
+monoagentcli --profile work mcp                  # MCP server over stdio — read-only tools by default
+monoagentcli --profile work mcp --allow-mutations   # also expose workflow_run, hil_approve, …
 monoagentcli ref                  # built-in offline docs: commands, nodes, expressions, examples
 monoagentcli ref node core.if     # detailed docs for one node type
 ```
@@ -577,8 +568,8 @@ Full agent documentation: [AGENTS.md](AGENTS.md).
 <summary><strong>Scheduling</strong></summary>
 
 ```bash
-monoagentcli workflow activate <id>   # enable the workflow's trigger.schedule / trigger.webhook
-monoagentcli daemon                   # keep all workflow triggers alive; blocks until Ctrl+C
+monoagentcli --profile work workflow activate <id>   # enable the workflow's trigger.schedule / trigger.webhook
+monoagentcli --profile work daemon                   # keep all workflow triggers alive; blocks until Ctrl+C
 monoagentcli daemon install           # start the daemon automatically at login
 ```
 
@@ -590,24 +581,25 @@ Workflow triggers (`trigger.schedule`, `trigger.webhook`) only fire while a proc
 
 ## Chrome Extension
 
-`chrome-extension/` lets workflow nodes drive **your real, already-logged-in Chrome browser** — the same model as consumer RPA tools. No separate automation profile, no re-authenticating for sites (like Google) that invalidate sessions ported into a scripted browser.
+The MonoAgent Bridge browser extension lets workflow nodes drive **your real, already-logged-in Chrome browser** — the same model as consumer RPA tools. No separate automation profile, no re-authenticating for sites (like Google) that invalidate sessions ported into a scripted browser.
 
 - **Loopback by default** — the bridge server binds loopback, and the extension refuses non-loopback servers. A per-session "Allow non-loopback server (unsafe)" checkbox in the side panel overrides this for one save; it is never persisted
-- **Paired channel** — the bridge requires a shared secret (`~/.monoagent/extension.token`) as the first frame on every connection; run `monoagentcli extension pair` and paste the printed token into the extension side panel once. An unpaired connection is rejected and can never replace an already-paired one. Run `monoagentcli extension reset` to revoke and re-pair
-- **Per-site host permissions** — the extension requests site access on demand (via the side panel's "Authorize a site" field) rather than holding `<all_urls>` by default; grant only the sites your workflows actually target, and revoke from the same side panel
+- **Paired channel** — the bridge requires a shared secret (`~/.monoagent/extension.token`) as the first frame on every connection; run `monoagentcli extension pair --open` once (or paste the token `extension pair` prints into the side panel). An unpaired connection is rejected and can never replace an already-paired one. Run `monoagentcli extension reset` to revoke and re-pair
+- **Access to every site** — the extension asks for access to all sites (`<all_urls>`) when you install it, plus `debugger`, `cookies`, `tabs` and `scripting`: it has to read and act on whatever page a workflow or a capture targets, in your own signed-in browser. Its scripts load on every page so it can show your saved highlights there and act when asked; it sends page content only to the bridge on this machine (loopback, paired), and only for a capture, highlight, task or automation you start
 - **Shared connection** — multiple CLI processes share the bridge instead of fighting over the browser
-- **One browser per profile** — every browser profile with the extension connects on its own; bind each to a monoagent profile and that profile's automations run there, in parallel with the others. See [docs/BROWSER_PROFILES.md](docs/BROWSER_PROFILES.md)
+- **One browser per profile** — every browser profile with the extension connects on its own; bind each to a monoagent profile and that profile's automations run there, in parallel with the others. `monoagentcli extension browsers` lists them and `extension bind <browser> <profile>` binds one (the desktop app: **Settings → Browsers**)
 - **Tasks from the browser** — right-click selected text or a page and choose MonoAgent, *Add selection as task* or *Add page as task*; type one under *Add a task* in the side panel; or press the *add-task* shortcut (Ctrl+Shift+K, Cmd+Shift+K on a Mac; change it at `chrome://extensions/shortcuts`), which opens the side panel's task box and adds the selection if there is one. Each task lands in the Inbox of the profile the side panel is *Saving into* (with no profile chosen, the extension asks for one first), and an AI agent sees it only after you approve it. While MonoAgent is not running, tasks wait in the extension and sync later; a MonoAgent too old to take them keeps them waiting and says it needs updating; a task MonoAgent refuses (its profile was deleted, say) is listed under *Add a task* with its text, to copy. The extension files into MonoAgent's default database (`~/.monoagent/monoagent.db`), as its profile picker does. It is installed unpacked: after updating MonoAgent, reload the extension from `chrome://extensions` to get these.
 
-See [`docs/security/threat-model.md`](docs/security/threat-model.md) for the full trust-boundary breakdown.
+[SECURITY.md](SECURITY.md) covers what the app and the extension contact.
 
 Install (unpacked, not on the Web Store):
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked** and select the `chrome-extension/` folder (or the zip from the [latest release](https://github.com/monoes/mono-agent/releases/latest))
+1. Run `monoagentcli extension install`. It downloads the extension that matches your CLI version, checks it against the release's `SHA256SUMS.txt`, and unpacks it into `~/.monoagent/extension`
+2. Open `chrome://extensions` (Edge: `edge://extensions`) and enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** and choose `~/.monoagent/extension`
+4. Pair it: run `monoagentcli extension pair --open`. It opens a one-time pairing page in your browser and the extension pairs itself. (Or run `monoagentcli extension pair` and paste the token it prints into the side panel.)
 
-No configuration needed. Run any browser node and look for `Chrome extension connected -- using your browser` in the output. After pulling changes that touch `chrome-extension/`, reload it from `chrome://extensions`.
+Run any browser node and look for `Chrome extension connected -- using your browser` in the output. After updating MonoAgent, run `monoagentcli extension install` again and click **Reload** on the extension in `chrome://extensions`.
 
 ---
 
@@ -615,22 +607,22 @@ No configuration needed. Run any browser node and look for `Chrome extension con
 
 ### Prerequisites
 
-- Go 1.26+ (`brew install go`) — only when building from source; release binaries need nothing
+- Go 1.26+ (`brew install go`) — only for maintainers building from the private source tree; release binaries need nothing
 - Chrome/Chromium (for browser nodes — optional for everything else)
 - That's it — SQLite is embedded, no external database
 
 ### Install
 
 ```bash
-git clone https://github.com/monoes/mono-agent.git
-cd mono-agent
-go build -o monoagentcli ./cmd/monoagentcli
+# Prebuilt (macOS, Linux)
+curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/HEAD/install.sh | bash
 
-# Or without the social platform nodes:
-go build -tags nosocial -o monoagentcli ./cmd/monoagentcli
+# Maintainers, from a checkout of the private source tree:
+go build -o monoagentcli ./cmd/monoagentcli
+go build -tags nosocial -o monoagentcli ./cmd/monoagentcli   # without the social platform nodes
 ```
 
-Prebuilt: [install.sh](install.sh) (macOS arm64/amd64, Linux amd64/arm64; reads the release manifest, verifies its SHA256, and verifies the manifest signature when a signing key is configured; `MONOAGENT_MANIFEST_URL` points it at a mirror, `scripts/install-test.sh` tests it), or download from [releases](https://github.com/monoes/mono-agent/releases/latest) — CLI binaries for macOS, Linux (amd64/arm64), and Windows, plus desktop-app builds for macOS (arm64), Linux (amd64), and Windows.
+About the prebuilt install: [install.sh](install.sh) (macOS arm64/amd64, Linux amd64/arm64; reads the signed release manifest from the latest GitHub release, verifies its Ed25519 signature against the pinned release key and each download's SHA256; installs into `~/.local/bin` unless `/usr/local/bin` is writable without sudo; `--app` adds the desktop app; `MONOAGENT_MANIFEST_URL` points it at a mirror, `scripts/install-test.sh` tests it), or download from [releases](https://github.com/monoes/mono-agent/releases/latest) — CLI binaries for macOS, Linux (amd64/arm64), and Windows, plus desktop-app builds for macOS (arm64), Linux (amd64), and Windows.
 
 ### Desktop GUI
 
@@ -646,9 +638,19 @@ Profile folders (per-profile vault and data) and the assistant-tools toggle are 
 ### Docker
 
 The image runs as user `monoagent` with `HOME=/data`; the volume preserves
-`/data/.monoagent/`, including any machine sign-in. Local daemon work currently
-needs no account because the gate is dormant. For explicit sign-in, or before a
-future enforced release, prepare a file keyring before logging in:
+`/data/.monoagent/`, including a machine sign-in. A
+container needs a monoes.me sign-in kept in its volume, never baked into the image
+(a copied sign-in signs out the original and every copy, see
+[SECURITY.md](SECURITY.md#one-sign-in-per-machine-never-copied)). The daemon starts
+without one and stays up, logging the command to run; it
+refuses work until you sign in. A container has no OS keyring, so the sign-in's refresh token is sealed
+under the file keyring, whose passphrase the daemon must be able to read without a
+terminal. The compose file sets `MONOAGENT_ALLOW_FILE_KEYRING=1` and
+`MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE=/data/.monoagent/keyring-passphrase`. Create
+the passphrase file before you sign in (`secret keyring set-passphrase` is itself a
+gated command):
+
+`docker compose up --build` builds the image from a checkout of the source tree (`build: .`), which only maintainers have; no image is published yet. Everyone else installs the prebuilt CLI into their own image (last line of this section).
 
 ```bash
 docker compose up -d --build
@@ -657,16 +659,13 @@ docker compose exec monoagent monoagentcli account login --email you@example.com
 docker compose exec monoagent monoagentcli account status --offline --json
 ```
 
-The passphrase source is a private file you create on the host; do not put a
-passphrase or token into Compose, an environment variable, or an image. Compose
-enables `MONOAGENT_ALLOW_FILE_KEYRING=1` and names the passphrase file. Without
-that file a daemon cannot unseal the refresh token, and an enabled gate will show
-`grace` / `keyring_unavailable` before locking at token expiry. Create it before
-sign-in: `secret keyring set-passphrase` is itself gated in an enforced build.
-Never copy or restore `~/.monoagent/account/` or bake it into an image. Sign in
-separately on each machine. The Docker health check only runs `version`; it tests
-binary liveness, not whether the account permits work.
-
+Do not put the passphrase or a token into Compose, an environment variable or an
+image. Without the passphrase file the daemon cannot read the sign-in back:
+`account status` then says `grace` with the reason `keyring_unavailable`, and the
+daemon stops doing work 24 hours after its last refresh. The Docker health check
+only runs `version`; it tests liveness, not whether the account permits work, so
+check `account status --offline` yourself. See
+[AGENTS.md](AGENTS.md#headless-and-docker).
 
 ```bash
 docker compose up -d --build   # daemon + persistent /data volume
@@ -676,21 +675,13 @@ docker compose up -d --build   # daemon + persistent /data volume
 MONOAGENT_WEBHOOK_ADDR=0.0.0.0:9321 docker compose up -d --build
 ```
 
-To install a prebuilt CLI inside your own image instead of building from source: `curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/master/install.sh | INSTALL_DIR=/usr/local/bin bash`.
+To install a prebuilt CLI inside your own image instead of building from source: `curl -fsSL https://raw.githubusercontent.com/monoes/mono-agent/HEAD/install.sh | INSTALL_DIR=/usr/local/bin bash`.
 
 Browser-based webhook callers additionally need `MONOAGENT_WEBHOOK_ALLOWED_ORIGINS` (a comma-separated CORS allowlist; unset by default — no CORS headers are sent). See [docker-compose.yml](docker-compose.yml) and the env-var table in [AGENTS.md](AGENTS.md).
 
-A headless container has no browser, so sign in to monoes.me with the emailed-code flow once it is running (see [monoes.me account](#monoesme-account)); the session is written to the `/data` volume:
-
-```bash
-docker compose exec monoagent monoagentcli account login --email you@example.com
-```
-
-Where the image has no OS key store, set `MONOAGENT_ALLOW_FILE_KEYRING=1` so the sign-in can be sealed. Don't copy `~/.monoagent/account` between machines or into an image.
-
 ### monoes.me account
 
-A monoes.me account is **optional today**; it will be required from a date announced at [monoes.me/mono-agent](https://monoes.me/mono-agent). Until then nothing is locked and no command warns. Releases are published on monoes.me. You sign in once per machine, shared by every profile:
+A monoes.me sign-in is **required** since 2026-10-11 (UTC); `account status` shows the date as `enforce_from`. Releases are published on monoes.me. You sign in once per machine, shared by every profile:
 
 ```bash
 monoagentcli account login                     # opens the browser
@@ -699,32 +690,34 @@ monoagentcli account status [--offline]        # who is logged in, and until whe
 monoagentcli account logout                    # revoke and forget the session
 ```
 
-`monoagentcli ref account` has the same text offline.
+Nothing works before sign-in: every command but `account` (and the `library login`/`logout`/`status` aliases), `help`, `version` and `update` exits 4 with `login_required` and does nothing else. If something is wrong, `monoagentcli account status` says what.
+
+Once signed in, `monoagentcli ref account` has the same text offline.
 
 ### Uninstall & data
 
 All state lives under `~/.monoagent/` (workflows, the SQLite DB, per-profile
-credential vaults, browser sessions, and crash reports) and, on macOS/Linux,
+credential vaults, browser sessions, crash reports, and the monoes.me sign-in in `account/`) and, on macOS/Linux,
 in your OS keychain (Keychain Access / Secret Service) for any secrets stored
 there instead of the vault. To remove Mono Agent completely:
 
 ```bash
 monoagentcli account logout          # revoke a machine sign-in, if present
-rm /usr/local/bin/monoagentcli        # or wherever you installed it
-rm -rf ~/.monoagent                   # workflows, vault, sessions, crash reports
+rm ~/.local/bin/monoagentcli         # or /usr/local/bin/monoagentcli, wherever install.sh put it
+rm -rf ~/.monoagent                   # workflows, vault, sessions, crash reports, the sign-in
 ```
 
 Then remove the Chrome extension from `chrome://extensions`, and delete the
 `monoagent-vault` entries from Keychain Access / Secret Service / Windows
 Credential Manager manually — that's where the vault's OS-keychain-backed
-encryption key lives, and the CLI never deletes it on uninstall since there's
-no install hook to run it from.
+encryption key lives, and the key that seals your monoes.me sign-in. The CLI
+never deletes them on uninstall since there's no install hook to run it from.
 
 **Personal data:** everything Mono Agent stores (contacts, message history,
 exported followers, connection credentials) stays in `~/.monoagent/` on your
 machine. There are no analytics or usage counters to opt out of. Explicit
 monoes.me sign-in/library commands and update checks contact external services;
-[SECURITY.md](SECURITY.md) describes what is sent and the dormant account gate.
+[SECURITY.md](SECURITY.md#network-use-telemetry-and-crash-reporting) describes what is sent and the account gate.
 If you use the `people` / social nodes to import or export data about other
 people, you're the one responsible for having a lawful basis to hold it
 (GDPR, CCPA, or your local equivalent) — deleting the profile above purges
@@ -785,12 +778,12 @@ mono-agent/
 | Resource | What's inside |
 |----------|---------------|
 | [AGENTS.md](AGENTS.md) | Canonical entrypoint for AI agents: `ref`, `--json`, MCP, exit codes |
-| [docs/USAGE_POLICY.md](docs/USAGE_POLICY.md) | Scope of use, platform ToS, rate caps, anti-spam commitments |
-| [docs/COMPARISON.md](docs/COMPARISON.md) | Honest comparison vs n8n, Activepieces, Windmill, Node-RED |
+| [docs/USAGE_POLICY.md](https://github.com/monoes/mono-agent/blob/HEAD/docs/USAGE_POLICY.md) | Scope of use, platform ToS, rate caps, anti-spam commitments |
+| [docs/COMPARISON.md](https://github.com/monoes/mono-agent/blob/HEAD/docs/COMPARISON.md) | Honest comparison vs n8n, Activepieces, Windmill, Node-RED |
 | [docs/planning/FEATURE_n8n.md](docs/planning/FEATURE_n8n.md) | detailed n8n feature map used as our porting reference |
 | [examples/](examples/) | Ready-to-run workflow JSONs with webhook trigger examples |
 | [install.sh](install.sh) | One-line installer (macOS / Linux) |
-| [SECURITY.md](SECURITY.md) | Reporting, supported versions, network use & crash reporting |
+| [SECURITY.md](SECURITY.md) | Reporting, supported versions, what the app contacts (monoes.me sign-in, updates), telemetry & crash reporting |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Build/test commands (incl. `-tags nosocial`), PR guidelines |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [docs/screenshots/](docs/screenshots/) | GUI screenshots, including a [walkthrough of the Org page](docs/screenshots/org-walkthrough/README.md) |
@@ -825,13 +818,13 @@ mono-agent/
 - [x] Encrypted Secrets Vault — OS keyring + AES-256-GCM + portable encrypted export
 - [x] MCP server — AI agents can list, run, and validate workflows
 - [x] Bluesky/Mastodon publishing nodes (`comm.bluesky`, `comm.mastodon`) — official APIs (ATProto/ActivityPub)
+- [x] [monoes.me library](https://monoes.me/library) — browse, install and publish workflows, orgs and web automations (`monoagentcli library`)
 
 **Coming next**
 - [ ] More trigger types — email, file watcher, database change
 - [ ] Workflow versioning and rollback
 - [ ] Sub-workflow / reusable workflow node
 - [ ] Visual debugger — step-through execution in GUI
-- [ ] Marketplace — shareable workflow templates ([curation policy](docs/plans/workflow-marketplace-curation-policy.md) written; distribution plumbing not yet built)
 - [ ] MCP registry listing + agent tool marketplace
 - [ ] Metrics dashboard — success rates, throughput, latency per profile
 
@@ -839,11 +832,13 @@ mono-agent/
 
 ## Community
 
+Want it built for you? [Monoes Workforce](https://monoes.me/workforce) sets up and runs automations for you.
+
 Questions, ideas, and "is this the right tool for X" go to [GitHub Discussions](https://github.com/monoes/mono-agent/discussions) — the issue tracker is kept for bugs and well-scoped feature requests. See [SUPPORT.md](SUPPORT.md) for the full breakdown, and [SECURITY.md](SECURITY.md) for reporting vulnerabilities (never in a public issue or Discussion).
 
 ## Contributing
 
-Pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). By participating, you agree to keep Mono Agent a fair-use tool.
+This repository publishes releases only and does not accept source contributions. Bug reports, suggestions and feedback are welcome in [Issues](https://github.com/monoes/mono-agent/issues) and [Discussions](https://github.com/monoes/mono-agent/discussions); see [CONTRIBUTING.md](CONTRIBUTING.md) for how the maintainers build and test.
 
 ```bash
 go test ./...                  # unit tests (no Chrome needed)
@@ -855,19 +850,20 @@ go vet ./...                   # lint
 
 ## License
 
-Mono Agent is released under the [MIT License](LICENSE). In plain English:
+Mono Agent is proprietary software, licensed under the [Monoes Proprietary Software License](LICENSE) by Nokhodian UG (haftungsbeschränkt), Berlin. In plain English:
 
-- ✅ You may **use** it, commercially or personally
-- ✅ You may **modify** it and build your own tools on it
-- ✅ You may **distribute** copies and modified versions
-- ❌ It comes with **no warranty** — the authors are not liable for anything it does or fails to do
-- 📋 Keep the license and copyright notice with any copy you distribute
+- ✅ You may **use** it, free of charge for now, with a monoes.me account (it may be charged for in future versions, announced beforehand)
+- ✅ You may **benchmark** it, compare it with other products and **publish the results**; say which version you tested and keep it accurate
+- ❌ You may not **copy, modify, redistribute, resell or host** it, reverse engineer it, or bypass its sign-in check
+- ❌ It does not accept source code contributions; bug reports and suggestions are welcome
+- 📋 Versions up to and including v0.133.0 were released under the MIT License, and that grant stays valid for the copies published under it
+- ⚠️ Provided without warranty while it is free, within the limits German law sets (see the license)
 
 ---
 
 <div align="center">
 
-**Mono Agent is in no way affiliated with Instagram, LinkedIn, X, TikTok, or any platform.<br/>Independent, unofficial, MIT-licensed. Use at your own risk and in accordance with each platform's terms.**
+**Mono Agent is in no way affiliated with Instagram, LinkedIn, X, TikTok, or any platform.<br/>Independent, unofficial, proprietary software. Use at your own risk and in accordance with each platform's terms.**
 
 Made with ☕ by [nokhodian](https://github.com/nokhodian)
 

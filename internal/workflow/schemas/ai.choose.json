@@ -87,5 +87,17 @@
       "required": false,
       "type": "number"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "{choice, handle, probability, probabilities, confidence, low_confidence, model, extra}",
+      "key": "<output_key>",
+      "type": "object"
+    }
   ]
 }

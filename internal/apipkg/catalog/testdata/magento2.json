@@ -1,0 +1,423 @@
+{
+  "customer.create": {
+    "params": {
+      "email": "a@x.io",
+      "firstname": "Ada",
+      "lastname": "L",
+      "additionalFields": {
+        "gender": 1,
+        "is_subscribed": true,
+        "password": "pw",
+        "addresses": {
+          "address": [
+            {
+              "street": "1 Main",
+              "city": "Rome",
+              "region": "",
+              "country_id": "IT"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "id": 5
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/V1/customers",
+      "body": {
+        "customer": {
+          "email": "a@x.io",
+          "firstname": "Ada",
+          "lastname": "L",
+          "gender": 1,
+          "addresses": [
+            {
+              "street": [
+                "1 Main"
+              ],
+              "city": "Rome",
+              "country_id": "IT"
+            }
+          ],
+          "extension_attributes": {
+            "is_subscribed": true
+          }
+        },
+        "password": "pw"
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "customer.delete": {
+    "params": {
+      "customerId": "5"
+    },
+    "response": true,
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/default/V1/customers/5",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "customer.get": {
+    "params": {
+      "customerId": "5"
+    },
+    "response": {
+      "id": 5
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/default/V1/customers/5",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "customer.getAll": {
+    "params": {
+      "filterType": "manual",
+      "matchType": "allFilters",
+      "filters": {
+        "conditions": [
+          {
+            "field": "email",
+            "condition_type": "like",
+            "value": "%@x.io"
+          },
+          {
+            "field": "group_id",
+            "condition_type": "eq",
+            "value": "1"
+          }
+        ]
+      },
+      "options": {
+        "sort": {
+          "sort": [
+            {
+              "field": "created_at",
+              "direction": "DESC"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ],
+      "total_count": 2
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/default/V1/customers/search",
+      "query": {
+        "search_criteria[filter_groups][0][filters][0][field]": "email",
+        "search_criteria[filter_groups][0][filters][0][condition_type]": "like",
+        "search_criteria[filter_groups][0][filters][0][value]": "%@x.io",
+        "search_criteria[filter_groups][1][filters][0][field]": "group_id",
+        "search_criteria[filter_groups][1][filters][0][condition_type]": "eq",
+        "search_criteria[filter_groups][1][filters][0][value]": "1",
+        "search_criteria[sort_orders][0][field]": "created_at",
+        "search_criteria[sort_orders][0][direction]": "DESC",
+        "search_criteria[current_page]": "1",
+        "search_criteria[page_size]": "5"
+      },
+      "items": 2
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "customer.update": {
+    "params": {
+      "customerId": "5",
+      "email": "a@x.io",
+      "firstName": "Ada",
+      "lastName": "L",
+      "updateFields": {
+        "middlename": "B"
+      }
+    },
+    "response": {
+      "id": 5
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/rest/V1/customers/5",
+      "body": {
+        "customer": {
+          "email": "a@x.io",
+          "firstname": "Ada",
+          "lastname": "L",
+          "id": 5,
+          "website_id": 0,
+          "middlename": "B"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "invoice.create": {
+    "params": {
+      "orderId": "9"
+    },
+    "response": "12",
+    "expect": {
+      "method": "POST",
+      "path": "/rest/default/V1/order/9/invoice",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "order.cancel": {
+    "params": {
+      "orderId": "9"
+    },
+    "response": true,
+    "expect": {
+      "method": "POST",
+      "path": "/rest/default/V1/orders/9/cancel",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "order.get": {
+    "params": {
+      "orderId": "9"
+    },
+    "response": {
+      "entity_id": 9
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/default/V1/orders/9",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "order.getAll": {
+    "params": {
+      "filterType": "json",
+      "filterJson": "{\"search_criteria\":{\"filter_groups\":[{\"filters\":[{\"field\":\"status\",\"value\":\"pending\"}]}]}}"
+    },
+    "response": {
+      "items": [
+        {
+          "entity_id": 9
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/default/V1/orders",
+      "query": {
+        "search_criteria[filter_groups][0][filters][0][field]": "status",
+        "search_criteria[filter_groups][0][filters][0][value]": "pending",
+        "search_criteria[current_page]": "1",
+        "search_criteria[page_size]": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "order.ship": {
+    "params": {
+      "orderId": "9"
+    },
+    "response": "3",
+    "expect": {
+      "method": "POST",
+      "path": "/rest/default/V1/order/9/ship",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "product.create": {
+    "params": {
+      "sku": "S1",
+      "name": "Shirt",
+      "attributeSetId": "4",
+      "price": 19.5,
+      "additionalFields": {
+        "status": 1,
+        "customAttributes": {
+          "customAttribute": [
+            {
+              "attribute_code": "color",
+              "value": "red"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "id": 1
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/rest/default/V1/products",
+      "body": {
+        "product": {
+          "sku": "S1",
+          "name": "Shirt",
+          "attribute_set_id": 4,
+          "price": 19.5,
+          "status": 1,
+          "custom_attributes": [
+            {
+              "attribute_code": "color",
+              "value": "red"
+            }
+          ]
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "product.delete": {
+    "params": {
+      "sku": "S1"
+    },
+    "response": true,
+    "expect": {
+      "method": "DELETE",
+      "path": "/rest/default/V1/products/S1",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "product.get": {
+    "params": {
+      "sku": "S1"
+    },
+    "response": {
+      "sku": "S1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/default/V1/products/S1",
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "product.getAll": {
+    "params": {
+      "filterType": "manual",
+      "filters": {
+        "conditions": [
+          {
+            "field": "sku",
+            "condition_type": "eq",
+            "value": "S1"
+          },
+          {
+            "field": "sku",
+            "condition_type": "eq",
+            "value": "S2"
+          }
+        ]
+      }
+    },
+    "response": {
+      "items": [
+        {
+          "sku": "S1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/rest/default/V1/products",
+      "query": {
+        "search_criteria[filter_groups][0][filters][0][field]": "sku",
+        "search_criteria[filter_groups][0][filters][0][condition_type]": "eq",
+        "search_criteria[filter_groups][0][filters][0][value]": "S1",
+        "search_criteria[filter_groups][0][filters][1][field]": "sku",
+        "search_criteria[filter_groups][0][filters][1][condition_type]": "eq",
+        "search_criteria[filter_groups][0][filters][1][value]": "S2",
+        "search_criteria[current_page]": "1",
+        "search_criteria[page_size]": "5"
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  },
+  "product.update": {
+    "params": {
+      "sku": "S1",
+      "updateFields": {
+        "price": 21
+      }
+    },
+    "response": {
+      "sku": "S1"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/rest/default/V1/products/S1",
+      "body": {
+        "product": {
+          "sku": "S1",
+          "price": 21
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "host": "https://shop.example.com/",
+      "access_token": "t"
+    }
+  }
+}

@@ -19,6 +19,9 @@ func documentsArgs(org, run string) ([]string, error) {
 // GetOrgDocuments returns `org documents <org> [--run <run>]`'s JSON (the
 // orgbridge.DocView) or {"error"}. run "" is the newest run.
 func (a *App) GetOrgDocuments(org, run string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := documentsArgs(org, run)
 	return a.runOrgSub("documents", sub, err)
 }

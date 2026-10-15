@@ -1,0 +1,196 @@
+{
+  "post.get": {
+    "params": {
+      "by": "slug",
+      "identifier": "hello",
+      "options": {
+        "formats": [
+          "html",
+          "plaintext"
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "content_key": "ck"
+    },
+    "response": {
+      "posts": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ghost/api/v3/content/posts/slug/hello",
+      "query": {
+        "formats": "html,plaintext"
+      },
+      "items": 1
+    }
+  },
+  "post.getAll": {
+    "params": {
+      "source": "adminApi",
+      "limit": 5,
+      "options": {
+        "include": [
+          "tags"
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "admin_key": "abc:00ff"
+    },
+    "response": {
+      "posts": [
+        {
+          "id": "1"
+        },
+        {
+          "id": "2"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/ghost/api/v2/admin/posts",
+      "query": {
+        "include": "tags",
+        "page": "1",
+        "limit": "5"
+      },
+      "items": 2
+    }
+  },
+  "post.create": {
+    "params": {
+      "source": "adminApi",
+      "title": "Hi",
+      "content": "<p>x</p>",
+      "additionalFields": {
+        "status": "scheduled",
+        "published_at": "2024-05-01T10:00:00Z",
+        "tags": [
+          "news"
+        ]
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "admin_key": "abc:00ff"
+    },
+    "response": {
+      "posts": [
+        {
+          "id": "1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/ghost/api/v2/admin/posts",
+      "query": {
+        "source": "html"
+      },
+      "body": {
+        "posts": [
+          {
+            "title": "Hi",
+            "html": "<p>x</p>",
+            "status": "scheduled",
+            "published_at": "2024-05-01T10:00:00Z",
+            "tags": [
+              "news"
+            ]
+          }
+        ]
+      },
+      "items": 1
+    }
+  },
+  "post.delete": {
+    "params": {
+      "source": "adminApi",
+      "postId": "p1"
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "admin_key": "abc:00ff"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/ghost/api/v2/admin/posts/p1"
+    }
+  },
+  "post.update": {
+    "params": {
+      "source": "adminApi",
+      "postId": "p1",
+      "contentFormat": "lexical",
+      "updateFields": {
+        "contentJson": "{\"root\":{}}",
+        "title": "New"
+      }
+    },
+    "credential": {
+      "url": "https://blog.test",
+      "admin_key": "abc:00ff"
+    },
+    "responses": [
+      {
+        "posts": [
+          {
+            "id": "p1",
+            "updated_at": "2024-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      {
+        "posts": [
+          {
+            "id": "p1"
+          }
+        ]
+      }
+    ],
+    "expect_requests": [
+      {
+        "method": "GET",
+        "path": "/ghost/api/v2/admin/posts/p1",
+        "query": {
+          "fields": "id, updated_at"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/ghost/api/v2/admin/posts/p1",
+        "body": {
+          "posts": [
+            {
+              "title": "New",
+              "lexical": "{\"root\":{}}",
+              "updated_at": "2024-01-01T00:00:00.000Z"
+            }
+          ]
+        }
+      }
+    ],
+    "expect": {
+      "method": "PUT",
+      "path": "/ghost/api/v2/admin/posts/p1",
+      "body": {
+        "posts": [
+          {
+            "title": "New",
+            "lexical": "{\"root\":{}}",
+            "updated_at": "2024-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "items": 1
+    }
+  }
+}

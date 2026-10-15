@@ -1,0 +1,210 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "open_weather_map",
+  "title": "OpenWeatherMap",
+  "description": "Current weather and 5-day forecasts from OpenWeatherMap",
+  "category": "app",
+  "docs_url": "https://openweathermap.org/api",
+  "n8n_types": [
+    "n8n-nodes-base.openWeatherMap"
+  ],
+  "base_url": "https://api.openweathermap.org/data/2.5",
+  "credentials": [
+    {
+      "platform": "open_weather_map",
+      "name": "OpenWeatherMap",
+      "n8n_credential": "openWeatherMapApi",
+      "n8n_field_map": {
+        "accessToken": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "query": {
+          "appid": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "currentWeather",
+      "title": "Get the current weather",
+      "method": "GET",
+      "path": "/weather",
+      "fields": [
+        {
+          "key": "format",
+          "label": "Units",
+          "type": "select",
+          "default": "metric",
+          "options": [
+            "imperial",
+            "metric",
+            "standard"
+          ]
+        },
+        {
+          "key": "locationSelection",
+          "label": "Location by",
+          "type": "select",
+          "default": "cityName",
+          "options": [
+            "cityName",
+            "cityId",
+            "coordinates",
+            "zipCode"
+          ]
+        },
+        {
+          "key": "cityName",
+          "label": "City name",
+          "type": "text",
+          "default": "",
+          "placeholder": "berlin,de",
+          "help": "With Location by = cityName."
+        },
+        {
+          "key": "cityId",
+          "label": "City ID",
+          "type": "number",
+          "default": 160001123,
+          "help": "With Location by = cityId."
+        },
+        {
+          "key": "latitude",
+          "label": "Latitude",
+          "type": "text",
+          "default": "",
+          "help": "With Location by = coordinates."
+        },
+        {
+          "key": "longitude",
+          "label": "Longitude",
+          "type": "text",
+          "default": "",
+          "help": "With Location by = coordinates."
+        },
+        {
+          "key": "zipCode",
+          "label": "Zip code",
+          "type": "text",
+          "default": "",
+          "placeholder": "10115,de",
+          "help": "With Location by = zipCode."
+        },
+        {
+          "key": "language",
+          "label": "Language",
+          "type": "text",
+          "default": "",
+          "placeholder": "en"
+        }
+      ],
+      "query": {
+        "units": "{{ p.format }}",
+        "q": "{{ p.locationSelection | eq:'cityName' | then:p.cityName }}",
+        "id": "{{ p.locationSelection | eq:'cityId' | then:p.cityId }}",
+        "lat": "{{ p.locationSelection | eq:'coordinates' | then:p.latitude }}",
+        "lon": "{{ p.locationSelection | eq:'coordinates' | then:p.longitude }}",
+        "zip": "{{ p.locationSelection | eq:'zipCode' | then:p.zipCode }}",
+        "lang": "{{ p.language }}"
+      }
+    },
+    {
+      "resource": "",
+      "operation": "5DayForecast",
+      "title": "Get a 5-day forecast",
+      "method": "GET",
+      "path": "/forecast",
+      "fields": [
+        {
+          "key": "format",
+          "label": "Units",
+          "type": "select",
+          "default": "metric",
+          "options": [
+            "imperial",
+            "metric",
+            "standard"
+          ]
+        },
+        {
+          "key": "locationSelection",
+          "label": "Location by",
+          "type": "select",
+          "default": "cityName",
+          "options": [
+            "cityName",
+            "cityId",
+            "coordinates",
+            "zipCode"
+          ]
+        },
+        {
+          "key": "cityName",
+          "label": "City name",
+          "type": "text",
+          "default": "",
+          "placeholder": "berlin,de",
+          "help": "With Location by = cityName."
+        },
+        {
+          "key": "cityId",
+          "label": "City ID",
+          "type": "number",
+          "default": 160001123,
+          "help": "With Location by = cityId."
+        },
+        {
+          "key": "latitude",
+          "label": "Latitude",
+          "type": "text",
+          "default": "",
+          "help": "With Location by = coordinates."
+        },
+        {
+          "key": "longitude",
+          "label": "Longitude",
+          "type": "text",
+          "default": "",
+          "help": "With Location by = coordinates."
+        },
+        {
+          "key": "zipCode",
+          "label": "Zip code",
+          "type": "text",
+          "default": "",
+          "placeholder": "10115,de",
+          "help": "With Location by = zipCode."
+        },
+        {
+          "key": "language",
+          "label": "Language",
+          "type": "text",
+          "default": "",
+          "placeholder": "en"
+        }
+      ],
+      "query": {
+        "units": "{{ p.format }}",
+        "q": "{{ p.locationSelection | eq:'cityName' | then:p.cityName }}",
+        "id": "{{ p.locationSelection | eq:'cityId' | then:p.cityId }}",
+        "lat": "{{ p.locationSelection | eq:'coordinates' | then:p.latitude }}",
+        "lon": "{{ p.locationSelection | eq:'coordinates' | then:p.longitude }}",
+        "zip": "{{ p.locationSelection | eq:'zipCode' | then:p.zipCode }}",
+        "lang": "{{ p.language }}"
+      }
+    }
+  ]
+}

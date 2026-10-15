@@ -1,0 +1,131 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "yourls",
+  "title": "Yourls",
+  "description": "Shorten, expand and get stats for URLs on a self-hosted YOURLS server",
+  "category": "app",
+  "docs_url": "https://yourls.org/docs/guide/advanced/api",
+  "n8n_types": [
+    "n8n-nodes-base.yourls"
+  ],
+  "base_url": "{{ cred.url }}",
+  "error_when": "{{ res.status | eq:'fail' }}",
+  "error_message": "{{ res.message }}",
+  "credentials": [
+    {
+      "platform": "yourls",
+      "name": "Yourls",
+      "n8n_credential": "yourlsApi",
+      "n8n_field_map": {
+        "signature": "signature",
+        "url": "url"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "Server URL",
+          "required": true,
+          "help": "Base URL of your YOURLS install, e.g. https://sho.rt"
+        },
+        {
+          "key": "signature",
+          "label": "Signature token",
+          "secret": true,
+          "required": true,
+          "help": "Found under Tools in the YOURLS admin"
+        }
+      ],
+      "inject": {
+        "query": {
+          "signature": "{{ cred.signature }}",
+          "format": "json"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "url",
+      "label": "URL"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "url",
+      "operation": "shorten",
+      "title": "Shorten a URL",
+      "method": "GET",
+      "path": "/yourls-api.php",
+      "query": {
+        "action": "shorturl",
+        "url": "{{ p.url }}",
+        "keyword": "{{ p.additionalFields.keyword }}",
+        "title": "{{ p.additionalFields.title }}"
+      },
+      "fields": [
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "required": true,
+          "help": "Long URL to shorten"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "keyword",
+            "title"
+          ],
+          "help": "keyword: custom short code; title: page title"
+        }
+      ]
+    },
+    {
+      "resource": "url",
+      "operation": "expand",
+      "title": "Expand a short URL",
+      "method": "GET",
+      "path": "/yourls-api.php",
+      "query": {
+        "action": "expand",
+        "shorturl": "{{ p.shortUrl }}"
+      },
+      "fields": [
+        {
+          "key": "shortUrl",
+          "label": "Short URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "url",
+      "operation": "stats",
+      "title": "Get stats for a short URL",
+      "method": "GET",
+      "path": "/yourls-api.php",
+      "query": {
+        "action": "url-stats",
+        "shorturl": "{{ p.shortUrl }}"
+      },
+      "output": {
+        "path": "link"
+      },
+      "fields": [
+        {
+          "key": "shortUrl",
+          "label": "Short URL",
+          "type": "text",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

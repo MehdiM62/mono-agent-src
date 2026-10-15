@@ -1,0 +1,26 @@
+{
+  "translate": {
+    "params": {
+      "text": "Hello",
+      "translateTo": "de_DE",
+      "options": {
+        "from": "en_GB"
+      }
+    },
+    "response": {
+      "err": null,
+      "result": "Hallo"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/b1/api/v3/translate",
+      "body": {
+        "data": "Hello",
+        "to": "de_DE",
+        "platform": "api",
+        "from": "en_GB"
+      },
+      "items": 1
+    }
+  }
+}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/applications"
 	applicationsnodes "github.com/monoes/mono-agent/internal/nodes/applications"
+	"github.com/monoes/mono-agent/internal/vault"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -25,7 +26,7 @@ func TestListNodeFiltersByKind(t *testing.T) {
 	}
 
 	node := &applicationsnodes.ListNode{}
-	outputs, err := node.Execute(context.Background(), workflow.NodeInput{}, map[string]interface{}{"kind": "job"})
+	outputs, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{}, map[string]interface{}{"kind": "job"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
 	}

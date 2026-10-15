@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, Loader } from 'lucide-react'
-import { api } from '../../services/api.js'
+import { api, notify } from '../../services/api.js'
 import { ChatTimeline } from '../chat/ChatTimeline.jsx'
 import { TurnStatus } from '../chat/TurnStatus.jsx'
 import { ChatComposer } from '../chat/ChatComposer.jsx'
+import { MessageAttachments, WorkspaceImageContext } from '../chat/ChatAttachments.jsx'
+import { takeFiles, MAX_ATTACHMENTS } from '../chat/chatAttachments.js'
 import { useChatScroll } from '../chat/useChatScroll.js'
 import { CoderModePicker } from '../chat/CoderModePicker.jsx'
 import { CoderInitNote } from '../chat/CoderHeader.jsx'
 import { useCoderStatus, useRecentWorkspaces, useCoderRuntimeChoice, coderRuntimes, coderReady, fidelityNote, missingText } from '../chat/useCoderMode.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
 import { MessageBubble } from '../AIChatPanel.jsx'
+import { AskCard } from './AskCard.jsx'
+import { useHilAsks } from './useHilAsks.js'
 import { isAgentNotSetup } from '../../lib/agentSetup.js'
 import AgentSetupLink from '../AgentSetupLink.jsx'
 import '../chat/chat.css'
@@ -114,7 +118,10 @@ function CoderSetup({ status, setup, onChange, onNavigate }) {
 export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDraftChange, initialScrollTop, onScroll, onNavigate, agentFilter = null, agentFilterTurnId = '', agentFilterName = '', onClearAgentFilter }) {
   const { t } = useTranslation()
   const { status } = useCoderStatus(isDraft)
-  const scroll = useChatScroll(`${conv.messages.length}:${conv.liveTurn.lastSeq}`)
+  // Sends and workflow approvals this chat's agents prepared wait here, in
+  // the same card the org bubble uses.
+  const hil = useHilAsks({ conversationId: conv.conversationId || '' }, !!conv.conversationId)
+  const scroll = useChatScroll(`${conv.messages.length}:${conv.liveTurn.lastSeq}:${hil.asks.length}`)
 
   // Put the transcript back where it was when the bubble collapsed.
   useEffect(() => {
@@ -124,13 +131,28 @@ export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Files pasted, dropped or picked in the composer, sent with the next
+  // message (CLI `chat --attach`).
+  const [attachments, setAttachments] = useState([])
+  const attach = useCallback(async (files) => {
+    const { added, skipped } = await takeFiles(attachments.length, files)
+    if (added.length) setAttachments(list => [...list, ...added].slice(0, MAX_ATTACHMENTS))
+    if (skipped.length) notify('attach', `Not attached: ${skipped.join('; ')}`)
+  }, [attachments.length])
+  const removeAttachment = useCallback(id => setAttachments(list => list.filter(a => a.id !== id)), [])
+
   const send = useCallback(async () => {
     const text = draft
     if (!text.trim()) return
+    const sent = attachments
     onDraftChange('')
-    const ok = await conv.send(text)
-    if (ok === false && !conv.conversationId) onDraftChange(text)
-  }, [draft, conv, onDraftChange])
+    setAttachments([])
+    const ok = await conv.send(text, sent)
+    if (ok === false && !conv.conversationId) {
+      onDraftChange(text)
+      setAttachments(sent)
+    }
+  }, [draft, attachments, conv, onDraftChange])
 
   const blocked = isDraft && (!status?.enabled || !coderReady(status) || !setup.runtime || !setup.model)
   const empty = conv.messages.length === 0 && !conv.streaming
@@ -157,22 +179,35 @@ export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDr
           {empty && !conv.loading && !isDraft && (
             <div style={{ margin: 'auto', fontFamily: mono, fontSize: 11, color: 'var(--text-muted)' }}>{t('bubbles.emptyChat')}</div>
           )}
-          {conv.messages.map((msg, i) => (
-            msg.role === 'coder-init' ? <CoderInitNote key={i} workspace={msg.workspace} />
-              : msg.role === 'turn' ? (
-                <div key={i} className="chat-assistant-turn">
-                  <ChatTimeline state={msg.state} turnId={msg.turnId} isLive={false} agentFilter={msg.turnId === agentFilterTurnId ? agentFilter : null} />
-                  <TurnStatus state={msg.state} stopRequested={false} ownedByThisInstance={msg.ownedByThisInstance} />
-                  {isAgentNotSetup(msg.state.terminal?.code) && <AgentSetupLink onNavigate={onNavigate} />}
-                </div>
-              ) : (
-                <MessageBubble key={i} role={msg.role} content={msg.content} isError={msg.role === 'error'} code={msg.code} onNavigate={onNavigate} />
-              )
-          ))}
-          {conv.streaming && (
-            <div className="chat-assistant-turn">
-              <ChatTimeline state={conv.liveTurn} turnId={conv.activeTurnId} isLive agentFilter={conv.activeTurnId === agentFilterTurnId ? agentFilter : null} />
-              <TurnStatus state={conv.liveTurn} stopRequested={conv.stopRequested} />
+          <WorkspaceImageContext.Provider value={conv.conversationId || ''}>
+            {conv.messages.map((msg, i) => (
+              msg.role === 'coder-init' ? <CoderInitNote key={i} workspace={msg.workspace} />
+                : msg.role === 'turn' ? (
+                  <div key={i} className="chat-assistant-turn">
+                    <ChatTimeline state={msg.state} turnId={msg.turnId} isLive={false} agentFilter={msg.turnId === agentFilterTurnId ? agentFilter : null} />
+                    <TurnStatus state={msg.state} stopRequested={false} ownedByThisInstance={msg.ownedByThisInstance} />
+                    {isAgentNotSetup(msg.state.terminal?.code) && <AgentSetupLink onNavigate={onNavigate} />}
+                  </div>
+                ) : (
+                  <Fragment key={i}>
+                    <MessageBubble role={msg.role} content={msg.content} isError={msg.role === 'error'} code={msg.code} onNavigate={onNavigate} />
+                    <MessageAttachments attachments={msg.attachments} conversationId={conv.conversationId} />
+                  </Fragment>
+                )
+            ))}
+            {conv.streaming && (
+              <div className="chat-assistant-turn">
+                <ChatTimeline state={conv.liveTurn} turnId={conv.activeTurnId} isLive agentFilter={conv.activeTurnId === agentFilterTurnId ? agentFilter : null} />
+                <TurnStatus state={conv.liveTurn} stopRequested={conv.stopRequested} />
+              </div>
+            )}
+          </WorkspaceImageContext.Provider>
+          {hil.asks.length > 0 && (
+            <div data-testid="coder-asks" role="region" aria-label={t('ask.regionLabel')} aria-live="polite">
+              {hil.asks.map(ask => (
+                <AskCard key={ask.id} ask={ask} busy={!!hil.busy[ask.id]} outcome={hil.outcome[ask.id]}
+                  onDecide={hil.resolve} onNavigate={onNavigate} />
+              ))}
             </div>
           )}
         </div>
@@ -184,7 +219,8 @@ export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDr
       </div>
       <ChatComposer value={draft} onChange={onDraftChange} onSend={send} onStop={conv.stop}
         streaming={conv.streaming} disabled={blocked || conv.loading}
-        disabledReason={blocked ? t('bubbles.setupFirst') : ''} />
+        disabledReason={blocked ? t('bubbles.setupFirst') : ''}
+        attachments={attachments} onAttach={attach} onRemoveAttachment={removeAttachment} />
     </div>
   )
 }

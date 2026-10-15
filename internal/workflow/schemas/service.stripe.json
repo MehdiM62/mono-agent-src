@@ -10,6 +10,7 @@
     },
     {
       "default": "list_customers",
+      "help": "create_charge uses Stripe's legacy Charges API and is kept for existing workflows. For new payments use create_payment_intent or create_checkout_session.",
       "key": "operation",
       "label": "Operation",
       "options": [
@@ -22,7 +23,11 @@
         "create_subscription",
         "cancel_subscription",
         "list_products",
-        "create_payment_intent"
+        "create_payment_intent",
+        "get_payment_intent",
+        "list_payment_intents",
+        "create_refund",
+        "create_checkout_session"
       ],
       "required": true,
       "type": "select"
@@ -36,7 +41,9 @@
           "create_charge",
           "list_subscriptions",
           "create_subscription",
-          "create_payment_intent"
+          "create_payment_intent",
+          "list_payment_intents",
+          "create_checkout_session"
         ]
       },
       "key": "customer_id",
@@ -73,9 +80,11 @@
         "key": "operation",
         "values": [
           "create_charge",
-          "create_payment_intent"
+          "create_payment_intent",
+          "create_refund"
         ]
       },
+      "help": "For create_refund: leave empty to refund the full amount.",
       "key": "amount",
       "label": "Amount (cents)",
       "required": false,
@@ -87,9 +96,11 @@
         "key": "operation",
         "values": [
           "create_charge",
-          "create_payment_intent"
+          "create_payment_intent",
+          "create_checkout_session"
         ]
       },
+      "help": "For create_checkout_session this is only sent in setup mode (prices carry their own currency).",
       "key": "currency",
       "label": "Currency",
       "required": false,
@@ -133,11 +144,125 @@
       "type": "text"
     },
     {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get_payment_intent",
+          "create_refund"
+        ]
+      },
+      "help": "For create_refund: the payment to refund (or use Charge ID).",
+      "key": "payment_intent_id",
+      "label": "Payment Intent ID",
+      "placeholder": "pi_...",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create_refund"
+        ]
+      },
+      "help": "Refund a legacy charge instead of a payment intent.",
+      "key": "charge_id",
+      "label": "Charge ID",
+      "placeholder": "ch_...",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create_refund"
+        ]
+      },
+      "help": "Optional.",
+      "key": "reason",
+      "label": "Refund Reason",
+      "options": [
+        "duplicate",
+        "fraudulent",
+        "requested_by_customer"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "payment",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create_checkout_session"
+        ]
+      },
+      "key": "mode",
+      "label": "Checkout Mode",
+      "options": [
+        "payment",
+        "subscription",
+        "setup"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create_checkout_session"
+        ]
+      },
+      "key": "success_url",
+      "label": "Success URL",
+      "placeholder": "https://example.com/thanks?session_id={CHECKOUT_SESSION_ID}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create_checkout_session"
+        ]
+      },
+      "key": "cancel_url",
+      "label": "Cancel URL",
+      "placeholder": "https://example.com/cart",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create_checkout_session"
+        ]
+      },
+      "help": "A list of {price, quantity} objects. Required in payment and subscription mode.",
+      "key": "line_items",
+      "label": "Line Items (JSON)",
+      "language": "json",
+      "placeholder": "[{\"price\": \"price_...\", \"quantity\": 1}]",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
       "default": 10,
       "key": "limit",
       "label": "Max Results",
       "required": false,
       "type": "number"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
     }
   ]
 }

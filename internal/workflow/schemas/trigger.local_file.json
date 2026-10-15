@@ -1,0 +1,48 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "help": "Absolute path of the file or folder to watch (~/ allowed). It need not exist yet.",
+      "key": "path",
+      "label": "Path",
+      "placeholder": "/home/me/inbox",
+      "required": true,
+      "type": "text"
+    },
+    {
+      "help": "Comma-separated: add (a file appears), change (its content or size changes), unlink (it is removed). Empty: all three.",
+      "key": "events",
+      "label": "Events",
+      "placeholder": "add",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": false,
+      "help": "Watch files in subfolders of a watched folder too.",
+      "key": "recursive",
+      "label": "Include subfolders",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "help": "Comma-separated globs matched against each file's name and its path below the watched folder; a matching folder is skipped whole.",
+      "key": "ignore",
+      "label": "Ignore",
+      "placeholder": "*.tmp",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 2,
+      "help": "How often the path is scanned for changes.",
+      "key": "interval_seconds",
+      "label": "Check every (seconds)",
+      "max": 3600,
+      "min": 1,
+      "required": false,
+      "type": "number"
+    }
+  ]
+}

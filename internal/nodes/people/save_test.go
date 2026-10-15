@@ -78,7 +78,7 @@ func TestPeopleSaveNode_BasicUpsert(t *testing.T) {
 		}),
 	}
 
-	outputs, err := node.Execute(context.Background(), workflow.NodeInput{Items: items}, map[string]interface{}{})
+	outputs, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{Items: items}, map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestPeopleSaveNode_HrefFallback(t *testing.T) {
 		}),
 	}
 
-	outputs, err := node.Execute(context.Background(), workflow.NodeInput{Items: items}, map[string]interface{}{})
+	outputs, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{Items: items}, map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestPeopleSaveNode_SkipsItemWithoutURL(t *testing.T) {
 		}),
 	}
 
-	outputs, err := node.Execute(context.Background(), workflow.NodeInput{Items: items}, map[string]interface{}{})
+	outputs, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{Items: items}, map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestPeopleSaveNode_PreservesVerifiedWhenKeyAbsent(t *testing.T) {
 	node := &PeopleSaveNode{}
 
 	// First save: is_verified=true (e.g. a profile scrape).
-	_, err := node.Execute(context.Background(), workflow.NodeInput{Items: []workflow.Item{
+	_, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{Items: []workflow.Item{
 		workflow.NewItem(map[string]interface{}{
 			"profile_url": "https://www.linkedin.com/in/verified-vera/",
 			"full_name":   "Verified Vera",
@@ -187,7 +187,7 @@ func TestPeopleSaveNode_PreservesVerifiedWhenKeyAbsent(t *testing.T) {
 	}
 
 	// Second save: same person, no is_verified key (e.g. browser/LinkedIn extract).
-	_, err = node.Execute(context.Background(), workflow.NodeInput{Items: []workflow.Item{
+	_, err = node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{Items: []workflow.Item{
 		workflow.NewItem(map[string]interface{}{
 			"profile_url": "https://www.linkedin.com/in/verified-vera/",
 			"full_name":   "Verified Vera",
@@ -218,7 +218,7 @@ func TestPeopleSaveNode_ConfigPlatformOverride(t *testing.T) {
 		}),
 	}
 
-	_, err := node.Execute(context.Background(), workflow.NodeInput{Items: items}, map[string]interface{}{
+	_, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{Items: items}, map[string]interface{}{
 		"platform": "linkedin",
 	})
 	if err != nil {
@@ -247,7 +247,7 @@ func TestPeopleSaveNode_CategoryAndIntroduction(t *testing.T) {
 		}),
 	}
 
-	_, err := node.Execute(context.Background(), workflow.NodeInput{Items: items}, map[string]interface{}{
+	_, err := node.Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{Items: items}, map[string]interface{}{
 		"category":     "pending_approval",
 		"introduction": "{{ $json.pitch }}",
 	})
@@ -291,7 +291,7 @@ func TestPeopleSaveNode_PostSavesAuthorNotPost(t *testing.T) {
 		}),
 		workflow.NewItem(map[string]interface{}{"url": "https://www.linkedin.com/feed/update/urn:li:activity:1/"}),
 	}
-	outputs, err := (&PeopleSaveNode{}).Execute(context.Background(), workflow.NodeInput{Items: items}, map[string]interface{}{})
+	outputs, err := (&PeopleSaveNode{}).Execute(vault.ContextWithProfileID(context.Background(), "default"), workflow.NodeInput{Items: items}, map[string]interface{}{})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -321,7 +321,7 @@ func TestPeopleSaveNode_LinkedInProfileDetails(t *testing.T) {
 		"experience": []interface{}{map[string]interface{}{"title": "Robotics engineer", "company": "Example Works", "end": "Present"}},
 		"education":  []interface{}{map[string]interface{}{"school": "Example University", "degree": "BSc"}},
 	}
-	if _, err := (&PeopleSaveNode{}).Execute(context.Background(), workflow.NodeInput{Items: []workflow.Item{workflow.NewItem(item)}},
+	if _, err := (&PeopleSaveNode{}).Execute(vault.ContextWithProfileID(context.Background(), "p1"), workflow.NodeInput{Items: []workflow.Item{workflow.NewItem(item)}},
 		map[string]interface{}{"profile_id": "p1"}); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -373,7 +373,7 @@ func TestPeopleSaveNode_SocialProfileBioAndDetails(t *testing.T) {
 		"follower_count": "1234", "following_count": "56", "content_count": "12", "is_verified": true,
 		"highlights": []interface{}{"Travel", "Food"}, "threads_handle": "fake.ada",
 	}
-	if _, err := (&PeopleSaveNode{}).Execute(context.Background(), workflow.NodeInput{Items: []workflow.Item{workflow.NewItem(item)}},
+	if _, err := (&PeopleSaveNode{}).Execute(vault.ContextWithProfileID(context.Background(), "p1"), workflow.NodeInput{Items: []workflow.Item{workflow.NewItem(item)}},
 		map[string]interface{}{"profile_id": "p1"}); err != nil {
 		t.Fatalf("execute: %v", err)
 	}

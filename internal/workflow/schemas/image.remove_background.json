@@ -32,5 +32,17 @@
       "required": false,
       "type": "text"
     }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "path of the PNG with a transparent background",
+      "key": "<output_field>",
+      "type": "string"
+    }
   ]
 }

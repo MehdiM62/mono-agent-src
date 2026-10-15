@@ -13,8 +13,8 @@
   "info": {
     "companyName": "MonoAgent",
     "productName": "MonoAgent",
-    "productVersion": "1.0.0",
-    "copyright": "© 2026 MonoAgent",
+    "productVersion": "0.135.0",
+    "copyright": "© 2026 Nokhodian UG (haftungsbeschränkt)",
     "comments": "Workflow automation dashboard that runs on your machine"
   }
 }

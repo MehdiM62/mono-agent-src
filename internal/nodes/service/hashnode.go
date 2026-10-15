@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -69,6 +70,9 @@ type HashnodeNode struct{}
 func (n *HashnodeNode) Type() string { return "service.hashnode" }
 
 func (n *HashnodeNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.hashnode", config) {
+		return apipkg.ExecuteExtension(ctx, "service.hashnode", input, config)
+	}
 	token := strVal(config, "token")
 	if token == "" {
 		return nil, fmt.Errorf("service.hashnode: 'token' is required")

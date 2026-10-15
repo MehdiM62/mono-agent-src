@@ -21,10 +21,14 @@ const (
 	ProfileQA         = "qa"         // coding, plus the browser through monoagentcli
 	ProfileAutomation = "automation" // coding, plus mono-agent workflows and automations through monoagentcli
 	ProfileResearch   = "research"   // read files and the web, no edits (--access read when the runtime has it)
+	// ProfileWorkspace is coding plus every monoagent surface (apps, tasks,
+	// documents, people, vault, workflows) through monoagentcli; outbound
+	// sends wait for approval. A superset of coding, qa and automation.
+	ProfileWorkspace = "workspace"
 )
 
 // Profiles lists the access profiles in the order the lead sees them.
-var Profiles = []string{ProfileCoding, ProfileQA, ProfileAutomation, ProfileResearch}
+var Profiles = []string{ProfileWorkspace, ProfileCoding, ProfileQA, ProfileAutomation, ProfileResearch}
 
 // writes reports whether a profile edits the chat folder (and so needs the
 // write lease).
@@ -32,7 +36,9 @@ func writes(profile string) bool { return profile != ProfileResearch }
 
 // usesBrowser reports whether a profile drives the browser (and so needs
 // the browser lease).
-func usesBrowser(profile string) bool { return profile == ProfileQA || profile == ProfileAutomation }
+func usesBrowser(profile string) bool {
+	return profile == ProfileQA || profile == ProfileAutomation || profile == ProfileWorkspace
+}
 
 // Model pickers: who chooses a worker's model. The lead's own choice always
 // wins (and is checked); these decide what happens when it names none.

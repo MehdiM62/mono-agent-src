@@ -1,0 +1,470 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "n8n",
+  "node_type": "app.n8n",
+  "title": "n8n",
+  "description": "Workflows, executions, credentials and audits of an n8n instance (n8n public API)",
+  "category": "app",
+  "docs_url": "https://docs.n8n.io/api/api-reference/",
+  "n8n_types": [
+    "n8n-nodes-base.n8n"
+  ],
+  "base_url": "{{ cred.base_url | re:'^(.*?)/*$' }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "n8n",
+      "name": "n8n",
+      "n8n_credential": "n8nApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "baseUrl": "base_url"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "n8n → Settings → n8n API"
+        },
+        {
+          "key": "base_url",
+          "label": "Base URL",
+          "required": true,
+          "help": "The API root, e.g. https://you.app.n8n.cloud/api/v1"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "X-N8N-API-KEY": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "workflow",
+      "label": "Workflow"
+    },
+    {
+      "value": "execution",
+      "label": "Execution"
+    },
+    {
+      "value": "credential",
+      "label": "Credential"
+    },
+    {
+      "value": "audit",
+      "label": "Audit"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "workflow",
+      "operation": "getAll",
+      "title": "Get many workflows",
+      "method": "GET",
+      "path": "/workflows",
+      "query": {
+        "active": "{{ p.filters.activeWorkflows }}",
+        "tags": "{{ p.filters.tags }}",
+        "name": "{{ p.filters.name }}",
+        "projectId": "{{ p.filters.projectId }}",
+        "excludePinnedData": "{{ p.filters.excludePinnedData }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "nextCursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Max results when Return all is off."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activeWorkflows",
+            "excludePinnedData",
+            "name",
+            "projectId",
+            "tags"
+          ],
+          "help": "tags: comma-separated tag names"
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "activate",
+      "title": "Publish (activate) a workflow",
+      "method": "POST",
+      "path": "/workflows/{{ p.workflowId | rl }}/activate",
+      "body": {
+        "versionId": "{{ p.additionalFields.versionId }}",
+        "name": "{{ p.additionalFields.name }}",
+        "description": "{{ p.additionalFields.description }}"
+      },
+      "fields": [
+        {
+          "key": "workflowId",
+          "label": "Workflow",
+          "type": "text",
+          "required": true,
+          "help": "Workflow ID (an n8n resource locator is accepted)"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "name",
+            "versionId"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "create",
+      "title": "Create a workflow",
+      "method": "POST",
+      "path": "/workflows",
+      "body": {
+        "name": "{{ p.workflowObject | fromjson | get:'name' | default:'My workflow' }}",
+        "!nodes": "{{ p.workflowObject | fromjson | get:'nodes' | default:'[]' | fromjson }}",
+        "!settings": "{{ p.workflowObject | fromjson | get:'settings' | default:'{}' | fromjson }}",
+        "!connections": "{{ p.workflowObject | fromjson | get:'connections' | default:'{}' | fromjson }}",
+        "!staticData": "{{ p.workflowObject | fromjson | get:'staticData' }}"
+      },
+      "fields": [
+        {
+          "key": "workflowObject",
+          "label": "Workflow object",
+          "type": "code",
+          "language": "json",
+          "required": true,
+          "default": "{ \"name\": \"My workflow\", \"nodes\": [], \"connections\": {}, \"settings\": {} }",
+          "help": "The workflow as JSON: name, nodes, connections, settings (staticData optional)."
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "deactivate",
+      "title": "Unpublish (deactivate) a workflow",
+      "method": "POST",
+      "path": "/workflows/{{ p.workflowId | rl }}/deactivate",
+      "fields": [
+        {
+          "key": "workflowId",
+          "label": "Workflow",
+          "type": "text",
+          "required": true,
+          "help": "Workflow ID (an n8n resource locator is accepted)"
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "delete",
+      "title": "Delete a workflow",
+      "method": "DELETE",
+      "path": "/workflows/{{ p.workflowId | rl }}",
+      "fields": [
+        {
+          "key": "workflowId",
+          "label": "Workflow",
+          "type": "text",
+          "required": true,
+          "help": "Workflow ID (an n8n resource locator is accepted)"
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "get",
+      "title": "Get a workflow",
+      "method": "GET",
+      "path": "/workflows/{{ p.workflowId | rl }}",
+      "fields": [
+        {
+          "key": "workflowId",
+          "label": "Workflow",
+          "type": "text",
+          "required": true,
+          "help": "Workflow ID (an n8n resource locator is accepted)"
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "getVersion",
+      "title": "Get a workflow version",
+      "method": "GET",
+      "path": "/workflows/{{ p.workflowId | rl }}/{{ p.versionId }}",
+      "fields": [
+        {
+          "key": "workflowId",
+          "label": "Workflow",
+          "type": "text",
+          "required": true,
+          "help": "Workflow ID (an n8n resource locator is accepted)"
+        },
+        {
+          "key": "versionId",
+          "label": "Version ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "workflow",
+      "operation": "update",
+      "title": "Update a workflow",
+      "method": "PUT",
+      "path": "/workflows/{{ p.workflowId | rl }}",
+      "body": {
+        "name": "{{ p.workflowObject | fromjson | get:'name' }}",
+        "nodes": "{{ p.workflowObject | fromjson | get:'nodes' }}",
+        "settings": "{{ p.workflowObject | fromjson | get:'settings' }}",
+        "connections": "{{ p.workflowObject | fromjson | get:'connections' }}",
+        "staticData": "{{ p.workflowObject | fromjson | get:'staticData' }}"
+      },
+      "fields": [
+        {
+          "key": "workflowId",
+          "label": "Workflow",
+          "type": "text",
+          "required": true,
+          "help": "Workflow ID (an n8n resource locator is accepted)"
+        },
+        {
+          "key": "workflowObject",
+          "label": "Workflow object",
+          "type": "code",
+          "language": "json",
+          "required": true,
+          "help": "The fields to replace: name, nodes, connections, settings, staticData."
+        }
+      ]
+    },
+    {
+      "resource": "execution",
+      "operation": "getAll",
+      "title": "Get many executions",
+      "method": "GET",
+      "path": "/executions",
+      "query": {
+        "workflowId": "{{ p.filters.workflowId | rl }}",
+        "status": "{{ p.filters.status }}",
+        "includeData": "{{ p.options.activeWorkflows }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "nextCursor",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "help": "Max results when Return all is off."
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status",
+            "workflowId"
+          ],
+          "help": "status: error, success or waiting"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activeWorkflows"
+          ],
+          "help": "activeWorkflows: include the execution data"
+        }
+      ]
+    },
+    {
+      "resource": "execution",
+      "operation": "get",
+      "title": "Get an execution",
+      "method": "GET",
+      "path": "/executions/{{ p.executionId }}",
+      "query": {
+        "includeData": "{{ p.options.activeWorkflows }}"
+      },
+      "fields": [
+        {
+          "key": "executionId",
+          "label": "Execution ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "activeWorkflows"
+          ],
+          "help": "activeWorkflows: include the execution data"
+        }
+      ]
+    },
+    {
+      "resource": "execution",
+      "operation": "delete",
+      "title": "Delete an execution",
+      "method": "DELETE",
+      "path": "/executions/{{ p.executionId }}",
+      "fields": [
+        {
+          "key": "executionId",
+          "label": "Execution ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "credential",
+      "operation": "create",
+      "title": "Create a credential",
+      "method": "POST",
+      "path": "/credentials",
+      "body": {
+        "name": "{{ p.name }}",
+        "type": "{{ p.credentialTypeName }}",
+        "data": "{{ p.data | fromjson }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "credentialTypeName",
+          "label": "Credential type",
+          "type": "text",
+          "required": true,
+          "help": "The n8n credential type, e.g. githubApi"
+        },
+        {
+          "key": "data",
+          "label": "Data",
+          "type": "code",
+          "language": "json",
+          "required": true,
+          "help": "The credential's fields as JSON (see Get Schema)"
+        }
+      ]
+    },
+    {
+      "resource": "credential",
+      "operation": "delete",
+      "title": "Delete a credential",
+      "method": "DELETE",
+      "path": "/credentials/{{ p.credentialId }}",
+      "fields": [
+        {
+          "key": "credentialId",
+          "label": "Credential ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "credential",
+      "operation": "getSchema",
+      "title": "Get a credential type's schema",
+      "method": "GET",
+      "path": "/credentials/schema/{{ p.credentialTypeName }}",
+      "fields": [
+        {
+          "key": "credentialTypeName",
+          "label": "Credential type",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "audit",
+      "operation": "generate",
+      "title": "Generate a security audit",
+      "method": "POST",
+      "path": "/audit",
+      "body": {
+        "additionalOptions": "{{ p.additionalOptions }}"
+      },
+      "fields": [
+        {
+          "key": "additionalOptions",
+          "label": "Additional options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "categories",
+            "daysAbandonedWorkflow"
+          ],
+          "help": "categories: credentials, database, filesystem, instance, nodes"
+        }
+      ]
+    }
+  ]
+}

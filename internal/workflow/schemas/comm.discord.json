@@ -7,6 +7,39 @@
     { "key": "content", "label": "Message", "type": "textarea", "required": false, "rows": 3, "depends_on": { "key": "operation", "values": ["send_message"] } },
     { "key": "embed_title", "label": "Embed Title", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["send_embed"] } },
     { "key": "embed_description", "label": "Embed Description", "type": "textarea", "required": false, "rows": 3, "depends_on": { "key": "operation", "values": ["send_embed"] } },
+    { "key": "embed_color", "label": "Embed Color", "type": "number", "required": false, "placeholder": "e.g. 5814783 (0x58B9FF)", "help": "Color of the embed's side bar as a decimal integer.", "depends_on": { "key": "operation", "values": ["send_embed"] } },
     { "key": "guild_id", "label": "Server (Guild) ID", "type": "text", "required": false, "depends_on": { "key": "operation", "values": ["get_channels"] } }
+  ],
+  "outputs": [
+    {
+      "description": "send: message id",
+      "key": "message_id",
+      "type": "string"
+    },
+    {
+      "description": "channel",
+      "key": "channel_id",
+      "type": "string"
+    },
+    {
+      "description": "server",
+      "key": "guild_id",
+      "type": "string"
+    },
+    {
+      "description": "list: channel id",
+      "key": "id",
+      "type": "string"
+    },
+    {
+      "description": "list: channel name",
+      "key": "name",
+      "type": "string"
+    },
+    {
+      "description": "list: channel type",
+      "key": "type",
+      "type": "string"
+    }
   ]
 }

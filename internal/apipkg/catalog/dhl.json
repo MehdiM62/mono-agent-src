@@ -1,0 +1,80 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "dhl",
+  "node_type": "app.dhl",
+  "title": "DHL",
+  "description": "Track DHL shipments",
+  "category": "app",
+  "docs_url": "https://developer.dhl.com/api-reference/shipment-tracking",
+  "n8n_types": [
+    "n8n-nodes-base.dhl"
+  ],
+  "base_url": "https://api-eu.dhl.com",
+  "credentials": [
+    {
+      "platform": "dhl",
+      "name": "DHL",
+      "n8n_credential": "dhlApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true,
+          "help": "From the DHL developer portal (Shipment Tracking - Unified)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "DHL-API-Key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "shipment",
+      "label": "Shipment"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "shipment",
+      "operation": "get",
+      "title": "Get tracking details",
+      "method": "GET",
+      "path": "/track/shipments",
+      "fields": [
+        {
+          "key": "trackingNumber",
+          "label": "Tracking number",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "recipientPostalCode"
+          ],
+          "help": "recipientPostalCode: the recipient's postal code, for more detail"
+        }
+      ],
+      "query": {
+        "trackingNumber": "{{ p.trackingNumber }}",
+        "recipientPostalCode": "{{ p.options.recipientPostalCode }}"
+      },
+      "output": {
+        "path": "shipments"
+      }
+    }
+  ]
+}

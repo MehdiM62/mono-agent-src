@@ -1,0 +1,245 @@
+{
+  "credential_platform": "ldap",
+  "fields": [
+    {
+      "default": "search",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "search",
+        "compare",
+        "create",
+        "update",
+        "rename",
+        "delete"
+      ],
+      "required": true,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "compare",
+          "create",
+          "update",
+          "rename",
+          "delete"
+        ]
+      },
+      "key": "dn",
+      "label": "DN",
+      "placeholder": "cn=ada,ou=people,dc=example,dc=com",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "rename"
+        ]
+      },
+      "key": "target_dn",
+      "label": "New DN",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "compare"
+        ]
+      },
+      "key": "attribute_id",
+      "label": "Attribute",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "compare"
+        ]
+      },
+      "key": "value",
+      "label": "Value",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create",
+          "update"
+        ]
+      },
+      "help": "create: [{id, value}]. update: {\"add\"|\"replace\"|\"delete\": [{id, value}]}.",
+      "key": "attributes",
+      "label": "Attributes (JSON)",
+      "placeholder": "[{ \"id\": \"mail\", \"value\": \"a@x\" }]",
+      "required": false,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "search"
+        ]
+      },
+      "key": "base_dn",
+      "label": "Base DN",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "search"
+        ]
+      },
+      "help": "An object-class filter fragment, or custom.",
+      "key": "search_for",
+      "label": "Search For",
+      "placeholder": "(objectclass=person)",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "search_for",
+        "values": [
+          "custom"
+        ]
+      },
+      "key": "custom_filter",
+      "label": "Custom Filter",
+      "placeholder": "(&(objectclass=user)(mail=*))",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "search"
+        ]
+      },
+      "key": "attribute",
+      "label": "Attribute to Match",
+      "placeholder": "cn",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "search"
+        ]
+      },
+      "help": "* is a wildcard; other filter characters are escaped.",
+      "key": "search_text",
+      "label": "Search Text",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "search"
+        ]
+      },
+      "key": "return_all",
+      "label": "Return All",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": 50,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "search"
+        ]
+      },
+      "key": "limit",
+      "label": "Limit",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "search"
+        ]
+      },
+      "key": "return_attributes",
+      "label": "Attributes to Return",
+      "placeholder": "cn, mail",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 1000,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "search"
+        ]
+      },
+      "key": "page_size",
+      "label": "Page Size",
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "sub",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "search"
+        ]
+      },
+      "key": "scope",
+      "label": "Scope",
+      "options": [
+        "sub",
+        "one",
+        "base"
+      ],
+      "required": false,
+      "type": "select"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "every operation: the entry's DN (rename: the new DN)",
+      "key": "dn",
+      "type": "string"
+    },
+    {
+      "description": "create/update/delete/rename: \"success\"; compare: true/false",
+      "key": "result",
+      "type": "any"
+    },
+    {
+      "description": "compare: the compared attribute",
+      "key": "attribute",
+      "type": "string"
+    },
+    {
+      "description": "search: one item per entry, each attribute keyed by name (string, or an array for multi-valued; non-UTF-8 values base64)",
+      "key": "<entry_attributes>",
+      "type": "any"
+    }
+  ]
+}

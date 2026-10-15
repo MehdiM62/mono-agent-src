@@ -19,8 +19,20 @@ package action
 // stale page, network, timeout, marked element not found) returns the
 // step's ORIGINAL error, wrapped as "<cause> (jev fallback: <why>)", so
 // errors.Is(err, cause) holds and onError behaves exactly as without Jev.
-// One pick per step attempt; nothing is persisted (the hint cache below is
-// in-process only).
+// One pick per step attempt.
+//
+// Persistence (through the selector observer, when it implements the
+// optional interfaces of jevrepair.go; the automation package's
+// HealthRecorder does):
+//   - the label Jev chose is saved per step (JevHintStore) and offered as
+//     the next pick's hint, also in a later process; jevHints below is the
+//     in-process cache in front of that store;
+//   - when the step resolves a package selector, the picked element's
+//     selector candidates are recorded as a repair proposal for that
+//     selector (JevRepairObserver). Consistent picks make the proposal
+//     ready; `automation doctor` offers it and `automation doctor
+//     accept-repair` applies it (auto-applied only with the opt-in
+//     automation.autoRepair config). Nothing here changes a package.
 
 import (
 	"context"
@@ -40,7 +52,8 @@ const (
 )
 
 // jevHints remembers, per platform/action/stepID, the label of the element
-// Jev last chose, and offers it as a hint on the next pick. In-process only.
+// Jev last chose, and offers it as a hint on the next pick. It caches the
+// observer's JevHintStore, which keeps the label across processes.
 var jevHints = struct {
 	sync.Mutex
 	m map[string]string
@@ -97,11 +110,9 @@ func (ae *ActionExecutor) jevResolve(step StepDef, cause error) (browser.Element
 
 	key := ae.jevHintKey(step)
 	target := jevpick.Target{Intent: intent, Kind: jevKind(step.Type)}
-	jevHints.Lock()
-	if last := jevHints.m[key]; last != "" {
+	if last := ae.jevHint(key); last != "" {
 		target.Hint = fmt.Sprintf("Last time this step matched the element labelled %q.", last)
 	}
-	jevHints.Unlock()
 
 	picked, err := jevpick.Pick(ctx, ae.jevClient, page, target, ae.jevMinP)
 	if err != nil {
@@ -117,12 +128,47 @@ func (ae *ActionExecutor) jevResolve(step StepDef, cause error) (browser.Element
 		return fail(err)
 	}
 
-	jevHints.Lock()
-	jevHints.m[key] = picked.Label
-	jevHints.Unlock()
+	ae.rememberJevHint(key, picked.Label)
+	ae.captureJevRepair(step, page, picked.Marker, picked.Label)
 	log.Info().Str("label", picked.Label).Float64("p", picked.Probability).
 		Float64("confidence", picked.Confidence).Msg("jev fallback picked element")
 	return el, nil
+}
+
+// jevHint returns the label Jev last chose for hint key: the in-process
+// cache, else the observer's hint store (cached on a hit).
+func (ae *ActionExecutor) jevHint(key string) string {
+	jevHints.Lock()
+	last, cached := jevHints.m[key]
+	jevHints.Unlock()
+	if cached {
+		return last
+	}
+	store, ok := ae.selObs.(JevHintStore)
+	if !ok {
+		return ""
+	}
+	label, found := store.LoadJevHint(key)
+	if !found || label == "" {
+		return ""
+	}
+	jevHints.Lock()
+	if _, raced := jevHints.m[key]; !raced {
+		jevHints.m[key] = label
+	}
+	jevHints.Unlock()
+	return label
+}
+
+// rememberJevHint caches label for key and saves it to the observer's hint
+// store, if any.
+func (ae *ActionExecutor) rememberJevHint(key, label string) {
+	jevHints.Lock()
+	jevHints.m[key] = label
+	jevHints.Unlock()
+	if store, ok := ae.selObs.(JevHintStore); ok {
+		store.SaveJevHint(key, label)
+	}
 }
 
 // releaseJevMarker removes the marker of the current step's pick, if any.

@@ -39,7 +39,13 @@ func renderPDFImpl(ctx context.Context, html string) ([]byte, error) {
 	// runner image rejects Chrome's own sandboxed zygote process with "No
 	// usable sandbox!" even though the same code runs fine in a dev
 	// sandbox that permits it).
-	launchURL, err := launcher.New().Headless(true).NoSandbox(true).Launch()
+	// An installed Chrome/Chromium is used when there is one; otherwise
+	// go-rod downloads its own copy (into its cache) as before.
+	l := launcher.New().Headless(true).NoSandbox(true)
+	if bin, found := launcher.LookPath(); found {
+		l = l.Bin(bin)
+	}
+	launchURL, err := l.Launch()
 	if err != nil {
 		return nil, fmt.Errorf("documents.RenderPDF: launch browser: %w", err)
 	}

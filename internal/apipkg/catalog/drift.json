@@ -1,0 +1,170 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "drift",
+  "node_type": "app.drift",
+  "title": "Drift",
+  "description": "Contacts in Drift",
+  "category": "app",
+  "docs_url": "https://devdocs.drift.com/docs",
+  "n8n_types": [
+    "n8n-nodes-base.drift"
+  ],
+  "base_url": "https://driftapi.com",
+  "credentials": [
+    {
+      "platform": "drift",
+      "name": "Drift",
+      "n8n_credential": "driftApi",
+      "n8n_credential_alt": [
+        "driftOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "OAuth access token of your Drift app"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://dev.drift.com/authorize",
+        "token_url": "https://driftapi.com/oauth2/token"
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "phone"
+          ]
+        }
+      ],
+      "body": {
+        "attributes": {
+          "email": "{{ p.email }}",
+          "name": "{{ p.additionalFields.name }}",
+          "phone": "{{ p.additionalFields.phone }}"
+        }
+      },
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getCustomAttributes",
+      "title": "Get custom contact attributes",
+      "method": "GET",
+      "path": "/contacts/attributes",
+      "output": {
+        "path": "data.properties"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "data"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PATCH",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "name",
+            "phone"
+          ]
+        }
+      ],
+      "body": {
+        "attributes": {
+          "email": "{{ p.updateFields.email }}",
+          "name": "{{ p.updateFields.name }}",
+          "phone": "{{ p.updateFields.phone }}"
+        }
+      },
+      "output": {
+        "path": "data"
+      }
+    }
+  ]
+}

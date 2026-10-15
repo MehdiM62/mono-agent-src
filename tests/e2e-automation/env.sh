@@ -34,6 +34,13 @@ done
 mkdir -p "$E2E_WORK" "$E2E_HOME/.monoagent" "$E2E_WORK/tmp" "$E2E_WORK/bin"
 export GOTMPDIR="$E2E_WORK/tmp" TMPDIR="$E2E_WORK/tmp"
 
+# The profile every scoped call acts on, and the guard that fails the run when
+# one forgets it (scripts/lib/mono.sh). Call mono_check_clean at the end.
+: "${E2E_PROFILE:=e2e}"
+export E2E_PROFILE
+# shellcheck source=../../scripts/lib/mono.sh
+. "$REPO_ROOT/scripts/lib/mono.sh"
+
 # An xdg-open that only logs: nothing here may open a page in the user's browser.
 if [ ! -x "$E2E_WORK/bin/xdg-open" ]; then
   printf '#!/bin/sh\necho "$(date -Is) xdg-open $*" >> "%s/xdg-open.log"\n' "$E2E_WORK" > "$E2E_WORK/bin/xdg-open"
@@ -42,13 +49,19 @@ fi
 
 # m runs the binary under test against the scratch HOME and private bridge.
 m() {
-  HOME="$E2E_HOME" MONOAGENT_EXTENSION_PORT="$E2E_BRIDGE_PORT" PATH="$E2E_WORK/bin:$PATH" "$E2E_BIN" "$@"
+  HOME="$E2E_HOME" MONOAGENT_EXTENSION_PORT="$E2E_BRIDGE_PORT" PATH="$E2E_WORK/bin:$PATH" mono_guard "$E2E_BIN" "$@"
 }
 
 # mt <seconds> <args…> is m with a time limit.
 mt() {
   local t="$1"; shift
-  timeout "$t" env HOME="$E2E_HOME" MONOAGENT_EXTENSION_PORT="$E2E_BRIDGE_PORT" PATH="$E2E_WORK/bin:$PATH" "$E2E_BIN" "$@"
+  mono_guard timeout "$t" env HOME="$E2E_HOME" MONOAGENT_EXTENSION_PORT="$E2E_BRIDGE_PORT" PATH="$E2E_WORK/bin:$PATH" "$E2E_BIN" "$@"
+}
+
+# ensure_profile <wrapper…> creates the named test profile in the HOME that
+# wrapper (m, ml, mr, …) runs against, unless it is already there.
+ensure_profile() {
+  "$@" --json profile get "$E2E_PROFILE" >/dev/null 2>&1 || "$@" --json profile create "$E2E_PROFILE" >/dev/null
 }
 
 # j prints a Python expression over a JSON file (d is the document).

@@ -35,6 +35,9 @@ type CaptureSummaryStatus struct {
 // GetCaptureView loads a capture document's parts, scoped to the active
 // profile like every other document read (`profile documents capture`).
 func (a *App) GetCaptureView(id string) (*CaptureView, error) {
+	if err := a.signedOut(); err != nil {
+		return nil, err
+	}
 	var v CaptureView
 	if err := a.cliJSON(profileCLITimeout, &v, "profile", "documents", "capture", id); err != nil {
 		return nil, err

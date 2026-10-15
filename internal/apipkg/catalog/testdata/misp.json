@@ -1,0 +1,718 @@
+{
+  "attribute.create": {
+    "params": {
+      "eventId": "1",
+      "type": "url",
+      "value": "https://evil.example",
+      "additionalFields": {
+        "distribution": 1
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/attributes/add/1",
+      "body": {
+        "type": "url",
+        "value": "https://evil.example",
+        "distribution": 1
+      }
+    }
+  },
+  "attribute.delete": {
+    "params": {
+      "attributeId": "2"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/attributes/delete/2"
+    }
+  },
+  "attribute.get": {
+    "params": {
+      "attributeId": "2"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/attributes/view/2"
+    }
+  },
+  "attribute.getAll": {
+    "params": {},
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/attributes"
+    }
+  },
+  "attribute.search": {
+    "params": {
+      "useJson": true,
+      "jsonOutput": "{\"value\":\"x\",\"type\":\"text\"}"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/attributes/restSearch",
+      "body": {
+        "value": "x",
+        "type": "text"
+      },
+      "items": 1
+    },
+    "response": {
+      "response": {
+        "Attribute": [
+          {
+            "id": 1
+          }
+        ]
+      }
+    }
+  },
+  "attribute.update": {
+    "params": {
+      "attributeId": "2",
+      "updateFields": {
+        "distribution": 2
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/attributes/edit/2",
+      "body": {
+        "distribution": 2
+      }
+    }
+  },
+  "event.create": {
+    "params": {
+      "org_id": "x",
+      "information": "x"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/events",
+      "body": {
+        "org_id": "x",
+        "info": "x"
+      }
+    }
+  },
+  "event.delete": {
+    "params": {
+      "eventId": "1"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/events/delete/1"
+    }
+  },
+  "event.get": {
+    "params": {
+      "eventId": "1"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/events/view/1"
+    },
+    "response": {
+      "Event": {
+        "id": "1",
+        "Attribute": [
+          1
+        ]
+      }
+    }
+  },
+  "event.getAll": {
+    "params": {},
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/events"
+    }
+  },
+  "event.publish": {
+    "params": {
+      "eventId": "1"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/events/publish/1"
+    }
+  },
+  "event.search": {
+    "params": {
+      "value": "1.2.3.4",
+      "additionalFields": {
+        "tags": "a, b",
+        "published": true
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/events/restSearch",
+      "body": {
+        "value": "1.2.3.4",
+        "tags": [
+          "a",
+          "b"
+        ],
+        "published": true
+      },
+      "items": 2
+    },
+    "response": {
+      "response": [
+        {
+          "Event": {
+            "id": "1"
+          }
+        },
+        {
+          "Event": {
+            "id": "2"
+          }
+        }
+      ]
+    }
+  },
+  "event.unpublish": {
+    "params": {
+      "eventId": "1"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/events/unpublish/1"
+    }
+  },
+  "event.update": {
+    "params": {
+      "eventId": "1",
+      "updateFields": {
+        "information": "new",
+        "analysis": 2
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/events/edit/1",
+      "body": {
+        "info": "new",
+        "analysis": 2
+      }
+    }
+  },
+  "eventTag.add": {
+    "params": {
+      "eventId": "1",
+      "tagId": "3"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/events/addTag",
+      "body": {
+        "event": "1",
+        "tag": "3"
+      }
+    }
+  },
+  "eventTag.remove": {
+    "params": {
+      "eventId": "1",
+      "tagId": "3"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/events/removeTag/1/3"
+    }
+  },
+  "feed.create": {
+    "params": {
+      "name": "x",
+      "provider": "x",
+      "url": "x"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/feeds/add",
+      "body": {
+        "name": "x",
+        "provider": "x",
+        "url": "x"
+      }
+    }
+  },
+  "feed.disable": {
+    "params": {
+      "feedId": "4"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/feeds/disable/4"
+    }
+  },
+  "feed.enable": {
+    "params": {
+      "feedId": "4"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/feeds/enable/4"
+    }
+  },
+  "feed.get": {
+    "params": {
+      "feedId": "4"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/feeds/view/4"
+    }
+  },
+  "feed.getAll": {
+    "params": {
+      "returnAll": true
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/feeds",
+      "items": 2
+    },
+    "response": [
+      {
+        "Feed": {
+          "id": 1
+        }
+      },
+      {
+        "Feed": {
+          "id": 2
+        }
+      }
+    ]
+  },
+  "feed.update": {
+    "params": {
+      "feedId": "4",
+      "updateFields": {
+        "name": "n"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/feeds/edit/4",
+      "body": {
+        "name": "n"
+      }
+    }
+  },
+  "galaxy.get": {
+    "params": {
+      "galaxyId": "5"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/galaxies/view/5"
+    }
+  },
+  "galaxy.delete": {
+    "params": {
+      "galaxyId": "5"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/galaxies/delete/5"
+    }
+  },
+  "galaxy.getAll": {
+    "params": {},
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/galaxies"
+    }
+  },
+  "noticelist.get": {
+    "params": {
+      "noticelistId": "6"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/noticelists/view/6"
+    }
+  },
+  "noticelist.getAll": {
+    "params": {},
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/noticelists"
+    }
+  },
+  "object.search": {
+    "params": {
+      "value": "v"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/objects/restSearch",
+      "body": {
+        "value": "v"
+      }
+    }
+  },
+  "organisation.create": {
+    "params": {
+      "name": "x"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/admin/organisations/add",
+      "body": {
+        "name": "x"
+      }
+    }
+  },
+  "organisation.delete": {
+    "params": {
+      "organisationId": "7"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/admin/organisations/delete/7"
+    }
+  },
+  "organisation.get": {
+    "params": {
+      "organisationId": "7"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/organisations/view/7"
+    }
+  },
+  "organisation.getAll": {
+    "params": {},
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/organisations"
+    }
+  },
+  "organisation.update": {
+    "params": {
+      "organisationId": "7",
+      "updateFields": {
+        "name": "n"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/admin/organisations/edit/7",
+      "body": {
+        "name": "n"
+      }
+    }
+  },
+  "tag.create": {
+    "params": {
+      "name": "tlp:red",
+      "additionalFields": {
+        "colour": "ff0000"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/tags/add",
+      "body": {
+        "name": "tlp:red",
+        "colour": "#ff0000"
+      }
+    }
+  },
+  "tag.delete": {
+    "params": {
+      "tagId": "3"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/tags/delete/3"
+    }
+  },
+  "tag.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/tags",
+      "items": 1
+    },
+    "response": {
+      "Tag": [
+        {
+          "id": 1
+        },
+        {
+          "id": 2
+        }
+      ]
+    }
+  },
+  "tag.update": {
+    "params": {
+      "tagId": "3",
+      "updateFields": {
+        "colour": "#00ff00"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/tags/edit/3",
+      "body": {
+        "colour": "#00ff00"
+      }
+    }
+  },
+  "user.create": {
+    "params": {
+      "email": "x",
+      "role_id": "x"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/admin/users/add",
+      "body": {
+        "email": "x",
+        "role_id": "x"
+      }
+    }
+  },
+  "user.delete": {
+    "params": {
+      "userId": "8"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/admin/users/delete/8"
+    }
+  },
+  "user.get": {
+    "params": {
+      "userId": "8"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/users/view/8"
+    }
+  },
+  "user.getAll": {
+    "params": {},
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/admin/users"
+    }
+  },
+  "user.update": {
+    "params": {
+      "userId": "8",
+      "updateFields": {
+        "name": "n"
+      }
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/admin/users/edit/8",
+      "body": {
+        "name": "n"
+      }
+    }
+  },
+  "warninglist.get": {
+    "params": {
+      "warninglistId": "9"
+    },
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/warninglists/view/9"
+    }
+  },
+  "warninglist.getAll": {
+    "params": {},
+    "credential": {
+      "api_key": "k",
+      "base_url": "https://misp.example"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/warninglists"
+    }
+  }
+}

@@ -16,13 +16,17 @@ desktop GUI (`wails-app/`).
 - All state lives in `~/.monoagent/` (SQLite + JSON workflow files). Every
   command works from any directory — there is no per-project setup. One
   exception: `monoagentcli init` also copies skill files into
-  `~/.claude/skills/` when `~/.claude` exists (a local file copy; no
+  `~/.claude/skills/` when `~/.claude` exists, and into `~/.codex/skills/`,
+  `~/.gemini/skills/` and `~/.config/opencode/skills/` (opencode only
+  without `~/.claude`) when those folders exist (a local file copy; no
   network).
-- No analytics or usage counters. The account gate is dormant (see below). What
-  can leave the machine (see [SECURITY.md](SECURITY.md) for the full
-  statement): the API calls your workflows make, commands you explicitly
-  invoke that talk to an external service (e.g. `login`, `update`,
-  `library`), and
+- A monoes.me sign-in is required since 2026-10-11 UTC (see
+  [monoes.me account](#monoesme-account)). Your data stays on your machine, and there are no analytics or usage
+  counters. What can leave the machine (see [SECURITY.md](SECURITY.md) for the
+  full statement): the monoes.me sign-in and its refresh (the account, the time
+  and the IP address; with `--email`, the address you type), update checks, the
+  API calls your workflows make, commands you explicitly invoke that talk to an
+  external service (e.g. `login`, `library`), and
   opt-in crash reporting. Crash reports are written to local files under
   `~/.monoagent/crashes/` by default and are only filed to GitHub when
   `MONOAGENT_CRASH_REPORT=1` is set **and** the `monomind` CLI is on PATH.
@@ -37,7 +41,7 @@ desktop GUI (`wails-app/`).
   browser automation packages (gemini, hackernews, instagram, linkedin,
   producthunt, tiktok, x). Their node types exist once the package is
   installed: `monoagentcli library login`, then
-  `monoagentcli library install automation <id>` (see
+  `monoagentcli --profile work library install automation <id>` (see
   [monoes.me library](#monoesme-library)). Packages an older release
   installed keep working. The compiled bots they call stay in the binary.
 
@@ -61,21 +65,21 @@ monoagentcli --help         # command list; the root help includes an agents not
 | `ref templates` | The bundled ready-to-run workflow templates |
 | `ref connections` | Profiles, OAuth, credential resolution — **read before touching `--profile` or credentials** |
 | `ref crawling` | Automating sites with no built-in node type |
-| `ref account` | Machine sign-in, dormant/future gate behavior, headless and Docker |
+| `ref account` | The monoes.me account — commands, states and reasons, what stays open, headless and Docker |
 | `ref api` | HTTP API surface (`monoagentcli httpapi`) — endpoints, auth, redaction, status-code mapping, and the OpenAI-compatible `/v1` API |
 | `ref tasks` | The profile's task board — columns, who may do what, the agent loop, JSON documents and error codes |
-| `ref account` | The monoes.me account — optional today, how to sign in, headless and Docker |
+| `ref browser` | Driving the user's browser from an agent — commands and their JSON, the origin policy, form submits that wait for approval |
 
 Prefer `ref` over guessing from `--help` alone.
 
 ## Health check
 
 ```bash
-monoagentcli doctor                 # check everything monoagent needs; exit 1 = a required check failed
-monoagentcli doctor --json          # stable report (schema "v":1): results[] with id/group/status/summary/fix
-monoagentcli doctor --fix [--yes]   # apply fixes (auto ones directly, confirm ones after asking / with --yes)
-monoagentcli doctor fix <fix-id> --json   # one fix, progress as NDJSON {"kind":"line"|"done"|"error"}
-monoagentcli setup [--yes] [--runtime claude] [--autostart] [--mcp] [--deps]  # guided: fix everything, offer extras, report
+monoagentcli --profile work doctor                 # check everything monoagent needs; exit 1 = a required check failed
+monoagentcli --profile work doctor --json          # stable report (schema "v":1): results[] with id/group/status/summary/fix
+monoagentcli --profile work doctor --fix [--yes]   # apply fixes (auto ones directly, confirm ones after asking / with --yes)
+monoagentcli --profile work doctor fix <fix-id> --json   # one fix, progress as NDJSON {"kind":"line"|"done"|"error"}
+monoagentcli --profile work setup [--yes] [--runtime claude] [--autostart] [--mcp] [--deps]  # guided: fix everything, offer extras, report
 ```
 
 When a bridge version differs from the CLI, `doctor` offers
@@ -84,15 +88,18 @@ matches the bridge. The fix restarts that service and verifies the new
 bridge version; if the service still uses an older binary, update that
 binary too. Daemon-owned bridges retain `browser.bridge.restart`.
 
-Groups: `core` (data folder, database, profile, vault, PATH, disk), `monomind`
+Groups: `core` (data folder, database, profile, vault, PATH, disk, the monoes.me
+sign-in as `core.monoes_account` — ok; warn in the grace window; fail when locked; fix `account login`, or `update` for `key_unknown`), `monomind`
 (Node.js, monomind install/version/features, profile `monomind init`) and
 `runtimes` (one row per AI agent runtime), `browser` (browser, extension,
 bridge, pairing), `automations` (installed packages that are unavailable,
 and broken or decaying selectors — each with its `automation rerecord` fix;
 read-only, never installs packages; with none installed it points at
-`library install`), `services` (daemon, start at login) and `integrations`
+`library install`), `services` (daemon, start at login; the daemon row warns when
+the running daemon's version differs from the binary's, manual fix
+`services.daemon.restart`: `daemon restart`) and `integrations`
 (Claude Code skills, MCP registration, TypeSafe Jev key; `jev.api` runs
-on demand with `--deep`), `accounts` (platform login expiry;
+on demand with `--deep`), `accounts` (third-party platform login expiry, not the monoes.me sign-in;
 with `--deep` also live tests of saved connections — a failing OAuth
 connection with a refresh token gets a silent refresh fix when the service refused its credentials (401/403) or the token
 has expired, and a refresh that asks first for other failures). With a monomind that has `doctor-json`, the `monomind` group also lists
@@ -132,7 +139,9 @@ own PATH stays in `$MONOAGENT_USER_PATH` (`nodemgr.UserEnv`/`LookPathUser`).
 Older top-level commands include `message`, `comment`, `search`, `list`,
 `template`, `crawl`, `people`, `login`, `logout`, `connect`, `config`,
 `export`, `status`, `init`, `run`, `action`, and `schedule`. They are
-oriented toward the social platforms and the CRM features. The
+oriented toward the social platforms and the CRM features. `login` and `logout`
+there capture social-platform sessions; they have nothing to do with the monoes.me
+account (`account login`). The
 social-oriented ones (`message`, `comment`, `search`, `list`, `template`)
 appear in `--help` in the default build; a `-tags nosocial` build hides them
 (they still work when invoked directly).
@@ -141,33 +150,45 @@ General automation lives under `workflow` and `node`; prefer those.
 ## Machine-readable output
 
 The global `--json` flag works on most commands. Place it before the
-subcommand: `monoagentcli --json workflow search`.
+subcommand: `monoagentcli --profile work --json workflow search`.
 
 ```bash
 # What can this already do? Returns ready-to-run commands per hit.
-monoagentcli --json workflow search <query>
+monoagentcli --profile work --json workflow search <query>
 
-# JSON schema for a node type (exit 2 on unknown type).
+# JSON schema for a node type (exit 2 on unknown type): config fields and,
+# for most nodes, `outputs` (the keys its items carry; "*" = input passed
+# through, "<name>" = a key named by a config field or an open key set).
 monoagentcli node schema <type>
 
-# Validate a workflow without running it (exit 3 on invalid).
-monoagentcli workflow validate <id>
-monoagentcli workflow validate --file <workflow.json>
+# Validate a workflow without running it (exit 3 on invalid). --json adds
+# issues[]: {node_id, field, code, severity, message, hint}; codes
+# invalid_workflow, unknown_node_type, missing_required, invalid_option,
+# dangling_node_ref, bad_expression (errors) and unknown_field,
+# unknown_upstream_field, needs_setup (warnings: e.g. no account chosen yet).
+monoagentcli --profile work workflow validate <id>
+monoagentcli --profile work workflow validate --file <workflow.json>
+
+# Draft a workflow from a description: an agent turn writes it, validate's
+# errors go back to it until it passes, and it is saved inactive.
+monoagentcli --profile work workflow generate "<description>" [--runtime <rt>|auto] [--no-save] [--json]
 
 # Run controls:
-monoagentcli workflow run <id> --dry-run    # validate + print execution plan, no run
-monoagentcli workflow run <id> --no-wait    # print execution id, exit 0
-monoagentcli workflow run <id> --timeout 30m
-monoagentcli --json workflow run <id>       # execution record + per-node output items
+monoagentcli --profile work workflow run <id> --dry-run    # validate + print execution plan, no run
+monoagentcli --profile work workflow run <id> --no-wait    # print execution id, exit 0
+monoagentcli --profile work workflow run <id> --timeout 30m
+monoagentcli --profile work --json workflow run <id>       # execution record + per-node output items
 ```
 
 Typical agent loop: `workflow search --json` → inspect template with
 `workflow templates show <id>` → `workflow run --dry-run` → real run with
-`--json` → read per-node outputs.
+`--json` → read per-node outputs. To build one: `node schema` → write the
+JSON → `workflow validate --json` → `node run` single nodes → `workflow save`
+→ dry-run → run (the `monoagent-build` skill walks through it).
 
 ### At a glance: `summary`
 
-`monoagentcli --json summary [--section workflows,executions,…]` is one
+`monoagentcli --profile work --json summary [--section workflows,executions,…]` is one
 read-only call that returns counts for:
 
 - workflows
@@ -188,8 +209,8 @@ read-only call that returns counts for:
 It is local-only: it never calls Jev, monomind or the network (apart from a
 loopback probe of the extension bridge), so it is safe to poll. The desktop
 dashboard polls it. A failing section reports `"error"` inside itself, and the
-command still exits 0. For orgs, use `monoagentcli org summary [--fast]`. For
-the full run list, use `monoagentcli --json workflow executions --all --limit N`.
+command still exits 0. For orgs, use `monoagentcli --profile work org summary [--fast]`. For
+the full run list, use `monoagentcli --profile work --json workflow executions --all --limit N`.
 
 > **Importing a workflow is equivalent to executing code.** Workflows can
 > run shell commands (`system.execute_command`), inline JavaScript
@@ -199,6 +220,19 @@ the full run list, use `monoagentcli --json workflow executions --all --limit N`
 ### Updating
 
 - `monoagentcli update` replaces this binary with the latest release.
+- After a successful `update` or `update --app`, a daemon registered for auto-start
+  that runs a different version is restarted through the service manager, in the
+  update's own process (the new binary's gated `daemon restart` could refuse); an
+  update that finds the binary already current does the same. Nothing is restarted
+  while a workflow execution is in flight: an update never interrupts a run.
+  `update --app --json` carries an optional `daemon` object (`action`: `restarted`,
+  `busy`, `settings`, `unknown`, `not_registered`, `not_managed` or `failed`;
+  `running_version`, `in_flight`, `via`, `message`), and the message is also one
+  progress line. When it does not restart, it says why and leaves that to
+  `daemon restart`, and the `services.daemon` row of `doctor` warns about the
+  version mismatch until then. The first update to a release that restarts daemons
+  is made by the previous binary, which cannot restart anything: the same row flags
+  the old daemon until the next `update`, a restart or a reboot.
 - `update --check [--current <v>]` only reports whether a newer release exists.
 - `update --app <exe> [--current <v>]` updates the desktop app at that path. On Linux it also updates the `monoagentcli` bundled next to the app.
 - Every download must match the release's signed `manifest.json` (Ed25519 signature by a key pinned in `internal/release/keys.go`, then the asset's size and SHA-256), or nothing is installed. While no key is pinned and `release.AllowLegacyGitHubUpdates` is true, the GitHub release's `SHA256SUMS.txt` is used instead; a manifest that fails a check never falls back. Older releases are refused unless `update --force`. Maintainers: `release keygen` stores the private key in the OS keychain and prints the line to pin; `release verify <manifest> <sig> [--pubkey]` checks a signature.
@@ -216,11 +250,14 @@ The desktop app does everything through these commands; they are equally usable 
   - `people status set|get|history`
   - `people messages list|all [--unread]|add|compose|drafts|send-draft|reject-draft|read|unread`
 - **Social lists:** `list ls`.
-- **Image vault:** `image list|search|get|data|add|label|delete|stats|export`, scoped to the active profile. `image data` returns a data URL. `image sync` scans the profile folder and reconciles discovered images. `image delete` keeps files that live in the profile folder and hides them from later syncs; `image unignore <path>` or `image add <path>` brings one back.
+- **Image vault:** `image list|search|get|data|add|label|delete|stats|export`, scoped to the profile named by `--profile`. `image data` returns a data URL. `image sync` scans the profile folder and reconciles discovered images. `image delete` keeps files that live in the profile folder and hides them from later syncs; `image unignore <path>` or `image add <path>` brings one back.
 - **Workflows:**
   - `workflow save` creates or replaces a workflow from the editor's document on stdin.
-  - `workflow execution <id>` shows run detail with redacted items.
+  - `workflow execution <id>` shows run detail with redacted items; a WAITING run
+    lists its resume or reply URLs (`waiting_for` in --json).
   - `workflow cancel <execution-id>` stops the recorded process (never the daemon), marks the run cancelled and rejects its pending HIL items. It leaves a finished run alone.
+  - `workflow retry <execution-id> [--json] [--timeout]` runs a finished execution again with its trigger data (a new execution, current workflow version) and waits like `workflow run`. A queued, running or waiting execution, or one an org started, is refused (exit 3).
+  - `workflow evaluate <id> [--dataset <table>] [--timeout] [--json]` runs an n8n-style evaluation: one execution per row of the dataset its `trigger.evaluation` node names (a data table or a Google Sheet), where `core.evaluation` nodes record each case's inputs, outputs (written back into the row) and metrics; the run keeps each metric's mean. A run that cannot start (no evaluation trigger, no setMetrics node, no rows) is stored with its error code and exits 1. `workflow evaluations <id> [--run <run-id>]` lists past runs or shows one with its cases. A manual run never fires `trigger.evaluation`.
   - `workflow delete <id> --yes` refuses a workflow that an org uses; `--force` also revokes its grants.
   - `workflow get`, `workflow export` and `workflow delete` are profile-scoped.
 - **Sessions and connections:**
@@ -236,12 +273,12 @@ The desktop app does everything through these commands; they are equally usable 
   - `profile documents list|get|capture|index|rm`, and `profile documents sync`, which scans the profile folder and reconciles documents
   - Browser captures saved into a profile are indexed automatically by the extension bridge (the daemon's or `extension serve`) within seconds, into that profile's own monomind store (scope `profile:<id>`), and the row records Indexed or the error. `profile documents index --all [--all-profiles]` is the backfill: every capture that is not indexed, has changed, or failed before. "Ask your brain" in the extension and chat knowledge search read the same store, so a capture is searchable only from its own profile.
 - **Chat:**
-  - `chat history list|show|create|turns|turn|events|delete|finish|reconcile`, scoped to the active profile (`reconcile` sweeps every profile).
+  - `chat history list|show|create|turns|turn|events|delete|finish|reconcile`, scoped to the profile named by `--profile` (`reconcile` sweeps every profile).
   - `chat history create --runtime R [--model M] [--workflow W] [--mode coder --cwd DIR|--coder-root|--new-workspace]` makes a conversation (coder mode: see "Coder mode" below), `chat history turns <conv> [--cursor] [--limit]` pages its turns, and `chat history events <conv> <turn> [--after-seq N] [--limit N]` returns the events with the turn's status.
   - `chat --conversation <conv> --turn <id> [--instance <app-id>] [--tools monoagent[,runs]] -- <message>` runs one turn and journals it itself. It takes the runtime, model and session from the conversation. Stdout is an admission line, then each committed event as NDJSON. A repeated turn id never runs twice. `--prompt-stdin` (instead of `-- <message>`) reads the prompt from stdin. `--tools monoagent:read` is a mode of its own, never combined with `runs`, `--canvas` or other members: only `list_workflows`, `get_workflow`, `list_node_types`, no Bash, and the turn counts as carrying untrusted web-page text. It is the only mode the browser extension's side-panel chat (`chat.send`, `chat.stop`, `chat.events` over the extension bridge) starts, with the message on stdin; see SECURITY.md, "The extension's side-panel chat".
   - `chat history delete` refuses a conversation with an active turn (exit 3). `chat history finish <conv> <turn> --status S` records the end of a turn whose process was killed; it does nothing if the turn already finished. `chat history reconcile --except-owner <app-id>` marks turns left active as interrupted, at app startup.
   - `chat history transcript <history-id>` reads the legacy transcript that plain `chat --history-id` still writes.
-- **monoes.me library:** `library status [--offline]|login|logout|list|show|install|publish|update|installed` (see [monoes.me library](#monoesme-library)). All reads need a login: without one they exit 4 with `"login_required": true`. `library login` streams `{"kind":"url","url"}` on stderr with `--json` and waits for the browser; the app kills it to cancel.
+- **monoes.me library:** `library status [--offline]|login|logout|list|show|install|publish|update|installed` (see [monoes.me library](#monoesme-library)). All reads need the monoes.me sign-in: without one they exit 4 with `"login_required": true`. `library login|logout|status` are aliases of `account login|logout|status`. `library login` streams `{"kind":"url","url"}` on stderr with `--json` and waits for the browser; the app kills it to cancel.
 - **Updates:** `update --check [--current <version>]` reports a newer release without downloading; `update --app <exe>` updates the desktop app, verified against SHA256SUMS.
 - **Editor and orgs:** `node palette` gives the editor's node catalog. `org reconcile-doc <name>` returns the reconciled org document from stdin without saving it.
 - **Org bubbles (chat with a running org's boss):**
@@ -254,17 +291,17 @@ The desktop app does everything through these commands; they are equally usable 
 
 ## Publication history
 
-Publication is the active profile's local history of successful posts, comments,
+Publication is a profile's local history of successful posts, comments,
 replies, articles, videos, and shared channel publications. Built-in publishing
 nodes register automatically from workflows and direct node runs, including
 agent-granted workflow execution. Private mail/DMs stay in Communications.
 
 ```bash
 monoagentcli ref publication
-monoagentcli --json publication list --platform reddit --kind comment
-monoagentcli --json publication get <id>
-monoagentcli --json publication stats
-monoagentcli --json publication register --stdin-json < publication.json
+monoagentcli --profile work --json publication list --platform reddit --kind comment
+monoagentcli --profile work --json publication get <id>
+monoagentcli --profile work --json publication stats
+monoagentcli --profile work --json publication register --stdin-json < publication.json
 ```
 
 **Agents publishing through external tools must register each success.** Include
@@ -280,63 +317,119 @@ history starts with feature installation, with no automatic historical fetch.
 
 ## monoes.me account
 
-One monoes.me sign-in per machine, shared by every profile. `account` and the
-`library login|logout|status` aliases manage it:
+A monoes.me sign-in is required since 2026-10-11 (UTC): the CLI, the
+daemon, the desktop app, the HTTP and `/v1` APIs, the MCP server and the extension
+bridge refuse to work without a signed-in account. The date is `enforce_from` in
+`account status`. `monoagentcli ref account` is this section, offline and always
+current, once signed in.
 
 ```bash
-monoagentcli account login                   # browser sign-in (OAuth 2.1 + PKCE, loopback redirect on 127.0.0.1)
-monoagentcli account login --email you@x.com # headless: emails a code, then asks for it (--send / --code split the steps; --no-browser prints the URL; --timeout)
-monoagentcli account status [--offline] [--json]
-monoagentcli account logout                  # revoke and forget this machine's session
+monoagentcli account login                       # browser sign-in (OAuth 2.1 + PKCE, loopback redirect on 127.0.0.1)
+monoagentcli account login --email you@x.com     # headless: emails a code, then asks for it (--send / --code-stdin / --code split the steps; --no-browser prints the URL; --timeout)
+monoagentcli account status [--offline] [--json] # refreshes first if due, unless --offline; exit 0 for ok and grace, 4 for locked
+monoagentcli account logout                      # revokes the refresh token (best effort), deletes the local sign-in
 ```
 
-- **States.** `account status` reports `ok`, `grace` (monoes.me could not be
-  reached or answered with trouble, so the last signed token is still good,
-  at most 24 hours after it was issued) or `locked`, with a `reason`
-  (`not_logged_in`, `expired`, `refused`, `clock_rollback`, `clock_skew`,
-  `key_unknown`, `invalid`, and in grace `unreachable`, `server_error`,
-  `keyring_unavailable`, `unconfirmed`). Exit 0 for `ok` and `grace`, 4 for
-  `locked`. `--json` adds `enforce_from` and `enforced`.
-- **Dormant today.** The enforcement date is unset, so `enforced` is always
-  `false`: nothing is locked, no command warns, and nothing contacts
-  monoes.me implicitly (only an explicit `account` or `library` command
-  does). The gate code (session verification, the clock guard, the engine,
-  runner and door checks) exists and is exercised by tests, but is switched
-  off. Do not document or rely on a date until one is set in
-  `internal/account/rollout.go`.
-- **Future enabled gate.** Before its enforcement date gated commands warn;
-  from that date a locked command exits 4 with `login_required`. A signed token
-  permits at most 24 hours offline from its issue time. Open commands are
-  `version`, `help`, `completion` (including `__complete` and `__completeNoDesc`),
-  `ref`, `update`, `doctor` (including `doctor fix`), `setup`, all `account`
-  commands and `library login|logout|status`. Serving commands (`daemon`,
-  `httpapi`, `mcp` including `--grant`, `extension serve` / `bridge serve`)
-  start even while locked and refuse work; `daemon install|restart|uninstall`
-  and `org serve` remain gated. Branch on exit 4 and `login_required`, and ask
-  the user to run `account login`; never look for or paste tokens. See
-  `ref account` for states, reasons and door responses. Production signing
-  keys are not pinned yet; production machine-session verification awaits
-  the server/key rollout.
-- **Headless and Docker.** Run `account login --email` as the daemon's OS user.
-  Containers need `MONOAGENT_ALLOW_FILE_KEYRING=1` and a private passphrase file
-  named by `MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE` (or
-  `~/.monoagent/keyring-passphrase`) before sign-in. The daemon has no terminal;
-  without that source an enabled gate shows `grace` / `keyring_unavailable`
-  then locks at token expiry. `secret keyring set-passphrase` is itself gated.
-  README's Docker section has the commands. Keep the sign-in in the volume,
-  never an image, never copied or restored from an old backup: a stale refresh
-  token can revoke the original sign-in and its copies. Sign in separately
-  per machine. Docker's `version` health check only tests liveness.
-- **Storage.** `~/.monoagent/account/` holds `session.json` (the signed access
-  token and display data), `refresh.enc` (the refresh token, sealed under the
-  OS key store; see `MONOAGENT_ALLOW_FILE_KEYRING` for machines without one)
-  and `session.lock`. It is per OS user, not per profile, and nothing is
-  written to it until a sign-in. A session is tied to the machine: do not copy
-  `~/.monoagent/account` to another machine.
-- **Host.** Always `https://monoes.me` in a default build, which honors
-  `MONOES_BASE_URL` nowhere for the sign-in (`library login` against another
-  host refuses). A local monoes.me dev server needs a binary built with
-  `-tags devaccount` (see CONTRIBUTING.md); never ship one.
+`library login|logout|status` are aliases. One session per OS user, shared by every
+profile, in `~/.monoagent/account/`. No credential comes from an environment variable
+and there are no unattended machine tokens. An agent that gets exit 4 with
+`login_required` asks the user to run `monoagentcli account login`; it never looks
+for, pastes or sets a token. `account status --json` prints
+`{"v":1,"state","reason","user","plan","issued_at","valid_until","grace_until","enforce_from","enforced"}`;
+`valid_until` is the access token's expiry (about an hour), `grace_until` its issue
+time plus 24 hours.
+
+**Sign in once per machine; never copy or restore `~/.monoagent/account/` between
+machines or from an old backup, and never bake a sign-in into a Docker image.**
+monoes.me rotates the refresh token at every refresh and treats one that was already
+used as stolen: it ends that sign-in. A copy shares the sign-in of the machine it came
+from, so a stale copy, once presented, signs out the original and every copy, and each
+of them then has to sign in again; machines that signed in on their own keep working.
+Signing out of the monoes.me website does not sign out an install.
+
+| `state` | Meaning | `reason` |
+|---|---|---|
+| `ok` | verified and not expired | empty |
+| `grace` | verified and expired, within 24 hours of its issue time: work continues | why it was not refreshed: `unreachable`, `server_error`, `keyring_unavailable`, `unconfirmed` (a refresh whose answer never arrived: this machine stopped using its saved sign-in) |
+| `locked` | work is refused | `not_logged_in`, `expired` (24 hours without a refresh), `refused` (monoes.me answered `invalid_grant`: the account is blocked, the sign-in was revoked, or an already-used refresh token was presented, as from a copied session). On any lock the daemon cancels the work in flight, `clock_rollback`, `clock_skew`, `key_unknown` (run `update`), `unconfirmed` (the grace of an unconfirmed machine is over: sign in again on it), `invalid` |
+
+Only an `invalid_grant` answer to a refresh is a refusal; every other failure counts
+as unreachable, so the 24-hour grace applies. A refresh whose outcome is unknown (the
+request went out and the answer never came, was cut short or was a server error, as when
+the process is killed mid-refresh) is retried at once for 240 seconds; after that this
+machine deletes its refresh token instead of presenting it again, and says `unconfirmed`.
+The account and the other machines are not affected, and one `account login` on this
+machine ends it. A blocked account is locked at the next refresh, within about an hour.
+
+**Enforcement.** The gate is live: `enforce_from` is `2026-10-11T00:00:00Z` and
+`enforced` is `true` from then on, in every release build. The production signing key
+is pinned in the binary, so a production machine session is verified locally. A gated
+command without a valid sign-in is refused (exit 4, `login_required`).
+
+**What is open** (never needs a sign-in) is the way in and nothing else: the `account`
+commands, `library login`, `library logout` and `library status`, `help` (and `--help` on
+any command; `monoagentcli` alone prints the help, which says to sign in first),
+`version`, and `update`, so that a broken install can be fixed. Every other command is
+gated: `ref`, `doctor` (with `doctor fix`), `setup`, `release`, `completion` and
+`__complete` (shell Tab completion) included, and local-only ones (`people`, `secret`,
+`image`, `profile`, `config`) too.
+
+**Serving commands** start even when locked and refuse their work instead, so a service manager or a container never respawns them in a
+loop: `daemon`, `httpapi`, `mcp` (including `--grant`) and `extension serve` (also `bridge serve`).
+While locked they run nothing: no schedule, webhook, queue, stream or file trigger is armed, the
+org services, the run memory, the capture indexing and the housekeeping loops wait, and a
+`--grant` MCP server lists no tools.
+`daemon install`, `daemon restart`, `daemon uninstall` and `org serve` are gated.
+
+**A refusal** does nothing else (no first-run writes, no database open) and exits 4.
+The first line on stderr is `Log in to monoes.me first: monoagentcli account login`;
+with `--json` anywhere in the arguments stdout also gets
+`{"error":"…","code":"auth_or_connection","login_required":true,"account":{"state","reason"}}`.
+In grace the command runs and prints one stderr line, `monoes.me is unreachable; this
+login works offline until <time>`. Branch on exit 4 and `login_required`, not on the
+text. A running process checks again, and a serving command started while locked
+answers the same way: the HTTP API and `/v1` answer 401 `login_required` (`GET
+/health` stays open and reports the account state), the webhook server 503, the
+extension bridge `account_locked`, MCP a tool error. A refused workflow run is
+recorded FAILED with an error starting `login_required:`; paused and queued runs
+wait. A locked daemon stays up, logs the command to run, starts nothing new, stops
+its org services and resumes by itself when a sign-in appears.
+
+### Headless and Docker
+
+Sign in once with `account login --email`; the sign-in lives in
+`~/.monoagent/account/` of the OS user that runs the daemon (another user's daemon
+does not see it; in Docker the image's `HOME=/data` puts it on the volume). The
+refresh token is sealed under the vault's key store: the OS keychain or, where
+there is none (a container, a server), the file keyring, enabled with
+`MONOAGENT_ALLOW_FILE_KEYRING=1`. Its passphrase comes from
+`MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE`, `~/.monoagent/keyring-passphrase`, stdin or
+the terminal, in that order (see [Secrets](#secrets)). A daemon has no terminal, so it
+needs the passphrase in a file; without one it cannot read the refresh token back,
+`account status` shows `grace` with the reason `keyring_unavailable`, and the daemon
+stops doing work 24 hours after its last refresh. Make the file **before** the first
+sign-in, because `secret keyring set-passphrase` is a gated command:
+
+```bash
+# Docker: docker-compose.yml sets both variables; the passphrase file is /data/.monoagent/keyring-passphrase
+docker compose up -d --build
+docker compose exec -T monoagent sh -c 'umask 077; mkdir -p /data/.monoagent; cat > /data/.monoagent/keyring-passphrase' < /path/to/private-passphrase-file
+docker compose exec monoagent monoagentcli account login --email you@example.com
+docker compose exec monoagent monoagentcli account status --offline --json
+# A server: make the passphrase file as in SECURITY.md ("File-based keyring fallback"), then
+MONOAGENT_ALLOW_FILE_KEYRING=1 MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE=~/.config/monoagent-keyring-pass monoagentcli account login --email you@example.com
+```
+
+The daemon is a serving command: started with no sign-in it stays up, logs the command
+to run and refuses work, so `docker compose up` before
+signing in is safe; sign in afterwards and it resumes within seconds. A healthy
+container is not a signed-in one (the image's health check runs `version`, which is
+always open): `docker exec monoagent monoagentcli account status --offline`; `doctor`
+has a row for it (`core.monoes_account`, fix `account login`).
+
+Keep the sign-in in the volume only: never bake one into an image or restore a copy of
+another machine's (the warning above). In a file keyring, `secret keyring status` lists
+the account's key as `monoes..account` once an explicit `account login` has created it.
 
 ## monoes.me library
 
@@ -352,18 +445,18 @@ included: monoes.me answers 401 to anonymous reads.
 monoagentcli library login                        # browser sign-in (OAuth 2.1 + PKCE, loopback redirect on 127.0.0.1)
 monoagentcli library login --email you@x.com      # headless: emails a code, then asks for it (--send / --code split the steps)
 monoagentcli library status [--offline]           # logged in? as whom
-monoagentcli library list --kind automation       # official + public; --scope official|mine, --search, --tag, --page, --per-page
-monoagentcli library show automation/instagram    # one item (id or <kind>/<slug>)
-monoagentcli library install automation instagram # download, verify sha256, install
-monoagentcli library install org research-team --rename research-2
-monoagentcli library publish workflow <id> [--public] [--name --description --tags --version]
-monoagentcli library update [<id>] [--dry-run]    # newer versions of what came from the library
-monoagentcli library installed                    # what this profile installed from it
-monoagentcli library logout
+monoagentcli --profile work library list --kind automation       # official + public; --scope official|mine, --search, --tag, --page, --per-page
+monoagentcli --profile work library show automation/instagram    # one item (id or <kind>/<slug>)
+monoagentcli --profile work library install automation instagram # download, verify sha256, install
+monoagentcli --profile work library install org research-team --rename research-2
+monoagentcli --profile work library publish workflow <id> [--public] [--name --description --tags --version]
+monoagentcli --profile work library update [<id>] [--dry-run]    # newer versions of what came from the library
+monoagentcli --profile work library installed                    # what this profile installed from it
+monoagentcli --profile work library logout
 ```
 
 - Login required: `list`, `show`, `install`, `update` and `publish`
-  without a login exit 4 with `Log in to monoes.me first: monoagentcli
+  without a sign-in exit 4 with `Log in to monoes.me first: monoagentcli
   library login` before any network call (`--json`: `{"error", "code":
   "auth_or_connection", "login_required": true}`). A 401 on a call
   refreshes the token once and retries; a 401 after that gives the same
@@ -386,10 +479,10 @@ monoagentcli library logout
     live-run confirmation, bare-name vault fallback); everything else is
     `imported`. Replacing a more trusted or your own package needs
     `--replace` (or `--yes`).
-  - **workflow** → `workflow import` into the active profile (bundled
+  - **workflow** → `workflow import` into the profile named by `--profile` (bundled
     automations install with `--yes`); reinstalling replaces the earlier
     import in place. `missing_automations` lists packages it needs.
-  - **org** → the active profile's org folder, stopped. A name in use
+  - **org** → the profile's org folder, stopped. A name in use
     needs `--rename <name>` or `--yes` (replace).
 - Provenance (`{source:"monoes", item_id, version, sha256}`) is recorded in
   the automation index and in `~/.monoagent/library/installed.json`
@@ -412,21 +505,37 @@ monoagentcli library logout
 ## MCP server
 
 ```bash
-monoagentcli mcp                     # stdio JSON-RPC MCP server, read-only tools only
-monoagentcli mcp --allow-mutations   # also serve mutating tools
-monoagentcli mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
-monoagentcli mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
+monoagentcli --profile work mcp                     # stdio JSON-RPC MCP server, read-only tools only
+monoagentcli --profile work mcp --allow-mutations   # also serve mutating tools
+monoagentcli --profile work mcp --allow-mutations --allow-api-exposure   # also let api_config_set widen what the API's server exposes, and api_auto_set switch the auto model on
+monoagentcli --profile work mcp --api-only --allow-mutations --allow-api-exposure   # the same, serving the OpenAI-compatible API's tools (api_*) and no other
 monoagentcli --profile work mcp --tasks-only --allow-mutations   # the user's task board's tools (task_*) and no other, for one profile
+monoagentcli --profile work mcp --allow-mutations --workflow-tools   # also each saved workflow as a tool wf_<slug>
+monoagentcli --profile work mcp --allow-mutations --workflow-tools="Daily digest,wf-123"   # only those workflows (id or name)
 ```
 
 Register it with any MCP client (stdio transport). Prefer MCP when the
-host supports it; the CLI covers the same surface. Tools carry
+host supports it; the CLI covers the same surface. `doctor fix
+integrations.mcp_monoagent.register` (or `setup --mcp`) registers it as
+`monoagent` running `monoagentcli mcp --allow-mutations` with every installed
+runtime: Claude Code (`claude mcp add --scope user`), Codex (`codex mcp add`),
+Gemini CLI (`mcpServers` in `~/.gemini/settings.json`) and opencode (`mcp` in
+`~/.config/opencode/opencode.json`; both JSON edits keep a `.bak`). A
+registration without `--allow-mutations` is reported as outdated and the fix
+replaces it. Tools carry
 `readOnly`/`destructive` annotations where applicable, so hosts can gate
 dangerous calls.
 
 **Read-only, always exposed:**
 
-- `workflow_list`, `workflow_get`, `workflow_validate`, `workflow_status`
+- `workflow_list`, `workflow_get`, `workflow_validate` (the report of
+  `workflow validate --json`, with `issues[]`), `workflow_status`
+- `workflow_search` (templates and saved workflows by id, name, description or
+  node type), `workflow_inputs` (the trigger fields a workflow reads, with an
+  input skeleton for `workflow_run`), `workflow_executions` (recent runs of one
+  workflow or all), `workflow_template_list`, `workflow_template_show` (bundled
+  workflow templates; `template_list` below is message templates)
+- `doctor` (this binary's `doctor --json`; never applies a fix)
 - `node_list` (optional `category` filter — see the tool's own
   description for values), `node_schema`
 - `hil_list`
@@ -438,7 +547,7 @@ dangerous calls.
   provenance fence)
 - `social_list_list`, `template_list`
 - `org_list`, `org_get`, `org_validate`
-- `api_key_list` (the active profile's API keys for the
+- `api_key_list` (the server profile's API keys for the
   [OpenAI-compatible API](#openai-compatible-api-v1): metadata only, never a
   key), `api_models_list` (the document of `api models --json`: the models
   `/v1` would serve with each one's confinement class and capabilities, `image`
@@ -487,6 +596,27 @@ existing MCP client config that relies on them.
 
 - `workflow_run`, `workflow_create`, `workflow_delete`,
   `workflow_set_active`, `workflow_node_add`
+- authoring, each the same steps as its command: `workflow_connect` /
+  `workflow_disconnect` (`workflow connect|disconnect`), `workflow_node_update`
+  (config replace, or `merge: true`) / `workflow_node_delete` (`workflow node
+  set|remove`), `workflow_save` (create or replace a whole workflow document,
+  `workflow save`), `workflow_template_instantiate` (a new inactive workflow
+  from a template, `workflow templates use`)
+- `node_run` (one node with config and input, as `node run`; an outbound send
+  an agent starts is still queued for approval)
+- `workflow_generate`, the MCP side of `monoagentcli workflow generate
+  "<description>" [--runtime auto|claude|codex|...] [--model M] [--name N]
+  [--max-attempts N] [--no-save]`: a local AI agent (monomind) writes the
+  workflow, its validation problems go back to it until it passes or the
+  attempts run out (default 3, max 10), and it is saved as an INACTIVE draft
+  (`save: false` / `--no-save` returns the JSON only)
+- with `--workflow-tools` (or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`, or a list), one
+  tool `wf_<slug>` per saved workflow of the profile (a-z, 0-9 and `_`, at most
+  64 characters; a name clash gets a short id suffix), or per listed id or
+  name. Its arguments are the workflow's trigger input (what `workflow inputs`
+  lists) plus `_timeout_seconds`; a call runs the workflow and waits, as
+  `workflow_run` does. Workflows are re-read at every `tools/list`. It cannot
+  be combined with `--api-only`, `--tasks-only` or `--grant`
 - `hil_approve`, `hil_reject`
 - `secret_add`, `secret_update`, `secret_delete`
 - `person_upsert`, `person_delete`
@@ -498,7 +628,7 @@ existing MCP client config that relies on them.
   agent's verbs on the task board, acting as the agent the server names after
   its client (`agent:<client>#<4 hex>`); no tool approves, edits, moves or
   archives a task
-- `api_key_create`, `api_key_update`, `api_key_revoke` — the active profile's
+- `api_key_create`, `api_key_update`, `api_key_revoke` — the server profile's
   API keys, under the rules of `api key create|update|revoke` (names, the
   context switch, the errors); a key of another profile is "not found". A name
   can be neither a key (anything holding `sk-ma-`, in any case) nor the shape
@@ -610,11 +740,33 @@ existing MCP client config that relies on them.
   work the user's board and nothing else: `--allow-mutations`, which the five
   verbs need, also serves the workflow tools that can run a command as the OS
   user. A call by name of another tool is refused ("is not served ...
-  `--tasks-only`"). A server serves one profile, so register one per profile:
+  `--tasks-only`"). Today a server serves the one profile named by its `--profile` flag, so
+  register one per profile:
   `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`.
+  A later release adds a required `profile` argument to the profile-scoped
+  tools, after which one server will serve every profile.
   It cannot be combined with `--api-only` (refused at start, the environment
   variables included) or `--grant`. A host that has tools of its own, such as a
   shell tool, is not stopped by it. Nothing registers it for you.
+
+**Workflows as tools.** `monoagentcli mcp --allow-mutations --workflow-tools`
+(or `MONOAGENT_MCP_WORKFLOW_TOOLS=1`) also serves every active workflow of the
+profile as a tool `wf_<slug>`; `--workflow-tools=<id|name>,...` serves only
+those. A tool's input schema comes from the workflow's trigger fields
+(`workflow inputs`), and a call runs it as `workflow_run` does (same wait,
+result and redaction; `_timeout_seconds` sets the wait). Workflows are re-read
+on every `tools/list`. It cannot be combined with `--api-only`, `--tasks-only`
+or `--grant`.
+
+**Protocol.** Besides tools the server answers `resources/list`,
+`resources/templates/list` and `resources/read`: `monoagent://ref/<topic>`
+(the `ref` topics, `api-tools` among them for the long descriptions of the
+`api_*` tools) and `monoagent://node/<type>` (a node's schema). Grant mode and
+`--tasks-only` serve no resources, `--api-only` only `api-tools`. A
+`workflow_run` call that carries `_meta.progressToken` gets
+`notifications/progress`; JSON results also come back as `structuredContent`
+(not `api_key_create`), and `workflow_run`, `workflow_status` and
+`workflow_validate` declare an `outputSchema`.
 
 **Grant mode.** `monoagentcli mcp --grant <id> --profile <id>` is the tool
 provider monomind spawns for an org role. It serves only that role's
@@ -633,7 +785,7 @@ here; MCP is just a second transport onto the same tool implementations.
 ## HTTP API
 
 ```bash
-monoagentcli httpapi    # REST/JSON server (default 127.0.0.1:9322)
+monoagentcli --profile work httpapi    # REST/JSON server (default 127.0.0.1:9322)
 ```
 
 For agents that can't speak stdio JSON-RPC. Same surface as the MCP tools
@@ -645,7 +797,7 @@ registered when started with `--allow-mutations` or
 `MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1` — otherwise those paths 404 rather
 than 403, so a probe can't distinguish "opted out" from "doesn't exist".
 Every request needs `Authorization: Bearer <token>` except `GET /health`;
-the token is generated on first start and stored in the active profile's
+the token is generated on first start and stored in the serving profile's
 secrets vault (`secret list`, name `httpapi-token`). Output items go
 through the same redaction as `workflow run --json` — pass
 `X-Full-Outputs: 1` to opt out per request, mirroring
@@ -699,7 +851,7 @@ a key. It lives in `internal/openaiapi/`; the spec is
 - **The `auto` model.** `"model": "auto"` lets [TypeSafe Jev](#typesafe-jev-decisions-only)
   pick, per request, among the models the listener serves (a `--context` key:
   among those its own cap allows). It is the `api_auto` Jev surface: off until
-  `monoagentcli jev enable api_auto` on the key's profile, which also needs
+  `monoagentcli --profile <id> jev enable api_auto` on the key's profile, which also needs
   that profile's Jev key (`jev key set`, or `TYPESAFE_API_KEY` in the server's
   environment, which the gateway blanks in its agent turns). Without them
   `auto` is not listed and answers 404 `model_not_found` naming what is
@@ -1260,7 +1412,7 @@ a key. It lives in `internal/openaiapi/`; the spec is
   forward on the machine can still expose a loopback one) and the confinement
   the running daemon reports, or that is assumed from the app's environment.
   The header says Network when any listener that serves `/v1` is bound beyond
-  loopback. The active profile's keys: create with a show-once panel (Escape
+  loopback. The selected profile's keys: create with a show-once panel (Escape
   does not close it, only Done: the key is not shown again), a context switch
   (turning it on asks first, since excerpts of the profile's documents reach the
   model's provider) and revoke after a confirmation. The models: their class,
@@ -1321,8 +1473,7 @@ agents share. `monoagentcli task` is the base interface to the board; the
 table at the end of this section lists the other ways to reach it. It
 is the user's own board in monoagent, not a monomind org's issues
 (`capture task` files those). A task always sits in one profile: pass
-`--profile <id or name>` on every call, or the active profile is used,
-which the app changes when the user switches.
+`--profile <id or name>` on every call (see [Profiles](#profiles)).
 
 | Column | Meaning |
 |---|---|
@@ -1347,7 +1498,7 @@ letters, digits and `._#@:-`, the same name for a whole task; `you`,
 `agent`, `capture`, `chrome` and `os` are reserved; a name is a label,
 not a credential), use `list`, `show`, `next`, `claim`, `comment` (on a
 task they hold), `finish`, `release` and `digest`, and may `add` to the
-Inbox (20 tasks an hour). `digest` has no gate: it runs the same in any
+Inbox. `digest` has no gate: it runs the same in any
 context, so a session-start hook can call it. A `comment` run under an
 agent context is an agent's comment: it needs a name.
 
@@ -1387,8 +1538,7 @@ A claim that has run out may be taken over by another agent, and a task
 another agent holds answers `claimed`.
 
 Limits: 2,000 open tasks per profile (every task that is not archived,
-Done ones included: archive some to make room) and 20 tasks an hour
-created by agents per profile; a task with 500 events takes no more
+Done ones included: archive some to make room); a task with 500 events takes no more
 comments, and one with 2,000 events no more claims. Passing a limit
 answers `limit`: finish or release a task you hold, otherwise leave it
 to the user.
@@ -1414,10 +1564,10 @@ a row here):
 | Session-start hook | `monoagentcli --profile <id> task digest`; nothing installs the hook for you |
 | Chrome extension | *Add selection as task*, *Add page as task*, the side panel's box and the `add-task` key send `task.add` over the extension bridge: a capture, Inbox only, in the profile the extension is "Saving into" (README, Chrome Extension) |
 | MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, acting on the server's one profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
-| MCP, the board alone | `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server per profile; nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
+| MCP, the board alone | `claude mcp add monoagent-tasks-<profile> -- monoagentcli --profile <id or name> mcp --tasks-only --allow-mutations`: the same eight tools and no other, one server per profile today (a required `profile` tool argument is coming); nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
 | Claude Code skill | `~/.claude/skills/monoagent-tasks/SKILL.md`, written create-only by the next CLI run on a machine with `~/.claude` |
 | Dashboard summary | `monoagentcli --profile <id> --json summary --section tasks`: one profile's counts and its next task (not in `--all-profiles`) |
-| Desktop app | The Tasks tab after Documents: the active profile's board, drag and keyboard moves, a "How to capture" note, a sidebar badge; it renders and runs `monoagentcli task ...`, and slides cards by FLIP unless `prefers-reduced-motion` is set |
+| Desktop app | The Tasks tab after Documents: the selected profile's board, drag and keyboard moves, a "How to capture" note, a sidebar badge; it renders and runs `monoagentcli task ...`, and slides cards by FLIP unless `prefers-reduced-motion` is set |
 | macOS menu | Services, "Add to MonoAgent Tasks: <profile>" on text selected in any app, installed once per profile by `monoagentcli --profile <id> task os install` and removed by `task os uninstall` (both the operator's: an agent is refused with `operator_only`); it runs `task add --stdin --source os`, a capture into Inbox (`monoagentcli ref tasks`) |
 
 ## Assistant chat & tools
@@ -1429,12 +1579,12 @@ stdout; the desktop app consumes the same stream. `--runtime` and a prompt
 are required:
 
 ```bash
-monoagentcli chat --runtime claude "summarize my failed runs"            # no tools
-monoagentcli chat --runtime claude --history-id <session> "…"            # persist this turn under a named session bucket
-monoagentcli chat --runtime claude --resume <session-id> "continue"      # resume a prior runtime session (runtime-issued id)
-monoagentcli chat --runtime claude --tools monoagent "…"                 # + workflows, vault, people, actions, comms tools
-monoagentcli chat --runtime claude --tools monoagent,runs "…"            # + run/execution tools (second explicit gate)
-monoagentcli chat --runtime codex --canvas <workflow-id> "add a Slack step"  # workflow-builder mode
+monoagentcli --profile work chat --runtime claude "summarize my failed runs"            # no tools
+monoagentcli --profile work chat --runtime claude --history-id <session> "…"            # persist this turn under a named session bucket
+monoagentcli --profile work chat --runtime claude --resume <session-id> "continue"      # resume a prior runtime session (runtime-issued id)
+monoagentcli --profile work chat --runtime claude --tools monoagent "…"                 # + workflows, vault, people, actions, comms tools
+monoagentcli --profile work chat --runtime claude --tools monoagent,runs "…"            # + run/execution tools (second explicit gate)
+monoagentcli --profile work chat --runtime codex --canvas <workflow-id> "add a Slack step"  # workflow-builder mode
 ```
 
 `--budget-usd` never trips for a runtime whose scan entry has
@@ -1480,11 +1630,11 @@ hooks, MCP servers) plus the folder's own.
 monoagentcli coder status --json                          # settings, monomind support, and each runtime's readiness
 monoagentcli coder enable --yes-i-understand              # off until enabled; the CLI enforces it
 monoagentcli coder set --workspace-root ~/monoagent-coder --max-turns 200 --timeout 60m --budget-usd 5
-monoagentcli coder workspace root --json                  # the coder root itself, set up as a shared working folder
-monoagentcli coder workspace new --json                   # or a fresh random test folder inside it
-monoagentcli chat history create --runtime codex --mode coder --effort high --coder-root   # or --cwd <any folder>, --new-workspace; runtime defaults to claude
-monoagentcli chat --conversation <conv> --turn <id> -- "make the tests pass"
-monoagentcli chat --mode coder --cwd ~/code/app -- "…"   # one unjournaled turn
+monoagentcli --profile work coder workspace root --json                  # the coder root itself, set up as a shared working folder
+monoagentcli --profile work coder workspace new --json                   # or a fresh random test folder inside it
+monoagentcli --profile work chat history create --runtime codex --mode coder --effort high --coder-root   # or --cwd <any folder>, --new-workspace; runtime defaults to claude
+monoagentcli --profile work chat --conversation <conv> --turn <id> -- "make the tests pass"
+monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one unjournaled turn
 ```
 
 - The mode and folder are fixed when the conversation is created. The
@@ -1660,8 +1810,8 @@ budget.
 
 | Profile | Access |
 |---|---|
-| `coding` | Full access. |
-| `qa`, `automation` | Full access, plus `monoagentcli` for the browser, extension, workflows and automations. |
+| `coding` | Full access; checks its work in the user's browser with `monoagentcli browser` (no browser lease: it passes `--tab`). |
+| `qa`, `automation` | Full access, plus `monoagentcli` for the browser (`browser`, the browser lease), workflows and automations. |
 | `research` | Read-only, confined as described below. |
 
 How workers run:
@@ -1977,8 +2127,12 @@ login (and its bill) is what the turn uses.
   the priciest cost seen so far; models with unknown cost not included).
   With `--no-scan`, `next` names no runtime (`next_unchecked`). The roster section of the AI agents page has the toggle,
   which asks first and shows that estimate.
-- **Picking a runtime.** `chat` and `agent.ask` take an explicit runtime
-  (`--runtime` / `"runtime"`). `ai.extract_page` uses `MONOAGENT_AI_RUNTIME`,
+- **Picking a runtime.** `chat` without `--runtime` uses the one runtime with
+  a validated model, else the one installed runtime that runs headless, and
+  names the candidates when there are several. `agent.ask` takes `"runtime"`;
+  `"auto"` picks the cheapest, then fastest, validated model of the roster
+  (else the first installed runtime). `workflow generate --runtime auto` picks
+  the same way. `ai.extract_page` uses `MONOAGENT_AI_RUNTIME`,
   else the first installed runtime in a fixed order starting with `claude`
   and `codex`. Capture summaries use `MONOAGENT_SUMMARY_RUNTIME` (see
   "Runtime environment variables").
@@ -2075,10 +2229,10 @@ login (and its bill) is what the turn uses.
 
 ## Orgs, automations, and autonomy
 
-`monoagentcli org summary [--fast]` prints one row per org (running, autonomy level, paused, queued messages, `needs_you`) plus totals. `--fast` reads only local files and the database and leaves `needs_you` null. Without it, `needs_you` is computed for every org in parallel (monomind round-trips, each org capped at 10 s).
+`monoagentcli --profile work org summary [--fast]` prints one row per org (running, autonomy level, paused, queued messages, `needs_you`) plus totals. `--fast` reads only local files and the database and leaves `needs_you` null. Without it, `needs_you` is computed for every org in parallel (monomind round-trips, each org capped at 10 s).
 
 An **org** is a team of agent roles run by monomind (`monomind org serve`).
-Its config lives in the active profile's folder:
+Its config lives in the profile's folder:
 `<profile folder>/.monomind/orgs/<name>.json` (`org` commands use that
 folder unless you pass `--project`; orgs left in the old `~/.monoagent`
 folder are listed by `org legacy list` and moved by `org legacy move`).
@@ -2086,12 +2240,12 @@ Workflows join an org as **automations**; roles use them three ways:
 
 ```bash
 # 1. Membership: the workflow belongs to the org under an alias.
-monoagentcli org automation add growth --workflow <id> --alias publish_post
+monoagentcli --profile work org automation add growth --workflow <id> --alias publish_post
 # 2. Grant: a role calls it as the tool monoagent__automation_publish_post.
-monoagentcli org grant add growth --role writer --automation publish_post
+monoagentcli --profile work org grant add growth --role writer --automation publish_post
 # 3. Automation role: a role in the chart that is the workflow; messages to
 #    it start the run, and the run's output comes back as a reply.
-monoagentcli org automation-role add growth --alias publish_post --reports-to lead
+monoagentcli --profile work org automation-role add growth --alias publish_post --reports-to lead
 ```
 
 - Grants and automation roles are enforced from mono-agent's database, not
@@ -2200,10 +2354,10 @@ and HIL items inside runs the org started:
 | `full` | rule approves | decider | decider |
 
 ```bash
-monoagentcli org autonomy set growth --level mid --decider model --policy "Never approve spend over \$50."
-monoagentcli org autonomy pause growth --for 30m     # drop to manual now
-monoagentcli org autonomy needs-you growth           # items waiting for a person
-monoagentcli org autonomy decisions growth           # resolver, tier, verdict, rationale, cost (+ jev summary)
+monoagentcli --profile work org autonomy set growth --level mid --decider model --policy "Never approve spend over \$50."
+monoagentcli --profile work org autonomy pause growth --for 30m     # drop to manual now
+monoagentcli --profile work org autonomy needs-you growth           # items waiting for a person
+monoagentcli --profile work org autonomy decisions growth           # resolver, tier, verdict, rationale, cost (+ jev summary)
 ```
 
 The decider is `model` (a one-shot `monomind agent exec`), `boss` (the org's
@@ -2228,10 +2382,10 @@ child with a full run of its own goal, so phrase child goals for messages
 **Two long-running processes.** Org features need both:
 
 ```bash
-monoagentcli org serve   # the org daemon (monomind) for the active profile's folder
-monoagentcli daemon      # workflow engine, HTTP API, automation-role endpoint, decisions
-monoagentcli --json status   # reports both
-monoagentcli org serve --stop   # stop the folder's running orgs and its org daemon
+monoagentcli --profile work org serve   # the org daemon (monomind) for the profile's folder
+monoagentcli --profile work daemon      # workflow engine, HTTP API, automation-role endpoint, decisions
+monoagentcli --profile work --json status   # reports both
+monoagentcli --profile work org serve --stop   # stop the folder's running orgs and its org daemon
 ```
 
 Before deleting a profile, run `monoagentcli --profile <id> org teardown-profile`
@@ -2247,15 +2401,88 @@ live `org send`, and boss/parent deciders need monomind with capability
 warn when the installed monomind lacks them. Offline copy:
 `monoagentcli ref org`.
 
+## The user's browser from agents
+
+`monoagentcli browser` drives a live browser through the MonoAgent
+extension, in any profile that has it attached: tabs, clicks and typing,
+screenshots, console and network reads, the accessibility tree, an
+element's styles, design tokens and source file, pixel diffs, responsive
+sweeps, and `browser pick` to have the user point at an element.
+`monoagentcli ref browser` lists every command with its JSON. Pass
+`--profile <id>` on every one: they act on a profile, and the CLI refuses a
+profile-scoped command without it (the machine-wide `browser allow`,
+`browser browsers` and `browser diff` don't need it). A coder chat's lead
+and its workers are told their profile id in their instructions.
+
+```bash
+monoagentcli --profile <id> --json browser open http://localhost:5173       # {"tabId":812,"url":…}
+monoagentcli --profile <id> --json browser screenshot --tab 812              # {"path":"…/.monoagent/screenshots/…png",…}
+monoagentcli --profile <id> --json browser console --tab 812 --level error   # {"entries":[…],"next":N}
+monoagentcli --profile <id> --json browser network --tab 812 --failed
+```
+
+- **Origin policy (agents only; your own terminal is unrestricted).** An
+  agent (any agent-context marker, as for `hil`) may open and act on
+  `localhost`, `*.localhost`, `127.0.0.0/8`, `::1`, `*.local`, `*.test`,
+  private-network (RFC 1918) hosts and the user's allowlist (`browser allow
+  list|add|remove`; add and remove refuse an agent). Anything else, and
+  `file:` and `chrome:` pages, is refused. Agents get no cookie commands and
+  no raw CDP, and `browser eval` only on local and dev pages
+  (`eval_not_allowed`); their console and network reads show only what the
+  tab's current site logged. Their tabs go into the tab group `Coder ·
+  <label>`.
+  A command whose tab left the checked page before it ran is refused with
+  exit 3, code `origin_changed`: see where the tab is (`browser tabs`)
+  before acting again.
+- **Form submits.** On an allowed page that is not local, the extension's
+  submit guard is armed before an agent acts. A click on a submit-like
+  control, or a submit the guard blocked (Enter, script), becomes a
+  `browser.submit` Human-in-Loop item, and the command exits **3** with
+  `{"status":"awaiting_approval","hil_id":…}`. Only the user's approval
+  counts (`hil approve` or the Human in Loop page, which refuse an agent).
+  Then `monoagentcli --profile <id> browser submit --hil <hil_id>` sends
+  exactly that submit, once, from the same tab, only while it still shows
+  the same page and form contents.
+- **browser.jev** arms the same guard (again whenever the page moves to
+  another origin, before acting there) when an AI caller started its run: an
+  agent's shell, a chat tool call (`run_workflow` starts `workflow run` with
+  `MONOAGENT_AI_CALLER=chat`), a `workflow run` either of them started (its
+  trigger data carries `_ai_caller`, so a daemon that adopts a `--no-wait`
+  run or resumes a paused one sees it; workflows never see the field), or the
+  org side (granted calls, automation roles, `trigger.org`). A blocked submit
+  on a page that is not local becomes a `browser.submit` item and the run
+  waits: approved, it is sent (if the page still shows the approved form,
+  else status `blocked`) and the goal goes on; rejected, status
+  `blocked`; still pending at the node's timeout, status `awaiting_approval`
+  with `hil_id` and `tab_id`, and the tab stays open for `browser submit
+  --hil`. A run that can't arm the guard fails. Runs the user starts behave
+  as before. A run an agent's shell started (`_ai_caller` `agent`) also
+  follows the origin policy, on its start URL and on every page it reaches;
+  anything else fails the run, naming `browser allow add <origin>`. The
+  chat's and the org side's runs keep real sites, behind the submit gate
+  only.
+- **Not covered.** A workflow an agent activates on a schedule or a webhook
+  runs later in the daemon as the user's own (no mark), and so do
+  sub-workflows of org-side runs, `workflow templates run`, and a run the
+  MCP `workflow_run` tool started that a daemon later resumes.
+- **Honest limit.** A full-access agent can read the bridge token and talk
+  to the bridge directly, so the origin policy and the submit guard guard
+  against mistakes and instructions a page plants, not against a determined
+  agent (the same stance as org signing). The guard catches form submits,
+  not pages that send with fetch or XHR alone.
+- **PATH.** An agent turn's PATH starts with a folder that holds only a
+  `monoagentcli` link to the build that started it, so the agent runs the
+  same CLI as the app (the desktop app's bundled one included).
+
 ## Human-in-the-loop from agents
 
 HIL nodes pause a running workflow until a person approves or rejects the
 data. Agents can drive that queue headlessly:
 
 ```bash
-monoagentcli --json hil list                          # pending items (readonly_data + editable_data)
-monoagentcli hil approve <id> --data '{"caption":"edited text"}'
-monoagentcli hil reject <id>
+monoagentcli --profile work --json hil list                          # pending items (readonly_data + editable_data)
+monoagentcli --profile work hil approve <id> --data '{"caption":"edited text"}'
+monoagentcli --profile work hil reject <id>
 ```
 
 `--data` overrides the item's editable fields with a JSON object (defaults
@@ -2267,9 +2494,9 @@ drafted introduction) have their own queue, the one the app shows on Human
 in Loop:
 
 ```bash
-monoagentcli --json people review list
-monoagentcli people review approve <id> --intro "edited text" --send   # approve, then run the dispatch workflow
-monoagentcli people review reject <id>
+monoagentcli --profile work --json people review list
+monoagentcli --profile work people review approve <id> --intro "edited text" --send   # approve, then run the dispatch workflow
+monoagentcli --profile work people review reject <id>
 ```
 
 `--send` runs the profile's workflow named like "Send Approved DMs" (or
@@ -2280,10 +2507,10 @@ introduction}` as trigger input. A missing (exit 2), ambiguous or inactive
 Tags on people (at most 10 each; a tag is the profile's, matched by name):
 
 ```bash
-monoagentcli --json people tag list [--person <id>]
-monoagentcli people tag add <person-id> "hot lead" --color "#ff5500"
-monoagentcli people tag remove <person-id> <tag-id|name>
-monoagentcli people tag color <tag-id|name> "#00b4d8"   # recolours it for everyone
+monoagentcli --profile work --json people tag list [--person <id>]
+monoagentcli --profile work people tag add <person-id> "hot lead" --color "#ff5500"
+monoagentcli --profile work people tag remove <person-id> <tag-id|name>
+monoagentcli --profile work people tag color <tag-id|name> "#00b4d8"   # recolours it for everyone
 ```
 
 ## Secrets
@@ -2293,7 +2520,7 @@ AES-256-GCM payloads) — never in argv or shell history:
 
 ```bash
 # Preferred: pipe the value via stdin (omit --value/--field entirely to read stdin)
-printf '%s' "$TOKEN" | monoagentcli secret add --kind secret --name github-token
+printf '%s' "$TOKEN" | monoagentcli --profile work secret add --kind secret --name github-token
 ```
 
 Stdin input is accepted with **or without** a trailing newline —
@@ -2301,8 +2528,8 @@ Stdin input is accepted with **or without** a trailing newline —
 newline is stripped.
 
 ```bash
-monoagentcli secret list                 # metadata only, never values
-monoagentcli secret add --kind secret --name aws \
+monoagentcli --profile work secret list                 # metadata only, never values
+monoagentcli --profile work secret add --kind secret --name aws \
   --field access_key_id=... --field secret_access_key=...   # still argv — avoid for high-value secrets
 ```
 
@@ -2369,13 +2596,13 @@ probabilities, in one ~100–300 ms request. It **never generates text**.
   host). `doctor` reports it as `jev.key`.
 
 ```bash
-printf '%s' "$KEY" | monoagentcli jev key set          # or: Settings › TypeSafe Jev in the app
-monoagentcli --json jev status               # key source (never the key), model, surfaces + thresholds
-monoagentcli jev enable hil [--threshold 0.9] [--yes]
-monoagentcli jev disable hil                 # today's behaviour returns immediately
-monoagentcli --json jev usage --since 7d     # calls, failures, input tokens, est. USD by surface
-monoagentcli jev ask --request req.json      # raw {state, questions, model?}; recorded as surface "cli"
-monoagentcli jev models
+printf '%s' "$KEY" | monoagentcli --profile work jev key set          # or: Settings › TypeSafe Jev in the app
+monoagentcli --profile work --json jev status               # key source (never the key), model, surfaces + thresholds
+monoagentcli --profile work jev enable hil [--threshold 0.9] [--yes]
+monoagentcli --profile work jev disable hil                 # today's behaviour returns immediately
+monoagentcli --profile work --json jev usage --since 7d     # calls, failures, input tokens, est. USD by surface
+monoagentcli --profile work jev ask --request req.json      # raw {state, questions, model?}; recorded as surface "cli"
+monoagentcli --profile work jev models
 ```
 
 Every call is recorded in `jev_usage` (counts only, no content). **Tests
@@ -2385,13 +2612,31 @@ server); real-API tests are opt-in via env like `browserjev/e2e_test.go`.
 ## Profiles
 
 Everything (workflows, connections, people, secrets, HIL queue) is scoped
-to a profile. `--profile <name>` isolates a single command; the active
-default comes from `monoagentcli profile`:
+to a profile, and every command that acts on a profile takes an explicit
+`--profile <id|name>`. There is no active profile, no `profile switch` or
+`profile current`, no `MONOAGENT_PROFILE` environment variable and no
+`default` fallback: you name the profile on each call.
 
 ```bash
-monoagentcli profile list
-monoagentcli --profile work workflow list     # one-off override, no switch
+monoagentcli profile list                      # find the id or name
+monoagentcli --profile work workflow list      # a scoped command names its profile
 ```
+
+Machine-wide commands need no `--profile`: `version`, `update`, `config`,
+`message-template`, `agent`, `account`, `db`, `node list|schema`,
+`api config`, `profile list|create|get`, `ref` and a few more (the list is
+`internal/cli/profilegate/classes.go`). Any command not on that list is scoped.
+
+**Today's release is a warning release.** A scoped command run without
+`--profile` still works: it prints `warning: this command acts on a profile:
+pass --profile <id|name>` on stderr and falls back to the legacy active
+profile. The next release refuses it with that message as an error. Always
+pass `--profile`; the examples here do.
+
+The MCP server and the HTTP API are moving the same way: a later release adds
+a required `profile` argument to their profile-scoped tools and requests.
+Until then they serve the single profile fixed at start (`monoagentcli
+--profile <id> mcp`, `httpapi`).
 
 A workflow saved under one profile cannot run under another — if a run
 fails with "workflow belongs to a different profile", check
@@ -2405,14 +2650,16 @@ profiles or credentials.
 |---|---|
 | 0 | success |
 | 0 | run paused at a HIL node — status `WAITING` (paused for human review); the output carries a `hint` field pointing at `hil list` |
-| 1 | general error — also the exit for a run that ends `CANCELLED` |
+| 1 | general error — also the exit for a run that ends `CANCELLED`, and for a run that ends `SUCCESS_WITH_ERRORS` with no successful step (every non-trigger node failed; a partial success still exits 0) |
 | 2 | not found (workflow, node type, HIL item, secret name, …). Includes `hil approve`/`hil reject`, `secret rm`/`secret update`, and `workflow delete` on unknown ids |
 | 3 | invalid input / validation failure |
-| 4 | auth or connection failure |
+| 4 | auth or connection failure — including `login_required`: no valid monoes.me sign-in (see [monoes.me account](#monoesme-account)) |
 
 Branch on these instead of parsing stderr.
 
-With `--json`, a classified failure's `{"error"}` object also carries a
+With `--json`, every command prints a failure as one JSON object on stdout
+(human text, if any, goes to stderr) with the same exit code; it may add a
+`"hint"` with the next step. A classified failure's `{"error"}` object also carries a
 `"code"`: `not_found` (2), `invalid_input` (3), `auth_or_connection` (4),
 or `agent_not_setup` — the AI agent is not set up (monomind missing or
 unusable, no runtime installed, the requested runtime missing or unknown,
@@ -2437,6 +2684,17 @@ The desktop GUI (`wails-app/`) is optional and needs the Wails toolchain;
 the CLI is fully usable without it. State always lives in `~/.monoagent/`
 regardless of where the binary runs from.
 
+A build you make runs the real gate. For development and CI, build the real
+binary with `-tags devaccount` (`go build -tags devaccount -o /tmp/monoagentcli
+./cmd/monoagentcli`): it also trusts a development signing key, lets the gate
+honor `MONOES_BASE_URL`, so a fake monoes.me can sign you in, and reads
+`MONOAGENT_DEV_ENFORCE_FROM` (an RFC 3339 time), so that a test can force the warn
+period (`2999-01-01T00:00:00Z`: nothing locks) or enforcement (a past date); it
+never relaxes anything, and a default build does not read it. Releases never carry
+the tag, and the release workflow fails if a shipped binary lists it. Unit tests
+need no tag: `accounttest.Install` and `account.SetTrustedKeysForTest` swap the
+keys and the clock, and panic outside a test binary.
+
 ### Runtime environment variables
 
 | Variable | Effect |
@@ -2453,16 +2711,17 @@ regardless of where the binary runs from.
 | `MONOAGENT_API_TOOL_RUNTIMES` | Runtimes that serve tool calling on the OpenAI-compatible API (`tools` on `POST /v1/chat/completions`), comma-separated runtime ids (`agy` means `antigravity`; case and spaces do not matter). A model of a listed runtime that is not chat-only is served only where monomind can run it read-only (`agent-exec-access-read`, and `read` among the runtime's access modes). A request for tools on any other model is 400 `unsupported_parameter`. `none` switches tool calling off: no model gets the `tools` capability and every request that declares tools says it is switched off. A bad value stops `httpapi` and `daemon` at start. Default: unset — `claude,codex`. |
 | `MONOAGENT_API_MAX_CONCURRENT` | How many OpenAI-compatible API turns may run at once, from 1 to 64; more get 429 (`--max-concurrent` wins). Default: unset — 4. |
 | `MONOAGENT_API_TURN_TIMEOUT` | Wall-clock cap of one OpenAI-compatible API turn: a duration of at least `10s`, such as `15m`. Default: unset — 10 minutes. |
-| `MONOAGENT_ALLOW_FILE_KEYRING` | Set to `1` to allow the file-based keyring fallback when no OS keyring exists (see [Secrets](#secrets)). Default: unset — `secret add` fails closed on machines without a keyring. |
+| `MONOAGENT_ALLOW_FILE_KEYRING` | Set to `1` to allow the file-based keyring fallback when no OS keyring exists (see [Secrets](#secrets)). Default: unset — `secret add` and `account login` fail closed on machines without a keyring. |
 | `MONOAGENT_FILE_KEYRING_PASSPHRASE_FILE` | Path to a chmod-600 file whose first line is the file-keyring passphrase — the non-interactive source for the desktop app and services (a path, never the passphrase itself). Default: unset — use `~/.monoagent/keyring-passphrase` when `secret keyring set-passphrase` wrote one, else prompt on stdin, or on `/dev/tty` when stdin carries the command's input. |
 | `MONOAGENT_ALLOW_ENV_TEMPLATES` | Set to `1` to let `{{ $env.* }}` template expressions read OS environment variables (see `ref expressions`). Default: unset — `$env` references resolve to empty. |
 | `MONOAGENT_CRASH_REPORT` | Set to `1` to allow crash reports to be filed to GitHub (also requires the `monomind` CLI on `PATH`). Default: unset — crash reports stay in local files under `~/.monoagent/crashes/`. |
 | `MONOAGENT_EXTENSION_PORT` | Bind-port override for the browser-extension bridge server; the extension probes this port and falls back to 9323. Default: unset — 9323 only. |
 | `MONOAGENT_SUMMARY_RUNTIME` | Agent runtime the extension bridge uses to write `summary.md` for captures saved with "Save page summary" / "Save video summary" (`extension serve --summary-runtime` wins over it). This is the default: a capture can name its own installed runtime and model (the side panel's "AI for summaries" picker, or `capture page --summary-runtime/--summary-model`), and `summary.json` records the pair used. `off` disables summaries; each capture that asked then records why in `summary.json`. Default: unset — `claude`. |
 | `MONOES_BASE_URL` | monoes.me host for the `library` commands. Default: unset — `https://monoes.me`. Plain `http` is accepted only for a loopback host (a local dev server). A default build refuses to sign in to any other host; that needs `-tags devaccount`. |
+| `MONOAGENT_DEV_ENFORCE_FROM` | Forces the warn period (a future date such as `2999-01-01T00:00:00Z`) or enforcement (a past date) for a test: an RFC 3339 time. Read only by a `-tags devaccount` build; a default build does not read it, so it never relaxes anything. Default: unset — the date compiled into the binary (2026-10-11 UTC). |
 | `MONOMIND_BIN` | Path to the `monomind` binary; checked before `PATH` and the other install locations (see [How AI works in mono-agent](#how-ai-works-in-mono-agent)). Default: unset — discovered. |
 | `MONOAGENT_AI_RUNTIME` | Agent runtime `ai.extract_page` uses to generate selectors. Default: unset — the first installed runtime, `claude` first. |
-| `MONOAGENT_PROFILE` | Profile name the built-in MCP server operates against. Default: unset — the MCP server's default profile. |
+| `MONOAGENT_PROFILE` | **Being removed.** Profile name the built-in MCP server and HTTP API fall back to when `--profile` is not given (the CLI never read it). Pass `--profile` instead. Default: unset. |
 | `MONOAGENT_ACTOR` | The agent's name for the task board's agent commands (`task next --claim`, `claim`, `comment`, `finish`, `release`) when `--as` is not given (`--as` wins). Setting it also makes the caller an agent, so the operator-only commands (`board` and `approve` unless delegated, `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`, `agents deny`) refuse it. Set but blank, a value of only spaces, it counts as an agent without a name, like a blank `--as` (an empty value counts as unset). Default: unset — a caller with no `--as`, no `MONOAGENT_ACTOR` and no agent-context variable such as `CLAUDECODE` is the operator. |
 | `MONOAGENT_DEBUG` | Set to any non-empty value to enable verbose browser-adapter logging. Default: unset. |
 | `MONOAGENTCLI_BIN` | Path override for the `monoagentcli` binary the desktop GUI (`wails-app/`) shells out to. Default: unset — resolved relative to the GUI binary. |

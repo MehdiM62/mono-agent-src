@@ -59,11 +59,11 @@ func newFullEngineStore(t *testing.T) *SQLiteWorkflowStore {
 	}
 	t.Cleanup(func() { db.Close() })
 	for _, ddl := range []string{
-		`CREATE TABLE workflows (id TEXT PRIMARY KEY, name TEXT, description TEXT DEFAULT '', is_active INTEGER DEFAULT 0, version INTEGER DEFAULT 1, profile_id TEXT, created_at TIMESTAMP, updated_at TIMESTAMP)`,
+		`CREATE TABLE workflows (id TEXT PRIMARY KEY, name TEXT, description TEXT DEFAULT '', is_active INTEGER DEFAULT 0, version INTEGER DEFAULT 1, profile_id TEXT, created_at TIMESTAMP, updated_at TIMESTAMP, settings TEXT NOT NULL DEFAULT '{}')`,
 		`CREATE TABLE workflow_nodes (id TEXT PRIMARY KEY, workflow_id TEXT, node_type TEXT, name TEXT, config TEXT DEFAULT '{}', position_x REAL DEFAULT 0, position_y REAL DEFAULT 0, disabled INTEGER DEFAULT 0, created_at TIMESTAMP, updated_at TIMESTAMP)`,
 		`CREATE TABLE workflow_connections (id TEXT PRIMARY KEY, workflow_id TEXT, source_node_id TEXT, source_handle TEXT DEFAULT 'main', target_node_id TEXT, target_handle TEXT DEFAULT 'main', position INTEGER DEFAULT 0)`,
-		`CREATE TABLE workflow_executions (id TEXT PRIMARY KEY, workflow_id TEXT, status TEXT, trigger_type TEXT, trigger_data TEXT DEFAULT '{}', started_at TIMESTAMP, finished_at TIMESTAMP, error_message TEXT DEFAULT '', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, pid INTEGER, resume_state TEXT NOT NULL DEFAULT '', profile_id TEXT NOT NULL DEFAULT 'default')`,
-		`CREATE TABLE workflow_execution_nodes (id TEXT PRIMARY KEY, execution_id TEXT, node_id TEXT, node_name TEXT, status TEXT DEFAULT 'PENDING', input_items TEXT DEFAULT '[]', output_items TEXT DEFAULT '[]', error_message TEXT, started_at TIMESTAMP, finished_at TIMESTAMP, retry_count INTEGER DEFAULT 0)`,
+		`CREATE TABLE workflow_executions (id TEXT PRIMARY KEY, workflow_id TEXT, status TEXT, trigger_type TEXT, trigger_data TEXT DEFAULT '{}', started_at TIMESTAMP, finished_at TIMESTAMP, error_message TEXT DEFAULT '', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, pid INTEGER, resume_state TEXT NOT NULL DEFAULT '', profile_id TEXT NOT NULL DEFAULT 'default', trigger_node_id TEXT NOT NULL DEFAULT '', error_class TEXT NOT NULL DEFAULT '')`,
+		`CREATE TABLE workflow_execution_nodes (id TEXT PRIMARY KEY, execution_id TEXT, node_id TEXT, node_name TEXT, status TEXT DEFAULT 'PENDING', input_items TEXT DEFAULT '[]', output_items TEXT DEFAULT '[]', error_message TEXT, started_at TIMESTAMP, finished_at TIMESTAMP, retry_count INTEGER DEFAULT 0, error_class TEXT NOT NULL DEFAULT '', error_hint TEXT NOT NULL DEFAULT '')`,
 		`CREATE TABLE hil_pending (id TEXT PRIMARY KEY, execution_id TEXT, status TEXT DEFAULT 'pending')`,
 	} {
 		if _, err := db.Exec(ddl); err != nil {

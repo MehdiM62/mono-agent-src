@@ -4,18 +4,30 @@
   "fields": [
     {
       "default": "zip",
+      "help": "zip/unzip/gzip/gunzip work on one base64 field. compress/decompress work on binary properties (files) and several archive formats.",
       "key": "operation",
       "label": "Operation",
       "options": [
         "zip",
         "unzip",
         "gzip",
-        "gunzip"
+        "gunzip",
+        "compress",
+        "decompress"
       ],
       "required": true,
       "type": "select"
     },
     {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "zip",
+          "unzip",
+          "gzip",
+          "gunzip"
+        ]
+      },
       "help": "Item field containing the base64-encoded input data.",
       "key": "input_field",
       "label": "Input Field",
@@ -25,6 +37,15 @@
     },
     {
       "default": "compressed",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "zip",
+          "unzip",
+          "gzip",
+          "gunzip"
+        ]
+      },
       "key": "output_field",
       "label": "Output Field Name",
       "required": false,
@@ -43,6 +64,96 @@
       "label": "Archive Entry Filename",
       "required": false,
       "type": "text"
+    },
+    {
+      "default": "data",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "compress",
+          "decompress"
+        ]
+      },
+      "help": "Comma-separated binary properties to compress or decompress.",
+      "key": "binary_property_name",
+      "label": "Input Binary Properties",
+      "placeholder": "data,attachment",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "zip",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "compress"
+        ]
+      },
+      "help": "zip/tar/targz pack every input file into one archive; gzip compresses each file on its own.",
+      "key": "output_format",
+      "label": "Output Format",
+      "options": [
+        "zip",
+        "gzip",
+        "tar",
+        "targz"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "compress"
+        ]
+      },
+      "help": "Name of the archive (zip/tar/targz) or base name of each .gz file. Defaults to archive.<ext> / the input file name.",
+      "key": "file_name",
+      "label": "Output File Name",
+      "placeholder": "archive.zip",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "data",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "compress"
+        ]
+      },
+      "help": "Binary property for the archive. With gzip and several inputs the second file goes to <name>1, the third to <name>2 ….",
+      "key": "binary_property_output",
+      "label": "Output Binary Property",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "file_",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "decompress"
+        ]
+      },
+      "help": "Extracted files go to binary properties <prefix>0, <prefix>1 ….",
+      "key": "output_prefix",
+      "label": "Output Prefix",
+      "required": false,
+      "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the input item's fields, passed through",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "the compressed or decompressed data",
+      "key": "<output_field|field>",
+      "type": "string"
     }
   ]
 }

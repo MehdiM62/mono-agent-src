@@ -1,0 +1,325 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "strapi",
+  "title": "Strapi",
+  "description": "Create, read, update and delete entries of a Strapi (v3 or v4) content API",
+  "category": "app",
+  "docs_url": "https://docs.strapi.io/dev-docs/api/rest",
+  "n8n_types": [
+    "n8n-nodes-base.strapi"
+  ],
+  "base_url": "{{ cred.url | re:'^(.*?)/*$' }}{{ cred.api_version | eq:'v4' | then:'/api' }}",
+  "credentials": [
+    {
+      "platform": "strapi_token",
+      "name": "Strapi API token",
+      "n8n_credential": "strapiTokenApi",
+      "n8n_field_map": {
+        "apiToken": "api_token",
+        "url": "url",
+        "apiVersion": "api_version"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "URL",
+          "required": true,
+          "help": "e.g. https://cms.example.com"
+        },
+        {
+          "key": "api_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "api_version",
+          "label": "API version",
+          "required": false,
+          "help": "v4 or v3 (empty = v3)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.api_token }}"
+        }
+      }
+    },
+    {
+      "platform": "strapi",
+      "name": "Strapi (email and password)",
+      "n8n_credential": "strapiApi",
+      "n8n_field_map": {
+        "email": "email",
+        "password": "password",
+        "url": "url",
+        "apiVersion": "api_version"
+      },
+      "methods": [
+        "basic"
+      ],
+      "fields": [
+        {
+          "key": "url",
+          "label": "URL",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "api_version",
+          "label": "API version",
+          "required": false,
+          "help": "v4 or v3 (empty = v3)"
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ pre.jwt }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "entry",
+      "label": "Entry"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "entry",
+      "operation": "create",
+      "title": "Create an entry",
+      "method": "POST",
+      "path": "/{{ p.contentType }}",
+      "before": {
+        "when": "{{ cred.password }}",
+        "method": "POST",
+        "path": "/auth/local",
+        "body": {
+          "identifier": "{{ cred.email }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "contentType",
+          "label": "Content type (plural API ID)",
+          "type": "text",
+          "required": true,
+          "help": "e.g. articles"
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "text",
+          "help": "Comma separated input fields to send"
+        }
+      ],
+      "body": {
+        "$merge": "{{ cred.api_version | ne:'v4' | then:(item | pick:(p.columns | split)) }}",
+        "data": "{{ cred.api_version | eq:'v4' | then:(item | pick:(p.columns | split)) }}"
+      },
+      "output": {
+        "path": "{{ cred.api_version | eq:'v4' | then:'data' }}"
+      }
+    },
+    {
+      "resource": "entry",
+      "operation": "delete",
+      "title": "Delete an entry",
+      "method": "DELETE",
+      "path": "/{{ p.contentType }}/{{ p.entryId }}",
+      "before": {
+        "when": "{{ cred.password }}",
+        "method": "POST",
+        "path": "/auth/local",
+        "body": {
+          "identifier": "{{ cred.email }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "contentType",
+          "label": "Content type (plural API ID)",
+          "type": "text",
+          "required": true,
+          "help": "e.g. articles"
+        },
+        {
+          "key": "entryId",
+          "label": "Entry ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_version | eq:'v4' | then:'data' }}"
+      }
+    },
+    {
+      "resource": "entry",
+      "operation": "get",
+      "title": "Get an entry",
+      "method": "GET",
+      "path": "/{{ p.contentType }}/{{ p.entryId }}",
+      "before": {
+        "when": "{{ cred.password }}",
+        "method": "POST",
+        "path": "/auth/local",
+        "body": {
+          "identifier": "{{ cred.email }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "contentType",
+          "label": "Content type (plural API ID)",
+          "type": "text",
+          "required": true,
+          "help": "e.g. articles"
+        },
+        {
+          "key": "entryId",
+          "label": "Entry ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "{{ cred.api_version | eq:'v4' | then:'data' }}"
+      }
+    },
+    {
+      "resource": "entry",
+      "operation": "getAll",
+      "title": "Get many entries",
+      "method": "GET",
+      "path": "/{{ p.contentType }}",
+      "before": {
+        "when": "{{ cred.password }}",
+        "method": "POST",
+        "path": "/auth/local",
+        "body": {
+          "identifier": "{{ cred.email }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "query_style": "brackets",
+      "fields": [
+        {
+          "key": "contentType",
+          "label": "Content type (plural API ID)",
+          "type": "text",
+          "required": true,
+          "help": "e.g. articles"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "publicationState",
+            "sort",
+            "where"
+          ],
+          "help": "publicationState: live or preview; sort: list like [\"title:asc\"]; where: JSON filter object"
+        }
+      ],
+      "query": {
+        "sort": "{{ cred.api_version | eq:'v4' | then:(p.options.sort | csv) }}",
+        "filters": "{{ cred.api_version | eq:'v4' | then:(p.options.where | fromjson) }}",
+        "publicationState": "{{ cred.api_version | eq:'v4' | then:p.options.publicationState }}",
+        "_sort": "{{ cred.api_version | ne:'v4' | then:(p.options.sort | csv) }}",
+        "_where": "{{ cred.api_version | ne:'v4' | then:(p.options.where | fromjson) }}",
+        "_publicationState": "{{ cred.api_version | ne:'v4' | then:p.options.publicationState }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "{{ cred.api_version | eq:'v4' | then:'pagination[start]' | default:'_start' }}",
+        "limit_param": "{{ cred.api_version | eq:'v4' | then:'pagination[limit]' | default:'_limit' }}",
+        "page_size": 100
+      },
+      "output": {
+        "path": "{{ cred.api_version | eq:'v4' | then:'data' }}"
+      }
+    },
+    {
+      "resource": "entry",
+      "operation": "update",
+      "title": "Update an entry",
+      "description": "The entry ID is read from the input item field named by Update key",
+      "method": "PUT",
+      "path": "/{{ p.contentType }}/{{ item | get:p.updateKey }}",
+      "before": {
+        "when": "{{ cred.password }}",
+        "method": "POST",
+        "path": "/auth/local",
+        "body": {
+          "identifier": "{{ cred.email }}",
+          "password": "{{ cred.password }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "contentType",
+          "label": "Content type (plural API ID)",
+          "type": "text",
+          "required": true,
+          "help": "e.g. articles"
+        },
+        {
+          "key": "updateKey",
+          "label": "Update key",
+          "type": "text",
+          "default": "id",
+          "required": true,
+          "help": "Input field holding the entry ID"
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "text",
+          "help": "Comma separated input fields to send"
+        }
+      ],
+      "body": {
+        "$merge": "{{ cred.api_version | ne:'v4' | then:(item | pick:(p.columns | split)) }}",
+        "data": "{{ cred.api_version | eq:'v4' | then:(item | pick:(p.columns | split)) }}"
+      },
+      "output": {
+        "path": "{{ cred.api_version | eq:'v4' | then:'data' }}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,250 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "pushbullet",
+  "node_type": "app.pushbullet",
+  "title": "Pushbullet",
+  "description": "Send, list, dismiss and delete Pushbullet pushes",
+  "category": "app",
+  "docs_url": "https://docs.pushbullet.com/",
+  "n8n_types": [
+    "n8n-nodes-base.pushbullet"
+  ],
+  "base_url": "https://api.pushbullet.com/v2",
+  "credentials": [
+    {
+      "platform": "pushbullet",
+      "name": "Pushbullet",
+      "n8n_credential": "pushbulletOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true,
+          "help": "From Pushbullet settings → Access Tokens"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://www.pushbullet.com/authorize",
+        "token_url": "https://api.pushbullet.com/oauth2/token",
+        "scopes": []
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "push",
+      "label": "Push"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "push",
+      "operation": "create",
+      "title": "Create a push",
+      "method": "POST",
+      "path": "/pushes",
+      "fields": [
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "default": "note",
+          "options": [
+            "file",
+            "link",
+            "note"
+          ]
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "default": "",
+          "help": "For note and link pushes"
+        },
+        {
+          "key": "body",
+          "label": "Body",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "url",
+          "label": "URL",
+          "type": "text",
+          "default": "",
+          "help": "For link pushes"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data",
+          "help": "Input binary property holding the file (file pushes)"
+        },
+        {
+          "key": "target",
+          "label": "Target",
+          "type": "select",
+          "required": true,
+          "default": "default",
+          "options": [
+            "channel_tag",
+            "default",
+            "device_iden",
+            "email"
+          ],
+          "help": "default = all of your devices"
+        },
+        {
+          "key": "value",
+          "label": "Target value",
+          "type": "text",
+          "default": "",
+          "help": "The channel tag, device id or email address"
+        }
+      ],
+      "before": [
+        {
+          "when": "{{ p.type | eq:'file' }}",
+          "method": "POST",
+          "path": "/upload-request",
+          "body": {
+            "file_name": "{{ bin.file_name }}",
+            "file_type": "{{ bin.mime_type }}"
+          }
+        },
+        {
+          "when": "{{ p.type | eq:'file' }}",
+          "upload": true,
+          "method": "POST",
+          "path": "{{ pre.upload_url }}",
+          "body_type": "multipart",
+          "body": {
+            "$merge": "{{ pre.data }}"
+          }
+        }
+      ],
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "false",
+        "multipart_field": "file"
+      },
+      "body": {
+        "type": "{{ p.type }}",
+        "body": "{{ p.body }}",
+        "title": "{{ p.type | ne:'file' | then:p.title }}",
+        "url": "{{ p.type | eq:'link' | then:p.url }}",
+        "channel_tag": "{{ p.target | eq:'channel_tag' | then:p.value }}",
+        "device_iden": "{{ p.target | eq:'device_iden' | then:p.value }}",
+        "email": "{{ p.target | eq:'email' | then:p.value }}",
+        "file_name": "{{ pres.0.file_name }}",
+        "file_type": "{{ pres.0.file_type }}",
+        "file_url": "{{ pres.0.file_url }}"
+      },
+      "body_type": "json"
+    },
+    {
+      "resource": "push",
+      "operation": "delete",
+      "title": "Delete a push",
+      "method": "DELETE",
+      "path": "/pushes/{{ p.pushId }}",
+      "fields": [
+        {
+          "key": "pushId",
+          "label": "Push ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "push",
+      "operation": "getAll",
+      "title": "Get many pushes",
+      "method": "GET",
+      "path": "/pushes",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 500
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "modified_after"
+          ]
+        }
+      ],
+      "query": {
+        "active": "{{ p.filters.active }}",
+        "modified_after": "{{ p.filters.modified_after | epoch }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "cursor",
+        "limit_param": "limit",
+        "page_size": 500,
+        "results_path": "pushes"
+      }
+    },
+    {
+      "resource": "push",
+      "operation": "update",
+      "title": "Dismiss or restore a push",
+      "method": "POST",
+      "path": "/pushes/{{ p.pushId }}",
+      "fields": [
+        {
+          "key": "pushId",
+          "label": "Push ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dismissed",
+          "label": "Dismissed",
+          "type": "boolean",
+          "required": true,
+          "default": false
+        }
+      ],
+      "body": {
+        "dismissed": "{{ p.dismissed | bool }}"
+      }
+    }
+  ]
+}

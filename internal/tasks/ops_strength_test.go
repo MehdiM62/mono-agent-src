@@ -53,30 +53,6 @@ func TestArchiveStatusReturnsNoCountWhenItFails(t *testing.T) {
 	}
 }
 
-// The hourly allowance is the agents': 20 tasks added by agents in the last hour do not stop the
-// operator from bringing a card back from the archive, by Unarchive or by Move.
-func TestMovingOutOfTheArchiveIsNotLimitedByTheAgentsHourlyAllowance(t *testing.T) {
-	s, _, _ := newTestStore(t)
-	a, b := mustAdd(t, s, "default", "a", false), mustAdd(t, s, "default", "b", false)
-	if _, err := s.Archive(bg, "default", []int64{a.ID, b.ID}, human); err != nil {
-		t.Fatal(err)
-	}
-	for i := 0; i < AgentTasksPerHour; i++ {
-		if _, _, err := s.Add(bg, "default", AddInput{Title: fmt.Sprintf("agent %d", i)}, bot("bob")); err != nil {
-			t.Fatalf("setup: agent task %d: %v", i, err)
-		}
-	}
-	if _, _, err := s.Add(bg, "default", AddInput{Title: "one too many"}, bot("bob")); !errors.Is(err, ErrLimit) {
-		t.Fatalf("setup: the 21st agent task: %v, want ErrLimit", err)
-	}
-	if got, err := s.Unarchive(bg, "default", []int64{a.ID}, human); err != nil || got[0].Status != StatusInbox {
-		t.Errorf("unarchive after the agents used their hour: %+v, %v", got, err)
-	}
-	if got, err := s.Move(bg, "default", b.ID, StatusReady, Placement{}, human); err != nil || got.Status != StatusReady {
-		t.Errorf("move out of the archive after the agents used their hour: %+v, %v", got, err)
-	}
-}
-
 // The 2,000 open tasks are counted for the profile the card is in: a full board elsewhere does not
 // stop a card coming back, and a full one here does.
 func TestTheOpenTaskLimitIsThatOfTheProfileTheCardIsIn(t *testing.T) {

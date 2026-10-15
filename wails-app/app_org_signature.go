@@ -36,6 +36,9 @@ func orgSignArgs(root, orgName string, extra ...string) []string {
 // detail, sha256, message}. supported is false below monomind 2.21.
 // sha256 is the file's; nothing is signed by it.
 func (a *App) OrgSignatureStatus(orgName string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult(orgSignArgs(a.orgProjectRoot(), orgName, "--status")...)
 }
 
@@ -44,6 +47,9 @@ func (a *App) OrgSignatureStatus(orgName string) string {
 // moved during the review, and then nothing may be signed from it). It
 // signs nothing.
 func (a *App) OrgSignatureReview(orgName string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult(orgSignArgs(a.orgProjectRoot(), orgName)...)
 }
 
@@ -52,6 +58,9 @@ func (a *App) OrgSignatureReview(orgName string) string {
 // (instructions files included), so a definition that changed since is
 // refused rather than signed.
 func (a *App) OrgSign(orgName, hash string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	return a.jsonResult(orgSignArgs(a.orgProjectRoot(), orgName, "--yes", "--expect-hash", hash)...)
 }
 

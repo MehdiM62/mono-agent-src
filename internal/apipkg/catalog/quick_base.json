@@ -1,0 +1,611 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "quick_base",
+  "node_type": "app.quick_base",
+  "title": "Quickbase",
+  "description": "Records, fields, files and reports in Quickbase",
+  "category": "app",
+  "docs_url": "https://developer.quickbase.com/",
+  "n8n_types": [
+    "n8n-nodes-base.quickbase"
+  ],
+  "base_url": "https://api.quickbase.com/v1",
+  "credentials": [
+    {
+      "platform": "quickbase",
+      "name": "Quickbase",
+      "n8n_credential": "quickbaseApi",
+      "n8n_field_map": {
+        "hostname": "hostname",
+        "userToken": "user_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "hostname",
+          "label": "Realm hostname",
+          "required": true,
+          "help": "e.g. acme.quickbase.com"
+        },
+        {
+          "key": "user_token",
+          "label": "User token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "QB-Realm-Hostname": "{{ cred.hostname }}",
+          "Authorization": "QB-USER-TOKEN {{ cred.user_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "record",
+      "label": "Record"
+    },
+    {
+      "value": "field",
+      "label": "Field"
+    },
+    {
+      "value": "file",
+      "label": "File"
+    },
+    {
+      "value": "report",
+      "label": "Report"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "record",
+      "operation": "create",
+      "title": "Create records",
+      "description": "One request for all input items",
+      "batch": true,
+      "method": "POST",
+      "path": "/records",
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated field labels of the input to send"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return plain {field: value} records"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "useFieldIDs"
+          ],
+          "help": "fields: field ids to return; useFieldIDs: input keys are field ids"
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/fields",
+        "query": {
+          "tableId": "{{ p.tableId }}"
+        }
+      },
+      "body": {
+        "to": "{{ p.tableId }}",
+        "data": {
+          "$map": "{{ items }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ p.options.useFieldIDs | bool | eq:'true' | then:(el | entries) | default:(el | pick:(p.columns | split) | entries) }}",
+              "$key": "{{ p.options.useFieldIDs | bool | eq:'true' | then:el.key | default:(pre | find:'label',el.key | get:'id') }}",
+              "$value": {
+                "value": "{{ el.value }}"
+              }
+            }
+          }
+        },
+        "fieldsToReturn": "{{ p.options.fields | default:'3' | split }}"
+      },
+      "output": {
+        "path": "data",
+        "to_when": "{{ p.simple | bool }}",
+        "to": {
+          "$merge": {
+            "$entries": "{{ el | entries }}",
+            "$key": "{{ el.key }}",
+            "$value": "{{ el.value.value }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "record",
+      "operation": "delete",
+      "title": "Delete records",
+      "method": "DELETE",
+      "path": "/records",
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "where",
+          "label": "Where",
+          "type": "text",
+          "required": true,
+          "help": "Quickbase query, e.g. {3.EX.12}"
+        }
+      ],
+      "body": {
+        "from": "{{ p.tableId }}",
+        "where": "{{ p.where }}"
+      }
+    },
+    {
+      "resource": "record",
+      "operation": "getAll",
+      "title": "Query records",
+      "method": "POST",
+      "path": "/records/query",
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "select",
+            "sortByUi",
+            "where"
+          ],
+          "help": "select: field ids; sortByUi: {sortByValues: [{fieldId, order}]}"
+        }
+      ],
+      "body": {
+        "from": "{{ p.tableId }}",
+        "select": "{{ p.options.select }}",
+        "where": "{{ p.options.where }}",
+        "sortBy": "{{ p.options.sortByUi.sortByValues }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "options.skip",
+        "limit_param": "options.top",
+        "param_in": "body",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "output": {
+        "to": {
+          "$merge": {
+            "$entries": "{{ el | entries }}",
+            "$key": "{{ res.fields | find:'id',el.key | get:'label' }}",
+            "$value": "{{ el.value.value }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "record",
+      "operation": "update",
+      "title": "Update records",
+      "description": "One request for all input items",
+      "batch": true,
+      "method": "POST",
+      "path": "/records",
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated field labels of the input to send"
+        },
+        {
+          "key": "updateKey",
+          "label": "Update key",
+          "type": "text",
+          "required": true,
+          "help": "Input field holding the record key"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return plain {field: value} records"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "useFieldIDs"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/fields",
+        "query": {
+          "tableId": "{{ p.tableId }}"
+        }
+      },
+      "body": {
+        "to": "{{ p.tableId }}",
+        "data": {
+          "$map": "{{ items }}",
+          "$to": {
+            "$merge": {
+              "$entries": "{{ p.options.useFieldIDs | bool | eq:'true' | then:(el | entries) | default:(el | pick:(p.columns | split) | entries) }}",
+              "$key": "{{ p.options.useFieldIDs | bool | eq:'true' | then:el.key | default:(pre | find:'label',el.key | get:'id') }}",
+              "$value": {
+                "value": "{{ el.value }}"
+              }
+            }
+          }
+        },
+        "fieldsToReturn": "{{ p.options.fields }}"
+      },
+      "output": {
+        "path": "data",
+        "to_when": "{{ p.simple | bool }}",
+        "to": {
+          "$merge": {
+            "$entries": "{{ el | entries }}",
+            "$key": "{{ pre | find:'id',el.key | get:'label' | default:el.key }}",
+            "$value": "{{ el.value.value }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "record",
+      "operation": "upsert",
+      "title": "Create or update records",
+      "description": "One request for all input items, merged on a key field",
+      "batch": true,
+      "method": "POST",
+      "path": "/records",
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "columns",
+          "label": "Columns",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated field labels of the input to send"
+        },
+        {
+          "key": "updateKey",
+          "label": "Update key",
+          "type": "text",
+          "required": true,
+          "help": "Input field holding the merge value"
+        },
+        {
+          "key": "mergeFieldId",
+          "label": "Merge field ID",
+          "type": "text",
+          "required": true,
+          "help": "Id of a unique field to merge on"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Return plain {field: value} records"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields",
+            "useFieldIDs"
+          ]
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/fields",
+        "query": {
+          "tableId": "{{ p.tableId }}"
+        }
+      },
+      "body": {
+        "to": "{{ p.tableId }}",
+        "mergeFieldId": "{{ p.mergeFieldId | numeric }}",
+        "data": {
+          "$map": "{{ items }}",
+          "$to": {
+            "$merge": [
+              {
+                "$entries": "{{ p.options.useFieldIDs | bool | eq:'true' | then:(el | entries) | default:(el | pick:(p.columns | split) | entries) }}",
+                "$key": "{{ p.options.useFieldIDs | bool | eq:'true' | then:el.key | default:(pre | find:'label',el.key | get:'id') }}",
+                "$value": {
+                  "value": "{{ el.value }}"
+                }
+              },
+              {
+                "$entries": "{{ el | pick:p.updateKey | entries }}",
+                "$key": "{{ p.mergeFieldId }}",
+                "$value": {
+                  "value": "{{ el.value }}"
+                }
+              }
+            ]
+          }
+        },
+        "fieldsToReturn": "{{ p.options.fields | default:'3' | split }}"
+      },
+      "output": {
+        "path": "data",
+        "to_when": "{{ p.simple | bool }}",
+        "to": {
+          "$merge": {
+            "$entries": "{{ el | entries }}",
+            "$key": "{{ el.key }}",
+            "$value": "{{ el.value.value }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "field",
+      "operation": "getAll",
+      "title": "Get many fields",
+      "method": "GET",
+      "path": "/fields",
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "includeFieldPerms"
+          ]
+        }
+      ],
+      "query": {
+        "tableId": "{{ p.tableId }}",
+        "includeFieldPerms": "{{ p.options.includeFieldPerms }}"
+      },
+      "output": {
+        "limit": true
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "download",
+      "title": "Download a file",
+      "method": "GET",
+      "path": "/files/{{ p.tableId }}/{{ p.recordId }}/{{ p.fieldId }}/{{ p.versionNumber }}",
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "recordId",
+          "label": "Record ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fieldId",
+          "label": "Field ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "versionNumber",
+          "label": "Version",
+          "type": "number",
+          "default": 1
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "property_field": "binaryPropertyName",
+        "download_base64": "{{ res.data }}",
+        "file_name": "{{ hdr.Content-Disposition | re:'filename=\"?([^\";]+)' }}"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file version",
+      "method": "DELETE",
+      "path": "/files/{{ p.tableId }}/{{ p.recordId }}/{{ p.fieldId }}/{{ p.versionNumber }}",
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "recordId",
+          "label": "Record ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "fieldId",
+          "label": "Field ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "versionNumber",
+          "label": "Version",
+          "type": "number",
+          "default": 1
+        }
+      ]
+    },
+    {
+      "resource": "report",
+      "operation": "get",
+      "title": "Get a report",
+      "method": "GET",
+      "path": "/reports/{{ p.reportId }}",
+      "query": {
+        "tableId": "{{ p.tableId }}"
+      },
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "reportId",
+          "label": "Report ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "report",
+      "operation": "run",
+      "title": "Run a report",
+      "method": "POST",
+      "path": "/reports/{{ p.reportId }}/run",
+      "query": {
+        "tableId": "{{ p.tableId }}"
+      },
+      "fields": [
+        {
+          "key": "tableId",
+          "label": "Table ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "reportId",
+          "label": "Report ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "offset",
+        "offset_param": "skip",
+        "limit_param": "top",
+        "page_size": 100,
+        "results_path": "data"
+      },
+      "output": {
+        "to": {
+          "$merge": {
+            "$entries": "{{ el | entries }}",
+            "$key": "{{ res.fields | find:'id',el.key | get:'label' }}",
+            "$value": "{{ el.value.value }}"
+          }
+        }
+      }
+    }
+  ]
+}

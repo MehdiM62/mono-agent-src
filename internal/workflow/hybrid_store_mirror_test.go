@@ -40,8 +40,10 @@ func TestHybridSaveWorkflowMirrorsToSQLite(t *testing.T) {
 	if err := h.SaveWorkflow(ctx, w); err != nil {
 		t.Fatal(err)
 	}
-	if w.Version != 3 {
-		t.Errorf("caller's workflow mutated: version %d", w.Version)
+	// The save numbers the definition (#21): a new workflow's first
+	// recorded version is 1, whatever the document carried.
+	if w.Version != 1 {
+		t.Errorf("version = %d, want 1", w.Version)
 	}
 	got, err := s.GetWorkflow(ctx, "wf-m")
 	if err != nil || got == nil || len(got.Nodes) != 2 || len(got.Connections) != 1 {

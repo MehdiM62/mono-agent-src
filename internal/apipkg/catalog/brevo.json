@@ -1,0 +1,745 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "brevo",
+  "title": "Brevo",
+  "description": "Transactional email, contacts, attributes and senders in Brevo (formerly Sendinblue)",
+  "category": "app",
+  "docs_url": "https://developers.brevo.com/reference",
+  "n8n_types": [
+    "n8n-nodes-base.sendInBlue"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.sendInBlueTrigger"
+  ],
+  "base_url": "https://api.brevo.com",
+  "credentials": [
+    {
+      "platform": "brevo",
+      "name": "Brevo",
+      "n8n_credential": "sendInBlueApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "api-key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "email",
+      "label": "Email"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "attribute",
+      "label": "Attribute"
+    },
+    {
+      "value": "sender",
+      "label": "Sender"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "email",
+      "operation": "send",
+      "title": "Send an email",
+      "method": "POST",
+      "path": "/v3/smtp/email",
+      "fields": [
+        {
+          "key": "sendHTML",
+          "label": "Send HTML",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "textContent",
+          "label": "Text content",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "htmlContent",
+          "label": "HTML content",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "sender",
+          "label": "Sender",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Name <email> or email"
+        },
+        {
+          "key": "recipients",
+          "label": "Recipients",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated; Name <email> or email."
+        },
+        {
+          "key": "receipients",
+          "label": "Recipients (v1)",
+          "type": "text",
+          "default": "",
+          "help": "n8n version 1 name of Recipients."
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailAttachments",
+            "recipientsBCC",
+            "recipientsCC",
+            "receipientsBCC",
+            "receipientsCC",
+            "emailTags"
+          ],
+          "help": "emailAttachments: {\"attachment\": {\"binaryPropertyName\": \"data\"}} (comma-separated properties; every file is sent); recipientsCC: {\"recipientCc\": {\"cc\": \"a@b.io\"}}; emailTags: {\"tags\": {\"tag\": \"a,b\"}}"
+        }
+      ],
+      "binary": {
+        "upload_field": "additionalFields",
+        "upload_when": "{{ p.additionalFields.emailAttachments.attachment.binaryPropertyName }}",
+        "fallback_body_type": "json",
+        "properties": "{{ p.additionalFields.emailAttachments.attachment.binaryPropertyName }}"
+      },
+      "body_type": "json",
+      "body": {
+        "sender": {
+          "email": "{{ p.sender | split | get:'0' | re:'<([^>]+)>' }}",
+          "name": "{{ p.sender | split | get:'0' | re:'(<)' | eq:'<' | then:(p.sender | split | get:'0' | re:'^\\s*\"?([^<\"]*?)\"?\\s*<') }}"
+        },
+        "to": {
+          "$map": "{{ p.recipients | default:p.receipients | split }}",
+          "$to": {
+            "email": "{{ el | re:'<([^>]+)>' }}",
+            "name": "{{ el | re:'(<)' | eq:'<' | then:(el | re:'^\\s*\"?([^<\"]*?)\"?\\s*<') }}"
+          }
+        },
+        "cc": {
+          "$map": "{{ p.additionalFields.recipientsCC.recipientCc.cc | default:p.additionalFields.receipientsCC.receipientCc.cc | split }}",
+          "$to": {
+            "email": "{{ el | re:'<([^>]+)>' }}",
+            "name": "{{ el | re:'(<)' | eq:'<' | then:(el | re:'^\\s*\"?([^<\"]*?)\"?\\s*<') }}"
+          }
+        },
+        "bcc": {
+          "$map": "{{ p.additionalFields.recipientsBCC.recipientBcc.bcc | default:p.additionalFields.receipientsBCC.receipientBcc.bcc | split }}",
+          "$to": {
+            "email": "{{ el | re:'<([^>]+)>' }}",
+            "name": "{{ el | re:'(<)' | eq:'<' | then:(el | re:'^\\s*\"?([^<\"]*?)\"?\\s*<') }}"
+          }
+        },
+        "subject": "{{ p.subject }}",
+        "textContent": "{{ p.sendHTML | ne:'true' | then:p.textContent }}",
+        "htmlContent": "{{ p.sendHTML | eq:'true' | then:p.htmlContent }}",
+        "tags": "{{ p.additionalFields.emailTags.tags.tag | split }}",
+        "attachment": {
+          "$map": "{{ p.additionalFields.emailAttachments.attachment.binaryPropertyName | then:bin.files }}",
+          "$to": {
+            "content": "{{ el.base64 }}",
+            "name": "{{ el.file_name }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "email",
+      "operation": "sendTemplate",
+      "title": "Send a template email",
+      "method": "POST",
+      "path": "/v3/smtp/email",
+      "fields": [
+        {
+          "key": "templateId",
+          "label": "Template ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "recipients",
+          "label": "Recipients",
+          "type": "text",
+          "default": "",
+          "help": "Comma-separated; Name <email> or email."
+        },
+        {
+          "key": "receipients",
+          "label": "Recipients (v1)",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailAttachments",
+            "emailTags",
+            "templateParameters"
+          ],
+          "help": "templateParameters: {\"parameterValues\": {\"parameters\": \"name=Ada,plan=pro\"}}"
+        }
+      ],
+      "binary": {
+        "upload_field": "additionalFields",
+        "upload_when": "{{ p.additionalFields.emailAttachments.attachment.binaryPropertyName }}",
+        "fallback_body_type": "json",
+        "properties": "{{ p.additionalFields.emailAttachments.attachment.binaryPropertyName }}"
+      },
+      "body_type": "json",
+      "body": {
+        "templateId": "{{ p.templateId | int }}",
+        "to": {
+          "$map": "{{ p.recipients | default:p.receipients | split }}",
+          "$to": {
+            "email": "{{ el | re:'<([^>]+)>' }}",
+            "name": "{{ el | re:'(<)' | eq:'<' | then:(el | re:'^\\s*\"?([^<\"]*?)\"?\\s*<') }}"
+          }
+        },
+        "tags": "{{ p.additionalFields.emailTags.tags.tag | split }}",
+        "attachment": {
+          "$map": "{{ p.additionalFields.emailAttachments.attachment.binaryPropertyName | then:bin.files }}",
+          "$to": {
+            "content": "{{ el.base64 }}",
+            "name": "{{ el.file_name }}"
+          }
+        },
+        "params": {
+          "$entries": "{{ p.additionalFields.templateParameters.parameterValues.parameters | split }}",
+          "$key": "{{ el | split:'=' | get:'0' }}",
+          "$value": "{{ el | split:'=' | get:'1' }}"
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/v3/contacts",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "createContactAttributes",
+          "label": "Attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attributesValues"
+          ],
+          "help": "{\"attributesValues\": [{\"fieldName\": \"FIRSTNAME\", \"fieldValue\": \"Ada\"}]}"
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "attributes": "{{ p.createContactAttributes.attributesValues | kv:'fieldName,fieldValue' }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "upsert",
+      "title": "Create or update a contact",
+      "method": "POST",
+      "path": "/v3/contacts",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "upsertAttributes",
+          "label": "Attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "upsertAttributesValues"
+          ]
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "attributes": "{{ p.upsertAttributes.upsertAttributesValues | kv:'fieldName,fieldValue' }}",
+        "updateEnabled": true
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/v3/contacts/{{ p.identifier }}",
+      "fields": [
+        {
+          "key": "identifier",
+          "label": "Contact identifier",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Email or ID"
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/v3/contacts/{{ p.identifier }}",
+      "fields": [
+        {
+          "key": "identifier",
+          "label": "Contact identifier",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Email or ID"
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/v3/contacts",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sort"
+          ]
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "modifiedSince"
+          ]
+        }
+      ],
+      "query": {
+        "sort": "{{ p.options.sort }}",
+        "modifiedSince": "{{ p.filters.modifiedSince }}"
+      },
+      "pagination": {
+        "type": "offset",
+        "offset_param": "offset",
+        "limit_param": "limit",
+        "page_size": 1000,
+        "results_path": "contacts"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PUT",
+      "path": "/v3/contacts/{{ p.identifier }}",
+      "fields": [
+        {
+          "key": "identifier",
+          "label": "Contact identifier",
+          "type": "text",
+          "default": "",
+          "required": true,
+          "help": "Email or ID"
+        },
+        {
+          "key": "updateAttributes",
+          "label": "Attributes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "updateAttributesValues"
+          ]
+        }
+      ],
+      "body": {
+        "attributes": "{{ p.updateAttributes.updateAttributesValues | kv:'fieldName,fieldValue' }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "attribute",
+      "operation": "create",
+      "title": "Create an attribute",
+      "method": "POST",
+      "path": "/v3/contacts/attributes/{{ p.attributeCategory }}/{{ p.attributeName }}",
+      "fields": [
+        {
+          "key": "attributeCategory",
+          "label": "Category",
+          "type": "select",
+          "default": "normal",
+          "required": true,
+          "options": [
+            "calculated",
+            "category",
+            "global",
+            "normal",
+            "transactional"
+          ]
+        },
+        {
+          "key": "attributeName",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "attributeType",
+          "label": "Type",
+          "type": "select",
+          "default": "",
+          "options": [
+            "",
+            "boolean",
+            "date",
+            "float",
+            "text"
+          ],
+          "help": "normal attributes"
+        },
+        {
+          "key": "attributeValue",
+          "label": "Value",
+          "type": "text",
+          "default": "",
+          "help": "global and calculated attributes"
+        },
+        {
+          "key": "attributeCategoryList",
+          "label": "Category values",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "categoryEnumeration"
+          ],
+          "help": "{\"categoryEnumeration\": {\"attributesValues\": [{\"attributeCategoryValue\": 1, \"attributeCategoryLabel\": \"Gold\"}]}}"
+        }
+      ],
+      "body": {
+        "type": "{{ p.attributeCategory | eq:'category' | then:'category' | default:(p.attributeCategory | eq:'transactional' | then:'id') | default:(p.attributeCategory | eq:'normal' | then:p.attributeType) }}",
+        "value": "{{ p.attributeValue }}",
+        "enumeration": {
+          "$map": "{{ p.attributeCategoryList.categoryEnumeration.attributesValues }}",
+          "$to": {
+            "value": "{{ el.attributeCategoryValue }}",
+            "label": "{{ el.attributeCategoryLabel }}"
+          }
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "attribute",
+      "operation": "update",
+      "title": "Update an attribute",
+      "method": "PUT",
+      "path": "/v3/contacts/attributes/{{ p.updateAttributeCategory }}/{{ p.updateAttributeName }}",
+      "fields": [
+        {
+          "key": "updateAttributeCategory",
+          "label": "Category",
+          "type": "select",
+          "default": "calculated",
+          "options": [
+            "calculated",
+            "category",
+            "global"
+          ]
+        },
+        {
+          "key": "updateAttributeName",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "updateAttributeValue",
+          "label": "Value",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "updateAttributeCategoryList",
+          "label": "Category values",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "updateCategoryEnumeration"
+          ]
+        }
+      ],
+      "body": {
+        "value": "{{ p.updateAttributeCategory | ne:'category' | then:p.updateAttributeValue }}",
+        "enumeration": {
+          "$map": "{{ p.updateAttributeCategoryList.updateCategoryEnumeration.updateAttributesValues }}",
+          "$to": {
+            "value": "{{ el.attributeCategoryValue }}",
+            "label": "{{ el.attributeCategoryLabel }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "attribute",
+      "operation": "delete",
+      "title": "Delete an attribute",
+      "method": "DELETE",
+      "path": "/v3/contacts/attributes/{{ p.deleteAttributeCategory }}/{{ p.deleteAttributeName }}",
+      "fields": [
+        {
+          "key": "deleteAttributeCategory",
+          "label": "Category",
+          "type": "select",
+          "default": "normal",
+          "options": [
+            "calculated",
+            "category",
+            "global",
+            "normal",
+            "transactional"
+          ]
+        },
+        {
+          "key": "deleteAttributeName",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "attribute",
+      "operation": "getAll",
+      "title": "Get many attributes",
+      "method": "GET",
+      "path": "/v3/contacts/attributes",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 1000
+        }
+      ],
+      "output": {
+        "path": "attributes",
+        "limit": true
+      }
+    },
+    {
+      "resource": "sender",
+      "operation": "create",
+      "title": "Create a sender",
+      "method": "POST",
+      "path": "/v3/senders",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "default": "",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "email": "{{ p.email }}"
+      }
+    },
+    {
+      "resource": "sender",
+      "operation": "delete",
+      "title": "Delete a sender",
+      "method": "DELETE",
+      "path": "/v3/senders/{{ p.id }}",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Sender ID",
+          "type": "text",
+          "default": "",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "sender",
+      "operation": "getAll",
+      "title": "Get many senders",
+      "method": "GET",
+      "path": "/v3/senders",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 1000
+        }
+      ],
+      "output": {
+        "path": "senders",
+        "limit": true
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "type",
+        "label": "Webhook type",
+        "type": "select",
+        "required": true,
+        "default": "transactional",
+        "options": [
+          "inbound",
+          "marketing",
+          "transactional"
+        ]
+      },
+      {
+        "key": "events",
+        "label": "Events",
+        "type": "array",
+        "required": true
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/v3/webhooks",
+        "body": {
+          "events": "{{ p.events }}",
+          "type": "{{ p.type }}",
+          "url": "{{ hook.url }}"
+        }
+      }
+    ],
+    "id": "{{ res.id }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/v3/webhooks/{{ hook.id }}"
+      }
+    ],
+    "check": {
+      "method": "GET",
+      "path": "/v3/webhooks/{{ hook.id }}"
+    }
+  }
+}

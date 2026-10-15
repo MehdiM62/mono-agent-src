@@ -73,5 +73,37 @@
       "required": false,
       "type": "select"
     }
+  ],
+  "outputs": [
+    {
+      "description": "message id",
+      "key": "message_id",
+      "type": "number"
+    },
+    {
+      "description": "chat",
+      "key": "chat_id",
+      "type": "number"
+    },
+    {
+      "description": "send: chat type",
+      "key": "chat_type",
+      "type": "string"
+    },
+    {
+      "description": "get_updates: update id",
+      "key": "update_id",
+      "type": "number"
+    },
+    {
+      "description": "get_updates: message text",
+      "key": "text",
+      "type": "string"
+    },
+    {
+      "description": "get_updates: sender username",
+      "key": "from",
+      "type": "string"
+    }
   ]
 }

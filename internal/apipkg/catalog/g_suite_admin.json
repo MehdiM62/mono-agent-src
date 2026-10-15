@@ -1,0 +1,738 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "g_suite_admin",
+  "node_type": "app.g_suite_admin",
+  "title": "Google Workspace Admin",
+  "description": "Users, groups and ChromeOS devices in the Google Workspace Admin directory",
+  "category": "app",
+  "docs_url": "https://developers.google.com/admin-sdk/directory/reference/rest",
+  "n8n_types": [
+    "n8n-nodes-base.gSuiteAdmin"
+  ],
+  "base_url": "https://admin.googleapis.com/admin/directory/v1",
+  "credentials": [
+    {
+      "platform": "google",
+      "name": "Google (Admin directory)",
+      "n8n_credential": "gSuiteAdminOAuth2Api",
+      "n8n_credential_alt": [
+        "googleOAuth2Api"
+      ],
+      "methods": [
+        "oauth"
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      },
+      "reuse_platform": "google"
+    }
+  ],
+  "resources": [
+    {
+      "value": "user",
+      "label": "User"
+    },
+    {
+      "value": "group",
+      "label": "Group"
+    },
+    {
+      "value": "device",
+      "label": "ChromeOS device"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "password",
+          "label": "Password",
+          "type": "password",
+          "required": true
+        },
+        {
+          "key": "username",
+          "label": "Username",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "changePasswordAtNextLogin",
+            "phoneUi",
+            "emailUi",
+            "roles",
+            "customFields",
+            "orgUnitPath"
+          ],
+          "help": "phoneUi.phoneValues [{type, value, primary}], emailUi.emailValues [{type, address}], customFields.fieldValues [{schemaName, fieldName, value}] (use one schema per node: every field is written to each listed schema). roles is accepted but not sent (the Directory API has no writable roles field)."
+        }
+      ],
+      "body": {
+        "password": "{{ p.password }}",
+        "changePasswordAtNextLogin": "{{ p.additionalFields.changePasswordAtNextLogin }}",
+        "phones": "{{ p.additionalFields.phoneUi.phoneValues }}",
+        "emails": "{{ p.additionalFields.emailUi.emailValues }}",
+        "orgUnitPath": "{{ p.additionalFields.orgUnitPath }}",
+        "customSchemas": {
+          "$entries": "{{ p.additionalFields.customFields.fieldValues }}",
+          "$key": "{{ el.schemaName }}",
+          "$value": "{{ p.additionalFields.customFields.fieldValues | kv:'fieldName,value' }}"
+        },
+        "name": {
+          "givenName": "{{ p.firstName }}",
+          "familyName": "{{ p.lastName }}"
+        },
+        "primaryEmail": "{{ p.username }}@{{ p.domain }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "addToGroup",
+      "title": "Add a user to a group",
+      "method": "POST",
+      "path": "/groups/{{ p.groupId | rl }}/members",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User ID or primary e-mail (resource locator accepted)."
+        },
+        {
+          "key": "groupId",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group ID or e-mail (resource locator accepted)."
+        }
+      ],
+      "before": {
+        "method": "GET",
+        "path": "/users/{{ p.userId | rl }}",
+        "query": {
+          "fields": "primaryEmail"
+        }
+      },
+      "body": {
+        "email": "{{ pre.primaryEmail }}",
+        "role": "MEMBER"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/users/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User ID or primary e-mail (resource locator accepted)."
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User ID or primary e-mail (resource locator accepted)."
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "options": [
+            "simplified",
+            "raw",
+            "select"
+          ],
+          "default": "simplified",
+          "help": "simplified/raw return the user as the API sends it; select limits it to Fields."
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "multiselect",
+          "options": [
+            "creationTime",
+            "isAdmin",
+            "kind",
+            "lastLoginTime",
+            "name",
+            "primaryEmail",
+            "suspended",
+            "id"
+          ],
+          "default": []
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "basic",
+            "custom",
+            "full"
+          ],
+          "default": "basic"
+        },
+        {
+          "key": "customFieldMask",
+          "label": "Custom field mask",
+          "type": "array",
+          "item_type": "text",
+          "default": []
+        }
+      ],
+      "query": {
+        "projection": "{{ p.projection }}",
+        "customFieldMask": "{{ p.projection | eq:'custom' | then:(p.customFieldMask | csv) }}",
+        "fields": "{{ p.output | eq:'select' | then:(p.fields | csv) | suffix:',id' }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "output",
+          "label": "Output",
+          "type": "select",
+          "options": [
+            "simplified",
+            "raw",
+            "select"
+          ],
+          "default": "simplified",
+          "help": "simplified/raw return the user as the API sends it; select limits it to Fields."
+        },
+        {
+          "key": "fields",
+          "label": "Fields",
+          "type": "multiselect",
+          "options": [
+            "creationTime",
+            "isAdmin",
+            "kind",
+            "lastLoginTime",
+            "name",
+            "primaryEmail",
+            "suspended",
+            "id"
+          ],
+          "default": []
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "basic",
+            "custom",
+            "full"
+          ],
+          "default": "basic"
+        },
+        {
+          "key": "customFieldMask",
+          "label": "Custom field mask",
+          "type": "array",
+          "item_type": "text",
+          "default": []
+        },
+        {
+          "key": "filter",
+          "label": "Filter",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customer",
+            "domain",
+            "query",
+            "showDeleted"
+          ]
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sortRules"
+          ],
+          "help": "sortRules: {orderBy, sortOrder|sortBy}."
+        }
+      ],
+      "query": {
+        "customer": "{{ p.filter.customer | default:'my_customer' }}",
+        "domain": "{{ p.filter.domain }}",
+        "query": "{{ p.filter.query }}",
+        "showDeleted": "{{ p.filter.showDeleted }}",
+        "orderBy": "{{ p.sort.sortRules.orderBy }}",
+        "sortOrder": "{{ p.sort.sortRules.sortOrder }}",
+        "projection": "{{ p.projection }}",
+        "customFieldMask": "{{ p.projection | eq:'custom' | then:(p.customFieldMask | csv) }}",
+        "fields": "{{ p.output | eq:'select' | then:(p.fields | csv) | prefix:'nextPageToken,users(' | suffix:',id)' }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 100,
+        "results_path": "users"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "removeFromGroup",
+      "title": "Remove a user from a group",
+      "method": "DELETE",
+      "path": "/groups/{{ p.groupId | rl }}/members/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User ID or primary e-mail (resource locator accepted)."
+        },
+        {
+          "key": "groupId",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group ID or e-mail (resource locator accepted)."
+        }
+      ]
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "PUT",
+      "path": "/users/{{ p.userId | rl }}",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User",
+          "type": "text",
+          "required": true,
+          "help": "User ID or primary e-mail (resource locator accepted)."
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "changePasswordAtNextLogin",
+            "firstName",
+            "lastName",
+            "password",
+            "phoneUi",
+            "emailUi",
+            "primaryEmail",
+            "suspendUi",
+            "roles",
+            "customFields",
+            "orgUnitPath"
+          ],
+          "help": "phoneUi.phoneValues [{type, value, primary}], emailUi.emailValues [{type, address}], customFields.fieldValues [{schemaName, fieldName, value}] (use one schema per node: every field is written to each listed schema). roles is accepted but not sent (the Directory API has no writable roles field)."
+        }
+      ],
+      "body": {
+        "password": "{{ p.updateFields.password }}",
+        "changePasswordAtNextLogin": "{{ p.updateFields.changePasswordAtNextLogin }}",
+        "phones": "{{ p.updateFields.phoneUi.phoneValues }}",
+        "emails": "{{ p.updateFields.emailUi.emailValues }}",
+        "orgUnitPath": "{{ p.updateFields.orgUnitPath }}",
+        "customSchemas": {
+          "$entries": "{{ p.updateFields.customFields.fieldValues }}",
+          "$key": "{{ el.schemaName }}",
+          "$value": "{{ p.updateFields.customFields.fieldValues | kv:'fieldName,value' }}"
+        },
+        "name": {
+          "givenName": "{{ p.updateFields.firstName }}",
+          "familyName": "{{ p.updateFields.lastName }}"
+        },
+        "primaryEmail": "{{ p.updateFields.primaryEmail }}",
+        "suspended": "{{ p.updateFields.suspendUi }}"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "create",
+      "title": "Create a group",
+      "method": "POST",
+      "path": "/groups",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "E-mail",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "email": "{{ p.email }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "delete",
+      "title": "Delete a group",
+      "method": "DELETE",
+      "path": "/groups/{{ p.groupId | rl }}",
+      "fields": [
+        {
+          "key": "groupId",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group ID or e-mail (resource locator accepted)."
+        }
+      ]
+    },
+    {
+      "resource": "group",
+      "operation": "get",
+      "title": "Get a group",
+      "method": "GET",
+      "path": "/groups/{{ p.groupId | rl }}",
+      "fields": [
+        {
+          "key": "groupId",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group ID or e-mail (resource locator accepted)."
+        }
+      ]
+    },
+    {
+      "resource": "group",
+      "operation": "getAll",
+      "title": "Get many groups",
+      "method": "GET",
+      "path": "/groups",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filter",
+          "label": "Filter",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "customer",
+            "domain",
+            "query",
+            "userId"
+          ]
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sortRules"
+          ],
+          "help": "sortRules: {orderBy, sortOrder|sortBy}."
+        }
+      ],
+      "query": {
+        "customer": "{{ p.filter.customer }}{{ p.filter.userId | default:p.filter.customer | default:'' | eq:'' | then:'my_customer' }}",
+        "domain": "{{ p.filter.domain }}",
+        "query": "{{ p.filter.query }}",
+        "userKey": "{{ p.filter.userId }}",
+        "orderBy": "{{ p.sort.sortRules.orderBy }}",
+        "sortOrder": "{{ p.sort.sortRules.sortOrder }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 100,
+        "results_path": "groups"
+      }
+    },
+    {
+      "resource": "group",
+      "operation": "update",
+      "title": "Update a group",
+      "method": "PUT",
+      "path": "/groups/{{ p.groupId | rl }}",
+      "fields": [
+        {
+          "key": "groupId",
+          "label": "Group",
+          "type": "text",
+          "required": true,
+          "help": "Group ID or e-mail (resource locator accepted)."
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "email",
+            "name"
+          ]
+        }
+      ],
+      "body": "{{ p.updateFields }}"
+    },
+    {
+      "resource": "device",
+      "operation": "get",
+      "title": "Get a ChromeOS device",
+      "method": "GET",
+      "path": "/customer/my_customer/devices/chromeos/{{ p.deviceId | rl }}",
+      "fields": [
+        {
+          "key": "deviceId",
+          "label": "Device ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "basic",
+            "custom",
+            "full"
+          ],
+          "default": "basic"
+        }
+      ],
+      "query": {
+        "projection": "{{ p.projection }}"
+      }
+    },
+    {
+      "resource": "device",
+      "operation": "getAll",
+      "title": "Get many ChromeOS devices",
+      "method": "GET",
+      "path": "/customer/my_customer/devices/chromeos",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "projection",
+          "label": "Projection",
+          "type": "select",
+          "options": [
+            "basic",
+            "custom",
+            "full"
+          ],
+          "default": "basic"
+        },
+        {
+          "key": "includeChildOrgunits",
+          "label": "Include child org units",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "filter",
+          "label": "Filter",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "orgUnitPath",
+            "query"
+          ]
+        },
+        {
+          "key": "sort",
+          "label": "Sort",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sortRules"
+          ],
+          "help": "sortRules: {orderBy, sortOrder|sortBy}."
+        }
+      ],
+      "query": {
+        "projection": "{{ p.projection }}",
+        "includeChildOrgunits": "{{ p.includeChildOrgunits }}",
+        "orgUnitPath": "{{ p.filter.orgUnitPath }}",
+        "query": "{{ p.filter.query }}",
+        "orderBy": "{{ p.sort.sortRules.orderBy }}",
+        "sortOrder": "{{ p.sort.sortRules.sortBy }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "pageToken",
+        "cursor_path": "nextPageToken",
+        "limit_param": "maxResults",
+        "page_size": 100,
+        "results_path": "chromeosdevices"
+      }
+    },
+    {
+      "resource": "device",
+      "operation": "update",
+      "title": "Update a ChromeOS device",
+      "method": "PUT",
+      "path": "/customer/my_customer/devices/chromeos/{{ p.deviceId | rl }}",
+      "fields": [
+        {
+          "key": "deviceId",
+          "label": "Device ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateOptions",
+          "label": "Update options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "orgUnitPath",
+            "annotatedUser",
+            "annotatedLocation",
+            "annotatedAssetId",
+            "notes"
+          ]
+        }
+      ],
+      "body": "{{ p.updateOptions }}"
+    },
+    {
+      "resource": "device",
+      "operation": "changeStatus",
+      "title": "Enable or disable a ChromeOS device",
+      "method": "POST",
+      "path": "/customer/my_customer/devices/chromeos/{{ p.deviceId | rl }}/action",
+      "fields": [
+        {
+          "key": "deviceId",
+          "label": "Device ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "action",
+          "label": "Status",
+          "type": "select",
+          "options": [
+            "reenable",
+            "disable"
+          ],
+          "default": "reenable"
+        }
+      ],
+      "body": {
+        "action": "{{ p.action }}"
+      }
+    }
+  ]
+}

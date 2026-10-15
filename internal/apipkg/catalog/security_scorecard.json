@@ -1,0 +1,858 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "security_scorecard",
+  "node_type": "app.security_scorecard",
+  "title": "SecurityScorecard",
+  "description": "Company and industry security ratings, portfolios, invitations and reports in SecurityScorecard",
+  "category": "app",
+  "docs_url": "https://securityscorecard.readme.io/reference",
+  "n8n_types": [
+    "n8n-nodes-base.securityScorecard"
+  ],
+  "base_url": "https://api.securityscorecard.io",
+  "credentials": [
+    {
+      "platform": "securityscorecard",
+      "name": "SecurityScorecard",
+      "n8n_credential": "securityScorecardApi",
+      "n8n_field_map": {
+        "apiKey": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Token {{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "company",
+      "label": "Company"
+    },
+    {
+      "value": "industry",
+      "label": "Industry"
+    },
+    {
+      "value": "invite",
+      "label": "Invite"
+    },
+    {
+      "value": "portfolio",
+      "label": "Portfolio"
+    },
+    {
+      "value": "portfolioCompany",
+      "label": "Portfolio Company"
+    },
+    {
+      "value": "report",
+      "label": "Report"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "company",
+      "operation": "getFactor",
+      "title": "Get factor scores",
+      "method": "GET",
+      "path": "/companies/{{ p.scorecardIdentifier }}/factors",
+      "fields": [
+        {
+          "key": "scorecardIdentifier",
+          "label": "Scorecard identifier",
+          "type": "text",
+          "required": true,
+          "help": "The company's primary domain"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "severity",
+            "severity_in"
+          ]
+        }
+      ],
+      "query": {
+        "severity": "{{ p.filters.severity }}",
+        "severity_in": "{{ p.filters.severity_in }}"
+      },
+      "output": {
+        "path": "entries",
+        "limit": true
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getFactorHistorical",
+      "title": "Get historical factor scores",
+      "method": "GET",
+      "path": "/companies/{{ p.scorecardIdentifier }}/history/factors/score",
+      "fields": [
+        {
+          "key": "scorecardIdentifier",
+          "label": "Scorecard identifier",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "One object per date with each factor's score"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "date_from",
+            "date_to",
+            "timing"
+          ]
+        }
+      ],
+      "query": {
+        "date_from": "{{ p.options.date_from | date:'YYYY-MM-DD' }}",
+        "date_to": "{{ p.options.date_to | date:'YYYY-MM-DD' }}",
+        "timing": "{{ p.options.timing }}"
+      },
+      "output": {
+        "path": "entries",
+        "limit": true,
+        "to_when": "{{ p.simple | bool }}",
+        "to": {
+          "date": "{{ el.date }}",
+          "$merge": {
+            "$entries": "{{ el.factors }}",
+            "$key": "{{ el.name }}",
+            "$value": "{{ el.score }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getHistoricalScore",
+      "title": "Get historical scores",
+      "method": "GET",
+      "path": "/companies/{{ p.scorecardIdentifier }}/history/score",
+      "fields": [
+        {
+          "key": "scorecardIdentifier",
+          "label": "Scorecard identifier",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "date_from",
+            "date_to",
+            "timing"
+          ]
+        }
+      ],
+      "query": {
+        "from": "{{ p.options.date_from | date:'YYYY-MM-DD' }}",
+        "to": "{{ p.options.date_to | date:'YYYY-MM-DD' }}",
+        "timing": "{{ p.options.timing }}"
+      },
+      "output": {
+        "path": "entries",
+        "limit": true
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getScorecard",
+      "title": "Get company information and scorecard",
+      "method": "GET",
+      "path": "/companies/{{ p.scorecardIdentifier }}",
+      "fields": [
+        {
+          "key": "scorecardIdentifier",
+          "label": "Scorecard identifier",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "company",
+      "operation": "getScorePlan",
+      "title": "Get a score plan",
+      "method": "GET",
+      "path": "/companies/{{ p.scorecardIdentifier }}/score-plans/by-target/{{ p.score }}",
+      "fields": [
+        {
+          "key": "scorecardIdentifier",
+          "label": "Scorecard identifier",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "score",
+          "label": "Target score",
+          "type": "number",
+          "required": true,
+          "default": 0
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "output": {
+        "path": "entries",
+        "limit": true
+      }
+    },
+    {
+      "resource": "industry",
+      "operation": "getFactor",
+      "title": "Get industry factor scores",
+      "method": "GET",
+      "path": "/industries/{{ p.industry }}/history/factors",
+      "fields": [
+        {
+          "key": "industry",
+          "label": "Industry",
+          "type": "select",
+          "required": true,
+          "default": "food",
+          "options": [
+            "food",
+            "healthcare",
+            "manofacturing",
+            "retail",
+            "technology"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        }
+      ],
+      "output": {
+        "path": "entries",
+        "limit": true,
+        "to_when": "{{ p.simple | bool }}",
+        "to": {
+          "date": "{{ el.date }}",
+          "$merge": {
+            "$entries": "{{ el.factors }}",
+            "$key": "{{ el.name }}",
+            "$value": "{{ el.score }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "industry",
+      "operation": "getFactorHistorical",
+      "title": "Get historical industry factor scores",
+      "method": "GET",
+      "path": "/industries/{{ p.industry }}/history/factors",
+      "fields": [
+        {
+          "key": "industry",
+          "label": "Industry",
+          "type": "select",
+          "required": true,
+          "default": "food",
+          "options": [
+            "food",
+            "healthcare",
+            "manofacturing",
+            "retail",
+            "technology"
+          ]
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "from",
+            "to"
+          ]
+        }
+      ],
+      "query": {
+        "from": "{{ p.options.from | date:'YYYY-MM-DD' }}",
+        "to": "{{ p.options.to | date:'YYYY-MM-DD' }}"
+      },
+      "output": {
+        "path": "entries",
+        "limit": true,
+        "to_when": "{{ p.simple | bool }}",
+        "to": {
+          "date": "{{ el.date }}",
+          "$merge": {
+            "$entries": "{{ el.factors }}",
+            "$key": "{{ el.name }}",
+            "$value": "{{ el.score }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "industry",
+      "operation": "getScore",
+      "title": "Get an industry score",
+      "method": "GET",
+      "path": "/industries/{{ p.industry }}/score",
+      "fields": [
+        {
+          "key": "industry",
+          "label": "Industry",
+          "type": "select",
+          "required": true,
+          "default": "food",
+          "options": [
+            "food",
+            "healthcare",
+            "manofacturing",
+            "retail",
+            "technology"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "invite",
+      "operation": "create",
+      "title": "Invite someone",
+      "method": "POST",
+      "path": "/invitations",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "days_to_resolve_issue",
+            "domain",
+            "grade_to_maintain",
+            "is_organization_point_of_contact",
+            "issue_desc",
+            "issue_title",
+            "issue_type",
+            "sendme_copy",
+            "target_url"
+          ]
+        }
+      ],
+      "body": {
+        "email": "{{ p.email }}",
+        "first_name": "{{ p.firstName }}",
+        "last_name": "{{ p.lastName }}",
+        "message": "{{ p.message }}",
+        "$merge": "{{ p.additionalFields }}"
+      }
+    },
+    {
+      "resource": "portfolio",
+      "operation": "create",
+      "title": "Create a portfolio",
+      "method": "POST",
+      "path": "/portfolios",
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "privacy",
+          "label": "Privacy",
+          "type": "select",
+          "default": "shared",
+          "options": [
+            "private",
+            "shared",
+            "team"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "description": "{{ p.description }}",
+        "privacy": "{{ p.privacy }}"
+      }
+    },
+    {
+      "resource": "portfolio",
+      "operation": "delete",
+      "title": "Delete a portfolio",
+      "method": "DELETE",
+      "path": "/portfolios/{{ p.portfolioId }}",
+      "fields": [
+        {
+          "key": "portfolioId",
+          "label": "Portfolio ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "portfolio",
+      "operation": "getAll",
+      "title": "Get many portfolios",
+      "method": "GET",
+      "path": "/portfolios",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "output": {
+        "path": "entries",
+        "limit": true
+      }
+    },
+    {
+      "resource": "portfolio",
+      "operation": "update",
+      "title": "Update a portfolio",
+      "method": "PUT",
+      "path": "/portfolios/{{ p.portfolioId }}",
+      "fields": [
+        {
+          "key": "portfolioId",
+          "label": "Portfolio ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "privacy",
+          "label": "Privacy",
+          "type": "select",
+          "default": "shared",
+          "options": [
+            "private",
+            "shared",
+            "team"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "description": "{{ p.description }}",
+        "privacy": "{{ p.privacy }}"
+      }
+    },
+    {
+      "resource": "portfolioCompany",
+      "operation": "add",
+      "title": "Add a company to a portfolio",
+      "method": "PUT",
+      "path": "/portfolios/{{ p.portfolioId }}/companies/{{ p.domain }}",
+      "fields": [
+        {
+          "key": "portfolioId",
+          "label": "Portfolio ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "portfolioCompany",
+      "operation": "getAll",
+      "title": "Get many portfolio companies",
+      "method": "GET",
+      "path": "/portfolios/{{ p.portfolioId }}/companies",
+      "fields": [
+        {
+          "key": "portfolioId",
+          "label": "Portfolio ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "grade",
+            "industry",
+            "issueType",
+            "status",
+            "vulnerability"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "output": {
+        "path": "entries",
+        "limit": true
+      }
+    },
+    {
+      "resource": "portfolioCompany",
+      "operation": "remove",
+      "title": "Remove a company from a portfolio",
+      "method": "DELETE",
+      "path": "/portfolios/{{ p.portfolioId }}/companies/{{ p.domain }}",
+      "fields": [
+        {
+          "key": "portfolioId",
+          "label": "Portfolio ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "report",
+      "operation": "getAll",
+      "title": "Get recent reports",
+      "method": "GET",
+      "path": "/reports/recent",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        }
+      ],
+      "output": {
+        "path": "entries",
+        "limit": true
+      }
+    },
+    {
+      "resource": "report",
+      "operation": "download",
+      "title": "Download a report",
+      "method": "GET",
+      "path": "/reports/files/{{ p.url | replace:'https://api.securityscorecard.io/reports/files/','' | replace:'/reports/files/','' | replace:'reports/files/','' | path }}",
+      "fields": [
+        {
+          "key": "url",
+          "label": "Report URL",
+          "type": "text",
+          "required": true,
+          "help": "Report file path or its https://api.securityscorecard.io/reports/files/… URL"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "required": true,
+          "default": "data"
+        }
+      ],
+      "binary": {
+        "download": true,
+        "property_field": "binaryPropertyName"
+      }
+    },
+    {
+      "resource": "report",
+      "operation": "generate",
+      "title": "Generate a report",
+      "method": "POST",
+      "path": "/reports/{{ p.report }}",
+      "fields": [
+        {
+          "key": "report",
+          "label": "Report",
+          "type": "select",
+          "required": true,
+          "default": "detailed",
+          "options": [
+            "detailed",
+            "events-json",
+            "issues",
+            "partnership",
+            "summary",
+            "full-scorecard-json",
+            "portfolio",
+            "scorecard-footprint"
+          ]
+        },
+        {
+          "key": "scorecardIdentifier",
+          "label": "Scorecard identifier",
+          "type": "text",
+          "default": "",
+          "help": "All reports except portfolio"
+        },
+        {
+          "key": "portfolioId",
+          "label": "Portfolio ID",
+          "type": "text",
+          "default": "",
+          "help": "Portfolio report"
+        },
+        {
+          "key": "branding",
+          "label": "Branding",
+          "type": "select",
+          "default": "securityscorecard",
+          "options": [
+            "securityscorecard",
+            "company_and_securityscorecard",
+            "company"
+          ],
+          "help": "Detailed and summary reports"
+        },
+        {
+          "key": "date",
+          "label": "Date",
+          "type": "datetime",
+          "default": "",
+          "help": "Events report"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "format",
+            "countries",
+            "ips",
+            "subdomains"
+          ]
+        }
+      ],
+      "body": {
+        "scorecard_identifier": "{{ p.report | ne:'portfolio' | then:(p.report | ne:'events-json' | then:(p.report | ne:'full-scorecard-json' | then:p.scorecardIdentifier)) }}",
+        "portfolio_id": "{{ p.report | eq:'portfolio' | then:p.portfolioId }}",
+        "format": "{{ p.report | eq:'issues' | default:(p.report | eq:'portfolio') | default:(p.report | eq:'scorecard-footprint') | then:(p.options.format | default:'pdf') }}",
+        "branding": "{{ p.report | eq:'detailed' | default:(p.report | eq:'summary') | then:p.branding }}",
+        "countries": "{{ p.report | eq:'scorecard-footprint' | then:p.options.countries }}",
+        "ips": "{{ p.report | eq:'scorecard-footprint' | then:p.options.ips }}",
+        "subdomains": "{{ p.report | eq:'scorecard-footprint' | then:p.options.subdomains }}",
+        "params": {
+          "$when": "{{ p.report | eq:'events-json' | default:(p.report | eq:'full-scorecard-json') }}",
+          "scorecard_identifier": "{{ p.scorecardIdentifier }}",
+          "date": "{{ p.report | eq:'events-json' | then:p.date }}"
+        }
+      }
+    }
+  ]
+}

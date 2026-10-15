@@ -1,0 +1,127 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "message_bird",
+  "node_type": "app.message_bird",
+  "title": "MessageBird",
+  "description": "Send SMS and read the balance on MessageBird (Bird)",
+  "category": "app",
+  "docs_url": "https://developers.messagebird.com/api/sms-messaging/",
+  "n8n_types": [
+    "n8n-nodes-base.messageBird"
+  ],
+  "base_url": "https://rest.messagebird.com",
+  "credentials": [
+    {
+      "platform": "messagebird",
+      "name": "MessageBird",
+      "n8n_credential": "messageBirdApi",
+      "n8n_field_map": {
+        "accessKey": "access_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_key",
+          "label": "Access key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "AccessKey {{ cred.access_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "sms",
+      "label": "SMS"
+    },
+    {
+      "value": "balance",
+      "label": "Balance"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "sms",
+      "operation": "send",
+      "title": "Send an SMS",
+      "method": "POST",
+      "path": "/messages",
+      "fields": [
+        {
+          "key": "originator",
+          "label": "From",
+          "type": "text",
+          "required": true,
+          "help": "Sender phone number or name"
+        },
+        {
+          "key": "recipients",
+          "label": "To",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated phone numbers"
+        },
+        {
+          "key": "message",
+          "label": "Message",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "createdDatetime",
+            "datacoding",
+            "gateway",
+            "groupIds",
+            "mclass",
+            "reference",
+            "reportUrl",
+            "scheduledDatetime",
+            "type",
+            "typeDetails",
+            "validity"
+          ],
+          "help": "datacoding: auto, plain or unicode; type: sms, binary or flash; mclass: 0 (flash) or 1 (normal); validity in seconds"
+        }
+      ],
+      "body": {
+        "originator": "{{ p.originator }}",
+        "body": "{{ p.message }}",
+        "recipients": {
+          "$map": "{{ p.recipients | split }}",
+          "$to": "{{ el | int }}"
+        },
+        "groupIds": "{{ p.additionalFields.groupIds }}",
+        "type": "{{ p.additionalFields.type }}",
+        "reference": "{{ p.additionalFields.reference }}",
+        "reportUrl": "{{ p.additionalFields.reportUrl }}",
+        "validity": "{{ p.additionalFields.validity | int }}",
+        "gateway": "{{ p.additionalFields.gateway | int }}",
+        "typeDetails": "{{ p.additionalFields.typeDetails }}",
+        "datacoding": "{{ p.additionalFields.datacoding }}",
+        "mclass": "{{ p.additionalFields.mclass | int }}",
+        "scheduledDatetime": "{{ p.additionalFields.scheduledDatetime }}",
+        "createdDatetime": "{{ p.additionalFields.createdDatetime }}"
+      }
+    },
+    {
+      "resource": "balance",
+      "operation": "get",
+      "title": "Get the balance",
+      "method": "GET",
+      "path": "/balance",
+      "fields": []
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -107,6 +108,9 @@ type ProductHuntNode struct{}
 func (n *ProductHuntNode) Type() string { return "service.producthunt" }
 
 func (n *ProductHuntNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.producthunt", config) {
+		return apipkg.ExecuteExtension(ctx, "service.producthunt", input, config)
+	}
 	token := strVal(config, "access_token")
 	if token == "" {
 		return nil, fmt.Errorf("service.producthunt: 'access_token' is required")

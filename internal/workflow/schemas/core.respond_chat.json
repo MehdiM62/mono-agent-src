@@ -1,0 +1,88 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "send",
+      "help": "send posts the message into the chat of the trigger.chat that started the run; sendAndWait also waits for the person's answer there.",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "send",
+        "sendAndWait"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "key": "message",
+      "label": "Message",
+      "required": true,
+      "rows": 4,
+      "type": "textarea"
+    },
+    {
+      "default": "freeTextChat",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sendAndWait"
+        ]
+      },
+      "help": "freeTextChat: the next message typed is the answer. approval: Approve/Disapprove buttons in the chat (a typed message counts as disapproval).",
+      "key": "responseType",
+      "label": "Response Type",
+      "options": [
+        "freeTextChat",
+        "approval"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "responseType",
+        "values": [
+          "approval"
+        ]
+      },
+      "key": "approvalOptions",
+      "label": "Approval Options (JSON)",
+      "language": "json",
+      "placeholder": "{\"values\": {\"approvalType\": \"double\", \"approveLabel\": \"Yes\", \"disapproveLabel\": \"No\"}}",
+      "required": false,
+      "rows": 3,
+      "type": "code"
+    },
+    {
+      "default": false,
+      "depends_on": {
+        "key": "responseType",
+        "values": [
+          "approval"
+        ]
+      },
+      "help": "No typing until a button is pressed.",
+      "key": "blockUserInput",
+      "label": "Block User Input",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "sendAndWait"
+        ]
+      },
+      "help": "limitWaitTime gives up waiting and passes the input items on.",
+      "key": "options",
+      "label": "Options (JSON)",
+      "language": "json",
+      "placeholder": "{\"limitWaitTime\": {\"values\": {\"resumeAmount\": 1, \"resumeUnit\": \"hours\"}}}",
+      "required": false,
+      "rows": 3,
+      "type": "code"
+    }
+  ]
+}

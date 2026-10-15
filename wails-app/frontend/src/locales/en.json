@@ -237,6 +237,26 @@
       "switchTo": "Switch to {{name}}",
       "chipTitle": "From profile {{name}}",
       "line": "{{active}} active · {{running}} running · {{failed}} failed (24h) · {{waiting}} waiting for you"
+    },
+    "getStarted": {
+      "title": "Get started",
+      "progress": "{{done}} of {{total}} done",
+      "dismiss": "Hide this checklist",
+      "optional": "optional",
+      "done": "Done",
+      "signIn": "Sign in to monoes.me",
+      "signInWhy": "MonoAgent needs a monoes.me account before anything runs.",
+      "signInAction": "Sign in",
+      "firstRun": "Run your first workflow",
+      "firstRunWhy": "Start from a template and press Run.",
+      "firstRunAction": "Pick a template",
+      "extension": "Connect the browser extension",
+      "extensionWhy": "Web automations run in your own browser through the extension.",
+      "extensionWhyUnpaired": "The bridge is running but doesn't accept this app yet. Pair it with the button.",
+      "extensionAction": "Set up",
+      "daemon": "Keep workflows running in the background",
+      "daemonWhy": "Schedules and webhooks need the background service.",
+      "daemonAction": "Open setup"
     }
   },
   "agentSetup": {
@@ -260,7 +280,17 @@
     "language": {
       "sectionTitle": "Language",
       "label": "UI language",
-      "hint": "Pilot: English and Spanish only — see docs/i18n.md"
+      "hint": "Pilot: English and Spanish only"
+    },
+    "browsers": {
+      "notPaired": "This browser isn't paired with MonoAgent yet.",
+      "notPairedWhy": "Pair it so automations can run in it. The extension pairs itself from a page the button opens.",
+      "pair": "Pair browser",
+      "pairing": "Pairing…",
+      "pairOpened": "Opened the pairing page in your browser.",
+      "pairNotOpened": "Couldn't open the pairing page.",
+      "pairRestart": "The running bridge uses a different pairing token than this app.",
+      "details": "Details"
     },
     "health": {
       "sectionTitle": "System health",
@@ -627,6 +657,19 @@
           "done": "The saved settings were reset. Every setting is back to its environment variable or its default."
         }
       }
+    },
+    "scope": {
+      "globalTitle": "All profiles",
+      "globalLine": "Applies to this whole machine, every profile.",
+      "profileTitle": "This profile",
+      "profileLine": "Applies only to the profile {{name}}. Other profiles keep their own.",
+      "profileLineNoName": "Applies only to the active profile. Other profiles keep their own."
+    },
+    "jev": {
+      "keyProfileVault": "Set (this profile, will be shared)",
+      "featuresTitle": "TypeSafe Jev features",
+      "consent": "Turning a feature on is a choice for this profile only: it lets this profile send data to TypeSafe. Other profiles stay off until they turn it on themselves.",
+      "adoptHint": "This key is still only in this profile's vault. To share it with every profile, run:"
     }
   },
   "orgs": {
@@ -1011,6 +1054,13 @@
     "scopedTitle": "Claude ran with monomind's scoped access: its own tools are limited to what this turn allows. It has no separate sandbox yet.",
     "awaitingMonomindTitle": "monomind can't sandbox this agent runtime yet (monomind issue #396), so the turn ran without one. Codex and Grok turns are sandboxed today."
   },
+  "coderFolder": {
+    "profileDefault": "Profile folder (default): {{name}}",
+    "profileDefaultUnnamed": "Profile folder (default)",
+    "profileHint": "The active profile's own folder",
+    "chooseAnother": "Choose another folder…",
+    "chooseHint": "Any folder you trust"
+  },
   "bubbles": {
     "dockLabel": "Coder chats",
     "newChat": "New coder chat",
@@ -1247,7 +1297,8 @@
       "approved": "approved",
       "denied": "denied",
       "rejected": "rejected",
-      "dismissed": "dismissed"
+      "dismissed": "dismissed",
+      "sent": "sent"
     },
     "dismiss": "Dismiss",
     "dismissHint": "Close this question without answering; the role is told",
@@ -1275,7 +1326,23 @@
     "sent": "sent",
     "couldNotSend": "Could not send: {{error}}",
     "openAsBubble": "Open as bubble",
-    "openAsBubbleNamed": "Open {{name}} as a chat bubble"
+    "openAsBubbleNamed": "Open {{name}} as a chat bubble",
+    "threadBoss": "Boss",
+    "threadTeam": "Team",
+    "threadsLabel": "Conversation view",
+    "threadRoleLabel": "{{name}} thread",
+    "teamEmpty": "No role-to-role messages yet.",
+    "roleEmpty": "{{name}} has not said or done anything yet.",
+    "waitingElsewhere_one": "{{count}} waiting for you in another view. Show the boss thread",
+    "waitingElsewhere_other": "{{count}} waiting for you in another view. Show the boss thread",
+    "tool": {
+      "running": "running",
+      "ok": "done",
+      "failed": "failed",
+      "denied": "denied"
+    },
+    "answerInBubble": "Answer in the bubble",
+    "answerInBubbleNamed": "Open {{name}} as a bubble to answer what waits for you"
   },
   "account": {
     "checking": "Checking your monoes.me account…",
@@ -1348,6 +1415,11 @@
       "text": "A monoes.me sign-in will be required from {{date}}.",
       "signIn": "Sign in"
     },
+    "menu": {
+      "label": "Account",
+      "notSignedIn": "Not signed in",
+      "plan": "Your plan: {{plan}}"
+    },
     "banner": {
       "dismiss": "Dismiss",
       "close": "Close"
@@ -1378,10 +1450,28 @@
     "left": "{{time}} left",
     "ended": "ended {{time}} ago",
     "leaseEnded": "The lease ended: another agent may take it over, or it can go back to Ready.",
-    "tag": { "question": "Question", "result": "Result" },
-    "age": { "now": "now", "m": "{{n}}m", "h": "{{n}}h", "d": "{{n}}d", "w": "{{n}}w" },
-    "span": { "m": "{{m}}m", "hm": "{{h}}h {{m}}m" },
-    "source": { "chrome": "Chrome", "os": "App", "agent": "Agent", "app": "MonoAgent", "cli": "Terminal" },
+    "tag": {
+      "question": "Question",
+      "result": "Result"
+    },
+    "age": {
+      "now": "now",
+      "m": "{{n}}m",
+      "h": "{{n}}h",
+      "d": "{{n}}d",
+      "w": "{{n}}w"
+    },
+    "span": {
+      "m": "{{m}}m",
+      "hm": "{{h}}h {{m}}m"
+    },
+    "source": {
+      "chrome": "Chrome",
+      "os": "App",
+      "agent": "Agent",
+      "app": "MonoAgent",
+      "cli": "Terminal"
+    },
     "archiveFailed": "Could not archive",
     "archiving": "Archiving…",
     "close": "Close",
@@ -1465,5 +1555,58 @@
       "org_id": "Organization ID",
       "role_id": "Role ID"
     }
+  },
+  "ask": {
+    "regionLabel": "Waiting for your approval",
+    "hilTitle": "Workflow {{workflow}} asks: {{node}}",
+    "sendTitle": "Approve sending ({{channel}})",
+    "sendLabel": "Approve sending {{channel}} to {{name}}",
+    "channel": {
+      "email": "email",
+      "dm": "direct message",
+      "comment": "comment",
+      "post": "post",
+      "connection": "connection request"
+    },
+    "to": "To",
+    "from": "From",
+    "subject": "Subject",
+    "profile": "profile",
+    "person": "open person",
+    "unknownRecipient": "Unknown recipient",
+    "textLabel": "Exact text that will be sent",
+    "edited": "Edited: approving sends this text.",
+    "preparedBy": "Prepared by {{name}}. Nothing is sent until you approve.",
+    "edit": "Edit",
+    "doneEditing": "Done editing",
+    "attachments_one": "{{count}} attachment",
+    "attachments_other": "{{count}} attachments",
+    "imageAlt": "Image attachment",
+    "previewFailed": "Preview unavailable",
+    "previewLoading": "Loading preview…",
+    "open": "Open",
+    "openNamed": "Open {{name}}"
+  },
+  "coderQueue": {
+    "kind": {
+      "copy-style": "Copy style",
+      "tokens": "Design tokens",
+      "fix-element": "Fix element",
+      "bug-report": "Bug report",
+      "integration": "Integration",
+      "ask": "Question"
+    },
+    "label": "Queued coder chat: {{kind}}",
+    "fromBrowser": "from the browser",
+    "dismiss": "Dismiss",
+    "dismissNamed": "Dismiss {{kind}}",
+    "screenshot": "Screenshot of the page",
+    "coderRoot": "coder root",
+    "changeFolder": "Change",
+    "start": "Start",
+    "stackLabel": "Queued coder chats",
+    "showFewer": "Show fewer",
+    "more_one": "+{{count}} more queued",
+    "more_other": "+{{count}} more queued"
   }
 }

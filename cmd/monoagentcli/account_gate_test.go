@@ -10,21 +10,17 @@ import (
 
 // pinnedOpen and pinnedServe are the open list of D6 and the serving commands
 // of spec §6.4, spelled out per command path. Opening a command is a decision,
-// so it takes an edit here too, in the review that opens it. `account` is all
-// of the account commands, `ref` all the reference pages; help and completion
-// are cobra's own. __complete is cobra's as well, but exists only while it
-// executes, so TestOpenCommandsStayOpenWhenLocked covers it.
+// so it takes an edit here too, in the review that opens it. Signed out only
+// the way in is open: `account` (all of the account commands) and the library
+// aliases of it, help (cobra's own), the version and update. ref, doctor,
+// setup, release and cobra's completion and __complete are gated; __complete
+// exists only while it executes, so TestCompletionIsGatedWhenLocked covers it.
 var (
 	pinnedOpen = []string{
 		"account", "account login", "account logout", "account status",
-		"completion", "completion bash", "completion fish", "completion powershell", "completion zsh",
-		"doctor", "doctor fix",
 		"help",
 		"library login", "library logout", "library status",
-		"ref", "ref account", "ref api", "ref commands", "ref connections", "ref crawling", "ref examples", "ref expressions",
-		"ref node", "ref nodes", "ref org", "ref publication", "ref tasks", "ref templates", "ref workflow",
-		"release", "release keygen", "release verify",
-		"setup", "update", "version",
+		"update", "version",
 	}
 	pinnedServe = []string{"daemon", "extension serve", "httpapi", "mcp"}
 )
@@ -126,12 +122,12 @@ func TestUnlistedCommandsAreGated(t *testing.T) {
 			t.Errorf("%s: class %q, want gated", c.Name(), got)
 		}
 	}
-	ref, _, err := root.Find([]string{"ref"})
+	acct, _, err := root.Find([]string{"account"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	child := &cobra.Command{Use: "brand-new-page", RunE: noop}
-	ref.AddCommand(child)
+	acct.AddCommand(child)
 	if commandClass(child) != classOpen {
 		t.Error("a child of an open command should inherit open")
 	}

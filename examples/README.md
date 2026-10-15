@@ -1,6 +1,6 @@
 # Example Workflows
 
-Ten ready-to-import, structurally valid workflow JSONs. None of them use
+Eleven ready-to-import, structurally valid workflow JSONs. None of them use
 social-platform nodes — they work with the default build
 (`go build ./cmd/monoagentcli`; none of them need the social platform nodes).
 
@@ -9,36 +9,48 @@ config key matches that schema's fields. Values marked
 `REPLACE_WITH_*` (and empty `credential_id`s) must be filled in before a run
 will succeed — `workflow import` and `--dry-run` work without them.
 
+The commands here pass `--profile work`; use the name of one of your own
+profiles (`monoagentcli profile list`).
+
 ## Catalog
 
 | File | What it does | Trigger | Nodes |
 |---|---|---|---|
-| `morning-briefing.json` | Weekday 7am: RSS → filter → AI summary → human review → email digest | `trigger.schedule` | `system.rss_read` → `core.filter` → `agent.ask` → `core.human_in_loop` → `comm.email_send` |
-| `sheets-to-gmail.json` | Read pending rows from a Sheet and send a follow-up email per row | `trigger.manual` | `service.google_sheets` → `core.filter` → `comm.email_send` |
+| `morning-briefing.json` | Weekday 7am: RSS → filter → one article list → AI briefing → human review → email | `trigger.schedule` | `system.rss_read` → `core.filter` → `core.code` → `agent.ask` → `core.human_in_loop` → `comm.email_send` |
+| `agent-builder-migration.json` | Starter for leaving OpenAI Agent Builder: message in → AI triage → AI draft reply → human approval → email | `trigger.webhook` | `agent.ask` → `agent.ask` → `core.human_in_loop` → `comm.email_send` |
+| `sheets-to-gmail.json` | Read pending rows from a Sheet and email a follow-up to the first one (one per run) | `trigger.manual` | `service.google_sheets` → `core.filter` → `core.limit` → `comm.email_send` |
 | `http-to-slack.json` | JSON POST in → formatted message → Slack channel | `trigger.webhook` | `core.set` → `comm.slack` |
-| `github-issues-to-linear.json` | Every 6h: mirror new GitHub issues into Linear | `trigger.schedule` | `service.github` → `service.linear` |
+| `github-issues-to-linear.json` | GitHub "issue opened" webhook → matching Linear issue | `trigger.webhook` | `core.filter` → `service.linear` |
 | `webhook-to-postgres.json` | JSON event in → normalize → insert row into Postgres | `trigger.webhook` | `core.set` → `db.postgres` |
 | `stripe-events-to-sheets.json` | Stripe-style event in → append row to a Sheets ledger | `trigger.webhook` | `service.google_sheets` |
 | `image-gen-vault.json` | Generate an image with Gemini (your browser session), lands in the local image vault | `trigger.manual` | `gemini.generate_image` |
 | `outlook-inbox-sync.json` | Hourly: sync Outlook inbox + sent mail into People (adapted from the bundled template) | `trigger.schedule` | `service.outlook_mail` → `people.sync_outlook_message` (×2 branches) |
-| `telegram-notify.json` | Every morning: RSS items pushed as Telegram bot messages | `trigger.schedule` | `system.rss_read` → `comm.telegram` |
+| `telegram-notify.json` | Every morning: RSS items pushed as one Telegram bot message | `trigger.schedule` | `system.rss_read` → `core.code` → `comm.telegram` |
 | `data-pipeline.json` | Fetch API JSON → reshape in code → write CSV → sum totals | `trigger.manual` | `http.request` → `core.code` → `data.spreadsheet` → `core.aggregate` |
+| `error-auto-repair.json` | Template error workflow: when another workflow fails, an agent proposes a fix and a person reviews it | `trigger.error` | `core.set` → `agent.ask` → `core.human_in_loop` |
+
+Every example except `image-gen-vault.json` and `outlook-inbox-sync.json`
+(which adapt the bundled `gemimg` / `outlook_email_sync` templates) and
+`agent-builder-migration.json` (a starter to adapt, not run as-is) is also
+bundled as a template — `monoagentcli workflow templates list` — under the
+file name with underscores (e.g. `morning_briefing`). A test keeps the two
+copies identical.
 
 ## Quickstart
 
 ```bash
 # 1. Import any example (prints the new workflow id):
-monoagentcli workflow import --file examples/http-to-slack.json
+monoagentcli --profile work workflow import --file examples/http-to-slack.json
 
 # 2. Check it without running anything:
-monoagentcli workflow validate --file examples/http-to-slack.json
-monoagentcli workflow run <id> --dry-run
+monoagentcli --profile work workflow validate --file examples/http-to-slack.json
+monoagentcli --profile work workflow run <id> --dry-run
 
 # 3. Activate the workflow so its triggers are served:
-monoagentcli workflow activate <id>
+monoagentcli --profile work workflow activate <id>
 
 # 4. Start the daemon AFTER activation (or restart it) and keep it running:
-monoagentcli daemon
+monoagentcli --profile work daemon
 ```
 
 Note: an activated workflow's triggers are only served by a daemon started

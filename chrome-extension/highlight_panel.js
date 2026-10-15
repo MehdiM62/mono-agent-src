@@ -74,6 +74,7 @@
     ].join(";");
     shadow.appendChild(box);
     doc.body.appendChild(host);
+    addCoderButton(doc, box);
     return box;
   }
 
@@ -97,5 +98,63 @@
     return new TextDecoder().decode(bytes.subarray(0, end));
   }
 
-  root.MonoHighlightPanel = { UI_ID, trusted, open, close, button, capBytes };
+  // ── The element a coder request is about (coder_bridge.js) ─────────
+  //
+  // "Send this element to coder" in the right-click menu, and the panel's own
+  // coder button, hand the worker an element, never text: the worker reads
+  // it back with chrome.scripting, in this same isolated world, and turns it
+  // into a selector. Only a real event sets one; a page that fires its own
+  // contextmenu or mouseup changes nothing. A highlight's <mark> is ours, so
+  // the element it sits in is the one named.
+
+  const MARK = "mark.monoagent-highlight";
+  const targets = { context: null, panel: null, pointer: null };
+
+  function elementOf(node) {
+    let n = node;
+    while (n && n.nodeType !== 1) n = n.parentNode;
+    if (!n || n.id === UI_ID) return null;
+    const mark = n.closest ? n.closest(MARK) : null;
+    return (mark ? mark.parentElement : n) || null;
+  }
+
+  function selectionElement(doc) {
+    const selection = doc.getSelection ? doc.getSelection() : null;
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+    return elementOf(selection.getRangeAt(0).commonAncestorContainer);
+  }
+
+  /** remembered is the element last right-clicked ("context") or the one the open panel is beside ("panel"). */
+  function remembered(which) {
+    return which === "context" || which === "panel" ? targets[which] : null;
+  }
+
+  /**
+   * addCoderButton puts "→ coder" last in an opened panel: after the
+   * caller's own buttons, which are appended once open() returns.
+   */
+  function addCoderButton(doc, box) {
+    targets.panel = selectionElement(doc) || targets.pointer;
+    const ext = root.chrome && root.chrome.runtime;
+    if (!ext || !ext.sendMessage) return;
+    queueMicrotask(() => {
+      if (doc.getElementById(UI_ID) === null) return; // closed already
+      const coder = button(doc, "→ coder", "Send this element to the coder (opens MonoAgent's side panel)", () => {
+        close(doc);
+        try {
+          ext.sendMessage({ type: "coder_from_page" }, () => void root.chrome.runtime.lastError);
+        } catch {
+          // the extension was reloaded under this page: nothing to tell
+        }
+      });
+      box.appendChild(coder);
+    });
+  }
+
+  if (root.document && typeof root.document.addEventListener === "function") {
+    root.document.addEventListener("contextmenu", trusted((e) => (targets.context = elementOf(e.target))), true);
+    root.document.addEventListener("mouseup", trusted((e) => (targets.pointer = elementOf(e.target))), true);
+  }
+
+  root.MonoHighlightPanel = { UI_ID, trusted, open, close, button, capBytes, remembered };
 })(globalThis);

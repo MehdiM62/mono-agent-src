@@ -1,0 +1,153 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "clearbit",
+  "node_type": "app.clearbit",
+  "title": "Clearbit",
+  "description": "Company and person enrichment with Clearbit",
+  "category": "app",
+  "docs_url": "https://dashboard.clearbit.com/docs",
+  "n8n_types": [
+    "n8n-nodes-base.clearbit"
+  ],
+  "base_url": "https://company-stream.clearbit.com",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "clearbit",
+      "name": "Clearbit",
+      "n8n_credential": "clearbitApi",
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "company",
+      "label": "Company"
+    },
+    {
+      "value": "person",
+      "label": "Person"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "company",
+      "operation": "enrich",
+      "title": "Look up a company by domain",
+      "method": "GET",
+      "path": "/v2/companies/find",
+      "base_url": "https://company-stream.clearbit.com",
+      "query": {
+        "domain": "{{ p.domain }}",
+        "company_name": "{{ p.additionalFields.companyName }}",
+        "linkedin": "{{ p.additionalFields.linkedin }}",
+        "twitter": "{{ p.additionalFields.twitter }}",
+        "facebook": "{{ p.additionalFields.facebook }}"
+      },
+      "fields": [
+        {
+          "key": "domain",
+          "label": "Domain",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "companyName",
+            "facebook",
+            "linkedin",
+            "twitter"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "company",
+      "operation": "autocomplete",
+      "title": "Suggest companies by name",
+      "method": "GET",
+      "path": "/v1/companies/suggest",
+      "base_url": "https://autocomplete.clearbit.com",
+      "query": {
+        "query": "{{ p.name }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "person",
+      "operation": "enrich",
+      "title": "Look up a person by email",
+      "method": "GET",
+      "path": "/v2/people/find",
+      "base_url": "https://person-stream.clearbit.com",
+      "query": {
+        "email": "{{ p.email }}",
+        "given_name": "{{ p.additionalFields.givenName }}",
+        "family_name": "{{ p.additionalFields.familyName }}",
+        "ip_address": "{{ p.additionalFields.ipAddress }}",
+        "location": "{{ p.additionalFields.location }}",
+        "company": "{{ p.additionalFields.company }}",
+        "company_domain": "{{ p.additionalFields.companyDomain }}",
+        "linkedin": "{{ p.additionalFields.linkedIn }}",
+        "twitter": "{{ p.additionalFields.twitter }}",
+        "facebook": "{{ p.additionalFields.facebook }}"
+      },
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "company",
+            "companyDomain",
+            "facebook",
+            "familyName",
+            "givenName",
+            "ipAddress",
+            "location",
+            "linkedIn",
+            "twitter"
+          ]
+        }
+      ]
+    }
+  ]
+}

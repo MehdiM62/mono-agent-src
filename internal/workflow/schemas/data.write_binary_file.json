@@ -34,5 +34,17 @@
       "required": false,
       "type": "boolean"
     }
+  ],
+  "outputs": [
+    {
+      "description": "bytes written",
+      "key": "bytes_written",
+      "type": "number"
+    },
+    {
+      "description": "the file written",
+      "key": "file_path",
+      "type": "string"
+    }
   ]
 }

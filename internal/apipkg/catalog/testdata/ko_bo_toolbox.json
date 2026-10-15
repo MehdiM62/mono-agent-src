@@ -1,0 +1,378 @@
+{
+  "submission.getAll": {
+    "params": {
+      "formId": "aX",
+      "limit": 10,
+      "filterType": "json",
+      "filterJson": "{\"a\":1}",
+      "options": {
+        "fields": "_id, name"
+      }
+    },
+    "response": {
+      "results": [
+        {
+          "_id": 1
+        },
+        {
+          "_id": 2
+        }
+      ],
+      "next": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/aX/data/",
+      "query": {
+        "query": "{\"a\":1}",
+        "fields": "[\"_id\",\"name\"]",
+        "limit": "10"
+      },
+      "items": 2
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "submission.delete": {
+    "params": {
+      "formId": "aX",
+      "submissionId": "5"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/assets/aX/data/5",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "submission.get": {
+    "params": {
+      "formId": "aX",
+      "submissionId": "5"
+    },
+    "response": {
+      "_id": 5
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/aX/data/5",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "submission.getValidation": {
+    "params": {
+      "formId": "aX",
+      "submissionId": "5"
+    },
+    "response": {
+      "uid": "x"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/aX/data/5/validation_status/",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "submission.setValidation": {
+    "params": {
+      "formId": "aX",
+      "submissionId": "5",
+      "validationStatus": "validation_status_approved"
+    },
+    "response": {
+      "uid": "x"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/assets/aX/data/5/validation_status/",
+      "body": {
+        "validation_status.uid": "validation_status_approved"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "form.get": {
+    "params": {
+      "formId": "aX"
+    },
+    "response": {
+      "uid": "aX"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/aX",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "form.getAll": {
+    "params": {
+      "limit": 20,
+      "filters": {
+        "filter": "asset_type:survey"
+      },
+      "options": {
+        "sort": {
+          "value": {
+            "ordering": "name",
+            "descending": true
+          }
+        }
+      }
+    },
+    "response": {
+      "results": [
+        {
+          "uid": "aX"
+        }
+      ],
+      "next": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/",
+      "query": {
+        "q": "asset_type:survey",
+        "ordering": "-name",
+        "limit": "20"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "form.redeploy": {
+    "params": {
+      "formId": "aX"
+    },
+    "response": {
+      "ok": true
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/assets/aX/deployment/",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "hook.getAll": {
+    "params": {
+      "formId": "aX",
+      "returnAll": true
+    },
+    "response": {
+      "results": [
+        {
+          "uid": "h1"
+        }
+      ],
+      "next": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/aX/hooks/",
+      "query": {
+        "limit": "3000"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "hook.get": {
+    "params": {
+      "formId": "aX",
+      "hookId": "h1"
+    },
+    "response": {
+      "uid": "h1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/aX/hooks/h1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "hook.getLogs": {
+    "params": {
+      "formId": "aX",
+      "hookId": "h1",
+      "status": "0"
+    },
+    "response": {
+      "results": [
+        {
+          "uid": "l1"
+        }
+      ]
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/aX/hooks/h1/logs/",
+      "query": {
+        "status": "0"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "hook.retryAll": {
+    "params": {
+      "formId": "aX",
+      "hookId": "h1"
+    },
+    "response": {
+      "detail": "ok"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/assets/aX/hooks/h1/retry/",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "hook.retryOne": {
+    "params": {
+      "formId": "aX",
+      "hookId": "h1",
+      "logId": "l1"
+    },
+    "response": {
+      "detail": "ok"
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/api/v2/assets/aX/hooks/h1/logs/l1/retry/",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "file.get": {
+    "params": {
+      "formId": "aX",
+      "fileId": "f1"
+    },
+    "response": {
+      "uid": "f1"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/aX/files/f1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "file.create": {
+    "params": {
+      "formId": "aX"
+    },
+    "response": {
+      "uid": "f1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/api/v2/assets/aX/files/",
+      "body": {
+        "description": "Uploaded file",
+        "file_type": "form_media",
+        "base64Encoded": "data:image/png;base64,aGVsbG8=",
+        "metadata": {
+          "filename": "a.png"
+        }
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    },
+    "input": {
+      "data": "aGVsbG8=",
+      "file_name": "a.png",
+      "mime_type": "image/png"
+    }
+  },
+  "file.delete": {
+    "params": {
+      "formId": "aX",
+      "fileId": "f1"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/api/v2/assets/aX/files/f1",
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  },
+  "file.getAll": {
+    "params": {
+      "formId": "aX"
+    },
+    "response": {
+      "results": [
+        {
+          "uid": "f1"
+        }
+      ],
+      "next": null
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/api/v2/assets/aX/files",
+      "query": {
+        "file_type": "form_media"
+      },
+      "items": 1
+    },
+    "credential": {
+      "url": "https://kf.kobotoolbox.org/",
+      "token": "t"
+    }
+  }
+}

@@ -1,0 +1,2110 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "harvest",
+  "node_type": "app.harvest",
+  "title": "Harvest",
+  "description": "Time entries, projects, tasks, clients, contacts, invoices, estimates, expenses and users in Harvest",
+  "category": "app",
+  "docs_url": "https://help.getharvest.com/api-v2/",
+  "n8n_types": [
+    "n8n-nodes-base.harvest"
+  ],
+  "base_url": "https://api.harvestapp.com/v2",
+  "headers": {
+    "Accept": "application/json",
+    "User-Agent": "mono-agent (https://monoes.me)"
+  },
+  "credentials": [
+    {
+      "platform": "harvest",
+      "name": "Harvest",
+      "n8n_credential": "harvestApi",
+      "n8n_credential_alt": [
+        "harvestOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Personal access token",
+          "secret": true,
+          "required": true,
+          "help": "id.getharvest.com → Developers"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://id.getharvest.com/oauth2/authorize",
+        "token_url": "https://id.getharvest.com/api/v2/oauth2/token",
+        "scopes": [
+          "all"
+        ]
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "client",
+      "label": "Client"
+    },
+    {
+      "value": "company",
+      "label": "Company"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "estimate",
+      "label": "Estimate"
+    },
+    {
+      "value": "expense",
+      "label": "Expense"
+    },
+    {
+      "value": "invoice",
+      "label": "Invoice"
+    },
+    {
+      "value": "project",
+      "label": "Project"
+    },
+    {
+      "value": "timeEntry",
+      "label": "Time Entry"
+    },
+    {
+      "value": "user",
+      "label": "User"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "is_active",
+            "page",
+            "updated_since"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'page' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "tasks"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/tasks",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billable_by_default",
+            "default_hourly_rate",
+            "is_active",
+            "is_default"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/tasks/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/tasks/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "PATCH",
+      "path": "/tasks/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billable_by_default",
+            "default_hourly_rate",
+            "is_active",
+            "is_default",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "getAll",
+      "title": "Get many clients",
+      "method": "GET",
+      "path": "/clients",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "is_active",
+            "updated_since"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'page' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "clients"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "create",
+      "title": "Create a client",
+      "method": "POST",
+      "path": "/clients",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "currency",
+            "is_active"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "delete",
+      "title": "Delete a client",
+      "method": "DELETE",
+      "path": "/clients/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "get",
+      "title": "Get a client",
+      "method": "GET",
+      "path": "/clients/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "client",
+      "operation": "update",
+      "title": "Update a client",
+      "method": "PATCH",
+      "path": "/clients/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "currency",
+            "is_active",
+            "name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "get",
+      "title": "Get the company",
+      "method": "GET",
+      "path": "/company",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "is_active",
+            "updated_since"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'page' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "contacts"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "fax",
+            "last_name",
+            "phone_mobile",
+            "phone_office",
+            "title"
+          ]
+        }
+      ],
+      "body": {
+        "first_name": "{{ p.firstName }}",
+        "client_id": "{{ p.clientId }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PATCH",
+      "path": "/contacts/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client_id",
+            "email",
+            "fax",
+            "first_name",
+            "last_name",
+            "phone_mobile",
+            "phone_office",
+            "title"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "getAll",
+      "title": "Get many estimates",
+      "method": "GET",
+      "path": "/estimates",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client_id",
+            "from",
+            "state",
+            "to",
+            "updated_since",
+            "page"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'page' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "estimates"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "create",
+      "title": "Create a estimate",
+      "method": "POST",
+      "path": "/estimates",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "currency",
+            "over_budget_notification_percentage",
+            "issue_date",
+            "notes",
+            "number",
+            "purchase_order",
+            "subject",
+            "tax",
+            "tax2"
+          ]
+        }
+      ],
+      "body": {
+        "client_id": "{{ p.clientId }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "delete",
+      "title": "Delete a estimate",
+      "method": "DELETE",
+      "path": "/estimates/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "get",
+      "title": "Get a estimate",
+      "method": "GET",
+      "path": "/estimates/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "estimate",
+      "operation": "update",
+      "title": "Update a estimate",
+      "method": "PATCH",
+      "path": "/estimates/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client_id",
+            "currency",
+            "over_budget_notification_percentage",
+            "issue_date",
+            "number",
+            "notes",
+            "purchase_order",
+            "subject",
+            "tax",
+            "tax2"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "expense",
+      "operation": "getAll",
+      "title": "Get many expenses",
+      "method": "GET",
+      "path": "/expenses",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client_id",
+            "from",
+            "is_billed",
+            "page",
+            "project_id",
+            "to",
+            "updated_since",
+            "user_id"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'page' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "expenses"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "expense",
+      "operation": "create",
+      "title": "Create a expense",
+      "method": "POST",
+      "path": "/expenses",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "expenseCategoryId",
+          "label": "Expense category ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "spentDate",
+          "label": "Spent date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billable",
+            "notes",
+            "total_cost",
+            "units",
+            "user_id"
+          ]
+        }
+      ],
+      "body": {
+        "project_id": "{{ p.projectId }}",
+        "expense_category_id": "{{ p.expenseCategoryId }}",
+        "spent_date": "{{ p.spentDate }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "expense",
+      "operation": "delete",
+      "title": "Delete a expense",
+      "method": "DELETE",
+      "path": "/expenses/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "expense",
+      "operation": "get",
+      "title": "Get a expense",
+      "method": "GET",
+      "path": "/expenses/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "expense",
+      "operation": "update",
+      "title": "Update a expense",
+      "method": "PATCH",
+      "path": "/expenses/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "billable",
+            "expense_category_id",
+            "notes",
+            "project_id",
+            "spent_date",
+            "total_cost",
+            "units",
+            "user_id"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "getAll",
+      "title": "Get many invoices",
+      "method": "GET",
+      "path": "/invoices",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client_id",
+            "from",
+            "page",
+            "project_id",
+            "state",
+            "to",
+            "updated_since"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'page,state' }}",
+        "state": "{{ p.filters.state | csv }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "invoices"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "create",
+      "title": "Create a invoice",
+      "method": "POST",
+      "path": "/invoices",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "currency",
+            "over_budget_notification_percentage",
+            "ends_on",
+            "estimate_id",
+            "issue_date",
+            "notes",
+            "number",
+            "payment_term",
+            "purchase_order",
+            "retainer_id",
+            "subject",
+            "tax",
+            "tax2"
+          ]
+        }
+      ],
+      "body": {
+        "client_id": "{{ p.clientId }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "delete",
+      "title": "Delete a invoice",
+      "method": "DELETE",
+      "path": "/invoices/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "get",
+      "title": "Get a invoice",
+      "method": "GET",
+      "path": "/invoices/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "invoice",
+      "operation": "update",
+      "title": "Update a invoice",
+      "method": "PATCH",
+      "path": "/invoices/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client_id",
+            "currency",
+            "over_budget_notification_percentage",
+            "ends_on",
+            "estimate_id",
+            "issue_date",
+            "notes",
+            "number",
+            "payment_term",
+            "purchase_order",
+            "retainer_id",
+            "subject",
+            "tax",
+            "tax2"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "getAll",
+      "title": "Get many projects",
+      "method": "GET",
+      "path": "/projects",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client_id",
+            "is_active",
+            "page",
+            "updated_since"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'page' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "projects"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "create",
+      "title": "Create a project",
+      "method": "POST",
+      "path": "/projects",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "clientId",
+          "label": "Client ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "isBillable",
+          "label": "Billable",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "billBy",
+          "label": "Bill by",
+          "type": "select",
+          "default": "none",
+          "options": [
+            "none",
+            "People",
+            "Project",
+            "Tasks"
+          ]
+        },
+        {
+          "key": "budgetBy",
+          "label": "Budget by",
+          "type": "text",
+          "default": "none",
+          "help": "none, project, project_cost, task, task_fees, person"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "budget",
+            "budget_is_monthly",
+            "cost_budget",
+            "cost_budget_include_expenses",
+            "ends_on",
+            "fee",
+            "hourly_rate",
+            "is_active",
+            "is_fixed_fee",
+            "notes",
+            "notify_when_over_budget",
+            "over_budget_notification_percentage",
+            "show_budget_to_all",
+            "starts_on"
+          ]
+        }
+      ],
+      "body": {
+        "name": "{{ p.name }}",
+        "client_id": "{{ p.clientId }}",
+        "is_billable": "{{ p.isBillable }}",
+        "bill_by": "{{ p.billBy }}",
+        "budget_by": "{{ p.budgetBy }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "delete",
+      "title": "Delete a project",
+      "method": "DELETE",
+      "path": "/projects/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "get",
+      "title": "Get a project",
+      "method": "GET",
+      "path": "/projects/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "update",
+      "title": "Update a project",
+      "method": "PATCH",
+      "path": "/projects/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "bill_by",
+            "budget",
+            "budget_by",
+            "budget_is_monthly",
+            "client_id",
+            "cost_budget",
+            "cost_budget_include_expenses",
+            "ends_on",
+            "fee",
+            "hourly_rate",
+            "is_active",
+            "is_billable",
+            "is_fixed_fee",
+            "name",
+            "notes",
+            "notify_when_over_budget",
+            "over_budget_notification_percentage",
+            "show_budget_to_all",
+            "starts_on"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "getAll",
+      "title": "Get many time_entries",
+      "method": "GET",
+      "path": "/time_entries",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "client_id",
+            "from",
+            "is_billed",
+            "is_running",
+            "page",
+            "to",
+            "updated_since",
+            "user_id"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'page' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "time_entries"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "createByDuration",
+      "title": "Create a time entry by duration",
+      "method": "POST",
+      "path": "/time_entries",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "spentDate",
+          "label": "Spent date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "hours",
+            "notes",
+            "user_id"
+          ]
+        }
+      ],
+      "body": {
+        "project_id": "{{ p.projectId }}",
+        "task_id": "{{ p.taskId }}",
+        "spent_date": "{{ p.spentDate }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "createByStartEnd",
+      "title": "Create a time entry by start and end time",
+      "method": "POST",
+      "path": "/time_entries",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "spentDate",
+          "label": "Spent date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ended_time",
+            "notes",
+            "started_time",
+            "user_id"
+          ]
+        }
+      ],
+      "body": {
+        "project_id": "{{ p.projectId }}",
+        "task_id": "{{ p.taskId }}",
+        "spent_date": "{{ p.spentDate }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "delete",
+      "title": "Delete a time entry",
+      "method": "DELETE",
+      "path": "/time_entries/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "deleteExternal",
+      "title": "Delete a time entry's external reference",
+      "method": "DELETE",
+      "path": "/time_entries/{{ p.id }}/external_reference",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "get",
+      "title": "Get a time entry",
+      "method": "GET",
+      "path": "/time_entries/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "restartTime",
+      "title": "Restart a stopped time entry",
+      "method": "PATCH",
+      "path": "/time_entries/{{ p.id }}/restart",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "stopTime",
+      "title": "Stop a running time entry",
+      "method": "PATCH",
+      "path": "/time_entries/{{ p.id }}/stop",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "timeEntry",
+      "operation": "update",
+      "title": "Update a time entry",
+      "method": "PATCH",
+      "path": "/time_entries/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "ended_time",
+            "hours",
+            "notes",
+            "started_time"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "me",
+      "title": "Get the authenticated user",
+      "method": "GET",
+      "path": "/users/me",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "getAll",
+      "title": "Get many users",
+      "method": "GET",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "is_active",
+            "updated_since",
+            "page"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters | omit:'page' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 100,
+        "results_path": "users"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "create",
+      "title": "Create a user",
+      "method": "POST",
+      "path": "/users",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "firstName",
+          "label": "First name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "lastName",
+          "label": "Last name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "can_create_invoices",
+            "can_create_projects",
+            "can_see_rates",
+            "cost_rate",
+            "default_hourly_rate",
+            "has_access_to_all_future_projects",
+            "is_active",
+            "is_admin",
+            "is_contractor",
+            "is_project_manager",
+            "roles",
+            "timezone",
+            "weekly_capacity"
+          ]
+        }
+      ],
+      "body": {
+        "first_name": "{{ p.firstName }}",
+        "last_name": "{{ p.lastName }}",
+        "email": "{{ p.email }}",
+        "$merge": "{{ p.additionalFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "delete",
+      "title": "Delete a user",
+      "method": "DELETE",
+      "path": "/users/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "get",
+      "title": "Get a user",
+      "method": "GET",
+      "path": "/users/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    },
+    {
+      "resource": "user",
+      "operation": "update",
+      "title": "Update a user",
+      "method": "PATCH",
+      "path": "/users/{{ p.id }}",
+      "fields": [
+        {
+          "key": "accountId",
+          "label": "Account ID",
+          "type": "text",
+          "required": true,
+          "help": "Harvest account ID (sent as Harvest-Account-Id)"
+        },
+        {
+          "key": "id",
+          "label": "ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "can_create_invoices",
+            "can_create_projects",
+            "can_see_rates",
+            "cost_rate",
+            "default_hourly_rate",
+            "has_access_to_all_future_projects",
+            "is_active",
+            "is_admin",
+            "is_contractor",
+            "is_project_manager",
+            "roles",
+            "timezone",
+            "weekly_capacity",
+            "email",
+            "first_name",
+            "last_name"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.updateFields }}"
+      },
+      "headers": {
+        "Harvest-Account-Id": "{{ p.accountId }}"
+      }
+    }
+  ]
+}

@@ -34,23 +34,6 @@ var (
 	cache   = map[string]map[string]string{}
 )
 
-// Locales returns the set of embedded locale codes (derived from the
-// filenames under locales/), e.g. ["en", "es"].
-func Locales() []string {
-	entries, err := localeFS.ReadDir("locales")
-	if err != nil {
-		return nil
-	}
-	out := make([]string, 0, len(entries))
-	for _, e := range entries {
-		name := e.Name()
-		if strings.HasSuffix(name, ".json") {
-			out = append(out, strings.TrimSuffix(name, ".json"))
-		}
-	}
-	return out
-}
-
 func loadLocale(lang string) (map[string]string, error) {
 	mu.RLock()
 	m, ok := cache[lang]

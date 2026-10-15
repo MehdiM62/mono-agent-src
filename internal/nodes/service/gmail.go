@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/monoes/mono-agent/internal/apipkg"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -29,17 +30,26 @@ import (
 //	  In-Reply-To/References headers are derived from the original message;
 //	  the body is used as-is (Gmail's API has no auto-quote of the original
 //	  like Graph's createReply)
-//	list_messages/get_message/list_labels/trash_message: as before
+//	list_messages/get_message/list_labels/trash_message: as before;
+//	  list_messages with "since_last_run" returns only messages newer than
+//	  an earlier run of the node saw (gmail_cursor.go)
 type GmailNode struct{}
 
 func (n *GmailNode) Type() string { return "service.gmail" }
 
-const gmailBaseURL = "https://gmail.googleapis.com/gmail/v1/users/me"
+// gmailBaseURL is a var (not const) so tests can point it at an httptest server.
+var gmailBaseURL = "https://gmail.googleapis.com/gmail/v1/users/me"
 
 func (n *GmailNode) Execute(ctx context.Context, input workflow.NodeInput, config map[string]interface{}) ([]workflow.NodeOutput, error) {
+	if extensionOwns("service.gmail", config) {
+		return apipkg.ExecuteExtension(ctx, "service.gmail", input, config)
+	}
 	accessToken := strVal(config, "access_token")
 	if accessToken == "" {
 		return nil, fmt.Errorf("gmail: access_token is required")
+	}
+	if err := credentialScopeCheck(config, "gmail"); err != nil {
+		return nil, fmt.Errorf("gmail: %w", err)
 	}
 	operation := strVal(config, "operation")
 	maxResults := intVal(config, "max_results")
@@ -171,11 +181,20 @@ func (n *GmailNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 		}
 
 	case "list_messages":
+		q := strVal(config, "query")
+		labelIDs := strSliceVal(config, "label_ids")
+		var since *gmailSince
+		if boolVal(config, "since_last_run") {
+			var err error
+			if since, err = loadGmailSince(ctx, input, q, labelIDs, workflow.PollBaseline(config)); err != nil {
+				return nil, fmt.Errorf("gmail list_messages: since_last_run: %w", err)
+			}
+			q = since.query(q)
+		}
 		url := fmt.Sprintf("%s/messages?maxResults=%d", gmailBaseURL, maxResults)
-		if q := strVal(config, "query"); q != "" {
+		if q != "" {
 			url += "&q=" + gmailURLEncode(q)
 		}
-		labelIDs := strSliceVal(config, "label_ids")
 		for _, lid := range labelIDs {
 			url += "&labelIds=" + lid
 		}
@@ -184,11 +203,21 @@ func (n *GmailNode) Execute(ctx context.Context, input workflow.NodeInput, confi
 			return nil, fmt.Errorf("gmail list_messages: %w", err)
 		}
 		messages, _ := data["messages"].([]interface{})
-		items = make([]workflow.Item, 0, len(messages))
+		listed := make([]map[string]interface{}, 0, len(messages))
 		for _, m := range messages {
 			if msg, ok := m.(map[string]interface{}); ok {
-				items = append(items, workflow.NewItem(msg))
+				listed = append(listed, msg)
 			}
+		}
+		if since != nil {
+			if items, err = since.filter(ctx, accessToken, listed); err != nil {
+				return nil, fmt.Errorf("gmail list_messages: since_last_run: %w", err)
+			}
+			break
+		}
+		items = make([]workflow.Item, 0, len(listed))
+		for _, msg := range listed {
+			items = append(items, workflow.NewItem(msg))
 		}
 
 	case "get_message":

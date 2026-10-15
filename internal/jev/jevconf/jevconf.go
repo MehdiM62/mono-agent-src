@@ -1,5 +1,5 @@
-// Package jevconf is the one place mono-agent code gets a Jev client: key
-// resolution (plan D3), per-profile per-surface enablement and thresholds
+// Package jevconf is the one place mono-agent code gets a Jev client: the
+// machine-wide key (plan D3, key.go), per-profile per-surface enablement and thresholds
 // (D2, D4), usage recording (D8) and the suggestion cache.
 //
 // Settings live in the global `settings` table under profile-qualified keys
@@ -12,13 +12,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"os"
 
 	"github.com/monoes/mono-agent/internal/jev"
-	"github.com/monoes/mono-agent/internal/secrets"
 )
 
 // Surface names an implicit integration point that needs `jev enable`.
@@ -94,71 +92,9 @@ var DefaultThreshold = map[Surface]float64{
 	APIAuto: 0,
 }
 
-// SecretName is the vault entry the resolver looks up.
-const SecretName = "typesafe"
-
-// Key sources reported by ResolveKey.
-const (
-	SourceConfig = "config"
-	SourceVault  = "vault"
-	SourceEnv    = "env"
-)
-
-// ResolveKey implements plan D3: an explicit value (not an @secret: ref) →
-// the profile's vault entry "typesafe" → TYPESAFE_API_KEY → jev.ErrNoAPIKey.
-// An explicit @secret:<name> ref is resolved from the vault; if that fails
-// the env var still applies. A literal "@secret:…" is never returned.
-func ResolveKey(ctx context.Context, db *sql.DB, profileID, explicit string) (key, source string, err error) {
-	explicit = strings.TrimSpace(explicit)
-	ref := "@secret:" + SecretName
-	if explicit != "" && !strings.HasPrefix(explicit, "@secret:") {
-		return explicit, SourceConfig, nil
-	}
-	if explicit != "" {
-		ref = explicit
-	}
-	var vaultErr error
-	if db != nil {
-		// No explicit ref: use the "typesafe" entry, else a naturally named
-		// one ("Jev Api key", "TypeSafe API key", …).
-		if explicit == "" {
-			if name, ok := vaultKeyName(ctx, db, profileID); ok {
-				ref = "@secret:" + name
-			}
-		}
-		v, err := secrets.Resolve(ctx, db, profileID, ref)
-		if err == nil && v != "" && !strings.HasPrefix(v, "@secret:") {
-			return v, SourceVault, nil
-		}
-		vaultErr = err
-	}
-	if v := strings.TrimSpace(envKey()); v != "" {
-		return v, SourceEnv, nil
-	}
-	if vaultErr != nil {
-		return "", "", fmt.Errorf("%w (vault: %v)", jev.ErrNoAPIKey, vaultErr)
-	}
-	return "", "", jev.ErrNoAPIKey
-}
-
-// KeySource reports where ResolveKey would find the profile's key — vault
-// (a "typesafe" or naturally named Jev entry exists) or env — without
-// decrypting anything, so health checks never trigger a keyring or
-// passphrase prompt.
-func KeySource(ctx context.Context, db *sql.DB, profileID string) (string, error) {
-	if db != nil {
-		if _, ok := vaultKeyName(ctx, db, profileID); ok {
-			return SourceVault, nil
-		}
-	}
-	if strings.TrimSpace(envKey()) != "" {
-		return SourceEnv, nil
-	}
-	return "", jev.ErrNoAPIKey
-}
-
-// NewClient resolves the key for profileID and returns a client whose every
-// call is recorded in jev_usage under surface s (db may be nil: no recording).
+// NewClient resolves the machine-wide key and returns a client whose every
+// call is recorded in jev_usage under profileID and surface s (db may be nil:
+// no recording).
 func NewClient(ctx context.Context, db *sql.DB, profileID, explicitKey, model string, s Surface) (*jev.Client, error) {
 	key, _, err := ResolveKey(ctx, db, profileID, explicitKey)
 	if err != nil {
@@ -328,45 +264,4 @@ func UsageSince(db *sql.DB, profileID string, since time.Time) ([]Usage, error) 
 		out = append(out, u)
 	}
 	return out, rows.Err()
-}
-
-// keyNameAliases are vault entry names, normalised (lower case, no spaces,
-// dashes or underscores), accepted for the key when no entry is named
-// exactly "typesafe" — people name the secret after the product or the model.
-var keyNameAliases = map[string]bool{
-	"typesafe": true, "typesafeapikey": true, "typesafekey": true, "typesafeapi": true,
-	"jev": true, "jevapikey": true, "jevkey": true, "jevapi": true,
-}
-
-func normaliseKeyName(n string) string {
-	return strings.NewReplacer(" ", "", "-", "", "_", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(n)))
-}
-
-// vaultKeyName returns the vault entry holding the TypeSafe key: exactly
-// "typesafe" if present, else the single entry whose normalised name is a
-// known alias. Two or more alias matches are ambiguous and ignored.
-// VaultKeyName is the vault entry the key resolves from for the profile
-// (exactly "typesafe", else a single naturally named entry), if any.
-func VaultKeyName(ctx context.Context, db *sql.DB, profileID string) (string, bool) {
-	return vaultKeyName(ctx, db, profileID)
-}
-
-func vaultKeyName(ctx context.Context, db *sql.DB, profileID string) (string, bool) {
-	entries, err := secrets.List(ctx, db, profileID)
-	if err != nil {
-		return "", false
-	}
-	var alias []string
-	for _, e := range entries {
-		if e.Name == SecretName {
-			return e.Name, true
-		}
-		if keyNameAliases[normaliseKeyName(e.Name)] {
-			alias = append(alias, e.Name)
-		}
-	}
-	if len(alias) == 1 {
-		return alias[0], true
-	}
-	return "", false
 }

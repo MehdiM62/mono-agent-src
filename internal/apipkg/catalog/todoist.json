@@ -1,0 +1,1071 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "todoist",
+  "node_type": "app.todoist",
+  "title": "Todoist",
+  "description": "Tasks, projects, sections, comments and labels in Todoist",
+  "category": "app",
+  "docs_url": "https://developer.todoist.com/api/v1/",
+  "n8n_types": [
+    "n8n-nodes-base.todoist"
+  ],
+  "base_url": "https://api.todoist.com/api/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "todoist",
+      "name": "Todoist",
+      "n8n_credential": "todoistApi",
+      "n8n_credential_alt": [
+        "todoistOAuth2Api"
+      ],
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer",
+        "oauth"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true,
+          "help": "Todoist: Settings → Integrations → Developer → API token"
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://todoist.com/oauth/authorize",
+        "token_url": "https://todoist.com/oauth/access_token",
+        "pkce": true,
+        "extra_params": {
+          "scope": "data:read_write,data:delete"
+        }
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "task",
+      "label": "Task"
+    },
+    {
+      "value": "project",
+      "label": "Project"
+    },
+    {
+      "value": "section",
+      "label": "Section"
+    },
+    {
+      "value": "comment",
+      "label": "Comment"
+    },
+    {
+      "value": "label",
+      "label": "Label"
+    },
+    {
+      "value": "reminder",
+      "label": "Reminder"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "task",
+      "operation": "create",
+      "title": "Create a task",
+      "method": "POST",
+      "path": "/tasks",
+      "body": {
+        "content": "{{ p.content }}",
+        "project_id": "{{ p.project | rl }}",
+        "labels": "{{ p.labels }}",
+        "description": "{{ p.options.description }}",
+        "due_datetime": "{{ p.options.dueDateTime }}",
+        "due_string": "{{ p.options.dueString }}",
+        "due_lang": "{{ p.options.dueLang }}",
+        "priority": "{{ p.options.priority | int }}",
+        "order": "{{ p.options.order | int }}",
+        "due_date": "{{ p.options.dueDate }}",
+        "assignee_id": "{{ p.options.assigneeId }}",
+        "duration": "{{ p.options.duration | int }}",
+        "duration_unit": "{{ p.options.durationUnit }}",
+        "deadline_date": "{{ p.options.deadlineDate }}",
+        "parent_id": "{{ p.options.parentId }}",
+        "section_id": "{{ p.options.section }}"
+      },
+      "fields": [
+        {
+          "key": "project",
+          "label": "Project ID",
+          "type": "text",
+          "required": true,
+          "help": "The project's ID (an n8n resource locator is accepted too)."
+        },
+        {
+          "key": "labels",
+          "label": "Label names",
+          "type": "array",
+          "item_type": "text",
+          "help": "Names of labels to attach."
+        },
+        {
+          "key": "content",
+          "label": "Content",
+          "type": "textarea",
+          "required": true,
+          "help": "The task's title; Markdown allowed."
+        },
+        {
+          "key": "options",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "description",
+            "dueDateTime",
+            "dueLang",
+            "dueString",
+            "parentId",
+            "priority",
+            "section",
+            "order",
+            "dueDate",
+            "assigneeId",
+            "duration",
+            "durationUnit",
+            "deadlineDate"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "close",
+      "title": "Close a task",
+      "method": "POST",
+      "path": "/tasks/{{ p.taskId }}/close",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "delete",
+      "title": "Delete a task",
+      "method": "DELETE",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "get",
+      "title": "Get a task",
+      "method": "GET",
+      "path": "/tasks/{{ p.taskId }}",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "getAll",
+      "title": "Get many tasks",
+      "method": "GET",
+      "path": "/tasks{{ p.filters.filter | then:'/filter' }}",
+      "query": {
+        "project_id": "{{ p.filters.projectId }}",
+        "section_id": "{{ p.filters.sectionId }}",
+        "parent_id": "{{ p.filters.parentId }}",
+        "label": "{{ p.filters.labelId }}",
+        "query": "{{ p.filters.filter }}",
+        "lang": "{{ p.filters.lang }}",
+        "ids": "{{ p.filters.ids | csv }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "next_cursor",
+        "limit_param": "limit",
+        "page_size": 200,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filter",
+            "ids",
+            "labelId",
+            "lang",
+            "parentId",
+            "projectId",
+            "sectionId"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "move",
+      "title": "Move a task",
+      "method": "POST",
+      "path": "/tasks/{{ p.taskId }}/move",
+      "body": {
+        "project_id": "{{ p.project | rl }}",
+        "section_id": "{{ p.options.section | default:p.section }}",
+        "parent_id": "{{ p.options.parent }}"
+      },
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "project",
+          "label": "Project ID",
+          "type": "text",
+          "required": true,
+          "help": "The project's ID (an n8n resource locator is accepted too)."
+        },
+        {
+          "key": "section",
+          "label": "Section ID",
+          "type": "text"
+        },
+        {
+          "key": "options",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "section",
+            "parent"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "quickAdd",
+      "title": "Quick add a task",
+      "method": "POST",
+      "path": "/tasks/quick",
+      "body": {
+        "text": "{{ p.text }}",
+        "note": "{{ p.options.note }}",
+        "reminder": "{{ p.options.reminder }}",
+        "auto_reminder": "{{ p.options.auto_reminder | bool }}"
+      },
+      "fields": [
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true,
+          "help": "Natural language, e.g. \"Buy milk tomorrow at 5pm #Errands\"."
+        },
+        {
+          "key": "options",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "note",
+            "reminder",
+            "auto_reminder"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "reopen",
+      "title": "Reopen a task",
+      "method": "POST",
+      "path": "/tasks/{{ p.taskId }}/reopen",
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "task",
+      "operation": "update",
+      "title": "Update a task",
+      "method": "POST",
+      "path": "/tasks/{{ p.taskId }}",
+      "body": {
+        "content": "{{ p.updateFields.content }}",
+        "labels": "{{ p.updateFields.labels }}",
+        "description": "{{ p.updateFields.description }}",
+        "due_datetime": "{{ p.updateFields.dueDateTime }}",
+        "due_string": "{{ p.updateFields.dueString }}",
+        "due_lang": "{{ p.updateFields.dueLang }}",
+        "priority": "{{ p.updateFields.priority | int }}",
+        "order": "{{ p.updateFields.order | int }}",
+        "due_date": "{{ p.updateFields.dueDate }}",
+        "assignee_id": "{{ p.updateFields.assigneeId }}",
+        "duration": "{{ p.updateFields.duration | int }}",
+        "duration_unit": "{{ p.updateFields.durationUnit }}",
+        "deadline_date": "{{ p.updateFields.deadlineDate }}"
+      },
+      "fields": [
+        {
+          "key": "taskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "content",
+            "description",
+            "dueDateTime",
+            "dueLang",
+            "dueString",
+            "labels",
+            "priority",
+            "order",
+            "dueDate",
+            "assigneeId",
+            "duration",
+            "durationUnit",
+            "deadlineDate"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "create",
+      "title": "Create a project",
+      "method": "POST",
+      "path": "/projects",
+      "body": {
+        "name": "{{ p.name }}",
+        "$merge": "{{ p.projectOptions }}"
+      },
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectOptions",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "color",
+            "is_favorite",
+            "parent_id",
+            "view_style"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "archive",
+      "title": "Archive a project",
+      "method": "POST",
+      "path": "/projects/{{ p.projectId }}/archive",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "delete",
+      "title": "Delete a project",
+      "method": "DELETE",
+      "path": "/projects/{{ p.projectId }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "get",
+      "title": "Get a project",
+      "method": "GET",
+      "path": "/projects/{{ p.projectId }}",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "getCollaborators",
+      "title": "Get project collaborators",
+      "method": "GET",
+      "path": "/projects/{{ p.projectId }}/collaborators",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "next_cursor",
+        "limit_param": "limit",
+        "page_size": 200,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "getAll",
+      "title": "Get many projects",
+      "method": "GET",
+      "path": "/projects",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "next_cursor",
+        "limit_param": "limit",
+        "page_size": 200,
+        "results_path": "results"
+      }
+    },
+    {
+      "resource": "project",
+      "operation": "unarchive",
+      "title": "Unarchive a project",
+      "method": "POST",
+      "path": "/projects/{{ p.projectId }}/unarchive",
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "project",
+      "operation": "update",
+      "title": "Update a project",
+      "method": "POST",
+      "path": "/projects/{{ p.projectId }}",
+      "body": {
+        "$merge": "{{ p.projectUpdateFields }}"
+      },
+      "fields": [
+        {
+          "key": "projectId",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "projectUpdateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "color",
+            "is_favorite",
+            "view_style"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "section",
+      "operation": "create",
+      "title": "Create a section",
+      "method": "POST",
+      "path": "/sections",
+      "body": {
+        "project_id": "{{ p.sectionProject | rl }}",
+        "name": "{{ p.sectionName }}",
+        "$merge": "{{ p.sectionOptions }}"
+      },
+      "fields": [
+        {
+          "key": "sectionProject",
+          "label": "Project ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sectionName",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sectionOptions",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "order"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "section",
+      "operation": "delete",
+      "title": "Delete a section",
+      "method": "DELETE",
+      "path": "/sections/{{ p.sectionId }}",
+      "fields": [
+        {
+          "key": "sectionId",
+          "label": "Section ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "section",
+      "operation": "get",
+      "title": "Get a section",
+      "method": "GET",
+      "path": "/sections/{{ p.sectionId }}",
+      "fields": [
+        {
+          "key": "sectionId",
+          "label": "Section ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "section",
+      "operation": "getAll",
+      "title": "Get many sections",
+      "method": "GET",
+      "path": "/sections",
+      "query": {
+        "project_id": "{{ p.sectionFilters.project_id }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "next_cursor",
+        "limit_param": "limit",
+        "page_size": 200,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "sectionFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "project_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "section",
+      "operation": "update",
+      "title": "Update a section",
+      "method": "POST",
+      "path": "/sections/{{ p.sectionId }}",
+      "body": {
+        "$merge": "{{ p.sectionUpdateFields }}"
+      },
+      "fields": [
+        {
+          "key": "sectionId",
+          "label": "Section ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sectionUpdateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "create",
+      "title": "Create a comment",
+      "method": "POST",
+      "path": "/comments",
+      "body": {
+        "task_id": "{{ p.commentTaskId }}",
+        "content": "{{ p.commentContent }}"
+      },
+      "fields": [
+        {
+          "key": "commentTaskId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentContent",
+          "label": "Content",
+          "type": "textarea",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "delete",
+      "title": "Delete a comment",
+      "method": "DELETE",
+      "path": "/comments/{{ p.commentId }}",
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "get",
+      "title": "Get a comment",
+      "method": "GET",
+      "path": "/comments/{{ p.commentId }}",
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "getAll",
+      "title": "Get many comments",
+      "method": "GET",
+      "path": "/comments",
+      "query": {
+        "$merge": "{{ p.commentFilters }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "next_cursor",
+        "limit_param": "limit",
+        "page_size": 200,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "commentFilters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "task_id",
+            "project_id"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "comment",
+      "operation": "update",
+      "title": "Update a comment",
+      "method": "POST",
+      "path": "/comments/{{ p.commentId }}",
+      "body": {
+        "$merge": "{{ p.commentUpdateFields }}"
+      },
+      "fields": [
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "commentUpdateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "content"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "create",
+      "title": "Create a label",
+      "method": "POST",
+      "path": "/labels",
+      "body": {
+        "name": "{{ p.labelName }}",
+        "$merge": "{{ p.labelOptions }}"
+      },
+      "fields": [
+        {
+          "key": "labelName",
+          "label": "Name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "labelOptions",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "color",
+            "order",
+            "is_favorite"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "delete",
+      "title": "Delete a label",
+      "method": "DELETE",
+      "path": "/labels/{{ p.labelId }}",
+      "fields": [
+        {
+          "key": "labelId",
+          "label": "Label ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "get",
+      "title": "Get a label",
+      "method": "GET",
+      "path": "/labels/{{ p.labelId }}",
+      "fields": [
+        {
+          "key": "labelId",
+          "label": "Label ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "label",
+      "operation": "getAll",
+      "title": "Get many labels",
+      "method": "GET",
+      "path": "/labels",
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "next_cursor",
+        "limit_param": "limit",
+        "page_size": 200,
+        "results_path": "results"
+      }
+    },
+    {
+      "resource": "label",
+      "operation": "update",
+      "title": "Update a label",
+      "method": "POST",
+      "path": "/labels/{{ p.labelId }}",
+      "body": {
+        "$merge": "{{ p.labelUpdateFields }}"
+      },
+      "fields": [
+        {
+          "key": "labelId",
+          "label": "Label ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "labelUpdateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "name",
+            "color",
+            "order",
+            "is_favorite"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "reminder",
+      "operation": "create",
+      "title": "Create a reminder",
+      "method": "POST",
+      "path": "/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_add",
+            "uuid": "{{ uuid }}",
+            "temp_id": "{{ uuid }}",
+            "args": {
+              "item_id": "{{ p.itemId }}",
+              "due": {
+                "string": "{{ p.dueDateType | default:'natural_language' | eq:'natural_language' | then:p.natural_language_representation }}",
+                "date": "{{ p.dueDateType | default:'natural_language' | eq:'full_day' | then:p.date }}",
+                "datetime": "{{ p.dueDateType | default:'natural_language' | eq:'floating_time' | then:p.datetime | default:(p.dueDateType | default:'natural_language' | eq:'fixed_timezone' | then:p.datetime) }}",
+                "timezone": "{{ p.dueDateType | default:'natural_language' | eq:'fixed_timezone' | then:p.timezone }}"
+              },
+              "$merge": "{{ p.reminderOptions }}"
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "itemId",
+          "label": "Task ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "dueDateType",
+          "label": "Due date type",
+          "type": "select",
+          "default": "natural_language",
+          "options": [
+            "natural_language",
+            "full_day",
+            "floating_time",
+            "fixed_timezone"
+          ]
+        },
+        {
+          "key": "natural_language_representation",
+          "label": "When (natural language)",
+          "type": "text",
+          "default": "",
+          "help": "e.g. tomorrow at 9am"
+        },
+        {
+          "key": "date",
+          "label": "Date",
+          "type": "text",
+          "default": "",
+          "help": "YYYY-MM-DD"
+        },
+        {
+          "key": "datetime",
+          "label": "Date and time",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "timezone",
+          "label": "Timezone",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "reminderOptions",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "type",
+            "minute_offset",
+            "notify_uid"
+          ],
+          "help": "type: absolute or relative; minute_offset: minutes before the due time (relative)"
+        }
+      ]
+    },
+    {
+      "resource": "reminder",
+      "operation": "delete",
+      "title": "Delete a reminder",
+      "method": "POST",
+      "path": "/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_delete",
+            "uuid": "{{ uuid }}",
+            "args": {
+              "id": "{{ p.reminderId }}"
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "reminderId",
+          "label": "Reminder ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "reminder",
+      "operation": "getAll",
+      "title": "Get many reminders",
+      "method": "POST",
+      "path": "/sync",
+      "body": {
+        "sync_token": "*",
+        "resource_types": [
+          "reminders"
+        ]
+      },
+      "output": {
+        "path": "reminders"
+      },
+      "fields": []
+    },
+    {
+      "resource": "reminder",
+      "operation": "update",
+      "title": "Update a reminder",
+      "method": "POST",
+      "path": "/sync",
+      "body": {
+        "commands": [
+          {
+            "type": "reminder_update",
+            "uuid": "{{ uuid }}",
+            "args": {
+              "id": "{{ p.reminderId }}",
+              "$merge": "{{ p.reminderUpdateFields }}"
+            }
+          }
+        ]
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      },
+      "fields": [
+        {
+          "key": "reminderId",
+          "label": "Reminder ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "reminderUpdateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "due",
+            "type",
+            "minute_offset",
+            "notify_uid"
+          ],
+          "help": "due: {string, date, datetime, timezone}"
+        }
+      ]
+    }
+  ]
+}

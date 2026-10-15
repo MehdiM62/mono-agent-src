@@ -1,0 +1,215 @@
+══════════════════════════════════════════════════════════════
+  NODE: service.github
+  Category: service
+══════════════════════════════════════════════════════════════
+
+  Create issues, PRs, or fetch repo data from GitHub
+
+  Config example:
+    { "credential_id": "github-token", "operation": "create_issue", "owner": "myorg", "repo": "myrepo", "title": "{{ $json.title }}", "body": "{{ $json.body }}" }
+
+  Inputs:   item with issue/PR data
+  Outputs:  issue_number, html_url
+
+  ────────────────────────────────────────────────────────────
+  Credential platform: github
+
+  Fields (every operation):
+    credential_id        GitHub Account · credential_picker · required
+    operation            Operation · select · required · default="list_repos"
+                         shown when resource is (not set)
+    resource             Resource · select · default="" · options: |issue|file|organization|pullRequest|release|repository|review|user|workflow
+                         Leave empty for the built-in operations; pick a resource for the GitHub API package operations.
+    operation            Issue Operation · select · required · default="create"
+                         shown when resource is issue
+    operation            File Operation · select · required · default="create"
+                         shown when resource is file
+    operation            Organization Operation · select · required · default="getRepositories"
+                         shown when resource is organization
+    operation            Pull Request Operation · select · required · default="create"
+                         shown when resource is pullRequest
+    operation            Release Operation · select · required · default="create"
+                         shown when resource is release
+    operation            Repository Operation · select · required · default="getIssues"
+                         shown when resource is repository
+    operation            Review Operation · select · required · default="create"
+                         shown when resource is review
+    operation            User Operation · select · required · default="getRepositories"
+                         shown when resource is user
+    operation            Workflow Operation · select · required · default="dispatch"
+                         shown when resource is workflow
+    owner                Repository owner · text · required
+                         User or organization (resource locator or name)
+                         shown when resource is issue|file|pullRequest|release|repository|review|workflow
+    repository           Repository · text · required
+                         shown when resource is issue|file|pullRequest|release|repository|review|workflow
+    title                Title · text
+                         shown when resource is issue|pullRequest
+    body                 Body · textarea · default=""
+                         shown when resource is issue|pullRequest|review
+    labels               Labels · code · default=[]
+                         [{"label": "bug"}]
+                         shown when resource is issue
+    assignees            Assignees · code · default=[]
+                         [{"assignee": "octocat"}]
+                         shown when resource is issue
+    issueNumber          Issue number · number · default=0
+                         shown when resource is issue
+    body                 Comment · textarea
+                         shown when resource is issue|pullRequest
+    editFields           Edit fields · code · default={}
+                         labels: [{label}]; assignees: [{assignee}] Keys: assignees, body, labels, state, state_reason, title
+                         shown when resource is issue
+    lockReason           Reason · select · default="resolved" · options: off-topic|too heated|resolved|spam
+                         shown when resource is issue
+    filePath             File path · text
+                         shown when resource is file
+    binaryData           Send binary file · boolean · default=false
+                         shown when resource is file
+    fileContent          File content · textarea · default=""
+                         shown when resource is file
+    binaryPropertyName   Input binary property · text · default="data"
+                         shown when resource is file
+    commitMessage        Commit message · text
+                         shown when resource is file
+    additionalParameters Additional parameters · code · default={}
+                         author/committer: {name, email}; branch: {"branch": "main"} Keys: author, branch, committer
+                         shown when resource is file
+    asBinaryProperty     As binary property · boolean · default=true
+                         shown when resource is file
+    binaryPropertyName   Output binary property · text · default="data"
+                         shown when resource is file
+    additionalParameters Additional parameters · code · default={}
+                         Keys: reference
+                         shown when resource is file
+    filePath             Folder path · text · default=""
+                         shown when resource is file
+    owner                Organization · text · required
+                         User or organization (resource locator or name)
+                         shown when resource is organization
+    returnAll            Return all · boolean · default=false
+                         shown when resource is organization|release|repository|review|user
+    limit                Limit · number · default=50
+                         shown when resource is organization|release|repository|review|user
+    base                 Base branch · text
+                         shown when resource is pullRequest
+    head                 Head branch · text
+                         branch or owner:branch
+                         shown when resource is pullRequest
+    draft                Draft · boolean · default=false
+                         shown when resource is pullRequest
+    pullRequestNumber    Pull request number · number · default=0
+                         shown when resource is pullRequest|review
+    editFields           Edit fields · code · default={}
+                         Keys: title, body, state, base
+                         shown when resource is pullRequest
+    commentId            Comment ID · number · default=0
+                         shown when resource is pullRequest
+    mergeMethod          Merge method · select · default="merge" · options: merge|squash|rebase
+                         shown when resource is pullRequest
+    commitTitle          Commit title · text · default=""
+                         shown when resource is pullRequest
+    commitMessage        Commit message · textarea · default=""
+                         shown when resource is pullRequest
+    releaseTag           Tag · text
+                         shown when resource is release
+    additionalFields     Additional fields · code · default={}
+                         Keys: name, body, draft, prerelease, target_commitish
+                         shown when resource is release
+    release_id           Release ID · text
+                         shown when resource is release
+    additionalFields     Additional fields · code · default={}
+                         Keys: body, draft, name, prerelease, tag_name, target_commitish
+                         shown when resource is release
+    getRepositoryIssuesFilters Filters · code · default={}
+                         Keys: assignee, creator, mentioned, labels, since, state, sort, direction
+                         shown when resource is repository
+    getRepositoryPullRequestsFilters Filters · code · default={}
+                         Keys: state, sort, direction
+                         shown when resource is repository
+    event                Event · select · default="approve" · options: approve|requestChanges|comment|pending
+                         shown when resource is review
+    additionalFields     Additional fields · code · default={}
+                         Keys: commitId
+                         shown when resource is review
+    reviewId             Review ID · text
+                         shown when resource is review
+    owner                User · text
+                         User or organization (resource locator or name)
+                         shown when resource is user
+    getUserIssuesFilters Filters · code · default={}
+                         Keys: mentioned, labels, since, state, sort, direction
+                         shown when resource is user
+    organization         Organization · text
+                         shown when resource is user
+    email                Email · text
+                         shown when resource is user
+    workflowId           Workflow ID or file name · text
+                         shown when resource is workflow
+    ref                  Branch or tag · text · default="main"
+                         shown when resource is workflow
+    inputs               Inputs (JSON) · code · default="{}"
+                         shown when resource is workflow
+    options              Options · code
+                         limitWaitTime: {values: {limitType: afterTimeInterval (resumeAmount, resumeUnit) or atSpecifiedTime (maxDateAndTime)}} gives up waiting and passes the input items on
+                         shown when resource is workflow
+
+  Operations (operation):
+    list_repos  (default)
+      no further fields
+    list_issues
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      state                State · select · options: open|closed|all
+                           Filter for list_issues/list_prs (open, closed or all); the new state for update_issue (open or closed). Empty uses GitHub's default.
+    get_issue
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      number               Issue/PR Number · number
+    create_issue
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      title                Issue/PR Title · text
+      body                 Body · textarea
+      labels               Labels · array
+                           Label names to set on the issue. On update_issue they replace the existing labels.
+    update_issue
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      number               Issue/PR Number · number
+      state                State · select · options: open|closed|all
+                           Filter for list_issues/list_prs (open, closed or all); the new state for update_issue (open or closed). Empty uses GitHub's default.
+      title                Issue/PR Title · text
+      body                 Body · textarea
+      labels               Labels · array
+                           Label names to set on the issue. On update_issue they replace the existing labels.
+    list_prs
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      state                State · select · options: open|closed|all
+                           Filter for list_issues/list_prs (open, closed or all); the new state for update_issue (open or closed). Empty uses GitHub's default.
+    create_pr
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      title                Issue/PR Title · text
+      body                 Body · textarea
+      head                 Head Branch · text
+      base                 Base Branch · text
+    list_releases
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+    create_release
+      owner                Repository Owner · text
+                           e.g. octocat
+      repo                 Repository · resource_picker
+      body                 Body · textarea
+      tag_name             Tag Name · text
+      release_name         Release Name · text
+

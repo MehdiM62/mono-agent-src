@@ -37,9 +37,9 @@ func TestResolveKeyOrder(t *testing.T) {
 	if k, src, err := ResolveKey(ctx, db, "p1", "explicit"); err != nil || k != "explicit" || src != SourceConfig {
 		t.Fatalf("explicit: %q %q %v", k, src, err)
 	}
-	// No vault entry, no env: error names the vault miss, never returns the literal ref.
+	// No vault entry, no env: ErrNoAPIKey (absent, not unreadable); never returns the literal ref.
 	k, _, err := ResolveKey(ctx, db, "p1", "@secret:typesafe")
-	if !errors.Is(err, jev.ErrNoAPIKey) || k != "" || !strings.Contains(err.Error(), "vault") {
+	if !errors.Is(err, jev.ErrNoAPIKey) || errors.Is(err, ErrKeyUnreadable) || k != "" {
 		t.Fatalf("missing: %q %v", k, err)
 	}
 	t.Setenv("TYPESAFE_API_KEY", "env-key")

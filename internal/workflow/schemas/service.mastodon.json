@@ -17,7 +17,8 @@
         "get_timeline",
         "get_account",
         "favourite",
-        "boost"
+        "boost",
+        "get_status_metrics"
       ],
       "required": true,
       "type": "select"
@@ -80,6 +81,19 @@
       "type": "array"
     },
     {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "publish_status"
+        ]
+      },
+      "help": "Post as a reply to this status.",
+      "key": "in_reply_to_id",
+      "label": "In Reply To (status ID)",
+      "required": false,
+      "type": "text"
+    },
+    {
       "default": 20,
       "depends_on": {
         "key": "operation",
@@ -97,20 +111,21 @@
         "key": "operation",
         "values": [
           "favourite",
-          "boost"
+          "boost",
+          "get_status_metrics"
         ]
       },
-      "help": "Target status for favourite or boost.",
+      "help": "Target status for favourite, boost or get_status_metrics.",
       "key": "status_id",
       "label": "Status ID",
       "required": false,
       "type": "text"
     },
     {
-      "default": "https://mastodon.social",
-      "help": "Mastodon instance to talk to.",
+      "help": "Mastodon instance to talk to. Leave empty to use the saved connection's instance (or mastodon.social).",
       "key": "instance",
       "label": "Instance URL",
+      "placeholder": "https://mastodon.social",
       "required": false,
       "type": "text"
     },
@@ -120,6 +135,13 @@
       "label": "Access Token",
       "required": false,
       "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
     }
   ]
 }

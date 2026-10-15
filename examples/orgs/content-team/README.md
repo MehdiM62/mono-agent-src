@@ -12,29 +12,29 @@ Needs monomind with capabilities `org-tool-providers` and
 
 ```bash
 # 1. The workflow. Set the Slack channel first (REPLACE_WITH_CHANNEL_ID).
-WF=$(monoagentcli --json workflow import --file examples/orgs/content-team/publish-post.json | jq -r .id)
+WF=$(monoagentcli --profile work --json workflow import --file examples/orgs/content-team/publish-post.json | jq -r .id)
 
-# 2. The org, in the active profile's folder (starts at autonomy mid).
-monoagentcli org create-json content-team --json "$(cat examples/orgs/content-team/content-team.json)"
+# 2. The org, in the profile's folder (starts at autonomy mid).
+monoagentcli --profile work org create-json content-team --json "$(cat examples/orgs/content-team/content-team.json)"
 
 # 3. The workflow joins the org and becomes a role the editor can message.
-monoagentcli org automation add content-team --workflow "$WF" --alias publish_post --owned
-monoagentcli org automation-role add content-team --alias publish_post --reports-to editor
+monoagentcli --profile work org automation add content-team --workflow "$WF" --alias publish_post --owned
+monoagentcli --profile work org automation-role add content-team --alias publish_post --reports-to editor
 
 # 4. Who approves the review step: at mid a person decides irreversible items
 #    (this workflow sends to Slack, so its HIL item is irreversible).
-monoagentcli org autonomy show content-team
+monoagentcli --profile work org autonomy show content-team
 
 # 5. Run it. Both daemons must be up.
-monoagentcli daemon &
-monoagentcli org serve
-monoagentcli org run content-team --task "Write about offline-first workflows"
-monoagentcli org autonomy needs-you content-team   # approve the review here or in the GUI
+monoagentcli --profile work daemon &
+monoagentcli --profile work org serve
+monoagentcli --profile work org run content-team --task "Write about offline-first workflows"
+monoagentcli --profile work org autonomy needs-you content-team   # approve the review here or in the GUI
 ```
 
 To let the editor call the workflow as a tool instead of messaging a role,
 grant it (and drop step 3's `automation-role add`):
 
 ```bash
-monoagentcli org grant add content-team --role editor --automation publish_post
+monoagentcli --profile work org grant add content-team --role editor --automation publish_post
 ```

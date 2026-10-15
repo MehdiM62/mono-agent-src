@@ -1,0 +1,305 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "row",
+      "key": "resource",
+      "label": "Resource",
+      "options": [
+        "row",
+        "table"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "insert",
+      "help": "Rows: insert / get / update / upsert / deleteRows / rowExists (passes items that match) / rowNotExists. Tables: create / list / update (rename) / clear / delete.",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "insert",
+        "get",
+        "update",
+        "upsert",
+        "deleteRows",
+        "rowExists",
+        "rowNotExists",
+        "create",
+        "list",
+        "clear",
+        "delete"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "The table's name or id (for create: the new table's name). Resolved per item.",
+      "key": "table",
+      "label": "Data Table",
+      "placeholder": "Leads",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "values",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "insert",
+          "update",
+          "upsert"
+        ]
+      },
+      "help": "values sets the columns below; auto writes each item's JSON (without id/createdAt/updatedAt).",
+      "key": "columns_mode",
+      "label": "Columns",
+      "options": [
+        "values",
+        "auto"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "insert",
+          "update",
+          "upsert"
+        ]
+      },
+      "help": "Column → value, resolved per item. A column the table lacks is added, typed by its value.",
+      "key": "values",
+      "label": "Values",
+      "language": "json",
+      "placeholder": "{\"email\": \"{{ $json.email }}\", \"score\": \"{{ $json.score }}\"}",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "default": "any",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get",
+          "update",
+          "upsert",
+          "deleteRows",
+          "rowExists",
+          "rowNotExists"
+        ]
+      },
+      "key": "match",
+      "label": "Must Match",
+      "options": [
+        "any",
+        "all"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get",
+          "update",
+          "upsert",
+          "deleteRows",
+          "rowExists",
+          "rowNotExists"
+        ]
+      },
+      "help": "Conditions eq (default), neq, gt, gte, lt, lte, like / ilike (% is the wildcard; without one the value matches anywhere), isEmpty, isNotEmpty, isTrue, isFalse; resolved per item. id, createdAt and updatedAt can be filtered too. Required except for get.",
+      "key": "filters",
+      "label": "Conditions",
+      "language": "json",
+      "placeholder": "[{\"column\": \"email\", \"condition\": \"eq\", \"value\": \"{{ $json.email }}\"}]",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get",
+          "list"
+        ]
+      },
+      "help": "get: all matching rows (default: up to Limit). list: all tables (the default).",
+      "key": "return_all",
+      "label": "Return All",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": 50,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get",
+          "list"
+        ]
+      },
+      "key": "limit",
+      "label": "Limit",
+      "min": 1,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get"
+        ]
+      },
+      "help": "Sort the rows by this column (default: by id).",
+      "key": "order_by",
+      "label": "Order By Column",
+      "placeholder": "createdAt",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "DESC",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "get"
+        ]
+      },
+      "key": "order_direction",
+      "label": "Order Direction",
+      "options": [
+        "ASC",
+        "DESC"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "update",
+          "upsert",
+          "deleteRows"
+        ]
+      },
+      "help": "Return the affected rows before and after (dryRunState) without writing.",
+      "key": "dry_run",
+      "label": "Dry Run",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "insert"
+        ]
+      },
+      "help": "Output only {success, insertedRows} instead of the inserted rows.",
+      "key": "optimize_bulk",
+      "label": "Optimize Bulk",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create"
+        ]
+      },
+      "help": "The new table's columns: type string, number, boolean or date.",
+      "key": "columns",
+      "label": "Table Columns",
+      "language": "json",
+      "placeholder": "[{\"name\": \"email\", \"type\": \"string\"}]",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "default": true,
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "create"
+        ]
+      },
+      "help": "Return the table with this name if it exists instead of failing.",
+      "key": "reuse_existing",
+      "label": "Reuse Existing Table",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "update"
+        ]
+      },
+      "key": "new_name",
+      "label": "New Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "list"
+        ]
+      },
+      "help": "Only tables whose name contains this (any case).",
+      "key": "filter_name",
+      "label": "Filter by Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "name",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "list"
+        ]
+      },
+      "key": "sort_field",
+      "label": "Sort Field",
+      "options": [
+        "name",
+        "createdAt",
+        "updatedAt"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "asc",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "list"
+        ]
+      },
+      "key": "sort_direction",
+      "label": "Sort Direction",
+      "options": [
+        "asc",
+        "desc"
+      ],
+      "required": false,
+      "type": "select"
+    }
+  ]
+}

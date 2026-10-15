@@ -1,0 +1,726 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "syncro_msp",
+  "title": "SyncroMSP",
+  "description": "Contacts, customers, RMM alerts and tickets in SyncroMSP",
+  "category": "app",
+  "docs_url": "https://api-docs.syncromsp.com/",
+  "n8n_types": [
+    "n8n-nodes-base.syncroMsp"
+  ],
+  "base_url": "https://{{ cred.subdomain }}.syncromsp.com/api/v1",
+  "credentials": [
+    {
+      "platform": "syncro_msp",
+      "name": "SyncroMSP",
+      "n8n_credential": "syncroMspApi",
+      "n8n_field_map": {
+        "apiKey": "api_key",
+        "subdomain": "subdomain"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "subdomain",
+          "label": "Subdomain",
+          "required": true,
+          "help": "acme for https://acme.syncromsp.com"
+        },
+        {
+          "key": "api_key",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "query": {
+          "api_key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "customer",
+      "label": "Customer"
+    },
+    {
+      "value": "rmm",
+      "label": "RMM"
+    },
+    {
+      "value": "ticket",
+      "label": "Ticket"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        }
+      ],
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 25,
+        "results_path": "contacts"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "create",
+      "title": "Create a contact",
+      "method": "POST",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "name",
+            "notes",
+            "phone"
+          ],
+          "help": "address, address2, city, state, zip as {\"addressFields\": {...}}"
+        }
+      ],
+      "body": {
+        "address": "{{ p.additionalFields.address.addressFields.address }}",
+        "address1": "{{ p.additionalFields.address.addressFields.address }}",
+        "address2": "{{ p.additionalFields.address.addressFields.address2 }}",
+        "city": "{{ p.additionalFields.address.addressFields.city }}",
+        "state": "{{ p.additionalFields.address.addressFields.state }}",
+        "zip": "{{ p.additionalFields.address.addressFields.zip }}",
+        "customer_id": "{{ p.customerId }}",
+        "email": "{{ p.email }}",
+        "name": "{{ p.additionalFields.name }}",
+        "notes": "{{ p.additionalFields.notes }}",
+        "phone": "{{ p.additionalFields.phone }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contact",
+      "operation": "update",
+      "title": "Update a contact",
+      "method": "PUT",
+      "path": "/contacts/{{ p.contactId }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "customerId",
+            "email",
+            "name",
+            "notes",
+            "phone"
+          ],
+          "help": "address, address2, city, state, zip as {\"addressFields\": {...}}"
+        }
+      ],
+      "body": {
+        "address": "{{ p.updateFields.address.addressFields.address }}",
+        "address1": "{{ p.updateFields.address.addressFields.address }}",
+        "address2": "{{ p.updateFields.address.addressFields.address2 }}",
+        "city": "{{ p.updateFields.address.addressFields.city }}",
+        "state": "{{ p.updateFields.address.addressFields.state }}",
+        "zip": "{{ p.updateFields.address.addressFields.zip }}",
+        "contact_id": "{{ p.contactId }}",
+        "customer_id": "{{ p.updateFields.customerId }}",
+        "email": "{{ p.updateFields.email }}",
+        "name": "{{ p.updateFields.name }}",
+        "notes": "{{ p.updateFields.notes }}",
+        "phone": "{{ p.updateFields.phone }}"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "getAll",
+      "title": "Get many customers",
+      "method": "GET",
+      "path": "/customers",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "businessName",
+            "email",
+            "firstName",
+            "includeDisabled",
+            "lastname",
+            "query",
+            "sort"
+          ]
+        }
+      ],
+      "query": {
+        "business_name": "{{ p.filters.businessName }}",
+        "email": "{{ p.filters.email }}",
+        "firstname": "{{ p.filters.firstName }}",
+        "include_disabled": "{{ p.filters.includeDisabled }}",
+        "lastname": "{{ p.filters.lastname }}",
+        "query": "{{ p.filters.query }}",
+        "sort": "{{ p.filters.sort }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 25,
+        "results_path": "customers"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "create",
+      "title": "Create a customer",
+      "method": "POST",
+      "path": "/customers",
+      "fields": [
+        {
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "businessName",
+            "firstName",
+            "getSms",
+            "invoiceCcEmails",
+            "noEmail",
+            "notes",
+            "notificationEmail",
+            "phone",
+            "referredBy",
+            "lastname"
+          ],
+          "help": "address, address2, city, state, zip as {\"addressFields\": {...}}; invoiceCcEmails: list of emails"
+        }
+      ],
+      "body": {
+        "business_name": "{{ p.additionalFields.businessName }}",
+        "firstname": "{{ p.additionalFields.firstName }}",
+        "get_sms": "{{ p.additionalFields.getSms }}",
+        "invoice_cc_emails": "{{ p.additionalFields.invoiceCcEmails | csv }}",
+        "lastname": "{{ p.additionalFields.lastname }}",
+        "no_email": "{{ p.additionalFields.noEmail }}",
+        "notes": "{{ p.additionalFields.notes }}",
+        "notification_email": "{{ p.additionalFields.notificationEmail }}",
+        "phone": "{{ p.additionalFields.phone }}",
+        "referred_by": "{{ p.additionalFields.referredBy }}",
+        "address": "{{ p.additionalFields.address.addressFields.address }}",
+        "address_2": "{{ p.additionalFields.address.addressFields.address2 }}",
+        "address2": "{{ p.additionalFields.address.addressFields.address2 }}",
+        "city": "{{ p.additionalFields.address.addressFields.city }}",
+        "state": "{{ p.additionalFields.address.addressFields.state }}",
+        "zip": "{{ p.additionalFields.address.addressFields.zip }}",
+        "email": "{{ p.email }}"
+      },
+      "output": {
+        "path": "customer"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "delete",
+      "title": "Delete a customer",
+      "method": "DELETE",
+      "path": "/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "customer",
+      "operation": "get",
+      "title": "Get a customer",
+      "method": "GET",
+      "path": "/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "customer"
+      }
+    },
+    {
+      "resource": "customer",
+      "operation": "update",
+      "title": "Update a customer",
+      "method": "PUT",
+      "path": "/customers/{{ p.customerId }}",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "address",
+            "businessName",
+            "firstName",
+            "getSms",
+            "invoiceCcEmails",
+            "noEmail",
+            "notes",
+            "notificationEmail",
+            "phone",
+            "referredBy",
+            "email",
+            "lastName"
+          ],
+          "help": "address, address2, city, state, zip as {\"addressFields\": {...}}"
+        }
+      ],
+      "body": {
+        "business_name": "{{ p.updateFields.businessName }}",
+        "firstname": "{{ p.updateFields.firstName }}",
+        "get_sms": "{{ p.updateFields.getSms }}",
+        "invoice_cc_emails": "{{ p.updateFields.invoiceCcEmails | csv }}",
+        "lastname": "{{ p.updateFields.lastName }}",
+        "no_email": "{{ p.updateFields.noEmail }}",
+        "notes": "{{ p.updateFields.notes }}",
+        "notification_email": "{{ p.updateFields.notificationEmail }}",
+        "phone": "{{ p.updateFields.phone }}",
+        "referred_by": "{{ p.updateFields.referredBy }}",
+        "address": "{{ p.updateFields.address.addressFields.address }}",
+        "address_2": "{{ p.updateFields.address.addressFields.address2 }}",
+        "address2": "{{ p.updateFields.address.addressFields.address2 }}",
+        "city": "{{ p.updateFields.address.addressFields.city }}",
+        "state": "{{ p.updateFields.address.addressFields.state }}",
+        "zip": "{{ p.updateFields.address.addressFields.zip }}",
+        "email": "{{ p.updateFields.email }}"
+      },
+      "output": {
+        "path": "customer"
+      }
+    },
+    {
+      "resource": "rmm",
+      "operation": "getAll",
+      "title": "Get many RMM alerts",
+      "method": "GET",
+      "path": "/rmm_alerts",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "status"
+          ],
+          "help": "status: active, all or resolved"
+        }
+      ],
+      "query": {
+        "status": "{{ p.filters.status | default:'all' }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 25,
+        "results_path": "rmm_alerts"
+      }
+    },
+    {
+      "resource": "rmm",
+      "operation": "create",
+      "title": "Create an RMM alert",
+      "method": "POST",
+      "path": "/rmm_alerts",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "assetId",
+          "label": "Asset ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "description",
+          "label": "Description",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "resolved"
+          ]
+        }
+      ],
+      "body": {
+        "$merge": "{{ p.additionalFields }}",
+        "customer_id": "{{ p.customerId }}",
+        "asset_id": "{{ p.assetId }}",
+        "description": "{{ p.description }}"
+      },
+      "output": {
+        "path": "alert"
+      }
+    },
+    {
+      "resource": "rmm",
+      "operation": "delete",
+      "title": "Delete an RMM alert",
+      "method": "DELETE",
+      "path": "/rmm_alerts/{{ p.alertId }}",
+      "fields": [
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "rmm",
+      "operation": "get",
+      "title": "Get an RMM alert",
+      "method": "GET",
+      "path": "/rmm_alerts/{{ p.alertId }}",
+      "fields": [
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "rmm_alert"
+      }
+    },
+    {
+      "resource": "rmm",
+      "operation": "mute",
+      "title": "Mute an RMM alert",
+      "method": "POST",
+      "path": "/rmm_alerts/{{ p.alertId }}/mute",
+      "fields": [
+        {
+          "key": "alertId",
+          "label": "Alert ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "muteFor",
+          "label": "Mute for",
+          "type": "text",
+          "required": true,
+          "help": "e.g. 1-hour, 1-day, 2-days, 1-week, 2-weeks, 1-month, forever"
+        }
+      ],
+      "body": {
+        "id": "{{ p.alertId }}",
+        "mute_for": "{{ p.muteFor }}"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "getAll",
+      "title": "Get many tickets",
+      "method": "GET",
+      "path": "/tickets",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 25,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "query",
+            "status"
+          ]
+        }
+      ],
+      "query": {
+        "$merge": "{{ p.filters }}"
+      },
+      "pagination": {
+        "type": "page",
+        "page_param": "page",
+        "limit_param": "per_page",
+        "page_size": 25,
+        "results_path": "tickets"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "create",
+      "title": "Create a ticket",
+      "method": "POST",
+      "path": "/tickets",
+      "fields": [
+        {
+          "key": "customerId",
+          "label": "Customer ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assetId",
+            "contactId",
+            "dueDate",
+            "issueType",
+            "status"
+          ]
+        }
+      ],
+      "body": {
+        "asset_id": "{{ p.additionalFields.assetId }}",
+        "problem_type": "{{ p.additionalFields.issueType }}",
+        "status": "{{ p.additionalFields.status }}",
+        "contact_id": "{{ p.additionalFields.contactId }}",
+        "customer_id": "{{ p.customerId }}",
+        "subject": "{{ p.subject }}"
+      },
+      "output": {
+        "path": "ticket"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "delete",
+      "title": "Delete a ticket",
+      "method": "DELETE",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ticket",
+      "operation": "get",
+      "title": "Get a ticket",
+      "method": "GET",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "path": "ticket"
+      }
+    },
+    {
+      "resource": "ticket",
+      "operation": "update",
+      "title": "Update a ticket",
+      "method": "PUT",
+      "path": "/tickets/{{ p.ticketId }}",
+      "fields": [
+        {
+          "key": "ticketId",
+          "label": "Ticket ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "updateFields",
+          "label": "Update fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "assetId",
+            "contactId",
+            "customerId",
+            "dueDate",
+            "issueType",
+            "status",
+            "subject",
+            "ticketType"
+          ]
+        }
+      ],
+      "body": {
+        "asset_id": "{{ p.updateFields.assetId }}",
+        "customer_id": "{{ p.updateFields.customerId }}",
+        "due_date": "{{ p.updateFields.dueDate }}",
+        "problem_type": "{{ p.updateFields.issueType }}",
+        "status": "{{ p.updateFields.status }}",
+        "subject": "{{ p.updateFields.subject }}",
+        "ticket_type": "{{ p.updateFields.ticketType }}",
+        "contact_id": "{{ p.updateFields.contactId }}"
+      },
+      "output": {
+        "path": "ticket"
+      }
+    }
+  ]
+}

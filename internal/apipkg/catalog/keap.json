@@ -1,0 +1,1388 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "keap",
+  "node_type": "app.keap",
+  "title": "Keap",
+  "description": "Companies, contacts, notes, tags, orders, products, emails and files in Keap (Infusionsoft)",
+  "category": "app",
+  "docs_url": "https://developer.keap.com/docs/rest/",
+  "n8n_types": [
+    "n8n-nodes-base.keap"
+  ],
+  "n8n_trigger_types": [
+    "n8n-nodes-base.keapTrigger"
+  ],
+  "base_url": "https://api.infusionsoft.com/crm/rest/v1",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "keap",
+      "name": "Keap",
+      "n8n_credential": "keapOAuth2Api",
+      "n8n_field_map": {},
+      "methods": [
+        "oauth",
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "Access token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "auth_url": "https://signin.infusionsoft.com/app/oauth/authorize",
+        "token_url": "https://api.infusionsoft.com/token",
+        "scopes": [
+          "full"
+        ],
+        "pkce": true
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "company",
+      "label": "Company"
+    },
+    {
+      "value": "contact",
+      "label": "Contact"
+    },
+    {
+      "value": "contactNote",
+      "label": "Contact Note"
+    },
+    {
+      "value": "contactTag",
+      "label": "Contact Tag"
+    },
+    {
+      "value": "ecommerceOrder",
+      "label": "E-commerce Order"
+    },
+    {
+      "value": "ecommerceProduct",
+      "label": "E-commerce Product"
+    },
+    {
+      "value": "email",
+      "label": "Email"
+    },
+    {
+      "value": "file",
+      "label": "File"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "company",
+      "operation": "create",
+      "title": "Create a company",
+      "method": "POST",
+      "path": "/companies",
+      "fields": [
+        {
+          "key": "companyName",
+          "label": "Company name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailAddress",
+            "notes",
+            "optInReason",
+            "website"
+          ]
+        },
+        {
+          "key": "addressesUi",
+          "label": "Address",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressesValues"
+          ],
+          "help": "addressesValues: {countryCode, line1, line2, locality, postalCode, region, zipCode, zipFour}"
+        },
+        {
+          "key": "faxesUi",
+          "label": "Fax",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "faxesValues"
+          ],
+          "help": "faxesValues: {type, number}"
+        },
+        {
+          "key": "phonesUi",
+          "label": "Phone",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "phonesValues"
+          ],
+          "help": "phonesValues: {type, number}"
+        }
+      ],
+      "body": {
+        "company_name": "{{ p.companyName }}",
+        "email_address": "{{ p.additionalFields.emailAddress }}",
+        "notes": "{{ p.additionalFields.notes }}",
+        "opt_in_reason": "{{ p.additionalFields.optInReason }}",
+        "website": "{{ p.additionalFields.website }}",
+        "address": {
+          "country_code": "{{ p.addressesUi.addressesValues.countryCode }}",
+          "line1": "{{ p.addressesUi.addressesValues.line1 }}",
+          "line2": "{{ p.addressesUi.addressesValues.line2 }}",
+          "locality": "{{ p.addressesUi.addressesValues.locality }}",
+          "postal_code": "{{ p.addressesUi.addressesValues.postalCode }}",
+          "region": "{{ p.addressesUi.addressesValues.region }}",
+          "zip_code": "{{ p.addressesUi.addressesValues.zipCode }}",
+          "zip_four": "{{ p.addressesUi.addressesValues.zipFour }}"
+        },
+        "fax_number": "{{ p.faxesUi.faxesValues }}",
+        "phone_number": "{{ p.phonesUi.phonesValues }}"
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getAll",
+      "title": "Get many companies",
+      "method": "GET",
+      "path": "/companies",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "companyName",
+            "order",
+            "orderDirection",
+            "fields"
+          ],
+          "help": "fields: comma-separated optional properties"
+        }
+      ],
+      "query": {
+        "company_name": "{{ p.options.companyName }}",
+        "order": "{{ p.options.order }}",
+        "order_direction": "{{ p.options.orderDirection }}",
+        "optional_properties": "{{ p.options.fields | csv }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "companies"
+      },
+      "output": {
+        "path": "companies"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "upsert",
+      "title": "Create or update a contact",
+      "method": "PUT",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "duplicateOption",
+          "label": "Match on",
+          "type": "select",
+          "options": [
+            "email",
+            "emailAndName"
+          ],
+          "default": "email"
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "anniversary",
+            "companyId",
+            "contactType",
+            "familyName",
+            "givenName",
+            "ipAddress",
+            "jobTitle",
+            "leadSourceId",
+            "middleName",
+            "optInReason",
+            "ownerId",
+            "preferredLocale",
+            "preferredName",
+            "sourceType",
+            "spouseName",
+            "timezone",
+            "website"
+          ]
+        },
+        {
+          "key": "addressesUi",
+          "label": "Addresses",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressesValues"
+          ],
+          "help": "addressesValues: list of {field (BILLING, SHIPPING, OTHER), countryCode, line1, line2, locality, postalCode, region, zipCode, zipFour}"
+        },
+        {
+          "key": "emailsUi",
+          "label": "Emails",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "emailsValues"
+          ],
+          "help": "emailsValues: list of {field (EMAIL1..3), email}"
+        },
+        {
+          "key": "faxesUi",
+          "label": "Faxes",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "faxesValues"
+          ],
+          "help": "faxesValues: list of {field (FAX1, FAX2), number}"
+        },
+        {
+          "key": "socialAccountsUi",
+          "label": "Social accounts",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "socialAccountsValues"
+          ],
+          "help": "socialAccountsValues: list of {type (Facebook, Twitter, LinkedIn), name}"
+        },
+        {
+          "key": "phonesUi",
+          "label": "Phones",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "phonesValues"
+          ],
+          "help": "phonesValues: list of {field (PHONE1..5), number}"
+        }
+      ],
+      "body": {
+        "duplicate_option": "{{ p.duplicateOption | prefix:'~' | replace:'~emailAndName','EmailAndName' | replace:'~email','Email' | replace:'~','' }}",
+        "anniversary": "{{ p.additionalFields.anniversary }}",
+        "contact_type": "{{ p.additionalFields.contactType }}",
+        "family_name": "{{ p.additionalFields.familyName }}",
+        "given_name": "{{ p.additionalFields.givenName }}",
+        "job_title": "{{ p.additionalFields.jobTitle }}",
+        "lead_source_id": "{{ p.additionalFields.leadSourceId }}",
+        "middle_name": "{{ p.additionalFields.middleName }}",
+        "opt_in_reason": "{{ p.additionalFields.optInReason }}",
+        "owner_id": "{{ p.additionalFields.ownerId }}",
+        "preferred_locale": "{{ p.additionalFields.preferredLocale }}",
+        "preferred_name": "{{ p.additionalFields.preferredName }}",
+        "source_type": "{{ p.additionalFields.sourceType }}",
+        "spouse_name": "{{ p.additionalFields.spouseName }}",
+        "time_zone": "{{ p.additionalFields.timezone }}",
+        "website": "{{ p.additionalFields.website }}",
+        "origin": {
+          "ip_address": "{{ p.additionalFields.ipAddress }}"
+        },
+        "company": {
+          "id": "{{ p.additionalFields.companyId }}"
+        },
+        "addresses": {
+          "$map": "{{ p.addressesUi.addressesValues }}",
+          "$to": {
+            "field": "{{ el.field }}",
+            "country_code": "{{ el.countryCode }}",
+            "line1": "{{ el.line1 }}",
+            "line2": "{{ el.line2 }}",
+            "locality": "{{ el.locality }}",
+            "postal_code": "{{ el.postalCode }}",
+            "region": "{{ el.region }}",
+            "zip_code": "{{ el.zipCode }}",
+            "zip_four": "{{ el.zipFour }}"
+          }
+        },
+        "email_addresses": "{{ p.emailsUi.emailsValues }}",
+        "fax_numbers": "{{ p.faxesUi.faxesValues }}",
+        "social_accounts": "{{ p.socialAccountsUi.socialAccountsValues }}",
+        "phone_numbers": "{{ p.phonesUi.phonesValues }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "delete",
+      "title": "Delete a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId | int }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "get",
+      "title": "Get a contact",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId | int }}",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "fields"
+          ],
+          "help": "fields: comma-separated optional properties"
+        }
+      ],
+      "query": {
+        "optional_properties": "{{ p.options.fields | csv }}"
+      }
+    },
+    {
+      "resource": "contact",
+      "operation": "getAll",
+      "title": "Get many contacts",
+      "method": "GET",
+      "path": "/contacts",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "email",
+            "givenName",
+            "familyName",
+            "order",
+            "orderDirection",
+            "since",
+            "until"
+          ]
+        }
+      ],
+      "query": {
+        "email": "{{ p.options.email }}",
+        "given_name": "{{ p.options.givenName }}",
+        "family_name": "{{ p.options.familyName }}",
+        "order": "{{ p.options.order }}",
+        "order_direction": "{{ p.options.orderDirection }}",
+        "since": "{{ p.options.since }}",
+        "until": "{{ p.options.until }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "contacts"
+      },
+      "output": {
+        "path": "contacts"
+      }
+    },
+    {
+      "resource": "contactNote",
+      "operation": "create",
+      "title": "Create a note",
+      "method": "POST",
+      "path": "/notes",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body",
+            "title",
+            "type"
+          ],
+          "help": "type: appointment, call, email, fax, letter, other"
+        }
+      ],
+      "body": {
+        "user_id": "{{ p.userId | numeric }}",
+        "contact_id": "{{ p.contactId | int }}",
+        "body": "{{ p.additionalFields.body }}",
+        "title": "{{ p.additionalFields.title }}",
+        "type": "{{ p.additionalFields.type | prefix:'~' | replace:'~appointment','Appointment' | replace:'~letter','Letter' | replace:'~email','Email' | replace:'~other','Other' | replace:'~call','Call' | replace:'~fax','Fax' | replace:'~','' }}"
+      }
+    },
+    {
+      "resource": "contactNote",
+      "operation": "delete",
+      "title": "Delete a note",
+      "method": "DELETE",
+      "path": "/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "Note ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contactNote",
+      "operation": "get",
+      "title": "Get a note",
+      "method": "GET",
+      "path": "/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "Note ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "contactNote",
+      "operation": "getAll",
+      "title": "Get many notes",
+      "method": "GET",
+      "path": "/notes",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contactId",
+            "userId"
+          ]
+        }
+      ],
+      "query": {
+        "contact_id": "{{ p.filters.contactId }}",
+        "user_id": "{{ p.filters.userId }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "notes"
+      },
+      "output": {
+        "path": "notes"
+      }
+    },
+    {
+      "resource": "contactNote",
+      "operation": "update",
+      "title": "Update a note",
+      "method": "PATCH",
+      "path": "/notes/{{ p.noteId }}",
+      "fields": [
+        {
+          "key": "noteId",
+          "label": "Note ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Fields to update",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "body",
+            "contactId",
+            "title",
+            "type",
+            "userId"
+          ]
+        }
+      ],
+      "body": {
+        "body": "{{ p.additionalFields.body }}",
+        "contact_id": "{{ p.additionalFields.contactId }}",
+        "title": "{{ p.additionalFields.title }}",
+        "type": "{{ p.additionalFields.type | prefix:'~' | replace:'~appointment','Appointment' | replace:'~letter','Letter' | replace:'~email','Email' | replace:'~other','Other' | replace:'~call','Call' | replace:'~fax','Fax' | replace:'~','' }}",
+        "user_id": "{{ p.additionalFields.userId | numeric }}"
+      }
+    },
+    {
+      "resource": "contactTag",
+      "operation": "create",
+      "title": "Add tags to a contact",
+      "method": "POST",
+      "path": "/contacts/{{ p.contactId | int }}/tags",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagIds",
+          "label": "Tag IDs",
+          "type": "array",
+          "item_type": "number",
+          "required": true
+        }
+      ],
+      "body": {
+        "tagIds": "{{ p.tagIds }}"
+      }
+    },
+    {
+      "resource": "contactTag",
+      "operation": "delete",
+      "title": "Remove tags from a contact",
+      "method": "DELETE",
+      "path": "/contacts/{{ p.contactId | int }}/tags",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "tagIds",
+          "label": "Tag IDs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated tag IDs"
+        }
+      ],
+      "query": {
+        "ids": "{{ p.tagIds | csv }}"
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "contactTag",
+      "operation": "getAll",
+      "title": "Get a contact's tags",
+      "method": "GET",
+      "path": "/contacts/{{ p.contactId | int }}/tags",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "query": {},
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "tags"
+      },
+      "output": {
+        "path": "tags"
+      }
+    },
+    {
+      "resource": "ecommerceOrder",
+      "operation": "create",
+      "title": "Create an order",
+      "method": "POST",
+      "path": "/orders",
+      "fields": [
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "orderDate",
+          "label": "Order date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "key": "orderTitle",
+          "label": "Order title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "orderType",
+          "label": "Order type",
+          "type": "select",
+          "options": [
+            "offline",
+            "online"
+          ],
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "leadAffiliateId",
+            "promoCodes",
+            "salesAffiliateId"
+          ],
+          "help": "promoCodes: comma-separated"
+        },
+        {
+          "key": "addressUi",
+          "label": "Shipping address",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressValues"
+          ],
+          "help": "addressValues: {company, countryCode, firstName, middleName, lastName, line1, line2, locality, region, zipCode, zipFour, phone}"
+        },
+        {
+          "key": "orderItemsUi",
+          "label": "Order items",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "orderItemsValues"
+          ],
+          "help": "orderItemsValues: list of {description, price, product ID, quantity}"
+        }
+      ],
+      "body": {
+        "contact_id": "{{ p.contactId | int }}",
+        "order_date": "{{ p.orderDate }}",
+        "order_title": "{{ p.orderTitle }}",
+        "order_type": "{{ p.orderType | prefix:'~' | replace:'~offline','Offline' | replace:'~online','Online' | replace:'~','' }}",
+        "lead_affiliate_id": "{{ p.additionalFields.leadAffiliateId }}",
+        "promo_codes": "{{ p.additionalFields.promoCodes | split }}",
+        "sales_affiliate_id": "{{ p.additionalFields.salesAffiliateId }}",
+        "order_items": {
+          "$map": "{{ p.orderItemsUi.orderItemsValues }}",
+          "$to": {
+            "description": "{{ el.description }}",
+            "price": "{{ el.price }}",
+            "product_id": "{{ el | get:'product ID' }}",
+            "quantity": "{{ el.quantity }}"
+          }
+        },
+        "shipping_address": {
+          "company": "{{ p.addressUi.addressValues.company }}",
+          "country_code": "{{ p.addressUi.addressValues.countryCode }}",
+          "first_name": "{{ p.addressUi.addressValues.firstName }}",
+          "middle_name": "{{ p.addressUi.addressValues.middleName }}",
+          "last_name": "{{ p.addressUi.addressValues.lastName }}",
+          "line1": "{{ p.addressUi.addressValues.line1 }}",
+          "line2": "{{ p.addressUi.addressValues.line2 }}",
+          "locality": "{{ p.addressUi.addressValues.locality }}",
+          "region": "{{ p.addressUi.addressValues.region }}",
+          "zip_code": "{{ p.addressUi.addressValues.zipCode }}",
+          "zip_four": "{{ p.addressUi.addressValues.zipFour }}",
+          "phone": "{{ p.addressUi.addressValues.phone }}"
+        }
+      }
+    },
+    {
+      "resource": "ecommerceOrder",
+      "operation": "get",
+      "title": "Get an order",
+      "method": "GET",
+      "path": "/orders/{{ p.orderId | int }}",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ecommerceOrder",
+      "operation": "delete",
+      "title": "Delete an order",
+      "method": "DELETE",
+      "path": "/orders/{{ p.orderId | int }}",
+      "fields": [
+        {
+          "key": "orderId",
+          "label": "Order ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "ecommerceOrder",
+      "operation": "getAll",
+      "title": "Get many orders",
+      "method": "GET",
+      "path": "/orders",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "since",
+            "until",
+            "paid",
+            "order",
+            "contactId",
+            "productId"
+          ]
+        }
+      ],
+      "query": {
+        "since": "{{ p.options.since }}",
+        "until": "{{ p.options.until }}",
+        "paid": "{{ p.options.paid }}",
+        "order": "{{ p.options.order }}",
+        "contact_id": "{{ p.options.contactId }}",
+        "product_id": "{{ p.options.productId }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "orders"
+      },
+      "output": {
+        "path": "orders"
+      }
+    },
+    {
+      "resource": "ecommerceProduct",
+      "operation": "create",
+      "title": "Create a product",
+      "method": "POST",
+      "path": "/products",
+      "fields": [
+        {
+          "key": "productName",
+          "label": "Product name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active",
+            "productDesc",
+            "productPrice",
+            "productShortDesc",
+            "sku",
+            "subscriptionOnly"
+          ]
+        }
+      ],
+      "body": {
+        "product_name": "{{ p.productName }}",
+        "active": "{{ p.additionalFields.active }}",
+        "product_desc": "{{ p.additionalFields.productDesc }}",
+        "product_price": "{{ p.additionalFields.productPrice }}",
+        "product_short_desc": "{{ p.additionalFields.productShortDesc }}",
+        "sku": "{{ p.additionalFields.sku }}",
+        "subscription_only": "{{ p.additionalFields.subscriptionOnly }}"
+      }
+    },
+    {
+      "resource": "ecommerceProduct",
+      "operation": "delete",
+      "title": "Delete a product",
+      "method": "DELETE",
+      "path": "/products/{{ p.productId }}",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "ecommerceProduct",
+      "operation": "get",
+      "title": "Get a product",
+      "method": "GET",
+      "path": "/products/{{ p.productId }}",
+      "fields": [
+        {
+          "key": "productId",
+          "label": "Product ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "ecommerceProduct",
+      "operation": "getAll",
+      "title": "Get many products",
+      "method": "GET",
+      "path": "/products",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "active"
+          ]
+        }
+      ],
+      "query": {
+        "active": "{{ p.filters.active }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "products"
+      },
+      "output": {
+        "path": "products"
+      }
+    },
+    {
+      "resource": "email",
+      "operation": "createRecord",
+      "title": "Record a sent email",
+      "method": "POST",
+      "path": "/emails",
+      "fields": [
+        {
+          "key": "sentFromAddress",
+          "label": "Sent from",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "sentToAddress",
+          "label": "Sent to",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "clickedDate",
+            "contactId",
+            "headers",
+            "htmlContent",
+            "openedDate",
+            "originalProvider",
+            "originalProviderId",
+            "plainContent",
+            "providerSourceId",
+            "receivedDate",
+            "sentDate",
+            "sentFromReplyAddress",
+            "sentToBccAddresses",
+            "sentToCCAddresses",
+            "subject"
+          ]
+        }
+      ],
+      "body": {
+        "sent_to_address": "{{ p.sentToAddress }}",
+        "sent_from_address": "{{ p.sentFromAddress }}",
+        "clicked_date": "{{ p.additionalFields.clickedDate }}",
+        "contact_id": "{{ p.additionalFields.contactId }}",
+        "headers": "{{ p.additionalFields.headers }}",
+        "html_content": "{{ p.additionalFields.htmlContent }}",
+        "opened_date": "{{ p.additionalFields.openedDate }}",
+        "original_provider": "{{ p.additionalFields.originalProvider }}",
+        "original_provider_id": "{{ p.additionalFields.originalProviderId }}",
+        "plain_content": "{{ p.additionalFields.plainContent }}",
+        "provider_source_id": "{{ p.additionalFields.providerSourceId }}",
+        "received_date": "{{ p.additionalFields.receivedDate }}",
+        "sent_date": "{{ p.additionalFields.sentDate }}",
+        "sent_from_reply_address": "{{ p.additionalFields.sentFromReplyAddress }}",
+        "sent_to_bcc_addresses": "{{ p.additionalFields.sentToBccAddresses }}",
+        "sent_to_cc_addresses": "{{ p.additionalFields.sentToCCAddresses }}",
+        "subject": "{{ p.additionalFields.subject }}"
+      }
+    },
+    {
+      "resource": "email",
+      "operation": "deleteRecord",
+      "title": "Delete an email record",
+      "method": "DELETE",
+      "path": "/emails/{{ p.emailRecordId | int }}",
+      "fields": [
+        {
+          "key": "emailRecordId",
+          "label": "Email record ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "email",
+      "operation": "getAll",
+      "title": "Get many email records",
+      "method": "GET",
+      "path": "/emails",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contactId",
+            "email",
+            "sinceSentDate",
+            "untilSentDate"
+          ]
+        }
+      ],
+      "query": {
+        "contact_id": "{{ p.filters.contactId }}",
+        "email": "{{ p.filters.email }}",
+        "since_sent_date": "{{ p.filters.sinceSentDate }}",
+        "until_sent_date": "{{ p.filters.untilSentDate }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "emails"
+      },
+      "output": {
+        "path": "emails"
+      }
+    },
+    {
+      "resource": "email",
+      "operation": "send",
+      "title": "Send an email",
+      "description": "Attachments from binary properties (attachmentsBinary) are not sent yet; give base64 data in attachmentsValues.",
+      "method": "POST",
+      "path": "/emails/queue",
+      "fields": [
+        {
+          "key": "userId",
+          "label": "User ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "contactIds",
+          "label": "Contact IDs",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated"
+        },
+        {
+          "key": "subject",
+          "label": "Subject",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "addressField",
+            "htmlContent",
+            "plainContent"
+          ]
+        },
+        {
+          "key": "attachmentsUi",
+          "label": "Attachments",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attachmentsValues",
+            "attachmentsBinary"
+          ],
+          "help": "attachmentsValues: list of {fileData (base64), fileName}"
+        }
+      ],
+      "body": {
+        "user_id": "{{ p.userId | numeric }}",
+        "contacts": {
+          "$map": "{{ p.contactIds | split }}",
+          "$to": "{{ el | int }}"
+        },
+        "subject": "{{ p.subject }}",
+        "address_field": "{{ p.additionalFields.addressField }}",
+        "html_content": "{{ p.additionalFields.htmlContent }}",
+        "plain_content": "{{ p.additionalFields.plainContent }}",
+        "attachments": {
+          "$map": "{{ p.attachmentsUi.attachmentsValues }}",
+          "$to": {
+            "file_data": "{{ el.fileData }}",
+            "file_name": "{{ el.fileName }}"
+          }
+        }
+      },
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "delete",
+      "title": "Delete a file",
+      "method": "DELETE",
+      "path": "/files/{{ p.fileId | int }}",
+      "fields": [
+        {
+          "key": "fileId",
+          "label": "File ID",
+          "type": "text",
+          "required": true
+        }
+      ],
+      "output": {
+        "to": {
+          "success": true
+        }
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "getAll",
+      "title": "Get many files",
+      "method": "GET",
+      "path": "/files",
+      "fields": [
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1
+        },
+        {
+          "key": "filters",
+          "label": "Filters",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "contactId",
+            "name",
+            "permission",
+            "type",
+            "viewable"
+          ],
+          "help": "permission: user, company, both; viewable: public, private, both"
+        }
+      ],
+      "query": {
+        "contact_id": "{{ p.filters.contactId }}",
+        "name": "{{ p.filters.name }}",
+        "permission": "{{ p.filters.permission | upper }}",
+        "viewable": "{{ p.filters.viewable | upper }}",
+        "type": "{{ p.filters.type | prefix:'~' | replace:'~templateThumnail','TemplateThumnail' | replace:'~digitalProduct','DigitalProduct' | replace:'~reSampledImage','ReSampledImage' | replace:'~logoThumnail','LogoThumnail' | replace:'~application','Application' | replace:'~attachment','Attachment' | replace:'~styleCart','StyleCart' | replace:'~contact','Contact' | replace:'~webform','WebForm' | replace:'~funnel','Funnel' | replace:'~hidden','Hidden' | replace:'~import','Import' | replace:'~ticket','Ticket' | replace:'~image','Image' | replace:'~fax','Fax' | replace:'~','' }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "next",
+        "limit_param": "limit",
+        "page_size": 50,
+        "results_path": "files"
+      },
+      "output": {
+        "path": "files"
+      }
+    },
+    {
+      "resource": "file",
+      "operation": "upload",
+      "title": "Upload a file",
+      "method": "POST",
+      "path": "/files",
+      "body_type": "json",
+      "fields": [
+        {
+          "key": "binaryData",
+          "label": "Binary file",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Input binary field",
+          "type": "text",
+          "default": "data"
+        },
+        {
+          "key": "fileAssociation",
+          "label": "Attach to",
+          "type": "select",
+          "options": [
+            "company",
+            "contact",
+            "user"
+          ],
+          "required": true
+        },
+        {
+          "key": "contactId",
+          "label": "Contact ID",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "fileName",
+          "label": "File name",
+          "type": "text",
+          "default": ""
+        },
+        {
+          "key": "fileData",
+          "label": "File data (base64)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "isPublic",
+          "label": "Public",
+          "type": "boolean",
+          "default": false
+        }
+      ],
+      "body": {
+        "!is_public": "{{ p.isPublic }}",
+        "file_association": "{{ p.fileAssociation | upper }}",
+        "contact_id": "{{ p.fileAssociation | eq:'contact' | then:(p.contactId | int) }}",
+        "file_name": "{{ p.binaryData | eq:'true' | then:bin.file_name | default:p.fileName }}",
+        "file_data": "{{ p.binaryData | eq:'true' | then:bin.base64 | default:p.fileData }}"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "upload_when": "{{ p.binaryData }}"
+      }
+    }
+  ],
+  "webhook": {
+    "fields": [
+      {
+        "key": "eventId",
+        "label": "Event",
+        "type": "text",
+        "required": true,
+        "help": "A Keap event key, e.g. contact.add"
+      }
+    ],
+    "create": [
+      {
+        "method": "POST",
+        "path": "/hooks",
+        "body": {
+          "eventKey": "{{ p.eventId }}",
+          "hookUrl": "{{ hook.url }}"
+        }
+      }
+    ],
+    "id": "{{ res.key }}",
+    "delete": [
+      {
+        "method": "DELETE",
+        "path": "/hooks/{{ hook.id }}"
+      }
+    ]
+  }
+}

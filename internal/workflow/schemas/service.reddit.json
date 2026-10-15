@@ -16,7 +16,9 @@
         "submit_post",
         "get_hot",
         "comment",
-        "upvote"
+        "upvote",
+        "list_comments",
+        "get_post_metrics"
       ],
       "required": true,
       "type": "select"
@@ -47,17 +49,18 @@
       "type": "text"
     },
     {
-      "default": "self",
+      "default": "auto",
       "depends_on": {
         "key": "operation",
         "values": [
           "submit_post"
         ]
       },
-      "help": "self is a text post (requires text); link is a URL post (requires url).",
+      "help": "auto posts a link when a URL is set and a text post otherwise; self is a text post; link is a URL post (requires url).",
       "key": "kind",
       "label": "Post Kind",
       "options": [
+        "auto",
         "self",
         "link"
       ],
@@ -97,10 +100,12 @@
         "key": "operation",
         "values": [
           "comment",
-          "upvote"
+          "upvote",
+          "list_comments",
+          "get_post_metrics"
         ]
       },
-      "help": "Parent fullname for comment, or target fullname for upvote.",
+      "help": "Parent fullname for comment, target fullname for upvote, or the post (t3_... or bare ID) for list_comments/get_post_metrics.",
       "key": "thing_id",
       "label": "Thing ID (fullname)",
       "placeholder": "e.g. t3_abc123 (post), t1_xyz (comment)",
@@ -127,6 +132,13 @@
       "label": "User-Agent",
       "required": false,
       "type": "text"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the platform API's response object, as returned (fields vary by operation)",
+      "key": "<API response fields>",
+      "type": "object"
     }
   ]
 }

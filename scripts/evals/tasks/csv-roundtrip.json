@@ -1,0 +1,39 @@
+{
+  "id": "csv-roundtrip",
+  "mode": "both",
+  "workflow_name": "eval-csv-roundtrip",
+  "prompt": "Create a workflow named \"eval-csv-roundtrip\", run manually, that reads the CSV\nfile {{FIXTURE_DIR}}/people.csv (columns name, age, city, with a header row),\nkeeps the people aged 30 or older, and writes them to {{OUT_DIR}}/over30.csv\nwith a header row.",
+  "fixtures": [
+    "people.csv"
+  ],
+  "checks": [
+    {
+      "type": "validate_ok"
+    },
+    {
+      "type": "dry_run_ok"
+    },
+    {
+      "type": "run_status",
+      "equals": "SUCCESS"
+    },
+    {
+      "type": "node_types",
+      "include": [
+        "data.spreadsheet"
+      ]
+    },
+    {
+      "type": "file",
+      "path": "{{OUT_DIR}}/over30.csv",
+      "contains": [
+        "Ann",
+        "Cy",
+        "Di"
+      ],
+      "not_contains": [
+        "Bob"
+      ]
+    }
+  ]
+}

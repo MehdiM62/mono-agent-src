@@ -1,0 +1,30 @@
+{
+  "name": "Index docs into Qdrant",
+  "nodes": [
+    {"name": "Manual", "type": "n8n-nodes-base.manualTrigger", "typeVersion": 1, "position": [0, 0], "parameters": {}},
+    {"name": "Qdrant Vector Store", "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant", "typeVersion": 1.1, "position": [200, 0],
+     "parameters": {"mode": "insert", "qdrantCollection": {"__rl": true, "value": "docs", "mode": "list"}, "options": {}},
+     "credentials": {"qdrantApi": {"id": "3", "name": "Qdrant"}}},
+    {"name": "Embeddings OpenAI", "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi", "typeVersion": 1.2, "position": [200, 200],
+     "parameters": {"model": "text-embedding-3-small", "options": {}},
+     "credentials": {"openAiApi": {"id": "4", "name": "OpenAI"}}},
+    {"name": "Default Data Loader", "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader", "typeVersion": 1.1, "position": [400, 200],
+     "parameters": {"dataType": "json", "textSplittingMode": "custom", "options": {}}},
+    {"name": "Recursive Splitter", "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter", "typeVersion": 1, "position": [400, 400],
+     "parameters": {"chunkSize": 500, "chunkOverlap": 50, "options": {}}},
+    {"name": "Search", "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant", "typeVersion": 1.1, "position": [600, 0],
+     "parameters": {"mode": "load", "qdrantCollection": {"__rl": true, "value": "docs", "mode": "list"}, "prompt": "={{ $json.question }}", "topK": 3, "options": {}},
+     "credentials": {"qdrantApi": {"id": "3", "name": "Qdrant"}}},
+    {"name": "Embeddings OpenAI 2", "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi", "typeVersion": 1.2, "position": [600, 200],
+     "parameters": {"model": "text-embedding-3-small", "options": {}},
+     "credentials": {"openAiApi": {"id": "4", "name": "OpenAI"}}}
+  ],
+  "connections": {
+    "Manual": {"main": [[{"node": "Qdrant Vector Store", "type": "main", "index": 0}]]},
+    "Qdrant Vector Store": {"main": [[{"node": "Search", "type": "main", "index": 0}]]},
+    "Embeddings OpenAI": {"ai_embedding": [[{"node": "Qdrant Vector Store", "type": "ai_embedding", "index": 0}]]},
+    "Default Data Loader": {"ai_document": [[{"node": "Qdrant Vector Store", "type": "ai_document", "index": 0}]]},
+    "Recursive Splitter": {"ai_textSplitter": [[{"node": "Default Data Loader", "type": "ai_textSplitter", "index": 0}]]},
+    "Embeddings OpenAI 2": {"ai_embedding": [[{"node": "Search", "type": "ai_embedding", "index": 0}]]}
+  }
+}

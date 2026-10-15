@@ -4,9 +4,14 @@ import { useState } from 'react'
 import App from './App.jsx'
 import AccountShell from './components/account/AccountShell.jsx'
 import { createAccountGate } from './lib/accountGate.js'
+import { AccountContext } from './lib/accountContext.js'
 import { account } from './services/account.js'
 
 export default function AccountApp() {
   const [gate] = useState(() => createAccountGate({ status: account.status }))
-  return <AccountShell gate={gate} renderShell={(banners) => <App banners={banners} />} />
+  return (
+    <AccountContext.Provider value={gate}>
+      <AccountShell gate={gate} renderShell={(banners) => <App banners={banners} />} />
+    </AccountContext.Provider>
+  )
 }

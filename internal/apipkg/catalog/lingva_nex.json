@@ -1,0 +1,87 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "lingva_nex",
+  "node_type": "app.lingva_nex",
+  "title": "LingvaNex",
+  "description": "Translate text with LingvaNex",
+  "category": "app",
+  "docs_url": "https://lingvanex.com/developers/",
+  "n8n_types": [
+    "n8n-nodes-base.lingvaNex"
+  ],
+  "base_url": "https://api-b2b.backenster.com/b1/api/v3",
+  "error_when": "{{ res.err }}",
+  "error_message": "{{ res.err }}",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "lingva_nex",
+      "name": "LingvaNex",
+      "n8n_credential": "lingvaNexApi",
+      "n8n_field_map": {
+        "apiKey": "access_token"
+      },
+      "methods": [
+        "bearer"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API key",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "operations": [
+    {
+      "resource": "",
+      "operation": "translate",
+      "title": "Translate text",
+      "method": "POST",
+      "path": "/translate",
+      "fields": [
+        {
+          "key": "text",
+          "label": "Text",
+          "type": "textarea",
+          "required": true
+        },
+        {
+          "key": "translateTo",
+          "label": "Translate to",
+          "type": "text",
+          "required": true,
+          "placeholder": "de_DE",
+          "help": "Target language code such as de_DE"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "from",
+            "platform",
+            "translateMode"
+          ],
+          "help": "from: source language code (empty = detect); translateMode: html keeps the HTML structure"
+        }
+      ],
+      "body": {
+        "data": "{{ p.text }}",
+        "to": "{{ p.translateTo }}",
+        "platform": "api",
+        "$merge": "{{ p.options }}"
+      }
+    }
+  ]
+}

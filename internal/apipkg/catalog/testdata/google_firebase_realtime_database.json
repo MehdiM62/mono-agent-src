@@ -1,0 +1,76 @@
+{
+  "create": {
+    "params": {
+      "projectId": "proj-default-rtdb",
+      "path": "users/ada",
+      "attributes": "name, age"
+    },
+    "input": {
+      "name": "Ada",
+      "age": 36,
+      "x": 1
+    },
+    "expect": {
+      "method": "PUT",
+      "path": "/users/ada.json",
+      "body": {
+        "name": "Ada",
+        "age": 36
+      }
+    }
+  },
+  "delete": {
+    "params": {
+      "projectId": "proj-default-rtdb",
+      "path": "users/ada"
+    },
+    "expect": {
+      "method": "DELETE",
+      "path": "/users/ada.json"
+    }
+  },
+  "get": {
+    "params": {
+      "projectId": "proj-default-rtdb",
+      "path": "users"
+    },
+    "expect": {
+      "method": "GET",
+      "path": "/users.json"
+    }
+  },
+  "push": {
+    "params": {
+      "projectId": "proj-default-rtdb",
+      "path": "logs",
+      "attributes": "msg"
+    },
+    "input": {
+      "msg": "hi"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/logs.json",
+      "body": {
+        "msg": "hi"
+      }
+    }
+  },
+  "update": {
+    "params": {
+      "projectId": "proj-default-rtdb",
+      "path": "users/ada",
+      "attributes": "age"
+    },
+    "input": {
+      "age": 37
+    },
+    "expect": {
+      "method": "PATCH",
+      "path": "/users/ada.json",
+      "body": {
+        "age": 37
+      }
+    }
+  }
+}

@@ -3,7 +3,37 @@
   "credential_platform": null,
   "fields": [
     {
-      "help": "Return an array of objects. Each object becomes an output item. Access input via $input.all() or $json (first item).",
+      "default": "javascript",
+      "help": "python runs the code with the system python3 (or MONOAGENT_PYTHON) with n8n's Python names: _items in all-items mode or _item per item; also _input.all()/first()/last() and _json and _('Node Name').all(). Return a list of dicts (or one dict per item).",
+      "key": "language",
+      "label": "Language",
+      "options": [
+        "javascript",
+        "python"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "default": "runOnceForAllItems",
+      "depends_on": {
+        "key": "language",
+        "values": [
+          "python"
+        ]
+      },
+      "help": "Python only: run once with all items or once per item.",
+      "key": "mode",
+      "label": "Mode",
+      "options": [
+        "runOnceForAllItems",
+        "runOnceForEachItem"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "Return an array of objects. Each object becomes an output item. Access input via $input.all() or $json (first item) and another node's output via $('Node Name').all(). A top-level return or await runs the code as an async function.",
       "key": "code",
       "label": "Code",
       "language": "javascript",
@@ -28,6 +58,13 @@
       "min": 1,
       "required": false,
       "type": "number"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the fields of the items the code returns",
+      "key": "<returned fields>",
+      "type": "any"
     }
   ]
 }

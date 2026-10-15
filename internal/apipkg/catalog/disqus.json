@@ -1,0 +1,256 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "disqus",
+  "node_type": "app.disqus",
+  "title": "Disqus",
+  "description": "Forums, threads, posts and categories in Disqus",
+  "category": "app",
+  "docs_url": "https://disqus.com/api/docs/",
+  "n8n_types": [
+    "n8n-nodes-base.disqus"
+  ],
+  "base_url": "https://disqus.com/api/3.0",
+  "credentials": [
+    {
+      "platform": "disqus",
+      "name": "Disqus",
+      "n8n_credential": "disqusApi",
+      "n8n_field_map": {
+        "accessToken": "api_key"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "api_key",
+          "label": "API key (public)",
+          "secret": true,
+          "required": true,
+          "help": "The public key of your Disqus API application"
+        }
+      ],
+      "inject": {
+        "query": {
+          "api_key": "{{ cred.api_key }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "forum",
+      "label": "Forum"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "forum",
+      "operation": "get",
+      "title": "Get a forum",
+      "method": "GET",
+      "path": "/forums/details.json",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Forum short name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "attach",
+            "related"
+          ],
+          "help": "attach: list such as counters, forumFeatures, forumPermissions; related: [\"author\"]"
+        }
+      ],
+      "query": {
+        "forum": "{{ p.id }}",
+        "attach": "{{ p.additionalFields.attach }}",
+        "related": "{{ p.additionalFields.related }}"
+      },
+      "output": {
+        "path": "response"
+      }
+    },
+    {
+      "resource": "forum",
+      "operation": "getCategories",
+      "title": "Get many categories of a forum",
+      "method": "GET",
+      "path": "/forums/listCategories.json",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Forum short name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "order"
+          ],
+          "help": "order: asc or desc"
+        }
+      ],
+      "query": {
+        "forum": "{{ p.id }}",
+        "order": "{{ p.additionalFields.order }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "cursor.next",
+        "has_more_path": "cursor.hasNext",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "response"
+      }
+    },
+    {
+      "resource": "forum",
+      "operation": "getThreads",
+      "title": "Get many threads of a forum",
+      "method": "GET",
+      "path": "/forums/listThreads.json",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Forum short name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "related",
+            "include",
+            "order",
+            "since",
+            "thread"
+          ],
+          "help": "related: author, forum; include: closed, open, killed; order: asc or desc; since: a date; thread: thread id or ident:/link: lookup"
+        }
+      ],
+      "query": {
+        "forum": "{{ p.id }}",
+        "related": "{{ p.additionalFields.related }}",
+        "include": "{{ p.additionalFields.include }}",
+        "order": "{{ p.additionalFields.order }}",
+        "since": "{{ p.additionalFields.since }}",
+        "thread": "{{ p.additionalFields.thread }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "cursor.next",
+        "has_more_path": "cursor.hasNext",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "response"
+      }
+    },
+    {
+      "resource": "forum",
+      "operation": "getPosts",
+      "title": "Get many posts of a forum",
+      "method": "GET",
+      "path": "/forums/listPosts.json",
+      "fields": [
+        {
+          "key": "id",
+          "label": "Forum short name",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 100,
+          "min": 1,
+          "max": 100
+        },
+        {
+          "key": "additionalFields",
+          "label": "Additional fields",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "filters",
+            "include",
+            "order",
+            "query",
+            "related",
+            "since"
+          ],
+          "help": "filters: e.g. Has_Link, Is_Flagged; include: [\"approved\"]; order: asc or desc; related: [\"thread\"]"
+        }
+      ],
+      "query": {
+        "forum": "{{ p.id }}",
+        "filters": "{{ p.additionalFields.filters }}",
+        "include": "{{ p.additionalFields.include }}",
+        "order": "{{ p.additionalFields.order }}",
+        "query": "{{ p.additionalFields.query }}",
+        "related": "{{ p.additionalFields.related }}",
+        "since": "{{ p.additionalFields.since }}"
+      },
+      "pagination": {
+        "type": "cursor",
+        "cursor_param": "cursor",
+        "cursor_path": "cursor.next",
+        "has_more_path": "cursor.hasNext",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "response"
+      }
+    }
+  ]
+}

@@ -1,8 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, X, HelpCircle, ShieldQuestion, Flag, ChevronRight, Loader } from 'lucide-react'
+import { ChevronRight, Wrench } from 'lucide-react'
 import { ChatMarkdown } from '../chat/ChatMarkdown.jsx'
 import { ChatComposer } from '../chat/ChatComposer.jsx'
+import { threadView, toolSummary } from '../../lib/orgBubble.js'
+import { normalizeAsk } from '../../lib/askModel.js'
+import { AskCard } from './AskCard.jsx'
+import { useHilAsks } from './useHilAsks.js'
 import '../chat/chat.css'
 
 const mono = 'var(--font-mono)'
@@ -12,112 +16,12 @@ function Muted({ children, style }) {
   return <div style={{ fontFamily: mono, fontSize: 9.5, color: 'var(--text-muted)', ...style }}>{children}</div>
 }
 
-// ResolvedLine says how an item ended, and who ended it when that isn't
-// the person.
-function ResolvedLine({ item, outcome }) {
-  const { t } = useTranslation()
-  const state = outcome?.state || item.resolution
-  if (!state) return null
-  const by = item.resolved_by && item.resolved_by !== 'human' ? t('orgBubble.resolvedBy', { by: item.resolved_by }) : ''
-  return (
-    <Muted style={{ marginTop: 4 }}>
-      {outcome?.already ? t('orgBubble.already', { state: t(`orgBubble.state.${state}`, { defaultValue: state }) }) : t(`orgBubble.state.${state}`, { defaultValue: state })}
-      {by && ` · ${by}`}
-    </Muted>
-  )
-}
-
-function ActionError({ outcome }) {
-  if (!outcome?.error) return null
-  return <div role="alert" style={{ marginTop: 4, fontFamily: mono, fontSize: 9.5, color: 'var(--red, #ef4444)' }}>{outcome.error}</div>
-}
-
-// Card is a question, approval or gate: amber while it waits.
-function Card({ item, icon: Icon, title, children }) {
-  return (
-    <div className="org-chat-card" data-testid={`org-chat-${item.kind}`} data-pending={item.pending ? 'true' : 'false'}
-      style={{
-        margin: '4px 0', padding: '8px 10px', borderRadius: 'var(--radius)',
-        border: `1px solid ${item.pending ? 'rgba(251,191,36,0.45)' : 'var(--border)'}`,
-        background: item.pending ? 'rgba(251,191,36,0.06)' : 'transparent',
-      }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: mono, fontSize: 10, color: item.pending ? AMBER : 'var(--text-muted)' }}>
-        <Icon size={11} aria-hidden="true" /> {title}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function QuestionCard({ item, nameOf, canAct, busy, outcome, onAnswer, onDismiss }) {
-  const { t } = useTranslation()
-  const [text, setText] = useState('')
-  const pending = item.pending && !outcome?.state
-  const submit = () => { if (text.trim()) onAnswer(item.ref, text.trim()) }
-  return (
-    <Card item={{ ...item, pending }} icon={HelpCircle} title={t('orgBubble.asks', { name: nameOf(item.role) })}>
-      <div style={{ marginTop: 4 }}><ChatMarkdown content={item.text || ''} /></div>
-      {item.answer && <Muted style={{ marginTop: 4 }}>{t('orgBubble.yourAnswer', { answer: item.answer })}</Muted>}
-      {pending ? (
-        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-          <input type="text" value={text} onChange={e => setText(e.target.value)} disabled={!canAct || busy}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent?.isComposing) submit() }}
-            aria-label={t('orgBubble.answerLabel')} placeholder={t('orgBubble.answerPlaceholder')}
-            style={{ flex: 1, minWidth: 0, fontFamily: mono, fontSize: 10.5, background: 'var(--elevated)', border: '1px solid var(--border-bright)', borderRadius: 'var(--radius)', color: 'var(--text)', padding: '5px 8px', outline: 'none' }} />
-          <button type="button" className="btn btn-primary btn-sm" data-testid="org-chat-answer" disabled={!canAct || busy || !text.trim()} onClick={submit}>
-            {busy ? <Loader size={11} className="spin" /> : t('orgBubble.answer')}
-          </button>
-          {item.blocking && (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-chat-dismiss" disabled={busy}
-              title={t('orgBubble.dismissHint')} onClick={() => onDismiss(item.ref)}>
-              {t('orgBubble.dismiss')}
-            </button>
-          )}
-        </div>
-      ) : <ResolvedLine item={item} outcome={outcome} />}
-      <ActionError outcome={outcome} />
-    </Card>
-  )
-}
-
-function DecisionCard({ item, nameOf, canAct, busy, outcome, onResolve }) {
-  const { t } = useTranslation()
-  const [note, setNote] = useState('')
-  const pending = item.pending && !outcome?.state
-  const isGate = item.kind === 'gate'
-  const title = isGate
-    ? t('orgBubble.gateTitle', { name: nameOf(item.role), gate: item.name || item.ref })
-    : t('orgBubble.approvalTitle', { name: nameOf(item.role), action: item.action })
-  return (
-    <Card item={{ ...item, pending }} icon={isGate ? Flag : ShieldQuestion} title={title}>
-      {item.text && <div style={{ marginTop: 4 }}><ChatMarkdown content={item.text} /></div>}
-      {pending ? (
-        <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-          {isGate && (
-            <input type="text" value={note} onChange={e => setNote(e.target.value)} disabled={!canAct || busy}
-              aria-label={t('orgBubble.noteLabel')} placeholder={t('orgBubble.notePlaceholder')}
-              style={{ flex: '1 1 160px', minWidth: 0, fontFamily: mono, fontSize: 10.5, background: 'var(--elevated)', border: '1px solid var(--border-bright)', borderRadius: 'var(--radius)', color: 'var(--text)', padding: '5px 8px', outline: 'none' }} />
-          )}
-          <button type="button" className="btn btn-primary btn-sm" data-testid="org-chat-approve" disabled={!canAct || busy}
-            onClick={() => onResolve(item.ref, true, note.trim())} style={{ gap: 4 }}>
-            {busy ? <Loader size={11} className="spin" /> : <Check size={11} />} {t('orgBubble.approve')}
-          </button>
-          <button type="button" className="btn btn-ghost btn-sm" data-testid="org-chat-deny" disabled={!canAct || busy}
-            onClick={() => onResolve(item.ref, false, note.trim())} style={{ gap: 4 }}>
-            <X size={11} /> {isGate ? t('orgBubble.reject') : t('orgBubble.deny')}
-          </button>
-        </div>
-      ) : <ResolvedLine item={item} outcome={outcome} />}
-      <ActionError outcome={outcome} />
-    </Card>
-  )
-}
-
 // TeamRow is a role-to-role message: one compact line that opens to the
-// text, so the boss's conversation stays readable.
-function TeamRow({ item, nameOf }) {
+// text, so the boss's conversation stays readable. In the Team view every
+// row starts open: that view is the conversation.
+function TeamRow({ item, nameOf, defaultOpen = false }) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const from = item.external ? item.from : nameOf(item.from)
   const to = item.external ? item.to : nameOf(item.to)
   return (
@@ -130,6 +34,20 @@ function TeamRow({ item, nameOf }) {
         </span>
       </button>
       {open && <div style={{ padding: '2px 0 4px 15px', fontSize: 11 }}><ChatMarkdown content={item.text || ''} /></div>}
+    </div>
+  )
+}
+
+// ToolRow is one tool call of a role, in that role's thread.
+function ToolRow({ item }) {
+  const { t } = useTranslation()
+  const call = item.call
+  const state = call.status === 'started' ? 'running' : call.ok === false ? (call.denied ? 'denied' : 'failed') : 'ok'
+  return (
+    <div data-testid="org-chat-tool" data-state={state} className="org-tool-row">
+      <Wrench size={10} aria-hidden="true" />
+      <span className="org-tool-name">{toolSummary(call)}</span>
+      <span className="org-tool-state" data-state={state}>{t(`orgBubble.tool.${state}`)}</span>
     </div>
   )
 }
@@ -150,47 +68,92 @@ function Speech({ who, mine, children, note }) {
 }
 
 // OrgChatView is the chat half of an expanded org bubble (#229): the boss
-// thread from `org chat history` with its questions, approvals and gates
-// answered inline, role-to-role messages as rows, and a composer that
-// messages the boss. conv is useOrgBubble(); nameOf names a role.
-export function OrgChatView({ conv, nameOf, draft, onDraftChange }) {
+// thread from `org chat history`, or one role's slice of it, or the team's
+// role-to-role timeline (view); every ask answered inline by one AskCard
+// (questions, approvals and gates through the org chat, workflow HIL items
+// and sends through the HIL queue); and a composer that messages the boss.
+//   conv     useOrgBubble()      nameOf  role id → name
+//   view     { mode: 'boss' | 'team' | 'role', role }
+//   onView   switch the view (the "waiting elsewhere" hint goes to the boss)
+export function OrgChatView({ conv, nameOf, draft, onDraftChange, orgName = '', view = { mode: 'boss' }, onView, onNavigate }) {
   const { t } = useTranslation()
   const scrollRef = useRef(null)
   const { history, historyError, items, echoes, running, sending, sendError, busy, outcome } = conv
   const canAct = running
+  const roleIds = useMemo(() => (history?.roles || []).map(r => r.id), [history])
+  const hil = useHilAsks({ org: orgName, roleIds }, !!history)
+
+  const calls = conv.bubble?.calls
+  const callIds = conv.bubble?.callIds
+  const shown = useMemo(() => threadView(items, view, { calls, callIds }), [items, view, calls, callIds])
+
+  // Asks outside the current view must not hide: say how many wait.
+  const inView = ask => view.mode === 'boss' || (view.mode === 'role' && ask.role === view.role)
+  const hilIds = new Set(hil.asks.map(a => a.id))
+  const historySends = shown.filter(it => it.kind === 'send' && !hilIds.has(it.id))
+  const shownAsks = hil.asks.filter(inView)
+  const pendingHidden =
+    items.filter(it => it.pending && !shown.includes(it)).length +
+    hil.asks.filter(a => a.pending && !inView(a)).length
 
   // Stick to the bottom as the thread grows, unless the person scrolled up.
   const atBottom = useRef(true)
   useEffect(() => {
     const el = scrollRef.current
     if (el && atBottom.current) el.scrollTop = el.scrollHeight
-  }, [items, echoes])
+  }, [shown, echoes, hil.asks])
+  // A different view starts at its end.
+  useEffect(() => { atBottom.current = true }, [view.mode, view.role])
 
   const onSend = async () => {
     if (await conv.send(draft)) onDraftChange('')
   }
-  const answer = (ref, text) => conv.resolveItem(ref, { answer: text })
-  const dismiss = ref => conv.resolveItem(ref, { dismiss: true })
-  const decide = (ref, approve, note) => conv.resolveItem(ref, { approve, note })
+  const answer = (ask, text) => conv.resolveItem(ask.ref, { answer: text })
+  const dismiss = ask => conv.resolveItem(ask.ref, { dismiss: true })
+  const decide = (ask, approve, extras = {}) => (ask.kind === 'hil' || ask.kind === 'send'
+    ? hil.resolve(ask, approve, extras)
+    : conv.resolveItem(ask.ref, { approve, note: extras.note || '' }))
 
   const bossName = history?.boss_title || history?.boss || t('orgBubble.boss')
   let composerNote = ''
   if (history && !running) composerNote = t('orgBubble.queuedNote')
+  const threadLabel = view.mode === 'team' ? t('orgBubble.threadTeam') : view.mode === 'role' ? t('orgBubble.threadRoleLabel', { name: nameOf(view.role) }) : t('orgBubble.threadBoss')
+  const nothing = history && shown.length === 0 && shownAsks.length === 0 && historySends.length === 0 && (view.mode !== 'boss' || echoes.length === 0)
+
+  const card = (ask, key) => {
+    const isHil = ask.kind === 'hil' || ask.kind === 'send'
+    return (
+      <AskCard key={key} ask={ask} nameOf={nameOf}
+        canAct={isHil ? true : canAct}
+        busy={isHil ? !!hil.busy[ask.id] : !!busy[ask.ref]}
+        outcome={isHil ? hil.outcome[ask.id] : outcome[ask.ref]}
+        onAnswer={answer} onDismiss={dismiss} onDecide={decide} onNavigate={onNavigate} />
+    )
+  }
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div ref={scrollRef} data-testid="org-chat-thread" role="log" aria-live="polite"
+      <div ref={scrollRef} data-testid="org-chat-thread" role="log" aria-live="polite" aria-relevant="additions" aria-label={threadLabel}
+        aria-busy={!history && !historyError}
+        tabIndex={0}
         onScroll={e => { const el = e.currentTarget; atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40 }}
         style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '8px 14px' }}>
         {!history && !historyError && <Muted style={{ padding: 8 }}>{t('bubbles.loadingChat')}</Muted>}
         {historyError && !history && <div role="alert" style={{ padding: 8, fontFamily: mono, fontSize: 10, color: 'var(--red, #ef4444)' }}>{t('orgBubble.couldNotLoad', { error: historyError })}</div>}
-        {history && items.length === 0 && echoes.length === 0 && <Muted style={{ padding: 8 }}>{t('orgBubble.empty', { boss: bossName })}</Muted>}
+        {history && view.mode === 'boss' && items.length === 0 && echoes.length === 0 && shownAsks.length === 0 && <Muted style={{ padding: 8 }}>{t('orgBubble.empty', { boss: bossName })}</Muted>}
+        {nothing && view.mode === 'team' && <Muted style={{ padding: 8 }} >{t('orgBubble.teamEmpty')}</Muted>}
+        {nothing && view.mode === 'role' && <Muted style={{ padding: 8 }}>{t('orgBubble.roleEmpty', { name: nameOf(view.role) })}</Muted>}
         {history && !running && items.some(it => it.pending) && (
           <div data-testid="org-chat-stopped" style={{ margin: '4px 0 8px', padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(251,191,36,0.3)', fontFamily: mono, fontSize: 10, color: AMBER }}>
             {t('orgBubble.notRunning')}
           </div>
         )}
-        {items.map(item => {
+        {pendingHidden > 0 && (
+          <button type="button" className="org-waiting-hint" data-testid="org-chat-waiting-elsewhere" onClick={() => onView?.({ mode: 'boss' })}>
+            {t('orgBubble.waitingElsewhere', { count: pendingHidden })}
+          </button>
+        )}
+        {shown.map(item => {
           const key = `${item.kind}-${item.id || item.ref}`
           switch (item.kind) {
             case 'human':
@@ -198,19 +161,27 @@ export function OrgChatView({ conv, nameOf, draft, onDraftChange }) {
             case 'boss':
               return <Speech key={key} who={nameOf(item.role)}><ChatMarkdown content={item.text || ''} /></Speech>
             case 'question':
-              return <QuestionCard key={key} item={item} nameOf={nameOf} canAct={canAct} busy={!!busy[item.ref]} outcome={outcome[item.ref]} onAnswer={answer} onDismiss={dismiss} />
             case 'approval':
             case 'gate':
-              return <DecisionCard key={key} item={item} nameOf={nameOf} canAct={canAct} busy={!!busy[item.ref]} outcome={outcome[item.ref]} onResolve={decide} />
+              return card(item, key)
+            case 'send': {
+              const ask = normalizeAsk(item)
+              return ask ? card(ask, key) : null
+            }
             case 'team':
-              return <TeamRow key={key} item={item} nameOf={nameOf} />
+              return <TeamRow key={`${view.mode}-${key}`} item={item} nameOf={nameOf} defaultOpen={view.mode === 'team'} />
+            case 'tool':
+              return <ToolRow key={key} item={item} />
             case 'status':
-              return <Muted key={key} style={{ textAlign: 'center', margin: '6px 0' }}>{/^org started/.test(item.text) ? t('orgBubble.started') : t('orgBubble.stopped')}</Muted>
+              return view.mode === 'boss'
+                ? <Muted key={key} style={{ textAlign: 'center', margin: '6px 0' }}>{/^org started/.test(item.text) ? t('orgBubble.started') : t('orgBubble.stopped')}</Muted>
+                : null
             default:
               return null
           }
         })}
-        {echoes.map(e => (
+        {shownAsks.map(ask => card(ask, `ask-${ask.id}`))}
+        {view.mode === 'boss' && echoes.map(e => (
           <Speech key={e.id} who={t('orgBubble.you')} mine note={e.delivery === 'queued' ? t('orgBubble.queued') : t('orgBubble.sent')}>{e.text}</Speech>
         ))}
       </div>

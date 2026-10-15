@@ -67,8 +67,10 @@ func (h *HybridWorkflowStore) fileWorkflows(ctx context.Context) ([]*Workflow, e
 	return h.files.ListWorkflows(ctx)
 }
 
+// CreateWorkflow saves a new workflow's whole definition, all-or-nothing
+// (see saveDefinition), and records it as version 1.
 func (h *HybridWorkflowStore) CreateWorkflow(ctx context.Context, w *Workflow) error {
-	return h.persist(ctx, w, h.sql.CreateWorkflow)
+	return h.saveDefinition(ctx, w, "")
 }
 
 // GetWorkflow looks in the file store first and then in SQLite, where
@@ -144,9 +146,11 @@ func (h *HybridWorkflowStore) UpdateWorkflow(ctx context.Context, w *Workflow) e
 
 // SaveWorkflow writes a workflow to the file store (create or update) and
 // mirrors it — metadata, nodes, connections — to SQLite, which executions,
-// profile scoping and `workflow run --json` read.
+// profile scoping and `workflow run --json` read. The save is all-or-nothing
+// across both (see saveDefinition) and records a version when the
+// definition changed.
 func (h *HybridWorkflowStore) SaveWorkflow(ctx context.Context, w *Workflow) error {
-	return h.persist(ctx, w, h.sql.UpdateWorkflow)
+	return h.saveDefinition(ctx, w, "")
 }
 
 // ErrSharedIDs reports a workflow whose node or connection ids belong to
@@ -184,6 +188,7 @@ func (h *HybridWorkflowStore) mirrorToSQL(ctx context.Context, w *Workflow) erro
 		w.Name, w.Description, boolToInt(w.IsActive), time.Now().UTC(), w.ID); err != nil {
 		return fmt.Errorf("mirror workflow %s: %w", w.ID, err)
 	}
+	saveWorkflowSettings(ctx, h.sql.db, w)
 	nodes := append([]WorkflowNode(nil), w.Nodes...)
 	if err := h.sql.SaveWorkflowNodes(ctx, w.ID, nodes); err != nil {
 		return fmt.Errorf("mirror workflow %s nodes: %w", w.ID, err)
@@ -333,6 +338,7 @@ func (h *HybridWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID 
 		return err
 	}
 	h.syncFileNodes(ctx, workflowID)
+	_, _ = h.captureVersion(ctx, workflowID) // best effort: CreateExecution captures again
 	return h.saved(ctx, workflowID, nil)
 }
 
@@ -342,6 +348,7 @@ func (h *HybridWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 		return err
 	}
 	h.syncFileNodes(ctx, workflowID)
+	_, _ = h.captureVersion(ctx, workflowID) // best effort: CreateExecution captures again
 	return nil
 }
 
@@ -349,9 +356,16 @@ func (h *HybridWorkflowStore) SaveWorkflowConnections(ctx context.Context, workf
 // Executions — always SQLite
 // ---------------------------------------------------------------------------
 
+// CreateExecution inserts the execution and pins it to the workflow's
+// current definition version, which handleExecution runs (and a WAITING
+// run resumes) against.
 func (h *HybridWorkflowStore) CreateExecution(ctx context.Context, e *WorkflowExecution) error {
 	h.ensureSQLWorkflow(ctx, e.WorkflowID)
-	return h.sql.CreateExecution(ctx, e)
+	if err := h.sql.CreateExecution(ctx, e); err != nil {
+		return err
+	}
+	h.pinExecution(ctx, e)
+	return nil
 }
 
 func (h *HybridWorkflowStore) GetExecution(ctx context.Context, id string) (*WorkflowExecution, error) {
@@ -364,6 +378,10 @@ func (h *HybridWorkflowStore) ListExecutions(ctx context.Context, workflowID str
 
 func (h *HybridWorkflowStore) UpdateExecutionStatus(ctx context.Context, id string, status string, errMsg string) error {
 	return h.sql.UpdateExecutionStatus(ctx, id, status, errMsg)
+}
+
+func (h *HybridWorkflowStore) StartQueuedExecution(ctx context.Context, id string) (bool, error) {
+	return h.sql.StartQueuedExecution(ctx, id)
 }
 
 func (h *HybridWorkflowStore) SetExecutionStarted(ctx context.Context, id string) error {

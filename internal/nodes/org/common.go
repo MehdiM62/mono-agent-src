@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/orgbridge"
 	"github.com/monoes/mono-agent/internal/orgdesign"
 	"github.com/monoes/mono-agent/internal/profiledir"
@@ -24,9 +25,9 @@ type orgEnv struct {
 
 func resolveOrgEnv(ctx context.Context, node string) (*orgEnv, error) {
 	db := vault.DBFromContext(ctx)
-	profileID := vault.ProfileIDFromContext(ctx)
-	if profileID == "" {
-		profileID = "default"
+	profileID, err := nodeprofile.Require(ctx, node, nil)
+	if err != nil {
+		return nil, err
 	}
 	if err := profiledir.EnsureLayout(db, profileID); err != nil {
 		return nil, fmt.Errorf("%s: could not prepare profile folder for %q: %w", node, profileID, err)

@@ -1,0 +1,125 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "profit_well",
+  "node_type": "app.profit_well",
+  "title": "ProfitWell",
+  "description": "Company settings and subscription metrics from ProfitWell",
+  "category": "app",
+  "docs_url": "https://profitwellapiv2.docs.apiary.io/",
+  "n8n_types": [
+    "n8n-nodes-base.profitWell"
+  ],
+  "base_url": "https://api.profitwell.com/v2",
+  "credentials": [
+    {
+      "platform": "profitwell",
+      "name": "ProfitWell",
+      "n8n_credential": "profitWellApi",
+      "n8n_field_map": {
+        "accessToken": "access_token"
+      },
+      "methods": [
+        "api_key"
+      ],
+      "fields": [
+        {
+          "key": "access_token",
+          "label": "API token",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "inject": {
+        "headers": {
+          "Authorization": "{{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "metric",
+      "label": "Metric"
+    },
+    {
+      "value": "company",
+      "label": "Company"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "metric",
+      "operation": "get",
+      "title": "Get metrics",
+      "method": "GET",
+      "path": "/metrics/{{ p.type }}",
+      "fields": [
+        {
+          "key": "type",
+          "label": "Type",
+          "type": "select",
+          "required": true,
+          "options": [
+            "daily",
+            "monthly"
+          ]
+        },
+        {
+          "key": "month",
+          "label": "Month",
+          "type": "text",
+          "default": "",
+          "help": "YYYY-MM; required for daily metrics"
+        },
+        {
+          "key": "simple",
+          "label": "Simplify",
+          "type": "boolean",
+          "default": true,
+          "help": "Monthly: one object with the latest value of each metric and its date; daily: one item per day with every metric"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "plan_id",
+            "dailyMetrics",
+            "monthlyMetrics"
+          ],
+          "help": "dailyMetrics / monthlyMetrics: lists of metric names; plan_id: one plan"
+        }
+      ],
+      "query": {
+        "month": "{{ p.type | eq:'daily' | then:p.month }}",
+        "plan_id": "{{ p.options.plan_id }}",
+        "metrics": "{{ p.options.dailyMetrics | default:p.options.monthlyMetrics | csv }}"
+      },
+      "output": {
+        "path": "data",
+        "to_when": "{{ p.simple | bool | eq:'true' }}",
+        "to": {
+          "$map": {
+            "$concat": [
+              "{{ p.type | eq:'monthly' | then:(el | values | get:'0' | get:'-1') }}",
+              "{{ p.type | eq:'daily' | then:(el | values | get:'0') }}"
+            ]
+          },
+          "$to": {
+            "date": "{{ el.date }}",
+            "$merge": "{{ res.data | entries | zip:(res.data | entries),'key',(p.type | eq:'monthly' | then:'-1' | default:(idx | string) | prefix:'value.' | suffix:'.value') }}"
+          }
+        }
+      }
+    },
+    {
+      "resource": "company",
+      "operation": "getSetting",
+      "title": "Get company settings",
+      "method": "GET",
+      "path": "/company/settings/",
+      "fields": []
+    }
+  ]
+}

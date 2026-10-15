@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/monoes/mono-agent/internal/documents"
+	"github.com/monoes/mono-agent/internal/nodes/nodeprofile"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -47,9 +48,9 @@ func (n *RenderNode) Execute(ctx context.Context, input workflow.NodeInput, conf
 		return nil, fmt.Errorf("documents.render: re-marshaling data: %w", err)
 	}
 
-	profileID, _ := config["profile_id"].(string)
-	if profileID == "" {
-		profileID = "default"
+	profileID, err := nodeprofile.Require(ctx, "documents.render", config)
+	if err != nil {
+		return nil, err
 	}
 	applicationID, _ := config["application_id"].(string)
 

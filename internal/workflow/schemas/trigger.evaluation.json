@@ -1,0 +1,131 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "dataTable",
+      "help": "Where the dataset rows come from: a data table of this profile or a Google Sheet.",
+      "key": "source",
+      "label": "Source",
+      "options": [
+        "dataTable",
+        "googleSheets"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "source",
+        "values": [
+          "dataTable"
+        ]
+      },
+      "help": "The data table's name or id (monoagentcli table list).",
+      "key": "table",
+      "label": "Data Table",
+      "placeholder": "Eval cases",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "source",
+        "values": [
+          "googleSheets"
+        ]
+      },
+      "help": "The google_sheets connection that reads the sheet.",
+      "key": "credential_id",
+      "label": "Google Sheets Account",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "source",
+        "values": [
+          "googleSheets"
+        ]
+      },
+      "help": "The spreadsheet holding the dataset (its first row names the columns).",
+      "key": "spreadsheet_id",
+      "label": "Spreadsheet ID",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "Sheet1",
+      "depends_on": {
+        "key": "source",
+        "values": [
+          "googleSheets"
+        ]
+      },
+      "key": "sheet_name",
+      "label": "Sheet",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "help": "Run only the first Max Rows rows.",
+      "key": "limit_rows",
+      "label": "Limit Rows",
+      "required": false,
+      "type": "boolean"
+    },
+    {
+      "default": 10,
+      "depends_on": {
+        "key": "limit_rows",
+        "values": [
+          "true"
+        ]
+      },
+      "key": "max_rows",
+      "label": "Max Rows",
+      "min": 1,
+      "required": false,
+      "type": "number"
+    },
+    {
+      "default": "any",
+      "help": "Whether a row must match any or all of the filters.",
+      "key": "match",
+      "label": "Must Match",
+      "options": [
+        "any",
+        "all"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "help": "Only rows matching these conditions are run. A data table takes the core.data_table conditions; a sheet compares with eq only.",
+      "key": "filters",
+      "label": "Row Filters",
+      "language": "json",
+      "placeholder": "[{\"column\": \"split\", \"condition\": \"eq\", \"value\": \"test\"}]",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "the dataset row's columns (a data table row also has id, createdAt and updatedAt)",
+      "key": "<column>",
+      "type": "any"
+    },
+    {
+      "description": "the data table row's id",
+      "key": "row_id",
+      "type": "number"
+    },
+    {
+      "description": "the row's position in the dataset (a sheet: its row number)",
+      "key": "row_number",
+      "type": "number"
+    }
+  ]
+}

@@ -6,22 +6,22 @@ anyway, and a comparison that never loses isn't a comparison, it's an ad.
 The short version: **n8n, Activepieces, Windmill, and Node-RED are mature
 tools with large communities and, in n8n's case, an enormous integration
 catalog. Mono Agent is a young project that trades breadth for a different
-shape: one static binary, fully local data, a CLI an AI agent can actually
-drive, and human approval built into the engine.**
+shape: one static binary, your data on your own machine, a CLI an AI agent can
+actually drive, and human approval built into the engine.**
 
 ## Comparison table
 
 | | **Mono Agent** | **n8n** | **Activepieces** | **Windmill** | **Node-RED** |
 |---|---|---|---|---|---|
-| **License** | MIT | Sustainable Use ("fair-code", not OSI) + Enterprise | MIT core + commercial EE | AGPL-3.0 / Apache-2.0 (source builds; binary "Community Edition" contains proprietary code) | Apache-2.0 (OpenJS Foundation) |
+| **License** | Proprietary (free to use for now) | Sustainable Use ("fair-code", not OSI) + Enterprise | MIT core + commercial EE | AGPL-3.0 / Apache-2.0 (source builds; binary "Community Edition" contains proprietary code) | Apache-2.0 (OpenJS Foundation) |
 | **Runtime** | Single static Go binary. No Node, no Docker, no DB server — SQLite is built in. (AI/agent features delegate to the separate monomind engine, which runs on Node.js; `monoagentcli nodejs install` can fetch a private copy) | Node.js app + database, typically Docker | Node.js/Bun + Postgres + Redis, Docker | Rust backend + **required Postgres**, language runtimes, Docker/K8s | Node.js process (`npm i -g node-red`) |
-| **Data and offline operation** | SQLite + files under `~/.monoagent/`, local work needs no account while the gate is dormant; a future enabled gate permits at most 24 hours offline from token issue; no analytics/usage counters (opt-in crash reporting aside — see [SECURITY.md](../SECURITY.md)) | Self-hosted or cloud; data stays on your host when self-hosted | Self-hosted or cloud | Self-hosted (needs Postgres) or cloud | Runs local, flows stored as JSON files |
+| **Data and offline operation** | SQLite + files under `~/.monoagent/`; a monoes.me sign-in has been required since 2026-10-11 (UTC) and needs a connection to monoes.me at least once every 24 hours; no analytics or usage counters (what it contacts is listed in [SECURITY.md](../SECURITY.md#network-use-telemetry-and-crash-reporting)) | Self-hosted or cloud; data stays on your host when self-hosted | Self-hosted or cloud | Self-hosted (needs Postgres) or cloud | Runs local, flows stored as JSON files |
 | **GUI** | Desktop app (Wails) + web canvas | Web canvas | Web builder | Web IDE + app builder | Web editor |
 | **CLI-first** | 180+ commands, `--json` everywhere, documented exit codes, offline `ref` manual | `n8n` CLI (start/import/export; limited workflow ops) | CLI mainly for piece development | `wmill` CLI (sync, run) | Minimal (admin only) |
 | **AI-agent native** | MCP server over stdio (read-only by default; `--allow-mutations` to run workflows and approve HIL items), `AGENTS.md`, offline reference manual; AI steps run on locally-installed agent CLIs (`agent.ask`) | MCP trigger/client nodes, AI workflow nodes | Pieces exposed as MCP servers (not verified here) | AI code generation; MCP support not verified here | — |
 | **Human-in-the-loop primitive** | Core `core.human_in_loop` node; durable queue in SQLite **survives restarts**; per-item edit/approve/reject; timeout auto-reject | Approval steps / Wait node patterns | Delay/approval pieces | Not a core primitive | — (roll your own) |
 | **Encrypted secrets vault** | Built in: OS-keyring-wrapped key, AES-256-GCM payloads, `@secret:` references never expose plaintext in configs/logs | Credentials in n8n's store (encrypted at rest) | Similar per-piece credentials | Workspace K/V with per-workspace encryption key | Credential nodes stored locally |
-| **Node count (honest)** | 167 node types in the default build (107 without the social platform nodes, `-tags nosocial`) | 1500+ integrations | 200+ pieces (community-contributable) | Scripts in 10+ languages + hub | Thousands of community palette nodes |
+| **Node count (honest)** | 104 node types in the default build (2026-10-13), plus the web automation packages (Instagram, LinkedIn, X and others) you add from the monoes.me library | 1500+ integrations | 200+ pieces (community-contributable) | Scripts in 10+ languages + hub | Thousands of community palette nodes |
 | **Extensibility** | Write nodes in Go | Write nodes in TypeScript/JS | Pieces in TypeScript (npm) | Scripts in Python/TS/Go/Bash/Rust/... | Nodes in JS |
 | **Community & maturity** | **Young project, small community — we lose this row today** | ~203k stars, ~60k forks, 9,000+ templates, huge forum | ~24k stars, active Discord | ~18k stars, commercial backing | Est. 2013, OpenJS governance, massive install base |
 
@@ -32,7 +32,7 @@ August 2026 and will drift; check them before quoting.
 
 Often, honestly. Use n8n if you:
 
-- **Need the integration catalog.** 1500+ integrations vs. our 167 node types.
+- **Need the integration catalog.** 1500+ integrations vs. our 104 node types.
   If your stack touches many SaaS products, n8n simply has the connectors.
 - **Want a hosted/cloud option** with someone else handling upgrades,
   availability, and scaling. Mono Agent is self-run by design.
@@ -41,23 +41,27 @@ Often, honestly. Use n8n if you:
 - **Want thousands of ready-made templates** (9,000+) and a large community
   forum to search when stuck.
 - **Rely on a rich JS/TS ecosystem** for custom nodes.
+- **Need an air-gapped or fully disconnected install.** Once its monoes.me sign-in
+  is required, Mono Agent needs a connection to monoes.me at least once every
+  24 hours.
 
 Choosing n8n here is a correct decision, not a failure.
 
 ## When Mono Agent wins
 
 - **A single binary on a laptop or any random box.** No Node, no Docker, no
-  Postgres, no Redis — copy one static file, run it. That machine in the
-  closet with nothing installed? It works there. (The AI/agent features are
+  Postgres, no Redis — copy one static file, sign in to monoes.me, run it. That
+  machine in the closet with nothing installed? It works there, as long as it
+  can reach monoes.me once a day. (The AI/agent features are
   the exception: they hand off to the monomind engine, which needs Node.js.)
-- **Workflow state on your machine, no analytics or usage counters.** State is
-  in SQLite and files under `~/.monoagent/`. The account gate is currently dormant;
-  no implicit account
-  requests occur. If enabled in a future release, work needs a machine sign-in
-  and renewal within 24 hours of token issue. Current network traffic is the
-  API calls your own workflows make, commands you
-  explicitly invoke that talk to an external service, and opt-in crash
-  reporting (see [SECURITY.md](../SECURITY.md)).
+- **Your data on your own machine, no analytics.** State is in SQLite and files
+  under `~/.monoagent/`. The one thing it needs from a hosted service is the
+  monoes.me sign-in: it contacts monoes.me to sign you in and keep the sign-in
+  fresh, and checks for updates. Since 2026-10-11 (UTC) work needs a machine
+  sign-in and a renewal within 24 hours of token issue. Beyond that the network
+  traffic is the API calls your own workflows make, commands you explicitly
+  invoke that talk to an external service, and opt-in crash reporting (see
+  [SECURITY.md](../SECURITY.md#network-use-telemetry-and-crash-reporting)).
 - **CLI- and agent-driven automation.** 180+ commands with `--json` output,
   documented exit codes, an offline `ref` manual, and a stdio MCP server.
   An AI agent can discover, validate, run, and inspect workflows without

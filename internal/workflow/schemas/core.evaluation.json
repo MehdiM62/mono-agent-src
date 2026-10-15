@@ -1,0 +1,338 @@
+{
+  "_generated": true,
+  "credential_platform": null,
+  "fields": [
+    {
+      "default": "setOutputs",
+      "help": "setInputs / setOutputs record the case's inputs or outputs (setOutputs also writes them back to the dataset row); setMetrics scores the run; checkIfEvaluating routes items to evaluation or normal. Only a run of monoagentcli workflow evaluate records anything.",
+      "key": "operation",
+      "label": "Operation",
+      "options": [
+        "setInputs",
+        "setOutputs",
+        "setMetrics",
+        "checkIfEvaluating"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "setInputs"
+        ]
+      },
+      "help": "The values to show as the case's inputs.",
+      "key": "inputs",
+      "label": "Inputs",
+      "language": "json",
+      "placeholder": "[{\"name\": \"question\", \"value\": \"{{ $json.question }}\"}]",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "default": "dataTable",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "setOutputs"
+        ]
+      },
+      "help": "Where the dataset row is: a data table or a Google Sheet.",
+      "key": "source",
+      "label": "Source",
+      "options": [
+        "dataTable",
+        "googleSheets"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "source",
+        "values": [
+          "dataTable"
+        ]
+      },
+      "help": "The dataset's data table (name or id). Empty: the table the evaluation trigger read.",
+      "key": "table",
+      "label": "Data Table",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "source",
+        "values": [
+          "googleSheets"
+        ]
+      },
+      "key": "credential_id",
+      "label": "Google Sheets Account",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "source",
+        "values": [
+          "googleSheets"
+        ]
+      },
+      "key": "spreadsheet_id",
+      "label": "Spreadsheet ID",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": "Sheet1",
+      "depends_on": {
+        "key": "source",
+        "values": [
+          "googleSheets"
+        ]
+      },
+      "key": "sheet_name",
+      "label": "Sheet",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "setOutputs"
+        ]
+      },
+      "help": "The values written into the dataset row (a column it lacks is added) and shown as the case's outputs.",
+      "key": "outputs",
+      "label": "Outputs",
+      "language": "json",
+      "placeholder": "[{\"name\": \"answer\", \"value\": \"{{ $json.output }}\"}]",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "default": "correctness",
+      "depends_on": {
+        "key": "operation",
+        "values": [
+          "setMetrics"
+        ]
+      },
+      "help": "correctness / helpfulness: a model scores 1-5. stringSimilarity: 0-1 by edit distance. categorization: 1 on an exact match. toolsUsed: share of the expected tools the agent called. customMetrics: your own numbers.",
+      "key": "metric",
+      "label": "Metric",
+      "options": [
+        "correctness",
+        "helpfulness",
+        "stringSimilarity",
+        "categorization",
+        "toolsUsed",
+        "customMetrics"
+      ],
+      "required": false,
+      "type": "select"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "correctness",
+          "stringSimilarity",
+          "categorization"
+        ]
+      },
+      "help": "The reference answer from the dataset (correctness, stringSimilarity, categorization).",
+      "key": "expected_answer",
+      "label": "Expected Answer",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "correctness",
+          "helpfulness",
+          "stringSimilarity",
+          "categorization"
+        ]
+      },
+      "help": "The answer the workflow gave.",
+      "key": "actual_answer",
+      "label": "Actual Answer",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "helpfulness"
+        ]
+      },
+      "help": "The question the response answers.",
+      "key": "user_query",
+      "label": "User Query",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "toolsUsed"
+        ]
+      },
+      "help": "Comma-separated names of the tools the agent should call.",
+      "key": "expected_tools",
+      "label": "Expected Tools",
+      "placeholder": "Get Events, Send Email",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "toolsUsed"
+        ]
+      },
+      "help": "The agent's steps: a list of {action: {tool}}.",
+      "key": "intermediate_steps",
+      "label": "Intermediate Steps",
+      "placeholder": "{{ $json.intermediateSteps }}",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "customMetrics"
+        ]
+      },
+      "help": "Each metric's name and numeric value.",
+      "key": "metrics",
+      "label": "Metrics to Return",
+      "language": "json",
+      "placeholder": "[{\"name\": \"length\", \"value\": \"{{ $json.output.length }}\"}]",
+      "required": false,
+      "rows": 4,
+      "type": "code"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "correctness",
+          "helpfulness",
+          "stringSimilarity",
+          "categorization",
+          "toolsUsed"
+        ]
+      },
+      "help": "The name the metric is recorded under (default: the metric's own name).",
+      "key": "metric_name",
+      "label": "Metric Name",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "correctness",
+          "helpfulness"
+        ]
+      },
+      "help": "How the model scores (default: a built-in grading guide).",
+      "key": "prompt",
+      "label": "Prompt",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "correctness",
+          "helpfulness"
+        ]
+      },
+      "help": "The case as the model sees it: {expected_answer}, {actual_answer} and {user_query} are filled in.",
+      "key": "input_prompt",
+      "label": "Input Prompt",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "correctness",
+          "helpfulness"
+        ]
+      },
+      "help": "The local agent runtime that scores (an attached chat model sets it; auto picks one).",
+      "key": "runtime",
+      "label": "Runtime",
+      "placeholder": "auto",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "correctness",
+          "helpfulness"
+        ]
+      },
+      "key": "model",
+      "label": "Model",
+      "required": false,
+      "type": "text"
+    },
+    {
+      "default": 120,
+      "depends_on": {
+        "key": "metric",
+        "values": [
+          "correctness",
+          "helpfulness"
+        ]
+      },
+      "key": "timeout",
+      "label": "Timeout (seconds)",
+      "min": 1,
+      "required": false,
+      "type": "number"
+    }
+  ],
+  "outputs": [
+    {
+      "description": "setInputs, setOutputs and checkIfEvaluating pass the input item's fields on",
+      "key": "*",
+      "type": "object"
+    },
+    {
+      "description": "setMetrics: the metric's value under its name (customMetrics: one key per metric)",
+      "key": "<metric_name>",
+      "type": "number"
+    }
+  ],
+  "sub_inputs": [
+    {
+      "handle": "ai_languageModel",
+      "label": "Chat Model",
+      "max": 1,
+      "required": false
+    }
+  ]
+}

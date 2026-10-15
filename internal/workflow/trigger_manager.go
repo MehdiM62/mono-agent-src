@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"sync"
 	"time"
@@ -64,7 +65,9 @@ type triggerEntry struct {
 	kind        string // "schedule", "webhook", or "provider"
 	cronID      cron.EntryID
 	webhookPath string
-	deactivate  func() // provider entries
+	deactivate  func()            // provider entries
+	schedule    *scheduleFirePlan // schedule entries: overlap policy + guarded fire
+	app         *appHookState     // webhook entries registered with an app's API
 }
 
 // TriggerManager activates and deactivates triggers for workflows.
@@ -76,7 +79,10 @@ type TriggerManager struct {
 	triggerFn     func(workflowID string, nodeID string, items []Item)
 	mu            sync.Mutex
 	active        map[string]map[string]*triggerEntry // workflowID → nodeID → entry
+	fingerprints  map[string]string                   // workflowID → triggerFingerprint registered
 	providers     map[string]TriggerSource            // node type → provider
+	apps          appWebhookDeps                      // app webhook registration (webhook_appactivate.go)
+	renewFails    appRenewFailures                    // app webhook renewal retries (webhook_renew.go)
 	logger        zerolog.Logger
 }
 
@@ -95,7 +101,9 @@ func NewTriggerManager(
 		scheduler:     scheduler,
 		triggerFn:     triggerFn,
 		active:        make(map[string]map[string]*triggerEntry),
+		fingerprints:  make(map[string]string),
 		providers:     make(map[string]TriggerSource),
+		apps:          appWebhookDeps{store: &appWebhookStore{}},
 		logger:        logger,
 	}
 }
@@ -162,9 +170,17 @@ func (tm *TriggerManager) activateProvider(w *Workflow, node *WorkflowNode, p Tr
 }
 
 // ActivateWorkflow registers all trigger nodes in the given workflow.
-// It is idempotent: nodes already registered are skipped.
+// It is idempotent: nodes already registered are skipped. The first
+// activation's trigger fingerprint is what Fingerprint reports until the
+// workflow is deactivated.
 func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) error {
 	var errs []error
+	fp := triggerFingerprint(w)
+	tm.mu.Lock()
+	if _, ok := tm.fingerprints[w.ID]; !ok {
+		tm.fingerprints[w.ID] = fp
+	}
+	tm.mu.Unlock()
 
 	for i := range w.Nodes {
 		node := &w.Nodes[i]
@@ -187,7 +203,17 @@ func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) err
 			}
 
 		case "trigger.webhook":
-			if err := tm.activateWebhook(w.ID, node); err != nil {
+			if err := tm.activateWebhookNode(ctx, w, node); err != nil {
+				errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
+			}
+
+		case TriggerNodeTypeForm:
+			if err := tm.activateForm(w, node); err != nil {
+				errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
+			}
+
+		case TriggerNodeTypeChat:
+			if err := tm.activateChat(w.ID, node); err != nil {
 				errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
 			}
 
@@ -197,6 +223,10 @@ func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) err
 			tm.mu.Unlock()
 			if p != nil {
 				if err := tm.activateProvider(w, node, p); err != nil {
+					errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
+				}
+			} else if WebhookRegistrarFor(node.Type) != nil {
+				if err := tm.activateWebhookNode(ctx, w, node); err != nil {
 					errs = append(errs, fmt.Errorf("node %s (%s): %w", node.ID, node.Type, err))
 				}
 			}
@@ -213,6 +243,26 @@ func (tm *TriggerManager) ActivateWorkflow(ctx context.Context, w *Workflow) err
 	return nil
 }
 
+// scheduleParser parses specs the way internal/scheduler's cron instance
+// does (6 fields, seconds first, descriptors, CRON_TZ prefix).
+var scheduleParser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+
+// scheduleSpec builds a trigger.schedule node's cron spec from its config.
+func scheduleSpec(cfg map[string]interface{}) (string, error) {
+	spec, ok := cfg["cron"].(string)
+	if !ok || spec == "" {
+		return "", fmt.Errorf("trigger.schedule: missing or invalid \"cron\" field in config")
+	}
+	// Always pin the timezone — the underlying cron instance evaluates specs
+	// in time.Local when no CRON_TZ prefix is present, so a default-UTC
+	// schedule would silently fire at local time on non-UTC hosts.
+	tz, _ := cfg["timezone"].(string)
+	if tz == "" {
+		tz = "UTC"
+	}
+	return fmt.Sprintf("CRON_TZ=%s %s", tz, spec), nil
+}
+
 // activateSchedule registers a cron job for a trigger.schedule node.
 func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode) error {
 	key := node.ID
@@ -224,22 +274,16 @@ func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode
 		}
 	}
 
-	spec, ok := node.Config["cron"].(string)
-	if !ok || spec == "" {
-		return fmt.Errorf("trigger.schedule: missing or invalid \"cron\" field in config")
+	spec, err := scheduleSpec(node.Config)
+	if err != nil {
+		return err
 	}
-	// Always pin the timezone — the underlying cron instance evaluates specs
-	// in time.Local when no CRON_TZ prefix is present, so a default-UTC
-	// schedule would silently fire at local time on non-UTC hosts.
-	tz, _ := node.Config["timezone"].(string)
-	if tz == "" {
-		tz = "UTC"
-	}
-	spec = fmt.Sprintf("CRON_TZ=%s %s", tz, spec)
 
-	// Capture loop variables for the closure.
-	wfID := workflowID
-	nID := node.ID
+	policy, err := parseSchedulePolicy(node.Config)
+	if err != nil {
+		return err
+	}
+	plan := tm.newScheduleFirePlan(workflowID, node.ID, policy)
 
 	// Hold the mutex through the entire check-then-act to prevent TOCTOU races.
 	tm.mu.Lock()
@@ -255,15 +299,7 @@ func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode
 	}
 
 	entryID, err := tm.scheduler.AddWorkflowJob(spec, func() {
-		items := []Item{
-			{
-				JSON: map[string]interface{}{
-					"trigger_type": "schedule",
-					"timestamp":    time.Now().UTC().Format(time.RFC3339),
-				},
-			},
-		}
-		tm.triggerFn(wfID, nID, items)
+		plan.fire(scheduleItems(time.Now(), false))
 	})
 	if err != nil {
 		tm.mu.Unlock()
@@ -274,8 +310,9 @@ func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode
 		tm.active[workflowID] = make(map[string]*triggerEntry)
 	}
 	tm.active[workflowID][key] = &triggerEntry{
-		kind:   "schedule",
-		cronID: entryID,
+		kind:     "schedule",
+		cronID:   entryID,
+		schedule: plan,
 	}
 	tm.mu.Unlock()
 
@@ -288,20 +325,26 @@ func (tm *TriggerManager) activateSchedule(workflowID string, node *WorkflowNode
 	return nil
 }
 
-// activateWebhook registers a webhook route for a trigger.webhook node.
-func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode) error {
+// registerWebhookRoute registers a webhook route for a trigger.webhook node
+// (or a node type with an app registrar, whose path defaults to
+// defaultPath). verify, when set, checks each delivery. It returns the path
+// and whether the route was added (false: the node was already active).
+func (tm *TriggerManager) registerWebhookRoute(workflowID string, node *WorkflowNode, defaultPath string, verify func(http.Header, []byte) error) (string, bool, error) {
 	key := node.ID
 
 	// Parse config outside the lock — no shared state involved.
 	if node.Config == nil {
 		if err := node.ParseConfig(); err != nil {
-			return fmt.Errorf("parse config: %w", err)
+			return "", false, fmt.Errorf("parse config: %w", err)
 		}
 	}
 
 	path, ok := node.Config["path"].(string)
 	if !ok || path == "" {
-		return fmt.Errorf("trigger.webhook: missing or invalid \"path\" field in config")
+		path = defaultPath
+	}
+	if path == "" {
+		return "", false, fmt.Errorf("trigger.webhook: missing or invalid \"path\" field in config")
 	}
 
 	method, _ := node.Config["method"].(string)
@@ -328,6 +371,10 @@ func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode)
 		TriggerFn: func(items []Item) {
 			tm.triggerFn(wfID, nID, items)
 		},
+		Verify: verify,
+	}
+	if err := applyWebhookOptions(reg, node.Config); err != nil {
+		return "", false, err
 	}
 
 	// Hold the mutex through the entire check-then-act to prevent TOCTOU races.
@@ -339,13 +386,13 @@ func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode)
 				Str("workflow_id", workflowID).
 				Str("node_id", node.ID).
 				Msg("webhook trigger already active, skipping")
-			return nil
+			return path, false, nil
 		}
 	}
 
 	if err := tm.webhookServer.Register(reg); err != nil {
 		tm.mu.Unlock()
-		return fmt.Errorf("register webhook path %q: %w", path, err)
+		return "", false, fmt.Errorf("register webhook path %q: %w", path, err)
 	}
 
 	if tm.active[workflowID] == nil {
@@ -364,7 +411,7 @@ func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode)
 		Str("method", method).
 		Msg("webhook trigger activated")
 
-	return nil
+	return path, true, nil
 }
 
 // DeactivateWorkflow removes all triggers for the given workflow.
@@ -373,16 +420,23 @@ func (tm *TriggerManager) activateWebhook(workflowID string, node *WorkflowNode)
 // "a_" (e.g. "a_b").
 func (tm *TriggerManager) DeactivateWorkflow(workflowID string) {
 	tm.mu.Lock()
-	defer tm.mu.Unlock()
-
+	delete(tm.fingerprints, workflowID)
 	entries := tm.active[workflowID]
-	if entries == nil {
-		return
-	}
+	var apps []*appHookState
 	for key, entry := range entries {
 		tm.deactivateEntry(key, entry)
+		if entry.app != nil {
+			apps = append(apps, entry.app)
+		}
 	}
 	delete(tm.active, workflowID)
+	tm.mu.Unlock()
+
+	// The vendor calls happen outside the lock. DeactivateAll (shutdown)
+	// leaves app webhooks registered: the workflow is still active.
+	for _, st := range apps {
+		tm.unregisterAppHook(st)
+	}
 }
 
 // DeactivateAll removes all triggers (called on shutdown).
@@ -399,6 +453,7 @@ func (tm *TriggerManager) DeactivateAll() {
 	// the same process) registers triggers again instead of skipping them as
 	// "already active".
 	tm.active = make(map[string]map[string]*triggerEntry)
+	tm.fingerprints = make(map[string]string)
 }
 
 // deactivateEntry tears down a single trigger entry. Callers remove it from
@@ -407,6 +462,9 @@ func (tm *TriggerManager) deactivateEntry(key string, entry *triggerEntry) {
 	switch entry.kind {
 	case "schedule":
 		tm.scheduler.RemoveJob(entry.cronID)
+		if entry.schedule != nil {
+			entry.schedule.stop()
+		}
 		tm.logger.Info().
 			Str("key", key).
 			Msg("schedule trigger deactivated")
@@ -417,6 +475,14 @@ func (tm *TriggerManager) deactivateEntry(key string, entry *triggerEntry) {
 			Str("key", key).
 			Str("path", entry.webhookPath).
 			Msg("webhook trigger deactivated")
+
+	case "form":
+		tm.webhookServer.DeregisterForm(entry.webhookPath)
+		tm.logger.Info().Str("key", key).Str("path", entry.webhookPath).Msg("form trigger deactivated")
+
+	case "chat":
+		tm.webhookServer.DeregisterChat(entry.webhookPath)
+		tm.logger.Info().Str("key", key).Str("path", entry.webhookPath).Msg("chat trigger deactivated")
 
 	case "provider":
 		if entry.deactivate != nil {

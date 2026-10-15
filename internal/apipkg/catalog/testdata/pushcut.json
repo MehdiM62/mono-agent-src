@@ -1,0 +1,29 @@
+{
+  "notification.send": {
+    "params": {
+      "notificationName": "My Alert",
+      "additionalFields": {
+        "devices": [
+          "iPhone"
+        ],
+        "text": "hello",
+        "title": "T"
+      }
+    },
+    "response": {
+      "id": "n1"
+    },
+    "expect": {
+      "method": "POST",
+      "path": "/v1/notifications/My%20Alert",
+      "body": {
+        "devices": [
+          "iPhone"
+        ],
+        "text": "hello",
+        "title": "T"
+      },
+      "items": 1
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "post.create": {
+    "params": {
+      "title": "T",
+      "contentFormat": "markdown",
+      "content": "# hi",
+      "additionalFields": {
+        "tags": "a, b",
+        "publishStatus": "draft"
+      }
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "responses": [
+      {
+        "data": {
+          "id": "u1"
+        }
+      },
+      {
+        "data": {
+          "id": "p1"
+        }
+      }
+    ],
+    "expect": {
+      "method": "POST",
+      "path": "/v1/users/u1/posts",
+      "body": {
+        "title": "T",
+        "contentFormat": "markdown",
+        "content": "# hi",
+        "tags": [
+          "a",
+          "b"
+        ],
+        "publishStatus": "draft"
+      },
+      "items": 1
+    }
+  },
+  "publication.getAll": {
+    "params": {
+      "limit": 1
+    },
+    "credential": {
+      "access_token": "t"
+    },
+    "responses": [
+      {
+        "data": {
+          "id": "u1"
+        }
+      },
+      {
+        "data": [
+          {
+            "id": "a"
+          },
+          {
+            "id": "b"
+          }
+        ]
+      }
+    ],
+    "expect": {
+      "method": "GET",
+      "path": "/v1/users/u1/publications",
+      "items": 1
+    }
+  }
+}

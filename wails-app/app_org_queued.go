@@ -17,6 +17,9 @@ func queuedArgs(org string) ([]string, error) {
 // ListOrgQueuedMessages returns `org queued <org>`'s JSON:
 // {"v":1,"org","count","skipped","delivery","messages":[…]} or {"error"}.
 func (a *App) ListOrgQueuedMessages(org string) string {
+	if err := a.signedOut(); err != nil {
+		return loginRequiredJSON(err)
+	}
 	sub, err := queuedArgs(org)
 	return a.runOrgSub("queued", sub, err)
 }

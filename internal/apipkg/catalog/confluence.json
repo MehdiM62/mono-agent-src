@@ -1,0 +1,1705 @@
+{
+  "$schema": "apipkg.v1",
+  "id": "confluence",
+  "node_type": "app.confluence",
+  "title": "Confluence",
+  "description": "Pages, comments, labels, attachments, spaces and CQL search in Confluence Cloud",
+  "category": "app",
+  "docs_url": "https://developer.atlassian.com/cloud/confluence/rest/v2/",
+  "n8n_types": [
+    "n8n-nodes-base.confluence"
+  ],
+  "base_url": "https://api.atlassian.com",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "credentials": [
+    {
+      "platform": "confluence_cloud",
+      "name": "Confluence Cloud (OAuth2)",
+      "n8n_credential": "confluenceCloudOAuth2Api",
+      "methods": [
+        "oauth"
+      ],
+      "fields": [],
+      "oauth": {
+        "auth_url": "https://auth.atlassian.com/authorize",
+        "token_url": "https://auth.atlassian.com/oauth/token",
+        "scopes": [
+          "read:page:confluence",
+          "write:page:confluence",
+          "read:hierarchical-content:confluence",
+          "read:space:confluence",
+          "read:attachment:confluence",
+          "read:comment:confluence",
+          "read:label:confluence",
+          "read:content-details:confluence",
+          "write:attachment:confluence",
+          "delete:attachment:confluence",
+          "write:comment:confluence",
+          "delete:comment:confluence",
+          "write:label:confluence",
+          "delete:page:confluence",
+          "offline_access"
+        ],
+        "pkce": true,
+        "extra_params": {
+          "audience": "api.atlassian.com",
+          "prompt": "consent"
+        }
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    },
+    {
+      "platform": "atlassian_service_account",
+      "name": "Atlassian service account",
+      "n8n_credential": "atlassianServiceAccountApi",
+      "n8n_field_map": {
+        "clientId": "client_id",
+        "clientSecret": "client_secret"
+      },
+      "methods": [
+        "client_credentials"
+      ],
+      "fields": [
+        {
+          "key": "client_id",
+          "label": "Client ID",
+          "required": true
+        },
+        {
+          "key": "client_secret",
+          "label": "Client secret",
+          "secret": true,
+          "required": true
+        }
+      ],
+      "oauth": {
+        "token_url": "https://auth.atlassian.com/oauth/token"
+      },
+      "inject": {
+        "headers": {
+          "Authorization": "Bearer {{ cred.access_token }}"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "value": "page",
+      "label": "Page"
+    },
+    {
+      "value": "attachment",
+      "label": "Attachment"
+    },
+    {
+      "value": "search",
+      "label": "Search"
+    },
+    {
+      "value": "space",
+      "label": "Space"
+    }
+  ],
+  "operations": [
+    {
+      "resource": "page",
+      "operation": "create",
+      "title": "Create a page",
+      "method": "POST",
+      "path": "/wiki/api/v2/pages",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ],
+      "query": {
+        "private": "{{ p.options.private | eq:'true' }}",
+        "root-level": "{{ p.options.rootLevel | eq:'true' }}"
+      },
+      "body": {
+        "spaceId": "{{ p.space | rl }}",
+        "status": "{{ p.options.createAsDraft | eq:'true' | then:'draft' | default:'current' }}",
+        "title": "{{ p.title }}",
+        "body": {
+          "representation": "{{ p.bodyFormat | eq:'atlas_doc_format' | then:'atlas_doc_format' | default:'storage' }}",
+          "value": "{{ p.bodyFormat | eq:'storage' | then:p.bodyStorage }}{{ p.bodyFormat | eq:'plainText' | then:p.bodyPlainText | lines | escape_html | prefix:'<p>' | suffix:'</p>' | join:'' }}{{ p.bodyFormat | eq:'atlas_doc_format' | then:p.bodyAdf | fromjson | json }}"
+        },
+        "parentId": "{{ p.options.rootLevel | ne:'true' | then:p.parentPage | rl }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "bodyFormat",
+          "label": "Body format",
+          "type": "select",
+          "options": [
+            "atlas_doc_format",
+            "plainText",
+            "storage"
+          ],
+          "default": "plainText"
+        },
+        {
+          "key": "bodyPlainText",
+          "label": "Body (plain text)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "bodyStorage",
+          "label": "Body (storage XHTML)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "bodyAdf",
+          "label": "Body (ADF JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "parentPage",
+          "label": "Parent page",
+          "type": "text",
+          "help": "Page ID or n8n locator; ignored with options.rootLevel"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "createAsDraft",
+            "private",
+            "rootLevel"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "addComment",
+      "title": "Add a comment",
+      "method": "POST",
+      "path": "/wiki/api/v2/footer-comments",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        }
+      ],
+      "body": {
+        "body": {
+          "representation": "{{ p.bodyFormat | eq:'atlas_doc_format' | then:'atlas_doc_format' | default:'storage' }}",
+          "value": "{{ p.bodyFormat | eq:'storage' | then:p.bodyStorage }}{{ p.bodyFormat | eq:'plainText' | then:p.bodyPlainText | lines | escape_html | prefix:'<p>' | suffix:'</p>' | join:'' }}{{ p.bodyFormat | eq:'atlas_doc_format' | then:p.bodyAdf | fromjson | json }}"
+        },
+        "parentCommentId": "{{ p.parentCommentId }}",
+        "pageId": "{{ p.parentCommentId | default:'none' | eq:'none' | then:(p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl)) }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "bodyFormat",
+          "label": "Body format",
+          "type": "select",
+          "options": [
+            "atlas_doc_format",
+            "plainText",
+            "storage"
+          ],
+          "default": "plainText"
+        },
+        {
+          "key": "bodyPlainText",
+          "label": "Body (plain text)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "bodyStorage",
+          "label": "Body (storage XHTML)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "bodyAdf",
+          "label": "Body (ADF JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "parentCommentId",
+          "label": "Reply to comment ID",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "addLabels",
+      "title": "Add labels",
+      "method": "POST",
+      "path": "/wiki/rest/api/content/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}/label",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        }
+      ],
+      "body": {
+        "$map": "{{ p.labels | split }}",
+        "$to": {
+          "prefix": "global",
+          "name": "{{ el }}"
+        }
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "labels",
+          "label": "Labels",
+          "type": "text",
+          "required": true,
+          "help": "Comma-separated; no spaces inside a label"
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "append",
+      "title": "Append to a page",
+      "method": "PUT",
+      "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        },
+        {
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}",
+          "query": {
+            "body-format": "{{ p.bodyFormat | eq:'atlas_doc_format' | then:'atlas_doc_format' | default:'storage' }}"
+          }
+        }
+      ],
+      "body": {
+        "id": "{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}",
+        "status": "{{ pres.2.status }}",
+        "title": "{{ pres.2.title }}",
+        "version": {
+          "number": "{{ pres.2.status | eq:'draft' | then:1 | default:(pres.2.version.number | add:1) }}"
+        },
+        "body": {
+          "$merge": [
+            {
+              "$when": "{{ p.bodyFormat | ne:'atlas_doc_format' }}",
+              "representation": "storage",
+              "value": "{{ pres.2.body.storage.value }}{{ p.bodyFormat | eq:'storage' | then:p.bodyStorage }}{{ p.bodyFormat | eq:'plainText' | then:p.bodyPlainText | lines | escape_html | prefix:'<p>' | suffix:'</p>' | join:'' }}"
+            },
+            {
+              "$when": "{{ p.bodyFormat | eq:'atlas_doc_format' }}",
+              "representation": "atlas_doc_format",
+              "value": {
+                "$json": {
+                  "type": "doc",
+                  "version": 1,
+                  "content": {
+                    "$concat": [
+                      "{{ pres.2.body.atlas_doc_format.value | fromjson | get:'content' }}",
+                      "{{ p.bodyAdf | fromjson | get:'content' }}"
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "bodyFormat",
+          "label": "Body format",
+          "type": "select",
+          "options": [
+            "atlas_doc_format",
+            "plainText",
+            "storage"
+          ],
+          "default": "plainText"
+        },
+        {
+          "key": "bodyPlainText",
+          "label": "Body (plain text)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "bodyStorage",
+          "label": "Body (storage XHTML)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "bodyAdf",
+          "label": "Body (ADF JSON)",
+          "type": "json",
+          "default": ""
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "delete",
+      "title": "Delete a page",
+      "method": "DELETE",
+      "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        }
+      ],
+      "also": [
+        {
+          "when": "{{ p.purge | eq:'true' }}",
+          "method": "DELETE",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}",
+          "query": {
+            "purge": true
+          }
+        }
+      ],
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "purge",
+          "label": "Purge",
+          "type": "boolean",
+          "default": false,
+          "help": "Also delete it from the trash"
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "deleteComment",
+      "title": "Delete a comment",
+      "method": "DELETE",
+      "path": "/wiki/api/v2/footer-comments/{{ p.commentId }}",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ],
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "commentId",
+          "label": "Comment ID",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "get",
+      "title": "Get a page",
+      "method": "GET",
+      "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        }
+      ],
+      "query": {
+        "body-format": "{{ p.bodyFormat | eq:'plainText' | then:'atlas_doc_format' | default:p.bodyFormat }}"
+      },
+      "description": "plainText returns the page in atlas_doc_format. With includeDescendants every descendant page follows the page, one item each (drafts skipped), up to maxPages items in all.",
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "bodyFormat",
+          "label": "Body format",
+          "type": "select",
+          "options": [
+            "atlas_doc_format",
+            "plainText",
+            "storage"
+          ],
+          "default": "storage"
+        },
+        {
+          "key": "includeDescendants",
+          "label": "Include descendants",
+          "type": "boolean",
+          "default": false,
+          "help": "Also return every page below this one, one item per page; unpublished drafts are skipped."
+        },
+        {
+          "key": "maxPages",
+          "label": "Max pages",
+          "type": "number",
+          "default": 100,
+          "help": "Stops the walk after this many pages, the page itself included."
+        }
+      ],
+      "output": {
+        "walk": {
+          "when": "{{ p.includeDescendants }}",
+          "start": "{{ res.id }}",
+          "request": {
+            "method": "GET",
+            "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+            "path": "/wiki/api/v2/pages/{{ el }}/descendants",
+            "query": {
+              "depth": 10
+            }
+          },
+          "pagination": {
+            "type": "next_url",
+            "next_url_path": "_links.next",
+            "next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+            "limit_param": "limit",
+            "page_size": 250
+          },
+          "results_path": "results",
+          "descend": "{{ el.type | in:'page,folder' | then:(el.depth | eq:'10') }}",
+          "keep": "{{ el.type | eq:'page' | then:(el.status | default:'current' | in:'current,archived') }}",
+          "max": "{{ p.maxPages | sub:1 }}",
+          "fetch": {
+            "method": "GET",
+            "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+            "path": "/wiki/api/v2/pages",
+            "query": {
+              "id": "{{ el | csv }}",
+              "body-format": "{{ p.bodyFormat | eq:'plainText' | then:'atlas_doc_format' | default:p.bodyFormat }}",
+              "limit": 250
+            },
+            "chunk": 250,
+            "results_path": "results"
+          }
+        }
+      }
+    },
+    {
+      "resource": "page",
+      "operation": "getComments",
+      "title": "Get comments",
+      "method": "GET",
+      "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}/footer-comments",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        }
+      ],
+      "query": {
+        "body-format": "{{ p.bodyFormat | eq:'plainText' | then:'atlas_doc_format' | default:p.bodyFormat }}",
+        "sort": "{{ p.options.sortBy | prefix:(p.options.sortDirection | eq:'desc' | then:'-') }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next",
+        "next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "bodyFormat",
+          "label": "Body format",
+          "type": "select",
+          "options": [
+            "atlas_doc_format",
+            "plainText",
+            "storage"
+          ],
+          "default": "storage"
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "sortBy",
+            "sortDirection"
+          ],
+          "help": "sortBy: created-date or modified-date; sortDirection: asc or desc"
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "getLabels",
+      "title": "Get labels",
+      "method": "GET",
+      "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}/labels",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        }
+      ],
+      "query": {
+        "prefix": "{{ p.options.prefix | csv }}",
+        "sort": "{{ p.options.sortBy | prefix:(p.options.sortDirection | eq:'desc' | then:'-') }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next",
+        "next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "prefix",
+            "sortBy",
+            "sortDirection"
+          ],
+          "help": "prefix: list of global, my, system, team"
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "getManyByLabel",
+      "title": "Get pages by label",
+      "method": "GET",
+      "path": "/wiki/api/v2/labels/{{ p.label | rl }}/pages",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ],
+      "query": {
+        "body-format": "{{ p.bodyFormat | eq:'plainText' | then:'atlas_doc_format' | default:p.bodyFormat }}",
+        "space-id": "{{ p.space | rl }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next",
+        "next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "label",
+          "label": "Label ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "bodyFormat",
+          "label": "Body format",
+          "type": "select",
+          "options": [
+            "atlas_doc_format",
+            "plainText",
+            "storage"
+          ],
+          "default": "storage"
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "removeLabel",
+      "title": "Remove a label",
+      "method": "DELETE",
+      "path": "/wiki/rest/api/content/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}/label",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        }
+      ],
+      "query": {
+        "name": "{{ p.labelName }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "labelName",
+          "label": "Label",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    {
+      "resource": "page",
+      "operation": "update",
+      "title": "Update a page",
+      "method": "PUT",
+      "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        },
+        {
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}",
+          "query": {
+            "body-format": "{{ p.bodyFormat | eq:'atlas_doc_format' | then:'atlas_doc_format' | default:'storage' }}"
+          }
+        }
+      ],
+      "body": {
+        "id": "{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}",
+        "status": "{{ p.status | ne:'keep' | then:p.status | default:pres.2.status }}",
+        "title": "{{ p.title | default:pres.2.title }}",
+        "version": {
+          "number": "{{ pres.2.status | eq:'draft' | then:1 | default:(p.status | eq:'draft' | then:1) | default:(pres.2.version.number | add:1) }}"
+        },
+        "body": {
+          "$merge": [
+            {
+              "$when": "{{ p.bodyStorage | default:p.bodyPlainText | default:p.bodyAdf }}",
+              "representation": "{{ p.bodyFormat | eq:'atlas_doc_format' | then:'atlas_doc_format' | default:'storage' }}",
+              "value": "{{ p.bodyFormat | eq:'storage' | then:p.bodyStorage }}{{ p.bodyFormat | eq:'plainText' | then:p.bodyPlainText | lines | escape_html | prefix:'<p>' | suffix:'</p>' | join:'' }}{{ p.bodyFormat | eq:'atlas_doc_format' | then:p.bodyAdf | fromjson | json }}"
+            },
+            {
+              "$when": "{{ p.bodyStorage | default:p.bodyPlainText | default:p.bodyAdf | default:'keep' | eq:'keep' }}",
+              "representation": "storage",
+              "value": "{{ pres.2.body.storage.value }}"
+            }
+          ]
+        }
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "title",
+          "label": "Title",
+          "type": "text",
+          "help": "Empty keeps the title"
+        },
+        {
+          "key": "bodyFormat",
+          "label": "Body format",
+          "type": "select",
+          "options": [
+            "atlas_doc_format",
+            "plainText",
+            "storage"
+          ],
+          "default": "plainText"
+        },
+        {
+          "key": "bodyPlainText",
+          "label": "Body (plain text)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "bodyStorage",
+          "label": "Body (storage XHTML)",
+          "type": "textarea",
+          "default": ""
+        },
+        {
+          "key": "bodyAdf",
+          "label": "Body (ADF JSON)",
+          "type": "json",
+          "default": ""
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "type": "select",
+          "options": [
+            "draft",
+            "keep",
+            "current"
+          ],
+          "default": "keep"
+        }
+      ]
+    },
+    {
+      "resource": "attachment",
+      "operation": "getMany",
+      "title": "Get a page's attachments",
+      "method": "GET",
+      "path": "/wiki/api/v2/pages/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}/attachments",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        }
+      ],
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next",
+        "next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "download",
+          "label": "Download",
+          "type": "boolean",
+          "default": false,
+          "help": "Also download each attachment's file onto its item."
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data"
+        }
+      ],
+      "output": {
+        "download": {
+          "when": "{{ p.download }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki{{ el.downloadLink | path:'query' }}",
+          "property": "{{ p.binaryPropertyName }}",
+          "file_name": "{{ el.title }}",
+          "mime_type": "{{ el.mediaType }}"
+        }
+      }
+    },
+    {
+      "resource": "attachment",
+      "operation": "delete",
+      "title": "Delete an attachment",
+      "method": "DELETE",
+      "path": "/wiki/api/v2/attachments/{{ p.attachmentId }}",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ],
+      "also": [
+        {
+          "when": "{{ p.purge | eq:'true' }}",
+          "method": "DELETE",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/attachments/{{ p.attachmentId }}",
+          "query": {
+            "purge": true
+          }
+        }
+      ],
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "attachmentId",
+          "label": "Attachment ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "purge",
+          "label": "Purge",
+          "type": "boolean",
+          "default": false
+        }
+      ]
+    },
+    {
+      "resource": "attachment",
+      "operation": "upload",
+      "title": "Upload an attachment",
+      "method": "PUT",
+      "path": "/wiki/rest/api/content/{{ p.page.mode | eq:'title' | then:pres.1.results.0.id | default:(p.page.mode | eq:'url' | then:p.page.value | split:'/pages/' | get:'1' | split:'edit-v2/' | get:'-1' | split:'/' | get:'0') | default:(p.page | rl) }}/child/attachment",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        },
+        {
+          "when": "{{ p.page.mode | eq:'title' }}",
+          "method": "GET",
+          "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+          "path": "/wiki/api/v2/pages",
+          "query": {
+            "title": "{{ p.page.value }}",
+            "space-id": "{{ p.space | rl }}",
+            "limit": 250
+          }
+        }
+      ],
+      "body": {
+        "!minorEdit": "{{ p.minorEdit | eq:'true' | default:false | string }}",
+        "comment": "{{ p.comment }}"
+      },
+      "body_type": "multipart",
+      "headers": {
+        "X-Atlassian-Token": "nocheck"
+      },
+      "binary": {
+        "upload_field": "binaryPropertyName",
+        "multipart_field": "file"
+      },
+      "output": {
+        "path": "results"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "help": "Limits a page lookup by title to one space"
+        },
+        {
+          "key": "page",
+          "label": "Page",
+          "type": "text",
+          "required": true,
+          "help": "Page ID, a page URL, or n8n's locator; mode 'title' looks the page up by title"
+        },
+        {
+          "key": "binaryPropertyName",
+          "label": "Binary property",
+          "type": "text",
+          "default": "data",
+          "required": true
+        },
+        {
+          "key": "minorEdit",
+          "label": "Minor edit",
+          "type": "boolean",
+          "default": false
+        },
+        {
+          "key": "comment",
+          "label": "Comment",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "resource": "search",
+      "operation": "query",
+      "title": "Search with CQL",
+      "method": "GET",
+      "path": "/wiki/rest/api/search",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ],
+      "query": {
+        "cql": "{{ p.cql }}",
+        "expand": "{{ p.options.fetchFullPageContent | eq:'true' | then:'content.body.storage' }}{{ p.options.additionalExpandFields | prefix:',' }}",
+        "cqlcontext": {
+          "$json": {
+            "$when": "{{ p.options.contentStatuses }}",
+            "contentStatuses": "{{ p.options.contentStatuses }}"
+          }
+        }
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next",
+        "next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}/wiki",
+        "limit_param": "limit",
+        "page_size": 100,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "cql",
+          "label": "CQL",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "additionalExpandFields",
+            "contentStatuses",
+            "fetchFullPageContent"
+          ],
+          "help": "contentStatuses: list of archived, current, draft"
+        }
+      ]
+    },
+    {
+      "resource": "space",
+      "operation": "getMany",
+      "title": "Get many spaces",
+      "method": "GET",
+      "path": "/wiki/api/v2/spaces",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ],
+      "query": {
+        "description-format": "{{ p.options.descriptionFormat }}"
+      },
+      "pagination": {
+        "type": "next_url",
+        "next_url_path": "_links.next",
+        "next_url_prefix": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+        "limit_param": "limit",
+        "page_size": 250,
+        "results_path": "results"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "returnAll",
+          "label": "Return all",
+          "type": "boolean",
+          "default": false,
+          "help": "Fetch every page instead of stopping at Limit."
+        },
+        {
+          "key": "limit",
+          "label": "Limit",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "help": "Maximum number of results when Return all is off."
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "descriptionFormat"
+          ]
+        }
+      ]
+    },
+    {
+      "resource": "space",
+      "operation": "get",
+      "title": "Get a space",
+      "method": "GET",
+      "path": "/wiki/api/v2/spaces/{{ p.space | rl }}",
+      "base_url": "https://api.atlassian.com/ex/confluence/{{ p.site | rl | default:pres.0.0.id }}",
+      "before": [
+        {
+          "when": "{{ p.site | rl | default:'none' | eq:'none' }}",
+          "method": "GET",
+          "path": "https://api.atlassian.com/oauth/token/accessible-resources"
+        }
+      ],
+      "query": {
+        "description-format": "{{ p.options.descriptionFormat }}"
+      },
+      "fields": [
+        {
+          "key": "authentication",
+          "label": "Authentication",
+          "type": "select",
+          "options": [
+            "cloudOAuth2",
+            "serviceAccount"
+          ],
+          "help": "Kept for n8n imports; the connection decides.",
+          "default": "cloudOAuth2"
+        },
+        {
+          "key": "site",
+          "label": "Site (cloud ID)",
+          "type": "text",
+          "help": "Atlassian cloud ID of the site; empty uses the first site the connection can access."
+        },
+        {
+          "key": "space",
+          "label": "Space ID",
+          "type": "text",
+          "required": true
+        },
+        {
+          "key": "options",
+          "label": "Options",
+          "type": "collection",
+          "default": {},
+          "options": [
+            "descriptionFormat"
+          ]
+        }
+      ]
+    }
+  ]
+}
