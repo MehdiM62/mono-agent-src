@@ -39,16 +39,18 @@ func (p *fakeGuardPage) Screenshot(extension.ScreenshotOptions) (*extension.Scre
 
 func (p *fakeGuardPage) TabID() int { return 41 }
 
-// fakeResubmit stands in for browserctl.ResubmitPage on a fakeGuardPage.
+// fakeResubmit stands in for browserctl.ResubmitPage and ResubmitItem on a
+// fakeGuardPage.
 func fakeResubmit(t *testing.T) {
-	old := resubmitPage
+	oldPage, oldItem := resubmitPage, resubmitItem
 	resubmitPage = func(gp guardPage, f browserctl.FormSummary) error {
 		p := gp.(*fakeGuardPage)
 		_, _ = p.SubmitGuard(extension.SubmitGuardAllowOnce)
 		p.resubmits = append(p.resubmits, f)
 		return p.failWith
 	}
-	t.Cleanup(func() { resubmitPage = old })
+	resubmitItem = func(gp guardPage, it browserctl.SubmitItem) error { return resubmitPage(gp, it.Form) }
+	t.Cleanup(func() { resubmitPage, resubmitItem = oldPage, oldItem })
 }
 
 func blockedAt(seq int64, url string) extension.BlockedSubmit {
@@ -183,7 +185,11 @@ func TestExtGuardHandsBackAnUnsentApproval(t *testing.T) {
 	for _, tc := range []struct {
 		fail error
 		want string
-	}{{fmt.Errorf("%w: no guard", browserctl.ErrNotSent), "approved"}, {errors.New("click failed"), "consumed"}} {
+	}{
+		{fmt.Errorf("%w: no guard", browserctl.ErrNotSent), "approved"},
+		{&browserctl.SubmitChangedError{What: "the form's contents"}, "approved"},
+		{errors.New("click failed"), "consumed"},
+	} {
 		id, err := g.Ask(ctx, b, hilsend.PreparedBy{})
 		if err != nil {
 			t.Fatal(err)

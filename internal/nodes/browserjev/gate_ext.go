@@ -26,14 +26,25 @@ type guardPage interface {
 
 var _ guardPage = (*extension.ExtensionPage)(nil)
 
-// resubmitPage repeats an approved submit on the page
-// (browserctl.ResubmitPage, as `browser submit --hil` does); tests replace it.
+// resubmitPage repeats a held submit on a local or dev page, which needs no
+// approval (browserctl.ResubmitPage); tests replace it.
 var resubmitPage = func(p guardPage, f browserctl.FormSummary) error {
 	ep, ok := p.(*extension.ExtensionPage)
 	if !ok {
 		return fmt.Errorf("%w: a %T page can't repeat a submit", browserctl.ErrNotSent, p)
 	}
 	return browserctl.ResubmitPage(ep, f)
+}
+
+// resubmitItem repeats an approved submit once the page still shows what was
+// approved: its origin, path and form (browserctl.ResubmitItem, as `browser
+// submit --hil` does); tests replace it.
+var resubmitItem = func(p guardPage, it browserctl.SubmitItem) error {
+	ep, ok := p.(*extension.ExtensionPage)
+	if !ok {
+		return fmt.Errorf("%w: a %T page can't repeat a submit", browserctl.ErrNotSent, p)
+	}
+	return browserctl.ResubmitItem(ep, it)
 }
 
 // ArmSubmitGuard arms the extension's submit guard (C1 submit_guard) on the
@@ -108,7 +119,10 @@ func formSummary(f extension.SubmitForm) browserctl.FormSummary {
 }
 
 func (g *extGuard) Ask(ctx context.Context, b blockedSubmit, by hilsend.PreparedBy) (string, error) {
-	it, err := browserctl.CreateSubmitItem(ctx, g.db, browserctl.SubmitRequest{RequestedBy: &by,
+	// The item is bound to the form as the page shows it now, so an approval
+	// sends only that (and `browser submit --hil` can use it after a timeout).
+	ep, _ := g.page.(*extension.ExtensionPage)
+	it, err := browserctl.CreateSubmitItem(ctx, g.db, browserctl.SubmitRequest{RequestedBy: &by, Page: ep,
 		Profile: g.profile, URL: b.URL, Form: b.Form, Screenshot: g.cardScreenshot(), Via: "guard", TabID: g.TabID(), Seq: b.Seq,
 	})
 	return it.ID, err
@@ -126,16 +140,20 @@ func (g *extGuard) Decision(ctx context.Context, hilID string) (string, error) {
 }
 
 func (g *extGuard) Submit(ctx context.Context, b blockedSubmit, hilID string) error {
-	if hilID != "" {
-		if _, err := browserctl.ClaimSubmitItem(ctx, g.db, g.profile, hilID); err != nil {
+	var err error
+	if hilID == "" {
+		err = resubmitPage(g.page, b.Form)
+	} else {
+		it, cerr := browserctl.ClaimSubmitItem(ctx, g.db, g.profile, hilID)
+		if cerr != nil {
 			var used *browserctl.SubmitStateError
-			if errors.As(err, &used) && used.Status == "consumed" {
+			if errors.As(cerr, &used) && used.Status == "consumed" {
 				return nil // `browser submit --hil` sent it first
 			}
-			return err
+			return cerr
 		}
+		err = resubmitItem(g.page, it)
 	}
-	err := resubmitPage(g.page, b.Form)
 	if err != nil {
 		_, _ = g.page.SubmitGuard(extension.SubmitGuardArm) // drop an unused allow_once
 		err = fmt.Errorf("repeat the approved submit: %w", err)

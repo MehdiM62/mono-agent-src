@@ -2431,7 +2431,7 @@ monoagentcli --json browser network --tab 812 --failed
   `{"status":"awaiting_approval","hil_id":…}`. Only the user's approval
   counts (`hil approve` or the Human in Loop page, which refuse an agent).
   Then `browser submit --hil <id>` sends exactly that submit, once, from the
-  same tab and origin.
+  same tab, only while it still shows the same page and form contents.
 - **browser.jev** arms the same guard when an AI caller started its run: an
   agent's shell, a chat tool call (`run_workflow` starts `workflow run` with
   `MONOAGENT_AI_CALLER=chat`), a `workflow run` either of them started (its
@@ -2439,7 +2439,8 @@ monoagentcli --json browser network --tab 812 --failed
   run or resumes a paused one sees it; workflows never see the field), or the
   org side (granted calls, automation roles, `trigger.org`). A blocked submit
   on a page that is not local becomes a `browser.submit` item and the run
-  waits: approved, it is sent and the goal goes on; rejected, status
+  waits: approved, it is sent (if the page still shows the approved form,
+  else status `blocked`) and the goal goes on; rejected, status
   `blocked`; still pending at the node's timeout, status `awaiting_approval`
   with `hil_id` and `tab_id`, and the tab stays open for `browser submit
   --hil`. A run that can't arm the guard fails. Runs the user starts behave

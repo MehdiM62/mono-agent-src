@@ -2,6 +2,7 @@ package browserjev
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -187,7 +188,13 @@ func settleSubmits(ctx context.Context, g submitGuard, c caller) (*gateEnd, erro
 		}
 		switch status {
 		case "approved":
-			return nil, g.Submit(ctx, b, id)
+			var changed *browserctl.SubmitChangedError
+			if err := g.Submit(ctx, b, id); errors.As(err, &changed) {
+				return &gateEnd{"blocked", fmt.Sprintf("%v (Human-in-Loop item %s, handed back)", changed, id), id}, nil
+			} else if err != nil {
+				return nil, err
+			}
+			return nil, nil
 		case "consumed":
 			return nil, nil
 		case "rejected":
