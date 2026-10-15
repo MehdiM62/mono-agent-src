@@ -1,23 +1,18 @@
 package browserctl
 
-// probeSubmitJS answers ProbeSubmit for the selector %s (a JSON string),
-// evaluated in the page's main world. Sensitive values are masked the way
-// submit_guard masks them: password, hidden and card-like fields, and any
-// whose name, id or label says pass/pin/cvv/otp/ssn/token/secret/card.
-const probeSubmitJS = `(() => {
-  const el = document.querySelector(%s);
-  if (!el) return { found: false, submit: false, form: { action: "", method: "", fields: [] } };
-  const ctl = el.closest("button,input,a,[role=button]") || el;
-  const form = ctl.form || ctl.closest("form");
-  const tag = ctl.tagName;
-  const type = (ctl.getAttribute("type") || "").toLowerCase();
-  let why = "";
-  if ((tag === "INPUT" || tag === "BUTTON") && (type === "submit" || type === "image")) why = "type=submit";
-  else if (tag === "BUTTON" && form) why = "a button inside a form";
-  else {
-    const label = [ctl.innerText || "", typeof ctl.value === "string" ? ctl.value : "", ctl.getAttribute("aria-label") || ""].join(" ").trim();
-    if (label.length <= 80 && /\b(submit|send|post|publish|pay|buy|confirm|order|sign\s*up|apply)\b/i.test(label)) why = "its text";
-  }
+import (
+	"encoding/json"
+	"strings"
+)
+
+// formLibJS is shared by the probes below: cssPath (a selector that finds an
+// element again) and summarize (a form's action, method and fields).
+// Sensitive values are masked the way submit_guard masks them: password,
+// hidden and card-like fields, any whose name, id or label says
+// pass/pin/cvv/otp/ssn/token/secret/card, and any value that is a card
+// number (13 to 19 digits, spaces or dashes allowed, passing the Luhn check)
+// whatever its field is called.
+const formLibJS = `
   const unique = (id) => id && document.querySelectorAll("#" + CSS.escape(id)).length === 1;
   const cssPath = (n) => {
     const parts = [];
@@ -30,9 +25,21 @@ const probeSubmitJS = `(() => {
     }
     return parts.join(" > ");
   };
+  const luhn = (v) => {
+    const d = String(v).replace(/[\s-]/g, "");
+    if (!/^\d{13,19}$/.test(d)) return false;
+    let sum = 0;
+    for (let i = d.length - 1, alt = false; i >= 0; i--, alt = !alt) {
+      let n = d.charCodeAt(i) - 48;
+      if (alt) { n *= 2; if (n > 9) n -= 9; }
+      sum += n;
+    }
+    return sum % 10 === 0;
+  };
   const SENS = /pass|pwd|pin|cvv|cvc|csc|otp|ssn|token|secret|card|iban/i;
-  const fields = [];
-  if (form) {
+  const summarize = (form) => {
+    if (!form) return { action: "", method: "", fields: [] };
+    const fields = [];
     // Through the prototype: a field named "elements" or "action" shadows the form's own.
     const all = Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, "elements").get.call(form);
     for (const f of Array.from(all).slice(0, 60)) {
@@ -48,16 +55,42 @@ const probeSubmitJS = `(() => {
       else if (f.tagName === "SELECT") value = Array.from(f.selectedOptions).map((o) => o.text).join(", ");
       else value = String(f.value || "");
       const sensitive = ftype === "password" || ftype === "hidden" || /^cc-|password|one-time-code/.test(ac) ||
-        SENS.test([f.name, f.id, label].join(" "));
+        SENS.test([f.name, f.id, label].join(" ")) || luhn(value);
       if (sensitive && value) value = "•••";
       if (value.length > 200) value = value.slice(0, 200) + "…";
       fields.push({ name: f.name || f.id, type: ftype, label, value });
     }
-  }
-  return {
-    found: true, submit: !!why, why,
-    form: form ? { action: new URL(form.getAttribute("action") || "", location.href).href,
-                   method: (form.getAttribute("method") || "get").toLowerCase(), fields, selector: cssPath(form) }
-               : { action: "", method: "", fields: [] },
+    return { action: new URL(form.getAttribute("action") || "", location.href).href,
+             method: (form.getAttribute("method") || "get").toLowerCase(), fields, selector: cssPath(form) };
   };
+`
+
+// probeSubmitJS answers ProbeSubmit for the selector __SEL__.
+const probeSubmitJS = `(() => {` + formLibJS + `
+  const el = document.querySelector(__SEL__);
+  if (!el) return { found: false, submit: false, form: summarize(null) };
+  const ctl = el.closest("button,input,a,[role=button]") || el;
+  const form = ctl.form || ctl.closest("form");
+  const tag = ctl.tagName;
+  const type = (ctl.getAttribute("type") || "").toLowerCase();
+  let why = "";
+  if ((tag === "INPUT" || tag === "BUTTON") && (type === "submit" || type === "image")) why = "type=submit";
+  else if (tag === "BUTTON" && form) why = "a button inside a form";
+  else {
+    const label = [ctl.innerText || "", typeof ctl.value === "string" ? ctl.value : "", ctl.getAttribute("aria-label") || ""].join(" ").trim();
+    if (label.length <= 80 && /\b(submit|send|post|publish|pay|buy|confirm|order|sign\s*up|apply)\b/i.test(label)) why = "its text";
+  }
+  return { found: true, submit: !!why, why, form: summarize(form) };
 })()`
+
+// summarizeFormJS answers summarizeForm for the form selector __SEL__.
+const summarizeFormJS = `(() => {` + formLibJS + `
+  const f = document.querySelector(__SEL__);
+  return { found: f instanceof HTMLFormElement, form: summarize(f instanceof HTMLFormElement ? f : null) };
+})()`
+
+// withSelector puts selector into one of the scripts above as a JS string.
+func withSelector(js, selector string) string {
+	sel, _ := json.Marshal(selector)
+	return strings.Replace(js, "__SEL__", string(sel), 1)
+}

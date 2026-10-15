@@ -8,38 +8,45 @@ import (
 )
 
 // Send items (send:<id>) and browser submit items (browser:<id>) have no
-// execution behind them; the orphan cleanup of a prune must leave them, and
-// still remove a real orphan.
-func TestPruneKeepsHILItemsWithNoExecution(t *testing.T) {
+// execution behind them. A prune keeps one while it is still to be used
+// (pending, approved, or a send being sent) and for 7 days after it was
+// last decided or used; after that, and for a real orphan, it is removed.
+func TestPruneKeepsHILItemsWhileTheyAreNeeded(t *testing.T) {
 	db := testdb.Open(t).DB
 	s := NewSQLiteWorkflowStore(db)
-	for _, row := range [][2]string{
-		{"send-item", "send:send-item"},
-		{"submit-item", "browser:submit-item"},
-		{"orphan", "no-such-execution"},
-	} {
-		if _, err := db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name) VALUES (?, ?, '', 'n', 'n')`,
-			row[0], row[1]); err != nil {
+	rows := []struct {
+		id, execID, status, age string
+		keep                    bool
+	}{
+		{"send-pending-old", "send:1", "pending", "-30 days", true},
+		{"send-sending-old", "send:2", "sending", "-30 days", true},
+		{"send-approved-old", "send:3", "approved", "-30 days", true},
+		{"send-sent-recent", "send:4", "sent", "-1 days", true},
+		{"send-sent-old", "send:5", "sent", "-8 days", false},
+		{"send-failed-old", "send:6", "failed", "-8 days", false},
+		{"submit-pending-old", "browser:1", "pending", "-30 days", true},
+		{"submit-approved-old", "browser:2", "approved", "-30 days", true},
+		{"submit-rejected-recent", "browser:3", "rejected", "-6 days", true},
+		{"submit-consumed-old", "browser:4", "consumed", "-8 days", false},
+		{"submit-rejected-old", "browser:5", "rejected", "-8 days", false},
+		{"orphan", "no-such-execution", "pending", "-1 days", false},
+	}
+	for _, r := range rows {
+		if _, err := db.Exec(`INSERT INTO hil_pending (id, execution_id, workflow_id, node_id, node_name, status, updated_at)
+			VALUES (?, ?, '', 'n', 'n', ?, datetime('now', ?))`, r.id, r.execID, r.status, r.age); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if err := s.PruneExecutions(context.Background(), "wf", 10); err != nil {
 		t.Fatal(err)
 	}
-	left := map[string]bool{}
-	rows, err := db.Query(`SELECT id FROM hil_pending`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+	for _, r := range rows {
+		var n int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM hil_pending WHERE id = ?`, r.id).Scan(&n); err != nil {
 			t.Fatal(err)
 		}
-		left[id] = true
-	}
-	if !left["send-item"] || !left["submit-item"] || left["orphan"] || len(left) != 2 {
-		t.Fatalf("after prune: %v, want send-item and submit-item only", left)
+		if (n == 1) != r.keep {
+			t.Errorf("%s (%s, updated %s): kept=%v, want %v", r.id, r.status, r.age, n == 1, r.keep)
+		}
 	}
 }

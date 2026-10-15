@@ -20,9 +20,11 @@ func newBrowserSubmitCmd(cfg *globalConfig) *cobra.Command {
 			"as a Human-in-Loop item. Once a person approved it (`hil approve <id>` or the Human in\n" +
 			"Loop page), this lets exactly that one submit through on the same tab: the recorded\n" +
 			"submit control is clicked again, or the form submitted. One approval allows one\n" +
-			"submit. The tab must still be on the approved origin, which an agent may then drive for\n" +
-			"this submit even if it is not on the allowlist; --tab and --browser are ignored. An\n" +
-			"approval made any other way (the MCP server's or the HTTP API's hil tools) is refused.",
+			"submit. The tab must still be on the approved page (origin and path), which an agent\n" +
+			"may then drive for this submit even if it is not on the allowlist, and the form must\n" +
+			"hold what was approved: any change is refused (submit_changed) and the approval kept.\n" +
+			"--tab and --browser are ignored. An approval made any other way (the MCP server's or\n" +
+			"the HTTP API's hil tools) is refused.",
 		Example: "  monoagentcli --json browser submit --hil 1a2b3c4d",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

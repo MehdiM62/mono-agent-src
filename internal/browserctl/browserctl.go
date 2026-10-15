@@ -88,6 +88,8 @@ type Session struct {
 	profile string
 	tabID   int
 	url     string
+	// blankTab: an agent's tab with no page yet (origin_guard.go).
+	blankTab bool
 }
 
 // Open finds the bridge and the browser, and unless o.NoTab the tab, which
@@ -222,19 +224,16 @@ func defaultTab(tabs []Tab, agent bool, group string) int {
 // UseTab makes id the session's tab once its page passes the policy, and
 // remembers it as the context's last tab.
 func (s *Session) UseTab(id int) error {
-	info, err := s.pageInfo(id)
+	u, isBlank, err := s.checkTab(id)
 	if err != nil {
 		return err
 	}
-	if err := s.policy.Check(info.URL); err != nil && !blank(info.URL) {
-		return err
-	}
-	s.tabID, s.url = id, info.URL
+	s.tabID, s.url, s.blankTab = id, u, isBlank
 	s.state.TabID, s.state.Instance = id, s.info.Instance
 	return s.saveState()
 }
 
-// blank is a tab with no page yet, which an agent may navigate away from.
+// blank is a tab with no page yet, which an agent may only navigate or close.
 func blank(u string) bool { return u == "" || u == "about:blank" }
 
 type pageInfo struct {
@@ -262,9 +261,10 @@ func (s *Session) Refresh() (string, error) {
 func (s *Session) saveState() error { return SaveState(s.key, s.state) }
 
 // Page is the session's tab as an extension page (CDP, EvalCDP, …). The
-// policy was checked when the tab was chosen.
+// policy was checked when the tab was chosen, and an agent's commands
+// through it carry expectOrigin like every other.
 func (s *Session) Page() *extension.ExtensionPage {
-	return extension.NewExtensionPage(pinned{s.sender, s.target}, s.tabID)
+	return extension.NewExtensionPage(pinned{s}, s.tabID)
 }
 
 // TabID is the session's tab; 0 when it was opened with NoTab.
@@ -306,7 +306,11 @@ func (s *Session) send(tabID int, cmdType string, params map[string]interface{},
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
-	return s.sender.SendCommandTo(s.target, &extension.Command{Type: cmdType, TabID: tabID, Params: params}, timeout)
+	cmd := &extension.Command{Type: cmdType, TabID: tabID, Params: params}
+	if err := s.guardCmd(cmd); err != nil {
+		return nil, err
+	}
+	return s.sender.SendCommandTo(s.target, cmd, timeout)
 }
 
 func (s *Session) call(tabID int, cmdType string, params map[string]interface{}, timeout time.Duration, out any) error {
@@ -327,12 +331,12 @@ func (s *Session) call(tabID int, cmdType string, params map[string]interface{},
 	return nil
 }
 
-// pinned sends an ExtensionPage's commands to one browser.
-type pinned struct {
-	via Sender
-	t   extension.Target
-}
+// pinned sends an ExtensionPage's commands to the session's browser.
+type pinned struct{ s *Session }
 
 func (p pinned) SendCommand(cmd *extension.Command, timeout time.Duration) (*extension.Response, error) {
-	return p.via.SendCommandTo(p.t, cmd, timeout)
+	if err := p.s.guardCmd(cmd); err != nil {
+		return nil, err
+	}
+	return p.s.sender.SendCommandTo(p.s.target, cmd, timeout)
 }

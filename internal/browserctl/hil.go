@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/hilsend"
 )
 
@@ -82,10 +83,15 @@ type SubmitRequest struct {
 	// RequestedBy names who asked for the card; nil reads it from this
 	// process's env (RequestedBy()).
 	RequestedBy *hilsend.PreparedBy
-	Profile     string
-	URL         string
-	Form        FormSummary
-	Screenshot  string
+	// Page is the tab the submit was held on. The form is read from it
+	// again (bindForm), and the item is bound to that reading's digest;
+	// without a page, or when the form cannot be read, the item is unbound
+	// and can never be used (VerifyHeld).
+	Page       *extension.ExtensionPage
+	Profile    string
+	URL        string
+	Form       FormSummary
+	Screenshot string
 	// Via is "click" (the agent clicked a submit control) or "guard" (the
 	// page's submit_guard blocked it); Seq is the guard's record.
 	Via      string
@@ -112,6 +118,7 @@ type SubmitItem struct {
 	TabID       int                `json:"tabId"`
 	Instance    string             `json:"instance,omitempty"`
 	Seq         int                `json:"seq,omitempty"`
+	FormDigest  string             `json:"formDigest,omitempty"`
 	ApprovedBy  string             `json:"approvedBy,omitempty"`
 	ConsumedAt  string             `json:"consumedAt,omitempty"`
 	SubmittedAt string             `json:"submittedAt,omitempty"`
@@ -132,6 +139,7 @@ type submitRecord struct {
 	TabID       int    `json:"tabId"`
 	Instance    string `json:"instance,omitempty"`
 	Seq         int    `json:"seq,omitempty"`
+	FormDigest  string `json:"formDigest,omitempty"`
 	ApprovedBy  string `json:"approvedBy,omitempty"`
 	DecidedAt   string `json:"decidedAt,omitempty"`
 	ConsumedAt  string `json:"consumedAt,omitempty"`
@@ -152,6 +160,12 @@ func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (Submi
 	if req.Profile == "" {
 		req.Profile = "default"
 	}
+	digest := ""
+	if req.Page != nil {
+		if f, d, err := bindForm(req.Page, req.Form); err == nil {
+			req.Form, digest = f, d
+		}
+	}
 	if req.Form.Fields == nil {
 		req.Form.Fields = []FormField{}
 	}
@@ -162,13 +176,14 @@ func CreateSubmitItem(ctx context.Context, db *sql.DB, req SubmitRequest) (Submi
 	it := SubmitItem{
 		ID: uuid.NewString(), Status: "pending", Origin: Origin(req.URL), URL: req.URL, Form: req.Form,
 		Screenshot: req.Screenshot, RequestedBy: who, Via: req.Via, TabID: req.TabID,
-		Instance: req.Instance, Seq: req.Seq,
+		Instance: req.Instance, Seq: req.Seq, FormDigest: digest,
 	}
 	ro, err := json.Marshal(submitCard{Origin: it.Origin, URL: it.URL, Form: it.Form, Screenshot: it.Screenshot, RequestedBy: it.RequestedBy})
 	if err != nil {
 		return it, err
 	}
-	nc, err := json.Marshal(submitRecord{Kind: SubmitKind, Via: it.Via, TabID: it.TabID, Instance: it.Instance, Seq: it.Seq})
+	nc, err := json.Marshal(submitRecord{Kind: SubmitKind, Via: it.Via, TabID: it.TabID, Instance: it.Instance, Seq: it.Seq,
+		FormDigest: it.FormDigest})
 	if err != nil {
 		return it, err
 	}
@@ -241,7 +256,7 @@ func findSubmit(ctx context.Context, db *sql.DB, profile, id string) (SubmitItem
 	return SubmitItem{
 		ID: r.id, Status: r.status, Origin: card.Origin, URL: card.URL, Form: card.Form, Screenshot: card.Screenshot,
 		RequestedBy: card.RequestedBy, Via: rec.Via, TabID: rec.TabID, Instance: rec.Instance, Seq: rec.Seq,
-		ApprovedBy: rec.ApprovedBy, ConsumedAt: rec.ConsumedAt, SubmittedAt: rec.SubmittedAt, Error: rec.Error,
+		FormDigest: rec.FormDigest, ApprovedBy: rec.ApprovedBy, ConsumedAt: rec.ConsumedAt, SubmittedAt: rec.SubmittedAt, Error: rec.Error,
 	}, rec, nil
 }
 

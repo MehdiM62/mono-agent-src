@@ -166,6 +166,8 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 	var bnf *browserctl.BrowserNotFoundError
 	var nb *extension.NoBrowserError
 	var se *browserctl.SubmitStateError
+	var changed *browserctl.SubmitChangedError
+	var blankTab *browserctl.BlankTabError
 	switch {
 	case errors.As(err, &aw):
 		if cfg.JSONOutput {
@@ -179,6 +181,12 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 		return browserCLIError{error: errInvalidInput("%s", na.Error()), code: "origin_not_allowed", extra: map[string]any{"origin": na.Origin}}
 	case errors.As(err, &se):
 		return browserCLIError{error: errInvalidInput("%s", se.Error()), code: "submit_" + se.Status}
+	case errors.As(err, &changed):
+		return browserCLIError{error: errInvalidInput("%s", changed.Error()), code: "submit_changed"}
+	case errors.Is(err, browserctl.ErrSubmitUnbound):
+		return browserCLIError{error: errInvalidInput("%v", err), code: "submit_unbound"}
+	case errors.As(err, &blankTab):
+		return browserCLIError{error: errInvalidInput("%s", blankTab.Error()), code: "tab_blank"}
 	case errors.Is(err, browserctl.ErrNoBridge), errors.Is(err, extension.ErrNoExtension), errors.Is(err, extension.ErrBrowserGone),
 		errors.Is(err, extension.ErrRelayUnauthorized), errors.As(err, &nb):
 		return errAuthConnection("%v", err)
@@ -190,6 +198,10 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 		return browserCLIError{error: errInvalidInput("%v", err), code: "submit_not_operator_approved"}
 	}
 	msg := err.Error()
+	if strings.Contains(msg, browserctl.OriginChangedCode) {
+		return browserCLIError{error: errInvalidInput("the tab left the page this command was checked for, so the browser did not run it: %s",
+			strings.TrimPrefix(msg, "extension error: ")), code: browserctl.OriginChangedCode}
+	}
 	if strings.Contains(msg, "Element not found") || strings.Contains(msg, "Timed out waiting for element") {
 		return errNotFound("%s", strings.TrimPrefix(msg, "extension error: "))
 	}
