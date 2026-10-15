@@ -88,7 +88,8 @@ func TestProfileRefusesAnotherProject(t *testing.T) {
 	}
 }
 
-func TestRootFallsBackWhenTheDBFails(t *testing.T) {
+// A database that cannot be opened gives no root: the profile is never guessed, "default" included.
+func TestRootIsEmptyAndErrsWhenTheDBFails(t *testing.T) {
 	t.Parallel()
 	for _, pid := range []string{"", "other"} {
 		e := New(Deps{
@@ -96,17 +97,23 @@ func TestRootFallsBackWhenTheDBFails(t *testing.T) {
 			ProfileID: func() string { return pid },
 			Project:   func() string { return "" },
 		})
-		want := pid
-		if want == "" {
-			want = "default"
+		if got := e.Root(); got != "" {
+			t.Fatalf("profile %q: Root() = %q, want none", pid, got)
 		}
-		home, _ := os.UserHomeDir()
-		if got := e.Root(); got != filepath.Join(home, ".monoagent", "profiles", want) {
-			t.Fatalf("profile %q: Root() = %q", pid, got)
+		if got, err := e.RootErr(); got != "" || err == nil || err.Error() != "no db" {
+			t.Fatalf("profile %q: RootErr() = %q, %v", pid, got, err)
 		}
 		if _, _, _, err := e.Profile(); err == nil || err.Error() != "no db" {
 			t.Fatalf("profile %q: Profile() err = %v", pid, err)
 		}
+	}
+}
+
+func TestRootErrWithAProject(t *testing.T) {
+	t.Parallel()
+	e := New(Deps{Project: func() string { return "/some/project" }})
+	if got, err := e.RootErr(); err != nil || got != "/some/project" {
+		t.Fatalf("RootErr() = %q, %v", got, err)
 	}
 }
 
