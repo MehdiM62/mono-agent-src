@@ -27,7 +27,7 @@ const PAGE = [
 ];
 
 function load(answers = {}) {
-  const g = loadExtensionScripts(["agent_cdp.js", "agent_a11y.js"], {});
+  const g = loadExtensionScripts(["agent_cdp.js", "agent_redact.js", "agent_a11y.js"], {});
   const sent = [];
   g.MonoAgentCdp.install({
     attach: async () => {},
@@ -107,4 +107,53 @@ test("a selector that matches nothing, or is not one, is an error", async () => 
   });
   await assert.rejects(outside.a11y.tree({ tabId: 2, selector: "script" }), /not in the accessibility tree/);
   await assert.rejects(load().a11y.tree({ tabId: 2, depth: 0.5 }), /depth must be 1 to 100/);
+});
+
+// ── values a11y_tree never hands out (security review) ───────────────────
+
+/** A login form as Chrome lists it: Chrome shows the password as bullets, its length kept. */
+const LOGIN = [
+  { nodeId: "1", ignored: false, role: v("RootWebArea"), name: v("Log in"), childIds: ["2", "3", "5", "6", "7", "8"], backendDOMNodeId: 1 },
+  { nodeId: "2", ignored: false, role: v("textbox"), name: v("Email"), value: { type: "string", value: "ann@example.com" }, childIds: [], parentId: "1", backendDOMNodeId: 2 },
+  { nodeId: "3", ignored: false, role: v("textbox"), name: v("Password"), value: { type: "string", value: "•••••••" }, childIds: ["4"], parentId: "1", backendDOMNodeId: 3 },
+  { nodeId: "4", ignored: false, role: v("StaticText"), name: v("•••••••"), childIds: [], parentId: "3", backendDOMNodeId: 4 },
+  { nodeId: "5", ignored: false, role: v("textbox"), name: v("Card"), value: { type: "string", value: "4111 1111 1111 1111" }, childIds: [], parentId: "1", backendDOMNodeId: 5 },
+  { nodeId: "6", ignored: false, role: v("textbox"), name: v("Order"), value: { type: "string", value: "1234567812345678" }, childIds: [], parentId: "1", backendDOMNodeId: 6 },
+  { nodeId: "7", ignored: false, role: v("textbox"), name: v("Code"), value: { type: "string", value: "829114" }, childIds: [], parentId: "1", backendDOMNodeId: 7 },
+  { nodeId: "8", ignored: false, role: v("textbox"), name: v("PIN"), value: { type: "string", value: "4321" }, childIds: [], parentId: "1", backendDOMNodeId: 8 },
+];
+const ELEMENTS = {
+  2: { localName: "input", attributes: ["type", "email", "name", "email"] },
+  3: { localName: "input", attributes: ["type", "password", "name", "pw"] },
+  5: { localName: "input", attributes: ["name", "ccnum"] },
+  6: { localName: "input", attributes: ["name", "order"] },
+  7: { localName: "input", attributes: ["autocomplete", "one-time-code"] },
+  8: { localName: "input", attributes: ["id", "user_pin"] },
+};
+
+test("password, card-like and one-time-code values come back as •••, the field's text with them", async () => {
+  const { a11y, sent } = load({
+    "Accessibility.getFullAXTree": { nodes: LOGIN },
+    "DOM.describeNode": (p) => ({ node: Object.assign({ backendNodeId: p.backendNodeId }, ELEMENTS[p.backendNodeId]) }),
+  });
+  const out = await a11y.tree({ tabId: 2 });
+  const fields = Object.fromEntries(out.nodes[0].children.map((n) => [n.name, n]));
+  assert.equal(fields.Email.value, "ann@example.com");
+  assert.equal(fields.Order.value, "1234567812345678", "a number that fails Luhn is not a card");
+  for (const name of ["Password", "Card", "Code", "PIN"]) assert.equal(fields[name].value, "•••", name);
+  assert.equal("children" in fields.Password, false, "no text child repeats the bullets");
+  assert.equal(JSON.stringify(out).match(/•••••••|4111|829114|4321/), null, "neither a value nor a password's length");
+  assert.ok(!sent.some(([m, p]) => m === "DOM.describeNode" && p.backendNodeId === 3), "Chrome's bullets mask it without a lookup");
+});
+
+test("a field that cannot be looked up is masked, and so is a card number whatever the field", async () => {
+  const { a11y } = load({
+    "Accessibility.getFullAXTree": { nodes: LOGIN.slice(0, 2).concat([{ ...LOGIN[4], name: v("Notes"), backendDOMNodeId: 9 }]) },
+    "DOM.describeNode": (p) => {
+      if (p.backendNodeId === 2) throw new Error("No node with given id found");
+      return { node: { localName: "textarea", attributes: ["name", "notes"] } };
+    },
+  });
+  const out = await a11y.tree({ tabId: 2 });
+  assert.deepEqual(out.nodes[0].children.map((n) => [n.name, n.value]), [["Email", "•••"], ["Notes", "•••"]]);
 });

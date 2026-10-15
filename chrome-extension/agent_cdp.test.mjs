@@ -165,6 +165,9 @@ test("expectOrigin: absent, nothing is checked; given, another origin or a navig
       1: { id: 1, url: "http://localhost:5173/app" },
       2: { id: 2, url: "http://localhost:5173/app", pendingUrl: "https://evil.test/" },
       3: { id: 3, url: "chrome://newtab/" },
+      4: { id: 4, url: "about:blank" },
+      5: { id: 5, url: "" },
+      6: { id: 6, url: "https://shop.test:443/cart" },
     },
   });
   await t.c.checkOrigin({ tabId: 1 });
@@ -173,7 +176,10 @@ test("expectOrigin: absent, nothing is checked; given, another origin or a navig
   await t.c.checkOrigin({ expectOrigin: "http://localhost:5173" }); // not a tab's command
   await assert.rejects(t.c.checkOrigin({ tabId: 1, expectOrigin: "https://shop.test" }), /^Error: origin_changed: the tab is on http:\/\/localhost:5173, not https:\/\/shop.test$/);
   await assert.rejects(t.c.checkOrigin({ tabId: 2, expectOrigin: "http://localhost:5173" }), /^Error: origin_changed: the tab is navigating to https:\/\/evil.test/);
-  await assert.rejects(t.c.checkOrigin({ tabId: 3, expectOrigin: "http://localhost:5173" }), /origin_changed: the tab is on null/);
+  await assert.rejects(t.c.checkOrigin({ tabId: 3, expectOrigin: "http://localhost:5173" }), /^Error: origin_changed: the tab is on no web page, not http:\/\/localhost:5173$/);
+  await assert.rejects(t.c.checkOrigin({ tabId: 4, expectOrigin: "null" }), /origin_changed: the tab is on no web page/, "about:blank matches nothing");
+  await assert.rejects(t.c.checkOrigin({ tabId: 5, expectOrigin: "" + "http://localhost:5173" }), /origin_changed: the tab is on no web page/);
+  await t.c.checkOrigin({ tabId: 6, expectOrigin: "https://shop.test" }); // URL.origin drops the default port
   await assert.rejects(t.c.checkOrigin({ tabId: 1, expectOrigin: 7 }), /origin_changed: expectOrigin must be an origin/);
 });
 
