@@ -25,7 +25,7 @@ import (
 // flag values are copied into locals, so a turn that adopts a stored
 // conversation's runtime, model or session changes only its own run.
 func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr error) {
-	runtime, model, effort, resume, canvasID, historyID, timeoutS, budget, tools, noHistory, promptStdin, conversationID, turnID, instanceID, mode, coderCwd, newWorkspace, coderRoot, profileFold := f.runtime, f.model, f.effort, f.resume, f.canvasID, f.historyID, f.timeoutS, f.budget, f.tools, f.noHistory, f.promptStdin, f.conversationID, f.turnID, f.instanceID, f.mode, f.coderCwd, f.newWorkspace, f.coderRoot, f.profileFold
+	runtime, model, effort, resume, canvasID, historyID, timeoutS, budget, tools, noHistory, promptStdin, conversationID, turnID, instanceID, mode, coderCwd, newWorkspace, coderRoot, profileFold, attach := f.runtime, f.model, f.effort, f.resume, f.canvasID, f.historyID, f.timeoutS, f.budget, f.tools, f.noHistory, f.promptStdin, f.conversationID, f.turnID, f.instanceID, f.mode, f.coderCwd, f.newWorkspace, f.coderRoot, f.profileFold, f.attach
 	prompt := strings.Join(args, " ")
 	if promptStdin {
 		p, perr := readPromptStdin(cmd.InOrStdin())
@@ -64,6 +64,10 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 			return err
 		}
 		defer closeJournal()
+		attachSrc, err := journaledAttachments(jstore, jprofile, conversationID, turnID, attach)
+		if err != nil {
+			return err
+		}
 		conv, turn, existed, err := admitJournaledTurn(jstore, jprofile, conversationID, turnID, instanceID, prompt)
 		if err != nil {
 			return err
@@ -73,7 +77,12 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 		if existed {
 			return nil // a retried start of a turn that already ran
 		}
-		if err := journal.start(conv.Model, prompt); err != nil {
+		atts, err := copyAttachments(conv.Cwd, turnID, attachSrc)
+		if err != nil {
+			journal.fail(err)
+			return err
+		}
+		if err := journal.start(conv.Model, prompt, atts); err != nil {
 			journal.fail(err)
 			return err
 		}
@@ -90,24 +99,20 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 			if tools != "" {
 				return clicore.InvalidInput("--tools does not apply to a coder conversation: it has full access")
 			}
-			return runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode})
+			return runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, attachments: atts})
 		}
 	}
 	if mode == ai.ModeCoder {
 		if tools != "" || canvasID != "" || historyID != "" {
 			return clicore.InvalidInput("--tools, --canvas and --history-id don't apply to --mode coder")
 		}
-		dir, err := coderFolder(cmd, cfg, coderFolderChoice{cwd: coderCwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFold}, runtime)
-		if err != nil {
-			return err
-		}
-		return runCoderTurn(cmd, cfg, nil, coderTurn{runtime: runtime, prompt: prompt, model: model, effort: effort, resume: resume, cwd: dir})
+		return runPlainCoderTurn(cmd, cfg, coderFolderChoice{cwd: coderCwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFold}, coderTurn{runtime: runtime, prompt: prompt, model: model, effort: effort, resume: resume}, attach)
 	}
 	if mode != "" && mode != ai.ModeAssistant {
 		return clicore.InvalidInput("unknown --mode %q (assistant or coder)", mode)
 	}
-	if coderCwd != "" || newWorkspace || coderRoot || profileFold {
-		return clicore.InvalidInput("--cwd, --profile-folder, --coder-root and --new-workspace only apply to --mode coder")
+	if coderCwd != "" || newWorkspace || coderRoot || profileFold || len(attach) > 0 {
+		return clicore.InvalidInput("--cwd, --profile-folder, --coder-root, --new-workspace and --attach only apply to --mode coder")
 	}
 	if runtime == "" {
 		// With exactly one runtime that can run the turn, use it.

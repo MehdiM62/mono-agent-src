@@ -124,12 +124,13 @@ func (j *turnJournal) appendLocked(typ chatevents.EventType, payload any) error 
 	return nil
 }
 
-// start journals turn.started, before the runtime is even launched.
-func (j *turnJournal) start(model, prompt string) error {
+// start journals turn.started, before the runtime is even launched, with
+// the files attached to the turn (copied into its folder already).
+func (j *turnJournal) start(model, prompt string, attachments []chatevents.TurnAttachment) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return j.appendLocked(chatevents.EventTurnStarted, chatevents.TurnStartedPayload{
-		Backend: "agent", Runtime: j.runtimeID, Model: model, Text: prompt,
+		Backend: "agent", Runtime: j.runtimeID, Model: model, Text: prompt, Attachments: attachments,
 	})
 }
 

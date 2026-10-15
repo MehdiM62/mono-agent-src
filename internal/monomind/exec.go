@@ -130,6 +130,9 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 	if opts.ToolTimeout > 0 {
 		args = append(args, "--tool-timeout", formatDuration(opts.ToolTimeout))
 	}
+	for _, p := range opts.Attach {
+		args = append(args, "--attach", p)
+	}
 
 	cleanup := []func(){}
 	defer func() {

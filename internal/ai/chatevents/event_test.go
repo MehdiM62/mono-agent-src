@@ -108,3 +108,31 @@ func TestNew_InvalidPayloadReturnsError(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// turn.started carries a coder turn's attachments; a record written before
+// they existed still decodes, with none, and a turn without any writes no
+// attachments key.
+func TestTurnStartedAttachmentsRoundTrip(t *testing.T) {
+	at := time.Date(2026, 10, 15, 9, 0, 0, 0, time.UTC)
+	want := []TurnAttachment{{Name: "shot.png", Path: "/w/.monoagent/attachments/t1/shot.png", Mime: "image/png", Size: 2048}}
+	ev, err := New("p1", "c1", "t1", 1, at, EventTurnStarted, TurnStartedPayload{Backend: "agent", Text: "look", Attachments: want})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got TurnStartedPayload
+	if err := json.Unmarshal(ev.Payload, &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Attachments) != 1 || got.Attachments[0] != want[0] {
+		t.Errorf("attachments = %+v, want %+v", got.Attachments, want)
+	}
+
+	var old TurnStartedPayload
+	if err := json.Unmarshal([]byte(`{"backend":"agent","runtime":"claude","text":"hi"}`), &old); err != nil || old.Text != "hi" || old.Attachments != nil {
+		t.Errorf("old record = %+v, %v", old, err)
+	}
+	plain, _ := New("p1", "c1", "t2", 1, at, EventTurnStarted, TurnStartedPayload{Backend: "agent", Text: "hi"})
+	if string(plain.Payload) != `{"backend":"agent","text":"hi"}` {
+		t.Errorf("payload without attachments = %s", plain.Payload)
+	}
+}
