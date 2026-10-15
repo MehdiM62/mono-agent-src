@@ -101,6 +101,7 @@ func newRootCmd() *cobra.Command {
 		newWorkflowCmd(cfg),
 		newDaemonCmd(cfg),
 		newExtensionCmd(cfg),
+		newBrowserCmd(cfg),
 		newNodeCmd(cfg),
 		newConnectCmd(cfg),
 		newRefCmd(),

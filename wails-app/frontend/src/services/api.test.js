@@ -11,6 +11,8 @@ vi.mock('../wailsjs/go/main/App', () => ({
   DeleteSession: vi.fn(),
   CreateChatConversation: vi.fn(),
   StartChatTurn: vi.fn(),
+  SaveChatAttachment: vi.fn(),
+  ReadWorkspaceImage: vi.fn(),
   StopChatTurn: vi.fn(),
   StopChatAgent: vi.fn(),
   ListChatConversations: vi.fn(),
@@ -175,6 +177,22 @@ describe('new chat bindings', () => {
     GoApp.StartChatTurn.mockResolvedValueOnce(JSON.stringify({ ok: false, turnId: 'turn-2', status: 'busy' }))
     const res = await api.startChatTurn('conv-1', 'turn-2', 'hi', false, false)
     expect(res).toEqual({ ok: false, turnId: 'turn-2', status: 'busy' })
+  })
+
+  it('startChatTurn sends no attachments by default, and the given paths otherwise', async () => {
+    GoApp.StartChatTurn.mockResolvedValue(JSON.stringify({ ok: true, turnId: 't', status: 'active' }))
+    await api.startChatTurn('conv-1', 't', 'hi', false, false)
+    expect(GoApp.StartChatTurn).toHaveBeenLastCalledWith('conv-1', 't', 'hi', false, false, [])
+    await api.startChatTurn('conv-1', 't', 'hi', false, false, ['/spool/a.png'])
+    expect(GoApp.StartChatTurn).toHaveBeenLastCalledWith('conv-1', 't', 'hi', false, false, ['/spool/a.png'])
+  })
+
+  it('saveChatAttachment and readWorkspaceImage pass through, rejecting on error', async () => {
+    GoApp.SaveChatAttachment.mockResolvedValueOnce('/home/u/.monoagent/chat-spool/c/x/a.png')
+    await expect(api.saveChatAttachment('c', 'a.png', 'AAAA')).resolves.toBe('/home/u/.monoagent/chat-spool/c/x/a.png')
+    expect(GoApp.SaveChatAttachment).toHaveBeenCalledWith('c', 'a.png', 'AAAA')
+    GoApp.ReadWorkspaceImage.mockRejectedValueOnce('a.png is outside this chat\'s folder')
+    await expect(api.readWorkspaceImage('c', '/etc/a.png')).rejects.toMatch('outside')
   })
 
   it('startChatTurn rejects on a hard binding failure', async () => {

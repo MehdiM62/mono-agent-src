@@ -294,7 +294,7 @@ func newJournalOverDeadDB(t *testing.T) (*turnJournal, *bytes.Buffer) {
 // dedup never discards it and the panel doesn't hang.
 func TestJournalFinalizeFailurePrintsLiveOnlyFinished(t *testing.T) {
 	j, out := newJournalOverDeadDB(t)
-	if err := j.start("", "hi"); err == nil {
+	if err := j.start("", "hi", nil); err == nil {
 		t.Fatal("start over a dead DB: want error")
 	}
 	if out.Len() != 0 {

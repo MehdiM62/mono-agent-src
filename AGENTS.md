@@ -68,6 +68,7 @@ monoagentcli --help         # command list; the root help includes an agents not
 | `ref account` | The monoes.me account — commands, states and reasons, what stays open, headless and Docker |
 | `ref api` | HTTP API surface (`monoagentcli httpapi`) — endpoints, auth, redaction, status-code mapping, and the OpenAI-compatible `/v1` API |
 | `ref tasks` | The profile's task board — columns, who may do what, the agent loop, JSON documents and error codes |
+| `ref browser` | Driving the user's browser from an agent — commands and their JSON, the origin policy, form submits that wait for approval |
 
 Prefer `ref` over guessing from `--help` alone.
 
@@ -1847,8 +1848,8 @@ budget.
 
 | Profile | Access |
 |---|---|
-| `coding` | Full access. |
-| `qa`, `automation` | Full access, plus `monoagentcli` for the browser, extension, workflows and automations. |
+| `coding` | Full access; checks its work in the user's browser with `monoagentcli browser` (no browser lease: it passes `--tab`). |
+| `qa`, `automation` | Full access, plus `monoagentcli` for the browser (`browser`, the browser lease), workflows and automations. |
 | `research` | Read-only, confined as described below. |
 
 How workers run:
@@ -2437,6 +2438,79 @@ live `org send`, and boss/parent deciders need monomind with capability
 `org-tool-providers`; automation roles need `org-endpoint-roles`. Commands
 warn when the installed monomind lacks them. Offline copy:
 `monoagentcli ref org`.
+
+## The user's browser from agents
+
+`monoagentcli browser` drives a live browser through the MonoAgent
+extension, in any profile that has it attached: tabs, clicks and typing,
+screenshots, console and network reads, the accessibility tree, an
+element's styles, design tokens and source file, pixel diffs, responsive
+sweeps, and `browser pick` to have the user point at an element.
+`monoagentcli ref browser` lists every command with its JSON. Pass
+`--profile <id>` on every one: they act on a profile, and the CLI refuses a
+profile-scoped command without it (the machine-wide `browser allow`,
+`browser browsers` and `browser diff` don't need it). A coder chat's lead
+and its workers are told their profile id in their instructions.
+
+```bash
+monoagentcli --profile <id> --json browser open http://localhost:5173       # {"tabId":812,"url":…}
+monoagentcli --profile <id> --json browser screenshot --tab 812              # {"path":"…/.monoagent/screenshots/…png",…}
+monoagentcli --profile <id> --json browser console --tab 812 --level error   # {"entries":[…],"next":N}
+monoagentcli --profile <id> --json browser network --tab 812 --failed
+```
+
+- **Origin policy (agents only; your own terminal is unrestricted).** An
+  agent (any agent-context marker, as for `hil`) may open and act on
+  `localhost`, `*.localhost`, `127.0.0.0/8`, `::1`, `*.local`, `*.test`,
+  private-network (RFC 1918) hosts and the user's allowlist (`browser allow
+  list|add|remove`; add and remove refuse an agent). Anything else, and
+  `file:` and `chrome:` pages, is refused. Agents get no cookie commands and
+  no raw CDP, and `browser eval` only on local and dev pages
+  (`eval_not_allowed`); their console and network reads show only what the
+  tab's current site logged. Their tabs go into the tab group `Coder ·
+  <label>`.
+  A command whose tab left the checked page before it ran is refused with
+  exit 3, code `origin_changed`: see where the tab is (`browser tabs`)
+  before acting again.
+- **Form submits.** On an allowed page that is not local, the extension's
+  submit guard is armed before an agent acts. A click on a submit-like
+  control, or a submit the guard blocked (Enter, script), becomes a
+  `browser.submit` Human-in-Loop item, and the command exits **3** with
+  `{"status":"awaiting_approval","hil_id":…}`. Only the user's approval
+  counts (`hil approve` or the Human in Loop page, which refuse an agent).
+  Then `monoagentcli --profile <id> browser submit --hil <hil_id>` sends
+  exactly that submit, once, from the same tab, only while it still shows
+  the same page and form contents.
+- **browser.jev** arms the same guard (again whenever the page moves to
+  another origin, before acting there) when an AI caller started its run: an
+  agent's shell, a chat tool call (`run_workflow` starts `workflow run` with
+  `MONOAGENT_AI_CALLER=chat`), a `workflow run` either of them started (its
+  trigger data carries `_ai_caller`, so a daemon that adopts a `--no-wait`
+  run or resumes a paused one sees it; workflows never see the field), or the
+  org side (granted calls, automation roles, `trigger.org`). A blocked submit
+  on a page that is not local becomes a `browser.submit` item and the run
+  waits: approved, it is sent (if the page still shows the approved form,
+  else status `blocked`) and the goal goes on; rejected, status
+  `blocked`; still pending at the node's timeout, status `awaiting_approval`
+  with `hil_id` and `tab_id`, and the tab stays open for `browser submit
+  --hil`. A run that can't arm the guard fails. Runs the user starts behave
+  as before. A run an agent's shell started (`_ai_caller` `agent`) also
+  follows the origin policy, on its start URL and on every page it reaches;
+  anything else fails the run, naming `browser allow add <origin>`. The
+  chat's and the org side's runs keep real sites, behind the submit gate
+  only.
+- **Not covered.** A workflow an agent activates on a schedule or a webhook
+  runs later in the daemon as the user's own (no mark), and so do
+  sub-workflows of org-side runs, `workflow templates run`, and a run the
+  MCP `workflow_run` tool started that a daemon later resumes.
+- **Honest limit.** A full-access agent can read the bridge token and talk
+  to the bridge directly, so the origin policy and the submit guard guard
+  against mistakes and instructions a page plants, not against a determined
+  agent (the same stance as org signing). The guard catches form submits,
+  not pages that send with fetch or XHR alone.
+- **PATH.** An agent turn's PATH starts with a folder that holds only a
+  `monoagentcli` link to the build that started it, so the agent runs the
+  same CLI as the app (the desktop app's bundled one included).
 
 ## Human-in-the-loop from agents
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"slices"
 	"sort"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/monoes/mono-agent/internal/noderegistry"
+	"github.com/monoes/mono-agent/internal/nodes/browserjev"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
@@ -226,6 +228,9 @@ type runWorkflowArgs struct {
 // var so tests can stub subprocess execution without a real binary.
 var runSelfExec = func(ctx context.Context, bin string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, bin, args...)
+	// A chat tool call started the run: browser.jev holds its form submits
+	// on real sites for the user's approval.
+	cmd.Env = append(os.Environ(), browserjev.EnvAICaller+"=chat")
 	return cmd.CombinedOutput()
 }
 

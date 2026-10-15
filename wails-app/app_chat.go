@@ -181,6 +181,7 @@ type chatSupervisor struct {
 	turns                map[chatTurnKey]*chatTurnHandle
 	activeByConversation map[string]chatTurnKey // one active turn per conversation
 	running              sync.WaitGroup         // turn relays still finishing
+	cwds                 sync.Map               // profile+"\x00"+conversation → its coder folder (conversationCwd)
 }
 
 func newChatSupervisor(launcher chatProcessLauncher, emit chatEventEmitter, findCLI func() (string, error)) *chatSupervisor {

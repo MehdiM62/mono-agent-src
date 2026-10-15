@@ -1544,5 +1544,27 @@
     "previewLoading": "Cargando vista previa…",
     "open": "Abrir",
     "openNamed": "Abrir {{name}}"
+  },
+  "coderQueue": {
+    "kind": {
+      "copy-style": "Copiar estilo",
+      "tokens": "Tokens de diseño",
+      "fix-element": "Arreglar elemento",
+      "bug-report": "Informe de error",
+      "integration": "Integración",
+      "ask": "Pregunta"
+    },
+    "label": "Chat de código en cola: {{kind}}",
+    "fromBrowser": "desde el navegador",
+    "dismiss": "Descartar",
+    "dismissNamed": "Descartar {{kind}}",
+    "screenshot": "Captura de la página",
+    "coderRoot": "carpeta raíz de código",
+    "changeFolder": "Cambiar",
+    "start": "Iniciar",
+    "stackLabel": "Chats de código en cola",
+    "showFewer": "Mostrar menos",
+    "more_one": "+{{count}} más en cola",
+    "more_other": "+{{count}} más en cola"
   }
 }
