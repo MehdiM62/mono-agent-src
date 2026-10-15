@@ -209,6 +209,7 @@ func Exec(ctx context.Context, opts ExecOptions, onEvent func(Event)) (*TurnResu
 	// them here means every chat/agent turn gets a clean environment
 	// regardless of what launched monoagentcli.
 	cmd.Env = PinEnvIn(append(FilteredEnviron(), envSlice(opts.Env)...), bin, opts.Cwd)
+	cmd.Env = SelfFirstOnPath(cmd.Env) // `monoagentcli` in the agent's shell is this build
 	// The run this turn belongs to (a workflow execution, an org run) goes
 	// to monomind as MONOAGENT_RUN_ID, so its lines can be joined with ours.
 	cmd.Env = logging.ChildEnv(ctx, cmd.Env)
