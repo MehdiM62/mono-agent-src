@@ -43,7 +43,33 @@ func (d *Database) ReconcileSchema(ctx context.Context) error {
 	if err := d.reconcileAddedColumns(ctx); err != nil {
 		return err
 	}
-	return d.reconcileExecutionProfiles(ctx)
+	if err := d.reconcileExecutionProfiles(ctx); err != nil {
+		return err
+	}
+	return d.reconcileVaultKeyOwners(ctx)
+}
+
+// reconcileVaultKeyOwners stamps a vault_keys row whose profile_id is NULL or
+// empty (the only nullable profile_id column) with the same owner migration 099
+// gives every other legacy row: the profile 'default' if it exists, else the
+// oldest. It runs here, not in 099, because a drifted database may not have
+// the column yet when 099 runs. Idempotent; a no-op without profiles. A row
+// that would collide with the stamp profile's own key stays as it was.
+func (d *Database) reconcileVaultKeyOwners(ctx context.Context) error {
+	has, err := d.columnExists(ctx, "vault_keys", "profile_id")
+	if err != nil {
+		return fmt.Errorf("storage: reconcile: inspecting vault_keys: %w", err)
+	}
+	if !has {
+		return nil
+	}
+	if _, err := d.DB.ExecContext(ctx, `
+		UPDATE OR IGNORE vault_keys
+		SET profile_id = (SELECT id FROM profiles ORDER BY (id = 'default') DESC, created_at ASC, id ASC LIMIT 1)
+		WHERE (profile_id IS NULL OR profile_id = '') AND EXISTS (SELECT 1 FROM profiles)`); err != nil {
+		return fmt.Errorf("storage: reconcile: stamping vault_keys owner: %w", err)
+	}
+	return nil
 }
 
 // reconcileVaultKeys moves an old singleton-shape vault_keys (no profile_id
@@ -280,11 +306,11 @@ func (d *Database) reconcileExecutionProfiles(ctx context.Context) error {
 
 	res, err := d.DB.ExecContext(ctx, `
 		UPDATE workflow_executions
-		SET profile_id = (SELECT COALESCE(w.profile_id, 'default') FROM workflows w WHERE w.id = workflow_executions.workflow_id)
+		SET profile_id = (SELECT w.profile_id FROM workflows w WHERE w.id = workflow_executions.workflow_id)
 		WHERE profile_id = 'default'
 		  AND EXISTS (SELECT 1 FROM workflows w
 		              WHERE w.id = workflow_executions.workflow_id
-		                AND COALESCE(w.profile_id, 'default') <> 'default')`)
+		                AND w.profile_id <> 'default' AND w.profile_id <> '')`)
 	if err != nil {
 		return fmt.Errorf("storage: reconcile: backfilling execution profiles: %w", err)
 	}
