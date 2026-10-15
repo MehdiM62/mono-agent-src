@@ -60,7 +60,26 @@ func GatherFacts(ctx context.Context, db *sql.DB, profile string, queries []stri
 	if len(all) > 0 && fails == len(all) && first != nil {
 		return nil, first
 	}
-	return facts, nil
+	return withDocumentNames(ctx, db, profile, facts), nil
+}
+
+// withDocumentNames puts the name the person knows a document by (its upload
+// name) in place of the vault's internal file name ("doc-2513.pdf").
+func withDocumentNames(ctx context.Context, db *sql.DB, profile string, facts []Fact) []Fact {
+	names := map[string]string{}
+	for i, f := range facts {
+		base := filepath.Base(f.Source)
+		name, seen := names[base]
+		if !seen {
+			_ = db.QueryRowContext(ctx, `SELECT filename FROM vault_documents WHERE profile_id = ? AND path LIKE ? ESCAPE '\' LIMIT 1`,
+				profile, "%/"+strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(base)).Scan(&name)
+			names[base] = name
+		}
+		if name != "" {
+			facts[i].Source = name
+		}
+	}
+	return facts
 }
 
 // maxDocNameQueries bounds the extra searches: each starts a process.
