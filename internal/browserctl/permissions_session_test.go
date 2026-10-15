@@ -34,7 +34,7 @@ func TestAskRaisesASiteItemThatApprovalTurnsIntoARule(t *testing.T) {
 			t.Fatal(err)
 		}
 		p.SetLevel(browserctl.KindOther, browserctl.LevelAsk)
-		s, err := browserctl.Open(browserctl.Options{NoTab: true, Sender: f, Permissions: &p, DB: db})
+		s, err := browserctl.Open(browserctl.Options{NoTab: true, Sender: f, Permissions: &p, DB: db, Profile: "default"})
 		if err != nil {
 			return err
 		}
@@ -54,7 +54,7 @@ func TestAskRaisesASiteItemThatApprovalTurnsIntoARule(t *testing.T) {
 			t.Fatal("a tab was opened before the site was allowed")
 		}
 	}
-	if _, err := browserctl.DecideSiteItem(ctx, db, "", first, true); err != nil {
+	if _, err := browserctl.DecideSiteItem(ctx, db, "default", first, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := open(); err != nil {
@@ -66,14 +66,14 @@ func TestAskRaisesASiteItemThatApprovalTurnsIntoARule(t *testing.T) {
 	other := func() error {
 		p, _ := browserctl.LoadPermissions(db)
 		p.SetLevel(browserctl.KindOther, browserctl.LevelAsk)
-		s, _ := browserctl.Open(browserctl.Options{NoTab: true, Sender: f, Permissions: &p, DB: db})
+		s, _ := browserctl.Open(browserctl.Options{NoTab: true, Sender: f, Permissions: &p, DB: db, Profile: "default"})
 		_, err := s.OpenTab("https://ads.example/", "")
 		return err
 	}
 	if err := other(); !errors.As(err, &pending) {
 		t.Fatalf("ads: %v", err)
 	}
-	if _, err := browserctl.DecideSiteItem(ctx, db, "", pending.HILID, false); err != nil {
+	if _, err := browserctl.DecideSiteItem(ctx, db, "default", pending.HILID, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := other(); !errors.As(err, &pending) {
