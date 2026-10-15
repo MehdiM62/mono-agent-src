@@ -43,7 +43,7 @@ func bindForm(p *extension.ExtensionPage, f FormSummary) (FormSummary, string, e
 	if f.Selector == "" && f.Submitter == "" {
 		return f, "", errFormGone
 	}
-	res, err := p.EvalCDP(pageScript(holdJS, f.Selector, f.Submitter, ""))
+	res, err := evalIsolated(p, pageScript(holdJS, f.Selector, f.Submitter, ""))
 	if err != nil {
 		return f, "", err
 	}

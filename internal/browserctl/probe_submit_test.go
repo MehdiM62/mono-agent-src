@@ -52,6 +52,12 @@ class El {
   }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   click() { clicks.push(this.id || this.tagName); }
+  compareDocumentPosition(other) {
+    const order = [];
+    const walk = (n) => { order.push(n); n.kids.forEach(walk); };
+    walk(html);
+    return order.indexOf(other) > order.indexOf(this) ? 4 : 2;
+  }
 }
 class HTMLFormElement extends El {
   requestSubmit() { submits.push(this.id || "form"); }
@@ -116,6 +122,14 @@ bySel["#send"] = send;
 bySel["#login"] = form;
 bySel["#toggle"] = field(form, "button", { type: "button", id: "toggle" }, { type: "button", innerText: "Show password" });
 for (let i = 0; i < 64; i++) field(form, "input", { name: "extra" + i }, { type: "text", value: "v" + i });
+// Fields FormData leaves out: a nameless input (React reads it), an editor
+// synced to a hidden input on submit, a nameless checkbox and select.
+bySel["#note"] = field(form, "input", { id: "note", placeholder: "Note to seller" }, { type: "text", value: "leave at door", placeholder: "Note to seller" });
+const nameless = field(form, "input", {}, { type: "text", value: "react state" });
+bySel["#rich"] = form.add(new El("div", { contenteditable: "true", id: "rich", "aria-label": "Message" }, { isContentEditable: true, innerText: "rich text" }));
+bySel["#gift"] = field(form, "input", { id: "gift" }, { type: "checkbox", checked: false });
+const size = field(form, "select", { id: "size" }, { type: "select-one" });
+size.selectedOptions = [{ value: "m", text: "Medium" }];
 bySel["#menu"] = body.add(new El("button", { id: "menu" }, { innerText: "Open menu" }));
 bySel["#publish"] = body.add(new El("a", { id: "publish" }, { innerText: "Publish now" }));
 bySel["#big"] = body.add(new El("div", { id: "big" }, { innerText: "Publish ".repeat(20) }));
@@ -124,6 +138,12 @@ bySel["#sub"] = body.add(new El("input", { type: "submit", id: "sub" }, { type: 
 const composer = body.add(new El("section"));
 bySel["#editor"] = composer.add(new El("div", { contenteditable: "true", id: "editor" }, { isContentEditable: true, innerText: "draft" }));
 bySel["#post"] = composer.add(new El("button", { id: "post" }, { innerText: "Post" }));
+// Another: the button sits in a toolbar beside a checkbox, after the editor.
+const composer2 = body.add(new El("section"));
+bySel["#editor2"] = composer2.add(new El("textarea", { id: "editor2" }, { type: "textarea", value: "second draft" }));
+const toolbar = composer2.add(new El("div"));
+bySel["#notify"] = toolbar.add(new El("input", { id: "notify" }, { type: "checkbox", checked: true }));
+bySel["#post2"] = toolbar.add(new El("button", { id: "post2" }, { innerText: "Post" }));
 `
 
 // page is a fresh probeDOM, then setup.
@@ -301,5 +321,57 @@ func TestTriggerChecksAndSubmitsInOneStep(t *testing.T) {
 	run(t, vm, pageScript(triggerJS, "#login", "#gone", h.Digest), &out)
 	if out.Missing == "" {
 		t.Fatalf("a missing control: %+v", out)
+	}
+}
+
+// Fields FormData leaves out are bound too, and the card lists them by
+// their label or position.
+func TestHeldDigestCoversFieldsWithoutNames(t *testing.T) {
+	base := holdDigest(t, "", "#login", "#send")
+	for name, setup := range map[string]string{
+		"nameless input":   `nameless.value = "other state";`,
+		"input with an id": `bySel["#note"].value = "ring twice";`,
+		"rich-text editor": `bySel["#rich"].innerText = "edited";`,
+		"unchecked box":    `bySel["#gift"].checked = true;`,
+		"nameless select":  `size.selectedOptions = [{ value: "l", text: "Large" }];`,
+	} {
+		if got := holdDigest(t, setup, "#login", "#send"); got == base {
+			t.Errorf("%s: the digest did not change", name)
+		}
+	}
+}
+
+func TestTheCardListsFieldsWithoutNames(t *testing.T) {
+	var h held
+	run(t, page(t, `for (const f of form.querySelectorAll("input")) if (/^extra/.test(f.name)) form.kids.splice(form.kids.indexOf(f), 1);`),
+		pageScript(holdJS, "#login", "#send", ""), &h)
+	byName := map[string]FormField{}
+	for _, f := range h.Form.Fields {
+		byName[f.Name] = f
+	}
+	if f := byName["note"]; f.Value != "leave at door" {
+		t.Errorf("the input with only an id: %+v", f)
+	}
+	if f := byName["rich"]; f.Type != "contenteditable" || f.Label != "Message" || f.Value != "rich text" {
+		t.Errorf("the editor: %+v (fields %+v)", f, h.Form.Fields)
+	}
+	found := false
+	for _, f := range h.Form.Fields {
+		found = found || (strings.HasPrefix(f.Name, "field ") && f.Value == "react state")
+	}
+	if !found {
+		t.Errorf("the nameless input is not listed by position: %+v", h.Form.Fields)
+	}
+}
+
+// Outside a form: the composer the control posts (a text field before it),
+// not the nearest box with any field; a checkbox's state counts.
+func TestHeldDigestOfAComposerAroundAToolbar(t *testing.T) {
+	base := holdDigest(t, "", "", "#post2")
+	if got := holdDigest(t, `bySel["#editor2"].value = "changed draft";`, "", "#post2"); got == base {
+		t.Error("the editor before the toolbar is not bound")
+	}
+	if got := holdDigest(t, `bySel["#notify"].checked = false;`, "", "#post2"); got == base {
+		t.Error("the checkbox's state is not bound")
 	}
 }

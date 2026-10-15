@@ -106,6 +106,9 @@ func (f *Fake) SendCommandTo(t extension.Target, cmd *extension.Command, _ time.
 	f.mu.Lock()
 	f.calls = append(f.calls, *cmd)
 	h := f.handlers[cmd.Type]
+	if h == nil && cmd.Type == extension.CmdCdp {
+		h = f.cdp(f.handlers["eval_cdp"])
+	}
 	f.mu.Unlock()
 	var data any
 	var err error
@@ -189,4 +192,34 @@ func (f *Fake) builtin(cmd *extension.Command) (any, error) {
 		return map[string]any{"elementId": "el:" + str("selector")}, nil
 	}
 	return map[string]any{"ok": true}, nil
+}
+
+// cdp answers the raw CDP relay the way the gate's isolated-world scripts
+// use it: a main frame, a new world, and Runtime.evaluate answered by the
+// eval_cdp handler (eval) with the expression, as an eval_cdp would be.
+func (f *Fake) cdp(eval Handler) Handler {
+	return func(cmd *extension.Command) (any, error) {
+		method, _ := cmd.Params["method"].(string)
+		params, _ := cmd.Params["params"].(map[string]interface{})
+		switch method {
+		case "Page.getFrameTree":
+			return map[string]any{"result": map[string]any{"frameTree": map[string]any{"frame": map[string]any{"id": "main"}}}}, nil
+		case "Page.createIsolatedWorld":
+			return map[string]any{"result": map[string]any{"executionContextId": 7}}, nil
+		case "Runtime.evaluate":
+			var value any
+			if eval != nil {
+				data, err := eval(&extension.Command{ID: cmd.ID, Type: "eval_cdp", TabID: cmd.TabID,
+					Params: map[string]interface{}{"expression": params["expression"]}})
+				if err != nil {
+					return nil, err
+				}
+				if m, ok := data.(map[string]any); ok {
+					value = m["result"]
+				}
+			}
+			return map[string]any{"result": map[string]any{"result": map[string]any{"type": "object", "value": value}}}, nil
+		}
+		return map[string]any{"result": map[string]any{}}, nil
+	}
 }

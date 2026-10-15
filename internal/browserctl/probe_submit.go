@@ -16,10 +16,11 @@ import (
 //   - digestOf: what an approval is bound to, a SHA-256 computed in the page
 //     over everything the submit would send, unmasked and untruncated: the
 //     FormData entries in order (files as name, size and type), the action,
-//     method and enctype with the submitter's overrides, and the submitter's
-//     formaction, name and value. A control outside any form is bound to the
-//     values of the fields in its nearest container. Only the hash leaves
-//     the page.
+//     method and enctype with the submitter's overrides, the submitter's
+//     formaction, name and value, and every field of the form whether named
+//     or not (value, checked, selected options, an editor's text). A control
+//     outside any form is bound to the fields of its composer: the nearest
+//     container holding a text field before it. Only the hash leaves the page.
 //
 // Each script starts with a /*mono:…*/ marker naming it.
 const formLibJS = `
@@ -54,24 +55,43 @@ const formLibJS = `
     return runs.some((run) => luhn(run.replace(/[ -]/g, "")));
   };
   const elementsOf = (form) => Array.from(Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, "elements").get.call(form));
+  const FIELDS = "input,textarea,select,[contenteditable]";
+  const SKIP = ["submit", "button", "reset", "image", "fieldset", "object", "output"];
+  const editable = (e) => !!e.isContentEditable && !/^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName);
+  // Every field of a form, named or not, in document order, then those
+  // outside it that belong to it (form=). Through the prototype: a field
+  // named "elements" or "action" shadows the form's own.
+  const fieldsOf = (form) => {
+    const out = Array.from(form.querySelectorAll(FIELDS));
+    for (const e of elementsOf(form)) if (!out.includes(e)) out.push(e);
+    return out;
+  };
+  // stateOf is what a field holds, for the digest.
+  const stateOf = (e) => [e.tagName, String(e.type || ""), e.name || "", e.id || "",
+    editable(e) ? String(e.innerText || "") : e.tagName === "SELECT" ? "" : String(e.value == null ? "" : e.value),
+    !!e.checked, e.tagName === "SELECT" ? Array.from(e.selectedOptions || []).map((o) => o.value) : null];
   const summarize = (form) => {
     if (!form) return { action: "", method: "", fields: [] };
     const fields = [];
-    // Through the prototype: a field named "elements" or "action" shadows the form's own.
-    for (const f of elementsOf(form).slice(0, 60)) {
-      const ftype = (f.type || f.tagName || "").toLowerCase();
-      if (!(f.name || f.id) || ["submit", "button", "reset", "image", "fieldset", "object", "output"].includes(ftype)) continue;
-      if (ftype === "radio" && !f.checked) continue;
+    let n = 0;
+    for (const f of fieldsOf(form)) {
+      n++;
+      const ce = editable(f);
+      const ftype = ce ? "contenteditable" : (f.type || f.tagName || "").toLowerCase();
+      if (SKIP.includes(ftype) || (ftype === "radio" && !f.checked)) continue;
+      if (fields.length >= 60) break;
       let label = f.labels && f.labels[0] ? f.labels[0].innerText : (f.getAttribute("aria-label") || f.placeholder || "");
-      label = String(label).trim().slice(0, 80);
+      label = String(label || "").trim().slice(0, 80);
       let value;
-      if (ftype === "checkbox" || ftype === "radio") value = f.checked ? (f.value || "on") : "";
+      if (ce) value = String(f.innerText || "");
+      else if (ftype === "checkbox" || ftype === "radio") value = f.checked ? (f.value || "on") : "";
       else if (ftype === "file") value = Array.from(f.files || []).map((x) => x.name).join(", ");
       else if (f.tagName === "SELECT") value = Array.from(f.selectedOptions).map((o) => o.text).join(", ");
       else value = String(f.value || "");
       if (value && sensitive(f, ftype, value)) value = "•••";
       if (value.length > 200) value = value.slice(0, 200) + "…";
-      fields.push({ name: f.name || f.id, type: ftype, label, value });
+      // A field with no name is shown by its label, else its position.
+      fields.push({ name: f.name || f.id || label || "field " + n, type: ftype, label, value });
     }
     return { action: new URL(form.getAttribute("action") || "", location.href).href,
              method: (form.getAttribute("method") || "get").toLowerCase(), fields, selector: cssPath(form) };
@@ -119,7 +139,9 @@ const formLibJS = `
     return H.map((x) => ("00000000" + (x >>> 0).toString(16)).slice(-8)).join("");
   };
   const ctlOf = (el) => (el ? el.closest("button,input,a,[role=button]") || el : null);
-  const FIELDS = "input,textarea,select,[contenteditable]";
+  // A text field, the kind a control outside a form posts.
+  const texty = (e) => e.tagName === "TEXTAREA" || editable(e) ||
+    (e.tagName === "INPUT" && /^(text|search|email|url|tel|number|password|)$/i.test(e.type || ""));
   const digestOf = (form, ctl) => {
     const attr = (el, a) => (el && el.getAttribute(a)) || "";
     if (form) {
@@ -134,14 +156,19 @@ const formLibJS = `
         enctype: (attr(sub, "formenctype") || attr(form, "enctype") || "").toLowerCase(),
         submitter: ctl ? [attr(ctl, "formaction"), ctl.name || "", typeof ctl.value === "string" ? ctl.value : ""] : null,
         entries,
+        // Also the fields FormData leaves out: nameless inputs a script
+        // reads (React), rich-text editors, unchecked boxes.
+        fields: fieldsOf(form).map(stateOf),
       }));
     }
+    // No form: the fields of the nearest container that holds a text field
+    // before the control (its composer), not merely the nearest with any field.
     let box = ctl ? ctl.parentElement : null;
-    while (box && box !== document.body && !box.querySelector(FIELDS)) box = box.parentElement;
-    const els = box ? Array.from(box.querySelectorAll(FIELDS)) : [];
+    const holds = (b) => Array.from(b.querySelectorAll(FIELDS)).some((e) => texty(e) && (e.compareDocumentPosition(ctl) & 4));
+    while (box && box !== document.body && !holds(box)) box = box.parentElement;
     return sha256(JSON.stringify({
       control: ctl ? [ctl.tagName, ctl.name || "", typeof ctl.value === "string" ? ctl.value : ""] : null,
-      values: els.map((e) => [e.name || e.id || "", e.type || e.tagName, e.isContentEditable ? e.innerText : String(e.value == null ? "" : e.value)]),
+      fields: box ? Array.from(box.querySelectorAll(FIELDS)).map(stateOf) : [],
     }));
   };
 `
