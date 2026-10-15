@@ -1,0 +1,18 @@
+{
+  "id": "9b2e61c4-7a0f-4f5e-8c1d-3e5a7b9c0d12",
+  "execution_id": "browser:9b2e61c4-7a0f-4f5e-8c1d-3e5a7b9c0d12",
+  "workflow_id": "browser.site",
+  "workflow_name": "",
+  "node_id": "browser.site",
+  "node_name": "Use x.com",
+  "status": "pending",
+  "readonly_data": {
+    "origin": "https://x.com",
+    "url": "https://x.com/monoes/status/1846",
+    "kind": "coder",
+    "requested_by": { "role": "lead", "conversationId": "040abd27-0581-419b-817f-99a39f6885b0" }
+  },
+  "editable_data": {},
+  "node_config": { "kind": "browser.site" },
+  "created_at": "2026-10-15T20:41:07Z"
+}
