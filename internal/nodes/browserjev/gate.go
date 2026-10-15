@@ -181,7 +181,12 @@ func settleSubmits(ctx context.Context, g submitGuard, c caller) (*gateEnd, erro
 	b := blocked[len(blocked)-1] // one action, one submit: the latest form state
 	origin := browserctl.Origin(b.URL)
 	if browserctl.IsLocal(b.URL) {
-		return nil, g.Submit(ctx, b, "")
+		if err := g.Submit(ctx, b, ""); errors.Is(err, browserctl.ErrNotSent) {
+			return &gateEnd{"blocked", fmt.Sprintf("the form submit on %s was held and could not be repeated: %v", origin, err), ""}, nil
+		} else if err != nil {
+			return nil, err
+		}
+		return nil, nil
 	}
 	id, err := g.Ask(ctx, b, c.by)
 	if err != nil {
@@ -194,9 +199,10 @@ func settleSubmits(ctx context.Context, g submitGuard, c caller) (*gateEnd, erro
 		}
 		switch status {
 		case "approved":
-			var changed *browserctl.SubmitChangedError
-			if err := g.Submit(ctx, b, id); errors.As(err, &changed) {
-				return &gateEnd{"blocked", fmt.Sprintf("%v (Human-in-Loop item %s, handed back)", changed, id), id}, nil
+			// Nothing reached the page (it changed since the approval, the
+			// form is in a frame, …): the approval was handed back.
+			if err := g.Submit(ctx, b, id); errors.Is(err, browserctl.ErrNotSent) {
+				return &gateEnd{"blocked", fmt.Sprintf("%v (Human-in-Loop item %s, handed back)", err, id), id}, nil
 			} else if err != nil {
 				return nil, err
 			}

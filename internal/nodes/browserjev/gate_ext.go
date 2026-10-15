@@ -160,9 +160,13 @@ func (g *extGuard) Decision(ctx context.Context, hilID string) (string, error) {
 
 func (g *extGuard) Submit(ctx context.Context, b blockedSubmit, hilID string) error {
 	var err error
-	if hilID == "" {
+	switch {
+	case hilID == "" && b.FrameID != 0:
+		// ResubmitPage repeats in the top frame only.
+		return fmt.Errorf("%w: the form is in a frame of the page, where a held submit can't be repeated", browserctl.ErrNotSent)
+	case hilID == "":
 		err = resubmitPage(g.page, b.Form)
-	} else {
+	default:
 		it, cerr := browserctl.ClaimSubmitItem(ctx, g.db, g.profile, hilID)
 		if cerr != nil {
 			var used *browserctl.SubmitStateError
@@ -175,7 +179,7 @@ func (g *extGuard) Submit(ctx context.Context, b blockedSubmit, hilID string) er
 	}
 	if err != nil {
 		_, _ = g.page.SubmitGuard(extension.SubmitGuardArm) // drop an unused allow_once
-		err = fmt.Errorf("repeat the approved submit: %w", err)
+		err = fmt.Errorf("repeat the held submit: %w", err)
 	}
 	switch {
 	case hilID == "":
