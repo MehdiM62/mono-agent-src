@@ -123,6 +123,10 @@ func NewCommand(d Deps) *cobra.Command {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
+			profile, err := daemonProfile(cmd, d)
+			if err != nil {
+				return err
+			}
 			orgs := orgsvc.New(db, engine, d.OpenWorkflowStore)
 			registerQueueTriggers(engine, orgs.Logf)
 			engine.RegisterTriggerSource(workflow.TriggerNodeTypeSSE, workflow.NewSSETriggerSource(db.DB, orgs.Logf))
@@ -147,7 +151,7 @@ func NewCommand(d Deps) *cobra.Command {
 
 			servingAddr := ""
 			if apiOn {
-				addr, err := startDaemonAPI(ctx, d, db, engine, orgs, apiRT, apiAddr, allowMutations)
+				addr, err := startDaemonAPI(ctx, d, profile, db, engine, orgs, apiRT, apiAddr, allowMutations)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "warning: HTTP API not served: %v\n", err)
 				} else {
@@ -205,7 +209,7 @@ func NewCommand(d Deps) *cobra.Command {
 	api.Bind(c)
 	c.Flags().DurationVar(&stopGrace, "stop-grace", 10*time.Second, "On shutdown, how long runs in flight may take to finish before they are cancelled (a service manager kills the daemon about 35s after asking it to stop)")
 	c.Flags().BoolVar(&bridgeOn, "bridge", true, "Hold the Chrome extension bridge open in this process (same bridge 'extension serve' runs standalone)")
-	c.AddCommand(newDaemonInstallCmd(), newDaemonUninstallCmd(), NewRestartCommand(d))
+	c.AddCommand(newDaemonInstallCmd(d), newDaemonUninstallCmd(), NewRestartCommand(d))
 	return c
 }
 
@@ -249,9 +253,9 @@ func startDaemonBridge(ctx context.Context, d Deps) (addr string, closeFn func()
 
 // startDaemonAPI binds the HTTP API over the daemon's own database and
 // engine, records the address for endpoint URLs, and serves until ctx ends.
-func startDaemonAPI(ctx context.Context, d Deps, db *storage.Database, engine *workflow.WorkflowEngine, orgs *orgsvc.Services, api *apiruntime.Runtime, addr string, allowMutations bool) (string, error) {
+func startDaemonAPI(ctx context.Context, d Deps, profile string, db *storage.Database, engine *workflow.WorkflowEngine, orgs *orgsvc.Services, api *apiruntime.Runtime, addr string, allowMutations bool) (string, error) {
 	srv, err := httpapi.NewServer(httpapi.Options{
-		DB: db, Store: d.OpenWorkflowStore(db), Engine: engine, Profile: d.ProfileID(),
+		DB: db, Store: d.OpenWorkflowStore(db), Engine: engine, Profile: profile,
 		Addr: addr, AllowMutations: allowMutations, Version: d.API.Version(),
 		// The server has one ExtraRoutes slot: the org receiver and the
 		// OpenAI-compatible API both ride it.
@@ -284,4 +288,20 @@ func heartbeatSchedules(runs []workflow.ScheduledRun) []daemonhb.Schedule {
 		out = append(out, daemonhb.Schedule{WorkflowID: r.WorkflowID, NodeID: r.NodeID, NextRun: r.Next.UTC().Format(time.RFC3339)})
 	}
 	return out
+}
+
+// daemonProfile is the profile the daemon serves its HTTP API and defaults the engine to. It is
+// the --profile the daemon was started with (`daemon install` writes it into the service); the
+// daemon still runs every workflow under that workflow's own profile. Without an explicit
+// --profile it still runs on the fallback this release resolves, and says so on stderr: a service
+// registered before the profile was explicit is reported by `doctor` as out of date.
+func daemonProfile(cmd *cobra.Command, d Deps) (string, error) {
+	profile := d.ProfileID()
+	if profile == "" {
+		return "", fmt.Errorf("the daemon has no profile: start it with --profile <id>")
+	}
+	if f := cmd.Flag("profile"); f == nil || !f.Changed {
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: the daemon was started without --profile and is using profile %q; start it with --profile %s (re-run `daemon install --profile %s` for the service)\n", profile, profile, profile)
+	}
+	return profile, nil
 }

@@ -6,9 +6,12 @@ package autostart
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"html"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -31,8 +34,9 @@ const stopGrace = 35 * time.Second
 type Installer interface {
 	// Install writes the service definition and starts it now, replacing
 	// any previous registration under Label. Safe to call again over an
-	// existing install.
-	Install(ctx context.Context) (Result, error)
+	// existing install. The daemon is registered with --profile profileID,
+	// which is required: a service never relies on the active profile.
+	Install(ctx context.Context, profileID string) (Result, error)
 	// Uninstall stops the service and removes its definition. Safe to call
 	// when nothing is installed.
 	Uninstall(ctx context.Context) error
@@ -105,4 +109,38 @@ func logDir() (string, error) {
 		return "", fmt.Errorf("create %s: %w", dir, err)
 	}
 	return dir, nil
+}
+
+// errNoProfile is what Install returns for an empty profile id.
+var errNoProfile = errors.New("a profile id is required: the registered daemon always runs with --profile <id>")
+
+// RegisteredProfile is the profile the registered service definition starts the daemon with.
+// found is false when there is no definition or it names no --profile (an install from before the
+// profile was explicit): such a registration is out of date and `doctor fix` rewrites it.
+func RegisteredProfile() (profile string, found bool) {
+	text, err := registeredDefinition()
+	if err != nil {
+		return "", false
+	}
+	return profileFromDefinition(text)
+}
+
+// profileFromDefinition finds the value after --profile in a service definition: a systemd
+// ExecStart line, a launchd plist (one <string> per argument) or a schtasks XML export.
+func profileFromDefinition(text string) (string, bool) {
+	text = html.UnescapeString(text)
+	text = strings.NewReplacer("<string>", " ", "</string>", " ", "<Arguments>", " ", "</Arguments>", " ", "<Command>", " ", "</Command>", " ").Replace(text)
+	words := strings.Fields(text)
+	for i, w := range words {
+		w = strings.Trim(w, `"'`)
+		if w == "--profile" && i+1 < len(words) {
+			if v := strings.Trim(words[i+1], `"'`); v != "" {
+				return v, true
+			}
+		}
+		if v, ok := strings.CutPrefix(w, "--profile="); ok && v != "" {
+			return v, true
+		}
+	}
+	return "", false
 }

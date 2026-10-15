@@ -73,16 +73,17 @@ func TestInstallMonomindChecksWhichCopyIsUsed(t *testing.T) {
 	}
 }
 
-func TestDaemonArgsCarryDoctorsFlags(t *testing.T) {
-	if got := daemonArgs(capturecli.DefaultDBPath, "", "default"); strings.Join(got, " ") != "daemon" {
-		t.Errorf("defaults: %v", got)
+func TestDaemonArgsAlwaysCarryTheProfile(t *testing.T) {
+	got, err := daemonArgs(capturecli.DefaultDBPath, "default")
+	if err != nil || strings.Join(got, " ") != "daemon --profile default" {
+		t.Errorf("default profile: %v, %v", got, err)
 	}
-	if got := daemonArgs(capturecli.DefaultDBPath, "default", "default"); strings.Join(got, " ") != "daemon" {
-		t.Errorf("default profile: %v", got)
+	got, err = daemonArgs("/tmp/x.db", "p-123")
+	if err != nil || strings.Join(got, " ") != "daemon --db-path /tmp/x.db --profile p-123" {
+		t.Errorf("flags: %v, %v", got, err)
 	}
-	got := daemonArgs("/tmp/x.db", "Work", "p-123")
-	if strings.Join(got, " ") != "daemon --db-path /tmp/x.db --profile p-123" {
-		t.Errorf("flags: %v", got)
+	if got, err := daemonArgs(capturecli.DefaultDBPath, ""); err == nil {
+		t.Errorf("no profile gave %v, want an error", got)
 	}
 }
 
@@ -94,7 +95,7 @@ type fakeAutostart struct {
 	onRestart  func()
 }
 
-func (f *fakeAutostart) Install(context.Context) (autostart.Result, error) {
+func (f *fakeAutostart) Install(context.Context, string) (autostart.Result, error) {
 	return autostart.Result{}, nil
 }
 func (f *fakeAutostart) Uninstall(context.Context) error { return nil }
@@ -115,11 +116,13 @@ func (f *fakeAutostart) Restart(context.Context) error {
 func TestStartDaemonUsesTheServiceOnlyWithDefaults(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("MONOAGENT_DAEMON_HEARTBEAT", filepath.Join(t.TempDir(), "hb.json"))
+	registeredProfile = func() (string, bool) { return "p1", true }
+	t.Cleanup(func() { registeredProfile = autostart.RegisteredProfile })
 	as := &fakeAutostart{installed: true}
-	if err := startDaemon(context.Background(), []string{"daemon"}, as, func(string) {}); err != nil || as.started != 1 {
+	if err := startDaemon(context.Background(), []string{"daemon", "--profile", "p1"}, as, func(string) {}); err != nil || as.started != 1 {
 		t.Fatalf("defaults: %v, started %d", err, as.started)
 	}
-	err := startDaemon(context.Background(), []string{"daemon", "--db-path", "/tmp/x.db"}, as, func(string) {})
+	err := startDaemon(context.Background(), []string{"daemon", "--db-path", "/tmp/x.db", "--profile", "p1"}, as, func(string) {})
 	if err == nil || !strings.Contains(err.Error(), "--db-path /tmp/x.db") || as.started != 1 {
 		t.Fatalf("custom db: %v, started %d", err, as.started)
 	}
@@ -131,7 +134,9 @@ func TestDaemonStartBlockedIsTheRefusalStartDaemonGives(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("MONOAGENT_DAEMON_HEARTBEAT", filepath.Join(t.TempDir(), "hb.json"))
 	ctx := context.Background()
-	custom := []string{"daemon", "--db-path", "/tmp/x.db"}
+	registeredProfile = func() (string, bool) { return "p1", true }
+	t.Cleanup(func() { registeredProfile = autostart.RegisteredProfile })
+	custom := []string{"daemon", "--db-path", "/tmp/x.db", "--profile", "p1"}
 
 	registered := &fakeAutostart{installed: true}
 	want := startDaemon(ctx, custom, registered, func(string) {})
@@ -139,7 +144,7 @@ func TestDaemonStartBlockedIsTheRefusalStartDaemonGives(t *testing.T) {
 	if want == nil || got == nil || got.Error() != want.Error() {
 		t.Fatalf("daemonStartBlocked = %v, startDaemon = %v: want the same refusal", got, want)
 	}
-	if err := daemonStartBlocked(ctx, []string{"daemon"}, registered); err != nil {
+	if err := daemonStartBlocked(ctx, []string{"daemon", "--profile", "p1"}, registered); err != nil {
 		t.Errorf("the service starts the daemon with the defaults, but the check refused: %v", err)
 	}
 	if err := daemonStartBlocked(ctx, custom, &fakeAutostart{installed: false}); err != nil {
@@ -234,5 +239,32 @@ func TestHealthEnvJevKeyHook(t *testing.T) {
 			t.Errorf("%s with env key: %q %v", name, src, err)
 		}
 		closeFn()
+	}
+}
+
+// The service is registered for one profile: another profile is not started through it.
+func TestServiceStartRefusesAnotherProfile(t *testing.T) {
+	registeredProfile = func() (string, bool) { return "p1", true }
+	t.Cleanup(func() { registeredProfile = autostart.RegisteredProfile })
+	if err := serviceStartRefusal("/x", []string{"daemon", "--profile", "p2"}); err == nil {
+		t.Error("the service registered for p1 was used for p2")
+	}
+}
+
+// A unit written before the profile was explicit is reported out of date, not as in place.
+func TestAutostartStatusReportsAUnitWithoutAProfile(t *testing.T) {
+	t.Cleanup(func() { registeredProfile = autostart.RegisteredProfile })
+	as := &fakeAutostart{installed: true}
+	registeredProfile = func() (string, bool) { return "", false }
+	ok, where := autostartStatus(context.Background(), as)
+	if ok || !strings.Contains(where, "out of date") || !strings.Contains(where, "--profile") {
+		t.Errorf("old unit: ok=%v where=%q", ok, where)
+	}
+	registeredProfile = func() (string, bool) { return "p1", true }
+	if ok, _ := autostartStatus(context.Background(), as); !ok {
+		t.Error("a unit with a profile was reported out of date")
+	}
+	if ok, _ := autostartStatus(context.Background(), &fakeAutostart{}); ok {
+		t.Error("nothing registered reported as installed")
 	}
 }
