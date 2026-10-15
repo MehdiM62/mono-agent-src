@@ -60,6 +60,8 @@ type FormFiller interface {
 	Facts(ctx context.Context, profile string, queries []string) ([]FormFact, error)
 	// Complete runs one tool-less model turn and returns its text.
 	Complete(ctx context.Context, runtime, model, prompt string) (string, error)
+	// Info is what the profile's Info page holds (never photos or the card).
+	Info(ctx context.Context, profile string) ([]InfoValue, error)
 }
 
 // FormField is one field as the extension described it.
@@ -72,6 +74,7 @@ type FormField struct {
 	Placeholder  string
 	Options      []string
 	Required     bool
+	MaxLength    int
 }
 
 // FormValue is one answer.
@@ -94,7 +97,13 @@ func (s *Server) SetFormFiller(f FormFiller) {
 		delete(s.handlers, MethodFormFill)
 		delete(s.methodTimeouts, MethodFormFill)
 		s.handlerMu.Unlock()
+		s.removeFormAssets()
 		return
+	}
+	if a, ok := f.(FormAssets); ok {
+		s.installFormAssets(a)
+	} else {
+		s.removeFormAssets()
 	}
 	var mu sync.Mutex // one fill at a time: each one starts model and search processes
 	s.HandleRequestWithTimeout(MethodFormFill, func(ctx context.Context, req *Request, _ ProgressFunc) (any, error) {
@@ -118,7 +127,10 @@ var (
 	formFieldID    = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,64}$`)
 )
 
-func parseFormFields(req *Request) (fields []FormField, skipped int, err error) {
+// parseFormFields reads the fields of a request. A field that holds a secret
+// (a password, a card number, a one-time code) is dropped, unless forCard: the
+// card method wants exactly those, and picks them out itself.
+func parseFormFields(req *Request, forCard bool) (fields []FormField, skipped int, err error) {
 	raw, ok := req.Params["fields"].([]any)
 	if !ok || len(raw) == 0 {
 		return nil, 0, invalidParam("form.fill needs fields")
@@ -142,6 +154,9 @@ func parseFormFields(req *Request) (fields []FormField, skipped int, err error) 
 			Placeholder: str("placeholder", formMaxLabel),
 		}
 		f.Required, _ = m["required"].(bool)
+		if n, ok := m["maxlength"].(float64); ok && n > 0 && n < 1000 {
+			f.MaxLength = int(n)
+		}
 		if !formFieldID.MatchString(f.ID) || seen[f.ID] {
 			return nil, 0, invalidParam("every field needs its own id")
 		}
@@ -156,7 +171,7 @@ func parseFormFields(req *Request) (fields []FormField, skipped int, err error) 
 			}
 		}
 		hay := f.Name + " " + f.Label + " " + f.Placeholder
-		if formSkipTypes[f.Type] || formSecretName.MatchString(hay) || formSecretAuto.MatchString(f.Autocomplete) {
+		if formSkipTypes[f.Type] || (!forCard && (formSecretName.MatchString(hay) || formSecretAuto.MatchString(f.Autocomplete))) {
 			skipped++
 			continue
 		}
@@ -237,7 +252,7 @@ func handleFormFill(ctx context.Context, f FormFiller, req *Request) (any, error
 	if model != "" && (len(model) > chatMaxModelBytes || !safeArgValue(model)) {
 		return nil, invalidParam("invalid model")
 	}
-	fields, skipped, err := parseFormFields(req)
+	fields, skipped, err := parseFormFields(req, false)
 	if err != nil {
 		return nil, err
 	}
@@ -245,23 +260,53 @@ func handleFormFill(ctx context.Context, f FormFiller, req *Request) (any, error
 		return &FormFillReply{Values: []FormValue{}, Skipped: skipped}, nil
 	}
 
-	facts, err := f.Facts(ctx, profile, formQueries(fields))
+	// The Info page first, matched field by field with no model: its values
+	// are the person's own and the default for every site. What it does not
+	// answer goes to the model, with the Info and then the profile's documents
+	// as facts.
+	info, err := f.Info(ctx, profile)
 	if err != nil {
+		info = nil // the documents may still answer
+	}
+	exact, rest := matchInfo(fields, info)
+	if len(rest) == 0 {
+		return &FormFillReply{Values: exact, Skipped: skipped}, nil
+	}
+	facts, err := f.Facts(ctx, profile, formQueries(rest))
+	if err != nil && len(exact) == 0 && len(info) == 0 {
 		return nil, Unavailable("cannot search this profile's documents: %v", err)
 	}
-	facts = trimFacts(facts)
-	if len(facts) == 0 {
-		return &FormFillReply{Values: []FormValue{}, Skipped: skipped + len(fields)}, nil
+	facts = append(trimFacts(facts), modelFacts(info)...)
+	values := exact
+	if len(facts) > 0 {
+		text, err := f.Complete(ctx, runtime, model, buildFormPrompt(rest, facts))
+		if err != nil {
+			if len(exact) == 0 {
+				return nil, Unavailable("the model could not fill the form: %v", err)
+			}
+		} else if got, err := parseFormAnswer(text, rest, facts); err == nil {
+			values = append(values, got...)
+		} else if len(exact) == 0 {
+			return nil, Unavailable("the model's answer was not usable")
+		}
 	}
-	text, err := f.Complete(ctx, runtime, model, buildFormPrompt(fields, facts))
-	if err != nil {
-		return nil, Unavailable("the model could not fill the form: %v", err)
-	}
-	values, err := parseFormAnswer(text, fields, facts)
-	if err != nil {
-		return nil, Unavailable("the model's answer was not usable")
-	}
+	values = inFormOrder(fields, values)
 	return &FormFillReply{Values: values, Skipped: skipped + len(fields) - len(values)}, nil
+}
+
+// inFormOrder sorts values into the order of fields.
+func inFormOrder(fields []FormField, values []FormValue) []FormValue {
+	byID := make(map[string]FormValue, len(values))
+	for _, v := range values {
+		byID[v.ID] = v
+	}
+	out := make([]FormValue, 0, len(values))
+	for _, f := range fields {
+		if v, ok := byID[f.ID]; ok {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func trimFacts(in []FormFact) []FormFact {
